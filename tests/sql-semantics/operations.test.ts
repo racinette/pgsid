@@ -1,8 +1,10 @@
+import { createRequire } from 'node:module'
+import { fileURLToPath } from 'node:url'
 import { numericCases } from '../fixtures/sql-semantics/operations/numeric.js'
 import { observeFloat } from '../support/postgres/observe.js'
 import { sqlSemanticsCoverage } from '../../scripts/report-sql-semantics-coverage.js'
 import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
@@ -44,7 +46,7 @@ function typescriptProject(): string {
     ...typescriptSqlRuntime(helpers),
     ...emitted.map((result, index) =>
       factory.createFunctionDeclaration(
-        undefined,
+        [factory.createModifier(ts.SyntaxKind.ExportKeyword)],
         undefined,
         identifier(`evaluate${index}`),
         undefined,
@@ -62,10 +64,7 @@ function goProject(): string {
     package: 'main',
     imports: [{ path: 'encoding/json' }, { path: 'os' }, { path: 'fmt' }, { path: 'math' }],
     source:
-      goSqlRuntime(
-        emitted.flatMap((result) => result.helpers),
-        'main',
-      ) +
+      goSqlRuntime([...emitted.flatMap((result) => result.helpers), 'sqlDecimalText'], 'main') +
       `
       func main() {
         results := []map[string]string{}
@@ -81,6 +80,10 @@ function goProject(): string {
             if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
             } else if !value.Valid { result["kind"] = "null"
             } else { result["kind"] = "value"; result["value"] = strconv.FormatBool(value.Value) }
+          case SqlDecimal:
+            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
+            } else if !value.Valid { result["kind"] = "null"
+            } else { result["kind"] = "value"; result["value"] = sqlDecimalText(value) }
           case SqlFloat:
             if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
             } else if !value.Valid { result["kind"] = "null"
@@ -109,7 +112,9 @@ function goProject(): string {
                 ? 'SqlBoolean'
                 : /^pg_catalog.float[48]$/.test(result.value.type)
                   ? 'SqlFloat'
-                  : 'SqlInteger',
+                  : result.value.type === 'pg_catalog."numeric"'
+                    ? 'SqlDecimal'
+                    : 'SqlInteger',
             ),
           },
         ],
@@ -134,7 +139,11 @@ describe('generated PostgreSQL numeric evaluation', () => {
   it('executes the generated TypeScript against the shared cases', () => {
     const source = typescriptProject()
     const output = ts.transpileModule(source, {
-      compilerOptions: { target: ts.ScriptTarget.ES2022 },
+      compilerOptions: {
+        target: ts.ScriptTarget.ES2022,
+        module: ts.ModuleKind.CommonJS,
+        esModuleInterop: true,
+      },
     }).outputText
     const results: SqlObservation[] = runInNewContext(
       output +
@@ -142,20 +151,34 @@ describe('generated PostgreSQL numeric evaluation', () => {
       try { const value = fn(); const type = resultTypes[index]; return value === null ? { kind: 'null' } : type === 'pg_catalog.float4' || type === 'pg_catalog.float8' ? observeFloat(value,type) : { kind: 'value', value: value.toString() } }
       catch (error) { return { kind: 'error', code: error.code } }
     })`,
-      { observeFloat, resultTypes: cases.map((fixture) => fixture.expression.type) },
+      {
+        require: createRequire(import.meta.url),
+        exports: {},
+        observeFloat,
+        resultTypes: cases.map((fixture) => fixture.expression.type),
+      },
     )
-    expect(results).toEqual(cases.map((fixture) => fixture.expected))
+    for (const [index, fixture] of cases.entries())
+      expect(results[index], fixture.name).toEqual(fixture.expected)
   })
 
   it('typechecks the complete generated TypeScript project', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'pgsid-sql-semantics-typescript-'))
     try {
+      await symlink(
+        fileURLToPath(new URL('../../node_modules', import.meta.url)),
+        join(directory, 'node_modules'),
+        'dir',
+      )
       const path = join(directory, 'project.ts')
       await writeFile(path, typescriptProject())
       const program = ts.createProgram([path], {
         strict: true,
         noEmit: true,
         target: ts.ScriptTarget.ES2022,
+        module: ts.ModuleKind.ESNext,
+        moduleResolution: ts.ModuleResolutionKind.Bundler,
+        esModuleInterop: true,
         types: [],
         lib: ['lib.es2022.d.ts'],
         skipLibCheck: true,
@@ -173,7 +196,14 @@ describe('generated PostgreSQL numeric evaluation', () => {
   it('executes the generated Go against the shared cases', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'pgsid-sql-semantics-'))
     try {
-      await writeFile(join(directory, 'go.mod'), 'module pgsidsemantics\n\ngo 1.22\n')
+      await writeFile(
+        join(directory, 'go.mod'),
+        await readFile(new URL('../fixtures/sql-semantics/projects/go.mod', import.meta.url)),
+      )
+      await writeFile(
+        join(directory, 'go.sum'),
+        await readFile(new URL('../fixtures/sql-semantics/projects/go.sum', import.meta.url)),
+      )
       await writeFile(join(directory, 'main.go'), goProject())
       const { stdout } = await run(process.env.PGSID_GO_BINARY ?? 'go', ['run', '.'], {
         cwd: directory,
@@ -182,9 +212,14 @@ describe('generated PostgreSQL numeric evaluation', () => {
           ...process.env,
           GOCACHE: join(tmpdir(), 'pgsid-sql-semantics-go-cache'),
           GOTOOLCHAIN: 'local',
+          GOMODCACHE: process.env.GOMODCACHE ?? join(tmpdir(), 'pgsid-decimal-go-mod-cache'),
+          GOFLAGS: '-mod=readonly',
         },
       })
-      expect(JSON.parse(stdout)).toEqual(cases.map((fixture) => fixture.expected))
+      const results: SqlObservation[] = JSON.parse(stdout)
+      expect(results).toHaveLength(cases.length)
+      for (const [index, fixture] of cases.entries())
+        expect(results[index], fixture.name).toEqual(fixture.expected)
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
@@ -207,10 +242,31 @@ describe('generated PostgreSQL numeric evaluation', () => {
       'float8 utility sqrt 3',
       'float8 utility cbrt 3',
       'float8 utility sign 14',
+      'numeric parsing: parse 1.2300',
+      'numeric finite arithmetic: add 0.1 / 0.2',
+      'numeric comparisons: eq NaN / NaN',
+      'numeric rounding: round -1.005 at 2',
+      'numeric function gcd 12.00/18.0',
+      'numeric to pg_catalog.int8 2.5',
+      'pg_catalog.float4 to numeric 0.1',
+      'numeric to pg_catalog.float4 7.038531e-26',
+      'numeric typmod 3/2 9.995',
     ]
     const directory = await mkdtemp(join(tmpdir(), 'pgsid-isolated-numerics-'))
     try {
-      await writeFile(join(directory, 'go.mod'), 'module isolatednumerics\n\ngo 1.22\n')
+      await symlink(
+        fileURLToPath(new URL('../../node_modules', import.meta.url)),
+        join(directory, 'node_modules'),
+        'dir',
+      )
+      await writeFile(
+        join(directory, 'go.mod'),
+        await readFile(new URL('../fixtures/sql-semantics/projects/go.mod', import.meta.url)),
+      )
+      await writeFile(
+        join(directory, 'go.sum'),
+        await readFile(new URL('../fixtures/sql-semantics/projects/go.sum', import.meta.url)),
+      )
       const paths: string[] = []
       for (const [index, name] of names.entries()) {
         const fixture = numericCases.find((fixture) => fixture.name === name)
@@ -245,7 +301,9 @@ describe('generated PostgreSQL numeric evaluation', () => {
                         ? 'SqlBoolean'
                         : /^pg_catalog.float[48]$/.test(emitted.value.type)
                           ? 'SqlFloat'
-                          : 'SqlInteger',
+                          : emitted.value.type === 'pg_catalog."numeric"'
+                            ? 'SqlDecimal'
+                            : 'SqlInteger',
                     ),
                   },
                 ],
@@ -259,6 +317,9 @@ describe('generated PostgreSQL numeric evaluation', () => {
         strict: true,
         noEmit: true,
         target: ts.ScriptTarget.ES2022,
+        module: ts.ModuleKind.ESNext,
+        moduleResolution: ts.ModuleResolutionKind.Bundler,
+        esModuleInterop: true,
         types: [],
         lib: ['lib.es2022.d.ts'],
         skipLibCheck: true,
@@ -275,6 +336,8 @@ describe('generated PostgreSQL numeric evaluation', () => {
           ...process.env,
           GOCACHE: join(tmpdir(), 'pgsid-sql-semantics-go-cache'),
           GOTOOLCHAIN: 'local',
+          GOMODCACHE: process.env.GOMODCACHE ?? join(tmpdir(), 'pgsid-decimal-go-mod-cache'),
+          GOFLAGS: '-mod=readonly',
         },
       })
     } finally {
@@ -303,19 +366,47 @@ describe('generated PostgreSQL numeric evaluation', () => {
         const floatTypes = new Set(['pg_catalog.float4', 'pg_catalog.float8'])
         const integers = metadata.args.every((type) => integerTypes.has(type))
         const floats = metadata.args.every((type) => floatTypes.has(type))
+        const decimals = metadata.args.some((type) => type === 'pg_catalog."numeric"')
+        const decimalFunctions = [
+          'abs',
+          'ceil',
+          'ceiling',
+          'floor',
+          'sign',
+          'round',
+          'trunc',
+          'mod',
+          'div',
+          'gcd',
+          'lcm',
+          'numeric',
+          'int2',
+          'int4',
+          'int8',
+          'float4',
+          'float8',
+        ]
         const primitives = metadata.args.every(
           (type) => integerTypes.has(type) || floatTypes.has(type),
         )
         if (metadata.kind === 'operator') {
-          return integers || (floats && metadata.name !== '^')
+          return (
+            integers ||
+            ((floats || metadata.args.every((type) => type === 'pg_catalog."numeric"')) &&
+              ['+', '-', '*', '/', '%', '=', '<>', '<', '<=', '>', '>=', '@', '|/', '||/'].includes(
+                metadata.name,
+              ))
+          )
         }
         return (
           metadata.kind === 'function' &&
-          ((floats &&
-            metadata.args.length === 1 &&
-            ['ceil', 'ceiling', 'floor', 'round', 'trunc', 'sign', 'sqrt', 'cbrt'].includes(
-              metadata.name,
-            )) ||
+          ((decimals && decimalFunctions.includes(metadata.name)) ||
+            (metadata.name === 'numeric' && primitives && metadata.args.length === 1) ||
+            (floats &&
+              metadata.args.length === 1 &&
+              ['ceil', 'ceiling', 'floor', 'round', 'trunc', 'sign', 'sqrt', 'cbrt'].includes(
+                metadata.name,
+              )) ||
             (primitives &&
               metadata.args.length === 1 &&
               ['abs', 'int2', 'int4', 'int8', 'float4', 'float8'].includes(metadata.name)) ||
@@ -327,7 +418,7 @@ describe('generated PostgreSQL numeric evaluation', () => {
       .map(([signature]) => signature)
       .sort()
     expect(supported.map((row) => row.signature).sort()).toEqual(expected)
-    expect(supported).toHaveLength(208)
+    expect(supported).toHaveLength(246)
     expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
     expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
   })
@@ -431,6 +522,14 @@ describe('generated PostgreSQL numeric evaluation', () => {
         goSqlBackend,
       ),
     ).toThrow('Invalid float literal bits')
+    for (const value of ['', '1.2.3', '0x10', 'NaN ', 'Infinity;']) {
+      expect(() =>
+        emitSqlExpression(
+          { kind: 'decimal', type: 'pg_catalog."numeric"', value },
+          typescriptSqlBackend,
+        ),
+      ).toThrow('Invalid decimal literal')
+    }
     expect(() => typescriptSqlRuntime(['missing'])).toThrow('Missing TypeScript SQL helper')
     expect(() => goSqlRuntime(['missing'])).toThrow('Missing Go SQL helper')
   })

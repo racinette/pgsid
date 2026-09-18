@@ -59,7 +59,7 @@ describe('PostgreSQL builtin inventory', () => {
     }
   })
 
-  it('uses the pinned catalog conversion functions for integer and floating-point casts', async () => {
+  it('uses the pinned catalog conversion functions for numeric casts', async () => {
     const result = await pg.query<{
       source: string
       target: string
@@ -67,24 +67,26 @@ describe('PostgreSQL builtin inventory', () => {
       method: string
       context: string
     }>(`
-      SELECT 'pg_catalog.' || source.typname AS source,
-        'pg_catalog.' || target.typname AS target,
+      SELECT 'pg_catalog.' || quote_ident(source.typname) AS source,
+        'pg_catalog.' || quote_ident(target.typname) AS target,
         p.proname AS function, c.castmethod AS method, c.castcontext AS context
       FROM pg_cast c
       JOIN pg_type source ON source.oid = c.castsource
       JOIN pg_type target ON target.oid = c.casttarget
       JOIN pg_proc p ON p.oid = c.castfunc
-      WHERE c.castsource IN ('int2'::regtype, 'int4'::regtype, 'int8'::regtype, 'float4'::regtype, 'float8'::regtype)
-        AND c.casttarget IN ('int2'::regtype, 'int4'::regtype, 'int8'::regtype, 'float4'::regtype, 'float8'::regtype)
+      WHERE c.castsource IN ('int2'::regtype, 'int4'::regtype, 'int8'::regtype, 'numeric'::regtype, 'float4'::regtype, 'float8'::regtype)
+        AND c.casttarget IN ('int2'::regtype, 'int4'::regtype, 'int8'::regtype, 'numeric'::regtype, 'float4'::regtype, 'float8'::regtype)
+        AND c.castsource <> c.casttarget
     `)
     const castOrder = [
       'pg_catalog.int2',
       'pg_catalog.int4',
       'pg_catalog.int8',
+      'pg_catalog."numeric"',
       'pg_catalog.float4',
       'pg_catalog.float8',
     ]
-    expect(result.rows).toHaveLength(20)
+    expect(result.rows).toHaveLength(30)
     for (const row of result.rows) {
       const signature = `function:${JSON.stringify(['pg_catalog', row.function])}(${row.source})`
       const metadata = functionMetadata(signature)

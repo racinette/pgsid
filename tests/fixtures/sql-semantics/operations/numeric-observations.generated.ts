@@ -20737,4 +20737,6208 @@ export const numericObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'error',
     code: '22012',
   },
+  'numeric parsing: parse 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric parsing: parse -0.0000': {
+    kind: 'value',
+    value: '0.0000',
+  },
+  'numeric parsing: parse 1.2300': {
+    kind: 'value',
+    value: '1.2300',
+  },
+  'numeric parsing: parse 1.00e-3': {
+    kind: 'value',
+    value: '0.00100',
+  },
+  'numeric parsing: parse 1e40': {
+    kind: 'value',
+    value: '10000000000000000000000000000000000000000',
+  },
+  'numeric parsing: parse 1e-100': {
+    kind: 'value',
+    value:
+      '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001',
+  },
+  'numeric parsing: parse 9007199254740993.0001': {
+    kind: 'value',
+    value: '9007199254740993.0001',
+  },
+  'numeric parsing: parse 9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999':
+    {
+      kind: 'value',
+      value:
+        '9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999',
+    },
+  'numeric parsing: parse NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric parsing: parse Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric parsing: parse -Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric finite arithmetic: add 0.1 / 0.2': {
+    kind: 'value',
+    value: '0.3',
+  },
+  'numeric finite arithmetic: sub 0.1 / 0.2': {
+    kind: 'value',
+    value: '-0.1',
+  },
+  'numeric finite arithmetic: mul 0.1 / 0.2': {
+    kind: 'value',
+    value: '0.02',
+  },
+  'numeric finite arithmetic: mod 0.1 / 0.2': {
+    kind: 'value',
+    value: '0.1',
+  },
+  'numeric finite arithmetic: add 1.2300 / 2.1': {
+    kind: 'value',
+    value: '3.3300',
+  },
+  'numeric finite arithmetic: sub 1.2300 / 2.1': {
+    kind: 'value',
+    value: '-0.8700',
+  },
+  'numeric finite arithmetic: mul 1.2300 / 2.1': {
+    kind: 'value',
+    value: '2.58300',
+  },
+  'numeric finite arithmetic: mod 1.2300 / 2.1': {
+    kind: 'value',
+    value: '1.2300',
+  },
+  'numeric finite arithmetic: add -1.2300 / 2.1': {
+    kind: 'value',
+    value: '0.8700',
+  },
+  'numeric finite arithmetic: sub -1.2300 / 2.1': {
+    kind: 'value',
+    value: '-3.3300',
+  },
+  'numeric finite arithmetic: mul -1.2300 / 2.1': {
+    kind: 'value',
+    value: '-2.58300',
+  },
+  'numeric finite arithmetic: mod -1.2300 / 2.1': {
+    kind: 'value',
+    value: '-1.2300',
+  },
+  'numeric finite arithmetic: add -7.00 / 3.0': {
+    kind: 'value',
+    value: '-4.00',
+  },
+  'numeric finite arithmetic: sub -7.00 / 3.0': {
+    kind: 'value',
+    value: '-10.00',
+  },
+  'numeric finite arithmetic: mul -7.00 / 3.0': {
+    kind: 'value',
+    value: '-21.000',
+  },
+  'numeric finite arithmetic: mod -7.00 / 3.0': {
+    kind: 'value',
+    value: '-1.00',
+  },
+  'numeric finite arithmetic: add 7.00 / -3.0': {
+    kind: 'value',
+    value: '4.00',
+  },
+  'numeric finite arithmetic: sub 7.00 / -3.0': {
+    kind: 'value',
+    value: '10.00',
+  },
+  'numeric finite arithmetic: mul 7.00 / -3.0': {
+    kind: 'value',
+    value: '-21.000',
+  },
+  'numeric finite arithmetic: mod 7.00 / -3.0': {
+    kind: 'value',
+    value: '1.00',
+  },
+  'numeric finite arithmetic: add 0.00000000000000000001 / 3': {
+    kind: 'value',
+    value: '3.00000000000000000001',
+  },
+  'numeric finite arithmetic: sub 0.00000000000000000001 / 3': {
+    kind: 'value',
+    value: '-2.99999999999999999999',
+  },
+  'numeric finite arithmetic: mul 0.00000000000000000001 / 3': {
+    kind: 'value',
+    value: '0.00000000000000000003',
+  },
+  'numeric finite arithmetic: mod 0.00000000000000000001 / 3': {
+    kind: 'value',
+    value: '0.00000000000000000001',
+  },
+  'numeric finite arithmetic: add 123456789012345678901234567890 / 1': {
+    kind: 'value',
+    value: '123456789012345678901234567891',
+  },
+  'numeric finite arithmetic: sub 123456789012345678901234567890 / 1': {
+    kind: 'value',
+    value: '123456789012345678901234567889',
+  },
+  'numeric finite arithmetic: mul 123456789012345678901234567890 / 1': {
+    kind: 'value',
+    value: '123456789012345678901234567890',
+  },
+  'numeric finite arithmetic: mod 123456789012345678901234567890 / 1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric finite arithmetic: add 1e100 / 1': {
+    kind: 'value',
+    value:
+      '10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001',
+  },
+  'numeric finite arithmetic: sub 1e100 / 1': {
+    kind: 'value',
+    value:
+      '9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999',
+  },
+  'numeric finite arithmetic: mul 1e100 / 1': {
+    kind: 'value',
+    value:
+      '10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric finite arithmetic: mod 1e100 / 1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric finite arithmetic: add 9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999 / 99999999999999999999999999999999999999999999999999999999999999999999999999999999':
+    {
+      kind: 'value',
+      value:
+        '10000000000000000000099999999999999999999999999999999999999999999999999999999999999999999999999999998',
+    },
+  'numeric finite arithmetic: sub 9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999 / 99999999999999999999999999999999999999999999999999999999999999999999999999999999':
+    {
+      kind: 'value',
+      value:
+        '9999999999999999999900000000000000000000000000000000000000000000000000000000000000000000000000000000',
+    },
+  'numeric finite arithmetic: mul 9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999 / 99999999999999999999999999999999999999999999999999999999999999999999999999999999':
+    {
+      kind: 'value',
+      value:
+        '999999999999999999999999999999999999999999999999999999999999999999999999999999989999999999999999999900000000000000000000000000000000000000000000000000000000000000000000000000000001',
+    },
+  'numeric finite arithmetic: mod 9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999 / 99999999999999999999999999999999999999999999999999999999999999999999999999999999':
+    {
+      kind: 'value',
+      value: '99999999999999999999',
+    },
+  'numeric finite arithmetic: add 1.2345678901234567890123456789 / 9.8765432109876543210987654321':
+    {
+      kind: 'value',
+      value: '11.1111111011111111101111111110',
+    },
+  'numeric finite arithmetic: sub 1.2345678901234567890123456789 / 9.8765432109876543210987654321':
+    {
+      kind: 'value',
+      value: '-8.6419753208641975320864197532',
+    },
+  'numeric finite arithmetic: mul 1.2345678901234567890123456789 / 9.8765432109876543210987654321':
+    {
+      kind: 'value',
+      value: '12.19326311370217952261850327336229233322374638011112635269',
+    },
+  'numeric finite arithmetic: mod 1.2345678901234567890123456789 / 9.8765432109876543210987654321':
+    {
+      kind: 'value',
+      value: '1.2345678901234567890123456789',
+    },
+  'numeric division: div 0 / 3': {
+    kind: 'value',
+    value: '0.00000000000000000000',
+  },
+  'numeric division: div 1 / 3': {
+    kind: 'value',
+    value: '0.33333333333333333333',
+  },
+  'numeric division: div 2 / 3': {
+    kind: 'value',
+    value: '0.66666666666666666667',
+  },
+  'numeric division: div 1.00 / 2': {
+    kind: 'value',
+    value: '0.50000000000000000000',
+  },
+  'numeric division: div 10 / 3': {
+    kind: 'value',
+    value: '3.3333333333333333',
+  },
+  'numeric division: div 10000 / 3': {
+    kind: 'value',
+    value: '3333.3333333333333333',
+  },
+  'numeric division: div 1e20 / 3': {
+    kind: 'value',
+    value: '33333333333333333333',
+  },
+  'numeric division: div 1e-100 / 3': {
+    kind: 'value',
+    value:
+      '0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000033333333333333333333',
+  },
+  'numeric division: div 1 / 1e100': {
+    kind: 'value',
+    value:
+      '0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000',
+  },
+  'numeric division: div 1.000000000000000000000000 / 3': {
+    kind: 'value',
+    value: '0.333333333333333333333333',
+  },
+  'numeric division: div -7.00 / 3.0': {
+    kind: 'value',
+    value: '-2.3333333333333333',
+  },
+  'numeric division: div 7.00 / -3.0': {
+    kind: 'value',
+    value: '-2.3333333333333333',
+  },
+  'numeric division: div 123456789012345678901234567890 / 7': {
+    kind: 'value',
+    value: '17636684144620811271604938270',
+  },
+  'numeric division: div 1.2345 / 0.9876': {
+    kind: 'value',
+    value: '1.2500000000000000',
+  },
+  'numeric division: div 1.0000 / 1.0001': {
+    kind: 'value',
+    value: '0.99990000999900009999',
+  },
+  'numeric division: div 9999 / 10000': {
+    kind: 'value',
+    value: '0.99990000000000000000',
+  },
+  'numeric division: div 10000 / 9999': {
+    kind: 'value',
+    value: '1.0001000100010001',
+  },
+  'numeric division: div 1.0000000000000000000050000000000000000000000000000000000000001 / 1': {
+    kind: 'value',
+    value: '1.0000000000000000000050000000000000000000000000000000000000001',
+  },
+  'numeric rounding: round 2.5 at -3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric rounding: round 2.5 at -1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric rounding: round 2.5 at 0': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric rounding: round 2.5 at 2': {
+    kind: 'value',
+    value: '2.50',
+  },
+  'numeric rounding: round 2.5 at 3': {
+    kind: 'value',
+    value: '2.500',
+  },
+  'numeric rounding: round 2.5 at 8': {
+    kind: 'value',
+    value: '2.50000000',
+  },
+  'numeric rounding: round -2.5 at -3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric rounding: round -2.5 at -1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric rounding: round -2.5 at 0': {
+    kind: 'value',
+    value: '-3',
+  },
+  'numeric rounding: round -2.5 at 2': {
+    kind: 'value',
+    value: '-2.50',
+  },
+  'numeric rounding: round -2.5 at 3': {
+    kind: 'value',
+    value: '-2.500',
+  },
+  'numeric rounding: round -2.5 at 8': {
+    kind: 'value',
+    value: '-2.50000000',
+  },
+  'numeric rounding: round 1.005 at -3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric rounding: round 1.005 at -1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric rounding: round 1.005 at 0': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric rounding: round 1.005 at 2': {
+    kind: 'value',
+    value: '1.01',
+  },
+  'numeric rounding: round 1.005 at 3': {
+    kind: 'value',
+    value: '1.005',
+  },
+  'numeric rounding: round 1.005 at 8': {
+    kind: 'value',
+    value: '1.00500000',
+  },
+  'numeric rounding: round -1.005 at -3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric rounding: round -1.005 at -1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric rounding: round -1.005 at 0': {
+    kind: 'value',
+    value: '-1',
+  },
+  'numeric rounding: round -1.005 at 2': {
+    kind: 'value',
+    value: '-1.01',
+  },
+  'numeric rounding: round -1.005 at 3': {
+    kind: 'value',
+    value: '-1.005',
+  },
+  'numeric rounding: round -1.005 at 8': {
+    kind: 'value',
+    value: '-1.00500000',
+  },
+  'numeric rounding: round 999.995 at -3': {
+    kind: 'value',
+    value: '1000',
+  },
+  'numeric rounding: round 999.995 at -1': {
+    kind: 'value',
+    value: '1000',
+  },
+  'numeric rounding: round 999.995 at 0': {
+    kind: 'value',
+    value: '1000',
+  },
+  'numeric rounding: round 999.995 at 2': {
+    kind: 'value',
+    value: '1000.00',
+  },
+  'numeric rounding: round 999.995 at 3': {
+    kind: 'value',
+    value: '999.995',
+  },
+  'numeric rounding: round 999.995 at 8': {
+    kind: 'value',
+    value: '999.99500000',
+  },
+  'numeric rounding: round -999.995 at -3': {
+    kind: 'value',
+    value: '-1000',
+  },
+  'numeric rounding: round -999.995 at -1': {
+    kind: 'value',
+    value: '-1000',
+  },
+  'numeric rounding: round -999.995 at 0': {
+    kind: 'value',
+    value: '-1000',
+  },
+  'numeric rounding: round -999.995 at 2': {
+    kind: 'value',
+    value: '-1000.00',
+  },
+  'numeric rounding: round -999.995 at 3': {
+    kind: 'value',
+    value: '-999.995',
+  },
+  'numeric rounding: round -999.995 at 8': {
+    kind: 'value',
+    value: '-999.99500000',
+  },
+  'numeric rounding: round 0.0005 at -3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric rounding: round 0.0005 at -1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric rounding: round 0.0005 at 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric rounding: round 0.0005 at 2': {
+    kind: 'value',
+    value: '0.00',
+  },
+  'numeric rounding: round 0.0005 at 3': {
+    kind: 'value',
+    value: '0.001',
+  },
+  'numeric rounding: round 0.0005 at 8': {
+    kind: 'value',
+    value: '0.00050000',
+  },
+  'numeric rounding: round -0.0005 at -3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric rounding: round -0.0005 at -1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric rounding: round -0.0005 at 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric rounding: round -0.0005 at 2': {
+    kind: 'value',
+    value: '0.00',
+  },
+  'numeric rounding: round -0.0005 at 3': {
+    kind: 'value',
+    value: '-0.001',
+  },
+  'numeric rounding: round -0.0005 at 8': {
+    kind: 'value',
+    value: '-0.00050000',
+  },
+  'numeric rounding: round 123456789012345678901234567890.5 at -3': {
+    kind: 'value',
+    value: '123456789012345678901234568000',
+  },
+  'numeric rounding: round 123456789012345678901234567890.5 at -1': {
+    kind: 'value',
+    value: '123456789012345678901234567890',
+  },
+  'numeric rounding: round 123456789012345678901234567890.5 at 0': {
+    kind: 'value',
+    value: '123456789012345678901234567891',
+  },
+  'numeric rounding: round 123456789012345678901234567890.5 at 2': {
+    kind: 'value',
+    value: '123456789012345678901234567890.50',
+  },
+  'numeric rounding: round 123456789012345678901234567890.5 at 3': {
+    kind: 'value',
+    value: '123456789012345678901234567890.500',
+  },
+  'numeric rounding: round 123456789012345678901234567890.5 at 8': {
+    kind: 'value',
+    value: '123456789012345678901234567890.50000000',
+  },
+  'numeric comparisons: eq 1.00 / 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: ne 1.00 / 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric comparisons: lt 1.00 / 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric comparisons: le 1.00 / 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: gt 1.00 / 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric comparisons: ge 1.00 / 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: eq -0.00 / 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: ne -0.00 / 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric comparisons: lt -0.00 / 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric comparisons: le -0.00 / 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: gt -0.00 / 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric comparisons: ge -0.00 / 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: eq NaN / NaN': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: ne NaN / NaN': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric comparisons: lt NaN / NaN': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric comparisons: le NaN / NaN': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: gt NaN / NaN': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric comparisons: ge NaN / NaN': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: eq NaN / Infinity': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric comparisons: ne NaN / Infinity': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: lt NaN / Infinity': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric comparisons: le NaN / Infinity': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric comparisons: gt NaN / Infinity': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: ge NaN / Infinity': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: eq Infinity / NaN': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric comparisons: ne Infinity / NaN': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: lt Infinity / NaN': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: le Infinity / NaN': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: gt Infinity / NaN': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric comparisons: ge Infinity / NaN': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric comparisons: eq -Infinity / 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric comparisons: ne -Infinity / 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: lt -Infinity / 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: le -Infinity / 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric comparisons: gt -Infinity / 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric comparisons: ge -Infinity / 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'numeric special values: add NaN / 0': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: sub NaN / 0': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: mul NaN / 0': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: div NaN / 0': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: mod NaN / 0': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: add 0 / NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: sub 0 / NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: mul 0 / NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: div 0 / NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: mod 0 / NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: add Infinity / Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric special values: sub Infinity / Infinity': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: mul Infinity / Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric special values: div Infinity / Infinity': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: mod Infinity / Infinity': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: add Infinity / -Infinity': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: sub Infinity / -Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric special values: mul Infinity / -Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric special values: div Infinity / -Infinity': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: mod Infinity / -Infinity': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: add Infinity / 0': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric special values: sub Infinity / 0': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric special values: mul Infinity / 0': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: div Infinity / 0': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric special values: mod Infinity / 0': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric special values: add 0 / Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric special values: sub 0 / Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric special values: mul 0 / Infinity': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: div 0 / Infinity': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric special values: mod 0 / Infinity': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric special values: add 1 / Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric special values: sub 1 / Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric special values: mul 1 / Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric special values: div 1 / Infinity': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric special values: mod 1 / Infinity': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric special values: add -1 / Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric special values: sub -1 / Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric special values: mul -1 / Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric special values: div -1 / Infinity': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric special values: mod -1 / Infinity': {
+    kind: 'value',
+    value: '-1',
+  },
+  'numeric special values: add Infinity / 2': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric special values: sub Infinity / 2': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric special values: mul Infinity / 2': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric special values: div Infinity / 2': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric special values: mod Infinity / 2': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: add -Infinity / 2': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric special values: sub -Infinity / 2': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric special values: mul -Infinity / 2': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric special values: div -Infinity / 2': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric special values: mod -Infinity / 2': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric zero divisor: div 0 / 0': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric zero divisor: div 1 / 0': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric zero divisor: div -1 / 0': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric zero divisor: div NaN / 0': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric zero divisor: div Infinity / 0': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric zero divisor: mod 0 / 0': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric zero divisor: mod 1 / 0': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric zero divisor: mod -1 / 0': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric zero divisor: mod NaN / 0': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric zero divisor: mod Infinity / 0': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric null: add null / 0': {
+    kind: 'null',
+  },
+  'numeric null: sub null / 0': {
+    kind: 'null',
+  },
+  'numeric null: mul null / 0': {
+    kind: 'null',
+  },
+  'numeric null: div null / 0': {
+    kind: 'null',
+  },
+  'numeric null: mod null / 0': {
+    kind: 'null',
+  },
+  'numeric null: eq null / 0': {
+    kind: 'null',
+  },
+  'numeric null: round null / 0 at 0': {
+    kind: 'null',
+  },
+  'numeric composition: cancel 123456789012345678901234567890 / 1 sum': {
+    kind: 'value',
+    value: '123456789012345678901234567891',
+  },
+  'numeric composition: cancel 123456789012345678901234567890 / 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric composition: cancel 1e100 / 1 sum': {
+    kind: 'value',
+    value:
+      '10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001',
+  },
+  'numeric composition: cancel 1e100 / 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric range limits: parse 1e100000': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric range limits: parse 1e100001': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric range limits: parse 1e131071': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric range limits: parse 1e131072': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric range limits: parse 1e-16383': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric range limits: parse 1e-16384': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric range limits: add 1e100001 / 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric range limits: mul 1e131071 / 10': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric special values: round NaN at 2': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric special values: round Infinity at 2': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric special values: round -Infinity at 2': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric unary + null': {
+    kind: 'null',
+  },
+  'numeric unary + 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary + -0.000': {
+    kind: 'value',
+    value: '0.000',
+  },
+  'numeric unary + 1.2300': {
+    kind: 'value',
+    value: '1.2300',
+  },
+  'numeric unary + -1.2300': {
+    kind: 'value',
+    value: '-1.2300',
+  },
+  'numeric unary + 2.5': {
+    kind: 'value',
+    value: '2.5',
+  },
+  'numeric unary + -2.5': {
+    kind: 'value',
+    value: '-2.5',
+  },
+  'numeric unary + 1e100': {
+    kind: 'value',
+    value:
+      '10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric unary + 1e-100': {
+    kind: 'value',
+    value:
+      '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001',
+  },
+  'numeric unary + NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric unary + Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric unary + -Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric unary - null': {
+    kind: 'null',
+  },
+  'numeric unary - 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary - -0.000': {
+    kind: 'value',
+    value: '0.000',
+  },
+  'numeric unary - 1.2300': {
+    kind: 'value',
+    value: '-1.2300',
+  },
+  'numeric unary - -1.2300': {
+    kind: 'value',
+    value: '1.2300',
+  },
+  'numeric unary - 2.5': {
+    kind: 'value',
+    value: '-2.5',
+  },
+  'numeric unary - -2.5': {
+    kind: 'value',
+    value: '2.5',
+  },
+  'numeric unary - 1e100': {
+    kind: 'value',
+    value:
+      '-10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric unary - 1e-100': {
+    kind: 'value',
+    value:
+      '-0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001',
+  },
+  'numeric unary - NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric unary - Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric unary - -Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric unary @ null': {
+    kind: 'null',
+  },
+  'numeric unary @ 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary @ -0.000': {
+    kind: 'value',
+    value: '0.000',
+  },
+  'numeric unary @ 1.2300': {
+    kind: 'value',
+    value: '1.2300',
+  },
+  'numeric unary @ -1.2300': {
+    kind: 'value',
+    value: '1.2300',
+  },
+  'numeric unary @ 2.5': {
+    kind: 'value',
+    value: '2.5',
+  },
+  'numeric unary @ -2.5': {
+    kind: 'value',
+    value: '2.5',
+  },
+  'numeric unary @ 1e100': {
+    kind: 'value',
+    value:
+      '10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric unary @ 1e-100': {
+    kind: 'value',
+    value:
+      '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001',
+  },
+  'numeric unary @ NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric unary @ Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric unary @ -Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric unary abs null': {
+    kind: 'null',
+  },
+  'numeric unary abs 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary abs -0.000': {
+    kind: 'value',
+    value: '0.000',
+  },
+  'numeric unary abs 1.2300': {
+    kind: 'value',
+    value: '1.2300',
+  },
+  'numeric unary abs -1.2300': {
+    kind: 'value',
+    value: '1.2300',
+  },
+  'numeric unary abs 2.5': {
+    kind: 'value',
+    value: '2.5',
+  },
+  'numeric unary abs -2.5': {
+    kind: 'value',
+    value: '2.5',
+  },
+  'numeric unary abs 1e100': {
+    kind: 'value',
+    value:
+      '10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric unary abs 1e-100': {
+    kind: 'value',
+    value:
+      '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001',
+  },
+  'numeric unary abs NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric unary abs Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric unary abs -Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric unary ceil null': {
+    kind: 'null',
+  },
+  'numeric unary ceil 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary ceil -0.000': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary ceil 1.2300': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric unary ceil -1.2300': {
+    kind: 'value',
+    value: '-1',
+  },
+  'numeric unary ceil 2.5': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric unary ceil -2.5': {
+    kind: 'value',
+    value: '-2',
+  },
+  'numeric unary ceil 1e100': {
+    kind: 'value',
+    value:
+      '10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric unary ceil 1e-100': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric unary ceil NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric unary ceil Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric unary ceil -Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric unary ceiling null': {
+    kind: 'null',
+  },
+  'numeric unary ceiling 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary ceiling -0.000': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary ceiling 1.2300': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric unary ceiling -1.2300': {
+    kind: 'value',
+    value: '-1',
+  },
+  'numeric unary ceiling 2.5': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric unary ceiling -2.5': {
+    kind: 'value',
+    value: '-2',
+  },
+  'numeric unary ceiling 1e100': {
+    kind: 'value',
+    value:
+      '10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric unary ceiling 1e-100': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric unary ceiling NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric unary ceiling Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric unary ceiling -Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric unary floor null': {
+    kind: 'null',
+  },
+  'numeric unary floor 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary floor -0.000': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary floor 1.2300': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric unary floor -1.2300': {
+    kind: 'value',
+    value: '-2',
+  },
+  'numeric unary floor 2.5': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric unary floor -2.5': {
+    kind: 'value',
+    value: '-3',
+  },
+  'numeric unary floor 1e100': {
+    kind: 'value',
+    value:
+      '10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric unary floor 1e-100': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary floor NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric unary floor Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric unary floor -Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric unary sign null': {
+    kind: 'null',
+  },
+  'numeric unary sign 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary sign -0.000': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary sign 1.2300': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric unary sign -1.2300': {
+    kind: 'value',
+    value: '-1',
+  },
+  'numeric unary sign 2.5': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric unary sign -2.5': {
+    kind: 'value',
+    value: '-1',
+  },
+  'numeric unary sign 1e100': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric unary sign 1e-100': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric unary sign NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric unary sign Infinity': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric unary sign -Infinity': {
+    kind: 'value',
+    value: '-1',
+  },
+  'numeric unary round null': {
+    kind: 'null',
+  },
+  'numeric unary round 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary round -0.000': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary round 1.2300': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric unary round -1.2300': {
+    kind: 'value',
+    value: '-1',
+  },
+  'numeric unary round 2.5': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric unary round -2.5': {
+    kind: 'value',
+    value: '-3',
+  },
+  'numeric unary round 1e100': {
+    kind: 'value',
+    value:
+      '10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric unary round 1e-100': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary round NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric unary round Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric unary round -Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric unary trunc null': {
+    kind: 'null',
+  },
+  'numeric unary trunc 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary trunc -0.000': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary trunc 1.2300': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric unary trunc -1.2300': {
+    kind: 'value',
+    value: '-1',
+  },
+  'numeric unary trunc 2.5': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric unary trunc -2.5': {
+    kind: 'value',
+    value: '-2',
+  },
+  'numeric unary trunc 1e100': {
+    kind: 'value',
+    value:
+      '10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric unary trunc 1e-100': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unary trunc NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric unary trunc Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric unary trunc -Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric round extreme 2.5/null': {
+    kind: 'null',
+  },
+  'numeric round extreme 2.5/-2147483648': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 2.5/-131073': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 2.5/-3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 2.5/-1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 2.5/0': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric round extreme 2.5/2': {
+    kind: 'value',
+    value: '2.50',
+  },
+  'numeric round extreme 2.5/8': {
+    kind: 'value',
+    value: '2.50000000',
+  },
+  'numeric round extreme 2.5/16383': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric round extreme 2.5/2147483647': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric round extreme -2.5/null': {
+    kind: 'null',
+  },
+  'numeric round extreme -2.5/-2147483648': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme -2.5/-131073': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme -2.5/-3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme -2.5/-1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme -2.5/0': {
+    kind: 'value',
+    value: '-3',
+  },
+  'numeric round extreme -2.5/2': {
+    kind: 'value',
+    value: '-2.50',
+  },
+  'numeric round extreme -2.5/8': {
+    kind: 'value',
+    value: '-2.50000000',
+  },
+  'numeric round extreme -2.5/16383': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric round extreme -2.5/2147483647': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric round extreme 999.995/null': {
+    kind: 'null',
+  },
+  'numeric round extreme 999.995/-2147483648': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 999.995/-131073': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 999.995/-3': {
+    kind: 'value',
+    value: '1000',
+  },
+  'numeric round extreme 999.995/-1': {
+    kind: 'value',
+    value: '1000',
+  },
+  'numeric round extreme 999.995/0': {
+    kind: 'value',
+    value: '1000',
+  },
+  'numeric round extreme 999.995/2': {
+    kind: 'value',
+    value: '1000.00',
+  },
+  'numeric round extreme 999.995/8': {
+    kind: 'value',
+    value: '999.99500000',
+  },
+  'numeric round extreme 999.995/16383': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric round extreme 999.995/2147483647': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric round extreme -999.995/null': {
+    kind: 'null',
+  },
+  'numeric round extreme -999.995/-2147483648': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme -999.995/-131073': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme -999.995/-3': {
+    kind: 'value',
+    value: '-1000',
+  },
+  'numeric round extreme -999.995/-1': {
+    kind: 'value',
+    value: '-1000',
+  },
+  'numeric round extreme -999.995/0': {
+    kind: 'value',
+    value: '-1000',
+  },
+  'numeric round extreme -999.995/2': {
+    kind: 'value',
+    value: '-1000.00',
+  },
+  'numeric round extreme -999.995/8': {
+    kind: 'value',
+    value: '-999.99500000',
+  },
+  'numeric round extreme -999.995/16383': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric round extreme -999.995/2147483647': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric round extreme 0.0005/null': {
+    kind: 'null',
+  },
+  'numeric round extreme 0.0005/-2147483648': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 0.0005/-131073': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 0.0005/-3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 0.0005/-1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 0.0005/0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 0.0005/2': {
+    kind: 'value',
+    value: '0.00',
+  },
+  'numeric round extreme 0.0005/8': {
+    kind: 'value',
+    value: '0.00050000',
+  },
+  'numeric round extreme 0.0005/16383': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric round extreme 0.0005/2147483647': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric round extreme -0.0005/null': {
+    kind: 'null',
+  },
+  'numeric round extreme -0.0005/-2147483648': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme -0.0005/-131073': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme -0.0005/-3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme -0.0005/-1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme -0.0005/0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme -0.0005/2': {
+    kind: 'value',
+    value: '0.00',
+  },
+  'numeric round extreme -0.0005/8': {
+    kind: 'value',
+    value: '-0.00050000',
+  },
+  'numeric round extreme -0.0005/16383': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric round extreme -0.0005/2147483647': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric round extreme 1e-16383/null': {
+    kind: 'null',
+  },
+  'numeric round extreme 1e-16383/-2147483648': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 1e-16383/-131073': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 1e-16383/-3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 1e-16383/-1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 1e-16383/0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 1e-16383/2': {
+    kind: 'value',
+    value: '0.00',
+  },
+  'numeric round extreme 1e-16383/8': {
+    kind: 'value',
+    value: '0.00000000',
+  },
+  'numeric round extreme 1e-16383/16383': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric round extreme 1e-16383/2147483647': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric round extreme 0/null': {
+    kind: 'null',
+  },
+  'numeric round extreme 0/-2147483648': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 0/-131073': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 0/-3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 0/-1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 0/0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric round extreme 0/2': {
+    kind: 'value',
+    value: '0.00',
+  },
+  'numeric round extreme 0/8': {
+    kind: 'value',
+    value: '0.00000000',
+  },
+  'numeric round extreme 0/16383': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric round extreme 0/2147483647': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric round extreme NaN/null': {
+    kind: 'null',
+  },
+  'numeric round extreme NaN/-2147483648': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric round extreme NaN/-131073': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric round extreme NaN/-3': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric round extreme NaN/-1': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric round extreme NaN/0': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric round extreme NaN/2': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric round extreme NaN/8': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric round extreme NaN/16383': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric round extreme NaN/2147483647': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric round extreme Infinity/null': {
+    kind: 'null',
+  },
+  'numeric round extreme Infinity/-2147483648': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric round extreme Infinity/-131073': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric round extreme Infinity/-3': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric round extreme Infinity/-1': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric round extreme Infinity/0': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric round extreme Infinity/2': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric round extreme Infinity/8': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric round extreme Infinity/16383': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric round extreme Infinity/2147483647': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric round extreme -Infinity/null': {
+    kind: 'null',
+  },
+  'numeric round extreme -Infinity/-2147483648': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric round extreme -Infinity/-131073': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric round extreme -Infinity/-3': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric round extreme -Infinity/-1': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric round extreme -Infinity/0': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric round extreme -Infinity/2': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric round extreme -Infinity/8': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric round extreme -Infinity/16383': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric round extreme -Infinity/2147483647': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric round extreme null/null': {
+    kind: 'null',
+  },
+  'numeric round extreme null/-2147483648': {
+    kind: 'null',
+  },
+  'numeric round extreme null/-131073': {
+    kind: 'null',
+  },
+  'numeric round extreme null/-3': {
+    kind: 'null',
+  },
+  'numeric round extreme null/-1': {
+    kind: 'null',
+  },
+  'numeric round extreme null/0': {
+    kind: 'null',
+  },
+  'numeric round extreme null/2': {
+    kind: 'null',
+  },
+  'numeric round extreme null/8': {
+    kind: 'null',
+  },
+  'numeric round extreme null/16383': {
+    kind: 'null',
+  },
+  'numeric round extreme null/2147483647': {
+    kind: 'null',
+  },
+  'numeric trunc extreme 2.5/null': {
+    kind: 'null',
+  },
+  'numeric trunc extreme 2.5/-2147483648': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 2.5/-131073': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 2.5/-3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 2.5/-1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 2.5/0': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric trunc extreme 2.5/2': {
+    kind: 'value',
+    value: '2.50',
+  },
+  'numeric trunc extreme 2.5/8': {
+    kind: 'value',
+    value: '2.50000000',
+  },
+  'numeric trunc extreme 2.5/16383': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric trunc extreme 2.5/2147483647': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric trunc extreme -2.5/null': {
+    kind: 'null',
+  },
+  'numeric trunc extreme -2.5/-2147483648': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme -2.5/-131073': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme -2.5/-3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme -2.5/-1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme -2.5/0': {
+    kind: 'value',
+    value: '-2',
+  },
+  'numeric trunc extreme -2.5/2': {
+    kind: 'value',
+    value: '-2.50',
+  },
+  'numeric trunc extreme -2.5/8': {
+    kind: 'value',
+    value: '-2.50000000',
+  },
+  'numeric trunc extreme -2.5/16383': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric trunc extreme -2.5/2147483647': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric trunc extreme 999.995/null': {
+    kind: 'null',
+  },
+  'numeric trunc extreme 999.995/-2147483648': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 999.995/-131073': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 999.995/-3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 999.995/-1': {
+    kind: 'value',
+    value: '990',
+  },
+  'numeric trunc extreme 999.995/0': {
+    kind: 'value',
+    value: '999',
+  },
+  'numeric trunc extreme 999.995/2': {
+    kind: 'value',
+    value: '999.99',
+  },
+  'numeric trunc extreme 999.995/8': {
+    kind: 'value',
+    value: '999.99500000',
+  },
+  'numeric trunc extreme 999.995/16383': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric trunc extreme 999.995/2147483647': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric trunc extreme -999.995/null': {
+    kind: 'null',
+  },
+  'numeric trunc extreme -999.995/-2147483648': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme -999.995/-131073': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme -999.995/-3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme -999.995/-1': {
+    kind: 'value',
+    value: '-990',
+  },
+  'numeric trunc extreme -999.995/0': {
+    kind: 'value',
+    value: '-999',
+  },
+  'numeric trunc extreme -999.995/2': {
+    kind: 'value',
+    value: '-999.99',
+  },
+  'numeric trunc extreme -999.995/8': {
+    kind: 'value',
+    value: '-999.99500000',
+  },
+  'numeric trunc extreme -999.995/16383': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric trunc extreme -999.995/2147483647': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric trunc extreme 0.0005/null': {
+    kind: 'null',
+  },
+  'numeric trunc extreme 0.0005/-2147483648': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 0.0005/-131073': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 0.0005/-3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 0.0005/-1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 0.0005/0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 0.0005/2': {
+    kind: 'value',
+    value: '0.00',
+  },
+  'numeric trunc extreme 0.0005/8': {
+    kind: 'value',
+    value: '0.00050000',
+  },
+  'numeric trunc extreme 0.0005/16383': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric trunc extreme 0.0005/2147483647': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric trunc extreme -0.0005/null': {
+    kind: 'null',
+  },
+  'numeric trunc extreme -0.0005/-2147483648': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme -0.0005/-131073': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme -0.0005/-3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme -0.0005/-1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme -0.0005/0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme -0.0005/2': {
+    kind: 'value',
+    value: '0.00',
+  },
+  'numeric trunc extreme -0.0005/8': {
+    kind: 'value',
+    value: '-0.00050000',
+  },
+  'numeric trunc extreme -0.0005/16383': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric trunc extreme -0.0005/2147483647': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric trunc extreme 1e-16383/null': {
+    kind: 'null',
+  },
+  'numeric trunc extreme 1e-16383/-2147483648': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 1e-16383/-131073': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 1e-16383/-3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 1e-16383/-1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 1e-16383/0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 1e-16383/2': {
+    kind: 'value',
+    value: '0.00',
+  },
+  'numeric trunc extreme 1e-16383/8': {
+    kind: 'value',
+    value: '0.00000000',
+  },
+  'numeric trunc extreme 1e-16383/16383': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric trunc extreme 1e-16383/2147483647': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric trunc extreme 0/null': {
+    kind: 'null',
+  },
+  'numeric trunc extreme 0/-2147483648': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 0/-131073': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 0/-3': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 0/-1': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 0/0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric trunc extreme 0/2': {
+    kind: 'value',
+    value: '0.00',
+  },
+  'numeric trunc extreme 0/8': {
+    kind: 'value',
+    value: '0.00000000',
+  },
+  'numeric trunc extreme 0/16383': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric trunc extreme 0/2147483647': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric trunc extreme NaN/null': {
+    kind: 'null',
+  },
+  'numeric trunc extreme NaN/-2147483648': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric trunc extreme NaN/-131073': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric trunc extreme NaN/-3': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric trunc extreme NaN/-1': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric trunc extreme NaN/0': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric trunc extreme NaN/2': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric trunc extreme NaN/8': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric trunc extreme NaN/16383': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric trunc extreme NaN/2147483647': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric trunc extreme Infinity/null': {
+    kind: 'null',
+  },
+  'numeric trunc extreme Infinity/-2147483648': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric trunc extreme Infinity/-131073': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric trunc extreme Infinity/-3': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric trunc extreme Infinity/-1': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric trunc extreme Infinity/0': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric trunc extreme Infinity/2': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric trunc extreme Infinity/8': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric trunc extreme Infinity/16383': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric trunc extreme Infinity/2147483647': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric trunc extreme -Infinity/null': {
+    kind: 'null',
+  },
+  'numeric trunc extreme -Infinity/-2147483648': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric trunc extreme -Infinity/-131073': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric trunc extreme -Infinity/-3': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric trunc extreme -Infinity/-1': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric trunc extreme -Infinity/0': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric trunc extreme -Infinity/2': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric trunc extreme -Infinity/8': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric trunc extreme -Infinity/16383': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric trunc extreme -Infinity/2147483647': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric trunc extreme null/null': {
+    kind: 'null',
+  },
+  'numeric trunc extreme null/-2147483648': {
+    kind: 'null',
+  },
+  'numeric trunc extreme null/-131073': {
+    kind: 'null',
+  },
+  'numeric trunc extreme null/-3': {
+    kind: 'null',
+  },
+  'numeric trunc extreme null/-1': {
+    kind: 'null',
+  },
+  'numeric trunc extreme null/0': {
+    kind: 'null',
+  },
+  'numeric trunc extreme null/2': {
+    kind: 'null',
+  },
+  'numeric trunc extreme null/8': {
+    kind: 'null',
+  },
+  'numeric trunc extreme null/16383': {
+    kind: 'null',
+  },
+  'numeric trunc extreme null/2147483647': {
+    kind: 'null',
+  },
+  'numeric function mod 12.00/18.0': {
+    kind: 'value',
+    value: '12.00',
+  },
+  'numeric function mod -12.00/18.0': {
+    kind: 'value',
+    value: '-12.00',
+  },
+  'numeric function mod 1.2300/0.030': {
+    kind: 'value',
+    value: '0.0000',
+  },
+  'numeric function mod 0/3.000': {
+    kind: 'value',
+    value: '0.000',
+  },
+  'numeric function mod 0/0': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric function mod 7/0': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric function mod NaN/0': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function mod Infinity/0': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric function mod Infinity/1': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function mod 1/Infinity': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric function mod -Infinity/-2': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function mod NaN/NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function mod null/0': {
+    kind: 'null',
+  },
+  'numeric function mod 0/null': {
+    kind: 'null',
+  },
+  'numeric function mod null/null': {
+    kind: 'null',
+  },
+  'numeric function div 12.00/18.0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric function div -12.00/18.0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric function div 1.2300/0.030': {
+    kind: 'value',
+    value: '41',
+  },
+  'numeric function div 0/3.000': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric function div 0/0': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric function div 7/0': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric function div NaN/0': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function div Infinity/0': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric function div Infinity/1': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric function div 1/Infinity': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric function div -Infinity/-2': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric function div NaN/NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function div null/0': {
+    kind: 'null',
+  },
+  'numeric function div 0/null': {
+    kind: 'null',
+  },
+  'numeric function div null/null': {
+    kind: 'null',
+  },
+  'numeric function gcd 12.00/18.0': {
+    kind: 'value',
+    value: '6.00',
+  },
+  'numeric function gcd -12.00/18.0': {
+    kind: 'value',
+    value: '6.00',
+  },
+  'numeric function gcd 1.2300/0.030': {
+    kind: 'value',
+    value: '0.0300',
+  },
+  'numeric function gcd 0/3.000': {
+    kind: 'value',
+    value: '3.000',
+  },
+  'numeric function gcd 0/0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric function gcd 7/0': {
+    kind: 'value',
+    value: '7',
+  },
+  'numeric function gcd NaN/0': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function gcd Infinity/0': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function gcd Infinity/1': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function gcd 1/Infinity': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function gcd -Infinity/-2': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function gcd NaN/NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function gcd null/0': {
+    kind: 'null',
+  },
+  'numeric function gcd 0/null': {
+    kind: 'null',
+  },
+  'numeric function gcd null/null': {
+    kind: 'null',
+  },
+  'numeric function lcm 12.00/18.0': {
+    kind: 'value',
+    value: '36.00',
+  },
+  'numeric function lcm -12.00/18.0': {
+    kind: 'value',
+    value: '36.00',
+  },
+  'numeric function lcm 1.2300/0.030': {
+    kind: 'value',
+    value: '1.2300',
+  },
+  'numeric function lcm 0/3.000': {
+    kind: 'value',
+    value: '0.000',
+  },
+  'numeric function lcm 0/0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric function lcm 7/0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric function lcm NaN/0': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function lcm Infinity/0': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function lcm Infinity/1': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function lcm 1/Infinity': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function lcm -Infinity/-2': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function lcm NaN/NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric function lcm null/0': {
+    kind: 'null',
+  },
+  'numeric function lcm 0/null': {
+    kind: 'null',
+  },
+  'numeric function lcm null/null': {
+    kind: 'null',
+  },
+  'pg_catalog.int2 to numeric null': {
+    kind: 'null',
+  },
+  'pg_catalog.int2 to numeric 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'pg_catalog.int2 to numeric 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'pg_catalog.int2 to numeric -1': {
+    kind: 'value',
+    value: '-1',
+  },
+  'pg_catalog.int2 to numeric -32768': {
+    kind: 'value',
+    value: '-32768',
+  },
+  'pg_catalog.int2 to numeric 32767': {
+    kind: 'value',
+    value: '32767',
+  },
+  'numeric to pg_catalog.int2 null': {
+    kind: 'null',
+  },
+  'numeric to pg_catalog.int2 0.000': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric to pg_catalog.int2 1.5': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric to pg_catalog.int2 -1.5': {
+    kind: 'value',
+    value: '-2',
+  },
+  'numeric to pg_catalog.int2 2.5': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric to pg_catalog.int2 -2.5': {
+    kind: 'value',
+    value: '-3',
+  },
+  'numeric to pg_catalog.int2 NaN': {
+    kind: 'error',
+    code: '0A000',
+  },
+  'numeric to pg_catalog.int2 Infinity': {
+    kind: 'error',
+    code: '0A000',
+  },
+  'numeric to pg_catalog.int2 -Infinity': {
+    kind: 'error',
+    code: '0A000',
+  },
+  'numeric to pg_catalog.int2 -32768': {
+    kind: 'value',
+    value: '-32768',
+  },
+  'numeric to pg_catalog.int2 32767': {
+    kind: 'value',
+    value: '32767',
+  },
+  'numeric to pg_catalog.int2 32767.4': {
+    kind: 'value',
+    value: '32767',
+  },
+  'numeric to pg_catalog.int2 32767.5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric to pg_catalog.int2 -32768.5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric to pg_catalog.int2 1e100': {
+    kind: 'error',
+    code: '22003',
+  },
+  'pg_catalog.int4 to numeric null': {
+    kind: 'null',
+  },
+  'pg_catalog.int4 to numeric 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'pg_catalog.int4 to numeric 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'pg_catalog.int4 to numeric -1': {
+    kind: 'value',
+    value: '-1',
+  },
+  'pg_catalog.int4 to numeric -2147483648': {
+    kind: 'value',
+    value: '-2147483648',
+  },
+  'pg_catalog.int4 to numeric 2147483647': {
+    kind: 'value',
+    value: '2147483647',
+  },
+  'numeric to pg_catalog.int4 null': {
+    kind: 'null',
+  },
+  'numeric to pg_catalog.int4 0.000': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric to pg_catalog.int4 1.5': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric to pg_catalog.int4 -1.5': {
+    kind: 'value',
+    value: '-2',
+  },
+  'numeric to pg_catalog.int4 2.5': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric to pg_catalog.int4 -2.5': {
+    kind: 'value',
+    value: '-3',
+  },
+  'numeric to pg_catalog.int4 NaN': {
+    kind: 'error',
+    code: '0A000',
+  },
+  'numeric to pg_catalog.int4 Infinity': {
+    kind: 'error',
+    code: '0A000',
+  },
+  'numeric to pg_catalog.int4 -Infinity': {
+    kind: 'error',
+    code: '0A000',
+  },
+  'numeric to pg_catalog.int4 -2147483648': {
+    kind: 'value',
+    value: '-2147483648',
+  },
+  'numeric to pg_catalog.int4 2147483647': {
+    kind: 'value',
+    value: '2147483647',
+  },
+  'numeric to pg_catalog.int4 2147483647.4': {
+    kind: 'value',
+    value: '2147483647',
+  },
+  'numeric to pg_catalog.int4 2147483647.5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric to pg_catalog.int4 -2147483648.5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric to pg_catalog.int4 1e100': {
+    kind: 'error',
+    code: '22003',
+  },
+  'pg_catalog.int8 to numeric null': {
+    kind: 'null',
+  },
+  'pg_catalog.int8 to numeric 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'pg_catalog.int8 to numeric 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'pg_catalog.int8 to numeric -1': {
+    kind: 'value',
+    value: '-1',
+  },
+  'pg_catalog.int8 to numeric -9223372036854775808': {
+    kind: 'value',
+    value: '-9223372036854775808',
+  },
+  'pg_catalog.int8 to numeric 9223372036854775807': {
+    kind: 'value',
+    value: '9223372036854775807',
+  },
+  'numeric to pg_catalog.int8 null': {
+    kind: 'null',
+  },
+  'numeric to pg_catalog.int8 0.000': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric to pg_catalog.int8 1.5': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric to pg_catalog.int8 -1.5': {
+    kind: 'value',
+    value: '-2',
+  },
+  'numeric to pg_catalog.int8 2.5': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric to pg_catalog.int8 -2.5': {
+    kind: 'value',
+    value: '-3',
+  },
+  'numeric to pg_catalog.int8 NaN': {
+    kind: 'error',
+    code: '0A000',
+  },
+  'numeric to pg_catalog.int8 Infinity': {
+    kind: 'error',
+    code: '0A000',
+  },
+  'numeric to pg_catalog.int8 -Infinity': {
+    kind: 'error',
+    code: '0A000',
+  },
+  'numeric to pg_catalog.int8 -9223372036854775808': {
+    kind: 'value',
+    value: '-9223372036854775808',
+  },
+  'numeric to pg_catalog.int8 9223372036854775807': {
+    kind: 'value',
+    value: '9223372036854775807',
+  },
+  'numeric to pg_catalog.int8 9223372036854775807.4': {
+    kind: 'value',
+    value: '9223372036854775807',
+  },
+  'numeric to pg_catalog.int8 9223372036854775807.5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric to pg_catalog.int8 -9223372036854775808.5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric to pg_catalog.int8 1e100': {
+    kind: 'error',
+    code: '22003',
+  },
+  'pg_catalog.float4 to numeric null': {
+    kind: 'null',
+  },
+  'pg_catalog.float4 to numeric 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'pg_catalog.float4 to numeric -0': {
+    kind: 'value',
+    value: '0',
+  },
+  'pg_catalog.float4 to numeric 0.1': {
+    kind: 'value',
+    value: '0.1',
+  },
+  'pg_catalog.float4 to numeric 1.23456789': {
+    kind: 'value',
+    value: '1.23457',
+  },
+  'pg_catalog.float4 to numeric -1.23456789': {
+    kind: 'value',
+    value: '-1.23457',
+  },
+  'pg_catalog.float4 to numeric 16777217': {
+    kind: 'value',
+    value: '16777200',
+  },
+  'pg_catalog.float4 to numeric 9007199254740992': {
+    kind: 'value',
+    value: '9007200000000000',
+  },
+  'pg_catalog.float4 to numeric 3.4028234663852886e+38': {
+    kind: 'value',
+    value: '340282000000000000000000000000000000000',
+  },
+  'pg_catalog.float4 to numeric 1.401298464324817e-45': {
+    kind: 'value',
+    value: '0.0000000000000000000000000000000000000000000014013',
+  },
+  'pg_catalog.float4 to numeric NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'pg_catalog.float4 to numeric Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'pg_catalog.float4 to numeric -Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'pg_catalog.float4 to numeric 1.234565': {
+    kind: 'value',
+    value: '1.23457',
+  },
+  'pg_catalog.float4 to numeric 1.234575': {
+    kind: 'value',
+    value: '1.23458',
+  },
+  'numeric to pg_catalog.float4 null': {
+    kind: 'null',
+  },
+  'numeric to pg_catalog.float4 0.000': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '00000000',
+  },
+  'numeric to pg_catalog.float4 -0.000': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '00000000',
+  },
+  'numeric to pg_catalog.float4 0.1': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '3dcccccd',
+  },
+  'numeric to pg_catalog.float4 1.234567890123456789': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '3f9e0652',
+  },
+  'numeric to pg_catalog.float4 NaN': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'NaN',
+  },
+  'numeric to pg_catalog.float4 Infinity': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'Infinity',
+  },
+  'numeric to pg_catalog.float4 -Infinity': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '-Infinity',
+  },
+  'numeric to pg_catalog.float4 1e1000': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric to pg_catalog.float4 1e-1000': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric to pg_catalog.float4 7.038531e-26': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '15ae43fd',
+  },
+  'numeric to pg_catalog.float4 -7.038531e-26': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '95ae43fd',
+  },
+  'numeric to pg_catalog.float4 16777217': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '4b800000',
+  },
+  'numeric to pg_catalog.float4 16777219': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '4b800002',
+  },
+  'numeric to pg_catalog.float4 3.4028234663852886e38': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '7f7fffff',
+  },
+  'numeric to pg_catalog.float4 3.4028236e38': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric to pg_catalog.float4 1.401298464324817e-45': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '00000001',
+  },
+  'numeric to pg_catalog.float4 7.006492321624085e-46': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric to pg_catalog.float4 7.006492321624086e-46': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '00000001',
+  },
+  'numeric to pg_catalog.float4 4.9406564584124654e-324': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric to pg_catalog.float4 2.4703282292062327e-324': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric to pg_catalog.float4 2.4703282292062328e-324': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric to pg_catalog.float4 1.7976931348623157e308': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric to pg_catalog.float4 1.7976931348623159e308': {
+    kind: 'error',
+    code: '22003',
+  },
+  'pg_catalog.float8 to numeric null': {
+    kind: 'null',
+  },
+  'pg_catalog.float8 to numeric 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'pg_catalog.float8 to numeric -0': {
+    kind: 'value',
+    value: '0',
+  },
+  'pg_catalog.float8 to numeric 0.1': {
+    kind: 'value',
+    value: '0.1',
+  },
+  'pg_catalog.float8 to numeric 1.23456789': {
+    kind: 'value',
+    value: '1.23456789',
+  },
+  'pg_catalog.float8 to numeric -1.23456789': {
+    kind: 'value',
+    value: '-1.23456789',
+  },
+  'pg_catalog.float8 to numeric 16777217': {
+    kind: 'value',
+    value: '16777217',
+  },
+  'pg_catalog.float8 to numeric 9007199254740992': {
+    kind: 'value',
+    value: '9007199254740990',
+  },
+  'pg_catalog.float8 to numeric 3.4028234663852886e+38': {
+    kind: 'value',
+    value: '340282346638529000000000000000000000000',
+  },
+  'pg_catalog.float8 to numeric 1.401298464324817e-45': {
+    kind: 'value',
+    value: '0.00000000000000000000000000000000000000000000140129846432482',
+  },
+  'pg_catalog.float8 to numeric NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'pg_catalog.float8 to numeric Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'pg_catalog.float8 to numeric -Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'pg_catalog.float8 to numeric 1.7976931348623157e+308': {
+    kind: 'value',
+    value:
+      '179769313486232000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'pg_catalog.float8 to numeric 5e-324': {
+    kind: 'value',
+    value:
+      '0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000494065645841247',
+  },
+  'pg_catalog.float8 to numeric 1e-300': {
+    kind: 'value',
+    value:
+      '0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001',
+  },
+  'pg_catalog.float8 to numeric 1e+300': {
+    kind: 'value',
+    value:
+      '1000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'pg_catalog.float8 to numeric 1.234565': {
+    kind: 'value',
+    value: '1.234565',
+  },
+  'pg_catalog.float8 to numeric 1.234575': {
+    kind: 'value',
+    value: '1.234575',
+  },
+  'numeric to pg_catalog.float8 null': {
+    kind: 'null',
+  },
+  'numeric to pg_catalog.float8 0.000': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'numeric to pg_catalog.float8 -0.000': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'numeric to pg_catalog.float8 0.1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fb999999999999a',
+  },
+  'numeric to pg_catalog.float8 1.234567890123456789': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff3c0ca428c59fb',
+  },
+  'numeric to pg_catalog.float8 NaN': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'numeric to pg_catalog.float8 Infinity': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'numeric to pg_catalog.float8 -Infinity': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '-Infinity',
+  },
+  'numeric to pg_catalog.float8 1e1000': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric to pg_catalog.float8 1e-1000': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric to pg_catalog.float8 7.038531e-26': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ab5c87fb0000000',
+  },
+  'numeric to pg_catalog.float8 -7.038531e-26': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bab5c87fb0000000',
+  },
+  'numeric to pg_catalog.float8 16777217': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4170000010000000',
+  },
+  'numeric to pg_catalog.float8 16777219': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4170000030000000',
+  },
+  'numeric to pg_catalog.float8 3.4028234663852886e38': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '47efffffe0000000',
+  },
+  'numeric to pg_catalog.float8 3.4028236e38': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '47effffff514a7bc',
+  },
+  'numeric to pg_catalog.float8 1.401298464324817e-45': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '36a0000000000000',
+  },
+  'numeric to pg_catalog.float8 7.006492321624085e-46': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3690000000000000',
+  },
+  'numeric to pg_catalog.float8 7.006492321624086e-46': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3690000000000000',
+  },
+  'numeric to pg_catalog.float8 4.9406564584124654e-324': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000001',
+  },
+  'numeric to pg_catalog.float8 2.4703282292062327e-324': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric to pg_catalog.float8 2.4703282292062328e-324': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000001',
+  },
+  'numeric to pg_catalog.float8 1.7976931348623157e308': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7fefffffffffffff',
+  },
+  'numeric to pg_catalog.float8 1.7976931348623159e308': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/2 null': {
+    kind: 'null',
+  },
+  'numeric typmod 3/2 0': {
+    kind: 'value',
+    value: '0.00',
+  },
+  'numeric typmod 3/2 1.2345': {
+    kind: 'value',
+    value: '1.23',
+  },
+  'numeric typmod 3/2 9.994': {
+    kind: 'value',
+    value: '9.99',
+  },
+  'numeric typmod 3/2 9.995': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/2 99.5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/2 -99.5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/2 1499': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/2 1500': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/2 99999': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/2 0.0012345': {
+    kind: 'value',
+    value: '0.00',
+  },
+  'numeric typmod 3/2 0.009995': {
+    kind: 'value',
+    value: '0.01',
+  },
+  'numeric typmod 3/2 NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric typmod 3/2 Infinity': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/2 -Infinity': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 2/-3 null': {
+    kind: 'null',
+  },
+  'numeric typmod 2/-3 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 2/-3 1.2345': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 2/-3 9.994': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 2/-3 9.995': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 2/-3 99.5': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 2/-3 -99.5': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 2/-3 1499': {
+    kind: 'value',
+    value: '1000',
+  },
+  'numeric typmod 2/-3 1500': {
+    kind: 'value',
+    value: '2000',
+  },
+  'numeric typmod 2/-3 99999': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 2/-3 0.0012345': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 2/-3 0.009995': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 2/-3 NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric typmod 2/-3 Infinity': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 2/-3 -Infinity': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/5 null': {
+    kind: 'null',
+  },
+  'numeric typmod 3/5 0': {
+    kind: 'value',
+    value: '0.00000',
+  },
+  'numeric typmod 3/5 1.2345': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/5 9.994': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/5 9.995': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/5 99.5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/5 -99.5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/5 1499': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/5 1500': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/5 99999': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/5 0.0012345': {
+    kind: 'value',
+    value: '0.00123',
+  },
+  'numeric typmod 3/5 0.009995': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/5 NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric typmod 3/5 Infinity': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 3/5 -Infinity': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1/0 null': {
+    kind: 'null',
+  },
+  'numeric typmod 1/0 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 1/0 1.2345': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric typmod 1/0 9.994': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1/0 9.995': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1/0 99.5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1/0 -99.5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1/0 1499': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1/0 1500': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1/0 99999': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1/0 0.0012345': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 1/0 0.009995': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 1/0 NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric typmod 1/0 Infinity': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1/0 -Infinity': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1000/1000 null': {
+    kind: 'null',
+  },
+  'numeric typmod 1000/1000 0': {
+    kind: 'value',
+    value:
+      '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric typmod 1000/1000 1.2345': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1000/1000 9.994': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1000/1000 9.995': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1000/1000 99.5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1000/1000 -99.5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1000/1000 1499': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1000/1000 1500': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1000/1000 99999': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1000/1000 0.0012345': {
+    kind: 'value',
+    value:
+      '0.0012345000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric typmod 1000/1000 0.009995': {
+    kind: 'value',
+    value:
+      '0.0099950000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric typmod 1000/1000 NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric typmod 1000/1000 Infinity': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1000/1000 -Infinity': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1000/-1000 null': {
+    kind: 'null',
+  },
+  'numeric typmod 1000/-1000 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 1000/-1000 1.2345': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 1000/-1000 9.994': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 1000/-1000 9.995': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 1000/-1000 99.5': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 1000/-1000 -99.5': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 1000/-1000 1499': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 1000/-1000 1500': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 1000/-1000 99999': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 1000/-1000 0.0012345': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 1000/-1000 0.009995': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric typmod 1000/-1000 NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric typmod 1000/-1000 Infinity': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric typmod 1000/-1000 -Infinity': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric relabel null': {
+    kind: 'null',
+  },
+  'numeric unconstrained typmod null': {
+    kind: 'null',
+  },
+  'numeric relabel 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric unconstrained typmod 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric relabel -0.000': {
+    kind: 'value',
+    value: '0.000',
+  },
+  'numeric unconstrained typmod -0.000': {
+    kind: 'value',
+    value: '0.000',
+  },
+  'numeric relabel 1.2300': {
+    kind: 'value',
+    value: '1.2300',
+  },
+  'numeric unconstrained typmod 1.2300': {
+    kind: 'value',
+    value: '1.2300',
+  },
+  'numeric relabel -1.2300': {
+    kind: 'value',
+    value: '-1.2300',
+  },
+  'numeric unconstrained typmod -1.2300': {
+    kind: 'value',
+    value: '-1.2300',
+  },
+  'numeric relabel 2.5': {
+    kind: 'value',
+    value: '2.5',
+  },
+  'numeric unconstrained typmod 2.5': {
+    kind: 'value',
+    value: '2.5',
+  },
+  'numeric relabel -2.5': {
+    kind: 'value',
+    value: '-2.5',
+  },
+  'numeric unconstrained typmod -2.5': {
+    kind: 'value',
+    value: '-2.5',
+  },
+  'numeric relabel 1e100': {
+    kind: 'value',
+    value:
+      '10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric unconstrained typmod 1e100': {
+    kind: 'value',
+    value:
+      '10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric relabel 1e-100': {
+    kind: 'value',
+    value:
+      '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001',
+  },
+  'numeric unconstrained typmod 1e-100': {
+    kind: 'value',
+    value:
+      '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001',
+  },
+  'numeric relabel NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric unconstrained typmod NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric relabel Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric unconstrained typmod Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric relabel -Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric unconstrained typmod -Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'numeric nested zero divisor': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric error through null comparison': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric error through null rounding': {
+    kind: 'error',
+    code: '22012',
+  },
+  'integer error through numeric cast': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric error through integer cast': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric error through float cast': {
+    kind: 'error',
+    code: '22012',
+  },
+  'numeric scale capped multiplication': {
+    kind: 'value',
+    value: 'true',
+  },
+  'numeric sampled + 0': {
+    kind: 'value',
+    value: '-0.000038516128662087882708015561',
+  },
+  'numeric sampled - 0': {
+    kind: 'value',
+    value: '0.000038516118786151519345984439',
+  },
+  'numeric sampled * 0': {
+    kind: 'value',
+    value: '0.000000000000000190191393431392385512085809313054681147',
+  },
+  'numeric sampled / 0': {
+    kind: 'value',
+    value: '0.000000128205221715723795515707',
+  },
+  'numeric sampled % 0': {
+    kind: 'value',
+    value: '-0.000000000004937968181681015561',
+  },
+  'numeric sampled to pg_catalog.float4 0': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'acadbd43',
+  },
+  'pg_catalog.float4 sampled to numeric 0': {
+    kind: 'value',
+    value: '0.0000000000000000000000000000000000000000000014013',
+  },
+  'numeric sampled to pg_catalog.float8 0': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bd95b7a86d2a96ba',
+  },
+  'pg_catalog.float8 sampled to numeric 0': {
+    kind: 'value',
+    value:
+      '0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000988131291682493',
+  },
+  'numeric sampled + 1': {
+    kind: 'value',
+    value: '0.00041692613997505879483807815',
+  },
+  'numeric sampled - 1': {
+    kind: 'value',
+    value: '-0.00041692564768136116710192185',
+  },
+  'numeric sampled * 1': {
+    kind: 'value',
+    value: '0.0000000000001026249949547192162388416860267019728055',
+  },
+  'numeric sampled / 1': {
+    kind: 'value',
+    value: '0.00000059038513188458942584047',
+  },
+  'numeric sampled % 1': {
+    kind: 'value',
+    value: '0.00000000024614684881386807815',
+  },
+  'numeric sampled to pg_catalog.float4 1': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '2f875217',
+  },
+  'pg_catalog.float4 sampled to numeric 1': {
+    kind: 'value',
+    value: '0.00000000000000000000000000000000000570401',
+  },
+  'numeric sampled to pg_catalog.float8 1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3df0ea42db49e97b',
+  },
+  'pg_catalog.float8 sampled to numeric 1': {
+    kind: 'value',
+    value:
+      '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000126755687156539',
+  },
+  'numeric sampled + 2': {
+    kind: 'value',
+    value: '0.0011236347969282842625242667',
+  },
+  'numeric sampled - 2': {
+    kind: 'value',
+    value: '-0.0011236355717407286556757333',
+  },
+  'numeric sampled * 2': {
+    kind: 'value',
+    value: '-0.00000000000043530326189018414187676479989116895803',
+  },
+  'numeric sampled / 2': {
+    kind: 'value',
+    value: '-0.0000003447793621966583147514',
+  },
+  'numeric sampled % 2': {
+    kind: 'value',
+    value: '-0.0000000003874062221965757333',
+  },
+  'numeric sampled to pg_catalog.float4 2': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'afd4fa94',
+  },
+  'pg_catalog.float4 sampled to numeric 2': {
+    kind: 'value',
+    value: '0.00000000000000000000000000734905',
+  },
+  'numeric sampled to pg_catalog.float8 2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bdfa9f528496c427',
+  },
+  'pg_catalog.float8 sampled to numeric 2': {
+    kind: 'value',
+    value:
+      '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000318157281132875',
+  },
+  'numeric sampled + 3': {
+    kind: 'value',
+    value: '-0.014571186533000992308654605',
+  },
+  'numeric sampled - 3': {
+    kind: 'value',
+    value: '0.014571254230594037125345395',
+  },
+  'numeric sampled * 3': {
+    kind: 'value',
+    value: '-0.000000000493218273786633319003470571231131678215',
+  },
+  'numeric sampled / 3': {
+    kind: 'value',
+    value: '-0.000002322989813858867531393',
+  },
+  'numeric sampled % 3': {
+    kind: 'value',
+    value: '0.000000033848796522408345395',
+  },
+  'numeric sampled to pg_catalog.float4 3': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '33116125',
+  },
+  'pg_catalog.float4 sampled to numeric 3': {
+    kind: 'value',
+    value: '0.0000000000000000198097',
+  },
+  'numeric sampled to pg_catalog.float8 3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e622c24a6cf7df9',
+  },
+  'pg_catalog.float8 sampled to numeric 3': {
+    kind: 'value',
+    value:
+      '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000512162594053916',
+  },
+  'numeric sampled + 4': {
+    kind: 'value',
+    value: '0.04532333848530596840123487',
+  },
+  'numeric sampled - 4': {
+    kind: 'value',
+    value: '-0.04532351193792878221876513',
+  },
+  'numeric sampled * 4': {
+    kind: 'value',
+    value: '-0.0000000039307334889304682884599165274438509403',
+  },
+  'numeric sampled / 4': {
+    kind: 'value',
+    value: '-0.00000191349861582568418847',
+  },
+  'numeric sampled % 4': {
+    kind: 'value',
+    value: '-0.00000008672631140690876513',
+  },
+  'numeric sampled to pg_catalog.float4 4': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'b3ba3e4b',
+  },
+  'pg_catalog.float4 sampled to numeric 4': {
+    kind: 'value',
+    value: '0.0000000427929',
+  },
+  'numeric sampled to pg_catalog.float8 4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'be7747c967bc4155',
+  },
+  'pg_catalog.float8 sampled to numeric 4': {
+    kind: 'value',
+    value:
+      '0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000154636827822457',
+  },
+  'numeric sampled + 5': {
+    kind: 'value',
+    value: '0.7644849213052529568699103',
+  },
+  'numeric sampled - 5': {
+    kind: 'value',
+    value: '-0.7644799149117807793300897',
+  },
+  'numeric sampled * 5': {
+    kind: 'value',
+    value: '0.00000191364989380648975371028265964727393143',
+  },
+  'numeric sampled / 5': {
+    kind: 'value',
+    value: '0.0000032743679603282200719',
+  },
+  'numeric sampled % 5': {
+    kind: 'value',
+    value: '0.0000025031967360887699103',
+  },
+  'numeric sampled to pg_catalog.float4 5': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '3627fc98',
+  },
+  'pg_catalog.float4 sampled to numeric 5': {
+    kind: 'value',
+    value: '127.503',
+  },
+  'numeric sampled to pg_catalog.float8 5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ec4ff92f57f134e',
+  },
+  'pg_catalog.float8 sampled to numeric 5': {
+    kind: 'value',
+    value:
+      '0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000334513429133484',
+  },
+  'numeric sampled + 6': {
+    kind: 'value',
+    value: '-11.034423574642330426242349',
+  },
+  'numeric sampled - 6': {
+    kind: 'value',
+    value: '11.034373385592604947757651',
+  },
+  'numeric sampled * 6': {
+    kind: 'value',
+    value: '0.000276902987004679900204147200802869476763',
+  },
+  'numeric sampled / 6': {
+    kind: 'value',
+    value: '0.000002274208685498921398',
+  },
+  'numeric sampled % 6': {
+    kind: 'value',
+    value: '-0.000025094524862739242349',
+  },
+  'numeric sampled to pg_catalog.float4 6': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'b7d28215',
+  },
+  'pg_catalog.float4 sampled to numeric 6': {
+    kind: 'value',
+    value: '154382000000',
+  },
+  'numeric sampled to pg_catalog.float8 6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'befa50429e14df42',
+  },
+  'pg_catalog.float8 sampled to numeric 6': {
+    kind: 'value',
+    value:
+      '0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000859873780920447',
+  },
+  'numeric sampled + 7': {
+    kind: 'value',
+    value: '63.39449066072224185772939',
+  },
+  'numeric sampled - 7': {
+    kind: 'value',
+    value: '-63.39376820140139440227061',
+  },
+  'numeric sampled * 7': {
+    kind: 'value',
+    value: '0.0228998398472403045225613325329500358407',
+  },
+  'numeric sampled / 7': {
+    kind: 'value',
+    value: '0.000005698156338222899131',
+  },
+  'numeric sampled % 7': {
+    kind: 'value',
+    value: '0.00036122966042372772939',
+  },
+  'numeric sampled to pg_catalog.float4 7': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '39bd636d',
+  },
+  'pg_catalog.float4 sampled to numeric 7': {
+    kind: 'value',
+    value: '453582000000000000000',
+  },
+  'numeric sampled to pg_catalog.float8 7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f37ac6d93eef789',
+  },
+  'pg_catalog.float8 sampled to numeric 7': {
+    kind: 'value',
+    value:
+      '0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000208032736455069',
+  },
+  'numeric sampled + 8': {
+    kind: 'value',
+    value: '1032.6710194393073449186311',
+  },
+  'numeric sampled - 8': {
+    kind: 'value',
+    value: '-1032.6759328597275516813689',
+  },
+  'numeric sampled * 8': {
+    kind: 'value',
+    value: '-2.53697947255947019940281575787968897787',
+  },
+  'numeric sampled / 8': {
+    kind: 'value',
+    value: '-0.000002378980642810353593',
+  },
+  'numeric sampled % 8': {
+    kind: 'value',
+    value: '-0.0024567102101033813689',
+  },
+  'numeric sampled to pg_catalog.float4 8': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'bb2100c2',
+  },
+  'pg_catalog.float4 sampled to numeric 8': {
+    kind: 'value',
+    value: '1100280000000000000000000000000',
+  },
+  'numeric sampled to pg_catalog.float8 8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bf6420184042b5c3',
+  },
+  'pg_catalog.float8 sampled to numeric 8': {
+    kind: 'value',
+    value:
+      '0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000326851628145975',
+  },
+  'numeric sampled + 9': {
+    kind: 'value',
+    value: '-33454.337827360369354964489',
+  },
+  'numeric sampled - 9': {
+    kind: 'value',
+    value: '33454.416939092693047035511',
+  },
+  'numeric sampled * 9': {
+    kind: 'value',
+    value: '-1323.316874298797665795651490514395478711',
+  },
+  'numeric sampled / 9': {
+    kind: 'value',
+    value: '-0.000001182382374322072704',
+  },
+  'numeric sampled % 9': {
+    kind: 'value',
+    value: '0.039555866161846035511',
+  },
+  'numeric sampled to pg_catalog.float4 9': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '3d220555',
+  },
+  'pg_catalog.float4 sampled to numeric 9': {
+    kind: 'value',
+    value: '0.000000000000000000000000000000000000000000014013',
+  },
+  'numeric sampled to pg_catalog.float8 9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fa440aa9f0f66e1',
+  },
+  'pg_catalog.float8 sampled to numeric 9': {
+    kind: 'value',
+    value:
+      '0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000780227455059316',
+  },
+  'numeric sampled + 10': {
+    kind: 'value',
+    value: '208493.64703002993949142395',
+  },
+  'numeric sampled - 10': {
+    kind: 'value',
+    value: '-208493.73862176075872857605',
+  },
+  'numeric sampled * 10': {
+    kind: 'value',
+    value: '-9548.1490954090614827187836187558348155',
+  },
+  'numeric sampled / 10': {
+    kind: 'value',
+    value: '-0.000000219651082912425803',
+  },
+  'numeric sampled % 10': {
+    kind: 'value',
+    value: '-0.04579586540961857605',
+  },
+  'numeric sampled to pg_catalog.float4 10': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'bd3b9472',
+  },
+  'pg_catalog.float4 sampled to numeric 10': {
+    kind: 'value',
+    value: '0.0000000000000000000000000000000000427546',
+  },
+  'numeric sampled to pg_catalog.float8 10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bfa7728e4073e173',
+  },
+  'pg_catalog.float8 sampled to numeric 10': {
+    kind: 'value',
+    value:
+      '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000178065716004636',
+  },
+  'numeric sampled + 11': {
+    kind: 'value',
+    value: '3767530.3413030256047763363',
+  },
+  'numeric sampled - 11': {
+    kind: 'value',
+    value: '-3767522.6629342172010236637',
+  },
+  'numeric sampled * 11': {
+    kind: 'value',
+    value: '14464228.98935105869515514184842421819527',
+  },
+  'numeric sampled / 11': {
+    kind: 'value',
+    value: '0.000001019019880030826328',
+  },
+  'numeric sampled % 11': {
+    kind: 'value',
+    value: '3.8391844042018763363',
+  },
+  'numeric sampled to pg_catalog.float4 11': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '4075b533',
+  },
+  'pg_catalog.float4 sampled to numeric 11': {
+    kind: 'value',
+    value: '0.0000000000000000000000000704189',
+  },
+  'numeric sampled to pg_catalog.float8 11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '400eb6a6501ae1e7',
+  },
+  'pg_catalog.float8 sampled to numeric 11': {
+    kind: 'value',
+    value:
+      '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000442250378018146',
+  },
+  'numeric sampled + 12': {
+    kind: 'value',
+    value: '-8732314.328413620125165265',
+  },
+  'numeric sampled - 12': {
+    kind: 'value',
+    value: '8732293.598419498296834735',
+  },
+  'numeric sampled * 12': {
+    kind: 'value',
+    value: '90510304.915821752744108168816512005915',
+  },
+  'numeric sampled / 12': {
+    kind: 'value',
+    value: '0.000001186971629061204417',
+  },
+  'numeric sampled % 12': {
+    kind: 'value',
+    value: '-10.364997060914165265',
+  },
+  'numeric sampled to pg_catalog.float4 12': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'c125d707',
+  },
+  'pg_catalog.float4 sampled to numeric 12': {
+    kind: 'value',
+    value: '0.000000000000000116653',
+  },
+  'numeric sampled to pg_catalog.float8 12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c024bae0e50f8661',
+  },
+  'pg_catalog.float8 sampled to numeric 12': {
+    kind: 'value',
+    value:
+      '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000769596247872886',
+  },
+  'numeric sampled + 13': {
+    kind: 'value',
+    value: '77820794.21848708223677199',
+  },
+  'numeric sampled - 13': {
+    kind: 'value',
+    value: '-77820339.04428223282322801',
+  },
+  'numeric sampled * 13': {
+    kind: 'value',
+    value: '17710957268.6856581029632641835779465847',
+  },
+  'numeric sampled / 13': {
+    kind: 'value',
+    value: '0.000002924510990812061192',
+  },
+  'numeric sampled % 13': {
+    kind: 'value',
+    value: '227.58710242470677199',
+  },
+  'numeric sampled to pg_catalog.float4 13': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '4363964c',
+  },
+  'pg_catalog.float4 sampled to numeric 13': {
+    kind: 'value',
+    value: '0.000000299478',
+  },
+  'numeric sampled to pg_catalog.float8 13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406c72c98b063093',
+  },
+  'pg_catalog.float8 sampled to numeric 13': {
+    kind: 'value',
+    value:
+      '0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000195087178274792',
+  },
+  'numeric sampled + 14': {
+    kind: 'value',
+    value: '3943794920.8418762916835235',
+  },
+  'numeric sampled - 14': {
+    kind: 'value',
+    value: '-3943797959.2599046153164765',
+  },
+  'numeric sampled * 14': {
+    kind: 'value',
+    value: '-5991451101744.59463964602642287285709275',
+  },
+  'numeric sampled / 14': {
+    kind: 'value',
+    value: '-0.000000385214865233311260',
+  },
+  'numeric sampled % 14': {
+    kind: 'value',
+    value: '-1519.2090141618164765',
+  },
+  'numeric sampled to pg_catalog.float4 14': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'c4bde6b0',
+  },
+  'pg_catalog.float4 sampled to numeric 14': {
+    kind: 'value',
+    value: '728.977',
+  },
+  'numeric sampled to pg_catalog.float8 14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c097bcd607cef59c',
+  },
+  'pg_catalog.float8 sampled to numeric 14': {
+    kind: 'value',
+    value:
+      '0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000375170569229865',
+  },
+  'numeric sampled + 15': {
+    kind: 'value',
+    value: '-16602817995.519248422513093',
+  },
+  'numeric sampled - 15': {
+    kind: 'value',
+    value: '16602883730.930689699486907',
+  },
+  'numeric sampled * 15': {
+    kind: 'value',
+    value: '-545697616296126.956148095519460928584327',
+  },
+  'numeric sampled / 15': {
+    kind: 'value',
+    value: '-0.000001979642291038094753',
+  },
+  'numeric sampled % 15': {
+    kind: 'value',
+    value: '32867.705720638486907',
+  },
+  'numeric sampled to pg_catalog.float4 15': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '470063b5',
+  },
+  'pg_catalog.float4 sampled to numeric 15': {
+    kind: 'value',
+    value: '2004490000000',
+  },
+  'numeric sampled to pg_catalog.float8 15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40e00c76954372cd',
+  },
+  'pg_catalog.float8 sampled to numeric 15': {
+    kind: 'value',
+    value:
+      '0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000774794150711009',
+  },
+  'numeric sampled + 16': {
+    kind: 'value',
+    value: '380330935477.84689501544535',
+  },
+  'numeric sampled - 16': {
+    kind: 'value',
+    value: '-380331730969.31293608455465',
+  },
+  'numeric sampled * 16': {
+    kind: 'value',
+    value: '-151275164923689980.9416998105945038598075',
+  },
+  'numeric sampled / 16': {
+    kind: 'value',
+    value: '-0.000001045787444461530826',
+  },
+  'numeric sampled % 16': {
+    kind: 'value',
+    value: '-397745.73302053455465',
+  },
+  'numeric sampled to pg_catalog.float4 16': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'c8c23637',
+  },
+  'pg_catalog.float4 sampled to numeric 16': {
+    kind: 'value',
+    value: '3745680000000000000000',
+  },
+  'numeric sampled to pg_catalog.float8 16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c11846c6ee9cef5d',
+  },
+  'pg_catalog.float8 sampled to numeric 16': {
+    kind: 'value',
+    value:
+      '0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000155671446744018',
+  },
+  'numeric sampled + 17': {
+    kind: 'value',
+    value: '3834933059217.0593397930151',
+  },
+  'numeric sampled - 17': {
+    kind: 'value',
+    value: '-3834927601464.4025836069849',
+  },
+  'numeric sampled * 17': {
+    kind: 'value',
+    value: '10465050599446001266.89677061724707562167',
+  },
+  'numeric sampled / 17': {
+    kind: 'value',
+    value: '0.000000711584329652120226',
+  },
+  'numeric sampled % 17': {
+    kind: 'value',
+    value: '2728876.3283780930151',
+  },
+  'numeric sampled to pg_catalog.float4 17': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '4a268eb1',
+  },
+  'pg_catalog.float4 sampled to numeric 17': {
+    kind: 'value',
+    value: '6835740000000000000000000000000',
+  },
+  'numeric sampled to pg_catalog.float8 17': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4144d1d62a084b19',
+  },
+  'pg_catalog.float8 sampled to numeric 17': {
+    kind: 'value',
+    value:
+      '0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000351048584486051',
+  },
+  'numeric sampled + 18': {
+    kind: 'value',
+    value: '-37887584902488.023932572341',
+  },
+  'numeric sampled - 18': {
+    kind: 'value',
+    value: '37887584704218.942049427659',
+  },
+  'numeric sampled * 18': {
+    kind: 'value',
+    value: '3755968326865339911.840172770339551931',
+  },
+  'numeric sampled / 18': {
+    kind: 'value',
+    value: '0.0000000026165442177459093268',
+  },
+  'numeric sampled % 18': {
+    kind: 'value',
+    value: '-99134.540941572341',
+  },
+  'numeric sampled to pg_catalog.float4 18': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'c7c19f45',
+  },
+  'pg_catalog.float4 sampled to numeric 18': {
+    kind: 'value',
+    value: '0.000000000000000000000000000000000000000000152742',
+  },
+  'numeric sampled to pg_catalog.float8 18': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0f833e8a7b259a4',
+  },
+  'pg_catalog.float8 sampled to numeric 18': {
+    kind: 'value',
+    value:
+      '0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000919711359350943',
+  },
+  'numeric sampled + 19': {
+    kind: 'value',
+    value: '379527195394660.98115023571',
+  },
+  'numeric sampled - 19': {
+    kind: 'value',
+    value: '-379526415455332.16950976429',
+  },
+  'numeric sampled * 19': {
+    kind: 'value',
+    value: '148003940944598949318426.2060463633710343',
+  },
+  'numeric sampled / 19': {
+    kind: 'value',
+    value: '0.000001027515471454327657',
+  },
+  'numeric sampled % 19': {
+    kind: 'value',
+    value: '389969664.40582023571',
+  },
+  'numeric sampled to pg_catalog.float4 19': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '4db9f3b8',
+  },
+  'pg_catalog.float4 sampled to numeric 19': {
+    kind: 'value',
+    value: '0.000000000000000000000000000000000304291',
+  },
+  'numeric sampled to pg_catalog.float8 19': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41b73e770067e3d6',
+  },
+  'pg_catalog.float8 sampled to numeric 19': {
+    kind: 'value',
+    value:
+      '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000114140563855322',
+  },
+  'numeric sampled + 20': {
+    kind: 'value',
+    value: '444775102840649.0522305791',
+  },
+  'numeric sampled - 20': {
+    kind: 'value',
+    value: '-444780953194013.5323694209',
+  },
+  'numeric sampled * 20': {
+    kind: 'value',
+    value: '-1301054316329017791720050.84710590962907',
+  },
+  'numeric sampled / 20': {
+    kind: 'value',
+    value: '-0.000006576711298621267584',
+  },
+  'numeric sampled % 20': {
+    kind: 'value',
+    value: '-2925176682.2400694209',
+  },
+  'numeric sampled to pg_catalog.float4 20': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'cf2e5aa7',
+  },
+  'pg_catalog.float4 sampled to numeric 20': {
+    kind: 'value',
+    value: '0.00000000000000000000000044669',
+  },
+  'numeric sampled to pg_catalog.float8 20': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c1e5cb54ed47aea6',
+  },
+  'pg_catalog.float8 sampled to numeric 20': {
+    kind: 'value',
+    value:
+      '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000418358442306012',
+  },
+  'numeric sampled + 21': {
+    kind: 'value',
+    value: '-25712981003853351.287222593',
+  },
+  'numeric sampled - 21': {
+    kind: 'value',
+    value: '25713058400917673.370777407',
+  },
+  'numeric sampled * 21': {
+    kind: 'value',
+    value: '-995056119910266620573574091.388472150903',
+  },
+  'numeric sampled / 21': {
+    kind: 'value',
+    value: '-0.000001505017015074722661',
+  },
+  'numeric sampled % 21': {
+    kind: 'value',
+    value: '38698532161.041777407',
+  },
+  'numeric sampled to pg_catalog.float4 21': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '511029cc',
+  },
+  'pg_catalog.float4 sampled to numeric 21': {
+    kind: 'value',
+    value: '0.00000000000000118049',
+  },
+  'numeric sampled to pg_catalog.float8 21': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '422205397a821564',
+  },
+  'pg_catalog.float8 sampled to numeric 21': {
+    kind: 'value',
+    value:
+      '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000628810487742387',
+  },
+  'numeric sampled + 22': {
+    kind: 'value',
+    value: '65086400378514674.44084979',
+  },
+  'numeric sampled - 22': {
+    kind: 'value',
+    value: '-65086618871629553.53915021',
+  },
+  'numeric sampled * 22': {
+    kind: 'value',
+    value: '-7110477112295209325954465844.2727524379',
+  },
+  'numeric sampled / 22': {
+    kind: 'value',
+    value: '-0.000001678482347092492566',
+  },
+  'numeric sampled % 22': {
+    kind: 'value',
+    value: '-109246557439.54915021',
+  },
+  'numeric sampled to pg_catalog.float4 22': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'd1cb7cd1',
+  },
+  'pg_catalog.float4 sampled to numeric 22': {
+    kind: 'value',
+    value: '0.00000209632',
+  },
+  'numeric sampled to pg_catalog.float8 22': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c2396f9a2cff8c95',
+  },
+  'pg_catalog.float8 sampled to numeric 22': {
+    kind: 'value',
+    value:
+      '0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000121737566538026',
+  },
+  'numeric sampled + 23': {
+    kind: 'value',
+    value: '3900935100705172061.1295723',
+  },
+  'numeric sampled - 23': {
+    kind: 'value',
+    value: '-3900933215927963866.2704277',
+  },
+  'numeric sampled * 23': {
+    kind: 'value',
+    value: '3676195896131931819997609379507.17292551',
+  },
+  'numeric sampled / 23': {
+    kind: 'value',
+    value: '0.000000241580238438095937',
+  },
+  'numeric sampled % 23': {
+    kind: 'value',
+    value: '942388604097.4295723',
+  },
+  'numeric sampled to pg_catalog.float4 23': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '535b6abd',
+  },
+  'pg_catalog.float4 sampled to numeric 23': {
+    kind: 'value',
+    value: '4353.63',
+  },
+  'numeric sampled to pg_catalog.float8 23': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '426b6d579d982dbf',
+  },
+  'pg_catalog.float8 sampled to numeric 23': {
+    kind: 'value',
+    value:
+      '0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000352331946249154',
+  },
+  'numeric sampled + 24': {
+    kind: 'value',
+    value: '-14905392434706374559.014105',
+  },
+  'numeric sampled - 24': {
+    kind: 'value',
+    value: '14905319333204250566.985895',
+  },
+  'numeric sampled * 24': {
+    kind: 'value',
+    value: '544801952404908178239123113845431.701115',
+  },
+  'numeric sampled / 24': {
+    kind: 'value',
+    value: '0.000002452189088711435704',
+  },
+  'numeric sampled % 24': {
+    kind: 'value',
+    value: '-36550751061996.014105',
+  },
+  'numeric sampled to pg_catalog.float4 24': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'd604f88a',
+  },
+  'pg_catalog.float4 sampled to numeric 24': {
+    kind: 'value',
+    value: '10730400000000',
+  },
+  'numeric sampled to pg_catalog.float8 24': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c2c09f114443f602',
+  },
+  'pg_catalog.float8 sampled to numeric 24': {
+    kind: 'value',
+    value:
+      '0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000521186775248637',
+  },
+  'numeric sampled + 25': {
+    kind: 'value',
+    value: '235562999513846260738.33175',
+  },
+  'numeric sampled - 25': {
+    kind: 'value',
+    value: '-235562660146314993041.66825',
+  },
+  'numeric sampled * 25': {
+    kind: 'value',
+    value: '39971188008933497734361182172220690.75750',
+  },
+  'numeric sampled / 25': {
+    kind: 'value',
+    value: '0.000000720333363953247316',
+  },
+  'numeric sampled % 25': {
+    kind: 'value',
+    value: '169683765633848.33175',
+  },
+  'numeric sampled to pg_catalog.float4 25': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '571a5395',
+  },
+  'pg_catalog.float4 sampled to numeric 25': {
+    kind: 'value',
+    value: '23274500000000000000000',
+  },
+  'numeric sampled to pg_catalog.float8 25': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '42e34a729264670b',
+  },
+  'pg_catalog.float8 sampled to numeric 25': {
+    kind: 'value',
+    value:
+      '0.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000999296194411747',
+  },
+  'numeric sampled + 26': {
+    kind: 'value',
+    value: '3662350105322507701423.7211',
+  },
+  'numeric sampled - 26': {
+    kind: 'value',
+    value: '-3662356070732744426376.2789',
+  },
+  'numeric sampled * 26': {
+    kind: 'value',
+    value: '-10923719300910620905550903076243125621.7100',
+  },
+  'numeric sampled / 26': {
+    kind: 'value',
+    value: '-0.000000814423144538699643',
+  },
+  'numeric sampled % 26': {
+    kind: 'value',
+    value: '-2982705118362476.2789',
+  },
+  'numeric sampled to pg_catalog.float4 26': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'd9298c12',
+  },
+  'pg_catalog.float4 sampled to numeric 26': {
+    kind: 'value',
+    value: '69659200000000000000000000000000',
+  },
+  'numeric sampled to pg_catalog.float8 26': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c32531824e1976d9',
+  },
+  'pg_catalog.float8 sampled to numeric 26': {
+    kind: 'value',
+    value:
+      '0.00000000000000000000000000000000000000000000000000000000000000000000000000000000295657619353261',
+  },
+  'numeric sampled + 27': {
+    kind: 'value',
+    value: '-26926633273443521831145.597',
+  },
+  'numeric sampled - 27': {
+    kind: 'value',
+    value: '26926690371283926706854.403',
+  },
+  'numeric sampled * 27': {
+    kind: 'value',
+    value: '-768727119684691820612225742876659606407.000',
+  },
+  'numeric sampled / 27': {
+    kind: 'value',
+    value: '-0.000001060247289128382649',
+  },
+  'numeric sampled % 27': {
+    kind: 'value',
+    value: '28548920202437854.403',
+  },
+  'numeric sampled to pg_catalog.float4 27': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '5acada2f',
+  },
+  'pg_catalog.float4 sampled to numeric 27': {
+    kind: 'value',
+    value: '0.000000000000000000000000000000000000000000943074',
+  },
+  'numeric sampled to pg_catalog.float8 27': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43595b45ddd8c938',
+  },
+  'pg_catalog.float8 sampled to numeric 27': {
+    kind: 'value',
+    value:
+      '0.00000000000000000000000000000000000000000000000000000000000000000000000581598740744296',
+  },
+  'numeric sampled + 28': {
+    kind: 'value',
+    value: '145737587309791086501916.95',
+  },
+  'numeric sampled - 28': {
+    kind: 'value',
+    value: '-145737874320189896758083.05',
+  },
+  'numeric sampled * 28': {
+    kind: 'value',
+    value: '-20914122121456090197604996448038969871500.00',
+  },
+  'numeric sampled / 28': {
+    kind: 'value',
+    value: '-0.000000984681170775901968',
+  },
+  'numeric sampled % 28': {
+    kind: 'value',
+    value: '-143505199405128083.05',
+  },
+  'numeric sampled to pg_catalog.float4 28': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'dbfeea9c',
+  },
+  'pg_catalog.float4 sampled to numeric 28': {
+    kind: 'value',
+    value: '0.00000000000000000000000000000000212249',
+  },
+  'numeric sampled to pg_catalog.float8 28': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c37fdd537f1f6d99',
+  },
+  'pg_catalog.float8 sampled to numeric 28': {
+    kind: 'value',
+    value: '0.0000000000000000000000000000000000000000000000000000000000000148516887868229',
+  },
+  'numeric sampled + 29': {
+    kind: 'value',
+    value: '1587640080001064119.900011105409940402514745',
+  },
+  'numeric sampled - 29': {
+    kind: 'value',
+    value: '1587640080001064119.899988894590059597485255',
+  },
+  'numeric sampled * 29': {
+    kind: 'value',
+    value: '17631393926225.2612296682197299501979255',
+  },
+  'numeric sampled / 29': {
+    kind: 'value',
+    value: '142960961236116262183032.009526794985413972439614',
+  },
+  'numeric sampled % 29': {
+    kind: 'value',
+    value: '0.000000105798963731193160',
+  },
+  'numeric sampled to pg_catalog.float4 29': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '5db04372',
+  },
+  'pg_catalog.float4 sampled to numeric 29': {
+    kind: 'value',
+    value: '0.0000000000000000000000059638',
+  },
+  'numeric sampled to pg_catalog.float8 29': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43b6086e3db7a2dd',
+  },
+  'pg_catalog.float8 sampled to numeric 29': {
+    kind: 'value',
+    value: '0.0000000000000000000000000000000000000000000000000000247183018600782',
+  },
+  'numeric sampled + 30': {
+    kind: 'value',
+    value: '-19746941663233838461.00007755347762666439863',
+  },
+  'numeric sampled - 30': {
+    kind: 'value',
+    value: '-19746941663233838460.99992244652237333560137',
+  },
+  'numeric sampled * 30': {
+    kind: 'value',
+    value: '1531443998474652.55887900425722912970843',
+  },
+  'numeric sampled / 30': {
+    kind: 'value',
+    value: '254623548389330443979494.71969179457206130339654',
+  },
+  'numeric sampled % 30': {
+    kind: 'value',
+    value: '-0.00005581460148843830678',
+  },
+  'numeric sampled to pg_catalog.float4 30': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'df89059d',
+  },
+  'pg_catalog.float4 sampled to numeric 30': {
+    kind: 'value',
+    value: '0.000000000000010493',
+  },
+  'numeric sampled to pg_catalog.float8 30': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c3f120b3ad1a56a1',
+  },
+  'pg_catalog.float8 sampled to numeric 30': {
+    kind: 'value',
+    value: '0.0000000000000000000000000000000000000000000642987059866579',
+  },
+  'numeric sampled + 31': {
+    kind: 'value',
+    value: '305876055613466828430.0018916934382660074693',
+  },
+  'numeric sampled - 31': {
+    kind: 'value',
+    value: '305876055613466828429.9981083065617339925307',
+  },
+  'numeric sampled * 31': {
+    kind: 'value',
+    value: '578623727326683579.2449072123701615921990',
+  },
+  'numeric sampled / 31': {
+    kind: 'value',
+    value: '161694304915411423856315.5900589807105237071206',
+  },
+  'numeric sampled % 31': {
+    kind: 'value',
+    value: '0.0011162107020000263705',
+  },
+  'numeric sampled to pg_catalog.float4 31': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '6184a710',
+  },
+  'pg_catalog.float4 sampled to numeric 31': {
+    kind: 'value',
+    value: '0.0000250196',
+  },
+  'numeric sampled to pg_catalog.float8 31': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '443094e20bfaca51',
+  },
+  'pg_catalog.float8 sampled to numeric 31': {
+    kind: 'value',
+    value: '0.000000000000000000000000000000000149163777348534',
+  },
+  'numeric sampled + 32': {
+    kind: 'value',
+    value: '-679997330365823840899.982369647156394399005',
+  },
+  'numeric sampled - 32': {
+    kind: 'value',
+    value: '-679997330365823840900.017630352843605600995',
+  },
+  'numeric sampled * 32': {
+    kind: 'value',
+    value: '-11988592867059319643.315381310743761695500',
+  },
+  'numeric sampled / 32': {
+    kind: 'value',
+    value: '-38569694911832343710998.064417776189355731129',
+  },
+  'numeric sampled % 32': {
+    kind: 'value',
+    value: '-0.001135708123618756990',
+  },
+  'numeric sampled to pg_catalog.float4 32': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'e213736f',
+  },
+  'pg_catalog.float4 sampled to numeric 32': {
+    kind: 'value',
+    value: '54163.4',
+  },
+  'numeric sampled to pg_catalog.float8 32': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c4426e6de897fe70',
+  },
+  'pg_catalog.float8 sampled to numeric 32': {
+    kind: 'value',
+    value: '0.000000000000000000000000248410684980358',
+  },
+  'numeric sampled + 33': {
+    kind: 'value',
+    value: '36617244241821336262999.77433821495872812399',
+  },
+  'numeric sampled - 33': {
+    kind: 'value',
+    value: '36617244241821336263000.22566178504127187601',
+  },
+  'numeric sampled * 33': {
+    kind: 'value',
+    value: '-8263112698901636756370.14610181905275063000',
+  },
+  'numeric sampled / 33': {
+    kind: 'value',
+    value: '-162266040017029522206356.11506392067573681814',
+  },
+  'numeric sampled % 33': {
+    kind: 'value',
+    value: '0.02596552973353408044',
+  },
+  'numeric sampled to pg_catalog.float4 33': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '64f820cb',
+  },
+  'pg_catalog.float4 sampled to numeric 33': {
+    kind: 'value',
+    value: '127230000000000',
+  },
+  'numeric sampled to pg_catalog.float8 33': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '449f041961fdd8da',
+  },
+  'pg_catalog.float8 sampled to numeric 33': {
+    kind: 'value',
+    value: '0.000000000000000543624658115497',
+  },
+  'numeric sampled + 34': {
+    kind: 'value',
+    value: '-310263790203671650129996.0142162718308377777',
+  },
+  'numeric sampled - 34': {
+    kind: 'value',
+    value: '-310263790203671650130003.9857837281691622223',
+  },
+  'numeric sampled * 34': {
+    kind: 'value',
+    value: '-1236644366433885181193137.1505954988838990000',
+  },
+  'numeric sampled / 34': {
+    kind: 'value',
+    value: '-77842605460730513073297.5662916103361885494',
+  },
+  'numeric sampled % 34': {
+    kind: 'value',
+    value: '-2.2571158858766920769',
+  },
+  'numeric sampled to pg_catalog.float4 34': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'e68366de',
+  },
+  'pg_catalog.float4 sampled to numeric 34': {
+    kind: 'value',
+    value: '231868000000000000000000',
+  },
+  'numeric sampled to pg_catalog.float8 34': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c4d06cdbc2df8e83',
+  },
+  'pg_catalog.float8 sampled to numeric 34': {
+    kind: 'value',
+    value: '0.0000010856686201155',
+  },
+  'numeric sampled + 35': {
+    kind: 'value',
+    value: '2497245668367578827500038.811588383280513181',
+  },
+  'numeric sampled - 35': {
+    kind: 'value',
+    value: '2497245668367578827499961.188411616719486819',
+  },
+  'numeric sampled * 35': {
+    kind: 'value',
+    value: '96922070972612703321408021.546670275277500000',
+  },
+  'numeric sampled / 35': {
+    kind: 'value',
+    value: '64342784523690279196138.151775778951224737',
+  },
+  'numeric sampled % 35': {
+    kind: 'value',
+    value: '5.890659059206705022',
+  },
+  'numeric sampled to pg_catalog.float4 35': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '680433fd',
+  },
+  'pg_catalog.float4 sampled to numeric 35': {
+    kind: 'value',
+    value: '350996000000000000000000000000000',
+  },
+  'numeric sampled to pg_catalog.float8 35': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4500867fabeaadaa',
+  },
+  'pg_catalog.float8 sampled to numeric 35': {
+    kind: 'value',
+    value: '2995.74668455124',
+  },
+  'numeric sampled + 36': {
+    kind: 'value',
+    value: '-15887391464072374049000293.31655802902389243',
+  },
+  'numeric sampled - 36': {
+    kind: 'value',
+    value: '-15887391464072374048999706.68344197097610757',
+  },
+  'numeric sampled * 36': {
+    kind: 'value',
+    value: '4660034980301403359787740136.13289954907000000',
+  },
+  'numeric sampled / 36': {
+    kind: 'value',
+    value: '54164659406988898324873.86076859204747566',
+  },
+  'numeric sampled % 36': {
+    kind: 'value',
+    value: '-252.47768067885458861',
+  },
+  'numeric sampled to pg_catalog.float4 36': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'e9524493',
+  },
+  'pg_catalog.float4 sampled to numeric 36': {
+    kind: 'value',
+    value: '0.00000000000000000000000000000000000000000706955',
+  },
+  'numeric sampled to pg_catalog.float8 36': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c52a48926f1dbc8a',
+  },
+  'pg_catalog.float8 sampled to numeric 36': {
+    kind: 'value',
+    value: '6983355700224',
+  },
+  'numeric sampled + 37': {
+    kind: 'value',
+    value: '22168268838648461750003228.3784180548258537',
+  },
+  'numeric sampled - 37': {
+    kind: 'value',
+    value: '22168268838648461749996771.6215819451741463',
+  },
+  'numeric sampled * 37': {
+    kind: 'value',
+    value: '71567560684330012466728520969.6355459750000000',
+  },
+  'numeric sampled / 37': {
+    kind: 'value',
+    value: '6866688463369596746233.6754723538101916',
+  },
+  'numeric sampled % 37': {
+    kind: 'value',
+    value: '2180.6803690335158879',
+  },
+  'numeric sampled to pg_catalog.float4 37': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '6992b282',
+  },
+  'pg_catalog.float4 sampled to numeric 37': {
+    kind: 'value',
+    value: '0.0000000000000000000000000000000143323',
+  },
+  'numeric sampled to pg_catalog.float8 37': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '45325650430264ae',
+  },
+  'pg_catalog.float8 sampled to numeric 37': {
+    kind: 'value',
+    value: '17636466005499300000000',
+  },
+  'numeric sampled + 38': {
+    kind: 'value',
+    value: '-2080211590123141943699964450.990956952237337',
+  },
+  'numeric sampled - 38': {
+    kind: 'value',
+    value: '-2080211590123141943700035549.009043047762663',
+  },
+  'numeric sampled * 38': {
+    kind: 'value',
+    value: '-73949460628740338885311642636258.108073100000000',
+  },
+  'numeric sampled / 38': {
+    kind: 'value',
+    value: '-58516725110512302869727.084086153137959',
+  },
+  'numeric sampled % 38': {
+    kind: 'value',
+    value: '-2989.179418296396999',
+  },
+  'numeric sampled to pg_catalog.float4 38': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'ecd716be',
+  },
+  'pg_catalog.float4 sampled to numeric 38': {
+    kind: 'value',
+    value: '0.0000000000000000000000278839',
+  },
+  'numeric sampled to pg_catalog.float8 38': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c59ae2d7c10c574f',
+  },
+  'pg_catalog.float8 sampled to numeric 38': {
+    kind: 'value',
+    value: '23050597900931700000000000000000',
+  },
+  'numeric sampled + 39': {
+    kind: 'value',
+    value: '13054088602612007178999588557.13459797404299',
+  },
+  'numeric sampled - 39': {
+    kind: 'value',
+    value: '13054088602612007179000411442.86540202595701',
+  },
+  'numeric sampled * 39': {
+    kind: 'value',
+    value: '-5371011619870613180486753606854465.37479000000000',
+  },
+  'numeric sampled / 39': {
+    kind: 'value',
+    value: '-31727585286614933377280.06600780788864',
+  },
+  'numeric sampled % 39': {
+    kind: 'value',
+    value: '27158.44161660926720',
+  },
+  'numeric sampled to pg_catalog.float4 39': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '6e28b85b',
+  },
+  'pg_catalog.float4 sampled to numeric 39': {
+    kind: 'value',
+    value: '0.0000000000000961629',
+  },
+  'numeric sampled to pg_catalog.float8 39': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '45c5170b6491bab2',
+  },
+  'pg_catalog.float8 sampled to numeric 39': {
+    kind: 'value',
+    value: '50749196487033200000000000000000000000000',
+  },
+  'numeric sampled + 40': {
+    kind: 'value',
+    value: '-100807014611504735929999702007.6756201102829',
+  },
+  'numeric sampled - 40': {
+    kind: 'value',
+    value: '-100807014611504735930000297992.3243798897171',
+  },
+  'numeric sampled * 40': {
+    kind: 'value',
+    value: '-30039716597879801659247101857757905.4030000000000',
+  },
+  'numeric sampled / 40': {
+    kind: 'value',
+    value: '-338287285826170725857251.1524752805535',
+  },
+  'numeric sampled % 40': {
+    kind: 'value',
+    value: '-45436.4632626263079',
+  },
+  'numeric sampled to pg_catalog.float4 40': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'efa2dcce',
+  },
+  'pg_catalog.float4 sampled to numeric 40': {
+    kind: 'value',
+    value: '0.000128796',
+  },
+  'numeric sampled to pg_catalog.float8 40': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c5f45b99bac2db6d',
+  },
+  'pg_catalog.float8 sampled to numeric 40': {
+    kind: 'value',
+    value: '108136022098857000000000000000000000000000000000000',
+  },
+  'numeric sampled + 41': {
+    kind: 'value',
+    value: '25123261.221384637529541742001734620407',
+  },
+  'numeric sampled - 41': {
+    kind: 'value',
+    value: '-25123261.221384637480458257998265379593',
+  },
+  'numeric sampled * 41': {
+    kind: 'value',
+    value: '0.000616568595137405978016239247012470564535',
+  },
+  'numeric sampled / 41': {
+    kind: 'value',
+    value: '0.000000000000000000976853354565487920',
+  },
+  'numeric sampled % 41': {
+    kind: 'value',
+    value: '0.000000000024541742001734620407',
+  },
+  'numeric sampled to pg_catalog.float4 41': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '2dd7df17',
+  },
+  'pg_catalog.float4 sampled to numeric 41': {
+    kind: 'value',
+    value: '488066',
+  },
+  'numeric sampled to pg_catalog.float8 41': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3dbafbe2e1d439cc',
+  },
+  'pg_catalog.float8 sampled to numeric 41': {
+    kind: 'value',
+    value: '274835309146858000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 42': {
+    kind: 'value',
+    value: '-303355305.60368259996418031980882983685',
+  },
+  'numeric sampled - 42': {
+    kind: 'value',
+    value: '303355305.60368259937581968019117016315',
+  },
+  'numeric sampled * 42': {
+    kind: 'value',
+    value: '0.0892411608181966570846783825802699638395',
+  },
+  'numeric sampled / 42': {
+    kind: 'value',
+    value: '0.000000000000000000969754984912512496',
+  },
+  'numeric sampled % 42': {
+    kind: 'value',
+    value: '-0.00000000029418031980882983685',
+  },
+  'numeric sampled to pg_catalog.float4 42': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'afa1ba33',
+  },
+  'pg_catalog.float4 sampled to numeric 42': {
+    kind: 'value',
+    value: '720628000000000',
+  },
+  'numeric sampled to pg_catalog.float8 42': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bdf4374660f09175',
+  },
+  'pg_catalog.float8 sampled to numeric 42': {
+    kind: 'value',
+    value: '795573789323336000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 43': {
+    kind: 'value',
+    value: '2045448742.3696231270598294601530402595',
+  },
+  'numeric sampled - 43': {
+    kind: 'value',
+    value: '-2045448742.3696231219401705398469597405',
+  },
+  'numeric sampled * 43': {
+    kind: 'value',
+    value: '5.23599994995074748951854353789068080775',
+  },
+  'numeric sampled / 43': {
+    kind: 'value',
+    value: '0.000000000000000001251475731035681895',
+  },
+  'numeric sampled % 43': {
+    kind: 'value',
+    value: '0.0000000025598294601530402595',
+  },
+  'numeric sampled to pg_catalog.float4 43': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '312fe8ff',
+  },
+  'pg_catalog.float4 sampled to numeric 43': {
+    kind: 'value',
+    value: '1966070000000000000000000',
+  },
+  'numeric sampled to pg_catalog.float8 43': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e25fd1fe0179208',
+  },
+  'pg_catalog.float8 sampled to numeric 43': {
+    kind: 'value',
+    value: '1031867122535280000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 44': {
+    kind: 'value',
+    value: '3584819163.318700810711137976046168879',
+  },
+  'numeric sampled - 44': {
+    kind: 'value',
+    value: '-3584819163.318700875288862023953831121',
+  },
+  'numeric sampled * 44': {
+    kind: 'value',
+    value: '-115.749731345223146376371343894342335003',
+  },
+  'numeric sampled / 44': {
+    kind: 'value',
+    value: '-0.000000000000000009007110415595392598',
+  },
+  'numeric sampled % 44': {
+    kind: 'value',
+    value: '-0.000000032288862023953831121',
+  },
+  'numeric sampled to pg_catalog.float4 44': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'b30aadfb',
+  },
+  'pg_catalog.float4 sampled to numeric 44': {
+    kind: 'value',
+    value: '4680040000000000000000000000000000',
+  },
+  'numeric sampled to pg_catalog.float8 44': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'be6155bf55f56643',
+  },
+  'pg_catalog.float8 sampled to numeric 44': {
+    kind: 'value',
+    value:
+      '2365162925398300000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 45': {
+    kind: 'value',
+    value: '-373220035423.26963845989509278204656753',
+  },
+  'numeric sampled - 45': {
+    kind: 'value',
+    value: '373220035423.26963884010490721795343247',
+  },
+  'numeric sampled * 45': {
+    kind: 'value',
+    value: '-70950.9602060219680785584626041040769655',
+  },
+  'numeric sampled / 45': {
+    kind: 'value',
+    value: '-0.000000000000000000509364152978430141',
+  },
+  'numeric sampled % 45': {
+    kind: 'value',
+    value: '0.00000019010490721795343247',
+  },
+  'numeric sampled to pg_catalog.float4 45': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '344c1fa4',
+  },
+  'pg_catalog.float4 sampled to numeric 45': {
+    kind: 'value',
+    value: '0.0000000000000000000000000000000000000000794284',
+  },
+  'numeric sampled to pg_catalog.float8 45': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e8983f472a76f18',
+  },
+  'pg_catalog.float8 sampled to numeric 45': {
+    kind: 'value',
+    value:
+      '5266381752920140000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 46': {
+    kind: 'value',
+    value: '1938797208343.4845436338050657620863267',
+  },
+  'numeric sampled - 46': {
+    kind: 'value',
+    value: '-1938797208343.4845489661949342379136733',
+  },
+  'numeric sampled * 46': {
+    kind: 'value',
+    value: '-5169211.29540000739487313226073201692379',
+  },
+  'numeric sampled / 46': {
+    kind: 'value',
+    value: '-0.000000000000000001375179891307931279',
+  },
+  'numeric sampled % 46': {
+    kind: 'value',
+    value: '-0.0000026661949342379136733',
+  },
+  'numeric sampled to pg_catalog.float4 46': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'b632ece1',
+  },
+  'pg_catalog.float4 sampled to numeric 46': {
+    kind: 'value',
+    value: '0.000000000000000000000000000000190516',
+  },
+  'numeric sampled to pg_catalog.float8 46': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bec65d9c2a82a5d5',
+  },
+  'pg_catalog.float8 sampled to numeric 46': {
+    kind: 'value',
+    value:
+      '14003142977684600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 47': {
+    kind: 'value',
+    value: '5163761580298.121788381041400731874875',
+  },
+  'numeric sampled - 47': {
+    kind: 'value',
+    value: '-5163761580298.121741618958599268125125',
+  },
+  'numeric sampled * 47': {
+    kind: 'value',
+    value: '120734123.292459036690816561329494154375',
+  },
+  'numeric sampled / 47': {
+    kind: 'value',
+    value: '0.000000000000000004527908780672636462',
+  },
+  'numeric sampled % 47': {
+    kind: 'value',
+    value: '0.000023381041400731874875',
+  },
+  'numeric sampled to pg_catalog.float4 47': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '37c42267',
+  },
+  'pg_catalog.float4 sampled to numeric 47': {
+    kind: 'value',
+    value: '0.000000000000000000000222277',
+  },
+  'numeric sampled to pg_catalog.float8 47': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ef8844cee3bdec6',
+  },
+  'pg_catalog.float8 sampled to numeric 47': {
+    kind: 'value',
+    value:
+      '36272798219997600000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 48': {
+    kind: 'value',
+    value: '-198747250001172.22743597310580029320489',
+  },
+  'numeric sampled - 48': {
+    kind: 'value',
+    value: '198747250001172.22702402689419970679511',
+  },
+  'numeric sampled * 48': {
+    kind: 'value',
+    value: '40936588352.0087709488408271367560271547',
+  },
+  'numeric sampled / 48': {
+    kind: 'value',
+    value: '0.000000000000000001036357010218145705',
+  },
+  'numeric sampled % 48': {
+    kind: 'value',
+    value: '-0.00020597310580029320489',
+  },
+  'numeric sampled to pg_catalog.float4 48': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'b957fa7c',
+  },
+  'pg_catalog.float4 sampled to numeric 48': {
+    kind: 'value',
+    value: '0.000000000000539731',
+  },
+  'numeric sampled to pg_catalog.float8 48': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bf2aff4f81ac516a',
+  },
+  'pg_catalog.float8 sampled to numeric 48': {
+    kind: 'value',
+    value:
+      '68426147901277300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 49': {
+    kind: 'value',
+    value: '3896536666205458.0762396093203759794983',
+  },
+  'numeric sampled - 49': {
+    kind: 'value',
+    value: '-3896536666205458.0679603906796240205017',
+  },
+  'numeric sampled * 49': {
+    kind: 'value',
+    value: '16130139500610.86117100187466266984322743',
+  },
+  'numeric sampled / 49': {
+    kind: 'value',
+    value: '0.000000000000000001062381718688465846',
+  },
+  'numeric sampled % 49': {
+    kind: 'value',
+    value: '0.0041396093203759794983',
+  },
+  'numeric sampled to pg_catalog.float4 49': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '3b87a58f',
+  },
+  'pg_catalog.float4 sampled to numeric 49': {
+    kind: 'value',
+    value: '0.00193479',
+  },
+  'numeric sampled to pg_catalog.float8 49': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f70f4b1ea6340b2',
+  },
+  'pg_catalog.float8 sampled to numeric 49': {
+    kind: 'value',
+    value:
+      '136735187734162000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 50': {
+    kind: 'value',
+    value: '33961025440084914.065877741618162056267',
+  },
+  'numeric sampled - 50': {
+    kind: 'value',
+    value: '-33961025440084914.124122258381837943733',
+  },
+  'numeric sampled * 50': {
+    kind: 'value',
+    value: '-989021757778324.531288551500948748616635',
+  },
+  'numeric sampled / 50': {
+    kind: 'value',
+    value: '-0.000000000000000000857519995478826984',
+  },
+  'numeric sampled % 50': {
+    kind: 'value',
+    value: '-0.029122258381837943733',
+  },
+  'numeric sampled to pg_catalog.float4 50': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'bcee91cd',
+  },
+  'pg_catalog.float4 sampled to numeric 50': {
+    kind: 'value',
+    value: '3983920',
+  },
+  'numeric sampled to pg_catalog.float8 50': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bf9dd239ad57b62b',
+  },
+  'pg_catalog.float8 sampled to numeric 50': {
+    kind: 'value',
+    value:
+      '275200163523417000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 51': {
+    kind: 'value',
+    value: '-219242075809539834.80521234516223439277',
+  },
+  'numeric sampled - 51': {
+    kind: 'value',
+    value: '219242075809539834.89478765483776560723',
+  },
+  'numeric sampled * 51': {
+    kind: 'value',
+    value: '-9819338417272910.7934237754699841659655',
+  },
+  'numeric sampled / 51': {
+    kind: 'value',
+    value: '-0.000000000000000000204284030209026015',
+  },
+  'numeric sampled % 51': {
+    kind: 'value',
+    value: '0.04478765483776560723',
+  },
+  'numeric sampled to pg_catalog.float4 51': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '3d377343',
+  },
+  'pg_catalog.float4 sampled to numeric 51': {
+    kind: 'value',
+    value: '8336700000000000',
+  },
+  'numeric sampled to pg_catalog.float8 51': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fa6ee685195e1f3',
+  },
+  'pg_catalog.float8 sampled to numeric 51': {
+    kind: 'value',
+    value:
+      '532782811716731000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 52': {
+    kind: 'value',
+    value: '2595300844162043705.4027760218193213823',
+  },
+  'numeric sampled - 52': {
+    kind: 'value',
+    value: '-2595300844162043711.1972239781806786177',
+  },
+  'numeric sampled * 52': {
+    kind: 'value',
+    value: '-7519167836298829718.20963878942262601691',
+  },
+  'numeric sampled / 52': {
+    kind: 'value',
+    value: '-0.000000000000000001116334541599595622',
+  },
+  'numeric sampled % 52': {
+    kind: 'value',
+    value: '-2.8972239781806786177',
+  },
+  'numeric sampled to pg_catalog.float4 52': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'c0396c1e',
+  },
+  'pg_catalog.float4 sampled to numeric 52': {
+    kind: 'value',
+    value: '15093100000000000000000000',
+  },
+  'numeric sampled to pg_catalog.float8 52': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0072d83c3dbc8c5',
+  },
+  'pg_catalog.float8 sampled to numeric 52': {
+    kind: 'value',
+    value:
+      '1724646616639970000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 53': {
+    kind: 'value',
+    value: '1682734260046108248.280214722861501375',
+  },
+  'numeric sampled - 53': {
+    kind: 'value',
+    value: '-1682734260046108217.719785277138498625',
+  },
+  'numeric sampled * 53': {
+    kind: 'value',
+    value: '25712540815019997299.481336032128320375',
+  },
+  'numeric sampled / 53': {
+    kind: 'value',
+    value: '0.000000000000000009080586926686101677',
+  },
+  'numeric sampled % 53': {
+    kind: 'value',
+    value: '15.280214722861501375',
+  },
+  'numeric sampled to pg_catalog.float4 53': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '41747bc2',
+  },
+  'pg_catalog.float4 sampled to numeric 53': {
+    kind: 'value',
+    value: '33099400000000000000000000000000000',
+  },
+  'numeric sampled to pg_catalog.float8 53': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '402e8f784ddd1880',
+  },
+  'pg_catalog.float8 sampled to numeric 53': {
+    kind: 'value',
+    value:
+      '3123877516895860000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 54': {
+    kind: 'value',
+    value: '-379619674421391532392.17951743831351693',
+  },
+  'numeric sampled - 54': {
+    kind: 'value',
+    value: '379619674421391532067.82048256168648307',
+  },
+  'numeric sampled * 54': {
+    kind: 'value',
+    value: '61566535607750967756413.01822625274565390',
+  },
+  'numeric sampled / 54': {
+    kind: 'value',
+    value: '0.000000000000000000427215785603062297',
+  },
+  'numeric sampled % 54': {
+    kind: 'value',
+    value: '-162.17951743831351693',
+  },
+  'numeric sampled to pg_catalog.float4 54': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'c3222df5',
+  },
+  'pg_catalog.float4 sampled to numeric 54': {
+    kind: 'value',
+    value: '0.000000000000000000000000000000000000000462719',
+  },
+  'numeric sampled to pg_catalog.float8 54': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06445be9b5ad3c9',
+  },
+  'pg_catalog.float8 sampled to numeric 54': {
+    kind: 'value',
+    value:
+      '7741573904297240000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 55': {
+    kind: 'value',
+    value: '3043896782352985776660.6259800463347563',
+  },
+  'numeric sampled - 55': {
+    kind: 'value',
+    value: '-3043896782352985773139.3740199536652437',
+  },
+  'numeric sampled * 55': {
+    kind: 'value',
+    value: '5359163755590110501472051.6384573581568700',
+  },
+  'numeric sampled / 55': {
+    kind: 'value',
+    value: '0.000000000000000000578411853599496857',
+  },
+  'numeric sampled % 55': {
+    kind: 'value',
+    value: '1760.6259800463347563',
+  },
+  'numeric sampled to pg_catalog.float4 55': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '44dc1408',
+  },
+  'pg_catalog.float4 sampled to numeric 55': {
+    kind: 'value',
+    value: '0.000000000000000000000000000000926209',
+  },
+  'numeric sampled to pg_catalog.float8 55': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '409b828100e9cbd3',
+  },
+  'pg_catalog.float8 sampled to numeric 55': {
+    kind: 'value',
+    value:
+      '14287550293100700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 56': {
+    kind: 'value',
+    value: '34901228523514723411110.082856929443623',
+  },
+  'numeric sampled - 56': {
+    kind: 'value',
+    value: '-34901228523514723474889.917143070556377',
+  },
+  'numeric sampled * 56': {
+    kind: 'value',
+    value: '-1112997285806255261975297941.541295046011000',
+  },
+  'numeric sampled / 56': {
+    kind: 'value',
+    value: '-0.000000000000000000913719043488245858',
+  },
+  'numeric sampled % 56': {
+    kind: 'value',
+    value: '-31889.917143070556377',
+  },
+  'numeric sampled to pg_catalog.float4 56': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'c6f923d6',
+  },
+  'pg_catalog.float4 sampled to numeric 56': {
+    kind: 'value',
+    value: '0.00000000000000000000311215',
+  },
+  'numeric sampled to pg_catalog.float8 56': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0df247ab278d973',
+  },
+  'pg_catalog.float8 sampled to numeric 56': {
+    kind: 'value',
+    value:
+      '20399754569635100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 57': {
+    kind: 'value',
+    value: '-227150305032483869672000.23436966763177',
+  },
+  'numeric sampled - 57': {
+    kind: 'value',
+    value: '227150305032483869867999.76563033236823',
+  },
+  'numeric sampled * 57': {
+    kind: 'value',
+    value: '-22260676656041926319043048761.39900540710000',
+  },
+  'numeric sampled / 57': {
+    kind: 'value',
+    value: '-0.000000000000000000431431362666749701',
+  },
+  'numeric sampled % 57': {
+    kind: 'value',
+    value: '97999.76563033236823',
+  },
+  'numeric sampled to pg_catalog.float4 57': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '47bf67e2',
+  },
+  'pg_catalog.float4 sampled to numeric 57': {
+    kind: 'value',
+    value: '0.00000000000543243',
+  },
+  'numeric sampled to pg_catalog.float8 57': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40f7ecfc40059766',
+  },
+  'pg_catalog.float8 sampled to numeric 57': {
+    kind: 'value',
+    value:
+      '73952823498716700000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 58': {
+    kind: 'value',
+    value: '-3144912.286237483800176449222689',
+  },
+  'numeric sampled - 58': {
+    kind: 'value',
+    value: '-3144912.286299912648823550777311',
+  },
+  'numeric sampled * 58': {
+    kind: 'value',
+    value: '-98.1666265639393391047416503450605843195',
+  },
+  'numeric sampled / 58': {
+    kind: 'value',
+    value: '-100751891294.561305394945476896275039',
+  },
+  'numeric sampled % 58': {
+    kind: 'value',
+    value: '-0.000017520824772926369566',
+  },
+  'numeric sampled to pg_catalog.float4 58': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'ca3ff341',
+  },
+  'pg_catalog.float4 sampled to numeric 58': {
+    kind: 'value',
+    value: '0.0125089',
+  },
+  'numeric sampled to pg_catalog.float8 58': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c147fe6824a473e4',
+  },
+  'pg_catalog.float8 sampled to numeric 58': {
+    kind: 'value',
+    value:
+      '144935719555332000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 59': {
+    kind: 'value',
+    value: '38552477.96377044992362836497581',
+  },
+  'numeric sampled - 59': {
+    kind: 'value',
+    value: '38552477.96375937920237163502419',
+  },
+  'numeric sampled * 59': {
+    kind: 'value',
+    value: '213.40186864653264059214627590621172103',
+  },
+  'numeric sampled / 59': {
+    kind: 'value',
+    value: '6964763554195.46918512876876571005369',
+  },
+  'numeric sampled % 59': {
+    kind: 'value',
+    value: '0.00000259710888920097705',
+  },
+  'numeric sampled to pg_catalog.float4 59': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '4c1310e7',
+  },
+  'pg_catalog.float4 sampled to numeric 59': {
+    kind: 'value',
+    value: '29496500',
+  },
+  'numeric sampled to pg_catalog.float8 59': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4182621cefb5ca61',
+  },
+  'pg_catalog.float8 sampled to numeric 59': {
+    kind: 'value',
+    value:
+      '331951266933818000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 60': {
+    kind: 'value',
+    value: '-858153.0027870355901717410187',
+  },
+  'numeric sampled - 60': {
+    kind: 'value',
+    value: '-858152.9996909839498282589813',
+  },
+  'numeric sampled * 60': {
+    kind: 'value',
+    value: '1328.443003575859185825511300079052699',
+  },
+  'numeric sampled / 60': {
+    kind: 'value',
+    value: '554353157.4581905836806835989983',
+  },
+  'numeric sampled % 60': {
+    kind: 'value',
+    value: '-0.0007092908540972589641',
+  },
+  'numeric sampled to pg_catalog.float4 60': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'c9518290',
+  },
+  'pg_catalog.float4 sampled to numeric 60': {
+    kind: 'value',
+    value: '62056500000000000',
+  },
+  'numeric sampled to pg_catalog.float8 60': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c12a305200a26645',
+  },
+  'pg_catalog.float8 sampled to numeric 60': {
+    kind: 'value',
+    value:
+      '638597120315139000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 61': {
+    kind: 'value',
+    value: '3689530064.276574832242949085689',
+  },
+  'numeric sampled - 61': {
+    kind: 'value',
+    value: '3689530064.210760281157050914311',
+  },
+  'numeric sampled * 61': {
+    kind: 'value',
+    value: '121412382.4480610103000817237183375660663',
+  },
+  'numeric sampled / 61': {
+    kind: 'value',
+    value: '112118976833.200913680254328505369',
+  },
+  'numeric sampled % 61': {
+    kind: 'value',
+    value: '0.006611521836477157063',
+  },
+  'numeric sampled to pg_catalog.float4 61': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '4f5be9c3',
+  },
+  'pg_catalog.float4 sampled to numeric 61': {
+    kind: 'value',
+    value: '120130000000000000000000000',
+  },
+  'numeric sampled to pg_catalog.float8 61': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41eb7d385a07cc20',
+  },
+  'pg_catalog.float8 sampled to numeric 61': {
+    kind: 'value',
+    value:
+      '926229430669118000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 62': {
+    kind: 'value',
+    value: '-39371199582.55486499618899776137',
+  },
+  'numeric sampled - 62': {
+    kind: 'value',
+    value: '-39371199582.87126606981100223863',
+  },
+  'numeric sampled * 62': {
+    kind: 'value',
+    value: '-6228544908.87831430065254368421289413979',
+  },
+  'numeric sampled / 62': {
+    kind: 'value',
+    value: '-248868937971.73860215270940662910',
+  },
+  'numeric sampled % 62': {
+    kind: 'value',
+    value: '-0.11684725704838998027',
+  },
+  'numeric sampled to pg_catalog.float4 62': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'd112ab4d',
+  },
+  'pg_catalog.float4 sampled to numeric 62': {
+    kind: 'value',
+    value: '276572000000000000000000000000000000',
+  },
+  'numeric sampled to pg_catalog.float8 62': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c2225569a8bd6d17',
+  },
+  'pg_catalog.float8 sampled to numeric 62': {
+    kind: 'value',
+    value:
+      '2205456121095110000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric sampled + 63': {
+    kind: 'value',
+    value: '103619665232.5165846559077810299',
+  },
+  'numeric sampled - 63': {
+    kind: 'value',
+    value: '103619665233.0703522040922189701',
+  },
+  'numeric sampled * 63': {
+    kind: 'value',
+    value: '-28690603979.828142911323245224621463943',
+  },
+  'numeric sampled / 63': {
+    kind: 'value',
+    value: '-374235238494.9862759414153738711',
+  },
+  'numeric sampled % 63': {
+    kind: 'value',
+    value: '0.2730838049554449706',
+  },
+  'numeric sampled to pg_catalog.float4 63': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '51c101b5',
+  },
+  'pg_catalog.float4 sampled to numeric 63': {
+    kind: 'value',
+    value: '0.00000000000000000000000000000000000000321193',
+  },
+  'numeric sampled to pg_catalog.float8 63': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '423820369d50cb21',
+  },
+  'pg_catalog.float8 sampled to numeric 63': {
+    kind: 'value',
+    value:
+      '5457351159267190000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric alternate literal +1.2300': {
+    kind: 'value',
+    value: '1.2300',
+  },
+  'numeric alternate literal .00100': {
+    kind: 'value',
+    value: '0.00100',
+  },
+  'numeric alternate literal 123.': {
+    kind: 'value',
+    value: '123',
+  },
+  'numeric alternate literal 0001.0000': {
+    kind: 'value',
+    value: '1.0000',
+  },
+  'numeric alternate literal 0e131072': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric alternate literal 1e1073741824': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric alternate literal 1e-1073741824': {
+    kind: 'error',
+    code: '22003',
+  },
 }

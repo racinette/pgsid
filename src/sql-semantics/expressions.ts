@@ -5,11 +5,13 @@ import type { CallableEmitter, SqlBindingGroup, TypedSqlExpression } from './sig
 export type IntegerType = 'pg_catalog.int2' | 'pg_catalog.int4' | 'pg_catalog.int8'
 
 export type FloatType = 'pg_catalog.float4' | 'pg_catalog.float8'
-export type NumericType = IntegerType | FloatType
+export type DecimalType = 'pg_catalog."numeric"'
+export type NumericType = IntegerType | FloatType | DecimalType
 
 export type SqlExpression =
   | { kind: 'integer'; type: IntegerType; value: string | null }
   | { kind: 'float'; type: FloatType; bits: string | null }
+  | { kind: 'decimal'; type: DecimalType; value: string | null }
   | {
       kind: 'operator' | 'function'
       signature: string
@@ -27,6 +29,7 @@ export interface ExpressionBackend<Ast> {
   bindings: readonly SqlBindingGroup<Ast>[]
   integer: (type: IntegerType, value: string | null) => Ast
   float: (type: FloatType, bits: string | null) => Ast
+  decimal: (value: string | null) => Ast
 }
 
 export function emitSqlExpression<Ast>(
@@ -35,6 +38,15 @@ export function emitSqlExpression<Ast>(
 ): { value: TypedSqlExpression<Ast>; helpers: readonly string[] } {
   const helpers = new Set<string>()
   const emit = (node: SqlExpression): TypedSqlExpression<Ast> => {
+    if (node.kind === 'decimal') {
+      if (
+        node.value !== null &&
+        !/^(?:NaN|[+-]?Infinity|[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?)$/.test(node.value)
+      )
+        throw new Error(`Invalid decimal literal: ${node.value}`)
+      helpers.add('decimalInput')
+      return { type: node.type, expression: backend.decimal(node.value) }
+    }
     if (node.kind === 'float') {
       const length = node.type === 'pg_catalog.float4' ? 8 : 16
       if (node.bits !== null && (node.bits.length !== length || !/^[0-9a-f]+$/i.test(node.bits)))
@@ -68,9 +80,9 @@ export function emitSqlExpression<Ast>(
     if (
       node.kind === 'cast' &&
       (metadata.schema !== 'pg_catalog' ||
-        metadata.name !== node.type.slice('pg_catalog.'.length) ||
+        metadata.name !== node.type.slice('pg_catalog.'.length).replaceAll('"', '') ||
         operands.length !== 1 ||
-        !/^pg_catalog\.(int[248]|float[48])$/.test(node.operand.type))
+        !/^pg_catalog\.(int[248]|float[48]|"numeric")$/.test(node.operand.type))
     ) {
       throw new Error(`Invalid numeric cast function: ${signature}`)
     }

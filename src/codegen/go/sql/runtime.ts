@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { goDecimalDependencies } from './decimal-runtime.js'
 
 const dependencies: Record<string, readonly string[]> = {
   SqlInteger: [],
@@ -60,9 +61,11 @@ for (const width of ['int2', 'int4', 'int8'])
 for (const name of ['Eq', 'Ne', 'Lt', 'Le', 'Gt', 'Ge'])
   dependencies[`float${name}`] = ['sqlFloatCompare', 'sqlComparisonResult']
 
+Object.assign(dependencies, goDecimalDependencies)
+
 export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsql'): string {
   const declarations = new Map(
-    ['integer', 'floating-point']
+    ['integer', 'floating-point', 'decimal']
       .flatMap((asset) =>
         readFileSync(new URL(`./assets/${asset}.go`, import.meta.url), 'utf8')
           .split(/\n(?=type |func )/)
@@ -86,6 +89,7 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
   }
   for (const name of required) include(name)
   const body = output.join('\n')
-  const imports = ['math', 'strconv'].filter((name) => body.includes(`${name}.`))
+  const imports = ['math', 'strconv', 'strings'].filter((name) => body.includes(`${name}.`))
+  if (body.includes('decimal.')) imports.push('github.com/shopspring/decimal')
   return `package ${packageName}\n${imports.length ? `import (${imports.map((name) => `\n"${name}"`).join('')}\n)\n` : ''}${body}`
 }

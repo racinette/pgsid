@@ -25,7 +25,12 @@ export function sqlSemanticsCoverage(
 ) {
   const evidence = new Map<string, string[]>()
   const record = (expression: SqlExpression, name: string): void => {
-    if (expression.kind === 'integer' || expression.kind === 'float') return
+    if (
+      expression.kind === 'integer' ||
+      expression.kind === 'float' ||
+      expression.kind === 'decimal'
+    )
+      return
     if (expression.signature !== null) {
       evidence.set(expression.signature, [...(evidence.get(expression.signature) ?? []), name])
     }
