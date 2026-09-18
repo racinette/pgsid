@@ -1,4 +1,6 @@
 import ts from 'typescript'
+import { numericMathCopyright } from '../../../sql-semantics/numeric-math-license.js'
+import { typescriptDecimalMathHelpers } from './decimal-math-runtime.js'
 import { typescriptFloatHelpers } from './floating-point-runtime.js'
 import { typescriptDecimalHelpers } from './decimal-runtime.js'
 
@@ -148,6 +150,7 @@ for (const [name, operator] of [
 
 Object.assign(helpers, typescriptFloatHelpers)
 Object.assign(helpers, typescriptDecimalHelpers)
+Object.assign(helpers, typescriptDecimalMathHelpers)
 
 for (const [width, bits, shiftMask] of [
   ['int2', 16, 31n],
@@ -208,5 +211,12 @@ export function typescriptSqlRuntime(required: readonly string[]): ts.Statement[
     }
   }
   for (const name of required) include(name)
+  if (included.has('SqlDecimalMath') && statements.length)
+    ts.addSyntheticLeadingComment(
+      statements[0]!,
+      ts.SyntaxKind.MultiLineCommentTrivia,
+      '\n' + numericMathCopyright + '\n',
+      true,
+    )
   return statements
 }

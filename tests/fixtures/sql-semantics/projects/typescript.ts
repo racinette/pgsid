@@ -1,3 +1,28 @@
+/*
+PostgreSQL Database Management System
+(also known as Postgres, formerly known as Postgres95)
+
+Portions Copyright (c) 1996-2026, PostgreSQL Global Development Group
+
+Portions Copyright (c) 1994, The Regents of the University of California
+
+Permission to use, copy, modify, and distribute this software and its
+documentation for any purpose, without fee, and without a written agreement
+is hereby granted, provided that the above copyright notice and this
+paragraph and the following two paragraphs appear in all copies.
+
+IN NO EVENT SHALL THE UNIVERSITY OF CALIFORNIA BE LIABLE TO ANY PARTY FOR
+DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, INCLUDING
+LOST PROFITS, ARISING OUT OF THE USE OF THIS SOFTWARE AND ITS
+DOCUMENTATION, EVEN IF THE UNIVERSITY OF CALIFORNIA HAS BEEN ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+
+THE UNIVERSITY OF CALIFORNIA SPECIFICALLY DISCLAIMS ANY WARRANTIES,
+INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS FOR A PARTICULAR PURPOSE.  THE SOFTWARE PROVIDED HEREUNDER IS
+ON AN "AS IS" BASIS, AND THE UNIVERSITY OF CALIFORNIA HAS NO OBLIGATIONS TO
+PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS.
+*/
 class SqlIntegerError extends Error {
     readonly code = "22003";
     constructor() { super("integer out of range"); }
@@ -632,6 +657,370 @@ function decimalTypmod(value: SqlDecimal | null, typmod: bigint | null): SqlDeci
     if (!result.value.isZero() && result.value.e >= precision - scale)
         throw new SqlIntegerError();
     return result;
+}
+class SqlDecimalMathError extends Error {
+    constructor(readonly code: string) { super("invalid numeric math argument"); }
+}
+function sqlDecimalMathScale(estimate: number, ...scales: number[]): number { return Math.min(1000, Math.max(0, 16 - Math.trunc(estimate), ...scales)); }
+function sqlDecimalMathDigits(value: Decimal): {
+    digits: number[];
+    weight: number;
+} {
+    if (value.isZero())
+        return { digits: [], weight: 0 };
+    const weight = Math.floor(value.e / 4), length = value.e - weight * 4 + 1;
+    let text = value.abs().toExponential().split("e")[0]!.replace(".", "");
+    text = text.padEnd(length, "0");
+    text = text.padStart(text.length + 4 - length, "0");
+    text = text.padEnd(Math.ceil(text.length / 4) * 4, "0");
+    const digits = Array.from({ length: text.length / 4 }, (_, i) => Number(text.slice(i * 4, i * 4 + 4)));
+    while (digits.at(-1) === 0)
+        digits.pop();
+    return { digits, weight };
+}
+type SqlDecimalMath = {
+    value: Decimal;
+    scale: number;
+};
+function sqlDecimalMathRound(value: Decimal, scale: number): SqlDecimalMath {
+    const Constructor = Decimal.clone({ precision: Math.max(1, value.e + Math.max(0, scale) + 4, value.sd() + 2), rounding: Decimal.ROUND_HALF_UP, minE: -1000000000, maxE: 1000000000 });
+    const x = new Constructor(value);
+    return { value: scale < 0 ? x.toNearest(new Constructor("1e" + -scale), Decimal.ROUND_HALF_UP) : x.toDP(scale, Decimal.ROUND_HALF_UP), scale };
+}
+function sqlDecimalMathSqrt(a: SqlDecimalMath, scale: number): SqlDecimalMath {
+    if (a.value.isNegative() && !a.value.isZero())
+        throw new SqlDecimalMathError("2201F");
+    if (a.value.isZero())
+        return { value: new Decimal(0), scale };
+    const text = a.value.toExponential().split("e")[0]!.replace(".", "");
+    const coefficient = BigInt(text), exponent = a.value.e + 1 - text.length + 2 * scale;
+    const numerator = exponent >= 0 ? coefficient * 10n ** BigInt(exponent) : coefficient;
+    const denominator = exponent < 0 ? 10n ** BigInt(-exponent) : 1n;
+    const n = numerator / denominator;
+    let q = n === 0n ? 0n : 1n << BigInt(Math.ceil(n.toString(2).length / 2));
+    if (q !== 0n) {
+        for (;;) {
+            const next = (q + n / q) / 2n;
+            if (next >= q)
+                break;
+            q = next;
+        }
+    }
+    if (4n * numerator >= denominator * (2n * q + 1n) ** 2n)
+        q++;
+    return { value: new Decimal(q.toString() + "e" + -scale), scale };
+}
+function sqlDecimalMathFromPairs(pairs: readonly bigint[], weight: number, negative: boolean): Decimal {
+    const text = pairs.map(x => x.toString().padStart(8, "0")).join("");
+    return new Decimal((negative ? "-" : "") + (text || "0") + "e" + (4 * (weight + 1 - 2 * pairs.length)));
+}
+function sqlDecimalMathMul(a: SqlDecimalMath, b: SqlDecimalMath, scale: number): SqlDecimalMath {
+    let x = sqlDecimalMathDigits(a.value), y = sqlDecimalMathDigits(b.value);
+    if (x.digits.length > y.digits.length)
+        [x, y] = [y, x];
+    if (!x.digits.length)
+        return { value: new Decimal(0), scale };
+    const nx = x.digits.length, ny = y.digits.length, px = Math.ceil(nx / 2), py = Math.ceil(ny / 2);
+    const full = Math.floor((nx + ny) / 2) + 1, offset = full - px - py + 1;
+    const weight = x.weight + y.weight + 1 + 2 * full - nx - ny - nx % 2 - ny % 2;
+    const maxdigits = weight + 1 + Math.trunc((scale + 3) / 4) + 2;
+    const count = Math.min(full, Math.trunc(maxdigits / 2) + 1);
+    if (count >= full || (nx <= 6 && scale === a.scale + b.scale)) {
+        const Constructor = sqlDecimalContext(a.value, b.value);
+        return sqlDecimalMathRound(new Constructor(a.value).mul(b.value), scale);
+    }
+    if (count <= offset)
+        return { value: new Decimal(0), scale };
+    if (count - offset >= 64) {
+        const coefficient = (v: Decimal) => { const text = v.abs().toExponential().split("e")[0]!.replace(".", ""); return { integer: BigInt(text), exponent: v.e + 1 - text.length }; };
+        const ca = coefficient(a.value), cb = coefficient(b.value);
+        const exact = new Decimal((ca.integer * cb.integer).toString() + "e" + (ca.exponent + cb.exponent));
+        const bound = new Decimal(String(Math.min(px, py) * 99999999) + "e" + (4 * (weight + 1 - 2 * count)));
+        const Constructor = sqlDecimalContext(exact, bound);
+        const lower = Decimal.max(0, new Constructor(exact).sub(bound));
+        const high = sqlDecimalMathRound(exact, scale), low = sqlDecimalMathRound(lower, scale);
+        if (high.value.eq(low.value)) {
+            if (a.value.isNegative() !== b.value.isNegative())
+                high.value = high.value.neg();
+            return high;
+        }
+    }
+    const pairs = Array<bigint>(count).fill(0n);
+    if (count - offset >= 64) {
+        const pack = (digits: number[], length: number) => BigInt("0x" + Array.from({ length }, (_, i) => (digits[2 * i]! * 10000 + (digits[2 * i + 1] ?? 0)).toString(16).padStart(18, "0")).join(""));
+        const lx = Math.min(px, count - offset), ly = Math.min(py, count - offset);
+        const product = (pack(x.digits, lx) * pack(y.digits, ly)).toString(16).padStart((lx + ly - 1) * 18, "0");
+        for (let i = 0; i < Math.min(count - offset, lx + ly - 1); i++)
+            pairs[i + offset] = BigInt("0x" + product.slice(i * 18, (i + 1) * 18));
+    }
+    else {
+        for (let i = 0; i < Math.min(px, count - offset); i++) {
+            const p = BigInt(x.digits[2 * i]! * 10000 + (x.digits[2 * i + 1] ?? 0));
+            for (let j = 0; j < Math.min(py, count - i - offset); j++)
+                pairs[i + j + offset]! += p * BigInt(y.digits[2 * j]! * 10000 + (y.digits[2 * j + 1] ?? 0));
+        }
+    }
+    let carry = 0n;
+    for (let i = count - 1; i >= 0; i--) {
+        const v = pairs[i]! + carry;
+        pairs[i] = v % 100000000n;
+        carry = v / 100000000n;
+    }
+    return sqlDecimalMathRound(sqlDecimalMathFromPairs(pairs, weight, a.value.isNegative() !== b.value.isNegative()), scale);
+}
+function sqlDecimalMathDiv(a: SqlDecimalMath, b: SqlDecimalMath, scale: number, exact = true): SqlDecimalMath {
+    if (b.value.isZero())
+        throw new SqlDecimalMathError("22012");
+    if (a.value.isZero())
+        return { value: new Decimal(0), scale };
+    const x = sqlDecimalMathDigits(a.value), y = sqlDecimalMathDigits(b.value);
+    if (exact || y.digits.length <= 12) {
+        const Constructor = Decimal.clone({ precision: Math.max(1, a.value.e - b.value.e + scale + 4), rounding: Decimal.ROUND_DOWN, minE: -1000000000, maxE: 1000000000 });
+        return sqlDecimalMathRound(new Constructor(a.value).div(b.value), scale);
+    }
+    const weight = x.weight - y.weight + 1;
+    const ndigits = Math.max(weight + 1 + Math.trunc((scale + 3) / 4), 1) + 4;
+    const count = Math.ceil(ndigits / 2), divisorCount = Math.min(Math.ceil(y.digits.length / 2), count);
+    const dividend = Array<bigint>(count + 1).fill(0n);
+    const divisor = Array.from({ length: divisorCount }, (_, i) => BigInt(y.digits[2 * i]! * 10000 + (y.digits[2 * i + 1] ?? 0)));
+    for (let i = 0; i < Math.min(Math.ceil(x.digits.length / 2), count); i++)
+        dividend[i] = BigInt(x.digits[2 * i]! * 10000 + (x.digits[2 * i + 1] ?? 0));
+    const inverse = 1 / (Number(divisor[0]!) * 100000000 + Number(divisor[1] ?? 0n));
+    const digit = (q: number) => { const f = (Number(dividend[q]!) * 100000000 + Number(dividend[q + 1]!)) * inverse; return Math.trunc(f) - (f < 0 ? 1 : 0); };
+    const floor = (v: bigint) => v >= 0n ? v / 100000000n : -((-v - 1n) / 100000000n) - 1n;
+    let maxdiv = 1;
+    for (let q = 0; q < count; q++) {
+        let d = digit(q);
+        if (d !== 0) {
+            maxdiv += Math.abs(d);
+            if (maxdiv > 92233720368) {
+                let carry = 0n;
+                for (let i = Math.min(q + divisorCount - 2, count - 1); i > q; i--) {
+                    const v = dividend[i]! + carry;
+                    carry = floor(v);
+                    dividend[i] = v - carry * 100000000n;
+                }
+                dividend[q]! += carry;
+                d = digit(q);
+                maxdiv = 1 + Math.abs(d);
+            }
+            for (let i = 0; i < Math.min(divisorCount, count - q); i++)
+                dividend[q + i]! -= BigInt(d) * divisor[i]!;
+        }
+        dividend[q + 1]! += dividend[q]! * 100000000n;
+        dividend[q] = BigInt(d);
+    }
+    let carry = 0n;
+    for (let i = count - 1; i >= 0; i--) {
+        const v = dividend[i]! + carry;
+        carry = floor(v);
+        dividend[i] = v - carry * 100000000n;
+    }
+    return sqlDecimalMathRound(sqlDecimalMathFromPairs(dividend.slice(0, count), weight, a.value.isNegative() !== b.value.isNegative()), scale);
+}
+function sqlDecimalMathAdd(a: SqlDecimalMath, b: SqlDecimalMath, subtract = false): SqlDecimalMath {
+    const Constructor = sqlDecimalContext(a.value, b.value), x = new Constructor(a.value);
+    return { value: subtract ? x.sub(b.value) : x.add(b.value), scale: Math.max(a.scale, b.scale) };
+}
+function sqlDecimalMathExp(a: SqlDecimalMath, scale: number): SqlDecimalMath {
+    let val = Number(a.value.toString()), x = a, ndiv = 0;
+    if (Math.abs(val) >= 6000) {
+        if (val > 0)
+            throw new SqlDecimalMathError("22003");
+        return { value: new Decimal(0), scale };
+    }
+    const dweight = Math.trunc(val * 0.434294481903252);
+    while (Math.abs(val) > 0.01) {
+        ndiv++;
+        val /= 2;
+    }
+    if (ndiv)
+        x = sqlDecimalMathDiv(x, { value: new Decimal(2 ** ndiv), scale: 0 }, x.scale + ndiv);
+    const sig = Math.max(1 + dweight + scale + Math.trunc(ndiv * 0.301029995663981), 0) + 8;
+    const local = sig - 1;
+    let result = sqlDecimalMathAdd({ value: new Decimal(1), scale: 0 }, x);
+    let term = sqlDecimalMathDiv(sqlDecimalMathMul(x, x, local), { value: new Decimal(2), scale: 0 }, local), ni = 2;
+    while (!term.value.isZero()) {
+        result = sqlDecimalMathAdd(result, term);
+        term = sqlDecimalMathDiv(sqlDecimalMathMul(term, x, local), { value: new Decimal(++ni), scale: 0 }, local);
+    }
+    while (ndiv-- > 0)
+        result = sqlDecimalMathMul(result, result, Math.max(0, sig - sqlDecimalMathDigits(result.value).weight * 8));
+    return sqlDecimalMathRound(result.value, scale);
+}
+function sqlDecimalMathLnWeight(value: Decimal): number {
+    if (value.lte(0))
+        return 0;
+    if (value.gte("0.9") && value.lte("1.1")) {
+        const delta = sqlDecimalMathAdd({ value, scale: 0 }, { value: new Decimal(1), scale: 0 }, true).value;
+        const { digits, weight } = sqlDecimalMathDigits(delta);
+        return digits.length ? weight * 4 + Math.trunc(Math.log10(digits[0]!)) : 0;
+    }
+    const { digits, weight } = sqlDecimalMathDigits(value);
+    let d = digits[0]!, w = weight * 4;
+    if (digits.length > 1) {
+        d = d * 10000 + digits[1]!;
+        w -= 4;
+    }
+    return Math.trunc(Math.log10(Math.abs(Math.log(d) + w * 2.302585092994046)));
+}
+function sqlDecimalMathLn(a: SqlDecimalMath, scale: number): SqlDecimalMath {
+    if (a.value.lte(0))
+        throw new SqlDecimalMathError("2201E");
+    let x = a, factor = 2, nsqrt = 0;
+    while (x.value.lte("0.9") || x.value.gte("1.1")) {
+        x = sqlDecimalMathSqrt(x, scale - Math.trunc(sqlDecimalMathDigits(x.value).weight * 4 / 2) + 8);
+        factor *= 2;
+        nsqrt++;
+    }
+    const local = scale + Math.trunc((nsqrt + 1) * 0.301029995663981) + 8;
+    let result = sqlDecimalMathDiv(sqlDecimalMathAdd(x, { value: new Decimal(1), scale: 0 }, true), sqlDecimalMathAdd(x, { value: new Decimal(1), scale: 0 }), local, false);
+    let xx = result;
+    x = sqlDecimalMathMul(result, result, local);
+    let ni = 1;
+    for (;;) {
+        ni += 2;
+        xx = sqlDecimalMathMul(xx, x, local);
+        const term = sqlDecimalMathDiv(xx, { value: new Decimal(ni), scale: 0 }, local);
+        if (term.value.isZero())
+            break;
+        result = sqlDecimalMathAdd(result, term);
+        if (sqlDecimalMathDigits(term.value).weight < sqlDecimalMathDigits(result.value).weight - Math.trunc(local * 2 / 4))
+            break;
+    }
+    return sqlDecimalMathMul(result, { value: new Decimal(factor), scale: 0 }, scale);
+}
+function sqlDecimalMathUnary(a: SqlDecimal | null, operation: string): SqlDecimal | null {
+    if (a === null)
+        return null;
+    if (!a.value.isFinite()) {
+        if (a.value.eq(-Infinity)) {
+            if (operation === "exp")
+                return new SqlDecimal(new Decimal(0), 0);
+            throw new SqlDecimalMathError(operation === "sqrt" ? "2201F" : "2201E");
+        }
+        return a;
+    }
+    let result: SqlDecimalMath;
+    if (operation === "sqrt")
+        result = sqlDecimalMathSqrt(a, sqlDecimalMathScale(sqlDecimalMathDigits(a.value).weight * 2 + 1, a.scale));
+    else if (operation === "exp")
+        result = sqlDecimalMathExp(a, sqlDecimalMathScale(Math.max(-2000, Math.min(2000, Number(a.value.toString()) * 0.434294481903252)), a.scale));
+    else
+        result = sqlDecimalMathLn(a, sqlDecimalMathScale(sqlDecimalMathLnWeight(a.value), a.scale));
+    return new SqlDecimal(result.value, Math.max(0, result.scale));
+}
+function decimalSqrt(a: SqlDecimal | null): SqlDecimal | null { return sqlDecimalMathUnary(a, "sqrt"); }
+function decimalLn(a: SqlDecimal | null): SqlDecimal | null { return sqlDecimalMathUnary(a, "ln"); }
+function decimalLog(base: SqlDecimal | null, a: SqlDecimal | null): SqlDecimal | null {
+    if (base === null || a === null)
+        return null;
+    if (base.value.isNaN() || a.value.isNaN())
+        return new SqlDecimal(new Decimal(NaN), 0);
+    if (!base.value.isFinite() || !a.value.isFinite()) {
+        if (base.value.lte(0) || a.value.lte(0))
+            throw new SqlDecimalMathError("2201E");
+        return new SqlDecimal(new Decimal(!base.value.isFinite() ? !a.value.isFinite() ? NaN : 0 : Infinity), 0);
+    }
+    const bw = sqlDecimalMathLnWeight(base.value), aw = sqlDecimalMathLnWeight(a.value), dw = aw - bw;
+    const scale = sqlDecimalMathScale(dw, base.scale, a.scale);
+    const denominator = sqlDecimalMathLn(base, Math.max(0, scale + dw - bw + 8)), numerator = sqlDecimalMathLn(a, Math.max(0, scale + dw - aw + 8));
+    const result = sqlDecimalMathDiv(numerator, denominator, scale, false);
+    return new SqlDecimal(result.value, result.scale);
+}
+function decimalLog10(a: SqlDecimal | null): SqlDecimal | null { return decimalLog(new SqlDecimal(new Decimal(10), 0), a); }
+function decimalExp(a: SqlDecimal | null): SqlDecimal | null { return sqlDecimalMathUnary(a, "exp"); }
+function sqlDecimalMathPowerInt(a: SqlDecimalMath, exponent: number, exponentScale: number): SqlDecimalMath {
+    const { digits, weight } = sqlDecimalMathDigits(a.value);
+    let f = 0;
+    if (digits.length) {
+        f = digits[0]!;
+        let p = weight * 4;
+        for (let i = 1; i < digits.length && i < 4; i++) {
+            f = f * 10000 + digits[i]!;
+            p -= 4;
+        }
+        f = exponent * (Math.log10(f) + p);
+    }
+    if (f > 131072)
+        throw new SqlDecimalMathError("22003");
+    if (f + 1 < -1000)
+        return { value: new Decimal(0), scale: 1000 };
+    const scale = sqlDecimalMathScale(f, a.scale, exponentScale), one = { value: new Decimal(1), scale: 0 };
+    if (exponent === 0)
+        return { value: one.value, scale };
+    if (exponent === 1)
+        return sqlDecimalMathRound(a.value, scale);
+    if (exponent === -1)
+        return sqlDecimalMathDiv(one, a, scale);
+    if (exponent === 2)
+        return sqlDecimalMathMul(a, a, scale);
+    if (!digits.length)
+        return { value: new Decimal(0), scale };
+    const sig = 1 + scale + Math.trunc(f) + Math.trunc(Math.log(Math.abs(exponent))) + 8;
+    let mask = Math.abs(exponent), base = a, result = mask % 2 ? a : one;
+    while ((mask = Math.floor(mask / 2)) > 0) {
+        let local = Math.max(0, Math.min(sig - sqlDecimalMathDigits(base.value).weight * 8, 2 * base.scale));
+        base = sqlDecimalMathMul(base, base, local);
+        if (mask % 2) {
+            local = Math.max(0, Math.min(sig - (sqlDecimalMathDigits(base.value).weight + sqlDecimalMathDigits(result.value).weight) * 4, base.scale + result.scale));
+            result = sqlDecimalMathMul(base, result, local);
+        }
+        if (sqlDecimalMathDigits(base.value).weight > 32767 || sqlDecimalMathDigits(result.value).weight > 32767) {
+            if (exponent > 0)
+                throw new SqlDecimalMathError("22003");
+            return { value: new Decimal(0), scale };
+        }
+    }
+    return exponent < 0 ? sqlDecimalMathDiv(one, result, scale, false) : sqlDecimalMathRound(result.value, scale);
+}
+function sqlDecimalMathPower(a: SqlDecimalMath, b: SqlDecimalMath): SqlDecimalMath {
+    if (b.value.isInteger() && b.value.gte(-2147483648) && b.value.lte(2147483647))
+        return sqlDecimalMathPowerInt(a, Number(b.value.toString()), b.scale);
+    if (a.value.isZero())
+        return { value: new Decimal(0), scale: 16 };
+    const negative = a.value.isNegative();
+    if (negative && !b.value.isInteger())
+        throw new SqlDecimalMathError("2201F");
+    const base = { value: a.value.abs(), scale: a.scale }, lw = sqlDecimalMathLnWeight(base.value);
+    let local = Math.max(0, 8 - lw);
+    let product = sqlDecimalMathMul(sqlDecimalMathLn(base, local), b, local);
+    let val = Number(product.value.toString());
+    if (Math.abs(val) > 2000 * 3.01) {
+        if (val > 0)
+            throw new SqlDecimalMathError("22003");
+        return { value: new Decimal(0), scale: 1000 };
+    }
+    val *= 0.434294481903252;
+    const scale = sqlDecimalMathScale(val, a.scale, b.scale), sig = Math.max(0, scale + Math.trunc(val));
+    local = Math.max(0, sig - lw + 8);
+    product = sqlDecimalMathMul(sqlDecimalMathLn(base, local), b, local);
+    const result = sqlDecimalMathExp(product, scale);
+    if (negative && !b.value.mod(2).isZero())
+        result.value = result.value.neg();
+    return result;
+}
+function decimalPower(a: SqlDecimal | null, b: SqlDecimal | null): SqlDecimal | null {
+    if (a === null || b === null)
+        return null;
+    const x = a.value, y = b.value;
+    if (x.isNaN() || y.isNaN())
+        return new SqlDecimal(new Decimal((x.isNaN() && y.isZero()) || (y.isNaN() && x.eq(1)) ? 1 : NaN), 0);
+    if (x.isZero() && y.lt(0) || x.lt(0) && y.isFinite() && !y.isInteger())
+        throw new SqlDecimalMathError("2201F");
+    if (!x.isFinite() || !y.isFinite()) {
+        if (x.eq(1) || y.isZero())
+            return new SqlDecimal(new Decimal(1), 0);
+        if (x.isZero())
+            return new SqlDecimal(new Decimal(0), 0);
+        if (!y.isFinite() && x.eq(-1))
+            return new SqlDecimal(new Decimal(1), 0);
+        if (!y.isFinite())
+            return new SqlDecimal(new Decimal(x.abs().gt(1) === y.gt(0) ? Infinity : 0), 0);
+        return new SqlDecimal(new Decimal(y.lt(0) ? 0 : x.lt(0) && !y.mod(2).isZero() ? -Infinity : Infinity), 0);
+    }
+    const result = sqlDecimalMathPower(a, b);
+    return new SqlDecimal(result.value, result.scale);
 }
 export function evaluate0() {
     return int2Add(int2Input("2"), int2Input("3"));
@@ -23921,4 +24310,5356 @@ export function evaluate7761() {
 }
 export function evaluate7762() {
     return decimalInput("1e-1073741824");
+}
+export function evaluate7763() {
+    return decimalSqrt(decimalInput(null));
+}
+export function evaluate7764() {
+    return decimalSqrt(decimalInput("0"));
+}
+export function evaluate7765() {
+    return decimalSqrt(decimalInput("1"));
+}
+export function evaluate7766() {
+    return decimalSqrt(decimalInput("2"));
+}
+export function evaluate7767() {
+    return decimalSqrt(decimalInput("4"));
+}
+export function evaluate7768() {
+    return decimalSqrt(decimalInput("10"));
+}
+export function evaluate7769() {
+    return decimalSqrt(decimalInput("0.1"));
+}
+export function evaluate7770() {
+    return decimalSqrt(decimalInput("0.9"));
+}
+export function evaluate7771() {
+    return decimalSqrt(decimalInput("1.1"));
+}
+export function evaluate7772() {
+    return decimalSqrt(decimalInput("1.2300"));
+}
+export function evaluate7773() {
+    return decimalSqrt(decimalInput("1.00000000000000000001"));
+}
+export function evaluate7774() {
+    return decimalSqrt(decimalInput("0.99999999999999999999"));
+}
+export function evaluate7775() {
+    return decimalSqrt(decimalInput("-1"));
+}
+export function evaluate7776() {
+    return decimalSqrt(decimalInput("-0.1"));
+}
+export function evaluate7777() {
+    return decimalSqrt(decimalInput("NaN"));
+}
+export function evaluate7778() {
+    return decimalSqrt(decimalInput("Infinity"));
+}
+export function evaluate7779() {
+    return decimalSqrt(decimalInput("-Infinity"));
+}
+export function evaluate7780() {
+    return decimalSqrt(decimalInput("1e100"));
+}
+export function evaluate7781() {
+    return decimalSqrt(decimalInput("1e-100"));
+}
+export function evaluate7782() {
+    return decimalLn(decimalInput(null));
+}
+export function evaluate7783() {
+    return decimalLn(decimalInput("0"));
+}
+export function evaluate7784() {
+    return decimalLn(decimalInput("1"));
+}
+export function evaluate7785() {
+    return decimalLn(decimalInput("2"));
+}
+export function evaluate7786() {
+    return decimalLn(decimalInput("4"));
+}
+export function evaluate7787() {
+    return decimalLn(decimalInput("10"));
+}
+export function evaluate7788() {
+    return decimalLn(decimalInput("0.1"));
+}
+export function evaluate7789() {
+    return decimalLn(decimalInput("0.9"));
+}
+export function evaluate7790() {
+    return decimalLn(decimalInput("1.1"));
+}
+export function evaluate7791() {
+    return decimalLn(decimalInput("1.2300"));
+}
+export function evaluate7792() {
+    return decimalLn(decimalInput("1.00000000000000000001"));
+}
+export function evaluate7793() {
+    return decimalLn(decimalInput("0.99999999999999999999"));
+}
+export function evaluate7794() {
+    return decimalLn(decimalInput("-1"));
+}
+export function evaluate7795() {
+    return decimalLn(decimalInput("-0.1"));
+}
+export function evaluate7796() {
+    return decimalLn(decimalInput("NaN"));
+}
+export function evaluate7797() {
+    return decimalLn(decimalInput("Infinity"));
+}
+export function evaluate7798() {
+    return decimalLn(decimalInput("-Infinity"));
+}
+export function evaluate7799() {
+    return decimalLn(decimalInput("1e100"));
+}
+export function evaluate7800() {
+    return decimalLn(decimalInput("1e-100"));
+}
+export function evaluate7801() {
+    return decimalLog10(decimalInput(null));
+}
+export function evaluate7802() {
+    return decimalLog10(decimalInput(null));
+}
+export function evaluate7803() {
+    return decimalLog10(decimalInput("0"));
+}
+export function evaluate7804() {
+    return decimalLog10(decimalInput("0"));
+}
+export function evaluate7805() {
+    return decimalLog10(decimalInput("1"));
+}
+export function evaluate7806() {
+    return decimalLog10(decimalInput("1"));
+}
+export function evaluate7807() {
+    return decimalLog10(decimalInput("2"));
+}
+export function evaluate7808() {
+    return decimalLog10(decimalInput("2"));
+}
+export function evaluate7809() {
+    return decimalLog10(decimalInput("4"));
+}
+export function evaluate7810() {
+    return decimalLog10(decimalInput("4"));
+}
+export function evaluate7811() {
+    return decimalLog10(decimalInput("10"));
+}
+export function evaluate7812() {
+    return decimalLog10(decimalInput("10"));
+}
+export function evaluate7813() {
+    return decimalLog10(decimalInput("0.1"));
+}
+export function evaluate7814() {
+    return decimalLog10(decimalInput("0.1"));
+}
+export function evaluate7815() {
+    return decimalLog10(decimalInput("0.9"));
+}
+export function evaluate7816() {
+    return decimalLog10(decimalInput("0.9"));
+}
+export function evaluate7817() {
+    return decimalLog10(decimalInput("1.1"));
+}
+export function evaluate7818() {
+    return decimalLog10(decimalInput("1.1"));
+}
+export function evaluate7819() {
+    return decimalLog10(decimalInput("1.2300"));
+}
+export function evaluate7820() {
+    return decimalLog10(decimalInput("1.2300"));
+}
+export function evaluate7821() {
+    return decimalLog10(decimalInput("1.00000000000000000001"));
+}
+export function evaluate7822() {
+    return decimalLog10(decimalInput("1.00000000000000000001"));
+}
+export function evaluate7823() {
+    return decimalLog10(decimalInput("0.99999999999999999999"));
+}
+export function evaluate7824() {
+    return decimalLog10(decimalInput("0.99999999999999999999"));
+}
+export function evaluate7825() {
+    return decimalLog10(decimalInput("-1"));
+}
+export function evaluate7826() {
+    return decimalLog10(decimalInput("-1"));
+}
+export function evaluate7827() {
+    return decimalLog10(decimalInput("-0.1"));
+}
+export function evaluate7828() {
+    return decimalLog10(decimalInput("-0.1"));
+}
+export function evaluate7829() {
+    return decimalLog10(decimalInput("NaN"));
+}
+export function evaluate7830() {
+    return decimalLog10(decimalInput("NaN"));
+}
+export function evaluate7831() {
+    return decimalLog10(decimalInput("Infinity"));
+}
+export function evaluate7832() {
+    return decimalLog10(decimalInput("Infinity"));
+}
+export function evaluate7833() {
+    return decimalLog10(decimalInput("-Infinity"));
+}
+export function evaluate7834() {
+    return decimalLog10(decimalInput("-Infinity"));
+}
+export function evaluate7835() {
+    return decimalLog10(decimalInput("1e100"));
+}
+export function evaluate7836() {
+    return decimalLog10(decimalInput("1e100"));
+}
+export function evaluate7837() {
+    return decimalLog10(decimalInput("1e-100"));
+}
+export function evaluate7838() {
+    return decimalLog10(decimalInput("1e-100"));
+}
+export function evaluate7839() {
+    return decimalExp(decimalInput(null));
+}
+export function evaluate7840() {
+    return decimalExp(decimalInput("0"));
+}
+export function evaluate7841() {
+    return decimalExp(decimalInput("1"));
+}
+export function evaluate7842() {
+    return decimalExp(decimalInput("-1"));
+}
+export function evaluate7843() {
+    return decimalExp(decimalInput("2"));
+}
+export function evaluate7844() {
+    return decimalExp(decimalInput("-2"));
+}
+export function evaluate7845() {
+    return decimalExp(decimalInput("0.1"));
+}
+export function evaluate7846() {
+    return decimalExp(decimalInput("-0.1"));
+}
+export function evaluate7847() {
+    return decimalExp(decimalInput("10"));
+}
+export function evaluate7848() {
+    return decimalExp(decimalInput("-10"));
+}
+export function evaluate7849() {
+    return decimalExp(decimalInput("100"));
+}
+export function evaluate7850() {
+    return decimalExp(decimalInput("-100"));
+}
+export function evaluate7851() {
+    return decimalExp(decimalInput("1e-20"));
+}
+export function evaluate7852() {
+    return decimalExp(decimalInput("NaN"));
+}
+export function evaluate7853() {
+    return decimalExp(decimalInput("Infinity"));
+}
+export function evaluate7854() {
+    return decimalExp(decimalInput("-Infinity"));
+}
+export function evaluate7855() {
+    return decimalExp(decimalInput("6000"));
+}
+export function evaluate7856() {
+    return decimalExp(decimalInput("-6000"));
+}
+export function evaluate7857() {
+    return decimalPower(decimalInput("2"), decimalInput("10"));
+}
+export function evaluate7858() {
+    return decimalPower(decimalInput("2"), decimalInput("10"));
+}
+export function evaluate7859() {
+    return decimalPower(decimalInput("2"), decimalInput("10"));
+}
+export function evaluate7860() {
+    return decimalPower(decimalInput("2"), decimalInput("-3"));
+}
+export function evaluate7861() {
+    return decimalPower(decimalInput("2"), decimalInput("-3"));
+}
+export function evaluate7862() {
+    return decimalPower(decimalInput("2"), decimalInput("-3"));
+}
+export function evaluate7863() {
+    return decimalPower(decimalInput("2"), decimalInput("0.5"));
+}
+export function evaluate7864() {
+    return decimalPower(decimalInput("2"), decimalInput("0.5"));
+}
+export function evaluate7865() {
+    return decimalPower(decimalInput("2"), decimalInput("0.5"));
+}
+export function evaluate7866() {
+    return decimalPower(decimalInput("4"), decimalInput("0.5"));
+}
+export function evaluate7867() {
+    return decimalPower(decimalInput("4"), decimalInput("0.5"));
+}
+export function evaluate7868() {
+    return decimalPower(decimalInput("4"), decimalInput("0.5"));
+}
+export function evaluate7869() {
+    return decimalPower(decimalInput("9"), decimalInput("0.5"));
+}
+export function evaluate7870() {
+    return decimalPower(decimalInput("9"), decimalInput("0.5"));
+}
+export function evaluate7871() {
+    return decimalPower(decimalInput("9"), decimalInput("0.5"));
+}
+export function evaluate7872() {
+    return decimalPower(decimalInput("27"), decimalInput("0.33333333333333333333"));
+}
+export function evaluate7873() {
+    return decimalPower(decimalInput("27"), decimalInput("0.33333333333333333333"));
+}
+export function evaluate7874() {
+    return decimalPower(decimalInput("27"), decimalInput("0.33333333333333333333"));
+}
+export function evaluate7875() {
+    return decimalPower(decimalInput("1.2300"), decimalInput("2.0"));
+}
+export function evaluate7876() {
+    return decimalPower(decimalInput("1.2300"), decimalInput("2.0"));
+}
+export function evaluate7877() {
+    return decimalPower(decimalInput("1.2300"), decimalInput("2.0"));
+}
+export function evaluate7878() {
+    return decimalPower(decimalInput("0"), decimalInput("0"));
+}
+export function evaluate7879() {
+    return decimalPower(decimalInput("0"), decimalInput("0"));
+}
+export function evaluate7880() {
+    return decimalPower(decimalInput("0"), decimalInput("0"));
+}
+export function evaluate7881() {
+    return decimalPower(decimalInput("0"), decimalInput("2"));
+}
+export function evaluate7882() {
+    return decimalPower(decimalInput("0"), decimalInput("2"));
+}
+export function evaluate7883() {
+    return decimalPower(decimalInput("0"), decimalInput("2"));
+}
+export function evaluate7884() {
+    return decimalPower(decimalInput("0"), decimalInput("0.5"));
+}
+export function evaluate7885() {
+    return decimalPower(decimalInput("0"), decimalInput("0.5"));
+}
+export function evaluate7886() {
+    return decimalPower(decimalInput("0"), decimalInput("0.5"));
+}
+export function evaluate7887() {
+    return decimalPower(decimalInput("0"), decimalInput("-1"));
+}
+export function evaluate7888() {
+    return decimalPower(decimalInput("0"), decimalInput("-1"));
+}
+export function evaluate7889() {
+    return decimalPower(decimalInput("0"), decimalInput("-1"));
+}
+export function evaluate7890() {
+    return decimalPower(decimalInput("-2"), decimalInput("3"));
+}
+export function evaluate7891() {
+    return decimalPower(decimalInput("-2"), decimalInput("3"));
+}
+export function evaluate7892() {
+    return decimalPower(decimalInput("-2"), decimalInput("3"));
+}
+export function evaluate7893() {
+    return decimalPower(decimalInput("-2"), decimalInput("4"));
+}
+export function evaluate7894() {
+    return decimalPower(decimalInput("-2"), decimalInput("4"));
+}
+export function evaluate7895() {
+    return decimalPower(decimalInput("-2"), decimalInput("4"));
+}
+export function evaluate7896() {
+    return decimalPower(decimalInput("-2"), decimalInput("-3"));
+}
+export function evaluate7897() {
+    return decimalPower(decimalInput("-2"), decimalInput("-3"));
+}
+export function evaluate7898() {
+    return decimalPower(decimalInput("-2"), decimalInput("-3"));
+}
+export function evaluate7899() {
+    return decimalPower(decimalInput("-2"), decimalInput("0.5"));
+}
+export function evaluate7900() {
+    return decimalPower(decimalInput("-2"), decimalInput("0.5"));
+}
+export function evaluate7901() {
+    return decimalPower(decimalInput("-2"), decimalInput("0.5"));
+}
+export function evaluate7902() {
+    return decimalPower(decimalInput("1"), decimalInput("NaN"));
+}
+export function evaluate7903() {
+    return decimalPower(decimalInput("1"), decimalInput("NaN"));
+}
+export function evaluate7904() {
+    return decimalPower(decimalInput("1"), decimalInput("NaN"));
+}
+export function evaluate7905() {
+    return decimalPower(decimalInput("NaN"), decimalInput("0"));
+}
+export function evaluate7906() {
+    return decimalPower(decimalInput("NaN"), decimalInput("0"));
+}
+export function evaluate7907() {
+    return decimalPower(decimalInput("NaN"), decimalInput("0"));
+}
+export function evaluate7908() {
+    return decimalPower(decimalInput("NaN"), decimalInput("1"));
+}
+export function evaluate7909() {
+    return decimalPower(decimalInput("NaN"), decimalInput("1"));
+}
+export function evaluate7910() {
+    return decimalPower(decimalInput("NaN"), decimalInput("1"));
+}
+export function evaluate7911() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("0"));
+}
+export function evaluate7912() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("0"));
+}
+export function evaluate7913() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("0"));
+}
+export function evaluate7914() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("-1"));
+}
+export function evaluate7915() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("-1"));
+}
+export function evaluate7916() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("-1"));
+}
+export function evaluate7917() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("3"));
+}
+export function evaluate7918() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("3"));
+}
+export function evaluate7919() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("3"));
+}
+export function evaluate7920() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("0.5"));
+}
+export function evaluate7921() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("0.5"));
+}
+export function evaluate7922() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("0.5"));
+}
+export function evaluate7923() {
+    return decimalPower(decimalInput("2"), decimalInput("Infinity"));
+}
+export function evaluate7924() {
+    return decimalPower(decimalInput("2"), decimalInput("Infinity"));
+}
+export function evaluate7925() {
+    return decimalPower(decimalInput("2"), decimalInput("Infinity"));
+}
+export function evaluate7926() {
+    return decimalPower(decimalInput("0.5"), decimalInput("Infinity"));
+}
+export function evaluate7927() {
+    return decimalPower(decimalInput("0.5"), decimalInput("Infinity"));
+}
+export function evaluate7928() {
+    return decimalPower(decimalInput("0.5"), decimalInput("Infinity"));
+}
+export function evaluate7929() {
+    return decimalPower(decimalInput("-1"), decimalInput("Infinity"));
+}
+export function evaluate7930() {
+    return decimalPower(decimalInput("-1"), decimalInput("Infinity"));
+}
+export function evaluate7931() {
+    return decimalPower(decimalInput("-1"), decimalInput("Infinity"));
+}
+export function evaluate7932() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("1000000"));
+}
+export function evaluate7933() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("1000000"));
+}
+export function evaluate7934() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("1000000"));
+}
+export function evaluate7935() {
+    return decimalPower(decimalInput("1e100"), decimalInput("0.5"));
+}
+export function evaluate7936() {
+    return decimalPower(decimalInput("1e100"), decimalInput("0.5"));
+}
+export function evaluate7937() {
+    return decimalPower(decimalInput("1e100"), decimalInput("0.5"));
+}
+export function evaluate7938() {
+    return decimalPower(decimalInput("1e-100"), decimalInput("0.5"));
+}
+export function evaluate7939() {
+    return decimalPower(decimalInput("1e-100"), decimalInput("0.5"));
+}
+export function evaluate7940() {
+    return decimalPower(decimalInput("1e-100"), decimalInput("0.5"));
+}
+export function evaluate7941() {
+    return decimalPower(decimalInput("3"), decimalInput("-100"));
+}
+export function evaluate7942() {
+    return decimalPower(decimalInput("3"), decimalInput("-100"));
+}
+export function evaluate7943() {
+    return decimalPower(decimalInput("3"), decimalInput("-100"));
+}
+export function evaluate7944() {
+    return decimalPower(decimalInput(null), decimalInput("0"));
+}
+export function evaluate7945() {
+    return decimalPower(decimalInput(null), decimalInput("0"));
+}
+export function evaluate7946() {
+    return decimalPower(decimalInput(null), decimalInput("0"));
+}
+export function evaluate7947() {
+    return decimalLog(decimalInput("2"), decimalInput("64"));
+}
+export function evaluate7948() {
+    return decimalLog(decimalInput("10"), decimalInput("100"));
+}
+export function evaluate7949() {
+    return decimalLog(decimalInput("10"), decimalInput("1"));
+}
+export function evaluate7950() {
+    return decimalLog(decimalInput("10"), decimalInput("0.1"));
+}
+export function evaluate7951() {
+    return decimalLog(decimalInput("0.5"), decimalInput("2"));
+}
+export function evaluate7952() {
+    return decimalLog(decimalInput("1"), decimalInput("2"));
+}
+export function evaluate7953() {
+    return decimalLog(decimalInput("0"), decimalInput("2"));
+}
+export function evaluate7954() {
+    return decimalLog(decimalInput("-1"), decimalInput("2"));
+}
+export function evaluate7955() {
+    return decimalLog(decimalInput("2"), decimalInput("0"));
+}
+export function evaluate7956() {
+    return decimalLog(decimalInput("2"), decimalInput("-1"));
+}
+export function evaluate7957() {
+    return decimalLog(decimalInput("0"), decimalInput("NaN"));
+}
+export function evaluate7958() {
+    return decimalLog(decimalInput("Infinity"), decimalInput("Infinity"));
+}
+export function evaluate7959() {
+    return decimalLog(decimalInput("Infinity"), decimalInput("2"));
+}
+export function evaluate7960() {
+    return decimalLog(decimalInput("2"), decimalInput("Infinity"));
+}
+export function evaluate7961() {
+    return decimalLog(decimalInput("0.5"), decimalInput("Infinity"));
+}
+export function evaluate7962() {
+    return decimalLog(decimalInput("1.00000000000000000002"), decimalInput("1.00000000000000000001"));
+}
+export function evaluate7963() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("2"));
+}
+export function evaluate7964() {
+    return decimalLog(decimalInput("1"), decimalInput(null));
+}
+export function evaluate7965() {
+    return decimalSqrt(decimalInput("1e-1000"));
+}
+export function evaluate7966() {
+    return decimalSqrt(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate7967() {
+    return decimalSqrt(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate7968() {
+    return decimalLn(decimalInput("1e-1000"));
+}
+export function evaluate7969() {
+    return decimalLn(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate7970() {
+    return decimalLn(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate7971() {
+    return decimalLog10(decimalInput("1e-1000"));
+}
+export function evaluate7972() {
+    return decimalLog10(decimalInput("1e-1000"));
+}
+export function evaluate7973() {
+    return decimalLog10(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate7974() {
+    return decimalLog10(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate7975() {
+    return decimalLog10(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate7976() {
+    return decimalLog10(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate7977() {
+    return decimalPower(decimalInput("2.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimalInput("0.5"));
+}
+export function evaluate7978() {
+    return decimalPower(decimalInput("2.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimalInput("0.5"));
+}
+export function evaluate7979() {
+    return decimalPower(decimalInput("2.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimalInput("0.5"));
+}
+export function evaluate7980() {
+    return decimalPower(decimalInput("3.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimalInput("-1"));
+}
+export function evaluate7981() {
+    return decimalPower(decimalInput("3.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimalInput("-1"));
+}
+export function evaluate7982() {
+    return decimalPower(decimalInput("3.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimalInput("-1"));
+}
+export function evaluate7983() {
+    return decimalSqrt(decimalInput("13.2693669646"));
+}
+export function evaluate7984() {
+    return decimalLn(decimalInput("13.2693669646"));
+}
+export function evaluate7985() {
+    return decimalLog10(decimalInput("13.2693669646"));
+}
+export function evaluate7986() {
+    return decimalLog10(decimalInput("13.2693669646"));
+}
+export function evaluate7987() {
+    return decimalPower(decimalInput("13.2693669646"), decimalInput("-3.125"));
+}
+export function evaluate7988() {
+    return decimalPower(decimalInput("13.2693669646"), decimalInput("-3.125"));
+}
+export function evaluate7989() {
+    return decimalPower(decimalInput("13.2693669646"), decimalInput("-3.125"));
+}
+export function evaluate7990() {
+    return decimalSqrt(decimalInput("1.1912360725"));
+}
+export function evaluate7991() {
+    return decimalLn(decimalInput("1.1912360725"));
+}
+export function evaluate7992() {
+    return decimalLog10(decimalInput("1.1912360725"));
+}
+export function evaluate7993() {
+    return decimalLog10(decimalInput("1.1912360725"));
+}
+export function evaluate7994() {
+    return decimalPower(decimalInput("1.1912360725"), decimalInput("-2.125"));
+}
+export function evaluate7995() {
+    return decimalPower(decimalInput("1.1912360725"), decimalInput("-2.125"));
+}
+export function evaluate7996() {
+    return decimalPower(decimalInput("1.1912360725"), decimalInput("-2.125"));
+}
+export function evaluate7997() {
+    return decimalSqrt(decimalInput("525.1187927408"));
+}
+export function evaluate7998() {
+    return decimalLn(decimalInput("525.1187927408"));
+}
+export function evaluate7999() {
+    return decimalLog10(decimalInput("525.1187927408"));
+}
+export function evaluate8000() {
+    return decimalLog10(decimalInput("525.1187927408"));
+}
+export function evaluate8001() {
+    return decimalPower(decimalInput("525.1187927408"), decimalInput("-1.125"));
+}
+export function evaluate8002() {
+    return decimalPower(decimalInput("525.1187927408"), decimalInput("-1.125"));
+}
+export function evaluate8003() {
+    return decimalPower(decimalInput("525.1187927408"), decimalInput("-1.125"));
+}
+export function evaluate8004() {
+    return decimalSqrt(decimalInput("524.1659103759"));
+}
+export function evaluate8005() {
+    return decimalLn(decimalInput("524.1659103759"));
+}
+export function evaluate8006() {
+    return decimalLog10(decimalInput("524.1659103759"));
+}
+export function evaluate8007() {
+    return decimalLog10(decimalInput("524.1659103759"));
+}
+export function evaluate8008() {
+    return decimalPower(decimalInput("524.1659103759"), decimalInput("0.125"));
+}
+export function evaluate8009() {
+    return decimalPower(decimalInput("524.1659103759"), decimalInput("0.125"));
+}
+export function evaluate8010() {
+    return decimalPower(decimalInput("524.1659103759"), decimalInput("0.125"));
+}
+export function evaluate8011() {
+    return decimalSqrt(decimalInput("596.3971665954"));
+}
+export function evaluate8012() {
+    return decimalLn(decimalInput("596.3971665954"));
+}
+export function evaluate8013() {
+    return decimalLog10(decimalInput("596.3971665954"));
+}
+export function evaluate8014() {
+    return decimalLog10(decimalInput("596.3971665954"));
+}
+export function evaluate8015() {
+    return decimalPower(decimalInput("596.3971665954"), decimalInput("1.125"));
+}
+export function evaluate8016() {
+    return decimalPower(decimalInput("596.3971665954"), decimalInput("1.125"));
+}
+export function evaluate8017() {
+    return decimalPower(decimalInput("596.3971665954"), decimalInput("1.125"));
+}
+export function evaluate8018() {
+    return decimalSqrt(decimalInput("291.0069931289"));
+}
+export function evaluate8019() {
+    return decimalLn(decimalInput("291.0069931289"));
+}
+export function evaluate8020() {
+    return decimalLog10(decimalInput("291.0069931289"));
+}
+export function evaluate8021() {
+    return decimalLog10(decimalInput("291.0069931289"));
+}
+export function evaluate8022() {
+    return decimalPower(decimalInput("291.0069931289"), decimalInput("2.125"));
+}
+export function evaluate8023() {
+    return decimalPower(decimalInput("291.0069931289"), decimalInput("2.125"));
+}
+export function evaluate8024() {
+    return decimalPower(decimalInput("291.0069931289"), decimalInput("2.125"));
+}
+export function evaluate8025() {
+    return decimalSqrt(decimalInput("18.1189070756"));
+}
+export function evaluate8026() {
+    return decimalLn(decimalInput("18.1189070756"));
+}
+export function evaluate8027() {
+    return decimalLog10(decimalInput("18.1189070756"));
+}
+export function evaluate8028() {
+    return decimalLog10(decimalInput("18.1189070756"));
+}
+export function evaluate8029() {
+    return decimalPower(decimalInput("18.1189070756"), decimalInput("3.125"));
+}
+export function evaluate8030() {
+    return decimalPower(decimalInput("18.1189070756"), decimalInput("3.125"));
+}
+export function evaluate8031() {
+    return decimalPower(decimalInput("18.1189070756"), decimalInput("3.125"));
+}
+export function evaluate8032() {
+    return decimalSqrt(decimalInput("375.2119921331"));
+}
+export function evaluate8033() {
+    return decimalLn(decimalInput("375.2119921331"));
+}
+export function evaluate8034() {
+    return decimalLog10(decimalInput("375.2119921331"));
+}
+export function evaluate8035() {
+    return decimalLog10(decimalInput("375.2119921331"));
+}
+export function evaluate8036() {
+    return decimalPower(decimalInput("375.2119921331"), decimalInput("-3.125"));
+}
+export function evaluate8037() {
+    return decimalPower(decimalInput("375.2119921331"), decimalInput("-3.125"));
+}
+export function evaluate8038() {
+    return decimalPower(decimalInput("375.2119921331"), decimalInput("-3.125"));
+}
+export function evaluate8039() {
+    return decimalSqrt(decimalInput("498.3836339318"));
+}
+export function evaluate8040() {
+    return decimalLn(decimalInput("498.3836339318"));
+}
+export function evaluate8041() {
+    return decimalLog10(decimalInput("498.3836339318"));
+}
+export function evaluate8042() {
+    return decimalLog10(decimalInput("498.3836339318"));
+}
+export function evaluate8043() {
+    return decimalPower(decimalInput("498.3836339318"), decimalInput("-2.125"));
+}
+export function evaluate8044() {
+    return decimalPower(decimalInput("498.3836339318"), decimalInput("-2.125"));
+}
+export function evaluate8045() {
+    return decimalPower(decimalInput("498.3836339318"), decimalInput("-2.125"));
+}
+export function evaluate8046() {
+    return decimalSqrt(decimalInput("273.3650916701"));
+}
+export function evaluate8047() {
+    return decimalLn(decimalInput("273.3650916701"));
+}
+export function evaluate8048() {
+    return decimalLog10(decimalInput("273.3650916701"));
+}
+export function evaluate8049() {
+    return decimalLog10(decimalInput("273.3650916701"));
+}
+export function evaluate8050() {
+    return decimalPower(decimalInput("273.3650916701"), decimalInput("-1.125"));
+}
+export function evaluate8051() {
+    return decimalPower(decimalInput("273.3650916701"), decimalInput("-1.125"));
+}
+export function evaluate8052() {
+    return decimalPower(decimalInput("273.3650916701"), decimalInput("-1.125"));
+}
+export function evaluate8053() {
+    return decimalSqrt(decimalInput("563.3714212632"));
+}
+export function evaluate8054() {
+    return decimalLn(decimalInput("563.3714212632"));
+}
+export function evaluate8055() {
+    return decimalLog10(decimalInput("563.3714212632"));
+}
+export function evaluate8056() {
+    return decimalLog10(decimalInput("563.3714212632"));
+}
+export function evaluate8057() {
+    return decimalPower(decimalInput("563.3714212632"), decimalInput("0.125"));
+}
+export function evaluate8058() {
+    return decimalPower(decimalInput("563.3714212632"), decimalInput("0.125"));
+}
+export function evaluate8059() {
+    return decimalPower(decimalInput("563.3714212632"), decimalInput("0.125"));
+}
+export function evaluate8060() {
+    return decimalSqrt(decimalInput("786.1531022231"));
+}
+export function evaluate8061() {
+    return decimalLn(decimalInput("786.1531022231"));
+}
+export function evaluate8062() {
+    return decimalLog10(decimalInput("786.1531022231"));
+}
+export function evaluate8063() {
+    return decimalLog10(decimalInput("786.1531022231"));
+}
+export function evaluate8064() {
+    return decimalPower(decimalInput("786.1531022231"), decimalInput("1.125"));
+}
+export function evaluate8065() {
+    return decimalPower(decimalInput("786.1531022231"), decimalInput("1.125"));
+}
+export function evaluate8066() {
+    return decimalPower(decimalInput("786.1531022231"), decimalInput("1.125"));
+}
+export function evaluate8067() {
+    return decimalSqrt(decimalInput("169.2652910602"));
+}
+export function evaluate8068() {
+    return decimalLn(decimalInput("169.2652910602"));
+}
+export function evaluate8069() {
+    return decimalLog10(decimalInput("169.2652910602"));
+}
+export function evaluate8070() {
+    return decimalLog10(decimalInput("169.2652910602"));
+}
+export function evaluate8071() {
+    return decimalPower(decimalInput("169.2652910602"), decimalInput("2.125"));
+}
+export function evaluate8072() {
+    return decimalPower(decimalInput("169.2652910602"), decimalInput("2.125"));
+}
+export function evaluate8073() {
+    return decimalPower(decimalInput("169.2652910602"), decimalInput("2.125"));
+}
+export function evaluate8074() {
+    return decimalSqrt(decimalInput("65.0768054241"));
+}
+export function evaluate8075() {
+    return decimalLn(decimalInput("65.0768054241"));
+}
+export function evaluate8076() {
+    return decimalLog10(decimalInput("65.0768054241"));
+}
+export function evaluate8077() {
+    return decimalLog10(decimalInput("65.0768054241"));
+}
+export function evaluate8078() {
+    return decimalPower(decimalInput("65.0768054241"), decimalInput("3.125"));
+}
+export function evaluate8079() {
+    return decimalPower(decimalInput("65.0768054241"), decimalInput("3.125"));
+}
+export function evaluate8080() {
+    return decimalPower(decimalInput("65.0768054241"), decimalInput("3.125"));
+}
+export function evaluate8081() {
+    return decimalSqrt(decimalInput("444.2239110092"));
+}
+export function evaluate8082() {
+    return decimalLn(decimalInput("444.2239110092"));
+}
+export function evaluate8083() {
+    return decimalLog10(decimalInput("444.2239110092"));
+}
+export function evaluate8084() {
+    return decimalLog10(decimalInput("444.2239110092"));
+}
+export function evaluate8085() {
+    return decimalPower(decimalInput("444.2239110092"), decimalInput("-3.125"));
+}
+export function evaluate8086() {
+    return decimalPower(decimalInput("444.2239110092"), decimalInput("-3.125"));
+}
+export function evaluate8087() {
+    return decimalPower(decimalInput("444.2239110092"), decimalInput("-3.125"));
+}
+export function evaluate8088() {
+    return decimalSqrt(decimalInput("800.3379406011"));
+}
+export function evaluate8089() {
+    return decimalLn(decimalInput("800.3379406011"));
+}
+export function evaluate8090() {
+    return decimalLog10(decimalInput("800.3379406011"));
+}
+export function evaluate8091() {
+    return decimalLog10(decimalInput("800.3379406011"));
+}
+export function evaluate8092() {
+    return decimalPower(decimalInput("800.3379406011"), decimalInput("-2.125"));
+}
+export function evaluate8093() {
+    return decimalPower(decimalInput("800.3379406011"), decimalInput("-2.125"));
+}
+export function evaluate8094() {
+    return decimalPower(decimalInput("800.3379406011"), decimalInput("-2.125"));
+}
+export function evaluate8095() {
+    return decimalPower(decimalInput(null), decimalInput(null));
+}
+export function evaluate8096() {
+    return decimalPower(decimalInput(null), decimalInput(null));
+}
+export function evaluate8097() {
+    return decimalPower(decimalInput(null), decimalInput(null));
+}
+export function evaluate8098() {
+    return decimalLog(decimalInput(null), decimalInput(null));
+}
+export function evaluate8099() {
+    return decimalPower(decimalInput(null), decimalInput("NaN"));
+}
+export function evaluate8100() {
+    return decimalPower(decimalInput(null), decimalInput("NaN"));
+}
+export function evaluate8101() {
+    return decimalPower(decimalInput(null), decimalInput("NaN"));
+}
+export function evaluate8102() {
+    return decimalLog(decimalInput("NaN"), decimalInput(null));
+}
+export function evaluate8103() {
+    return decimalPower(decimalInput(null), decimalInput("Infinity"));
+}
+export function evaluate8104() {
+    return decimalPower(decimalInput(null), decimalInput("Infinity"));
+}
+export function evaluate8105() {
+    return decimalPower(decimalInput(null), decimalInput("Infinity"));
+}
+export function evaluate8106() {
+    return decimalLog(decimalInput("Infinity"), decimalInput(null));
+}
+export function evaluate8107() {
+    return decimalPower(decimalInput(null), decimalInput("-Infinity"));
+}
+export function evaluate8108() {
+    return decimalPower(decimalInput(null), decimalInput("-Infinity"));
+}
+export function evaluate8109() {
+    return decimalPower(decimalInput(null), decimalInput("-Infinity"));
+}
+export function evaluate8110() {
+    return decimalLog(decimalInput("-Infinity"), decimalInput(null));
+}
+export function evaluate8111() {
+    return decimalPower(decimalInput(null), decimalInput("-3"));
+}
+export function evaluate8112() {
+    return decimalPower(decimalInput(null), decimalInput("-3"));
+}
+export function evaluate8113() {
+    return decimalPower(decimalInput(null), decimalInput("-3"));
+}
+export function evaluate8114() {
+    return decimalLog(decimalInput("-3"), decimalInput(null));
+}
+export function evaluate8115() {
+    return decimalPower(decimalInput(null), decimalInput("-2"));
+}
+export function evaluate8116() {
+    return decimalPower(decimalInput(null), decimalInput("-2"));
+}
+export function evaluate8117() {
+    return decimalPower(decimalInput(null), decimalInput("-2"));
+}
+export function evaluate8118() {
+    return decimalLog(decimalInput("-2"), decimalInput(null));
+}
+export function evaluate8119() {
+    return decimalPower(decimalInput(null), decimalInput("-0.5"));
+}
+export function evaluate8120() {
+    return decimalPower(decimalInput(null), decimalInput("-0.5"));
+}
+export function evaluate8121() {
+    return decimalPower(decimalInput(null), decimalInput("-0.5"));
+}
+export function evaluate8122() {
+    return decimalLog(decimalInput("-0.5"), decimalInput(null));
+}
+export function evaluate8123() {
+    return decimalPower(decimalInput(null), decimalInput("0"));
+}
+export function evaluate8124() {
+    return decimalPower(decimalInput(null), decimalInput("0"));
+}
+export function evaluate8125() {
+    return decimalPower(decimalInput(null), decimalInput("0"));
+}
+export function evaluate8126() {
+    return decimalLog(decimalInput("0"), decimalInput(null));
+}
+export function evaluate8127() {
+    return decimalPower(decimalInput(null), decimalInput("0.5"));
+}
+export function evaluate8128() {
+    return decimalPower(decimalInput(null), decimalInput("0.5"));
+}
+export function evaluate8129() {
+    return decimalPower(decimalInput(null), decimalInput("0.5"));
+}
+export function evaluate8130() {
+    return decimalLog(decimalInput("0.5"), decimalInput(null));
+}
+export function evaluate8131() {
+    return decimalPower(decimalInput(null), decimalInput("2"));
+}
+export function evaluate8132() {
+    return decimalPower(decimalInput(null), decimalInput("2"));
+}
+export function evaluate8133() {
+    return decimalPower(decimalInput(null), decimalInput("2"));
+}
+export function evaluate8134() {
+    return decimalLog(decimalInput("2"), decimalInput(null));
+}
+export function evaluate8135() {
+    return decimalPower(decimalInput(null), decimalInput("3"));
+}
+export function evaluate8136() {
+    return decimalPower(decimalInput(null), decimalInput("3"));
+}
+export function evaluate8137() {
+    return decimalPower(decimalInput(null), decimalInput("3"));
+}
+export function evaluate8138() {
+    return decimalLog(decimalInput("3"), decimalInput(null));
+}
+export function evaluate8139() {
+    return decimalPower(decimalInput("NaN"), decimalInput(null));
+}
+export function evaluate8140() {
+    return decimalPower(decimalInput("NaN"), decimalInput(null));
+}
+export function evaluate8141() {
+    return decimalPower(decimalInput("NaN"), decimalInput(null));
+}
+export function evaluate8142() {
+    return decimalLog(decimalInput(null), decimalInput("NaN"));
+}
+export function evaluate8143() {
+    return decimalPower(decimalInput("NaN"), decimalInput("NaN"));
+}
+export function evaluate8144() {
+    return decimalPower(decimalInput("NaN"), decimalInput("NaN"));
+}
+export function evaluate8145() {
+    return decimalPower(decimalInput("NaN"), decimalInput("NaN"));
+}
+export function evaluate8146() {
+    return decimalLog(decimalInput("NaN"), decimalInput("NaN"));
+}
+export function evaluate8147() {
+    return decimalPower(decimalInput("NaN"), decimalInput("Infinity"));
+}
+export function evaluate8148() {
+    return decimalPower(decimalInput("NaN"), decimalInput("Infinity"));
+}
+export function evaluate8149() {
+    return decimalPower(decimalInput("NaN"), decimalInput("Infinity"));
+}
+export function evaluate8150() {
+    return decimalLog(decimalInput("Infinity"), decimalInput("NaN"));
+}
+export function evaluate8151() {
+    return decimalPower(decimalInput("NaN"), decimalInput("-Infinity"));
+}
+export function evaluate8152() {
+    return decimalPower(decimalInput("NaN"), decimalInput("-Infinity"));
+}
+export function evaluate8153() {
+    return decimalPower(decimalInput("NaN"), decimalInput("-Infinity"));
+}
+export function evaluate8154() {
+    return decimalLog(decimalInput("-Infinity"), decimalInput("NaN"));
+}
+export function evaluate8155() {
+    return decimalPower(decimalInput("NaN"), decimalInput("-3"));
+}
+export function evaluate8156() {
+    return decimalPower(decimalInput("NaN"), decimalInput("-3"));
+}
+export function evaluate8157() {
+    return decimalPower(decimalInput("NaN"), decimalInput("-3"));
+}
+export function evaluate8158() {
+    return decimalLog(decimalInput("-3"), decimalInput("NaN"));
+}
+export function evaluate8159() {
+    return decimalPower(decimalInput("NaN"), decimalInput("-2"));
+}
+export function evaluate8160() {
+    return decimalPower(decimalInput("NaN"), decimalInput("-2"));
+}
+export function evaluate8161() {
+    return decimalPower(decimalInput("NaN"), decimalInput("-2"));
+}
+export function evaluate8162() {
+    return decimalLog(decimalInput("-2"), decimalInput("NaN"));
+}
+export function evaluate8163() {
+    return decimalPower(decimalInput("NaN"), decimalInput("-0.5"));
+}
+export function evaluate8164() {
+    return decimalPower(decimalInput("NaN"), decimalInput("-0.5"));
+}
+export function evaluate8165() {
+    return decimalPower(decimalInput("NaN"), decimalInput("-0.5"));
+}
+export function evaluate8166() {
+    return decimalLog(decimalInput("-0.5"), decimalInput("NaN"));
+}
+export function evaluate8167() {
+    return decimalPower(decimalInput("NaN"), decimalInput("0"));
+}
+export function evaluate8168() {
+    return decimalPower(decimalInput("NaN"), decimalInput("0"));
+}
+export function evaluate8169() {
+    return decimalPower(decimalInput("NaN"), decimalInput("0"));
+}
+export function evaluate8170() {
+    return decimalLog(decimalInput("0"), decimalInput("NaN"));
+}
+export function evaluate8171() {
+    return decimalPower(decimalInput("NaN"), decimalInput("0.5"));
+}
+export function evaluate8172() {
+    return decimalPower(decimalInput("NaN"), decimalInput("0.5"));
+}
+export function evaluate8173() {
+    return decimalPower(decimalInput("NaN"), decimalInput("0.5"));
+}
+export function evaluate8174() {
+    return decimalLog(decimalInput("0.5"), decimalInput("NaN"));
+}
+export function evaluate8175() {
+    return decimalPower(decimalInput("NaN"), decimalInput("2"));
+}
+export function evaluate8176() {
+    return decimalPower(decimalInput("NaN"), decimalInput("2"));
+}
+export function evaluate8177() {
+    return decimalPower(decimalInput("NaN"), decimalInput("2"));
+}
+export function evaluate8178() {
+    return decimalLog(decimalInput("2"), decimalInput("NaN"));
+}
+export function evaluate8179() {
+    return decimalPower(decimalInput("NaN"), decimalInput("3"));
+}
+export function evaluate8180() {
+    return decimalPower(decimalInput("NaN"), decimalInput("3"));
+}
+export function evaluate8181() {
+    return decimalPower(decimalInput("NaN"), decimalInput("3"));
+}
+export function evaluate8182() {
+    return decimalLog(decimalInput("3"), decimalInput("NaN"));
+}
+export function evaluate8183() {
+    return decimalPower(decimalInput("Infinity"), decimalInput(null));
+}
+export function evaluate8184() {
+    return decimalPower(decimalInput("Infinity"), decimalInput(null));
+}
+export function evaluate8185() {
+    return decimalPower(decimalInput("Infinity"), decimalInput(null));
+}
+export function evaluate8186() {
+    return decimalLog(decimalInput(null), decimalInput("Infinity"));
+}
+export function evaluate8187() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("NaN"));
+}
+export function evaluate8188() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("NaN"));
+}
+export function evaluate8189() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("NaN"));
+}
+export function evaluate8190() {
+    return decimalLog(decimalInput("NaN"), decimalInput("Infinity"));
+}
+export function evaluate8191() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("Infinity"));
+}
+export function evaluate8192() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("Infinity"));
+}
+export function evaluate8193() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("Infinity"));
+}
+export function evaluate8194() {
+    return decimalLog(decimalInput("Infinity"), decimalInput("Infinity"));
+}
+export function evaluate8195() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("-Infinity"));
+}
+export function evaluate8196() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("-Infinity"));
+}
+export function evaluate8197() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("-Infinity"));
+}
+export function evaluate8198() {
+    return decimalLog(decimalInput("-Infinity"), decimalInput("Infinity"));
+}
+export function evaluate8199() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("-3"));
+}
+export function evaluate8200() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("-3"));
+}
+export function evaluate8201() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("-3"));
+}
+export function evaluate8202() {
+    return decimalLog(decimalInput("-3"), decimalInput("Infinity"));
+}
+export function evaluate8203() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("-2"));
+}
+export function evaluate8204() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("-2"));
+}
+export function evaluate8205() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("-2"));
+}
+export function evaluate8206() {
+    return decimalLog(decimalInput("-2"), decimalInput("Infinity"));
+}
+export function evaluate8207() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("-0.5"));
+}
+export function evaluate8208() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("-0.5"));
+}
+export function evaluate8209() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("-0.5"));
+}
+export function evaluate8210() {
+    return decimalLog(decimalInput("-0.5"), decimalInput("Infinity"));
+}
+export function evaluate8211() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("0"));
+}
+export function evaluate8212() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("0"));
+}
+export function evaluate8213() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("0"));
+}
+export function evaluate8214() {
+    return decimalLog(decimalInput("0"), decimalInput("Infinity"));
+}
+export function evaluate8215() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("0.5"));
+}
+export function evaluate8216() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("0.5"));
+}
+export function evaluate8217() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("0.5"));
+}
+export function evaluate8218() {
+    return decimalLog(decimalInput("0.5"), decimalInput("Infinity"));
+}
+export function evaluate8219() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("2"));
+}
+export function evaluate8220() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("2"));
+}
+export function evaluate8221() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("2"));
+}
+export function evaluate8222() {
+    return decimalLog(decimalInput("2"), decimalInput("Infinity"));
+}
+export function evaluate8223() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("3"));
+}
+export function evaluate8224() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("3"));
+}
+export function evaluate8225() {
+    return decimalPower(decimalInput("Infinity"), decimalInput("3"));
+}
+export function evaluate8226() {
+    return decimalLog(decimalInput("3"), decimalInput("Infinity"));
+}
+export function evaluate8227() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput(null));
+}
+export function evaluate8228() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput(null));
+}
+export function evaluate8229() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput(null));
+}
+export function evaluate8230() {
+    return decimalLog(decimalInput(null), decimalInput("-Infinity"));
+}
+export function evaluate8231() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("NaN"));
+}
+export function evaluate8232() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("NaN"));
+}
+export function evaluate8233() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("NaN"));
+}
+export function evaluate8234() {
+    return decimalLog(decimalInput("NaN"), decimalInput("-Infinity"));
+}
+export function evaluate8235() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("Infinity"));
+}
+export function evaluate8236() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("Infinity"));
+}
+export function evaluate8237() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("Infinity"));
+}
+export function evaluate8238() {
+    return decimalLog(decimalInput("Infinity"), decimalInput("-Infinity"));
+}
+export function evaluate8239() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("-Infinity"));
+}
+export function evaluate8240() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("-Infinity"));
+}
+export function evaluate8241() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("-Infinity"));
+}
+export function evaluate8242() {
+    return decimalLog(decimalInput("-Infinity"), decimalInput("-Infinity"));
+}
+export function evaluate8243() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("-3"));
+}
+export function evaluate8244() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("-3"));
+}
+export function evaluate8245() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("-3"));
+}
+export function evaluate8246() {
+    return decimalLog(decimalInput("-3"), decimalInput("-Infinity"));
+}
+export function evaluate8247() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("-2"));
+}
+export function evaluate8248() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("-2"));
+}
+export function evaluate8249() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("-2"));
+}
+export function evaluate8250() {
+    return decimalLog(decimalInput("-2"), decimalInput("-Infinity"));
+}
+export function evaluate8251() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("-0.5"));
+}
+export function evaluate8252() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("-0.5"));
+}
+export function evaluate8253() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("-0.5"));
+}
+export function evaluate8254() {
+    return decimalLog(decimalInput("-0.5"), decimalInput("-Infinity"));
+}
+export function evaluate8255() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("0"));
+}
+export function evaluate8256() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("0"));
+}
+export function evaluate8257() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("0"));
+}
+export function evaluate8258() {
+    return decimalLog(decimalInput("0"), decimalInput("-Infinity"));
+}
+export function evaluate8259() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("0.5"));
+}
+export function evaluate8260() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("0.5"));
+}
+export function evaluate8261() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("0.5"));
+}
+export function evaluate8262() {
+    return decimalLog(decimalInput("0.5"), decimalInput("-Infinity"));
+}
+export function evaluate8263() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("2"));
+}
+export function evaluate8264() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("2"));
+}
+export function evaluate8265() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("2"));
+}
+export function evaluate8266() {
+    return decimalLog(decimalInput("2"), decimalInput("-Infinity"));
+}
+export function evaluate8267() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("3"));
+}
+export function evaluate8268() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("3"));
+}
+export function evaluate8269() {
+    return decimalPower(decimalInput("-Infinity"), decimalInput("3"));
+}
+export function evaluate8270() {
+    return decimalLog(decimalInput("3"), decimalInput("-Infinity"));
+}
+export function evaluate8271() {
+    return decimalPower(decimalInput("-2"), decimalInput(null));
+}
+export function evaluate8272() {
+    return decimalPower(decimalInput("-2"), decimalInput(null));
+}
+export function evaluate8273() {
+    return decimalPower(decimalInput("-2"), decimalInput(null));
+}
+export function evaluate8274() {
+    return decimalLog(decimalInput(null), decimalInput("-2"));
+}
+export function evaluate8275() {
+    return decimalPower(decimalInput("-2"), decimalInput("NaN"));
+}
+export function evaluate8276() {
+    return decimalPower(decimalInput("-2"), decimalInput("NaN"));
+}
+export function evaluate8277() {
+    return decimalPower(decimalInput("-2"), decimalInput("NaN"));
+}
+export function evaluate8278() {
+    return decimalLog(decimalInput("NaN"), decimalInput("-2"));
+}
+export function evaluate8279() {
+    return decimalPower(decimalInput("-2"), decimalInput("Infinity"));
+}
+export function evaluate8280() {
+    return decimalPower(decimalInput("-2"), decimalInput("Infinity"));
+}
+export function evaluate8281() {
+    return decimalPower(decimalInput("-2"), decimalInput("Infinity"));
+}
+export function evaluate8282() {
+    return decimalLog(decimalInput("Infinity"), decimalInput("-2"));
+}
+export function evaluate8283() {
+    return decimalPower(decimalInput("-2"), decimalInput("-Infinity"));
+}
+export function evaluate8284() {
+    return decimalPower(decimalInput("-2"), decimalInput("-Infinity"));
+}
+export function evaluate8285() {
+    return decimalPower(decimalInput("-2"), decimalInput("-Infinity"));
+}
+export function evaluate8286() {
+    return decimalLog(decimalInput("-Infinity"), decimalInput("-2"));
+}
+export function evaluate8287() {
+    return decimalPower(decimalInput("-2"), decimalInput("-3"));
+}
+export function evaluate8288() {
+    return decimalPower(decimalInput("-2"), decimalInput("-3"));
+}
+export function evaluate8289() {
+    return decimalPower(decimalInput("-2"), decimalInput("-3"));
+}
+export function evaluate8290() {
+    return decimalLog(decimalInput("-3"), decimalInput("-2"));
+}
+export function evaluate8291() {
+    return decimalPower(decimalInput("-2"), decimalInput("-2"));
+}
+export function evaluate8292() {
+    return decimalPower(decimalInput("-2"), decimalInput("-2"));
+}
+export function evaluate8293() {
+    return decimalPower(decimalInput("-2"), decimalInput("-2"));
+}
+export function evaluate8294() {
+    return decimalLog(decimalInput("-2"), decimalInput("-2"));
+}
+export function evaluate8295() {
+    return decimalPower(decimalInput("-2"), decimalInput("-0.5"));
+}
+export function evaluate8296() {
+    return decimalPower(decimalInput("-2"), decimalInput("-0.5"));
+}
+export function evaluate8297() {
+    return decimalPower(decimalInput("-2"), decimalInput("-0.5"));
+}
+export function evaluate8298() {
+    return decimalLog(decimalInput("-0.5"), decimalInput("-2"));
+}
+export function evaluate8299() {
+    return decimalPower(decimalInput("-2"), decimalInput("0"));
+}
+export function evaluate8300() {
+    return decimalPower(decimalInput("-2"), decimalInput("0"));
+}
+export function evaluate8301() {
+    return decimalPower(decimalInput("-2"), decimalInput("0"));
+}
+export function evaluate8302() {
+    return decimalLog(decimalInput("0"), decimalInput("-2"));
+}
+export function evaluate8303() {
+    return decimalPower(decimalInput("-2"), decimalInput("0.5"));
+}
+export function evaluate8304() {
+    return decimalPower(decimalInput("-2"), decimalInput("0.5"));
+}
+export function evaluate8305() {
+    return decimalPower(decimalInput("-2"), decimalInput("0.5"));
+}
+export function evaluate8306() {
+    return decimalLog(decimalInput("0.5"), decimalInput("-2"));
+}
+export function evaluate8307() {
+    return decimalPower(decimalInput("-2"), decimalInput("2"));
+}
+export function evaluate8308() {
+    return decimalPower(decimalInput("-2"), decimalInput("2"));
+}
+export function evaluate8309() {
+    return decimalPower(decimalInput("-2"), decimalInput("2"));
+}
+export function evaluate8310() {
+    return decimalLog(decimalInput("2"), decimalInput("-2"));
+}
+export function evaluate8311() {
+    return decimalPower(decimalInput("-2"), decimalInput("3"));
+}
+export function evaluate8312() {
+    return decimalPower(decimalInput("-2"), decimalInput("3"));
+}
+export function evaluate8313() {
+    return decimalPower(decimalInput("-2"), decimalInput("3"));
+}
+export function evaluate8314() {
+    return decimalLog(decimalInput("3"), decimalInput("-2"));
+}
+export function evaluate8315() {
+    return decimalPower(decimalInput("-1"), decimalInput(null));
+}
+export function evaluate8316() {
+    return decimalPower(decimalInput("-1"), decimalInput(null));
+}
+export function evaluate8317() {
+    return decimalPower(decimalInput("-1"), decimalInput(null));
+}
+export function evaluate8318() {
+    return decimalLog(decimalInput(null), decimalInput("-1"));
+}
+export function evaluate8319() {
+    return decimalPower(decimalInput("-1"), decimalInput("NaN"));
+}
+export function evaluate8320() {
+    return decimalPower(decimalInput("-1"), decimalInput("NaN"));
+}
+export function evaluate8321() {
+    return decimalPower(decimalInput("-1"), decimalInput("NaN"));
+}
+export function evaluate8322() {
+    return decimalLog(decimalInput("NaN"), decimalInput("-1"));
+}
+export function evaluate8323() {
+    return decimalPower(decimalInput("-1"), decimalInput("Infinity"));
+}
+export function evaluate8324() {
+    return decimalPower(decimalInput("-1"), decimalInput("Infinity"));
+}
+export function evaluate8325() {
+    return decimalPower(decimalInput("-1"), decimalInput("Infinity"));
+}
+export function evaluate8326() {
+    return decimalLog(decimalInput("Infinity"), decimalInput("-1"));
+}
+export function evaluate8327() {
+    return decimalPower(decimalInput("-1"), decimalInput("-Infinity"));
+}
+export function evaluate8328() {
+    return decimalPower(decimalInput("-1"), decimalInput("-Infinity"));
+}
+export function evaluate8329() {
+    return decimalPower(decimalInput("-1"), decimalInput("-Infinity"));
+}
+export function evaluate8330() {
+    return decimalLog(decimalInput("-Infinity"), decimalInput("-1"));
+}
+export function evaluate8331() {
+    return decimalPower(decimalInput("-1"), decimalInput("-3"));
+}
+export function evaluate8332() {
+    return decimalPower(decimalInput("-1"), decimalInput("-3"));
+}
+export function evaluate8333() {
+    return decimalPower(decimalInput("-1"), decimalInput("-3"));
+}
+export function evaluate8334() {
+    return decimalLog(decimalInput("-3"), decimalInput("-1"));
+}
+export function evaluate8335() {
+    return decimalPower(decimalInput("-1"), decimalInput("-2"));
+}
+export function evaluate8336() {
+    return decimalPower(decimalInput("-1"), decimalInput("-2"));
+}
+export function evaluate8337() {
+    return decimalPower(decimalInput("-1"), decimalInput("-2"));
+}
+export function evaluate8338() {
+    return decimalLog(decimalInput("-2"), decimalInput("-1"));
+}
+export function evaluate8339() {
+    return decimalPower(decimalInput("-1"), decimalInput("-0.5"));
+}
+export function evaluate8340() {
+    return decimalPower(decimalInput("-1"), decimalInput("-0.5"));
+}
+export function evaluate8341() {
+    return decimalPower(decimalInput("-1"), decimalInput("-0.5"));
+}
+export function evaluate8342() {
+    return decimalLog(decimalInput("-0.5"), decimalInput("-1"));
+}
+export function evaluate8343() {
+    return decimalPower(decimalInput("-1"), decimalInput("0"));
+}
+export function evaluate8344() {
+    return decimalPower(decimalInput("-1"), decimalInput("0"));
+}
+export function evaluate8345() {
+    return decimalPower(decimalInput("-1"), decimalInput("0"));
+}
+export function evaluate8346() {
+    return decimalLog(decimalInput("0"), decimalInput("-1"));
+}
+export function evaluate8347() {
+    return decimalPower(decimalInput("-1"), decimalInput("0.5"));
+}
+export function evaluate8348() {
+    return decimalPower(decimalInput("-1"), decimalInput("0.5"));
+}
+export function evaluate8349() {
+    return decimalPower(decimalInput("-1"), decimalInput("0.5"));
+}
+export function evaluate8350() {
+    return decimalLog(decimalInput("0.5"), decimalInput("-1"));
+}
+export function evaluate8351() {
+    return decimalPower(decimalInput("-1"), decimalInput("2"));
+}
+export function evaluate8352() {
+    return decimalPower(decimalInput("-1"), decimalInput("2"));
+}
+export function evaluate8353() {
+    return decimalPower(decimalInput("-1"), decimalInput("2"));
+}
+export function evaluate8354() {
+    return decimalLog(decimalInput("2"), decimalInput("-1"));
+}
+export function evaluate8355() {
+    return decimalPower(decimalInput("-1"), decimalInput("3"));
+}
+export function evaluate8356() {
+    return decimalPower(decimalInput("-1"), decimalInput("3"));
+}
+export function evaluate8357() {
+    return decimalPower(decimalInput("-1"), decimalInput("3"));
+}
+export function evaluate8358() {
+    return decimalLog(decimalInput("3"), decimalInput("-1"));
+}
+export function evaluate8359() {
+    return decimalPower(decimalInput("-0.5"), decimalInput(null));
+}
+export function evaluate8360() {
+    return decimalPower(decimalInput("-0.5"), decimalInput(null));
+}
+export function evaluate8361() {
+    return decimalPower(decimalInput("-0.5"), decimalInput(null));
+}
+export function evaluate8362() {
+    return decimalLog(decimalInput(null), decimalInput("-0.5"));
+}
+export function evaluate8363() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("NaN"));
+}
+export function evaluate8364() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("NaN"));
+}
+export function evaluate8365() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("NaN"));
+}
+export function evaluate8366() {
+    return decimalLog(decimalInput("NaN"), decimalInput("-0.5"));
+}
+export function evaluate8367() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("Infinity"));
+}
+export function evaluate8368() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("Infinity"));
+}
+export function evaluate8369() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("Infinity"));
+}
+export function evaluate8370() {
+    return decimalLog(decimalInput("Infinity"), decimalInput("-0.5"));
+}
+export function evaluate8371() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("-Infinity"));
+}
+export function evaluate8372() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("-Infinity"));
+}
+export function evaluate8373() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("-Infinity"));
+}
+export function evaluate8374() {
+    return decimalLog(decimalInput("-Infinity"), decimalInput("-0.5"));
+}
+export function evaluate8375() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("-3"));
+}
+export function evaluate8376() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("-3"));
+}
+export function evaluate8377() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("-3"));
+}
+export function evaluate8378() {
+    return decimalLog(decimalInput("-3"), decimalInput("-0.5"));
+}
+export function evaluate8379() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("-2"));
+}
+export function evaluate8380() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("-2"));
+}
+export function evaluate8381() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("-2"));
+}
+export function evaluate8382() {
+    return decimalLog(decimalInput("-2"), decimalInput("-0.5"));
+}
+export function evaluate8383() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("-0.5"));
+}
+export function evaluate8384() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("-0.5"));
+}
+export function evaluate8385() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("-0.5"));
+}
+export function evaluate8386() {
+    return decimalLog(decimalInput("-0.5"), decimalInput("-0.5"));
+}
+export function evaluate8387() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("0"));
+}
+export function evaluate8388() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("0"));
+}
+export function evaluate8389() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("0"));
+}
+export function evaluate8390() {
+    return decimalLog(decimalInput("0"), decimalInput("-0.5"));
+}
+export function evaluate8391() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("0.5"));
+}
+export function evaluate8392() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("0.5"));
+}
+export function evaluate8393() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("0.5"));
+}
+export function evaluate8394() {
+    return decimalLog(decimalInput("0.5"), decimalInput("-0.5"));
+}
+export function evaluate8395() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("2"));
+}
+export function evaluate8396() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("2"));
+}
+export function evaluate8397() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("2"));
+}
+export function evaluate8398() {
+    return decimalLog(decimalInput("2"), decimalInput("-0.5"));
+}
+export function evaluate8399() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("3"));
+}
+export function evaluate8400() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("3"));
+}
+export function evaluate8401() {
+    return decimalPower(decimalInput("-0.5"), decimalInput("3"));
+}
+export function evaluate8402() {
+    return decimalLog(decimalInput("3"), decimalInput("-0.5"));
+}
+export function evaluate8403() {
+    return decimalPower(decimalInput("0"), decimalInput(null));
+}
+export function evaluate8404() {
+    return decimalPower(decimalInput("0"), decimalInput(null));
+}
+export function evaluate8405() {
+    return decimalPower(decimalInput("0"), decimalInput(null));
+}
+export function evaluate8406() {
+    return decimalLog(decimalInput(null), decimalInput("0"));
+}
+export function evaluate8407() {
+    return decimalPower(decimalInput("0"), decimalInput("NaN"));
+}
+export function evaluate8408() {
+    return decimalPower(decimalInput("0"), decimalInput("NaN"));
+}
+export function evaluate8409() {
+    return decimalPower(decimalInput("0"), decimalInput("NaN"));
+}
+export function evaluate8410() {
+    return decimalLog(decimalInput("NaN"), decimalInput("0"));
+}
+export function evaluate8411() {
+    return decimalPower(decimalInput("0"), decimalInput("Infinity"));
+}
+export function evaluate8412() {
+    return decimalPower(decimalInput("0"), decimalInput("Infinity"));
+}
+export function evaluate8413() {
+    return decimalPower(decimalInput("0"), decimalInput("Infinity"));
+}
+export function evaluate8414() {
+    return decimalLog(decimalInput("Infinity"), decimalInput("0"));
+}
+export function evaluate8415() {
+    return decimalPower(decimalInput("0"), decimalInput("-Infinity"));
+}
+export function evaluate8416() {
+    return decimalPower(decimalInput("0"), decimalInput("-Infinity"));
+}
+export function evaluate8417() {
+    return decimalPower(decimalInput("0"), decimalInput("-Infinity"));
+}
+export function evaluate8418() {
+    return decimalLog(decimalInput("-Infinity"), decimalInput("0"));
+}
+export function evaluate8419() {
+    return decimalPower(decimalInput("0"), decimalInput("-3"));
+}
+export function evaluate8420() {
+    return decimalPower(decimalInput("0"), decimalInput("-3"));
+}
+export function evaluate8421() {
+    return decimalPower(decimalInput("0"), decimalInput("-3"));
+}
+export function evaluate8422() {
+    return decimalLog(decimalInput("-3"), decimalInput("0"));
+}
+export function evaluate8423() {
+    return decimalPower(decimalInput("0"), decimalInput("-2"));
+}
+export function evaluate8424() {
+    return decimalPower(decimalInput("0"), decimalInput("-2"));
+}
+export function evaluate8425() {
+    return decimalPower(decimalInput("0"), decimalInput("-2"));
+}
+export function evaluate8426() {
+    return decimalLog(decimalInput("-2"), decimalInput("0"));
+}
+export function evaluate8427() {
+    return decimalPower(decimalInput("0"), decimalInput("-0.5"));
+}
+export function evaluate8428() {
+    return decimalPower(decimalInput("0"), decimalInput("-0.5"));
+}
+export function evaluate8429() {
+    return decimalPower(decimalInput("0"), decimalInput("-0.5"));
+}
+export function evaluate8430() {
+    return decimalLog(decimalInput("-0.5"), decimalInput("0"));
+}
+export function evaluate8431() {
+    return decimalPower(decimalInput("0"), decimalInput("0"));
+}
+export function evaluate8432() {
+    return decimalPower(decimalInput("0"), decimalInput("0"));
+}
+export function evaluate8433() {
+    return decimalPower(decimalInput("0"), decimalInput("0"));
+}
+export function evaluate8434() {
+    return decimalLog(decimalInput("0"), decimalInput("0"));
+}
+export function evaluate8435() {
+    return decimalPower(decimalInput("0"), decimalInput("0.5"));
+}
+export function evaluate8436() {
+    return decimalPower(decimalInput("0"), decimalInput("0.5"));
+}
+export function evaluate8437() {
+    return decimalPower(decimalInput("0"), decimalInput("0.5"));
+}
+export function evaluate8438() {
+    return decimalLog(decimalInput("0.5"), decimalInput("0"));
+}
+export function evaluate8439() {
+    return decimalPower(decimalInput("0"), decimalInput("2"));
+}
+export function evaluate8440() {
+    return decimalPower(decimalInput("0"), decimalInput("2"));
+}
+export function evaluate8441() {
+    return decimalPower(decimalInput("0"), decimalInput("2"));
+}
+export function evaluate8442() {
+    return decimalLog(decimalInput("2"), decimalInput("0"));
+}
+export function evaluate8443() {
+    return decimalPower(decimalInput("0"), decimalInput("3"));
+}
+export function evaluate8444() {
+    return decimalPower(decimalInput("0"), decimalInput("3"));
+}
+export function evaluate8445() {
+    return decimalPower(decimalInput("0"), decimalInput("3"));
+}
+export function evaluate8446() {
+    return decimalLog(decimalInput("3"), decimalInput("0"));
+}
+export function evaluate8447() {
+    return decimalPower(decimalInput("0.5"), decimalInput(null));
+}
+export function evaluate8448() {
+    return decimalPower(decimalInput("0.5"), decimalInput(null));
+}
+export function evaluate8449() {
+    return decimalPower(decimalInput("0.5"), decimalInput(null));
+}
+export function evaluate8450() {
+    return decimalLog(decimalInput(null), decimalInput("0.5"));
+}
+export function evaluate8451() {
+    return decimalPower(decimalInput("0.5"), decimalInput("NaN"));
+}
+export function evaluate8452() {
+    return decimalPower(decimalInput("0.5"), decimalInput("NaN"));
+}
+export function evaluate8453() {
+    return decimalPower(decimalInput("0.5"), decimalInput("NaN"));
+}
+export function evaluate8454() {
+    return decimalLog(decimalInput("NaN"), decimalInput("0.5"));
+}
+export function evaluate8455() {
+    return decimalPower(decimalInput("0.5"), decimalInput("Infinity"));
+}
+export function evaluate8456() {
+    return decimalPower(decimalInput("0.5"), decimalInput("Infinity"));
+}
+export function evaluate8457() {
+    return decimalPower(decimalInput("0.5"), decimalInput("Infinity"));
+}
+export function evaluate8458() {
+    return decimalLog(decimalInput("Infinity"), decimalInput("0.5"));
+}
+export function evaluate8459() {
+    return decimalPower(decimalInput("0.5"), decimalInput("-Infinity"));
+}
+export function evaluate8460() {
+    return decimalPower(decimalInput("0.5"), decimalInput("-Infinity"));
+}
+export function evaluate8461() {
+    return decimalPower(decimalInput("0.5"), decimalInput("-Infinity"));
+}
+export function evaluate8462() {
+    return decimalLog(decimalInput("-Infinity"), decimalInput("0.5"));
+}
+export function evaluate8463() {
+    return decimalPower(decimalInput("0.5"), decimalInput("-3"));
+}
+export function evaluate8464() {
+    return decimalPower(decimalInput("0.5"), decimalInput("-3"));
+}
+export function evaluate8465() {
+    return decimalPower(decimalInput("0.5"), decimalInput("-3"));
+}
+export function evaluate8466() {
+    return decimalLog(decimalInput("-3"), decimalInput("0.5"));
+}
+export function evaluate8467() {
+    return decimalPower(decimalInput("0.5"), decimalInput("-2"));
+}
+export function evaluate8468() {
+    return decimalPower(decimalInput("0.5"), decimalInput("-2"));
+}
+export function evaluate8469() {
+    return decimalPower(decimalInput("0.5"), decimalInput("-2"));
+}
+export function evaluate8470() {
+    return decimalLog(decimalInput("-2"), decimalInput("0.5"));
+}
+export function evaluate8471() {
+    return decimalPower(decimalInput("0.5"), decimalInput("-0.5"));
+}
+export function evaluate8472() {
+    return decimalPower(decimalInput("0.5"), decimalInput("-0.5"));
+}
+export function evaluate8473() {
+    return decimalPower(decimalInput("0.5"), decimalInput("-0.5"));
+}
+export function evaluate8474() {
+    return decimalLog(decimalInput("-0.5"), decimalInput("0.5"));
+}
+export function evaluate8475() {
+    return decimalPower(decimalInput("0.5"), decimalInput("0"));
+}
+export function evaluate8476() {
+    return decimalPower(decimalInput("0.5"), decimalInput("0"));
+}
+export function evaluate8477() {
+    return decimalPower(decimalInput("0.5"), decimalInput("0"));
+}
+export function evaluate8478() {
+    return decimalLog(decimalInput("0"), decimalInput("0.5"));
+}
+export function evaluate8479() {
+    return decimalPower(decimalInput("0.5"), decimalInput("0.5"));
+}
+export function evaluate8480() {
+    return decimalPower(decimalInput("0.5"), decimalInput("0.5"));
+}
+export function evaluate8481() {
+    return decimalPower(decimalInput("0.5"), decimalInput("0.5"));
+}
+export function evaluate8482() {
+    return decimalLog(decimalInput("0.5"), decimalInput("0.5"));
+}
+export function evaluate8483() {
+    return decimalPower(decimalInput("0.5"), decimalInput("2"));
+}
+export function evaluate8484() {
+    return decimalPower(decimalInput("0.5"), decimalInput("2"));
+}
+export function evaluate8485() {
+    return decimalPower(decimalInput("0.5"), decimalInput("2"));
+}
+export function evaluate8486() {
+    return decimalLog(decimalInput("2"), decimalInput("0.5"));
+}
+export function evaluate8487() {
+    return decimalPower(decimalInput("0.5"), decimalInput("3"));
+}
+export function evaluate8488() {
+    return decimalPower(decimalInput("0.5"), decimalInput("3"));
+}
+export function evaluate8489() {
+    return decimalPower(decimalInput("0.5"), decimalInput("3"));
+}
+export function evaluate8490() {
+    return decimalLog(decimalInput("3"), decimalInput("0.5"));
+}
+export function evaluate8491() {
+    return decimalPower(decimalInput("1"), decimalInput(null));
+}
+export function evaluate8492() {
+    return decimalPower(decimalInput("1"), decimalInput(null));
+}
+export function evaluate8493() {
+    return decimalPower(decimalInput("1"), decimalInput(null));
+}
+export function evaluate8494() {
+    return decimalLog(decimalInput(null), decimalInput("1"));
+}
+export function evaluate8495() {
+    return decimalPower(decimalInput("1"), decimalInput("NaN"));
+}
+export function evaluate8496() {
+    return decimalPower(decimalInput("1"), decimalInput("NaN"));
+}
+export function evaluate8497() {
+    return decimalPower(decimalInput("1"), decimalInput("NaN"));
+}
+export function evaluate8498() {
+    return decimalLog(decimalInput("NaN"), decimalInput("1"));
+}
+export function evaluate8499() {
+    return decimalPower(decimalInput("1"), decimalInput("Infinity"));
+}
+export function evaluate8500() {
+    return decimalPower(decimalInput("1"), decimalInput("Infinity"));
+}
+export function evaluate8501() {
+    return decimalPower(decimalInput("1"), decimalInput("Infinity"));
+}
+export function evaluate8502() {
+    return decimalLog(decimalInput("Infinity"), decimalInput("1"));
+}
+export function evaluate8503() {
+    return decimalPower(decimalInput("1"), decimalInput("-Infinity"));
+}
+export function evaluate8504() {
+    return decimalPower(decimalInput("1"), decimalInput("-Infinity"));
+}
+export function evaluate8505() {
+    return decimalPower(decimalInput("1"), decimalInput("-Infinity"));
+}
+export function evaluate8506() {
+    return decimalLog(decimalInput("-Infinity"), decimalInput("1"));
+}
+export function evaluate8507() {
+    return decimalPower(decimalInput("1"), decimalInput("-3"));
+}
+export function evaluate8508() {
+    return decimalPower(decimalInput("1"), decimalInput("-3"));
+}
+export function evaluate8509() {
+    return decimalPower(decimalInput("1"), decimalInput("-3"));
+}
+export function evaluate8510() {
+    return decimalLog(decimalInput("-3"), decimalInput("1"));
+}
+export function evaluate8511() {
+    return decimalPower(decimalInput("1"), decimalInput("-2"));
+}
+export function evaluate8512() {
+    return decimalPower(decimalInput("1"), decimalInput("-2"));
+}
+export function evaluate8513() {
+    return decimalPower(decimalInput("1"), decimalInput("-2"));
+}
+export function evaluate8514() {
+    return decimalLog(decimalInput("-2"), decimalInput("1"));
+}
+export function evaluate8515() {
+    return decimalPower(decimalInput("1"), decimalInput("-0.5"));
+}
+export function evaluate8516() {
+    return decimalPower(decimalInput("1"), decimalInput("-0.5"));
+}
+export function evaluate8517() {
+    return decimalPower(decimalInput("1"), decimalInput("-0.5"));
+}
+export function evaluate8518() {
+    return decimalLog(decimalInput("-0.5"), decimalInput("1"));
+}
+export function evaluate8519() {
+    return decimalPower(decimalInput("1"), decimalInput("0"));
+}
+export function evaluate8520() {
+    return decimalPower(decimalInput("1"), decimalInput("0"));
+}
+export function evaluate8521() {
+    return decimalPower(decimalInput("1"), decimalInput("0"));
+}
+export function evaluate8522() {
+    return decimalLog(decimalInput("0"), decimalInput("1"));
+}
+export function evaluate8523() {
+    return decimalPower(decimalInput("1"), decimalInput("0.5"));
+}
+export function evaluate8524() {
+    return decimalPower(decimalInput("1"), decimalInput("0.5"));
+}
+export function evaluate8525() {
+    return decimalPower(decimalInput("1"), decimalInput("0.5"));
+}
+export function evaluate8526() {
+    return decimalLog(decimalInput("0.5"), decimalInput("1"));
+}
+export function evaluate8527() {
+    return decimalPower(decimalInput("1"), decimalInput("2"));
+}
+export function evaluate8528() {
+    return decimalPower(decimalInput("1"), decimalInput("2"));
+}
+export function evaluate8529() {
+    return decimalPower(decimalInput("1"), decimalInput("2"));
+}
+export function evaluate8530() {
+    return decimalLog(decimalInput("2"), decimalInput("1"));
+}
+export function evaluate8531() {
+    return decimalPower(decimalInput("1"), decimalInput("3"));
+}
+export function evaluate8532() {
+    return decimalPower(decimalInput("1"), decimalInput("3"));
+}
+export function evaluate8533() {
+    return decimalPower(decimalInput("1"), decimalInput("3"));
+}
+export function evaluate8534() {
+    return decimalLog(decimalInput("3"), decimalInput("1"));
+}
+export function evaluate8535() {
+    return decimalPower(decimalInput("2"), decimalInput(null));
+}
+export function evaluate8536() {
+    return decimalPower(decimalInput("2"), decimalInput(null));
+}
+export function evaluate8537() {
+    return decimalPower(decimalInput("2"), decimalInput(null));
+}
+export function evaluate8538() {
+    return decimalLog(decimalInput(null), decimalInput("2"));
+}
+export function evaluate8539() {
+    return decimalPower(decimalInput("2"), decimalInput("NaN"));
+}
+export function evaluate8540() {
+    return decimalPower(decimalInput("2"), decimalInput("NaN"));
+}
+export function evaluate8541() {
+    return decimalPower(decimalInput("2"), decimalInput("NaN"));
+}
+export function evaluate8542() {
+    return decimalLog(decimalInput("NaN"), decimalInput("2"));
+}
+export function evaluate8543() {
+    return decimalPower(decimalInput("2"), decimalInput("Infinity"));
+}
+export function evaluate8544() {
+    return decimalPower(decimalInput("2"), decimalInput("Infinity"));
+}
+export function evaluate8545() {
+    return decimalPower(decimalInput("2"), decimalInput("Infinity"));
+}
+export function evaluate8546() {
+    return decimalLog(decimalInput("Infinity"), decimalInput("2"));
+}
+export function evaluate8547() {
+    return decimalPower(decimalInput("2"), decimalInput("-Infinity"));
+}
+export function evaluate8548() {
+    return decimalPower(decimalInput("2"), decimalInput("-Infinity"));
+}
+export function evaluate8549() {
+    return decimalPower(decimalInput("2"), decimalInput("-Infinity"));
+}
+export function evaluate8550() {
+    return decimalLog(decimalInput("-Infinity"), decimalInput("2"));
+}
+export function evaluate8551() {
+    return decimalPower(decimalInput("2"), decimalInput("-3"));
+}
+export function evaluate8552() {
+    return decimalPower(decimalInput("2"), decimalInput("-3"));
+}
+export function evaluate8553() {
+    return decimalPower(decimalInput("2"), decimalInput("-3"));
+}
+export function evaluate8554() {
+    return decimalLog(decimalInput("-3"), decimalInput("2"));
+}
+export function evaluate8555() {
+    return decimalPower(decimalInput("2"), decimalInput("-2"));
+}
+export function evaluate8556() {
+    return decimalPower(decimalInput("2"), decimalInput("-2"));
+}
+export function evaluate8557() {
+    return decimalPower(decimalInput("2"), decimalInput("-2"));
+}
+export function evaluate8558() {
+    return decimalLog(decimalInput("-2"), decimalInput("2"));
+}
+export function evaluate8559() {
+    return decimalPower(decimalInput("2"), decimalInput("-0.5"));
+}
+export function evaluate8560() {
+    return decimalPower(decimalInput("2"), decimalInput("-0.5"));
+}
+export function evaluate8561() {
+    return decimalPower(decimalInput("2"), decimalInput("-0.5"));
+}
+export function evaluate8562() {
+    return decimalLog(decimalInput("-0.5"), decimalInput("2"));
+}
+export function evaluate8563() {
+    return decimalPower(decimalInput("2"), decimalInput("0"));
+}
+export function evaluate8564() {
+    return decimalPower(decimalInput("2"), decimalInput("0"));
+}
+export function evaluate8565() {
+    return decimalPower(decimalInput("2"), decimalInput("0"));
+}
+export function evaluate8566() {
+    return decimalLog(decimalInput("0"), decimalInput("2"));
+}
+export function evaluate8567() {
+    return decimalPower(decimalInput("2"), decimalInput("0.5"));
+}
+export function evaluate8568() {
+    return decimalPower(decimalInput("2"), decimalInput("0.5"));
+}
+export function evaluate8569() {
+    return decimalPower(decimalInput("2"), decimalInput("0.5"));
+}
+export function evaluate8570() {
+    return decimalLog(decimalInput("0.5"), decimalInput("2"));
+}
+export function evaluate8571() {
+    return decimalPower(decimalInput("2"), decimalInput("2"));
+}
+export function evaluate8572() {
+    return decimalPower(decimalInput("2"), decimalInput("2"));
+}
+export function evaluate8573() {
+    return decimalPower(decimalInput("2"), decimalInput("2"));
+}
+export function evaluate8574() {
+    return decimalLog(decimalInput("2"), decimalInput("2"));
+}
+export function evaluate8575() {
+    return decimalPower(decimalInput("2"), decimalInput("3"));
+}
+export function evaluate8576() {
+    return decimalPower(decimalInput("2"), decimalInput("3"));
+}
+export function evaluate8577() {
+    return decimalPower(decimalInput("2"), decimalInput("3"));
+}
+export function evaluate8578() {
+    return decimalLog(decimalInput("3"), decimalInput("2"));
+}
+export function evaluate8579() {
+    return decimalPower(decimalInput("-1"), decimalInput("-2147483648"));
+}
+export function evaluate8580() {
+    return decimalPower(decimalInput("-1"), decimalInput("-2147483648"));
+}
+export function evaluate8581() {
+    return decimalPower(decimalInput("-1"), decimalInput("-2147483648"));
+}
+export function evaluate8582() {
+    return decimalPower(decimalInput("0"), decimalInput("-2147483648"));
+}
+export function evaluate8583() {
+    return decimalPower(decimalInput("0"), decimalInput("-2147483648"));
+}
+export function evaluate8584() {
+    return decimalPower(decimalInput("0"), decimalInput("-2147483648"));
+}
+export function evaluate8585() {
+    return decimalPower(decimalInput("1"), decimalInput("-2147483648"));
+}
+export function evaluate8586() {
+    return decimalPower(decimalInput("1"), decimalInput("-2147483648"));
+}
+export function evaluate8587() {
+    return decimalPower(decimalInput("1"), decimalInput("-2147483648"));
+}
+export function evaluate8588() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("-2147483648"));
+}
+export function evaluate8589() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("-2147483648"));
+}
+export function evaluate8590() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("-2147483648"));
+}
+export function evaluate8591() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("-2147483648"));
+}
+export function evaluate8592() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("-2147483648"));
+}
+export function evaluate8593() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("-2147483648"));
+}
+export function evaluate8594() {
+    return decimalPower(decimalInput("2"), decimalInput("-2147483648"));
+}
+export function evaluate8595() {
+    return decimalPower(decimalInput("2"), decimalInput("-2147483648"));
+}
+export function evaluate8596() {
+    return decimalPower(decimalInput("2"), decimalInput("-2147483648"));
+}
+export function evaluate8597() {
+    return decimalPower(decimalInput("-1"), decimalInput("2147483647"));
+}
+export function evaluate8598() {
+    return decimalPower(decimalInput("-1"), decimalInput("2147483647"));
+}
+export function evaluate8599() {
+    return decimalPower(decimalInput("-1"), decimalInput("2147483647"));
+}
+export function evaluate8600() {
+    return decimalPower(decimalInput("0"), decimalInput("2147483647"));
+}
+export function evaluate8601() {
+    return decimalPower(decimalInput("0"), decimalInput("2147483647"));
+}
+export function evaluate8602() {
+    return decimalPower(decimalInput("0"), decimalInput("2147483647"));
+}
+export function evaluate8603() {
+    return decimalPower(decimalInput("1"), decimalInput("2147483647"));
+}
+export function evaluate8604() {
+    return decimalPower(decimalInput("1"), decimalInput("2147483647"));
+}
+export function evaluate8605() {
+    return decimalPower(decimalInput("1"), decimalInput("2147483647"));
+}
+export function evaluate8606() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("2147483647"));
+}
+export function evaluate8607() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("2147483647"));
+}
+export function evaluate8608() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("2147483647"));
+}
+export function evaluate8609() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("2147483647"));
+}
+export function evaluate8610() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("2147483647"));
+}
+export function evaluate8611() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("2147483647"));
+}
+export function evaluate8612() {
+    return decimalPower(decimalInput("2"), decimalInput("2147483647"));
+}
+export function evaluate8613() {
+    return decimalPower(decimalInput("2"), decimalInput("2147483647"));
+}
+export function evaluate8614() {
+    return decimalPower(decimalInput("2"), decimalInput("2147483647"));
+}
+export function evaluate8615() {
+    return decimalPower(decimalInput("-1"), decimalInput("2147483648"));
+}
+export function evaluate8616() {
+    return decimalPower(decimalInput("-1"), decimalInput("2147483648"));
+}
+export function evaluate8617() {
+    return decimalPower(decimalInput("-1"), decimalInput("2147483648"));
+}
+export function evaluate8618() {
+    return decimalPower(decimalInput("0"), decimalInput("2147483648"));
+}
+export function evaluate8619() {
+    return decimalPower(decimalInput("0"), decimalInput("2147483648"));
+}
+export function evaluate8620() {
+    return decimalPower(decimalInput("0"), decimalInput("2147483648"));
+}
+export function evaluate8621() {
+    return decimalPower(decimalInput("1"), decimalInput("2147483648"));
+}
+export function evaluate8622() {
+    return decimalPower(decimalInput("1"), decimalInput("2147483648"));
+}
+export function evaluate8623() {
+    return decimalPower(decimalInput("1"), decimalInput("2147483648"));
+}
+export function evaluate8624() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("2147483648"));
+}
+export function evaluate8625() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("2147483648"));
+}
+export function evaluate8626() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("2147483648"));
+}
+export function evaluate8627() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("2147483648"));
+}
+export function evaluate8628() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("2147483648"));
+}
+export function evaluate8629() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("2147483648"));
+}
+export function evaluate8630() {
+    return decimalPower(decimalInput("2"), decimalInput("2147483648"));
+}
+export function evaluate8631() {
+    return decimalPower(decimalInput("2"), decimalInput("2147483648"));
+}
+export function evaluate8632() {
+    return decimalPower(decimalInput("2"), decimalInput("2147483648"));
+}
+export function evaluate8633() {
+    return decimalPower(decimalInput("-1"), decimalInput("-2147483649"));
+}
+export function evaluate8634() {
+    return decimalPower(decimalInput("-1"), decimalInput("-2147483649"));
+}
+export function evaluate8635() {
+    return decimalPower(decimalInput("-1"), decimalInput("-2147483649"));
+}
+export function evaluate8636() {
+    return decimalPower(decimalInput("0"), decimalInput("-2147483649"));
+}
+export function evaluate8637() {
+    return decimalPower(decimalInput("0"), decimalInput("-2147483649"));
+}
+export function evaluate8638() {
+    return decimalPower(decimalInput("0"), decimalInput("-2147483649"));
+}
+export function evaluate8639() {
+    return decimalPower(decimalInput("1"), decimalInput("-2147483649"));
+}
+export function evaluate8640() {
+    return decimalPower(decimalInput("1"), decimalInput("-2147483649"));
+}
+export function evaluate8641() {
+    return decimalPower(decimalInput("1"), decimalInput("-2147483649"));
+}
+export function evaluate8642() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("-2147483649"));
+}
+export function evaluate8643() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("-2147483649"));
+}
+export function evaluate8644() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("-2147483649"));
+}
+export function evaluate8645() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("-2147483649"));
+}
+export function evaluate8646() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("-2147483649"));
+}
+export function evaluate8647() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("-2147483649"));
+}
+export function evaluate8648() {
+    return decimalPower(decimalInput("2"), decimalInput("-2147483649"));
+}
+export function evaluate8649() {
+    return decimalPower(decimalInput("2"), decimalInput("-2147483649"));
+}
+export function evaluate8650() {
+    return decimalPower(decimalInput("2"), decimalInput("-2147483649"));
+}
+export function evaluate8651() {
+    return decimalPower(decimalInput("-1"), decimalInput("1e30"));
+}
+export function evaluate8652() {
+    return decimalPower(decimalInput("-1"), decimalInput("1e30"));
+}
+export function evaluate8653() {
+    return decimalPower(decimalInput("-1"), decimalInput("1e30"));
+}
+export function evaluate8654() {
+    return decimalPower(decimalInput("0"), decimalInput("1e30"));
+}
+export function evaluate8655() {
+    return decimalPower(decimalInput("0"), decimalInput("1e30"));
+}
+export function evaluate8656() {
+    return decimalPower(decimalInput("0"), decimalInput("1e30"));
+}
+export function evaluate8657() {
+    return decimalPower(decimalInput("1"), decimalInput("1e30"));
+}
+export function evaluate8658() {
+    return decimalPower(decimalInput("1"), decimalInput("1e30"));
+}
+export function evaluate8659() {
+    return decimalPower(decimalInput("1"), decimalInput("1e30"));
+}
+export function evaluate8660() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("1e30"));
+}
+export function evaluate8661() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("1e30"));
+}
+export function evaluate8662() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("1e30"));
+}
+export function evaluate8663() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("1e30"));
+}
+export function evaluate8664() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("1e30"));
+}
+export function evaluate8665() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("1e30"));
+}
+export function evaluate8666() {
+    return decimalPower(decimalInput("2"), decimalInput("1e30"));
+}
+export function evaluate8667() {
+    return decimalPower(decimalInput("2"), decimalInput("1e30"));
+}
+export function evaluate8668() {
+    return decimalPower(decimalInput("2"), decimalInput("1e30"));
+}
+export function evaluate8669() {
+    return decimalPower(decimalInput("-1"), decimalInput("-1e30"));
+}
+export function evaluate8670() {
+    return decimalPower(decimalInput("-1"), decimalInput("-1e30"));
+}
+export function evaluate8671() {
+    return decimalPower(decimalInput("-1"), decimalInput("-1e30"));
+}
+export function evaluate8672() {
+    return decimalPower(decimalInput("0"), decimalInput("-1e30"));
+}
+export function evaluate8673() {
+    return decimalPower(decimalInput("0"), decimalInput("-1e30"));
+}
+export function evaluate8674() {
+    return decimalPower(decimalInput("0"), decimalInput("-1e30"));
+}
+export function evaluate8675() {
+    return decimalPower(decimalInput("1"), decimalInput("-1e30"));
+}
+export function evaluate8676() {
+    return decimalPower(decimalInput("1"), decimalInput("-1e30"));
+}
+export function evaluate8677() {
+    return decimalPower(decimalInput("1"), decimalInput("-1e30"));
+}
+export function evaluate8678() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("-1e30"));
+}
+export function evaluate8679() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("-1e30"));
+}
+export function evaluate8680() {
+    return decimalPower(decimalInput("1.00000000000000000001"), decimalInput("-1e30"));
+}
+export function evaluate8681() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("-1e30"));
+}
+export function evaluate8682() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("-1e30"));
+}
+export function evaluate8683() {
+    return decimalPower(decimalInput("0.99999999999999999999"), decimalInput("-1e30"));
+}
+export function evaluate8684() {
+    return decimalPower(decimalInput("2"), decimalInput("-1e30"));
+}
+export function evaluate8685() {
+    return decimalPower(decimalInput("2"), decimalInput("-1e30"));
+}
+export function evaluate8686() {
+    return decimalPower(decimalInput("2"), decimalInput("-1e30"));
+}
+export function evaluate8687() {
+    return decimalSqrt(decimalInput("1.000000000000000000001"));
+}
+export function evaluate8688() {
+    return decimalLn(decimalInput("1.000000000000000000001"));
+}
+export function evaluate8689() {
+    return decimalSqrt(decimalInput("0.999999999999999999999"));
+}
+export function evaluate8690() {
+    return decimalLn(decimalInput("0.999999999999999999999"));
+}
+export function evaluate8691() {
+    return decimalLog(decimalInput("1.000000000000000000001"), decimalInput("2"));
+}
+export function evaluate8692() {
+    return decimalPower(decimalInput("1.000000000000000000001"), decimalInput("1000000"));
+}
+export function evaluate8693() {
+    return decimalPower(decimalInput("1.000000000000000000001"), decimalInput("1000000"));
+}
+export function evaluate8694() {
+    return decimalPower(decimalInput("1.000000000000000000001"), decimalInput("1000000"));
+}
+export function evaluate8695() {
+    return decimalSqrt(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate8696() {
+    return decimalLn(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate8697() {
+    return decimalSqrt(decimalInput("0.9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"));
+}
+export function evaluate8698() {
+    return decimalLn(decimalInput("0.9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"));
+}
+export function evaluate8699() {
+    return decimalLog(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"), decimalInput("2"));
+}
+export function evaluate8700() {
+    return decimalPower(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"), decimalInput("1000000"));
+}
+export function evaluate8701() {
+    return decimalPower(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"), decimalInput("1000000"));
+}
+export function evaluate8702() {
+    return decimalPower(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"), decimalInput("1000000"));
+}
+export function evaluate8703() {
+    return decimalSqrt(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate8704() {
+    return decimalLn(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate8705() {
+    return decimalSqrt(decimalInput("0.9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"));
+}
+export function evaluate8706() {
+    return decimalLn(decimalInput("0.9999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"));
+}
+export function evaluate8707() {
+    return decimalLog(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"), decimalInput("2"));
+}
+export function evaluate8708() {
+    return decimalPower(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"), decimalInput("1000000"));
+}
+export function evaluate8709() {
+    return decimalPower(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"), decimalInput("1000000"));
+}
+export function evaluate8710() {
+    return decimalPower(decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"), decimalInput("1000000"));
+}
+export function evaluate8711() {
+    return decimalSqrt(decimalInput("1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate8712() {
+    return decimalLn(decimalInput("1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate8713() {
+    return decimalSqrt(decimalInput("0.999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"));
+}
+export function evaluate8714() {
+    return decimalLn(decimalInput("0.999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"));
+}
+export function evaluate8715() {
+    return decimalPower(decimalInput("1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"), decimalInput("1000000"));
+}
+export function evaluate8716() {
+    return decimalPower(decimalInput("1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"), decimalInput("1000000"));
+}
+export function evaluate8717() {
+    return decimalPower(decimalInput("1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"), decimalInput("1000000"));
+}
+export function evaluate8718() {
+    return decimalSqrt(decimalInput("1e131071"));
+}
+export function evaluate8719() {
+    return decimalSqrt(decimalInput("1e-16383"));
+}
+export function evaluate8720() {
+    return decimalSqrt(decimalInput("9999"));
+}
+export function evaluate8721() {
+    return decimalSqrt(decimalInput("10000"));
+}
+export function evaluate8722() {
+    return decimalSqrt(decimalInput("10001"));
+}
+export function evaluate8723() {
+    return decimalSqrt(decimalInput("0.00009999"));
+}
+export function evaluate8724() {
+    return decimalSqrt(decimalInput("0.0001"));
+}
+export function evaluate8725() {
+    return decimalSqrt(decimalInput("0.00010001"));
+}
+export function evaluate8726() {
+    return decimalExp(decimalInput("5999"));
+}
+export function evaluate8727() {
+    return decimalExp(decimalInput("-5999"));
+}
+export function evaluate8728() {
+    return decimalExp(decimalInput("5999.9999"));
+}
+export function evaluate8729() {
+    return decimalExp(decimalInput("-5999.9999"));
+}
+export function evaluate8730() {
+    return decimalExp(decimalInput("6000.0001"));
+}
+export function evaluate8731() {
+    return decimalExp(decimalInput("-6000.0001"));
+}
+export function evaluate8732() {
+    return decimalExp(decimalInput("0.01"));
+}
+export function evaluate8733() {
+    return decimalExp(decimalInput("-0.01"));
+}
+export function evaluate8734() {
+    return decimalExp(decimalInput("0.0100000000000000001"));
+}
+export function evaluate8735() {
+    return decimalSqrt(decimalInput("5090.1120982980e-12"));
+}
+export function evaluate8736() {
+    return decimalLn(decimalInput("5090.1120982980e-12"));
+}
+export function evaluate8737() {
+    return decimalLog10(decimalInput("5090.1120982980e-12"));
+}
+export function evaluate8738() {
+    return decimalLog10(decimalInput("5090.1120982980e-12"));
+}
+export function evaluate8739() {
+    return decimalPower(decimalInput("5090.1120982980e-12"), decimalInput("-6"));
+}
+export function evaluate8740() {
+    return decimalPower(decimalInput("5090.1120982980e-12"), decimalInput("-6"));
+}
+export function evaluate8741() {
+    return decimalPower(decimalInput("5090.1120982980e-12"), decimalInput("-6"));
+}
+export function evaluate8742() {
+    return decimalPower(decimalInput("5090.1120982980e-12"), decimalInput("-3.125"));
+}
+export function evaluate8743() {
+    return decimalPower(decimalInput("5090.1120982980e-12"), decimalInput("-3.125"));
+}
+export function evaluate8744() {
+    return decimalPower(decimalInput("5090.1120982980e-12"), decimalInput("-3.125"));
+}
+export function evaluate8745() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("5090.1120982980e-12"));
+}
+export function evaluate8746() {
+    return decimalExp(decimalInput("-10.1120982980"));
+}
+export function evaluate8747() {
+    return decimalSqrt(decimalInput("2977.3911581779e-11"));
+}
+export function evaluate8748() {
+    return decimalLn(decimalInput("2977.3911581779e-11"));
+}
+export function evaluate8749() {
+    return decimalLog10(decimalInput("2977.3911581779e-11"));
+}
+export function evaluate8750() {
+    return decimalLog10(decimalInput("2977.3911581779e-11"));
+}
+export function evaluate8751() {
+    return decimalPower(decimalInput("2977.3911581779e-11"), decimalInput("-5"));
+}
+export function evaluate8752() {
+    return decimalPower(decimalInput("2977.3911581779e-11"), decimalInput("-5"));
+}
+export function evaluate8753() {
+    return decimalPower(decimalInput("2977.3911581779e-11"), decimalInput("-5"));
+}
+export function evaluate8754() {
+    return decimalPower(decimalInput("2977.3911581779e-11"), decimalInput("-2.125"));
+}
+export function evaluate8755() {
+    return decimalPower(decimalInput("2977.3911581779e-11"), decimalInput("-2.125"));
+}
+export function evaluate8756() {
+    return decimalPower(decimalInput("2977.3911581779e-11"), decimalInput("-2.125"));
+}
+export function evaluate8757() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("2977.3911581779e-11"));
+}
+export function evaluate8758() {
+    return decimalExp(decimalInput("-9.3911581779"));
+}
+export function evaluate8759() {
+    return decimalSqrt(decimalInput("781.1066994070e-10"));
+}
+export function evaluate8760() {
+    return decimalLn(decimalInput("781.1066994070e-10"));
+}
+export function evaluate8761() {
+    return decimalLog10(decimalInput("781.1066994070e-10"));
+}
+export function evaluate8762() {
+    return decimalLog10(decimalInput("781.1066994070e-10"));
+}
+export function evaluate8763() {
+    return decimalPower(decimalInput("781.1066994070e-10"), decimalInput("-4"));
+}
+export function evaluate8764() {
+    return decimalPower(decimalInput("781.1066994070e-10"), decimalInput("-4"));
+}
+export function evaluate8765() {
+    return decimalPower(decimalInput("781.1066994070e-10"), decimalInput("-4"));
+}
+export function evaluate8766() {
+    return decimalPower(decimalInput("781.1066994070e-10"), decimalInput("-1.125"));
+}
+export function evaluate8767() {
+    return decimalPower(decimalInput("781.1066994070e-10"), decimalInput("-1.125"));
+}
+export function evaluate8768() {
+    return decimalPower(decimalInput("781.1066994070e-10"), decimalInput("-1.125"));
+}
+export function evaluate8769() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("781.1066994070e-10"));
+}
+export function evaluate8770() {
+    return decimalExp(decimalInput("-8.1066994070"));
+}
+export function evaluate8771() {
+    return decimalSqrt(decimalInput("444.1621898237e-9"));
+}
+export function evaluate8772() {
+    return decimalLn(decimalInput("444.1621898237e-9"));
+}
+export function evaluate8773() {
+    return decimalLog10(decimalInput("444.1621898237e-9"));
+}
+export function evaluate8774() {
+    return decimalLog10(decimalInput("444.1621898237e-9"));
+}
+export function evaluate8775() {
+    return decimalPower(decimalInput("444.1621898237e-9"), decimalInput("-3"));
+}
+export function evaluate8776() {
+    return decimalPower(decimalInput("444.1621898237e-9"), decimalInput("-3"));
+}
+export function evaluate8777() {
+    return decimalPower(decimalInput("444.1621898237e-9"), decimalInput("-3"));
+}
+export function evaluate8778() {
+    return decimalPower(decimalInput("444.1621898237e-9"), decimalInput("0.125"));
+}
+export function evaluate8779() {
+    return decimalPower(decimalInput("444.1621898237e-9"), decimalInput("0.125"));
+}
+export function evaluate8780() {
+    return decimalPower(decimalInput("444.1621898237e-9"), decimalInput("0.125"));
+}
+export function evaluate8781() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("444.1621898237e-9"));
+}
+export function evaluate8782() {
+    return decimalExp(decimalInput("-7.1621898237"));
+}
+export function evaluate8783() {
+    return decimalSqrt(decimalInput("8324.3583599928e-8"));
+}
+export function evaluate8784() {
+    return decimalLn(decimalInput("8324.3583599928e-8"));
+}
+export function evaluate8785() {
+    return decimalLog10(decimalInput("8324.3583599928e-8"));
+}
+export function evaluate8786() {
+    return decimalLog10(decimalInput("8324.3583599928e-8"));
+}
+export function evaluate8787() {
+    return decimalPower(decimalInput("8324.3583599928e-8"), decimalInput("-2"));
+}
+export function evaluate8788() {
+    return decimalPower(decimalInput("8324.3583599928e-8"), decimalInput("-2"));
+}
+export function evaluate8789() {
+    return decimalPower(decimalInput("8324.3583599928e-8"), decimalInput("-2"));
+}
+export function evaluate8790() {
+    return decimalPower(decimalInput("8324.3583599928e-8"), decimalInput("1.125"));
+}
+export function evaluate8791() {
+    return decimalPower(decimalInput("8324.3583599928e-8"), decimalInput("1.125"));
+}
+export function evaluate8792() {
+    return decimalPower(decimalInput("8324.3583599928e-8"), decimalInput("1.125"));
+}
+export function evaluate8793() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("8324.3583599928e-8"));
+}
+export function evaluate8794() {
+    return decimalExp(decimalInput("-6.3583599928"));
+}
+export function evaluate8795() {
+    return decimalSqrt(decimalInput("9804.0369452855e-7"));
+}
+export function evaluate8796() {
+    return decimalLn(decimalInput("9804.0369452855e-7"));
+}
+export function evaluate8797() {
+    return decimalLog10(decimalInput("9804.0369452855e-7"));
+}
+export function evaluate8798() {
+    return decimalLog10(decimalInput("9804.0369452855e-7"));
+}
+export function evaluate8799() {
+    return decimalPower(decimalInput("9804.0369452855e-7"), decimalInput("-1"));
+}
+export function evaluate8800() {
+    return decimalPower(decimalInput("9804.0369452855e-7"), decimalInput("-1"));
+}
+export function evaluate8801() {
+    return decimalPower(decimalInput("9804.0369452855e-7"), decimalInput("-1"));
+}
+export function evaluate8802() {
+    return decimalPower(decimalInput("9804.0369452855e-7"), decimalInput("2.125"));
+}
+export function evaluate8803() {
+    return decimalPower(decimalInput("9804.0369452855e-7"), decimalInput("2.125"));
+}
+export function evaluate8804() {
+    return decimalPower(decimalInput("9804.0369452855e-7"), decimalInput("2.125"));
+}
+export function evaluate8805() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("9804.0369452855e-7"));
+}
+export function evaluate8806() {
+    return decimalExp(decimalInput("-5.369452855"));
+}
+export function evaluate8807() {
+    return decimalSqrt(decimalInput("9251.2519997226e-6"));
+}
+export function evaluate8808() {
+    return decimalLn(decimalInput("9251.2519997226e-6"));
+}
+export function evaluate8809() {
+    return decimalLog10(decimalInput("9251.2519997226e-6"));
+}
+export function evaluate8810() {
+    return decimalLog10(decimalInput("9251.2519997226e-6"));
+}
+export function evaluate8811() {
+    return decimalPower(decimalInput("9251.2519997226e-6"), decimalInput("0"));
+}
+export function evaluate8812() {
+    return decimalPower(decimalInput("9251.2519997226e-6"), decimalInput("0"));
+}
+export function evaluate8813() {
+    return decimalPower(decimalInput("9251.2519997226e-6"), decimalInput("0"));
+}
+export function evaluate8814() {
+    return decimalPower(decimalInput("9251.2519997226e-6"), decimalInput("3.125"));
+}
+export function evaluate8815() {
+    return decimalPower(decimalInput("9251.2519997226e-6"), decimalInput("3.125"));
+}
+export function evaluate8816() {
+    return decimalPower(decimalInput("9251.2519997226e-6"), decimalInput("3.125"));
+}
+export function evaluate8817() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("9251.2519997226e-6"));
+}
+export function evaluate8818() {
+    return decimalExp(decimalInput("-4.2519997226"));
+}
+export function evaluate8819() {
+    return decimalSqrt(decimalInput("1235.1191252097e-5"));
+}
+export function evaluate8820() {
+    return decimalLn(decimalInput("1235.1191252097e-5"));
+}
+export function evaluate8821() {
+    return decimalLog10(decimalInput("1235.1191252097e-5"));
+}
+export function evaluate8822() {
+    return decimalLog10(decimalInput("1235.1191252097e-5"));
+}
+export function evaluate8823() {
+    return decimalPower(decimalInput("1235.1191252097e-5"), decimalInput("1"));
+}
+export function evaluate8824() {
+    return decimalPower(decimalInput("1235.1191252097e-5"), decimalInput("1"));
+}
+export function evaluate8825() {
+    return decimalPower(decimalInput("1235.1191252097e-5"), decimalInput("1"));
+}
+export function evaluate8826() {
+    return decimalPower(decimalInput("1235.1191252097e-5"), decimalInput("-3.125"));
+}
+export function evaluate8827() {
+    return decimalPower(decimalInput("1235.1191252097e-5"), decimalInput("-3.125"));
+}
+export function evaluate8828() {
+    return decimalPower(decimalInput("1235.1191252097e-5"), decimalInput("-3.125"));
+}
+export function evaluate8829() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("1235.1191252097e-5"));
+}
+export function evaluate8830() {
+    return decimalExp(decimalInput("-3.1191252097"));
+}
+export function evaluate8831() {
+    return decimalSqrt(decimalInput("1193.3769184236e-4"));
+}
+export function evaluate8832() {
+    return decimalLn(decimalInput("1193.3769184236e-4"));
+}
+export function evaluate8833() {
+    return decimalLog10(decimalInput("1193.3769184236e-4"));
+}
+export function evaluate8834() {
+    return decimalLog10(decimalInput("1193.3769184236e-4"));
+}
+export function evaluate8835() {
+    return decimalPower(decimalInput("1193.3769184236e-4"), decimalInput("2"));
+}
+export function evaluate8836() {
+    return decimalPower(decimalInput("1193.3769184236e-4"), decimalInput("2"));
+}
+export function evaluate8837() {
+    return decimalPower(decimalInput("1193.3769184236e-4"), decimalInput("2"));
+}
+export function evaluate8838() {
+    return decimalPower(decimalInput("1193.3769184236e-4"), decimalInput("-2.125"));
+}
+export function evaluate8839() {
+    return decimalPower(decimalInput("1193.3769184236e-4"), decimalInput("-2.125"));
+}
+export function evaluate8840() {
+    return decimalPower(decimalInput("1193.3769184236e-4"), decimalInput("-2.125"));
+}
+export function evaluate8841() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("1193.3769184236e-4"));
+}
+export function evaluate8842() {
+    return decimalExp(decimalInput("-2.3769184236"));
+}
+export function evaluate8843() {
+    return decimalSqrt(decimalInput("2069.3156896347e-3"));
+}
+export function evaluate8844() {
+    return decimalLn(decimalInput("2069.3156896347e-3"));
+}
+export function evaluate8845() {
+    return decimalLog10(decimalInput("2069.3156896347e-3"));
+}
+export function evaluate8846() {
+    return decimalLog10(decimalInput("2069.3156896347e-3"));
+}
+export function evaluate8847() {
+    return decimalPower(decimalInput("2069.3156896347e-3"), decimalInput("3"));
+}
+export function evaluate8848() {
+    return decimalPower(decimalInput("2069.3156896347e-3"), decimalInput("3"));
+}
+export function evaluate8849() {
+    return decimalPower(decimalInput("2069.3156896347e-3"), decimalInput("3"));
+}
+export function evaluate8850() {
+    return decimalPower(decimalInput("2069.3156896347e-3"), decimalInput("-1.125"));
+}
+export function evaluate8851() {
+    return decimalPower(decimalInput("2069.3156896347e-3"), decimalInput("-1.125"));
+}
+export function evaluate8852() {
+    return decimalPower(decimalInput("2069.3156896347e-3"), decimalInput("-1.125"));
+}
+export function evaluate8853() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("2069.3156896347e-3"));
+}
+export function evaluate8854() {
+    return decimalExp(decimalInput("-1.3156896347"));
+}
+export function evaluate8855() {
+    return decimalSqrt(decimalInput("1657.0333028350e-2"));
+}
+export function evaluate8856() {
+    return decimalLn(decimalInput("1657.0333028350e-2"));
+}
+export function evaluate8857() {
+    return decimalLog10(decimalInput("1657.0333028350e-2"));
+}
+export function evaluate8858() {
+    return decimalLog10(decimalInput("1657.0333028350e-2"));
+}
+export function evaluate8859() {
+    return decimalPower(decimalInput("1657.0333028350e-2"), decimalInput("4"));
+}
+export function evaluate8860() {
+    return decimalPower(decimalInput("1657.0333028350e-2"), decimalInput("4"));
+}
+export function evaluate8861() {
+    return decimalPower(decimalInput("1657.0333028350e-2"), decimalInput("4"));
+}
+export function evaluate8862() {
+    return decimalPower(decimalInput("1657.0333028350e-2"), decimalInput("0.125"));
+}
+export function evaluate8863() {
+    return decimalPower(decimalInput("1657.0333028350e-2"), decimalInput("0.125"));
+}
+export function evaluate8864() {
+    return decimalPower(decimalInput("1657.0333028350e-2"), decimalInput("0.125"));
+}
+export function evaluate8865() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("1657.0333028350e-2"));
+}
+export function evaluate8866() {
+    return decimalExp(decimalInput("0.333028350"));
+}
+export function evaluate8867() {
+    return decimalSqrt(decimalInput("362.0779162437e-1"));
+}
+export function evaluate8868() {
+    return decimalLn(decimalInput("362.0779162437e-1"));
+}
+export function evaluate8869() {
+    return decimalLog10(decimalInput("362.0779162437e-1"));
+}
+export function evaluate8870() {
+    return decimalLog10(decimalInput("362.0779162437e-1"));
+}
+export function evaluate8871() {
+    return decimalPower(decimalInput("362.0779162437e-1"), decimalInput("5"));
+}
+export function evaluate8872() {
+    return decimalPower(decimalInput("362.0779162437e-1"), decimalInput("5"));
+}
+export function evaluate8873() {
+    return decimalPower(decimalInput("362.0779162437e-1"), decimalInput("5"));
+}
+export function evaluate8874() {
+    return decimalPower(decimalInput("362.0779162437e-1"), decimalInput("1.125"));
+}
+export function evaluate8875() {
+    return decimalPower(decimalInput("362.0779162437e-1"), decimalInput("1.125"));
+}
+export function evaluate8876() {
+    return decimalPower(decimalInput("362.0779162437e-1"), decimalInput("1.125"));
+}
+export function evaluate8877() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("362.0779162437e-1"));
+}
+export function evaluate8878() {
+    return decimalExp(decimalInput("1.779162437"));
+}
+export function evaluate8879() {
+    return decimalSqrt(decimalInput("5220.2274847712e0"));
+}
+export function evaluate8880() {
+    return decimalLn(decimalInput("5220.2274847712e0"));
+}
+export function evaluate8881() {
+    return decimalLog10(decimalInput("5220.2274847712e0"));
+}
+export function evaluate8882() {
+    return decimalLog10(decimalInput("5220.2274847712e0"));
+}
+export function evaluate8883() {
+    return decimalPower(decimalInput("5220.2274847712e0"), decimalInput("6"));
+}
+export function evaluate8884() {
+    return decimalPower(decimalInput("5220.2274847712e0"), decimalInput("6"));
+}
+export function evaluate8885() {
+    return decimalPower(decimalInput("5220.2274847712e0"), decimalInput("6"));
+}
+export function evaluate8886() {
+    return decimalPower(decimalInput("5220.2274847712e0"), decimalInput("2.125"));
+}
+export function evaluate8887() {
+    return decimalPower(decimalInput("5220.2274847712e0"), decimalInput("2.125"));
+}
+export function evaluate8888() {
+    return decimalPower(decimalInput("5220.2274847712e0"), decimalInput("2.125"));
+}
+export function evaluate8889() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("5220.2274847712e0"));
+}
+export function evaluate8890() {
+    return decimalExp(decimalInput("2.2274847712"));
+}
+export function evaluate8891() {
+    return decimalSqrt(decimalInput("1383.4244286911e1"));
+}
+export function evaluate8892() {
+    return decimalLn(decimalInput("1383.4244286911e1"));
+}
+export function evaluate8893() {
+    return decimalLog10(decimalInput("1383.4244286911e1"));
+}
+export function evaluate8894() {
+    return decimalLog10(decimalInput("1383.4244286911e1"));
+}
+export function evaluate8895() {
+    return decimalPower(decimalInput("1383.4244286911e1"), decimalInput("-6"));
+}
+export function evaluate8896() {
+    return decimalPower(decimalInput("1383.4244286911e1"), decimalInput("-6"));
+}
+export function evaluate8897() {
+    return decimalPower(decimalInput("1383.4244286911e1"), decimalInput("-6"));
+}
+export function evaluate8898() {
+    return decimalPower(decimalInput("1383.4244286911e1"), decimalInput("3.125"));
+}
+export function evaluate8899() {
+    return decimalPower(decimalInput("1383.4244286911e1"), decimalInput("3.125"));
+}
+export function evaluate8900() {
+    return decimalPower(decimalInput("1383.4244286911e1"), decimalInput("3.125"));
+}
+export function evaluate8901() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("1383.4244286911e1"));
+}
+export function evaluate8902() {
+    return decimalExp(decimalInput("3.4244286911"));
+}
+export function evaluate8903() {
+    return decimalSqrt(decimalInput("9539.3993690130e2"));
+}
+export function evaluate8904() {
+    return decimalLn(decimalInput("9539.3993690130e2"));
+}
+export function evaluate8905() {
+    return decimalLog10(decimalInput("9539.3993690130e2"));
+}
+export function evaluate8906() {
+    return decimalLog10(decimalInput("9539.3993690130e2"));
+}
+export function evaluate8907() {
+    return decimalPower(decimalInput("9539.3993690130e2"), decimalInput("-5"));
+}
+export function evaluate8908() {
+    return decimalPower(decimalInput("9539.3993690130e2"), decimalInput("-5"));
+}
+export function evaluate8909() {
+    return decimalPower(decimalInput("9539.3993690130e2"), decimalInput("-5"));
+}
+export function evaluate8910() {
+    return decimalPower(decimalInput("9539.3993690130e2"), decimalInput("-3.125"));
+}
+export function evaluate8911() {
+    return decimalPower(decimalInput("9539.3993690130e2"), decimalInput("-3.125"));
+}
+export function evaluate8912() {
+    return decimalPower(decimalInput("9539.3993690130e2"), decimalInput("-3.125"));
+}
+export function evaluate8913() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("9539.3993690130e2"));
+}
+export function evaluate8914() {
+    return decimalExp(decimalInput("4.3993690130"));
+}
+export function evaluate8915() {
+    return decimalSqrt(decimalInput("7914.2315616329e3"));
+}
+export function evaluate8916() {
+    return decimalLn(decimalInput("7914.2315616329e3"));
+}
+export function evaluate8917() {
+    return decimalLog10(decimalInput("7914.2315616329e3"));
+}
+export function evaluate8918() {
+    return decimalLog10(decimalInput("7914.2315616329e3"));
+}
+export function evaluate8919() {
+    return decimalPower(decimalInput("7914.2315616329e3"), decimalInput("-4"));
+}
+export function evaluate8920() {
+    return decimalPower(decimalInput("7914.2315616329e3"), decimalInput("-4"));
+}
+export function evaluate8921() {
+    return decimalPower(decimalInput("7914.2315616329e3"), decimalInput("-4"));
+}
+export function evaluate8922() {
+    return decimalPower(decimalInput("7914.2315616329e3"), decimalInput("-2.125"));
+}
+export function evaluate8923() {
+    return decimalPower(decimalInput("7914.2315616329e3"), decimalInput("-2.125"));
+}
+export function evaluate8924() {
+    return decimalPower(decimalInput("7914.2315616329e3"), decimalInput("-2.125"));
+}
+export function evaluate8925() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("7914.2315616329e3"));
+}
+export function evaluate8926() {
+    return decimalExp(decimalInput("5.2315616329"));
+}
+export function evaluate8927() {
+    return decimalSqrt(decimalInput("6400.4143222036e4"));
+}
+export function evaluate8928() {
+    return decimalLn(decimalInput("6400.4143222036e4"));
+}
+export function evaluate8929() {
+    return decimalLog10(decimalInput("6400.4143222036e4"));
+}
+export function evaluate8930() {
+    return decimalLog10(decimalInput("6400.4143222036e4"));
+}
+export function evaluate8931() {
+    return decimalPower(decimalInput("6400.4143222036e4"), decimalInput("-3"));
+}
+export function evaluate8932() {
+    return decimalPower(decimalInput("6400.4143222036e4"), decimalInput("-3"));
+}
+export function evaluate8933() {
+    return decimalPower(decimalInput("6400.4143222036e4"), decimalInput("-3"));
+}
+export function evaluate8934() {
+    return decimalPower(decimalInput("6400.4143222036e4"), decimalInput("-1.125"));
+}
+export function evaluate8935() {
+    return decimalPower(decimalInput("6400.4143222036e4"), decimalInput("-1.125"));
+}
+export function evaluate8936() {
+    return decimalPower(decimalInput("6400.4143222036e4"), decimalInput("-1.125"));
+}
+export function evaluate8937() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("6400.4143222036e4"));
+}
+export function evaluate8938() {
+    return decimalExp(decimalInput("6.4143222036"));
+}
+export function evaluate8939() {
+    return decimalSqrt(decimalInput("6694.4261680483e5"));
+}
+export function evaluate8940() {
+    return decimalLn(decimalInput("6694.4261680483e5"));
+}
+export function evaluate8941() {
+    return decimalLog10(decimalInput("6694.4261680483e5"));
+}
+export function evaluate8942() {
+    return decimalLog10(decimalInput("6694.4261680483e5"));
+}
+export function evaluate8943() {
+    return decimalPower(decimalInput("6694.4261680483e5"), decimalInput("-2"));
+}
+export function evaluate8944() {
+    return decimalPower(decimalInput("6694.4261680483e5"), decimalInput("-2"));
+}
+export function evaluate8945() {
+    return decimalPower(decimalInput("6694.4261680483e5"), decimalInput("-2"));
+}
+export function evaluate8946() {
+    return decimalPower(decimalInput("6694.4261680483e5"), decimalInput("0.125"));
+}
+export function evaluate8947() {
+    return decimalPower(decimalInput("6694.4261680483e5"), decimalInput("0.125"));
+}
+export function evaluate8948() {
+    return decimalPower(decimalInput("6694.4261680483e5"), decimalInput("0.125"));
+}
+export function evaluate8949() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("6694.4261680483e5"));
+}
+export function evaluate8950() {
+    return decimalExp(decimalInput("7.4261680483"));
+}
+export function evaluate8951() {
+    return decimalSqrt(decimalInput("6589.3654581094e6"));
+}
+export function evaluate8952() {
+    return decimalLn(decimalInput("6589.3654581094e6"));
+}
+export function evaluate8953() {
+    return decimalLog10(decimalInput("6589.3654581094e6"));
+}
+export function evaluate8954() {
+    return decimalLog10(decimalInput("6589.3654581094e6"));
+}
+export function evaluate8955() {
+    return decimalPower(decimalInput("6589.3654581094e6"), decimalInput("-1"));
+}
+export function evaluate8956() {
+    return decimalPower(decimalInput("6589.3654581094e6"), decimalInput("-1"));
+}
+export function evaluate8957() {
+    return decimalPower(decimalInput("6589.3654581094e6"), decimalInput("-1"));
+}
+export function evaluate8958() {
+    return decimalPower(decimalInput("6589.3654581094e6"), decimalInput("1.125"));
+}
+export function evaluate8959() {
+    return decimalPower(decimalInput("6589.3654581094e6"), decimalInput("1.125"));
+}
+export function evaluate8960() {
+    return decimalPower(decimalInput("6589.3654581094e6"), decimalInput("1.125"));
+}
+export function evaluate8961() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("6589.3654581094e6"));
+}
+export function evaluate8962() {
+    return decimalExp(decimalInput("8.3654581094"));
+}
+export function evaluate8963() {
+    return decimalSqrt(decimalInput("7286.0039443341e7"));
+}
+export function evaluate8964() {
+    return decimalLn(decimalInput("7286.0039443341e7"));
+}
+export function evaluate8965() {
+    return decimalLog10(decimalInput("7286.0039443341e7"));
+}
+export function evaluate8966() {
+    return decimalLog10(decimalInput("7286.0039443341e7"));
+}
+export function evaluate8967() {
+    return decimalPower(decimalInput("7286.0039443341e7"), decimalInput("0"));
+}
+export function evaluate8968() {
+    return decimalPower(decimalInput("7286.0039443341e7"), decimalInput("0"));
+}
+export function evaluate8969() {
+    return decimalPower(decimalInput("7286.0039443341e7"), decimalInput("0"));
+}
+export function evaluate8970() {
+    return decimalPower(decimalInput("7286.0039443341e7"), decimalInput("2.125"));
+}
+export function evaluate8971() {
+    return decimalPower(decimalInput("7286.0039443341e7"), decimalInput("2.125"));
+}
+export function evaluate8972() {
+    return decimalPower(decimalInput("7286.0039443341e7"), decimalInput("2.125"));
+}
+export function evaluate8973() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("7286.0039443341e7"));
+}
+export function evaluate8974() {
+    return decimalExp(decimalInput("9.39443341"));
+}
+export function evaluate8975() {
+    return decimalSqrt(decimalInput("2718.2570995592e8"));
+}
+export function evaluate8976() {
+    return decimalLn(decimalInput("2718.2570995592e8"));
+}
+export function evaluate8977() {
+    return decimalLog10(decimalInput("2718.2570995592e8"));
+}
+export function evaluate8978() {
+    return decimalLog10(decimalInput("2718.2570995592e8"));
+}
+export function evaluate8979() {
+    return decimalPower(decimalInput("2718.2570995592e8"), decimalInput("1"));
+}
+export function evaluate8980() {
+    return decimalPower(decimalInput("2718.2570995592e8"), decimalInput("1"));
+}
+export function evaluate8981() {
+    return decimalPower(decimalInput("2718.2570995592e8"), decimalInput("1"));
+}
+export function evaluate8982() {
+    return decimalPower(decimalInput("2718.2570995592e8"), decimalInput("3.125"));
+}
+export function evaluate8983() {
+    return decimalPower(decimalInput("2718.2570995592e8"), decimalInput("3.125"));
+}
+export function evaluate8984() {
+    return decimalPower(decimalInput("2718.2570995592e8"), decimalInput("3.125"));
+}
+export function evaluate8985() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("2718.2570995592e8"));
+}
+export function evaluate8986() {
+    return decimalExp(decimalInput("10.2570995592"));
+}
+export function evaluate8987() {
+    return decimalSqrt(decimalInput("1417.3512780103e9"));
+}
+export function evaluate8988() {
+    return decimalLn(decimalInput("1417.3512780103e9"));
+}
+export function evaluate8989() {
+    return decimalLog10(decimalInput("1417.3512780103e9"));
+}
+export function evaluate8990() {
+    return decimalLog10(decimalInput("1417.3512780103e9"));
+}
+export function evaluate8991() {
+    return decimalPower(decimalInput("1417.3512780103e9"), decimalInput("2"));
+}
+export function evaluate8992() {
+    return decimalPower(decimalInput("1417.3512780103e9"), decimalInput("2"));
+}
+export function evaluate8993() {
+    return decimalPower(decimalInput("1417.3512780103e9"), decimalInput("2"));
+}
+export function evaluate8994() {
+    return decimalPower(decimalInput("1417.3512780103e9"), decimalInput("-3.125"));
+}
+export function evaluate8995() {
+    return decimalPower(decimalInput("1417.3512780103e9"), decimalInput("-3.125"));
+}
+export function evaluate8996() {
+    return decimalPower(decimalInput("1417.3512780103e9"), decimalInput("-3.125"));
+}
+export function evaluate8997() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("1417.3512780103e9"));
+}
+export function evaluate8998() {
+    return decimalExp(decimalInput("-10.3512780103"));
+}
+export function evaluate8999() {
+    return decimalSqrt(decimalInput("4834.2967618042e10"));
+}
+export function evaluate9000() {
+    return decimalLn(decimalInput("4834.2967618042e10"));
+}
+export function evaluate9001() {
+    return decimalLog10(decimalInput("4834.2967618042e10"));
+}
+export function evaluate9002() {
+    return decimalLog10(decimalInput("4834.2967618042e10"));
+}
+export function evaluate9003() {
+    return decimalPower(decimalInput("4834.2967618042e10"), decimalInput("3"));
+}
+export function evaluate9004() {
+    return decimalPower(decimalInput("4834.2967618042e10"), decimalInput("3"));
+}
+export function evaluate9005() {
+    return decimalPower(decimalInput("4834.2967618042e10"), decimalInput("3"));
+}
+export function evaluate9006() {
+    return decimalPower(decimalInput("4834.2967618042e10"), decimalInput("-2.125"));
+}
+export function evaluate9007() {
+    return decimalPower(decimalInput("4834.2967618042e10"), decimalInput("-2.125"));
+}
+export function evaluate9008() {
+    return decimalPower(decimalInput("4834.2967618042e10"), decimalInput("-2.125"));
+}
+export function evaluate9009() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("4834.2967618042e10"));
+}
+export function evaluate9010() {
+    return decimalExp(decimalInput("-9.2967618042"));
+}
+export function evaluate9011() {
+    return decimalSqrt(decimalInput("1973.3483363601e11"));
+}
+export function evaluate9012() {
+    return decimalLn(decimalInput("1973.3483363601e11"));
+}
+export function evaluate9013() {
+    return decimalLog10(decimalInput("1973.3483363601e11"));
+}
+export function evaluate9014() {
+    return decimalLog10(decimalInput("1973.3483363601e11"));
+}
+export function evaluate9015() {
+    return decimalPower(decimalInput("1973.3483363601e11"), decimalInput("4"));
+}
+export function evaluate9016() {
+    return decimalPower(decimalInput("1973.3483363601e11"), decimalInput("4"));
+}
+export function evaluate9017() {
+    return decimalPower(decimalInput("1973.3483363601e11"), decimalInput("4"));
+}
+export function evaluate9018() {
+    return decimalPower(decimalInput("1973.3483363601e11"), decimalInput("-1.125"));
+}
+export function evaluate9019() {
+    return decimalPower(decimalInput("1973.3483363601e11"), decimalInput("-1.125"));
+}
+export function evaluate9020() {
+    return decimalPower(decimalInput("1973.3483363601e11"), decimalInput("-1.125"));
+}
+export function evaluate9021() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("1973.3483363601e11"));
+}
+export function evaluate9022() {
+    return decimalExp(decimalInput("-8.3483363601"));
+}
+export function evaluate9023() {
+    return decimalSqrt(decimalInput("84.1091800892e12"));
+}
+export function evaluate9024() {
+    return decimalLn(decimalInput("84.1091800892e12"));
+}
+export function evaluate9025() {
+    return decimalLog10(decimalInput("84.1091800892e12"));
+}
+export function evaluate9026() {
+    return decimalLog10(decimalInput("84.1091800892e12"));
+}
+export function evaluate9027() {
+    return decimalPower(decimalInput("84.1091800892e12"), decimalInput("5"));
+}
+export function evaluate9028() {
+    return decimalPower(decimalInput("84.1091800892e12"), decimalInput("5"));
+}
+export function evaluate9029() {
+    return decimalPower(decimalInput("84.1091800892e12"), decimalInput("5"));
+}
+export function evaluate9030() {
+    return decimalPower(decimalInput("84.1091800892e12"), decimalInput("0.125"));
+}
+export function evaluate9031() {
+    return decimalPower(decimalInput("84.1091800892e12"), decimalInput("0.125"));
+}
+export function evaluate9032() {
+    return decimalPower(decimalInput("84.1091800892e12"), decimalInput("0.125"));
+}
+export function evaluate9033() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("84.1091800892e12"));
+}
+export function evaluate9034() {
+    return decimalExp(decimalInput("-7.1091800892"));
+}
+export function evaluate9035() {
+    return decimalSqrt(decimalInput("2228.1381704043e-12"));
+}
+export function evaluate9036() {
+    return decimalLn(decimalInput("2228.1381704043e-12"));
+}
+export function evaluate9037() {
+    return decimalLog10(decimalInput("2228.1381704043e-12"));
+}
+export function evaluate9038() {
+    return decimalLog10(decimalInput("2228.1381704043e-12"));
+}
+export function evaluate9039() {
+    return decimalPower(decimalInput("2228.1381704043e-12"), decimalInput("6"));
+}
+export function evaluate9040() {
+    return decimalPower(decimalInput("2228.1381704043e-12"), decimalInput("6"));
+}
+export function evaluate9041() {
+    return decimalPower(decimalInput("2228.1381704043e-12"), decimalInput("6"));
+}
+export function evaluate9042() {
+    return decimalPower(decimalInput("2228.1381704043e-12"), decimalInput("1.125"));
+}
+export function evaluate9043() {
+    return decimalPower(decimalInput("2228.1381704043e-12"), decimalInput("1.125"));
+}
+export function evaluate9044() {
+    return decimalPower(decimalInput("2228.1381704043e-12"), decimalInput("1.125"));
+}
+export function evaluate9045() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("2228.1381704043e-12"));
+}
+export function evaluate9046() {
+    return decimalExp(decimalInput("-6.1381704043"));
+}
+export function evaluate9047() {
+    return decimalSqrt(decimalInput("8017.4258482126e-11"));
+}
+export function evaluate9048() {
+    return decimalLn(decimalInput("8017.4258482126e-11"));
+}
+export function evaluate9049() {
+    return decimalLog10(decimalInput("8017.4258482126e-11"));
+}
+export function evaluate9050() {
+    return decimalLog10(decimalInput("8017.4258482126e-11"));
+}
+export function evaluate9051() {
+    return decimalPower(decimalInput("8017.4258482126e-11"), decimalInput("-6"));
+}
+export function evaluate9052() {
+    return decimalPower(decimalInput("8017.4258482126e-11"), decimalInput("-6"));
+}
+export function evaluate9053() {
+    return decimalPower(decimalInput("8017.4258482126e-11"), decimalInput("-6"));
+}
+export function evaluate9054() {
+    return decimalPower(decimalInput("8017.4258482126e-11"), decimalInput("2.125"));
+}
+export function evaluate9055() {
+    return decimalPower(decimalInput("8017.4258482126e-11"), decimalInput("2.125"));
+}
+export function evaluate9056() {
+    return decimalPower(decimalInput("8017.4258482126e-11"), decimalInput("2.125"));
+}
+export function evaluate9057() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("8017.4258482126e-11"));
+}
+export function evaluate9058() {
+    return decimalExp(decimalInput("-5.4258482126"));
+}
+export function evaluate9059() {
+    return decimalSqrt(decimalInput("2815.1373875413e-10"));
+}
+export function evaluate9060() {
+    return decimalLn(decimalInput("2815.1373875413e-10"));
+}
+export function evaluate9061() {
+    return decimalLog10(decimalInput("2815.1373875413e-10"));
+}
+export function evaluate9062() {
+    return decimalLog10(decimalInput("2815.1373875413e-10"));
+}
+export function evaluate9063() {
+    return decimalPower(decimalInput("2815.1373875413e-10"), decimalInput("-5"));
+}
+export function evaluate9064() {
+    return decimalPower(decimalInput("2815.1373875413e-10"), decimalInput("-5"));
+}
+export function evaluate9065() {
+    return decimalPower(decimalInput("2815.1373875413e-10"), decimalInput("-5"));
+}
+export function evaluate9066() {
+    return decimalPower(decimalInput("2815.1373875413e-10"), decimalInput("3.125"));
+}
+export function evaluate9067() {
+    return decimalPower(decimalInput("2815.1373875413e-10"), decimalInput("3.125"));
+}
+export function evaluate9068() {
+    return decimalPower(decimalInput("2815.1373875413e-10"), decimalInput("3.125"));
+}
+export function evaluate9069() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("2815.1373875413e-10"));
+}
+export function evaluate9070() {
+    return decimalExp(decimalInput("-4.1373875413"));
+}
+export function evaluate9071() {
+    return decimalSqrt(decimalInput("1374.4238907440e-9"));
+}
+export function evaluate9072() {
+    return decimalLn(decimalInput("1374.4238907440e-9"));
+}
+export function evaluate9073() {
+    return decimalLog10(decimalInput("1374.4238907440e-9"));
+}
+export function evaluate9074() {
+    return decimalLog10(decimalInput("1374.4238907440e-9"));
+}
+export function evaluate9075() {
+    return decimalPower(decimalInput("1374.4238907440e-9"), decimalInput("-4"));
+}
+export function evaluate9076() {
+    return decimalPower(decimalInput("1374.4238907440e-9"), decimalInput("-4"));
+}
+export function evaluate9077() {
+    return decimalPower(decimalInput("1374.4238907440e-9"), decimalInput("-4"));
+}
+export function evaluate9078() {
+    return decimalPower(decimalInput("1374.4238907440e-9"), decimalInput("-3.125"));
+}
+export function evaluate9079() {
+    return decimalPower(decimalInput("1374.4238907440e-9"), decimalInput("-3.125"));
+}
+export function evaluate9080() {
+    return decimalPower(decimalInput("1374.4238907440e-9"), decimalInput("-3.125"));
+}
+export function evaluate9081() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("1374.4238907440e-9"));
+}
+export function evaluate9082() {
+    return decimalExp(decimalInput("-3.4238907440"));
+}
+export function evaluate9083() {
+    return decimalSqrt(decimalInput("2881.0441568719e-8"));
+}
+export function evaluate9084() {
+    return decimalLn(decimalInput("2881.0441568719e-8"));
+}
+export function evaluate9085() {
+    return decimalLog10(decimalInput("2881.0441568719e-8"));
+}
+export function evaluate9086() {
+    return decimalLog10(decimalInput("2881.0441568719e-8"));
+}
+export function evaluate9087() {
+    return decimalPower(decimalInput("2881.0441568719e-8"), decimalInput("-3"));
+}
+export function evaluate9088() {
+    return decimalPower(decimalInput("2881.0441568719e-8"), decimalInput("-3"));
+}
+export function evaluate9089() {
+    return decimalPower(decimalInput("2881.0441568719e-8"), decimalInput("-3"));
+}
+export function evaluate9090() {
+    return decimalPower(decimalInput("2881.0441568719e-8"), decimalInput("-2.125"));
+}
+export function evaluate9091() {
+    return decimalPower(decimalInput("2881.0441568719e-8"), decimalInput("-2.125"));
+}
+export function evaluate9092() {
+    return decimalPower(decimalInput("2881.0441568719e-8"), decimalInput("-2.125"));
+}
+export function evaluate9093() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("2881.0441568719e-8"));
+}
+export function evaluate9094() {
+    return decimalExp(decimalInput("-2.441568719"));
+}
+export function evaluate9095() {
+    return decimalSqrt(decimalInput("9690.1137565922e-7"));
+}
+export function evaluate9096() {
+    return decimalLn(decimalInput("9690.1137565922e-7"));
+}
+export function evaluate9097() {
+    return decimalLog10(decimalInput("9690.1137565922e-7"));
+}
+export function evaluate9098() {
+    return decimalLog10(decimalInput("9690.1137565922e-7"));
+}
+export function evaluate9099() {
+    return decimalPower(decimalInput("9690.1137565922e-7"), decimalInput("-2"));
+}
+export function evaluate9100() {
+    return decimalPower(decimalInput("9690.1137565922e-7"), decimalInput("-2"));
+}
+export function evaluate9101() {
+    return decimalPower(decimalInput("9690.1137565922e-7"), decimalInput("-2"));
+}
+export function evaluate9102() {
+    return decimalPower(decimalInput("9690.1137565922e-7"), decimalInput("-1.125"));
+}
+export function evaluate9103() {
+    return decimalPower(decimalInput("9690.1137565922e-7"), decimalInput("-1.125"));
+}
+export function evaluate9104() {
+    return decimalPower(decimalInput("9690.1137565922e-7"), decimalInput("-1.125"));
+}
+export function evaluate9105() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("9690.1137565922e-7"));
+}
+export function evaluate9106() {
+    return decimalExp(decimalInput("-1.1137565922"));
+}
+export function evaluate9107() {
+    return decimalSqrt(decimalInput("797.2878302937e-6"));
+}
+export function evaluate9108() {
+    return decimalLn(decimalInput("797.2878302937e-6"));
+}
+export function evaluate9109() {
+    return decimalLog10(decimalInput("797.2878302937e-6"));
+}
+export function evaluate9110() {
+    return decimalLog10(decimalInput("797.2878302937e-6"));
+}
+export function evaluate9111() {
+    return decimalPower(decimalInput("797.2878302937e-6"), decimalInput("-1"));
+}
+export function evaluate9112() {
+    return decimalPower(decimalInput("797.2878302937e-6"), decimalInput("-1"));
+}
+export function evaluate9113() {
+    return decimalPower(decimalInput("797.2878302937e-6"), decimalInput("-1"));
+}
+export function evaluate9114() {
+    return decimalPower(decimalInput("797.2878302937e-6"), decimalInput("0.125"));
+}
+export function evaluate9115() {
+    return decimalPower(decimalInput("797.2878302937e-6"), decimalInput("0.125"));
+}
+export function evaluate9116() {
+    return decimalPower(decimalInput("797.2878302937e-6"), decimalInput("0.125"));
+}
+export function evaluate9117() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("797.2878302937e-6"));
+}
+export function evaluate9118() {
+    return decimalExp(decimalInput("0.2878302937"));
+}
+export function evaluate9119() {
+    return decimalSqrt(decimalInput("2863.2256197220e-5"));
+}
+export function evaluate9120() {
+    return decimalLn(decimalInput("2863.2256197220e-5"));
+}
+export function evaluate9121() {
+    return decimalLog10(decimalInput("2863.2256197220e-5"));
+}
+export function evaluate9122() {
+    return decimalLog10(decimalInput("2863.2256197220e-5"));
+}
+export function evaluate9123() {
+    return decimalPower(decimalInput("2863.2256197220e-5"), decimalInput("0"));
+}
+export function evaluate9124() {
+    return decimalPower(decimalInput("2863.2256197220e-5"), decimalInput("0"));
+}
+export function evaluate9125() {
+    return decimalPower(decimalInput("2863.2256197220e-5"), decimalInput("0"));
+}
+export function evaluate9126() {
+    return decimalPower(decimalInput("2863.2256197220e-5"), decimalInput("1.125"));
+}
+export function evaluate9127() {
+    return decimalPower(decimalInput("2863.2256197220e-5"), decimalInput("1.125"));
+}
+export function evaluate9128() {
+    return decimalPower(decimalInput("2863.2256197220e-5"), decimalInput("1.125"));
+}
+export function evaluate9129() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("2863.2256197220e-5"));
+}
+export function evaluate9130() {
+    return decimalExp(decimalInput("1.2256197220"));
+}
+export function evaluate9131() {
+    return decimalSqrt(decimalInput("1911.4057706099e-4"));
+}
+export function evaluate9132() {
+    return decimalLn(decimalInput("1911.4057706099e-4"));
+}
+export function evaluate9133() {
+    return decimalLog10(decimalInput("1911.4057706099e-4"));
+}
+export function evaluate9134() {
+    return decimalLog10(decimalInput("1911.4057706099e-4"));
+}
+export function evaluate9135() {
+    return decimalPower(decimalInput("1911.4057706099e-4"), decimalInput("1"));
+}
+export function evaluate9136() {
+    return decimalPower(decimalInput("1911.4057706099e-4"), decimalInput("1"));
+}
+export function evaluate9137() {
+    return decimalPower(decimalInput("1911.4057706099e-4"), decimalInput("1"));
+}
+export function evaluate9138() {
+    return decimalPower(decimalInput("1911.4057706099e-4"), decimalInput("2.125"));
+}
+export function evaluate9139() {
+    return decimalPower(decimalInput("1911.4057706099e-4"), decimalInput("2.125"));
+}
+export function evaluate9140() {
+    return decimalPower(decimalInput("1911.4057706099e-4"), decimalInput("2.125"));
+}
+export function evaluate9141() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("1911.4057706099e-4"));
+}
+export function evaluate9142() {
+    return decimalExp(decimalInput("2.4057706099"));
+}
+export function evaluate9143() {
+    return decimalSqrt(decimalInput("8078.0357802294e-3"));
+}
+export function evaluate9144() {
+    return decimalLn(decimalInput("8078.0357802294e-3"));
+}
+export function evaluate9145() {
+    return decimalLog10(decimalInput("8078.0357802294e-3"));
+}
+export function evaluate9146() {
+    return decimalLog10(decimalInput("8078.0357802294e-3"));
+}
+export function evaluate9147() {
+    return decimalPower(decimalInput("8078.0357802294e-3"), decimalInput("2"));
+}
+export function evaluate9148() {
+    return decimalPower(decimalInput("8078.0357802294e-3"), decimalInput("2"));
+}
+export function evaluate9149() {
+    return decimalPower(decimalInput("8078.0357802294e-3"), decimalInput("2"));
+}
+export function evaluate9150() {
+    return decimalPower(decimalInput("8078.0357802294e-3"), decimalInput("3.125"));
+}
+export function evaluate9151() {
+    return decimalPower(decimalInput("8078.0357802294e-3"), decimalInput("3.125"));
+}
+export function evaluate9152() {
+    return decimalPower(decimalInput("8078.0357802294e-3"), decimalInput("3.125"));
+}
+export function evaluate9153() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("8078.0357802294e-3"));
+}
+export function evaluate9154() {
+    return decimalExp(decimalInput("3.357802294"));
+}
+export function evaluate9155() {
+    return decimalSqrt(decimalInput("4887.1647290141e-2"));
+}
+export function evaluate9156() {
+    return decimalLn(decimalInput("4887.1647290141e-2"));
+}
+export function evaluate9157() {
+    return decimalLog10(decimalInput("4887.1647290141e-2"));
+}
+export function evaluate9158() {
+    return decimalLog10(decimalInput("4887.1647290141e-2"));
+}
+export function evaluate9159() {
+    return decimalPower(decimalInput("4887.1647290141e-2"), decimalInput("3"));
+}
+export function evaluate9160() {
+    return decimalPower(decimalInput("4887.1647290141e-2"), decimalInput("3"));
+}
+export function evaluate9161() {
+    return decimalPower(decimalInput("4887.1647290141e-2"), decimalInput("3"));
+}
+export function evaluate9162() {
+    return decimalPower(decimalInput("4887.1647290141e-2"), decimalInput("-3.125"));
+}
+export function evaluate9163() {
+    return decimalPower(decimalInput("4887.1647290141e-2"), decimalInput("-3.125"));
+}
+export function evaluate9164() {
+    return decimalPower(decimalInput("4887.1647290141e-2"), decimalInput("-3.125"));
+}
+export function evaluate9165() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("4887.1647290141e-2"));
+}
+export function evaluate9166() {
+    return decimalExp(decimalInput("4.1647290141"));
+}
+export function evaluate9167() {
+    return decimalSqrt(decimalInput("2560.2269445592e-1"));
+}
+export function evaluate9168() {
+    return decimalLn(decimalInput("2560.2269445592e-1"));
+}
+export function evaluate9169() {
+    return decimalLog10(decimalInput("2560.2269445592e-1"));
+}
+export function evaluate9170() {
+    return decimalLog10(decimalInput("2560.2269445592e-1"));
+}
+export function evaluate9171() {
+    return decimalPower(decimalInput("2560.2269445592e-1"), decimalInput("4"));
+}
+export function evaluate9172() {
+    return decimalPower(decimalInput("2560.2269445592e-1"), decimalInput("4"));
+}
+export function evaluate9173() {
+    return decimalPower(decimalInput("2560.2269445592e-1"), decimalInput("4"));
+}
+export function evaluate9174() {
+    return decimalPower(decimalInput("2560.2269445592e-1"), decimalInput("-2.125"));
+}
+export function evaluate9175() {
+    return decimalPower(decimalInput("2560.2269445592e-1"), decimalInput("-2.125"));
+}
+export function evaluate9176() {
+    return decimalPower(decimalInput("2560.2269445592e-1"), decimalInput("-2.125"));
+}
+export function evaluate9177() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("2560.2269445592e-1"));
+}
+export function evaluate9178() {
+    return decimalExp(decimalInput("5.2269445592"));
+}
+export function evaluate9179() {
+    return decimalSqrt(decimalInput("9160.1647044439e0"));
+}
+export function evaluate9180() {
+    return decimalLn(decimalInput("9160.1647044439e0"));
+}
+export function evaluate9181() {
+    return decimalLog10(decimalInput("9160.1647044439e0"));
+}
+export function evaluate9182() {
+    return decimalLog10(decimalInput("9160.1647044439e0"));
+}
+export function evaluate9183() {
+    return decimalPower(decimalInput("9160.1647044439e0"), decimalInput("5"));
+}
+export function evaluate9184() {
+    return decimalPower(decimalInput("9160.1647044439e0"), decimalInput("5"));
+}
+export function evaluate9185() {
+    return decimalPower(decimalInput("9160.1647044439e0"), decimalInput("5"));
+}
+export function evaluate9186() {
+    return decimalPower(decimalInput("9160.1647044439e0"), decimalInput("-1.125"));
+}
+export function evaluate9187() {
+    return decimalPower(decimalInput("9160.1647044439e0"), decimalInput("-1.125"));
+}
+export function evaluate9188() {
+    return decimalPower(decimalInput("9160.1647044439e0"), decimalInput("-1.125"));
+}
+export function evaluate9189() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("9160.1647044439e0"));
+}
+export function evaluate9190() {
+    return decimalExp(decimalInput("6.1647044439"));
+}
+export function evaluate9191() {
+    return decimalSqrt(decimalInput("8597.1314217162e1"));
+}
+export function evaluate9192() {
+    return decimalLn(decimalInput("8597.1314217162e1"));
+}
+export function evaluate9193() {
+    return decimalLog10(decimalInput("8597.1314217162e1"));
+}
+export function evaluate9194() {
+    return decimalLog10(decimalInput("8597.1314217162e1"));
+}
+export function evaluate9195() {
+    return decimalPower(decimalInput("8597.1314217162e1"), decimalInput("6"));
+}
+export function evaluate9196() {
+    return decimalPower(decimalInput("8597.1314217162e1"), decimalInput("6"));
+}
+export function evaluate9197() {
+    return decimalPower(decimalInput("8597.1314217162e1"), decimalInput("6"));
+}
+export function evaluate9198() {
+    return decimalPower(decimalInput("8597.1314217162e1"), decimalInput("0.125"));
+}
+export function evaluate9199() {
+    return decimalPower(decimalInput("8597.1314217162e1"), decimalInput("0.125"));
+}
+export function evaluate9200() {
+    return decimalPower(decimalInput("8597.1314217162e1"), decimalInput("0.125"));
+}
+export function evaluate9201() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("8597.1314217162e1"));
+}
+export function evaluate9202() {
+    return decimalExp(decimalInput("7.1314217162"));
+}
+export function evaluate9203() {
+    return decimalSqrt(decimalInput("8452.1232545185e2"));
+}
+export function evaluate9204() {
+    return decimalLn(decimalInput("8452.1232545185e2"));
+}
+export function evaluate9205() {
+    return decimalLog10(decimalInput("8452.1232545185e2"));
+}
+export function evaluate9206() {
+    return decimalLog10(decimalInput("8452.1232545185e2"));
+}
+export function evaluate9207() {
+    return decimalPower(decimalInput("8452.1232545185e2"), decimalInput("-6"));
+}
+export function evaluate9208() {
+    return decimalPower(decimalInput("8452.1232545185e2"), decimalInput("-6"));
+}
+export function evaluate9209() {
+    return decimalPower(decimalInput("8452.1232545185e2"), decimalInput("-6"));
+}
+export function evaluate9210() {
+    return decimalPower(decimalInput("8452.1232545185e2"), decimalInput("1.125"));
+}
+export function evaluate9211() {
+    return decimalPower(decimalInput("8452.1232545185e2"), decimalInput("1.125"));
+}
+export function evaluate9212() {
+    return decimalPower(decimalInput("8452.1232545185e2"), decimalInput("1.125"));
+}
+export function evaluate9213() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("8452.1232545185e2"));
+}
+export function evaluate9214() {
+    return decimalExp(decimalInput("8.1232545185"));
+}
+export function evaluate9215() {
+    return decimalSqrt(decimalInput("1246.0489882252e3"));
+}
+export function evaluate9216() {
+    return decimalLn(decimalInput("1246.0489882252e3"));
+}
+export function evaluate9217() {
+    return decimalLog10(decimalInput("1246.0489882252e3"));
+}
+export function evaluate9218() {
+    return decimalLog10(decimalInput("1246.0489882252e3"));
+}
+export function evaluate9219() {
+    return decimalPower(decimalInput("1246.0489882252e3"), decimalInput("-5"));
+}
+export function evaluate9220() {
+    return decimalPower(decimalInput("1246.0489882252e3"), decimalInput("-5"));
+}
+export function evaluate9221() {
+    return decimalPower(decimalInput("1246.0489882252e3"), decimalInput("-5"));
+}
+export function evaluate9222() {
+    return decimalPower(decimalInput("1246.0489882252e3"), decimalInput("2.125"));
+}
+export function evaluate9223() {
+    return decimalPower(decimalInput("1246.0489882252e3"), decimalInput("2.125"));
+}
+export function evaluate9224() {
+    return decimalPower(decimalInput("1246.0489882252e3"), decimalInput("2.125"));
+}
+export function evaluate9225() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("1246.0489882252e3"));
+}
+export function evaluate9226() {
+    return decimalExp(decimalInput("9.489882252"));
+}
+export function evaluate9227() {
+    return decimalSqrt(decimalInput("7799.1253432443e4"));
+}
+export function evaluate9228() {
+    return decimalLn(decimalInput("7799.1253432443e4"));
+}
+export function evaluate9229() {
+    return decimalLog10(decimalInput("7799.1253432443e4"));
+}
+export function evaluate9230() {
+    return decimalLog10(decimalInput("7799.1253432443e4"));
+}
+export function evaluate9231() {
+    return decimalPower(decimalInput("7799.1253432443e4"), decimalInput("-4"));
+}
+export function evaluate9232() {
+    return decimalPower(decimalInput("7799.1253432443e4"), decimalInput("-4"));
+}
+export function evaluate9233() {
+    return decimalPower(decimalInput("7799.1253432443e4"), decimalInput("-4"));
+}
+export function evaluate9234() {
+    return decimalPower(decimalInput("7799.1253432443e4"), decimalInput("3.125"));
+}
+export function evaluate9235() {
+    return decimalPower(decimalInput("7799.1253432443e4"), decimalInput("3.125"));
+}
+export function evaluate9236() {
+    return decimalPower(decimalInput("7799.1253432443e4"), decimalInput("3.125"));
+}
+export function evaluate9237() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("7799.1253432443e4"));
+}
+export function evaluate9238() {
+    return decimalExp(decimalInput("10.1253432443"));
+}
+export function evaluate9239() {
+    return decimalSqrt(decimalInput("2858.0092743582e5"));
+}
+export function evaluate9240() {
+    return decimalLn(decimalInput("2858.0092743582e5"));
+}
+export function evaluate9241() {
+    return decimalLog10(decimalInput("2858.0092743582e5"));
+}
+export function evaluate9242() {
+    return decimalLog10(decimalInput("2858.0092743582e5"));
+}
+export function evaluate9243() {
+    return decimalPower(decimalInput("2858.0092743582e5"), decimalInput("-3"));
+}
+export function evaluate9244() {
+    return decimalPower(decimalInput("2858.0092743582e5"), decimalInput("-3"));
+}
+export function evaluate9245() {
+    return decimalPower(decimalInput("2858.0092743582e5"), decimalInput("-3"));
+}
+export function evaluate9246() {
+    return decimalPower(decimalInput("2858.0092743582e5"), decimalInput("-3.125"));
+}
+export function evaluate9247() {
+    return decimalPower(decimalInput("2858.0092743582e5"), decimalInput("-3.125"));
+}
+export function evaluate9248() {
+    return decimalPower(decimalInput("2858.0092743582e5"), decimalInput("-3.125"));
+}
+export function evaluate9249() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("2858.0092743582e5"));
+}
+export function evaluate9250() {
+    return decimalExp(decimalInput("-10.92743582"));
+}
+export function evaluate9251() {
+    return decimalSqrt(decimalInput("4177.1015212645e6"));
+}
+export function evaluate9252() {
+    return decimalLn(decimalInput("4177.1015212645e6"));
+}
+export function evaluate9253() {
+    return decimalLog10(decimalInput("4177.1015212645e6"));
+}
+export function evaluate9254() {
+    return decimalLog10(decimalInput("4177.1015212645e6"));
+}
+export function evaluate9255() {
+    return decimalPower(decimalInput("4177.1015212645e6"), decimalInput("-2"));
+}
+export function evaluate9256() {
+    return decimalPower(decimalInput("4177.1015212645e6"), decimalInput("-2"));
+}
+export function evaluate9257() {
+    return decimalPower(decimalInput("4177.1015212645e6"), decimalInput("-2"));
+}
+export function evaluate9258() {
+    return decimalPower(decimalInput("4177.1015212645e6"), decimalInput("-2.125"));
+}
+export function evaluate9259() {
+    return decimalPower(decimalInput("4177.1015212645e6"), decimalInput("-2.125"));
+}
+export function evaluate9260() {
+    return decimalPower(decimalInput("4177.1015212645e6"), decimalInput("-2.125"));
+}
+export function evaluate9261() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("4177.1015212645e6"));
+}
+export function evaluate9262() {
+    return decimalExp(decimalInput("-9.1015212645"));
+}
+export function evaluate9263() {
+    return decimalSqrt(decimalInput("1171.1549146240e7"));
+}
+export function evaluate9264() {
+    return decimalLn(decimalInput("1171.1549146240e7"));
+}
+export function evaluate9265() {
+    return decimalLog10(decimalInput("1171.1549146240e7"));
+}
+export function evaluate9266() {
+    return decimalLog10(decimalInput("1171.1549146240e7"));
+}
+export function evaluate9267() {
+    return decimalPower(decimalInput("1171.1549146240e7"), decimalInput("-1"));
+}
+export function evaluate9268() {
+    return decimalPower(decimalInput("1171.1549146240e7"), decimalInput("-1"));
+}
+export function evaluate9269() {
+    return decimalPower(decimalInput("1171.1549146240e7"), decimalInput("-1"));
+}
+export function evaluate9270() {
+    return decimalPower(decimalInput("1171.1549146240e7"), decimalInput("-1.125"));
+}
+export function evaluate9271() {
+    return decimalPower(decimalInput("1171.1549146240e7"), decimalInput("-1.125"));
+}
+export function evaluate9272() {
+    return decimalPower(decimalInput("1171.1549146240e7"), decimalInput("-1.125"));
+}
+export function evaluate9273() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("1171.1549146240e7"));
+}
+export function evaluate9274() {
+    return decimalExp(decimalInput("-8.1549146240"));
+}
+export function evaluate9275() {
+    return decimalSqrt(decimalInput("1121.2668704223e8"));
+}
+export function evaluate9276() {
+    return decimalLn(decimalInput("1121.2668704223e8"));
+}
+export function evaluate9277() {
+    return decimalLog10(decimalInput("1121.2668704223e8"));
+}
+export function evaluate9278() {
+    return decimalLog10(decimalInput("1121.2668704223e8"));
+}
+export function evaluate9279() {
+    return decimalPower(decimalInput("1121.2668704223e8"), decimalInput("0"));
+}
+export function evaluate9280() {
+    return decimalPower(decimalInput("1121.2668704223e8"), decimalInput("0"));
+}
+export function evaluate9281() {
+    return decimalPower(decimalInput("1121.2668704223e8"), decimalInput("0"));
+}
+export function evaluate9282() {
+    return decimalPower(decimalInput("1121.2668704223e8"), decimalInput("0.125"));
+}
+export function evaluate9283() {
+    return decimalPower(decimalInput("1121.2668704223e8"), decimalInput("0.125"));
+}
+export function evaluate9284() {
+    return decimalPower(decimalInput("1121.2668704223e8"), decimalInput("0.125"));
+}
+export function evaluate9285() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("1121.2668704223e8"));
+}
+export function evaluate9286() {
+    return decimalExp(decimalInput("-7.2668704223"));
+}
+export function evaluate9287() {
+    return decimalSqrt(decimalInput("5475.0150230450e9"));
+}
+export function evaluate9288() {
+    return decimalLn(decimalInput("5475.0150230450e9"));
+}
+export function evaluate9289() {
+    return decimalLog10(decimalInput("5475.0150230450e9"));
+}
+export function evaluate9290() {
+    return decimalLog10(decimalInput("5475.0150230450e9"));
+}
+export function evaluate9291() {
+    return decimalPower(decimalInput("5475.0150230450e9"), decimalInput("1"));
+}
+export function evaluate9292() {
+    return decimalPower(decimalInput("5475.0150230450e9"), decimalInput("1"));
+}
+export function evaluate9293() {
+    return decimalPower(decimalInput("5475.0150230450e9"), decimalInput("1"));
+}
+export function evaluate9294() {
+    return decimalPower(decimalInput("5475.0150230450e9"), decimalInput("1.125"));
+}
+export function evaluate9295() {
+    return decimalPower(decimalInput("5475.0150230450e9"), decimalInput("1.125"));
+}
+export function evaluate9296() {
+    return decimalPower(decimalInput("5475.0150230450e9"), decimalInput("1.125"));
+}
+export function evaluate9297() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("5475.0150230450e9"));
+}
+export function evaluate9298() {
+    return decimalExp(decimalInput("-6.150230450"));
+}
+export function evaluate9299() {
+    return decimalSqrt(decimalInput("9557.1767782761e10"));
+}
+export function evaluate9300() {
+    return decimalLn(decimalInput("9557.1767782761e10"));
+}
+export function evaluate9301() {
+    return decimalLog10(decimalInput("9557.1767782761e10"));
+}
+export function evaluate9302() {
+    return decimalLog10(decimalInput("9557.1767782761e10"));
+}
+export function evaluate9303() {
+    return decimalPower(decimalInput("9557.1767782761e10"), decimalInput("2"));
+}
+export function evaluate9304() {
+    return decimalPower(decimalInput("9557.1767782761e10"), decimalInput("2"));
+}
+export function evaluate9305() {
+    return decimalPower(decimalInput("9557.1767782761e10"), decimalInput("2"));
+}
+export function evaluate9306() {
+    return decimalPower(decimalInput("9557.1767782761e10"), decimalInput("2.125"));
+}
+export function evaluate9307() {
+    return decimalPower(decimalInput("9557.1767782761e10"), decimalInput("2.125"));
+}
+export function evaluate9308() {
+    return decimalPower(decimalInput("9557.1767782761e10"), decimalInput("2.125"));
+}
+export function evaluate9309() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("9557.1767782761e10"));
+}
+export function evaluate9310() {
+    return decimalExp(decimalInput("-5.1767782761"));
+}
+export function evaluate9311() {
+    return decimalSqrt(decimalInput("5805.3159929780e11"));
+}
+export function evaluate9312() {
+    return decimalLn(decimalInput("5805.3159929780e11"));
+}
+export function evaluate9313() {
+    return decimalLog10(decimalInput("5805.3159929780e11"));
+}
+export function evaluate9314() {
+    return decimalLog10(decimalInput("5805.3159929780e11"));
+}
+export function evaluate9315() {
+    return decimalPower(decimalInput("5805.3159929780e11"), decimalInput("3"));
+}
+export function evaluate9316() {
+    return decimalPower(decimalInput("5805.3159929780e11"), decimalInput("3"));
+}
+export function evaluate9317() {
+    return decimalPower(decimalInput("5805.3159929780e11"), decimalInput("3"));
+}
+export function evaluate9318() {
+    return decimalPower(decimalInput("5805.3159929780e11"), decimalInput("3.125"));
+}
+export function evaluate9319() {
+    return decimalPower(decimalInput("5805.3159929780e11"), decimalInput("3.125"));
+}
+export function evaluate9320() {
+    return decimalPower(decimalInput("5805.3159929780e11"), decimalInput("3.125"));
+}
+export function evaluate9321() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("5805.3159929780e11"));
+}
+export function evaluate9322() {
+    return decimalExp(decimalInput("-4.3159929780"));
+}
+export function evaluate9323() {
+    return decimalSqrt(decimalInput("7057.2971519875e12"));
+}
+export function evaluate9324() {
+    return decimalLn(decimalInput("7057.2971519875e12"));
+}
+export function evaluate9325() {
+    return decimalLog10(decimalInput("7057.2971519875e12"));
+}
+export function evaluate9326() {
+    return decimalLog10(decimalInput("7057.2971519875e12"));
+}
+export function evaluate9327() {
+    return decimalPower(decimalInput("7057.2971519875e12"), decimalInput("4"));
+}
+export function evaluate9328() {
+    return decimalPower(decimalInput("7057.2971519875e12"), decimalInput("4"));
+}
+export function evaluate9329() {
+    return decimalPower(decimalInput("7057.2971519875e12"), decimalInput("4"));
+}
+export function evaluate9330() {
+    return decimalPower(decimalInput("7057.2971519875e12"), decimalInput("-3.125"));
+}
+export function evaluate9331() {
+    return decimalPower(decimalInput("7057.2971519875e12"), decimalInput("-3.125"));
+}
+export function evaluate9332() {
+    return decimalPower(decimalInput("7057.2971519875e12"), decimalInput("-3.125"));
+}
+export function evaluate9333() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("7057.2971519875e12"));
+}
+export function evaluate9334() {
+    return decimalExp(decimalInput("-3.2971519875"));
+}
+export function evaluate9335() {
+    return decimalSqrt(decimalInput("5555.4191386374e-12"));
+}
+export function evaluate9336() {
+    return decimalLn(decimalInput("5555.4191386374e-12"));
+}
+export function evaluate9337() {
+    return decimalLog10(decimalInput("5555.4191386374e-12"));
+}
+export function evaluate9338() {
+    return decimalLog10(decimalInput("5555.4191386374e-12"));
+}
+export function evaluate9339() {
+    return decimalPower(decimalInput("5555.4191386374e-12"), decimalInput("5"));
+}
+export function evaluate9340() {
+    return decimalPower(decimalInput("5555.4191386374e-12"), decimalInput("5"));
+}
+export function evaluate9341() {
+    return decimalPower(decimalInput("5555.4191386374e-12"), decimalInput("5"));
+}
+export function evaluate9342() {
+    return decimalPower(decimalInput("5555.4191386374e-12"), decimalInput("-2.125"));
+}
+export function evaluate9343() {
+    return decimalPower(decimalInput("5555.4191386374e-12"), decimalInput("-2.125"));
+}
+export function evaluate9344() {
+    return decimalPower(decimalInput("5555.4191386374e-12"), decimalInput("-2.125"));
+}
+export function evaluate9345() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("5555.4191386374e-12"));
+}
+export function evaluate9346() {
+    return decimalExp(decimalInput("-2.4191386374"));
+}
+export function evaluate9347() {
+    return decimalSqrt(decimalInput("698.0851875501e-11"));
+}
+export function evaluate9348() {
+    return decimalLn(decimalInput("698.0851875501e-11"));
+}
+export function evaluate9349() {
+    return decimalLog10(decimalInput("698.0851875501e-11"));
+}
+export function evaluate9350() {
+    return decimalLog10(decimalInput("698.0851875501e-11"));
+}
+export function evaluate9351() {
+    return decimalPower(decimalInput("698.0851875501e-11"), decimalInput("6"));
+}
+export function evaluate9352() {
+    return decimalPower(decimalInput("698.0851875501e-11"), decimalInput("6"));
+}
+export function evaluate9353() {
+    return decimalPower(decimalInput("698.0851875501e-11"), decimalInput("6"));
+}
+export function evaluate9354() {
+    return decimalPower(decimalInput("698.0851875501e-11"), decimalInput("-1.125"));
+}
+export function evaluate9355() {
+    return decimalPower(decimalInput("698.0851875501e-11"), decimalInput("-1.125"));
+}
+export function evaluate9356() {
+    return decimalPower(decimalInput("698.0851875501e-11"), decimalInput("-1.125"));
+}
+export function evaluate9357() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("698.0851875501e-11"));
+}
+export function evaluate9358() {
+    return decimalExp(decimalInput("-1.851875501"));
+}
+export function evaluate9359() {
+    return decimalSqrt(decimalInput("1991.2809301032e-10"));
+}
+export function evaluate9360() {
+    return decimalLn(decimalInput("1991.2809301032e-10"));
+}
+export function evaluate9361() {
+    return decimalLog10(decimalInput("1991.2809301032e-10"));
+}
+export function evaluate9362() {
+    return decimalLog10(decimalInput("1991.2809301032e-10"));
+}
+export function evaluate9363() {
+    return decimalPower(decimalInput("1991.2809301032e-10"), decimalInput("-6"));
+}
+export function evaluate9364() {
+    return decimalPower(decimalInput("1991.2809301032e-10"), decimalInput("-6"));
+}
+export function evaluate9365() {
+    return decimalPower(decimalInput("1991.2809301032e-10"), decimalInput("-6"));
+}
+export function evaluate9366() {
+    return decimalPower(decimalInput("1991.2809301032e-10"), decimalInput("0.125"));
+}
+export function evaluate9367() {
+    return decimalPower(decimalInput("1991.2809301032e-10"), decimalInput("0.125"));
+}
+export function evaluate9368() {
+    return decimalPower(decimalInput("1991.2809301032e-10"), decimalInput("0.125"));
+}
+export function evaluate9369() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("1991.2809301032e-10"));
+}
+export function evaluate9370() {
+    return decimalExp(decimalInput("0.2809301032"));
+}
+export function evaluate9371() {
+    return decimalSqrt(decimalInput("4327.2875706727e-9"));
+}
+export function evaluate9372() {
+    return decimalLn(decimalInput("4327.2875706727e-9"));
+}
+export function evaluate9373() {
+    return decimalLog10(decimalInput("4327.2875706727e-9"));
+}
+export function evaluate9374() {
+    return decimalLog10(decimalInput("4327.2875706727e-9"));
+}
+export function evaluate9375() {
+    return decimalPower(decimalInput("4327.2875706727e-9"), decimalInput("-5"));
+}
+export function evaluate9376() {
+    return decimalPower(decimalInput("4327.2875706727e-9"), decimalInput("-5"));
+}
+export function evaluate9377() {
+    return decimalPower(decimalInput("4327.2875706727e-9"), decimalInput("-5"));
+}
+export function evaluate9378() {
+    return decimalPower(decimalInput("4327.2875706727e-9"), decimalInput("1.125"));
+}
+export function evaluate9379() {
+    return decimalPower(decimalInput("4327.2875706727e-9"), decimalInput("1.125"));
+}
+export function evaluate9380() {
+    return decimalPower(decimalInput("4327.2875706727e-9"), decimalInput("1.125"));
+}
+export function evaluate9381() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("4327.2875706727e-9"));
+}
+export function evaluate9382() {
+    return decimalExp(decimalInput("1.2875706727"));
+}
+export function evaluate9383() {
+    return decimalSqrt(decimalInput("447.1536846746e-8"));
+}
+export function evaluate9384() {
+    return decimalLn(decimalInput("447.1536846746e-8"));
+}
+export function evaluate9385() {
+    return decimalLog10(decimalInput("447.1536846746e-8"));
+}
+export function evaluate9386() {
+    return decimalLog10(decimalInput("447.1536846746e-8"));
+}
+export function evaluate9387() {
+    return decimalPower(decimalInput("447.1536846746e-8"), decimalInput("-4"));
+}
+export function evaluate9388() {
+    return decimalPower(decimalInput("447.1536846746e-8"), decimalInput("-4"));
+}
+export function evaluate9389() {
+    return decimalPower(decimalInput("447.1536846746e-8"), decimalInput("-4"));
+}
+export function evaluate9390() {
+    return decimalPower(decimalInput("447.1536846746e-8"), decimalInput("2.125"));
+}
+export function evaluate9391() {
+    return decimalPower(decimalInput("447.1536846746e-8"), decimalInput("2.125"));
+}
+export function evaluate9392() {
+    return decimalPower(decimalInput("447.1536846746e-8"), decimalInput("2.125"));
+}
+export function evaluate9393() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("447.1536846746e-8"));
+}
+export function evaluate9394() {
+    return decimalExp(decimalInput("2.1536846746"));
+}
+export function evaluate9395() {
+    return decimalSqrt(decimalInput("201.3962553905e-7"));
+}
+export function evaluate9396() {
+    return decimalLn(decimalInput("201.3962553905e-7"));
+}
+export function evaluate9397() {
+    return decimalLog10(decimalInput("201.3962553905e-7"));
+}
+export function evaluate9398() {
+    return decimalLog10(decimalInput("201.3962553905e-7"));
+}
+export function evaluate9399() {
+    return decimalPower(decimalInput("201.3962553905e-7"), decimalInput("-3"));
+}
+export function evaluate9400() {
+    return decimalPower(decimalInput("201.3962553905e-7"), decimalInput("-3"));
+}
+export function evaluate9401() {
+    return decimalPower(decimalInput("201.3962553905e-7"), decimalInput("-3"));
+}
+export function evaluate9402() {
+    return decimalPower(decimalInput("201.3962553905e-7"), decimalInput("3.125"));
+}
+export function evaluate9403() {
+    return decimalPower(decimalInput("201.3962553905e-7"), decimalInput("3.125"));
+}
+export function evaluate9404() {
+    return decimalPower(decimalInput("201.3962553905e-7"), decimalInput("3.125"));
+}
+export function evaluate9405() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("201.3962553905e-7"));
+}
+export function evaluate9406() {
+    return decimalExp(decimalInput("3.3962553905"));
+}
+export function evaluate9407() {
+    return decimalSqrt(decimalInput("5169.2661059036e-6"));
+}
+export function evaluate9408() {
+    return decimalLn(decimalInput("5169.2661059036e-6"));
+}
+export function evaluate9409() {
+    return decimalLog10(decimalInput("5169.2661059036e-6"));
+}
+export function evaluate9410() {
+    return decimalLog10(decimalInput("5169.2661059036e-6"));
+}
+export function evaluate9411() {
+    return decimalPower(decimalInput("5169.2661059036e-6"), decimalInput("-2"));
+}
+export function evaluate9412() {
+    return decimalPower(decimalInput("5169.2661059036e-6"), decimalInput("-2"));
+}
+export function evaluate9413() {
+    return decimalPower(decimalInput("5169.2661059036e-6"), decimalInput("-2"));
+}
+export function evaluate9414() {
+    return decimalPower(decimalInput("5169.2661059036e-6"), decimalInput("-3.125"));
+}
+export function evaluate9415() {
+    return decimalPower(decimalInput("5169.2661059036e-6"), decimalInput("-3.125"));
+}
+export function evaluate9416() {
+    return decimalPower(decimalInput("5169.2661059036e-6"), decimalInput("-3.125"));
+}
+export function evaluate9417() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("5169.2661059036e-6"));
+}
+export function evaluate9418() {
+    return decimalExp(decimalInput("4.2661059036"));
+}
+export function evaluate9419() {
+    return decimalSqrt(decimalInput("673.0533437323e-5"));
+}
+export function evaluate9420() {
+    return decimalLn(decimalInput("673.0533437323e-5"));
+}
+export function evaluate9421() {
+    return decimalLog10(decimalInput("673.0533437323e-5"));
+}
+export function evaluate9422() {
+    return decimalLog10(decimalInput("673.0533437323e-5"));
+}
+export function evaluate9423() {
+    return decimalPower(decimalInput("673.0533437323e-5"), decimalInput("-1"));
+}
+export function evaluate9424() {
+    return decimalPower(decimalInput("673.0533437323e-5"), decimalInput("-1"));
+}
+export function evaluate9425() {
+    return decimalPower(decimalInput("673.0533437323e-5"), decimalInput("-1"));
+}
+export function evaluate9426() {
+    return decimalPower(decimalInput("673.0533437323e-5"), decimalInput("-2.125"));
+}
+export function evaluate9427() {
+    return decimalPower(decimalInput("673.0533437323e-5"), decimalInput("-2.125"));
+}
+export function evaluate9428() {
+    return decimalPower(decimalInput("673.0533437323e-5"), decimalInput("-2.125"));
+}
+export function evaluate9429() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("673.0533437323e-5"));
+}
+export function evaluate9430() {
+    return decimalExp(decimalInput("5.533437323"));
+}
+export function evaluate9431() {
+    return decimalSqrt(decimalInput("3249.0710032238e-4"));
+}
+export function evaluate9432() {
+    return decimalLn(decimalInput("3249.0710032238e-4"));
+}
+export function evaluate9433() {
+    return decimalLog10(decimalInput("3249.0710032238e-4"));
+}
+export function evaluate9434() {
+    return decimalLog10(decimalInput("3249.0710032238e-4"));
+}
+export function evaluate9435() {
+    return decimalPower(decimalInput("3249.0710032238e-4"), decimalInput("0"));
+}
+export function evaluate9436() {
+    return decimalPower(decimalInput("3249.0710032238e-4"), decimalInput("0"));
+}
+export function evaluate9437() {
+    return decimalPower(decimalInput("3249.0710032238e-4"), decimalInput("0"));
+}
+export function evaluate9438() {
+    return decimalPower(decimalInput("3249.0710032238e-4"), decimalInput("-1.125"));
+}
+export function evaluate9439() {
+    return decimalPower(decimalInput("3249.0710032238e-4"), decimalInput("-1.125"));
+}
+export function evaluate9440() {
+    return decimalPower(decimalInput("3249.0710032238e-4"), decimalInput("-1.125"));
+}
+export function evaluate9441() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("3249.0710032238e-4"));
+}
+export function evaluate9442() {
+    return decimalExp(decimalInput("6.710032238"));
+}
+export function evaluate9443() {
+    return decimalSqrt(decimalInput("1126.4094151669e-3"));
+}
+export function evaluate9444() {
+    return decimalLn(decimalInput("1126.4094151669e-3"));
+}
+export function evaluate9445() {
+    return decimalLog10(decimalInput("1126.4094151669e-3"));
+}
+export function evaluate9446() {
+    return decimalLog10(decimalInput("1126.4094151669e-3"));
+}
+export function evaluate9447() {
+    return decimalPower(decimalInput("1126.4094151669e-3"), decimalInput("1"));
+}
+export function evaluate9448() {
+    return decimalPower(decimalInput("1126.4094151669e-3"), decimalInput("1"));
+}
+export function evaluate9449() {
+    return decimalPower(decimalInput("1126.4094151669e-3"), decimalInput("1"));
+}
+export function evaluate9450() {
+    return decimalPower(decimalInput("1126.4094151669e-3"), decimalInput("0.125"));
+}
+export function evaluate9451() {
+    return decimalPower(decimalInput("1126.4094151669e-3"), decimalInput("0.125"));
+}
+export function evaluate9452() {
+    return decimalPower(decimalInput("1126.4094151669e-3"), decimalInput("0.125"));
+}
+export function evaluate9453() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("1126.4094151669e-3"));
+}
+export function evaluate9454() {
+    return decimalExp(decimalInput("7.4094151669"));
+}
+export function evaluate9455() {
+    return decimalSqrt(decimalInput("8080.2802117840e-2"));
+}
+export function evaluate9456() {
+    return decimalLn(decimalInput("8080.2802117840e-2"));
+}
+export function evaluate9457() {
+    return decimalLog10(decimalInput("8080.2802117840e-2"));
+}
+export function evaluate9458() {
+    return decimalLog10(decimalInput("8080.2802117840e-2"));
+}
+export function evaluate9459() {
+    return decimalPower(decimalInput("8080.2802117840e-2"), decimalInput("2"));
+}
+export function evaluate9460() {
+    return decimalPower(decimalInput("8080.2802117840e-2"), decimalInput("2"));
+}
+export function evaluate9461() {
+    return decimalPower(decimalInput("8080.2802117840e-2"), decimalInput("2"));
+}
+export function evaluate9462() {
+    return decimalPower(decimalInput("8080.2802117840e-2"), decimalInput("1.125"));
+}
+export function evaluate9463() {
+    return decimalPower(decimalInput("8080.2802117840e-2"), decimalInput("1.125"));
+}
+export function evaluate9464() {
+    return decimalPower(decimalInput("8080.2802117840e-2"), decimalInput("1.125"));
+}
+export function evaluate9465() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("8080.2802117840e-2"));
+}
+export function evaluate9466() {
+    return decimalExp(decimalInput("8.2802117840"));
+}
+export function evaluate9467() {
+    return decimalSqrt(decimalInput("1226.3461994991e-1"));
+}
+export function evaluate9468() {
+    return decimalLn(decimalInput("1226.3461994991e-1"));
+}
+export function evaluate9469() {
+    return decimalLog10(decimalInput("1226.3461994991e-1"));
+}
+export function evaluate9470() {
+    return decimalLog10(decimalInput("1226.3461994991e-1"));
+}
+export function evaluate9471() {
+    return decimalPower(decimalInput("1226.3461994991e-1"), decimalInput("3"));
+}
+export function evaluate9472() {
+    return decimalPower(decimalInput("1226.3461994991e-1"), decimalInput("3"));
+}
+export function evaluate9473() {
+    return decimalPower(decimalInput("1226.3461994991e-1"), decimalInput("3"));
+}
+export function evaluate9474() {
+    return decimalPower(decimalInput("1226.3461994991e-1"), decimalInput("2.125"));
+}
+export function evaluate9475() {
+    return decimalPower(decimalInput("1226.3461994991e-1"), decimalInput("2.125"));
+}
+export function evaluate9476() {
+    return decimalPower(decimalInput("1226.3461994991e-1"), decimalInput("2.125"));
+}
+export function evaluate9477() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("1226.3461994991e-1"));
+}
+export function evaluate9478() {
+    return decimalExp(decimalInput("9.3461994991"));
+}
+export function evaluate9479() {
+    return decimalSqrt(decimalInput("8687.3425386114e0"));
+}
+export function evaluate9480() {
+    return decimalLn(decimalInput("8687.3425386114e0"));
+}
+export function evaluate9481() {
+    return decimalLog10(decimalInput("8687.3425386114e0"));
+}
+export function evaluate9482() {
+    return decimalLog10(decimalInput("8687.3425386114e0"));
+}
+export function evaluate9483() {
+    return decimalPower(decimalInput("8687.3425386114e0"), decimalInput("4"));
+}
+export function evaluate9484() {
+    return decimalPower(decimalInput("8687.3425386114e0"), decimalInput("4"));
+}
+export function evaluate9485() {
+    return decimalPower(decimalInput("8687.3425386114e0"), decimalInput("4"));
+}
+export function evaluate9486() {
+    return decimalPower(decimalInput("8687.3425386114e0"), decimalInput("3.125"));
+}
+export function evaluate9487() {
+    return decimalPower(decimalInput("8687.3425386114e0"), decimalInput("3.125"));
+}
+export function evaluate9488() {
+    return decimalPower(decimalInput("8687.3425386114e0"), decimalInput("3.125"));
+}
+export function evaluate9489() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("8687.3425386114e0"));
+}
+export function evaluate9490() {
+    return decimalExp(decimalInput("10.3425386114"));
+}
+export function evaluate9491() {
+    return decimalSqrt(decimalInput("6417.4030393337e1"));
+}
+export function evaluate9492() {
+    return decimalLn(decimalInput("6417.4030393337e1"));
+}
+export function evaluate9493() {
+    return decimalLog10(decimalInput("6417.4030393337e1"));
+}
+export function evaluate9494() {
+    return decimalLog10(decimalInput("6417.4030393337e1"));
+}
+export function evaluate9495() {
+    return decimalPower(decimalInput("6417.4030393337e1"), decimalInput("5"));
+}
+export function evaluate9496() {
+    return decimalPower(decimalInput("6417.4030393337e1"), decimalInput("5"));
+}
+export function evaluate9497() {
+    return decimalPower(decimalInput("6417.4030393337e1"), decimalInput("5"));
+}
+export function evaluate9498() {
+    return decimalPower(decimalInput("6417.4030393337e1"), decimalInput("-3.125"));
+}
+export function evaluate9499() {
+    return decimalPower(decimalInput("6417.4030393337e1"), decimalInput("-3.125"));
+}
+export function evaluate9500() {
+    return decimalPower(decimalInput("6417.4030393337e1"), decimalInput("-3.125"));
+}
+export function evaluate9501() {
+    return decimalLog(decimalInput("1.00000000000000000001"), decimalInput("6417.4030393337e1"));
+}
+export function evaluate9502() {
+    return decimalExp(decimalInput("-10.4030393337"));
+}
+export function evaluate9503() {
+    return decimalLog(decimalInput("1e131071"), decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate9504() {
+    return decimalLog(decimalInput("1e131071"), decimalInput("1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate9505() {
+    return decimalLog(decimalInput("1e-1000"), decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate9506() {
+    return decimalLog(decimalInput("1e-1000"), decimalInput("1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate9507() {
+    return decimalLog(decimalInput("2"), decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate9508() {
+    return decimalLog(decimalInput("2"), decimalInput("1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate9509() {
+    return decimalLog(decimalInput("1.01"), decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate9510() {
+    return decimalLog(decimalInput("1.01"), decimalInput("1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate9511() {
+    return decimalLog(decimalInput("1.1"), decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate9512() {
+    return decimalLog(decimalInput("1.1"), decimalInput("1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate9513() {
+    return decimalLog(decimalInput("0.99"), decimalInput("1.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate9514() {
+    return decimalLog(decimalInput("0.99"), decimalInput("1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001"));
+}
+export function evaluate9515() {
+    return decimalPower(decimalInput("1.0000000000000000000024999999999999999999968750000000000000000078124999999999999999755859375000000000000854492187499999999996795654296875000000012588500976562499999948859214782714843750213086605072021484374094381928443908691410160623490810394287092266022227704524993972158699762076139449735410380526445806027978983365755993872874047067256242371513539664169556431261298568408346643110462537814618205755934354780610386088240959523446372334215884181141054418587613920182955195217897932267667181140215404270250670021203667525"), decimalInput("2"));
+}
+export function evaluate9516() {
+    return decimalPower(decimalInput("1.0000000000000000000024999999999999999999968750000000000000000078124999999999999999755859375000000000000854492187499999999996795654296875000000012588500976562499999948859214782714843750213086605072021484374094381928443908691410160623490810394287092266022227704524993972158699762076139449735410380526445806027978983365755993872874047067256242371513539664169556431261298568408346643110462537814618205755934354780610386088240959523446372334215884181141054418587613920182955195217897932267667181140215404270250670021203667525"), decimalInput("2"));
+}
+export function evaluate9517() {
+    return decimalPower(decimalInput("1.0000000000000000000024999999999999999999968750000000000000000078124999999999999999755859375000000000000854492187499999999996795654296875000000012588500976562499999948859214782714843750213086605072021484374094381928443908691410160623490810394287092266022227704524993972158699762076139449735410380526445806027978983365755993872874047067256242371513539664169556431261298568408346643110462537814618205755934354780610386088240959523446372334215884181141054418587613920182955195217897932267667181140215404270250670021203667525"), decimalInput("2"));
+}
+export function evaluate9518() {
+    return decimalPower(decimalInput("-1.0000000000000000000024999999999999999999968750000000000000000078124999999999999999755859375000000000000854492187499999999996795654296875000000012588500976562499999948859214782714843750213086605072021484374094381928443908691410160623490810394287092266022227704524993972158699762076139449735410380526445806027978983365755993872874047067256242371513539664169556431261298568408346643110462537814618205755934354780610386088240959523446372334215884181141054418587613920182955195217897932267667181140215404270250670021203667525"), decimalInput("2"));
+}
+export function evaluate9519() {
+    return decimalPower(decimalInput("-1.0000000000000000000024999999999999999999968750000000000000000078124999999999999999755859375000000000000854492187499999999996795654296875000000012588500976562499999948859214782714843750213086605072021484374094381928443908691410160623490810394287092266022227704524993972158699762076139449735410380526445806027978983365755993872874047067256242371513539664169556431261298568408346643110462537814618205755934354780610386088240959523446372334215884181141054418587613920182955195217897932267667181140215404270250670021203667525"), decimalInput("2"));
+}
+export function evaluate9520() {
+    return decimalPower(decimalInput("-1.0000000000000000000024999999999999999999968750000000000000000078124999999999999999755859375000000000000854492187499999999996795654296875000000012588500976562499999948859214782714843750213086605072021484374094381928443908691410160623490810394287092266022227704524993972158699762076139449735410380526445806027978983365755993872874047067256242371513539664169556431261298568408346643110462537814618205755934354780610386088240959523446372334215884181141054418587613920182955195217897932267667181140215404270250670021203667525"), decimalInput("2"));
+}
+export function evaluate9521() {
+    return decimalPower(decimalInput("1.0000000000000000000024999999999999999999968750000000000000000078124999999999999999755859375000000000000854492187499999999996795654296875000000012588500976562499999948859214782714843750213086605072021484374094381928443908691410160623490810394287092266022227704524993972158699762076139449735410380526445806027978983365755993872874047067256242371513539664169556431261298568408346643110462537814618205755934354780610386088240959523446372334215884181141054418587613920182955195217897932267667181140215404270250670021203667526"), decimalInput("2"));
+}
+export function evaluate9522() {
+    return decimalPower(decimalInput("1.0000000000000000000024999999999999999999968750000000000000000078124999999999999999755859375000000000000854492187499999999996795654296875000000012588500976562499999948859214782714843750213086605072021484374094381928443908691410160623490810394287092266022227704524993972158699762076139449735410380526445806027978983365755993872874047067256242371513539664169556431261298568408346643110462537814618205755934354780610386088240959523446372334215884181141054418587613920182955195217897932267667181140215404270250670021203667526"), decimalInput("2"));
+}
+export function evaluate9523() {
+    return decimalPower(decimalInput("1.0000000000000000000024999999999999999999968750000000000000000078124999999999999999755859375000000000000854492187499999999996795654296875000000012588500976562499999948859214782714843750213086605072021484374094381928443908691410160623490810394287092266022227704524993972158699762076139449735410380526445806027978983365755993872874047067256242371513539664169556431261298568408346643110462537814618205755934354780610386088240959523446372334215884181141054418587613920182955195217897932267667181140215404270250670021203667526"), decimalInput("2"));
+}
+export function evaluate9524() {
+    return decimalPower(decimalInput("-1.0000000000000000000024999999999999999999968750000000000000000078124999999999999999755859375000000000000854492187499999999996795654296875000000012588500976562499999948859214782714843750213086605072021484374094381928443908691410160623490810394287092266022227704524993972158699762076139449735410380526445806027978983365755993872874047067256242371513539664169556431261298568408346643110462537814618205755934354780610386088240959523446372334215884181141054418587613920182955195217897932267667181140215404270250670021203667526"), decimalInput("2"));
+}
+export function evaluate9525() {
+    return decimalPower(decimalInput("-1.0000000000000000000024999999999999999999968750000000000000000078124999999999999999755859375000000000000854492187499999999996795654296875000000012588500976562499999948859214782714843750213086605072021484374094381928443908691410160623490810394287092266022227704524993972158699762076139449735410380526445806027978983365755993872874047067256242371513539664169556431261298568408346643110462537814618205755934354780610386088240959523446372334215884181141054418587613920182955195217897932267667181140215404270250670021203667526"), decimalInput("2"));
+}
+export function evaluate9526() {
+    return decimalPower(decimalInput("-1.0000000000000000000024999999999999999999968750000000000000000078124999999999999999755859375000000000000854492187499999999996795654296875000000012588500976562499999948859214782714843750213086605072021484374094381928443908691410160623490810394287092266022227704524993972158699762076139449735410380526445806027978983365755993872874047067256242371513539664169556431261298568408346643110462537814618205755934354780610386088240959523446372334215884181141054418587613920182955195217897932267667181140215404270250670021203667526"), decimalInput("2"));
+}
+export function evaluate9527() {
+    return decimalPower(decimalInput("1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000024999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"), decimalInput("2"));
+}
+export function evaluate9528() {
+    return decimalPower(decimalInput("1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000024999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"), decimalInput("2"));
+}
+export function evaluate9529() {
+    return decimalPower(decimalInput("1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000024999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"), decimalInput("2"));
+}
+export function evaluate9530() {
+    return decimalPower(decimalInput("-1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000024999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"), decimalInput("2"));
+}
+export function evaluate9531() {
+    return decimalPower(decimalInput("-1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000024999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"), decimalInput("2"));
+}
+export function evaluate9532() {
+    return decimalPower(decimalInput("-1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000024999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999999"), decimalInput("2"));
+}
+export function evaluate9533() {
+    return decimalPower(decimalInput("1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000025000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimalInput("2"));
+}
+export function evaluate9534() {
+    return decimalPower(decimalInput("1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000025000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimalInput("2"));
+}
+export function evaluate9535() {
+    return decimalPower(decimalInput("1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000025000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimalInput("2"));
+}
+export function evaluate9536() {
+    return decimalPower(decimalInput("-1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000025000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimalInput("2"));
+}
+export function evaluate9537() {
+    return decimalPower(decimalInput("-1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000025000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimalInput("2"));
+}
+export function evaluate9538() {
+    return decimalPower(decimalInput("-1.000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000025000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"), decimalInput("2"));
+}
+export function evaluate9539() {
+    return decimalSqrt(decimalDiv(decimalInput("1"), decimalInput("0")));
+}
+export function evaluate9540() {
+    return decimalExp(decimalDiv(decimalInput("1"), decimalInput("0")));
+}
+export function evaluate9541() {
+    return decimalLn(decimalDiv(decimalInput("1"), decimalInput("0")));
+}
+export function evaluate9542() {
+    return decimalLog10(decimalDiv(decimalInput("1"), decimalInput("0")));
+}
+export function evaluate9543() {
+    return decimalPower(decimalDiv(decimalInput("1"), decimalInput("0")), decimalInput(null));
+}
+export function evaluate9544() {
+    return decimalPower(decimalInput(null), decimalDiv(decimalInput("1"), decimalInput("0")));
+}
+export function evaluate9545() {
+    return decimalLog(decimalDiv(decimalInput("1"), decimalInput("0")), decimalInput(null));
+}
+export function evaluate9546() {
+    return decimalLog(decimalInput(null), decimalDiv(decimalInput("1"), decimalInput("0")));
 }

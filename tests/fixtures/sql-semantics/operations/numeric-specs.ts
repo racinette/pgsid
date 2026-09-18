@@ -1,3 +1,4 @@
+import { decimalMathSpecs } from './decimal-math-specs.js'
 import { decimalSpecs } from './decimal-specs.js'
 import type {
   FloatType,
@@ -8,6 +9,7 @@ import { functionMetadata, operatorMetadata } from '../../../../src/postgres/bui
 import { integer, integerWidths } from './integer-addition.js'
 
 export interface NumericSpec {
+  stress?: boolean
   name: string
   sql: string
   expression: SqlExpression
@@ -519,4 +521,4 @@ binary(
   failedDivision,
   sqlInteger('pg_catalog.int8', null),
 )
-export const numericSpecs: readonly NumericSpec[] = [...specs, ...decimalSpecs]
+export const numericSpecs: readonly NumericSpec[] = [...specs, ...decimalSpecs, ...decimalMathSpecs]
