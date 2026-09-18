@@ -1,3 +1,4 @@
+import { decimalSpecs } from './decimal-specs.js'
 import type {
   FloatType,
   NumericType,
@@ -518,4 +519,4 @@ binary(
   failedDivision,
   sqlInteger('pg_catalog.int8', null),
 )
-export const numericSpecs: readonly NumericSpec[] = specs
+export const numericSpecs: readonly NumericSpec[] = [...specs, ...decimalSpecs]

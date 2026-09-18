@@ -1,4 +1,5 @@
 import { goFloatOperators, goFloatFunctions } from './floating-point.js'
+import { goDecimalOperators, goDecimalFunctions } from './decimal.js'
 import { go } from '../ast.js'
 import type { GoExpression } from '../ast.js'
 import { goNumericOperators, goNumericFunctions } from './numeric.js'
@@ -6,9 +7,14 @@ import type { ExpressionBackend } from '../../../sql-semantics/expressions.js'
 
 export const goSqlBackend: ExpressionBackend<GoExpression> = {
   bindings: [
+    { domain: 'numeric', operators: goDecimalOperators, functions: goDecimalFunctions },
     { domain: 'numeric', operators: goFloatOperators, functions: goFloatFunctions },
     { domain: 'numeric', operators: goNumericOperators, functions: goNumericFunctions },
   ],
+  decimal: (value) =>
+    value === null
+      ? { kind: 'composite', type: go.ident('SqlDecimal'), elements: [] }
+      : go.call(go.ident('decimalInput'), [go.string(value)]),
   float: (type, bits) =>
     bits === null
       ? { kind: 'composite', type: go.ident('SqlFloat'), elements: [] }

@@ -1,4 +1,5 @@
 import { typescriptFloatOperators, typescriptFloatFunctions } from './floating-point.js'
+import { typescriptDecimalOperators, typescriptDecimalFunctions } from './decimal.js'
 import ts from 'typescript'
 import { factory, identifier } from '../ast.js'
 import { typescriptNumericOperators, typescriptNumericFunctions } from './numeric.js'
@@ -6,6 +7,11 @@ import type { ExpressionBackend } from '../../../sql-semantics/expressions.js'
 
 export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
   bindings: [
+    {
+      domain: 'numeric',
+      operators: typescriptDecimalOperators,
+      functions: typescriptDecimalFunctions,
+    },
     { domain: 'numeric', operators: typescriptFloatOperators, functions: typescriptFloatFunctions },
     {
       domain: 'numeric',
@@ -13,6 +19,10 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
       functions: typescriptNumericFunctions,
     },
   ],
+  decimal: (value) =>
+    factory.createCallExpression(identifier('decimalInput'), undefined, [
+      value === null ? factory.createNull() : factory.createStringLiteral(value),
+    ]),
   float: (type, bits) =>
     factory.createCallExpression(
       identifier(type === 'pg_catalog.float4' ? 'float4Input' : 'float8Input'),

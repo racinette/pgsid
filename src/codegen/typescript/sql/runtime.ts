@@ -1,5 +1,6 @@
 import ts from 'typescript'
 import { typescriptFloatHelpers } from './floating-point-runtime.js'
+import { typescriptDecimalHelpers } from './decimal-runtime.js'
 
 const helpers: Record<string, { dependencies: readonly string[]; source: string }> = {
   sqlIntegerError: {
@@ -146,6 +147,7 @@ for (const [name, operator] of [
 }
 
 Object.assign(helpers, typescriptFloatHelpers)
+Object.assign(helpers, typescriptDecimalHelpers)
 
 for (const [width, bits, shiftMask] of [
   ['int2', 16, 31n],
