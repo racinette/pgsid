@@ -12,6 +12,11 @@
     "language-server": "tsx src/language-server-bin.ts",
     "build": "tsup",
     "typecheck": "tsc --noEmit",
+    "builtin-inventory:generate": "node --import tsx scripts/generate-builtin-inventory.ts",
+    "builtin-inventory:check": "node --import tsx scripts/generate-builtin-inventory.ts --check",
+    "builtin-groups:explore": "node --import tsx scripts/explore-builtin-groups.ts",
+    "sql-semantics:coverage": "node --import tsx scripts/report-sql-semantics-coverage.ts",
+    "sql-semantics-goldens:update": "UPDATE_SQL_SEMANTICS_GOLDENS=1 vitest run tests/sql-semantics/operations.test.ts",
     "lint": "eslint . && pnpm espalier:check",
     "format": "prettier --write . --ignore-path .gitignore --ignore-path .prettierignore --ignore-path tests/unit/query/.prettierignore --ignore-path tests/unit/query/sqlc-corpus/cases/.prettierignore",
     "format:check": "prettier --check . --ignore-path .gitignore --ignore-path .prettierignore --ignore-path tests/unit/query/.prettierignore --ignore-path tests/unit/query/sqlc-corpus/cases/.prettierignore",
@@ -21,7 +26,9 @@
     "espalier:build": "espalier build --config tests/unit/query/espalier.config.yaml",
     "espalier:check": "pnpm espalier:lint && espalier build --check --config tests/unit/query/espalier.config.yaml",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "numeric-observations:generate": "node --import tsx scripts/generate-numeric-observations.ts",
+    "numeric-observations:check": "node --import tsx scripts/generate-numeric-observations.ts --check"
   },
   "dependencies": {
     "@electric-sql/pglite": "file:./vendor/electric-sql-pglite-0.5.8.tgz",

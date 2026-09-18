@@ -1,3 +1,3 @@
-export const description = 'shared adversarial values and database setup for builtin probes'
+export const description = 'builtin probe setup and compatibility exports for shared PostgreSQL inputs'
 export const rule = ''
 export async function lint() {}
