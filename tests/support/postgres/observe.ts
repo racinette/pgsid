@@ -44,7 +44,11 @@ export async function observeSql(
         throw new Error(`Unexpected SQL result type: ${row.type}`)
       return row.value === null ? { kind: 'null' } : { kind: 'float', type, value: row.value }
     }
-    const result = await pg.query<{ value: string | null }>(`SELECT (${expression})::text AS value`)
+    const result = await pg.query<{ value: string | null }>(
+      type === 'pg_catalog.bpchar'
+        ? `SELECT pg_catalog.convert_from(pg_catalog.bpcharsend((${expression})), 'UTF8') AS value`
+        : `SELECT (${expression})::text AS value`,
+    )
     if (result.rows.length !== 1) throw new Error('Expected one scalar observation')
     const value = result.rows[0]!.value
     return value === null ? { kind: 'null' } : { kind: 'value', value }

@@ -8,10 +8,18 @@ export type FloatType = 'pg_catalog.float4' | 'pg_catalog.float8'
 export type DecimalType = 'pg_catalog."numeric"'
 export type NumericType = IntegerType | FloatType | DecimalType
 
-export type ScalarType = NumericType | 'pg_catalog.bool' | 'pg_catalog.text'
+export type TextType = 'pg_catalog.text' | 'pg_catalog."varchar"' | 'pg_catalog.bpchar'
+export type ScalarType = NumericType | 'pg_catalog.bool' | TextType
 export type SyntaxKind = 'and' | 'or' | 'not' | 'is-null' | 'is-not-null' | 'case' | 'coalesce'
 
 export type SqlExpression =
+  | {
+      kind: 'text-coercion'
+      type: TextType
+      length: number | null
+      explicit: boolean
+      operand: SqlExpression
+    }
   | { kind: 'boolean'; type: 'pg_catalog.bool'; value: boolean | null }
   | { kind: 'text'; type: 'pg_catalog.text'; value: string | null }
   | {
@@ -41,7 +49,7 @@ export type SqlExpression =
   | {
       kind: 'cast'
       signature: string | null
-      type: NumericType
+      type: NumericType | 'pg_catalog.text'
       operand: SqlExpression
     }
 
@@ -49,6 +57,12 @@ export interface ExpressionBackend<Ast> {
   bindings: readonly SqlBindingGroup<Ast>[]
   boolean: (value: boolean | null) => Ast
   text: (value: string | null) => Ast
+  coerceText: (
+    type: TextType,
+    length: number | null,
+    explicit: boolean,
+    operand: TypedSqlExpression<Ast>,
+  ) => { expression: Ast; helpers: readonly string[] }
   syntax: (
     kind: SyntaxKind,
     type: ScalarType,
@@ -65,6 +79,23 @@ export function emitSqlExpression<Ast>(
 ): { value: TypedSqlExpression<Ast>; helpers: readonly string[] } {
   const helpers = new Set<string>()
   const emit = (node: SqlExpression): TypedSqlExpression<Ast> => {
+    if (node.kind === 'text-coercion') {
+      if (
+        !['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(node.type) ||
+        !['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(
+          node.operand.type,
+        ) ||
+        (node.length !== null &&
+          (node.type === 'pg_catalog.text' ||
+            !Number.isInteger(node.length) ||
+            node.length < 1 ||
+            node.length > 10485760))
+      )
+        throw new Error('Invalid text coercion')
+      const result = backend.coerceText(node.type, node.length, node.explicit, emit(node.operand))
+      for (const helper of result.helpers) helpers.add(helper)
+      return { type: node.type, expression: result.expression }
+    }
     if (node.kind === 'boolean' || node.kind === 'text') {
       if (
         node.kind === 'text' &&
@@ -152,7 +183,7 @@ export function emitSqlExpression<Ast>(
       return { type: node.type, expression: backend.integer(node.type, node.value) }
     }
     if (node.kind === 'cast' && node.signature === null) {
-      if (node.operand.type !== node.type) throw new Error('Invalid numeric relabel cast')
+      if (node.operand.type !== node.type) throw new Error('Invalid relabel cast')
       return emit(node.operand)
     }
     const signature = node.signature!
@@ -167,9 +198,11 @@ export function emitSqlExpression<Ast>(
       (metadata.schema !== 'pg_catalog' ||
         metadata.name !== node.type.slice('pg_catalog.'.length).replaceAll('"', '') ||
         operands.length !== 1 ||
-        !/^pg_catalog\.(int[248]|float[48]|"numeric")$/.test(node.operand.type))
+        (node.type === 'pg_catalog.text'
+          ? !['pg_catalog.bool', 'pg_catalog.bpchar'].includes(node.operand.type)
+          : !/^pg_catalog\.(int[248]|float[48]|"numeric")$/.test(node.operand.type)))
     ) {
-      throw new Error(`Invalid numeric cast function: ${signature}`)
+      throw new Error(`Invalid cast function: ${signature}`)
     }
     if (node.type !== metadata.result || operands.length !== metadata.args.length)
       throw new Error(`Invalid resolved expression: ${signature}`)
@@ -183,16 +216,33 @@ export function emitSqlExpression<Ast>(
     if (!binding) throw new Error(`Unsupported overload: ${signature}`)
     const emitter = binding as unknown as CallableEmitter<CallableMetadata, Ast>
     if (
-      operands.some((operand) => operand.type === 'pg_catalog.text') &&
+      operands.some((operand) =>
+        ['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog."varchar"'].includes(operand.type),
+      ) &&
       ((operator && ['=', '<>', '<', '<=', '>', '>='].includes(metadata.name)) ||
         (!operator &&
-          ['texteq', 'textne', 'text_lt', 'text_le', 'text_gt', 'text_ge'].includes(
-            metadata.name,
-          ))) &&
+          [
+            'texteq',
+            'textne',
+            'text_lt',
+            'text_le',
+            'text_gt',
+            'text_ge',
+            'bpchareq',
+            'bpcharne',
+            'bpcharlt',
+            'bpcharle',
+            'bpchargt',
+            'bpcharge',
+            'strpos',
+            'replace',
+            'split_part',
+            'starts_with',
+          ].includes(metadata.name))) &&
       node.kind !== 'cast' &&
       node.collation !== 'C'
     )
-      throw new Error('Unsupported text comparison collation: expected C')
+      throw new Error('Unsupported text collation: expected C')
     const emittedOperands = operands.map(emit)
     for (const helper of emitter.helpers) helpers.add(helper)
     const result = emitter.emit(metadata, emittedOperands)

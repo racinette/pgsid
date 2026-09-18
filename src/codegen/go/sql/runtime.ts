@@ -1,3 +1,4 @@
+import { goTextDependencies } from './text-runtime.js'
 import { goScalarDependencies } from './scalar-runtime.js'
 import { floatMathCopyright } from '../../../sql-semantics/float-math-license.js'
 import { goFloatMathDependencies } from './float-math-runtime.js'
@@ -68,13 +69,14 @@ for (const name of ['Eq', 'Ne', 'Lt', 'Le', 'Gt', 'Ge'])
   dependencies[`float${name}`] = ['sqlFloatCompare', 'sqlComparisonResult']
 
 Object.assign(dependencies, goScalarDependencies)
+Object.assign(dependencies, goTextDependencies)
 Object.assign(dependencies, goDecimalDependencies)
 Object.assign(dependencies, goDecimalMathDependencies)
 Object.assign(dependencies, goFloatMathDependencies)
 
 export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsql'): string {
   const declarations = new Map(
-    ['integer', 'floating-point', 'decimal', 'decimal-math', 'float-math', 'scalar']
+    ['integer', 'floating-point', 'decimal', 'decimal-math', 'float-math', 'scalar', 'text']
       .flatMap((asset) =>
         readFileSync(new URL(`./assets/${asset}.go`, import.meta.url), 'utf8')
           .split(/\n(?=type |func )/)

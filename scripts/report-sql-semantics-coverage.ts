@@ -47,7 +47,7 @@ export function sqlSemanticsCoverage(
       expression.operands.forEach((operand) => record(operand, name))
       return
     }
-    if (expression.kind === 'null-test') {
+    if (expression.kind === 'null-test' || expression.kind === 'text-coercion') {
       record(expression.operand, name)
       return
     }

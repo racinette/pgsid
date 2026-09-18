@@ -8,7 +8,7 @@ function suffix(type: string): string {
   if (/^pg_catalog.float[48]$/.test(type)) return 'Float'
   if (type === 'pg_catalog."numeric"') return 'Decimal'
   if (type === 'pg_catalog.bool') return 'Boolean'
-  if (type === 'pg_catalog.text') return 'Text'
+  if (['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type)) return 'Text'
   throw new Error(`Unsupported conditional value type: ${type}`)
 }
 export function goSqlSyntax(
