@@ -22,6 +22,7 @@ function call<M extends CallableMetadata>(helper: string): CallableEmitter<M, Go
 }
 
 export const goFloatOperators = {
+  'operator:["pg_catalog","^"](pg_catalog.float8,pg_catalog.float8)': call('float8Power'),
   'operator:["pg_catalog","+"](pg_catalog.float4,pg_catalog.float4)': call('float4Add'),
   'operator:["pg_catalog","+"](pg_catalog.float4,pg_catalog.float8)': call('float8Add'),
   'operator:["pg_catalog","+"](pg_catalog.float8,pg_catalog.float4)': call('float8Add'),
@@ -73,6 +74,14 @@ export const goFloatOperators = {
 } satisfies OperatorBindings<typeof PG18_NUMERIC, GoExpression>
 
 export const goFloatFunctions = {
+  'function:["pg_catalog","power"](pg_catalog.float8,pg_catalog.float8)': call('float8Power'),
+  'function:["pg_catalog","pow"](pg_catalog.float8,pg_catalog.float8)': call('float8Power'),
+  'function:["pg_catalog","exp"](pg_catalog.float8)': call('float8Exp'),
+  'function:["pg_catalog","ln"](pg_catalog.float8)': call('float8Ln'),
+  'function:["pg_catalog","log"](pg_catalog.float8)': call('float8Log10'),
+  'function:["pg_catalog","log10"](pg_catalog.float8)': call('float8Log10'),
+  'function:["pg_catalog","width_bucket"](pg_catalog.float8,pg_catalog.float8,pg_catalog.float8,pg_catalog.int4)':
+    call('float8WidthBucket'),
   'function:["pg_catalog","abs"](pg_catalog.float4)': call('float4Abs'),
   'function:["pg_catalog","float4"](pg_catalog.float8)': call('float4FromFloat8'),
   'function:["pg_catalog","float4"](pg_catalog.int2)': call('float4FromInteger'),

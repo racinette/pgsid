@@ -275,3 +275,45 @@ for (const [width, digits] of [
     source: `function decimalFrom${width}(value: number | null): SqlDecimal | null { return sqlDecimalFromFloat(value, ${digits}) }`,
   }
 }
+
+Object.assign(typescriptDecimalHelpers, {
+  sqlWidthBucketError: {
+    dependencies: [],
+    source: `class SqlWidthBucketError extends Error { readonly code = '2201G' }`,
+  },
+  decimalScale: {
+    dependencies: ['SqlDecimal'],
+    source: `function decimalScale(value: SqlDecimal | null): bigint | null {
+      return value === null || !value.value.isFinite() ? null : BigInt(value.scale)
+    }`,
+  },
+  decimalMinScale: {
+    dependencies: ['SqlDecimal'],
+    source: `function decimalMinScale(value: SqlDecimal | null): bigint | null {
+      return value === null || !value.value.isFinite() ? null : BigInt(value.value.dp())
+    }`,
+  },
+  decimalTrimScale: {
+    dependencies: ['SqlDecimal'],
+    source: `function decimalTrimScale(value: SqlDecimal | null): SqlDecimal | null {
+      return value === null || !value.value.isFinite() ? value : new SqlDecimal(value.value, value.value.dp())
+    }`,
+  },
+  decimalWidthBucket: {
+    dependencies: ['SqlDecimal', 'sqlWidthBucketError', 'sqlIntegerRange'],
+    source: `function decimalWidthBucket(value: SqlDecimal | null, lower: SqlDecimal | null, upper: SqlDecimal | null, count: bigint | null): bigint | null {
+      if (value === null || lower === null || upper === null || count === null) return null
+      const a = value.value, b = lower.value, c = upper.value
+      if (count <= 0n || a.isNaN() || !b.isFinite() || !c.isFinite() || b.eq(c)) throw new SqlWidthBucketError()
+      const ascending = b.lt(c)
+      if (ascending ? a.lt(b) : a.gt(b)) return 0n
+      if (ascending ? a.gte(c) : a.lte(c)) return sqlIntegerRange(count + 1n, -2147483648n, 2147483647n)
+      const Constructor = Decimal.clone({ precision: Math.max(a.sd(), b.sd(), c.sd()) + Math.max(a.e, b.e, c.e) - Math.min(a.e - a.dp(), b.e - b.dp(), c.e - c.dp()) + 32, minE: -1000000000, maxE: 1000000000 })
+      const numerator = new Constructor(a).sub(b).mul(count.toString())
+      const denominator = new Constructor(c).sub(b)
+      const scale = Math.max(numerator.dp(), denominator.dp())
+      const factor = new Constructor('1e' + scale)
+      return BigInt(numerator.mul(factor).toFixed(0)) / BigInt(denominator.mul(factor).toFixed(0)) + 1n
+    }`,
+  },
+})

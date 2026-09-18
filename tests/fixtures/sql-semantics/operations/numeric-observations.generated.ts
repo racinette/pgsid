@@ -34167,4 +34167,16367 @@ export const numericObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'error',
     code: '22012',
   },
+  'numeric utility scale null': {
+    kind: 'null',
+  },
+  'numeric utility min_scale null': {
+    kind: 'null',
+  },
+  'numeric utility trim_scale null': {
+    kind: 'null',
+  },
+  'numeric utility scale 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric utility min_scale 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric utility trim_scale 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric utility scale -0.0000': {
+    kind: 'value',
+    value: '4',
+  },
+  'numeric utility min_scale -0.0000': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric utility trim_scale -0.0000': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric utility scale 1.2300': {
+    kind: 'value',
+    value: '4',
+  },
+  'numeric utility min_scale 1.2300': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric utility trim_scale 1.2300': {
+    kind: 'value',
+    value: '1.23',
+  },
+  'numeric utility scale 1200.00': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric utility min_scale 1200.00': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric utility trim_scale 1200.00': {
+    kind: 'value',
+    value: '1200',
+  },
+  'numeric utility scale 1e-1000': {
+    kind: 'value',
+    value: '1000',
+  },
+  'numeric utility min_scale 1e-1000': {
+    kind: 'value',
+    value: '1000',
+  },
+  'numeric utility trim_scale 1e-1000': {
+    kind: 'value',
+    value:
+      '0.0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001',
+  },
+  'numeric utility scale 1e1000': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric utility min_scale 1e1000': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric utility trim_scale 1e1000': {
+    kind: 'value',
+    value:
+      '10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'numeric utility scale 0.0000000012000': {
+    kind: 'value',
+    value: '13',
+  },
+  'numeric utility min_scale 0.0000000012000': {
+    kind: 'value',
+    value: '10',
+  },
+  'numeric utility trim_scale 0.0000000012000': {
+    kind: 'value',
+    value: '0.0000000012',
+  },
+  'numeric utility scale NaN': {
+    kind: 'null',
+  },
+  'numeric utility min_scale NaN': {
+    kind: 'null',
+  },
+  'numeric utility trim_scale NaN': {
+    kind: 'value',
+    value: 'NaN',
+  },
+  'numeric utility scale Infinity': {
+    kind: 'null',
+  },
+  'numeric utility min_scale Infinity': {
+    kind: 'null',
+  },
+  'numeric utility trim_scale Infinity': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'numeric utility scale -Infinity': {
+    kind: 'null',
+  },
+  'numeric utility min_scale -Infinity': {
+    kind: 'null',
+  },
+  'numeric utility trim_scale -Infinity': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'float math exp 0': {
+    kind: 'null',
+  },
+  'float math exp 1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math exp 2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math exp 3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4005bf0a8b145769',
+  },
+  'float math exp 4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fd78b56362cef38',
+  },
+  'float math exp 5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '401d8e64b8d4ddae',
+  },
+  'float math exp 6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '403415e5bf6fb106',
+  },
+  'float math exp 7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff1aec7b35a00d4',
+  },
+  'float math exp 8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ffa61298e1e069c',
+  },
+  'float math exp 9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40d5829dcf950560',
+  },
+  'float math exp 10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math exp 11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math exp 12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math exp 13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math exp 14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math exp 15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math exp 16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math sampled exp 0': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math sampled exp 1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000335',
+  },
+  'float math sampled exp 2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000005f4f340',
+  },
+  'float math sampled exp 3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '00000b11c44f70ef',
+  },
+  'float math sampled exp 4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '009491e645661187',
+  },
+  'float math sampled exp 5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '01a31cba3949b56f',
+  },
+  'float math sampled exp 6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '02b1c2002115f103',
+  },
+  'float math sampled exp 7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '03c07fd83ac0da5a',
+  },
+  'float math sampled exp 8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '04cea90987b21a59',
+  },
+  'float math sampled exp 9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '05dc7ccf21785154',
+  },
+  'float math sampled exp 10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '06ea77ff9f05c058',
+  },
+  'float math sampled exp 11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '07f897cfe7131900',
+  },
+  'float math sampled exp 12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0906d9a78d693cb3',
+  },
+  'float math sampled exp 13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0a153b1d3b88a37d',
+  },
+  'float math sampled exp 14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0b23b9f35a771bcb',
+  },
+  'float math sampled exp 15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0c325414f91629b2',
+  },
+  'float math sampled exp 16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0d410792eab7ba92',
+  },
+  'float math sampled exp 17': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0e4fa54233e98510',
+  },
+  'float math sampled exp 18': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0f5d67281823c714',
+  },
+  'float math sampled exp 19': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '106b51bd23025328',
+  },
+  'float math sampled exp 20': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '1179621f409cbd9d',
+  },
+  'float math sampled exp 21': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '128795a0aafb55b8',
+  },
+  'float math sampled exp 22': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '1395e9c43533aff3',
+  },
+  'float math sampled exp 23': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '14a45c39d9c390a0',
+  },
+  'float math sampled exp 24': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '15b2eadb876651f5',
+  },
+  'float math sampled exp 25': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '16c193aa27f75ab1',
+  },
+  'float math sampled exp 26': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '17d054cadd446a62',
+  },
+  'float math sampled exp 27': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '18de5908dffa8f39',
+  },
+  'float math sampled exp 28': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '19ec3279da675b52',
+  },
+  'float math sampled exp 29': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '1afa32eede3d5541',
+  },
+  'float math sampled exp 30': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '1c0857a41c213351',
+  },
+  'float math sampled exp 31': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '1d169e07ed8cff60',
+  },
+  'float math sampled exp 32': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '1e2503b746d647ba',
+  },
+  'float math sampled exp 33': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '1f33867a69b0da36',
+  },
+  'float math sampled exp 34': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '20422441d39c008f',
+  },
+  'float math sampled exp 35': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '2150db2363fb547f',
+  },
+  'float math sampled exp 36': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '225f52af6bd2837b',
+  },
+  'float math sampled exp 37': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '236d1a6f5431723a',
+  },
+  'float math sampled exp 38': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '247b0a743abca89b',
+  },
+  'float math sampled exp 39': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '25891fe3916d6f50',
+  },
+  'float math sampled exp 40': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '269758168fb31cc3',
+  },
+  'float math sampled exp 41': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '27a5b096873b9cc6',
+  },
+  'float math sampled exp 42': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '28b427197b4ad7e7',
+  },
+  'float math sampled exp 43': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '29c2b97ef5e99141',
+  },
+  'float math sampled exp 44': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '2ad165cd1689dc24',
+  },
+  'float math sampled exp 45': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '2be02a2dd60ea719',
+  },
+  'float math sampled exp 46': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '2cee09d8f8dbd9de',
+  },
+  'float math sampled exp 47': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '2dfbe8e688d33648',
+  },
+  'float math sampled exp 48': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '2f09ee92543615b6',
+  },
+  'float math sampled exp 49': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3018181fc2906c3a',
+  },
+  'float math sampled exp 50': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '31266303e161a0e0',
+  },
+  'float math sampled exp 51': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3234cce1df6935a8',
+  },
+  'float math sampled exp 52': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '33435387c7c7a1ea',
+  },
+  'float math sampled exp 53': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3451f4eb786d5f7f',
+  },
+  'float math sampled exp 54': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3560af27cfa45173',
+  },
+  'float math sampled exp 55': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '366f00f41997a6f8',
+  },
+  'float math sampled exp 56': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '377cce7ec14d46d6',
+  },
+  'float math sampled exp 57': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '388ac3e553b74ea2',
+  },
+  'float math sampled exp 58': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3998de54b50f75e3',
+  },
+  'float math sampled exp 59': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3aa71b2d07eeffe0',
+  },
+  'float math sampled exp 60': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3bb577fe0ba9ef80',
+  },
+  'float math sampled exp 61': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3cc3f283bc8b80c4',
+  },
+  'float math sampled exp 62': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3dd288a33148b83a',
+  },
+  'float math sampled exp 63': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ee13867b15290bc',
+  },
+  'float math sampled exp 64': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math sampled exp 65': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40fdbb77b1a2516f',
+  },
+  'float math sampled exp 66': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '420ba01332a201b3',
+  },
+  'float math sampled exp 67': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4319aae82ab3a36d',
+  },
+  'float math sampled exp 68': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4427d94125773b5f',
+  },
+  'float math sampled exp 69': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '45362899d2f3eac6',
+  },
+  'float math sampled exp 70': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4644969b8c12cf68',
+  },
+  'float math sampled exp 71': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4753211a164785d9',
+  },
+  'float math sampled exp 72': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4861c610a1ec26ce',
+  },
+  'float math sampled exp 73': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4970839eff27cd63',
+  },
+  'float math sampled exp 74': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4a7eb00e0b04668c',
+  },
+  'float math sampled exp 75': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4b8c8354551a0e72',
+  },
+  'float math sampled exp 76': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4c9a7e0e889995eb',
+  },
+  'float math sampled exp 77': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4da89d70e88f1f86',
+  },
+  'float math sampled exp 78': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4eb6dee270b04d72',
+  },
+  'float math sampled exp 79': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4fc53ff93d3136bb',
+  },
+  'float math sampled exp 80': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '50d3be7733ceb174',
+  },
+  'float math sampled exp 81': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '51e25846e96f034c',
+  },
+  'float math sampled exp 82': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '52f10b78c00dc5c1',
+  },
+  'float math sampled exp 83': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '53ffac8071eb7dc1',
+  },
+  'float math sampled exp 84': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '550d6de2ef279a57',
+  },
+  'float math sampled exp 85': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '561b57fde2e2734b',
+  },
+  'float math sampled exp 86': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '572967ee90449e49',
+  },
+  'float math sampled exp 87': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '58379b0694602838',
+  },
+  'float math sampled exp 88': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '5945eec83073e6e8',
+  },
+  'float math sampled exp 89': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '5a5460e2d77ca636',
+  },
+  'float math sampled exp 90': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '5b62ef2ffa4f0e32',
+  },
+  'float math sampled exp 91': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '5c7197b00dcbd9b7',
+  },
+  'float math sampled exp 92': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '5d805887c71051f7',
+  },
+  'float math sampled exp 93': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '5e8e5ffb139f2ea1',
+  },
+  'float math sampled exp 94': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '5f9c38ee0a8d94c1',
+  },
+  'float math sampled exp 95': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '60aa38edf8fd3f22',
+  },
+  'float math sampled exp 96': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '61b85d366d9165b5',
+  },
+  'float math sampled exp 97': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '62c6a3352b3d9fb5',
+  },
+  'float math sampled exp 98': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '63d508869a7bd469',
+  },
+  'float math sampled exp 99': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '64e38af27b0d635e',
+  },
+  'float math sampled exp 100': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '65f22868d1b4a0f9',
+  },
+  'float math sampled exp 101': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '6700deff0da69371',
+  },
+  'float math sampled exp 102': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '680f59dac384781f',
+  },
+  'float math sampled exp 103': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '691d21189bc42be7',
+  },
+  'float math sampled exp 104': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '6a2b10a4a9be5e94',
+  },
+  'float math sampled exp 105': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '6b3925a3b83624c0',
+  },
+  'float math sampled exp 106': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '6c475d6e633e23c7',
+  },
+  'float math sampled exp 107': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '6d55b58d6c2a1323',
+  },
+  'float math sampled exp 108': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '6e642bb6501e7594',
+  },
+  'float math sampled exp 109': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '6f72bdc81c85e045',
+  },
+  'float math sampled exp 110': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '708169c87d08f7aa',
+  },
+  'float math sampled exp 111': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '71902de0fef5cd39',
+  },
+  'float math sampled exp 112': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '729e10b90c9a721a',
+  },
+  'float math sampled exp 113': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '73abef49e1e2c6a1',
+  },
+  'float math sampled exp 114': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '74b9f481c9618a2a',
+  },
+  'float math sampled exp 115': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '75c81da38a47f2c9',
+  },
+  'float math sampled exp 116': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '76d668239d17b794',
+  },
+  'float math sampled exp 117': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '77e4d1a4a6219c94',
+  },
+  'float math sampled exp 118': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '78f357f42fe6c5e3',
+  },
+  'float math sampled exp 119': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7a01f907a0d5bfe7',
+  },
+  'float math sampled exp 120': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7b10b2f9682e9053',
+  },
+  'float math sampled exp 121': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7c1f080cbc4a4e0a',
+  },
+  'float math sampled exp 122': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7d2cd516a740f470',
+  },
+  'float math sampled exp 123': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7e3aca059c6d658e',
+  },
+  'float math sampled exp 124': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7f48e405da8770d8',
+  },
+  'float math sampled exp 125': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math sampled exp 126': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math sampled exp 127': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math boundary exp -745.1332191019412': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math boundary exp -744.4400719213812': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000001',
+  },
+  'float math boundary exp -710': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '00033802fd28b3c3',
+  },
+  'float math boundary exp -709': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0008bfe55de02338',
+  },
+  'float math boundary exp -6.66': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f54fd8470c7b597',
+  },
+  'float math boundary exp -4.4399999999999995': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f8828781157fb3b',
+  },
+  'float math boundary exp -2.2199999999999998': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fbbcdce7a736e29',
+  },
+  'float math boundary exp 0.37': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff729ebc574421d',
+  },
+  'float math boundary exp 0.9375': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40046dc04f4e5338',
+  },
+  'float math boundary exp 0.9999999999999999': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4005bf0a8b145769',
+  },
+  'float math boundary exp 1.0000000000000002': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4005bf0a8b14576b',
+  },
+  'float math boundary exp 1.064697265625': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4007331eb7c186d0',
+  },
+  'float math boundary exp 709.782712893384': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7fefffffffffff2a',
+  },
+  'float math boundary exp 709.7827128933841': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ln 0': {
+    kind: 'null',
+  },
+  'float math ln 1': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math ln 2': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math ln 3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ln 4': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math ln 5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fe62e42fefa39ef',
+  },
+  'float math ln 6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff193ea7aad030b',
+  },
+  'float math ln 7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0026bb1bbb55515',
+  },
+  'float math ln 8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bfe62e42fefa39ef',
+  },
+  'float math ln 9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40026bb1bbb55516',
+  },
+  'float math ln 10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c085963447f87fb5',
+  },
+  'float math ln 11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4085963447f87fb5',
+  },
+  'float math ln 12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0874385446d71c3',
+  },
+  'float math ln 13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40862e42fefa39ef',
+  },
+  'float math ln 14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ln 15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ln 16': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math sampled ln 0': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0874385446d71c3',
+  },
+  'float math sampled ln 1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c086e2f58ab37d66',
+  },
+  'float math sampled ln 2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c08682e929471381',
+  },
+  'float math sampled ln 3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c086232ffa445693',
+  },
+  'float math sampled ln 4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c085c82de0ee28d1',
+  },
+  'float math sampled ln 5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c085682044b607b1',
+  },
+  'float math sampled ln 6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c085086642f941f2',
+  },
+  'float math sampled ln 7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c084ad663d149580',
+  },
+  'float math sampled ln 8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0844d576335044b',
+  },
+  'float math sampled ln 9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c083ed9c8dcea517',
+  },
+  'float math sampled ln 10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c083929e9e0b800d',
+  },
+  'float math sampled ln 11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c083328e84c7d775',
+  },
+  'float math sampled ln 12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c082d2d2dac6b32d',
+  },
+  'float math sampled ln 13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c08277d703da6970',
+  },
+  'float math sampled ln 14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c08217c5a9725607',
+  },
+  'float math sampled ln 15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c081b80929e3a2cb',
+  },
+  'float math sampled ln 16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0815d0f6e88e43a',
+  },
+  'float math sampled ln 17': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c080fcfcd1385c07',
+  },
+  'float math sampled ln 18': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0809d3f7b27adf9',
+  },
+  'float math sampled ln 19': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0804247de1e94c9',
+  },
+  'float math sampled ln 20': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07fc467f83b996f',
+  },
+  'float math sampled ln 21': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07f04eb9d2a2477',
+  },
+  'float math sampled ln 22': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07e4f00a546630d',
+  },
+  'float math sampled ln 23': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07d8ed6544d255a',
+  },
+  'float math sampled ln 24': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07ccf58485c212a',
+  },
+  'float math sampled ln 25': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07c1971983d0635',
+  },
+  'float math sampled ln 26': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07b5944b6ad3fbb',
+  },
+  'float math sampled ln 27': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07a99c4f7e9db25',
+  },
+  'float math sampled ln 28': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c079e3e29530c950',
+  },
+  'float math sampled ln 29': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07923b31f63db6b',
+  },
+  'float math sampled ln 30': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0786431abd7e29f',
+  },
+  'float math sampled ln 31': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c077ae539c318811',
+  },
+  'float math sampled ln 32': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c076ee218e78fa4f',
+  },
+  'float math sampled ln 33': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0762e9e642acefe',
+  },
+  'float math sampled ln 34': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07578c4ad4f440b',
+  },
+  'float math sampled ln 35': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c074b89003f4ad86',
+  },
+  'float math sampled ln 36': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c073f90b20e73ee9',
+  },
+  'float math sampled ln 37': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0734335c89a252b',
+  },
+  'float math sampled ln 38': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07282fe7fdf158c',
+  },
+  'float math sampled ln 39': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c071c377e211d84e',
+  },
+  'float math sampled ln 40': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0710da6ee227a36',
+  },
+  'float math sampled ln 41': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0704d6d0240625f',
+  },
+  'float math sampled ln 42': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06f1bc94f5e90f8',
+  },
+  'float math sampled ln 43': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06db0303bf17284',
+  },
+  'float math sampled ln 44': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06c2fb71641a756',
+  },
+  'float math sampled ln 45': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06ab0a2e3888859',
+  },
+  'float math sampled ln 46': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0694512b05b006f',
+  },
+  'float math sampled ln 47': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c067c494351171de',
+  },
+  'float math sampled ln 48': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c066457c80ab0f26',
+  },
+  'float math sampled ln 49': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c064d9f539a32aa1',
+  },
+  'float math sampled ln 50': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06359716100e34c',
+  },
+  'float math sampled ln 51': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c061da5626cface2',
+  },
+  'float math sampled ln 52': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0606ed7d7ebcf3b',
+  },
+  'float math sampled ln 53': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c05ddc9d3441b5c4',
+  },
+  'float math sampled ln 54': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c05ade5fabfff087',
+  },
+  'float math sampled ln 55': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c058077516ae3e1e',
+  },
+  'float math sampled ln 56': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0550657c104b102',
+  },
+  'float math sampled ln 57': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c05208131c8b2eb4',
+  },
+  'float math sampled ln 58': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c04e6275501e7aca',
+  },
+  'float math sampled ln 59': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0486024d0d9f3f0',
+  },
+  'float math sampled ln 60': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c042638d3ea8feb5',
+  },
+  'float math sampled ln 61': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0396c0191013c89',
+  },
+  'float math sampled ln 62': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c02ace6954e8a6e0',
+  },
+  'float math sampled ln 63': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bff6de8d1bdb2f1c',
+  },
+  'float math sampled ln 64': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4023d9cda3c16ff3',
+  },
+  'float math sampled ln 65': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4035f1dfe120db78',
+  },
+  'float math sampled ln 66': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4040f5a44820bedd',
+  },
+  'float math sampled ln 67': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4046a2e743a65a83',
+  },
+  'float math sampled ln 68': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '404ca57a003fbbae',
+  },
+  'float math sampled ln 69': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4051511e6a171bb4',
+  },
+  'float math sampled ln 70': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405427ad6388f19e',
+  },
+  'float math sampled ln 71': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40572901ecc69012',
+  },
+  'float math sampled ln 72': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405a276a9d90dea4',
+  },
+  'float math sampled ln 73': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405cfde6f9510b74',
+  },
+  'float math sampled ln 74': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405fff46be18b840',
+  },
+  'float math sampled ln 75': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40617edb5f34cf46',
+  },
+  'float math sampled ln 76': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4062ea1031712b1c',
+  },
+  'float math sampled ln 77': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40646ac5b9f93d87',
+  },
+  'float math sampled ln 78': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4065ea0166469898',
+  },
+  'float math sampled ln 79': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4067552ccff97b0e',
+  },
+  'float math sampled ln 80': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4068d5e80717db34',
+  },
+  'float math sampled ln 81': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406a552763f3a5c2',
+  },
+  'float math sampled ln 82': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406bc049581c2acf',
+  },
+  'float math sampled ln 83': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406d410a4656005f',
+  },
+  'float math sampled ln 84': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406ec04d5831c0b4',
+  },
+  'float math sampled ln 85': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '407015b2e4d9c8ca',
+  },
+  'float math sampled ln 86': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4070d6163bd0aa14',
+  },
+  'float math sampled ln 87': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '407195b9a17b5156',
+  },
+  'float math sampled ln 88': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40724b41124cd3a1',
+  },
+  'float math sampled ln 89': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40730ba74d73ac98',
+  },
+  'float math sampled ln 90': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4073cb4c921bfa0a',
+  },
+  'float math sampled ln 91': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '407480cf34540198',
+  },
+  'float math sampled ln 92': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40754138580ab69f',
+  },
+  'float math sampled ln 93': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '407600df7df5a631',
+  },
+  'float math sampled ln 94': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4076b65d4adbed72',
+  },
+  'float math sampled ln 95': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '407776c95b8c646e',
+  },
+  'float math sampled ln 96': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40783672650318f4',
+  },
+  'float math sampled ln 97': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4078ebeb55d1005c',
+  },
+  'float math sampled ln 98': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4079ac5a57ef3f77',
+  },
+  'float math sampled ln 99': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '407a6c05473f0cdc',
+  },
+  'float math sampled ln 100': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '407b2179551f714b',
+  },
+  'float math sampled ln 101': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '407be1eb4d29be2c',
+  },
+  'float math sampled ln 102': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '407ca19824a433bc',
+  },
+  'float math sampled ln 103': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '407d570748b34449',
+  },
+  'float math sampled ln 104': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '407e177c3b3243c5',
+  },
+  'float math sampled ln 105': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '407ed72afd2d36a1',
+  },
+  'float math sampled ln 106': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '407f8c95307849cc',
+  },
+  'float math sampled ln 107': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4080268690ff9009',
+  },
+  'float math sampled ln 108': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4080865ee86a5add',
+  },
+  'float math sampled ln 109': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4080e111862d0f00',
+  },
+  'float math sampled ln 110': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4081414f00c347a3',
+  },
+  'float math sampled ln 111': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4081a1284fcaa425',
+  },
+  'float math sampled ln 112': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4081fbd86e221409',
+  },
+  'float math sampled ln 113': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40825c176cdf5cde',
+  },
+  'float math sampled ln 114': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4082bbf1b4b4be47',
+  },
+  'float math sampled ln 115': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4083169f5010ccbd',
+  },
+  'float math sampled ln 116': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '408376dfd54ed9e4',
+  },
+  'float math sampled ln 117': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4083d6bb1725ebd6',
+  },
+  'float math sampled ln 118': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '408431662beeb69d',
+  },
+  'float math sampled ln 119': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '408491a83a0cbec0',
+  },
+  'float math sampled ln 120': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4084f184771b6ad1',
+  },
+  'float math sampled ln 121': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40854c2d01b13394',
+  },
+  'float math sampled ln 122': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4085ac709b140140',
+  },
+  'float math sampled ln 123': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40860c4dd4927496',
+  },
+  'float math sampled ln 124': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0870548eb400566',
+  },
+  'float math sampled ln 125': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c086a503ba48830d',
+  },
+  'float math sampled ln 126': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0864525831faf4c',
+  },
+  'float math sampled ln 127': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c085ea8217ef0af4',
+  },
+  'float math boundary ln -745.1332191019412': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary ln -744.4400719213812': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary ln -710': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary ln -709': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary ln -6.66': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary ln -4.4399999999999995': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary ln -2.2199999999999998': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary ln 0.37': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bfefd0ea24bf89b7',
+  },
+  'float math boundary ln 0.9375': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bfb08598b59e3a07',
+  },
+  'float math boundary ln 0.9999999999999999': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bca0000000000000',
+  },
+  'float math boundary ln 1.0000000000000002': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3cafffffffffffff',
+  },
+  'float math boundary ln 1.064697265625': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fb00c7c14184ec5',
+  },
+  'float math boundary ln 709.782712893384': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '401a428494faf1b1',
+  },
+  'float math boundary ln 709.7827128933841': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '401a428494faf1b1',
+  },
+  'float math log 0': {
+    kind: 'null',
+  },
+  'float math log 1': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math log 2': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math log 3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math log 4': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math log 5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fd34413509f79ff',
+  },
+  'float math log 6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fde8927964fd5fd',
+  },
+  'float math log 7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bff0000000000000',
+  },
+  'float math log 8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bfd34413509f79ff',
+  },
+  'float math log 9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math log 10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c072c00000000000',
+  },
+  'float math log 11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4072c00000000000',
+  },
+  'float math log 12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07434e6420f4374',
+  },
+  'float math log 13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40734413509f79ff',
+  },
+  'float math log 14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math log 15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math log 16': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math sampled log 0': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07434e6420f4374',
+  },
+  'float math sampled log 1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c073e106fa2fe40c',
+  },
+  'float math sampled log 2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0738d99c8034f9c',
+  },
+  'float math sampled log 3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0733a74d967b443',
+  },
+  'float math sampled log 4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c072eb6860aa0993',
+  },
+  'float math sampled log 5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07297fa1d0fdb68',
+  },
+  'float math sampled log 6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07244d4776b51ef',
+  },
+  'float math sampled log 7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c071f5c9cc48c083',
+  },
+  'float math sampled log 8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c071a25a74c567ca',
+  },
+  'float math sampled log 9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0714f341747dad1',
+  },
+  'float math sampled log 10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c071002b3c15fec9',
+  },
+  'float math sampled log 11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c070acbacf2742e4',
+  },
+  'float math sampled log 12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0705993b8ff3811',
+  },
+  'float math sampled log 13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0700a8cb01848ef',
+  },
+  'float math sampled log 14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06f6e3658718156',
+  },
+  'float math sampled log 15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06ec7e6b926aba4',
+  },
+  'float math sampled log 16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06e29dc50ac6587',
+  },
+  'float math sampled log 17': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06d82f717fa769b',
+  },
+  'float math sampled log 18': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06cdca6040c4667',
+  },
+  'float math sampled log 19': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06c3e9f49acbf20',
+  },
+  'float math sampled log 20': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06b97b7dcf0268a',
+  },
+  'float math sampled log 21': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06af16552b324b6',
+  },
+  'float math sampled log 22': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06a53624b3f048e',
+  },
+  'float math sampled log 23': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c069ac78a7595ecb',
+  },
+  'float math sampled log 24': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0690624a51f30f1',
+  },
+  'float math sampled log 25': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06868255570bb6c',
+  },
+  'float math sampled log 26': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c067c139773cf9d9',
+  },
+  'float math sampled log 27': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0671ae3fb545b9d',
+  },
+  'float math sampled log 28': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0667ce8684f896e',
+  },
+  'float math sampled log 29': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c065d5fa4ca1df26',
+  },
+  'float math sampled log 30': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0652fa355569b6d',
+  },
+  'float math sampled log 31': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06491ab83e934c8',
+  },
+  'float math sampled log 32': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c063eabb278f0337',
+  },
+  'float math sampled log 33': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0634462b329ed52',
+  },
+  'float math sampled log 34': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c062a66ea84ba496',
+  },
+  'float math sampled log 35': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c061ff7c080b67ca',
+  },
+  'float math sampled log 36': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c061592214d25486',
+  },
+  'float math sampled log 37': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c060bb31d584e145',
+  },
+  'float math sampled log 38': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c060143cee1e1bf4',
+  },
+  'float math sampled log 39': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c05edbc2f4a7b538',
+  },
+  'float math sampled log 40': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c05d9fea174629fa',
+  },
+  'float math sampled log 41': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c05c51fbb39c7888',
+  },
+  'float math sampled log 42': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c05b0541c7651f14',
+  },
+  'float math sampled log 43': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c059c97095691818',
+  },
+  'float math sampled log 44': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0587b7d9645e5cd',
+  },
+  'float math sampled log 45': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0572ec0a1e51373',
+  },
+  'float math sampled log 46': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c055f2f7258f6ab1',
+  },
+  'float math sampled log 47': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c054a4ff8446ef8d',
+  },
+  'float math sampled log 48': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c053583f842fcc25',
+  },
+  'float math sampled log 49': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0521c7dc7d6459c',
+  },
+  'float math sampled log 50': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c050ce817dae2164',
+  },
+  'float math sampled log 51': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c04f037cdc9b2030',
+  },
+  'float math sampled log 52': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c04c8c08f8b6273b',
+  },
+  'float math sampled log 53': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c049f007051445f8',
+  },
+  'float math sampled log 54': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c047567ac08d66dd',
+  },
+  'float math sampled log 55': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c044df1686770ea3',
+  },
+  'float math sampled log 56': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c042430b25d370a4',
+  },
+  'float math sampled log 57': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c03f52f1688e5e85',
+  },
+  'float math sampled log 58': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c03a644872567051',
+  },
+  'float math sampled log 59': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0352c1ebb6f080b',
+  },
+  'float math sampled log 60': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c02ff1dadf655cb8',
+  },
+  'float math sampled log 61': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c02614c8443cb78a',
+  },
+  'float math sampled log 62': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c017489d66f3d92c',
+  },
+  'float math sampled log 63': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bfe3dd32d535e1da',
+  },
+  'float math sampled log 64': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40113dff8cff86b2',
+  },
+  'float math sampled log 65': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40230f9fb265d22e',
+  },
+  'float math sampled log 66': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '402d763444d4edd5',
+  },
+  'float math sampled log 67': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4033a9639d48daf3',
+  },
+  'float math sampled log 68': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4038e1c6dd23b53c',
+  },
+  'float math sampled log 69': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '403e151dbb6763fc',
+  },
+  'float math sampled log 70': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '404181a385bff85d',
+  },
+  'float math sampled log 71': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40441dded8ec0b0a',
+  },
+  'float math sampled log 72': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4046b7909a15407f',
+  },
+  'float math sampled log 73': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40492e9516b3a6b6',
+  },
+  'float math sampled log 74': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '404bcada2b891d90',
+  },
+  'float math sampled log 75': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '404e649246487f5f',
+  },
+  'float math sampled log 76': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40506dc3409ff84c',
+  },
+  'float math sampled log 77': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4051bbeab324f690',
+  },
+  'float math sampled log 78': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405308c9f11df561',
+  },
+  'float math sampled log 79': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4054443be2925771',
+  },
+  'float math sampled log 80': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4055926844878b9c',
+  },
+  'float math sampled log 81': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4056df4ab6eef126',
+  },
+  'float math sampled log 82': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40581ab471108c98',
+  },
+  'float math sampled log 83': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405968e5c9dc7d9e',
+  },
+  'float math sampled log 84': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405ab5cb748e5471',
+  },
+  'float math sampled log 85': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405bf12cebf9e1dc',
+  },
+  'float math sampled log 86': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405d3f634313dcee',
+  },
+  'float math sampled log 87': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405e8c4c29f33238',
+  },
+  'float math sampled log 88': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405fc7a5532d4e93',
+  },
+  'float math sampled log 89': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40608af0580ecd19',
+  },
+  'float math sampled log 90': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406131666b8a4769',
+  },
+  'float math sampled log 91': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4061cf0ed344bb19',
+  },
+  'float math sampled log 92': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4062762f0874c307',
+  },
+  'float math sampled log 93': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40631ca6bdf4afec',
+  },
+  'float math sampled log 94': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4063ba4af2f6539b',
+  },
+  'float math sampled log 95': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4064616db2b3a865',
+  },
+  'float math sampled log 96': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406507e70c344602',
+  },
+  'float math sampled log 97': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4065a587089a6cff',
+  },
+  'float math sampled log 98': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40664cac56c34501',
+  },
+  'float math sampled log 99': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4066f3275644758b',
+  },
+  'float math sampled log 100': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406790c3141fd7d2',
+  },
+  'float math sampled log 101': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406837eaf49b5023',
+  },
+  'float math sampled log 102': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4068de679c20a2d4',
+  },
+  'float math sampled log 103': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40697bff1575386c',
+  },
+  'float math sampled log 104': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406a23298c337065',
+  },
+  'float math sampled log 105': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406ac9a7ddc42a8b',
+  },
+  'float math sampled log 106': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406b673b0c890654',
+  },
+  'float math sampled log 107': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406c0e681d833b83',
+  },
+  'float math sampled log 108': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406cb4e81b2a61ac',
+  },
+  'float math sampled log 109': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406d5276f9498ba7',
+  },
+  'float math sampled log 110': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406df9a6a8823630',
+  },
+  'float math sampled log 111': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406ea028544e9571',
+  },
+  'float math sampled log 112': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406f3db2dba4e47b',
+  },
+  'float math sampled log 113': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406fe4e52d27d3e2',
+  },
+  'float math sampled log 114': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '407045b4449605a0',
+  },
+  'float math sampled log 115': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4070947759c47f1f',
+  },
+  'float math sampled log 116': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4070e811d5b5bb57',
+  },
+  'float math sampled log 117': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40713b545cdf004d',
+  },
+  'float math sampled log 118': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40718a154071cb89',
+  },
+  'float math sampled log 119': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4071ddb111a23786',
+  },
+  'float math sampled log 120': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '407230f472ffd584',
+  },
+  'float math sampled log 121': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40727fb321d11e97',
+  },
+  'float math sampled log 122': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4072d3504a54fdda',
+  },
+  'float math sampled log 123': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4073269486f61c07',
+  },
+  'float math sampled log 124': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c073fed7989a1dd7',
+  },
+  'float math sampled log 125': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c073ab390e110f16',
+  },
+  'float math sampled log 126': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07357f3f51b2f0d',
+  },
+  'float math sampled log 127': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0730939b95a1a64',
+  },
+  'float math boundary log -745.1332191019412': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary log -744.4400719213812': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary log -710': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary log -709': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary log -6.66': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary log -4.4399999999999995': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary log -2.2199999999999998': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary log 0.37': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bfdba2953c667e00',
+  },
+  'float math boundary log 0.9375': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bf9cb38fccd8bfdb',
+  },
+  'float math boundary log 0.9999999999999999': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bc8bcb7b1526e50f',
+  },
+  'float math boundary log 1.0000000000000002': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3c9bcb7b1526e50d',
+  },
+  'float math boundary log 1.064697265625': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f9be12b3d593a10',
+  },
+  'float math boundary log 709.782712893384': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4006cf1ad7ce0276',
+  },
+  'float math boundary log 709.7827128933841': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4006cf1ad7ce0276',
+  },
+  'float math log10 0': {
+    kind: 'null',
+  },
+  'float math log10 1': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math log10 2': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math log10 3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math log10 4': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math log10 5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fd34413509f79ff',
+  },
+  'float math log10 6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fde8927964fd5fd',
+  },
+  'float math log10 7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bff0000000000000',
+  },
+  'float math log10 8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bfd34413509f79ff',
+  },
+  'float math log10 9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math log10 10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c072c00000000000',
+  },
+  'float math log10 11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4072c00000000000',
+  },
+  'float math log10 12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07434e6420f4374',
+  },
+  'float math log10 13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40734413509f79ff',
+  },
+  'float math log10 14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math log10 15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math log10 16': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math sampled log10 0': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07434e6420f4374',
+  },
+  'float math sampled log10 1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c073e106fa2fe40c',
+  },
+  'float math sampled log10 2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0738d99c8034f9c',
+  },
+  'float math sampled log10 3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0733a74d967b443',
+  },
+  'float math sampled log10 4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c072eb6860aa0993',
+  },
+  'float math sampled log10 5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07297fa1d0fdb68',
+  },
+  'float math sampled log10 6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07244d4776b51ef',
+  },
+  'float math sampled log10 7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c071f5c9cc48c083',
+  },
+  'float math sampled log10 8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c071a25a74c567ca',
+  },
+  'float math sampled log10 9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0714f341747dad1',
+  },
+  'float math sampled log10 10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c071002b3c15fec9',
+  },
+  'float math sampled log10 11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c070acbacf2742e4',
+  },
+  'float math sampled log10 12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0705993b8ff3811',
+  },
+  'float math sampled log10 13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0700a8cb01848ef',
+  },
+  'float math sampled log10 14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06f6e3658718156',
+  },
+  'float math sampled log10 15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06ec7e6b926aba4',
+  },
+  'float math sampled log10 16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06e29dc50ac6587',
+  },
+  'float math sampled log10 17': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06d82f717fa769b',
+  },
+  'float math sampled log10 18': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06cdca6040c4667',
+  },
+  'float math sampled log10 19': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06c3e9f49acbf20',
+  },
+  'float math sampled log10 20': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06b97b7dcf0268a',
+  },
+  'float math sampled log10 21': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06af16552b324b6',
+  },
+  'float math sampled log10 22': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06a53624b3f048e',
+  },
+  'float math sampled log10 23': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c069ac78a7595ecb',
+  },
+  'float math sampled log10 24': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0690624a51f30f1',
+  },
+  'float math sampled log10 25': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06868255570bb6c',
+  },
+  'float math sampled log10 26': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c067c139773cf9d9',
+  },
+  'float math sampled log10 27': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0671ae3fb545b9d',
+  },
+  'float math sampled log10 28': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0667ce8684f896e',
+  },
+  'float math sampled log10 29': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c065d5fa4ca1df26',
+  },
+  'float math sampled log10 30': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0652fa355569b6d',
+  },
+  'float math sampled log10 31': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c06491ab83e934c8',
+  },
+  'float math sampled log10 32': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c063eabb278f0337',
+  },
+  'float math sampled log10 33': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0634462b329ed52',
+  },
+  'float math sampled log10 34': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c062a66ea84ba496',
+  },
+  'float math sampled log10 35': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c061ff7c080b67ca',
+  },
+  'float math sampled log10 36': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c061592214d25486',
+  },
+  'float math sampled log10 37': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c060bb31d584e145',
+  },
+  'float math sampled log10 38': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c060143cee1e1bf4',
+  },
+  'float math sampled log10 39': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c05edbc2f4a7b538',
+  },
+  'float math sampled log10 40': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c05d9fea174629fa',
+  },
+  'float math sampled log10 41': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c05c51fbb39c7888',
+  },
+  'float math sampled log10 42': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c05b0541c7651f14',
+  },
+  'float math sampled log10 43': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c059c97095691818',
+  },
+  'float math sampled log10 44': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0587b7d9645e5cd',
+  },
+  'float math sampled log10 45': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0572ec0a1e51373',
+  },
+  'float math sampled log10 46': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c055f2f7258f6ab1',
+  },
+  'float math sampled log10 47': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c054a4ff8446ef8d',
+  },
+  'float math sampled log10 48': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c053583f842fcc25',
+  },
+  'float math sampled log10 49': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0521c7dc7d6459c',
+  },
+  'float math sampled log10 50': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c050ce817dae2164',
+  },
+  'float math sampled log10 51': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c04f037cdc9b2030',
+  },
+  'float math sampled log10 52': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c04c8c08f8b6273b',
+  },
+  'float math sampled log10 53': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c049f007051445f8',
+  },
+  'float math sampled log10 54': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c047567ac08d66dd',
+  },
+  'float math sampled log10 55': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c044df1686770ea3',
+  },
+  'float math sampled log10 56': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c042430b25d370a4',
+  },
+  'float math sampled log10 57': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c03f52f1688e5e85',
+  },
+  'float math sampled log10 58': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c03a644872567051',
+  },
+  'float math sampled log10 59': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0352c1ebb6f080b',
+  },
+  'float math sampled log10 60': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c02ff1dadf655cb8',
+  },
+  'float math sampled log10 61': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c02614c8443cb78a',
+  },
+  'float math sampled log10 62': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c017489d66f3d92c',
+  },
+  'float math sampled log10 63': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bfe3dd32d535e1da',
+  },
+  'float math sampled log10 64': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40113dff8cff86b2',
+  },
+  'float math sampled log10 65': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40230f9fb265d22e',
+  },
+  'float math sampled log10 66': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '402d763444d4edd5',
+  },
+  'float math sampled log10 67': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4033a9639d48daf3',
+  },
+  'float math sampled log10 68': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4038e1c6dd23b53c',
+  },
+  'float math sampled log10 69': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '403e151dbb6763fc',
+  },
+  'float math sampled log10 70': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '404181a385bff85d',
+  },
+  'float math sampled log10 71': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40441dded8ec0b0a',
+  },
+  'float math sampled log10 72': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4046b7909a15407f',
+  },
+  'float math sampled log10 73': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40492e9516b3a6b6',
+  },
+  'float math sampled log10 74': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '404bcada2b891d90',
+  },
+  'float math sampled log10 75': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '404e649246487f5f',
+  },
+  'float math sampled log10 76': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40506dc3409ff84c',
+  },
+  'float math sampled log10 77': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4051bbeab324f690',
+  },
+  'float math sampled log10 78': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405308c9f11df561',
+  },
+  'float math sampled log10 79': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4054443be2925771',
+  },
+  'float math sampled log10 80': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4055926844878b9c',
+  },
+  'float math sampled log10 81': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4056df4ab6eef126',
+  },
+  'float math sampled log10 82': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40581ab471108c98',
+  },
+  'float math sampled log10 83': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405968e5c9dc7d9e',
+  },
+  'float math sampled log10 84': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405ab5cb748e5471',
+  },
+  'float math sampled log10 85': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405bf12cebf9e1dc',
+  },
+  'float math sampled log10 86': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405d3f634313dcee',
+  },
+  'float math sampled log10 87': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405e8c4c29f33238',
+  },
+  'float math sampled log10 88': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405fc7a5532d4e93',
+  },
+  'float math sampled log10 89': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40608af0580ecd19',
+  },
+  'float math sampled log10 90': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406131666b8a4769',
+  },
+  'float math sampled log10 91': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4061cf0ed344bb19',
+  },
+  'float math sampled log10 92': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4062762f0874c307',
+  },
+  'float math sampled log10 93': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40631ca6bdf4afec',
+  },
+  'float math sampled log10 94': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4063ba4af2f6539b',
+  },
+  'float math sampled log10 95': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4064616db2b3a865',
+  },
+  'float math sampled log10 96': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406507e70c344602',
+  },
+  'float math sampled log10 97': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4065a587089a6cff',
+  },
+  'float math sampled log10 98': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40664cac56c34501',
+  },
+  'float math sampled log10 99': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4066f3275644758b',
+  },
+  'float math sampled log10 100': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406790c3141fd7d2',
+  },
+  'float math sampled log10 101': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406837eaf49b5023',
+  },
+  'float math sampled log10 102': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4068de679c20a2d4',
+  },
+  'float math sampled log10 103': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40697bff1575386c',
+  },
+  'float math sampled log10 104': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406a23298c337065',
+  },
+  'float math sampled log10 105': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406ac9a7ddc42a8b',
+  },
+  'float math sampled log10 106': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406b673b0c890654',
+  },
+  'float math sampled log10 107': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406c0e681d833b83',
+  },
+  'float math sampled log10 108': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406cb4e81b2a61ac',
+  },
+  'float math sampled log10 109': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406d5276f9498ba7',
+  },
+  'float math sampled log10 110': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406df9a6a8823630',
+  },
+  'float math sampled log10 111': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406ea028544e9571',
+  },
+  'float math sampled log10 112': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406f3db2dba4e47b',
+  },
+  'float math sampled log10 113': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '406fe4e52d27d3e2',
+  },
+  'float math sampled log10 114': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '407045b4449605a0',
+  },
+  'float math sampled log10 115': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4070947759c47f1f',
+  },
+  'float math sampled log10 116': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4070e811d5b5bb57',
+  },
+  'float math sampled log10 117': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40713b545cdf004d',
+  },
+  'float math sampled log10 118': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40718a154071cb89',
+  },
+  'float math sampled log10 119': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4071ddb111a23786',
+  },
+  'float math sampled log10 120': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '407230f472ffd584',
+  },
+  'float math sampled log10 121': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40727fb321d11e97',
+  },
+  'float math sampled log10 122': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4072d3504a54fdda',
+  },
+  'float math sampled log10 123': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4073269486f61c07',
+  },
+  'float math sampled log10 124': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c073fed7989a1dd7',
+  },
+  'float math sampled log10 125': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c073ab390e110f16',
+  },
+  'float math sampled log10 126': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c07357f3f51b2f0d',
+  },
+  'float math sampled log10 127': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'c0730939b95a1a64',
+  },
+  'float math boundary log10 -745.1332191019412': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary log10 -744.4400719213812': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary log10 -710': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary log10 -709': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary log10 -6.66': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary log10 -4.4399999999999995': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary log10 -2.2199999999999998': {
+    kind: 'error',
+    code: '2201E',
+  },
+  'float math boundary log10 0.37': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bfdba2953c667e00',
+  },
+  'float math boundary log10 0.9375': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bf9cb38fccd8bfdb',
+  },
+  'float math boundary log10 0.9999999999999999': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bc8bcb7b1526e50f',
+  },
+  'float math boundary log10 1.0000000000000002': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3c9bcb7b1526e50d',
+  },
+  'float math boundary log10 1.064697265625': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f9be12b3d593a10',
+  },
+  'float math boundary log10 709.782712893384': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4006cf1ad7ce0276',
+  },
+  'float math boundary log10 709.7827128933841': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4006cf1ad7ce0276',
+  },
+  'float math power 0/0': {
+    kind: 'null',
+  },
+  'float math power 0/1': {
+    kind: 'null',
+  },
+  'float math power 0/2': {
+    kind: 'null',
+  },
+  'float math power 0/3': {
+    kind: 'null',
+  },
+  'float math power 0/4': {
+    kind: 'null',
+  },
+  'float math power 0/5': {
+    kind: 'null',
+  },
+  'float math power 0/6': {
+    kind: 'null',
+  },
+  'float math power 0/7': {
+    kind: 'null',
+  },
+  'float math power 0/8': {
+    kind: 'null',
+  },
+  'float math power 0/9': {
+    kind: 'null',
+  },
+  'float math power 0/10': {
+    kind: 'null',
+  },
+  'float math power 0/11': {
+    kind: 'null',
+  },
+  'float math power 0/12': {
+    kind: 'null',
+  },
+  'float math power 0/13': {
+    kind: 'null',
+  },
+  'float math power 0/14': {
+    kind: 'null',
+  },
+  'float math power 0/15': {
+    kind: 'null',
+  },
+  'float math power 0/16': {
+    kind: 'null',
+  },
+  'float math power 1/0': {
+    kind: 'null',
+  },
+  'float math power 1/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 1/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 1/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 1/4': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math power 1/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 1/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 1/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 1/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 1/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 1/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 1/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 1/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 1/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 1/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 1/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 1/16': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math power 2/0': {
+    kind: 'null',
+  },
+  'float math power 2/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 2/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 2/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '8000000000000000',
+  },
+  'float math power 2/4': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math power 2/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 2/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '8000000000000000',
+  },
+  'float math power 2/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 2/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 2/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 2/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 2/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 2/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 2/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 2/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 2/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 2/16': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math power 3/0': {
+    kind: 'null',
+  },
+  'float math power 3/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 3/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 3/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 3/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 3/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 3/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 3/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 3/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 3/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 3/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 3/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 3/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 3/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 3/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 3/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 3/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 4/0': {
+    kind: 'null',
+  },
+  'float math power 4/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 4/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 4/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bff0000000000000',
+  },
+  'float math power 4/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bff0000000000000',
+  },
+  'float math power 4/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 4/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bff0000000000000',
+  },
+  'float math power 4/7': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math power 4/8': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math power 4/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 4/10': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math power 4/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 4/12': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math power 4/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 4/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 4/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 4/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 5/0': {
+    kind: 'null',
+  },
+  'float math power 5/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 5/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 5/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4000000000000000',
+  },
+  'float math power 5/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fe0000000000000',
+  },
+  'float math power 5/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4010000000000000',
+  },
+  'float math power 5/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4020000000000000',
+  },
+  'float math power 5/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff125fbee250664',
+  },
+  'float math power 5/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff6a09e667f3bcd',
+  },
+  'float math power 5/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4090000000000000',
+  },
+  'float math power 5/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 5/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 5/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 5/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 5/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 5/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 5/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 6/0': {
+    kind: 'null',
+  },
+  'float math power 6/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 6/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 6/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4008000000000000',
+  },
+  'float math power 6/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fd5555555555555',
+  },
+  'float math power 6/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4022000000000000',
+  },
+  'float math power 6/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '403b000000000000',
+  },
+  'float math power 6/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff1dba3f92c888b',
+  },
+  'float math power 6/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ffbb67ae8584caa',
+  },
+  'float math power 6/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40ecd52000000000',
+  },
+  'float math power 6/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 6/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 6/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 6/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 6/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 6/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 6/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 7/0': {
+    kind: 'null',
+  },
+  'float math power 7/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 7/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 7/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fb999999999999a',
+  },
+  'float math power 7/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4024000000000000',
+  },
+  'float math power 7/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f847ae147ae147c',
+  },
+  'float math power 7/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f50624dd2f1a9fd',
+  },
+  'float math power 7/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fe96b230bcdc434',
+  },
+  'float math power 7/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fd43d136248490f',
+  },
+  'float math power 7/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ddb7cdfd9d7bdbf',
+  },
+  'float math power 7/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 7/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 7/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 7/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 7/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 7/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 7/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 8/0': {
+    kind: 'null',
+  },
+  'float math power 8/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 8/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 8/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fe0000000000000',
+  },
+  'float math power 8/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4000000000000000',
+  },
+  'float math power 8/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fd0000000000000',
+  },
+  'float math power 8/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fc0000000000000',
+  },
+  'float math power 8/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3feddb680117ab12',
+  },
+  'float math power 8/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fe6a09e667f3bcd',
+  },
+  'float math power 8/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f50000000000000',
+  },
+  'float math power 8/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 8/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 8/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 8/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 8/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 8/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 8/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 9/0': {
+    kind: 'null',
+  },
+  'float math power 9/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 9/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 9/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4024000000000000',
+  },
+  'float math power 9/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fb999999999999a',
+  },
+  'float math power 9/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4059000000000000',
+  },
+  'float math power 9/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '408f400000000000',
+  },
+  'float math power 9/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff4248ef8fc2604',
+  },
+  'float math power 9/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40094c583ada5b53',
+  },
+  'float math power 9/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4202a05f20000000',
+  },
+  'float math power 9/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 9/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 9/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 9/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 9/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 9/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 9/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 10/0': {
+    kind: 'null',
+  },
+  'float math power 10/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 10/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 10/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '01a56e1fc2f8f359',
+  },
+  'float math power 10/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7e37e43c8800759b',
+  },
+  'float math power 10/5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 10/6': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 10/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '39b4484bfeebc28a',
+  },
+  'float math power 10/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '20ca2fe76a3f9475',
+  },
+  'float math power 10/9': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 10/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 10/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 10/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 10/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 10/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 10/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 10/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 11/0': {
+    kind: 'null',
+  },
+  'float math power 11/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 11/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 11/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7e37e43c8800759c',
+  },
+  'float math power 11/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '01a56e1fc2f8f359',
+  },
+  'float math power 11/5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 11/6': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 11/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '46293e5939a08d05',
+  },
+  'float math power 11/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '5f138d352e5096af',
+  },
+  'float math power 11/9': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 11/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 11/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 11/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 11/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 11/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 11/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 11/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 12/0': {
+    kind: 'null',
+  },
+  'float math power 12/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 12/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 12/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000001',
+  },
+  'float math power 12/4': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 12/5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 12/6': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 12/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3938406003b2ae40',
+  },
+  'float math power 12/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '1e60000000000000',
+  },
+  'float math power 12/9': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 12/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 12/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 12/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 12/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 12/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 12/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 12/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 13/0': {
+    kind: 'null',
+  },
+  'float math power 13/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 13/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 13/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7fefffffffffffff',
+  },
+  'float math power 13/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0004000000000000',
+  },
+  'float math power 13/5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 13/6': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 13/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '46551cb453b95384',
+  },
+  'float math power 13/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '5ff0000000000000',
+  },
+  'float math power 13/9': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 13/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 13/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 13/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 13/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math power 13/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 13/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 13/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 14/0': {
+    kind: 'null',
+  },
+  'float math power 14/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 14/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 14/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 14/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 14/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 14/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 14/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 14/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 14/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 14/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 14/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 14/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 14/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 14/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 14/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 14/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 15/0': {
+    kind: 'null',
+  },
+  'float math power 15/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 15/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 15/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 15/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 15/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 15/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 15/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 15/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 15/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 15/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 15/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 15/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 15/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 15/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 15/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 15/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math power 16/0': {
+    kind: 'null',
+  },
+  'float math power 16/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 16/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math power 16/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '-Infinity',
+  },
+  'float math power 16/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '8000000000000000',
+  },
+  'float math power 16/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 16/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '-Infinity',
+  },
+  'float math power 16/7': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math power 16/8': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math power 16/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 16/10': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math power 16/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 16/12': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math power 16/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 16/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math power 16/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math power 16/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math sampled power 0': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fc35199d09a7aaf',
+  },
+  'float math sampled power 1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f833b9b01731ed1',
+  },
+  'float math sampled power 2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f4da12044b02066',
+  },
+  'float math sampled power 3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f2015de9574aeee',
+  },
+  'float math sampled power 4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ef70e639bdc3b89',
+  },
+  'float math sampled power 5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ed4cb208357a9a0',
+  },
+  'float math sampled power 6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3eb6c2f27ac313bd',
+  },
+  'float math sampled power 7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e9d68d1c45c9f6a',
+  },
+  'float math sampled power 8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e85efdc8b933086',
+  },
+  'float math sampled power 9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e728f8a14372497',
+  },
+  'float math sampled power 10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e618e87f9922a84',
+  },
+  'float math sampled power 11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e52584074d84afb',
+  },
+  'float math sampled power 12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e44f629dd97368a',
+  },
+  'float math sampled power 13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e39f86ea566a48f',
+  },
+  'float math sampled power 14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e31513e3adc0ecb',
+  },
+  'float math sampled power 15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e28b422daba9007',
+  },
+  'float math sampled power 16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e22bebcc44941e2',
+  },
+  'float math sampled power 17': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e1e1e89efc1167c',
+  },
+  'float math sampled power 18': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e19832391e8071c',
+  },
+  'float math sampled power 19': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e16b3098d108c5f',
+  },
+  'float math sampled power 20': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e152509e6900e0f',
+  },
+  'float math sampled power 21': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e148f649cc10896',
+  },
+  'float math sampled power 22': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e14d01c3e9a25ce',
+  },
+  'float math sampled power 23': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e15e1bb5ff42278',
+  },
+  'float math sampled power 24': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e17d762abf25c63',
+  },
+  'float math sampled power 25': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e1ade01b5c07fd6',
+  },
+  'float math sampled power 26': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e1f4259511d906a',
+  },
+  'float math sampled power 27': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e22be5a2d16707f',
+  },
+  'float math sampled power 28': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e272253ddd60f02',
+  },
+  'float math sampled power 29': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e2d588b12b2ac01',
+  },
+  'float math sampled power 30': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e331aedffe25145',
+  },
+  'float math sampled power 31': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e39811a095db99b',
+  },
+  'float math sampled power 32': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e416f1ebac4de4c',
+  },
+  'float math sampled power 33': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e48629ced3ad5dd',
+  },
+  'float math sampled power 34': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e516e636892668d',
+  },
+  'float math sampled power 35': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e5973142cd33791',
+  },
+  'float math sampled power 36': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e62f4f67bce9c6a',
+  },
+  'float math sampled power 37': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e6ccb80169d63bc',
+  },
+  'float math sampled power 38': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e76483146b96bcd',
+  },
+  'float math sampled power 39': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e818e4416a3f503',
+  },
+  'float math sampled power 40': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e8c262a9c1f81f0',
+  },
+  'float math sampled power 41': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e96f30cbdb07217',
+  },
+  'float math sampled power 42': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ea3042d0fee935e',
+  },
+  'float math sampled power 43': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3eb001adcf922245',
+  },
+  'float math sampled power 44': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ebb5be13293fba3',
+  },
+  'float math sampled power 45': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ec7ba62fc4dc3f4',
+  },
+  'float math sampled power 46': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ed4dff83a973826',
+  },
+  'float math sampled power 47': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ee29eec7e20192b',
+  },
+  'float math sampled power 48': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ef0d5b9282a2692',
+  },
+  'float math sampled power 49': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3efed726f77c03dc',
+  },
+  'float math sampled power 50': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f0c9c12fa6a19f1',
+  },
+  'float math sampled power 51': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f1adeacd1d7e14b',
+  },
+  'float math sampled power 52': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f298a6a780c2f70',
+  },
+  'float math sampled power 53': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f389015f3962b57',
+  },
+  'float math sampled power 54': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f47e49dcc63b753',
+  },
+  'float math sampled power 55': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f57803e824f8a20',
+  },
+  'float math sampled power 56': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f675ded4e943718',
+  },
+  'float math sampled power 57': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f777af421a210ac',
+  },
+  'float math sampled power 58': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f87d6b427e613db',
+  },
+  'float math sampled power 59': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f987287f89570fe',
+  },
+  'float math sampled power 60': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fa951c173b20b55',
+  },
+  'float math sampled power 61': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fba79c19f8ed2fb',
+  },
+  'float math sampled power 62': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fcbf22acf10c902',
+  },
+  'float math sampled power 63': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fddc52f363ccea2',
+  },
+  'float math sampled power 64': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math sampled power 65': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '400159b1911ff718',
+  },
+  'float math sampled power 66': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4012fa3c61728b7d',
+  },
+  'float math sampled power 67': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4024eede1c3a3fde',
+  },
+  'float math sampled power 68': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40374828678781ab',
+  },
+  'float math sampled power 69': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '404a1ad7ebc10df8',
+  },
+  'float math sampled power 70': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405d80ea4b32aa42',
+  },
+  'float math sampled power 71': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4070cd83028bb53c',
+  },
+  'float math sampled power 72': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40834926c178d90f',
+  },
+  'float math sampled power 73': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40964d5f7b60b3a5',
+  },
+  'float math sampled power 74': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40a9fb27022865ab',
+  },
+  'float math sampled power 75': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40be7c79c1119551',
+  },
+  'float math sampled power 76': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40d203811acf9b9a',
+  },
+  'float math sampled power 77': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40e56fcf5c22544a',
+  },
+  'float math sampled power 78': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40f9af85d4ca1786',
+  },
+  'float math sampled power 79': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '410efc0b53cb2e62',
+  },
+  'float math sampled power 80': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4122cff8feba4a2c',
+  },
+  'float math sampled power 81': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4136fe4078390282',
+  },
+  'float math sampled power 82': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '414c4892cfa4e436',
+  },
+  'float math sampled power 83': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4161815f8dfe6a2b',
+  },
+  'float math sampled power 84': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4175cdbc8c5174f6',
+  },
+  'float math sampled power 85': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '418b52cb37421bd7',
+  },
+  'float math sampled power 86': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41a1392a5d77bdab',
+  },
+  'float math sampled power 87': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41b5d790e63a3938',
+  },
+  'float math sampled power 88': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41cbdc6b797aec99',
+  },
+  'float math sampled power 89': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41e1df144299a801',
+  },
+  'float math sampled power 90': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41f70e93286f83b7',
+  },
+  'float math sampled power 91': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '420de9b8567a8b7a',
+  },
+  'float math sampled power 92': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '422382ad65f9bb41',
+  },
+  'float math sampled power 93': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '423996c06d933f87',
+  },
+  'float math sampled power 94': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4250debdf9f52a3a',
+  },
+  'float math sampled power 95': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '42665c71d636bbee',
+  },
+  'float math sampled power 96': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '427dcb121de8acd5',
+  },
+  'float math sampled power 97': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4293f30b781f394b',
+  },
+  'float math sampled power 98': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '42aad9d521b56966',
+  },
+  'float math sampled power 99': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '42c228f71007c8a5',
+  },
+  'float math sampled power 100': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '42d8af5bf58ee1d5',
+  },
+  'float math sampled power 101': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '42f0dbccc21581de',
+  },
+  'float math sampled power 102': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43072329fd8fc5f0',
+  },
+  'float math sampled power 103': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '431fe7967f31ab42',
+  },
+  'float math sampled power 104': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43361983015624b3',
+  },
+  'float math sampled power 105': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '434ec1c7c081ee62',
+  },
+  'float math sampled power 106': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4365800d2df0f12e',
+  },
+  'float math sampled power 107': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '437e31a1a47b7da0',
+  },
+  'float math sampled power 108': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43954ba80e85cc34',
+  },
+  'float math sampled power 109': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43ae2bc0cbf4ea5e',
+  },
+  'float math sampled power 110': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43c5771a548e2ccb',
+  },
+  'float math sampled power 111': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43deac8322188085',
+  },
+  'float math sampled power 112': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43f6025dca122d77',
+  },
+  'float math sampled power 113': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '440fb76689edd9ce',
+  },
+  'float math sampled power 114': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4426f269ceab3707',
+  },
+  'float math sampled power 115': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4440ab870cd09da6',
+  },
+  'float math sampled power 116': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4458516ec44260cc',
+  },
+  'float math sampled power 117': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4471cef2a780e1e2',
+  },
+  'float math sampled power 118': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '448a2f836161ac84',
+  },
+  'float math sampled power 119': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '44a353b61dc65b77',
+  },
+  'float math sampled power 120': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '44bca3d28e92df80',
+  },
+  'float math sampled power 121': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '44d54d25c6183d2f',
+  },
+  'float math sampled power 122': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '44efce6770e586fa',
+  },
+  'float math sampled power 123': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4507d5b34b8d9baa',
+  },
+  'float math sampled power 124': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4521ed63e54a31d7',
+  },
+  'float math sampled power 125': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '453b111fd6d406ae',
+  },
+  'float math sampled power 126': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '455481d2d166c699',
+  },
+  'float math sampled power 127': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '456f2f961e8051ac',
+  },
+  'float math boundary power -5e-324/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '8000000000000001',
+  },
+  'float math boundary power -5e-324/3': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math boundary power 1/18446744073709552000': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math boundary power 0.5/18446744073709552000': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math boundary power 2/-18446744073709552000': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math boundary power 1.0000000000000002/4611686018427388000': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math boundary power 0.9999999999999999/4611686018427388000': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '11c44109edb2088f',
+  },
+  'float math boundary power 1e-300/0.5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '20ca2fe76a3f9475',
+  },
+  'float math boundary power 1e+300/0.5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '5f138d352e5096af',
+  },
+  'float math boundary power 2/-1074': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000001',
+  },
+  'float math boundary power 2/-1075': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math boundary power 1.7976931348623157e+308/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7fefffffffffffff',
+  },
+  'float math boundary power -2/-1073': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '8000000000000002',
+  },
+  'float math boundary power 2/1.3552527156068805e-20': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 0/0': {
+    kind: 'null',
+  },
+  'float math pow 0/1': {
+    kind: 'null',
+  },
+  'float math pow 0/2': {
+    kind: 'null',
+  },
+  'float math pow 0/3': {
+    kind: 'null',
+  },
+  'float math pow 0/4': {
+    kind: 'null',
+  },
+  'float math pow 0/5': {
+    kind: 'null',
+  },
+  'float math pow 0/6': {
+    kind: 'null',
+  },
+  'float math pow 0/7': {
+    kind: 'null',
+  },
+  'float math pow 0/8': {
+    kind: 'null',
+  },
+  'float math pow 0/9': {
+    kind: 'null',
+  },
+  'float math pow 0/10': {
+    kind: 'null',
+  },
+  'float math pow 0/11': {
+    kind: 'null',
+  },
+  'float math pow 0/12': {
+    kind: 'null',
+  },
+  'float math pow 0/13': {
+    kind: 'null',
+  },
+  'float math pow 0/14': {
+    kind: 'null',
+  },
+  'float math pow 0/15': {
+    kind: 'null',
+  },
+  'float math pow 0/16': {
+    kind: 'null',
+  },
+  'float math pow 1/0': {
+    kind: 'null',
+  },
+  'float math pow 1/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 1/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 1/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 1/4': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math pow 1/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 1/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 1/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 1/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 1/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 1/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 1/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 1/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 1/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 1/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 1/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 1/16': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math pow 2/0': {
+    kind: 'null',
+  },
+  'float math pow 2/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 2/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 2/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '8000000000000000',
+  },
+  'float math pow 2/4': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math pow 2/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 2/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '8000000000000000',
+  },
+  'float math pow 2/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 2/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 2/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 2/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 2/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 2/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 2/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 2/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 2/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 2/16': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math pow 3/0': {
+    kind: 'null',
+  },
+  'float math pow 3/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 3/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 3/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 3/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 3/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 3/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 3/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 3/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 3/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 3/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 3/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 3/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 3/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 3/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 3/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 3/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 4/0': {
+    kind: 'null',
+  },
+  'float math pow 4/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 4/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 4/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bff0000000000000',
+  },
+  'float math pow 4/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bff0000000000000',
+  },
+  'float math pow 4/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 4/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bff0000000000000',
+  },
+  'float math pow 4/7': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math pow 4/8': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math pow 4/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 4/10': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math pow 4/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 4/12': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math pow 4/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 4/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 4/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 4/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 5/0': {
+    kind: 'null',
+  },
+  'float math pow 5/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 5/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 5/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4000000000000000',
+  },
+  'float math pow 5/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fe0000000000000',
+  },
+  'float math pow 5/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4010000000000000',
+  },
+  'float math pow 5/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4020000000000000',
+  },
+  'float math pow 5/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff125fbee250664',
+  },
+  'float math pow 5/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff6a09e667f3bcd',
+  },
+  'float math pow 5/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4090000000000000',
+  },
+  'float math pow 5/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 5/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 5/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 5/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 5/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 5/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 5/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 6/0': {
+    kind: 'null',
+  },
+  'float math pow 6/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 6/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 6/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4008000000000000',
+  },
+  'float math pow 6/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fd5555555555555',
+  },
+  'float math pow 6/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4022000000000000',
+  },
+  'float math pow 6/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '403b000000000000',
+  },
+  'float math pow 6/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff1dba3f92c888b',
+  },
+  'float math pow 6/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ffbb67ae8584caa',
+  },
+  'float math pow 6/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40ecd52000000000',
+  },
+  'float math pow 6/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 6/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 6/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 6/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 6/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 6/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 6/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 7/0': {
+    kind: 'null',
+  },
+  'float math pow 7/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 7/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 7/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fb999999999999a',
+  },
+  'float math pow 7/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4024000000000000',
+  },
+  'float math pow 7/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f847ae147ae147c',
+  },
+  'float math pow 7/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f50624dd2f1a9fd',
+  },
+  'float math pow 7/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fe96b230bcdc434',
+  },
+  'float math pow 7/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fd43d136248490f',
+  },
+  'float math pow 7/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ddb7cdfd9d7bdbf',
+  },
+  'float math pow 7/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 7/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 7/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 7/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 7/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 7/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 7/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 8/0': {
+    kind: 'null',
+  },
+  'float math pow 8/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 8/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 8/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fe0000000000000',
+  },
+  'float math pow 8/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4000000000000000',
+  },
+  'float math pow 8/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fd0000000000000',
+  },
+  'float math pow 8/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fc0000000000000',
+  },
+  'float math pow 8/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3feddb680117ab12',
+  },
+  'float math pow 8/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fe6a09e667f3bcd',
+  },
+  'float math pow 8/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f50000000000000',
+  },
+  'float math pow 8/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 8/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 8/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 8/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 8/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 8/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 8/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 9/0': {
+    kind: 'null',
+  },
+  'float math pow 9/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 9/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 9/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4024000000000000',
+  },
+  'float math pow 9/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fb999999999999a',
+  },
+  'float math pow 9/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4059000000000000',
+  },
+  'float math pow 9/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '408f400000000000',
+  },
+  'float math pow 9/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff4248ef8fc2604',
+  },
+  'float math pow 9/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40094c583ada5b53',
+  },
+  'float math pow 9/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4202a05f20000000',
+  },
+  'float math pow 9/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 9/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 9/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 9/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 9/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 9/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 9/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 10/0': {
+    kind: 'null',
+  },
+  'float math pow 10/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 10/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 10/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '01a56e1fc2f8f359',
+  },
+  'float math pow 10/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7e37e43c8800759b',
+  },
+  'float math pow 10/5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 10/6': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 10/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '39b4484bfeebc28a',
+  },
+  'float math pow 10/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '20ca2fe76a3f9475',
+  },
+  'float math pow 10/9': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 10/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 10/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 10/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 10/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 10/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 10/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 10/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 11/0': {
+    kind: 'null',
+  },
+  'float math pow 11/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 11/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 11/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7e37e43c8800759c',
+  },
+  'float math pow 11/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '01a56e1fc2f8f359',
+  },
+  'float math pow 11/5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 11/6': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 11/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '46293e5939a08d05',
+  },
+  'float math pow 11/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '5f138d352e5096af',
+  },
+  'float math pow 11/9': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 11/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 11/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 11/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 11/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 11/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 11/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 11/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 12/0': {
+    kind: 'null',
+  },
+  'float math pow 12/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 12/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 12/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000001',
+  },
+  'float math pow 12/4': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 12/5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 12/6': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 12/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3938406003b2ae40',
+  },
+  'float math pow 12/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '1e60000000000000',
+  },
+  'float math pow 12/9': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 12/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 12/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 12/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 12/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 12/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 12/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 12/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 13/0': {
+    kind: 'null',
+  },
+  'float math pow 13/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 13/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 13/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7fefffffffffffff',
+  },
+  'float math pow 13/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0004000000000000',
+  },
+  'float math pow 13/5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 13/6': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 13/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '46551cb453b95384',
+  },
+  'float math pow 13/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '5ff0000000000000',
+  },
+  'float math pow 13/9': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 13/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 13/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 13/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 13/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math pow 13/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 13/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 13/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 14/0': {
+    kind: 'null',
+  },
+  'float math pow 14/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 14/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 14/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 14/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 14/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 14/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 14/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 14/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 14/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 14/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 14/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 14/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 14/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 14/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 14/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 14/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 15/0': {
+    kind: 'null',
+  },
+  'float math pow 15/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 15/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 15/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 15/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 15/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 15/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 15/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 15/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 15/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 15/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 15/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 15/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 15/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 15/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 15/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 15/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math pow 16/0': {
+    kind: 'null',
+  },
+  'float math pow 16/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 16/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math pow 16/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '-Infinity',
+  },
+  'float math pow 16/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '8000000000000000',
+  },
+  'float math pow 16/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 16/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '-Infinity',
+  },
+  'float math pow 16/7': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math pow 16/8': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math pow 16/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 16/10': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math pow 16/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 16/12': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math pow 16/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 16/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math pow 16/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math pow 16/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math sampled pow 0': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fc35199d09a7aaf',
+  },
+  'float math sampled pow 1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f833b9b01731ed1',
+  },
+  'float math sampled pow 2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f4da12044b02066',
+  },
+  'float math sampled pow 3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f2015de9574aeee',
+  },
+  'float math sampled pow 4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ef70e639bdc3b89',
+  },
+  'float math sampled pow 5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ed4cb208357a9a0',
+  },
+  'float math sampled pow 6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3eb6c2f27ac313bd',
+  },
+  'float math sampled pow 7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e9d68d1c45c9f6a',
+  },
+  'float math sampled pow 8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e85efdc8b933086',
+  },
+  'float math sampled pow 9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e728f8a14372497',
+  },
+  'float math sampled pow 10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e618e87f9922a84',
+  },
+  'float math sampled pow 11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e52584074d84afb',
+  },
+  'float math sampled pow 12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e44f629dd97368a',
+  },
+  'float math sampled pow 13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e39f86ea566a48f',
+  },
+  'float math sampled pow 14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e31513e3adc0ecb',
+  },
+  'float math sampled pow 15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e28b422daba9007',
+  },
+  'float math sampled pow 16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e22bebcc44941e2',
+  },
+  'float math sampled pow 17': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e1e1e89efc1167c',
+  },
+  'float math sampled pow 18': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e19832391e8071c',
+  },
+  'float math sampled pow 19': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e16b3098d108c5f',
+  },
+  'float math sampled pow 20': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e152509e6900e0f',
+  },
+  'float math sampled pow 21': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e148f649cc10896',
+  },
+  'float math sampled pow 22': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e14d01c3e9a25ce',
+  },
+  'float math sampled pow 23': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e15e1bb5ff42278',
+  },
+  'float math sampled pow 24': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e17d762abf25c63',
+  },
+  'float math sampled pow 25': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e1ade01b5c07fd6',
+  },
+  'float math sampled pow 26': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e1f4259511d906a',
+  },
+  'float math sampled pow 27': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e22be5a2d16707f',
+  },
+  'float math sampled pow 28': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e272253ddd60f02',
+  },
+  'float math sampled pow 29': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e2d588b12b2ac01',
+  },
+  'float math sampled pow 30': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e331aedffe25145',
+  },
+  'float math sampled pow 31': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e39811a095db99b',
+  },
+  'float math sampled pow 32': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e416f1ebac4de4c',
+  },
+  'float math sampled pow 33': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e48629ced3ad5dd',
+  },
+  'float math sampled pow 34': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e516e636892668d',
+  },
+  'float math sampled pow 35': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e5973142cd33791',
+  },
+  'float math sampled pow 36': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e62f4f67bce9c6a',
+  },
+  'float math sampled pow 37': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e6ccb80169d63bc',
+  },
+  'float math sampled pow 38': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e76483146b96bcd',
+  },
+  'float math sampled pow 39': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e818e4416a3f503',
+  },
+  'float math sampled pow 40': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e8c262a9c1f81f0',
+  },
+  'float math sampled pow 41': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e96f30cbdb07217',
+  },
+  'float math sampled pow 42': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ea3042d0fee935e',
+  },
+  'float math sampled pow 43': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3eb001adcf922245',
+  },
+  'float math sampled pow 44': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ebb5be13293fba3',
+  },
+  'float math sampled pow 45': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ec7ba62fc4dc3f4',
+  },
+  'float math sampled pow 46': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ed4dff83a973826',
+  },
+  'float math sampled pow 47': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ee29eec7e20192b',
+  },
+  'float math sampled pow 48': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ef0d5b9282a2692',
+  },
+  'float math sampled pow 49': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3efed726f77c03dc',
+  },
+  'float math sampled pow 50': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f0c9c12fa6a19f1',
+  },
+  'float math sampled pow 51': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f1adeacd1d7e14b',
+  },
+  'float math sampled pow 52': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f298a6a780c2f70',
+  },
+  'float math sampled pow 53': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f389015f3962b57',
+  },
+  'float math sampled pow 54': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f47e49dcc63b753',
+  },
+  'float math sampled pow 55': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f57803e824f8a20',
+  },
+  'float math sampled pow 56': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f675ded4e943718',
+  },
+  'float math sampled pow 57': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f777af421a210ac',
+  },
+  'float math sampled pow 58': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f87d6b427e613db',
+  },
+  'float math sampled pow 59': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f987287f89570fe',
+  },
+  'float math sampled pow 60': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fa951c173b20b55',
+  },
+  'float math sampled pow 61': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fba79c19f8ed2fb',
+  },
+  'float math sampled pow 62': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fcbf22acf10c902',
+  },
+  'float math sampled pow 63': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fddc52f363ccea2',
+  },
+  'float math sampled pow 64': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math sampled pow 65': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '400159b1911ff718',
+  },
+  'float math sampled pow 66': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4012fa3c61728b7d',
+  },
+  'float math sampled pow 67': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4024eede1c3a3fde',
+  },
+  'float math sampled pow 68': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40374828678781ab',
+  },
+  'float math sampled pow 69': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '404a1ad7ebc10df8',
+  },
+  'float math sampled pow 70': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405d80ea4b32aa42',
+  },
+  'float math sampled pow 71': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4070cd83028bb53c',
+  },
+  'float math sampled pow 72': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40834926c178d90f',
+  },
+  'float math sampled pow 73': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40964d5f7b60b3a5',
+  },
+  'float math sampled pow 74': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40a9fb27022865ab',
+  },
+  'float math sampled pow 75': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40be7c79c1119551',
+  },
+  'float math sampled pow 76': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40d203811acf9b9a',
+  },
+  'float math sampled pow 77': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40e56fcf5c22544a',
+  },
+  'float math sampled pow 78': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40f9af85d4ca1786',
+  },
+  'float math sampled pow 79': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '410efc0b53cb2e62',
+  },
+  'float math sampled pow 80': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4122cff8feba4a2c',
+  },
+  'float math sampled pow 81': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4136fe4078390282',
+  },
+  'float math sampled pow 82': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '414c4892cfa4e436',
+  },
+  'float math sampled pow 83': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4161815f8dfe6a2b',
+  },
+  'float math sampled pow 84': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4175cdbc8c5174f6',
+  },
+  'float math sampled pow 85': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '418b52cb37421bd7',
+  },
+  'float math sampled pow 86': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41a1392a5d77bdab',
+  },
+  'float math sampled pow 87': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41b5d790e63a3938',
+  },
+  'float math sampled pow 88': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41cbdc6b797aec99',
+  },
+  'float math sampled pow 89': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41e1df144299a801',
+  },
+  'float math sampled pow 90': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41f70e93286f83b7',
+  },
+  'float math sampled pow 91': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '420de9b8567a8b7a',
+  },
+  'float math sampled pow 92': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '422382ad65f9bb41',
+  },
+  'float math sampled pow 93': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '423996c06d933f87',
+  },
+  'float math sampled pow 94': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4250debdf9f52a3a',
+  },
+  'float math sampled pow 95': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '42665c71d636bbee',
+  },
+  'float math sampled pow 96': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '427dcb121de8acd5',
+  },
+  'float math sampled pow 97': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4293f30b781f394b',
+  },
+  'float math sampled pow 98': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '42aad9d521b56966',
+  },
+  'float math sampled pow 99': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '42c228f71007c8a5',
+  },
+  'float math sampled pow 100': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '42d8af5bf58ee1d5',
+  },
+  'float math sampled pow 101': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '42f0dbccc21581de',
+  },
+  'float math sampled pow 102': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43072329fd8fc5f0',
+  },
+  'float math sampled pow 103': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '431fe7967f31ab42',
+  },
+  'float math sampled pow 104': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43361983015624b3',
+  },
+  'float math sampled pow 105': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '434ec1c7c081ee62',
+  },
+  'float math sampled pow 106': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4365800d2df0f12e',
+  },
+  'float math sampled pow 107': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '437e31a1a47b7da0',
+  },
+  'float math sampled pow 108': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43954ba80e85cc34',
+  },
+  'float math sampled pow 109': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43ae2bc0cbf4ea5e',
+  },
+  'float math sampled pow 110': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43c5771a548e2ccb',
+  },
+  'float math sampled pow 111': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43deac8322188085',
+  },
+  'float math sampled pow 112': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43f6025dca122d77',
+  },
+  'float math sampled pow 113': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '440fb76689edd9ce',
+  },
+  'float math sampled pow 114': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4426f269ceab3707',
+  },
+  'float math sampled pow 115': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4440ab870cd09da6',
+  },
+  'float math sampled pow 116': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4458516ec44260cc',
+  },
+  'float math sampled pow 117': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4471cef2a780e1e2',
+  },
+  'float math sampled pow 118': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '448a2f836161ac84',
+  },
+  'float math sampled pow 119': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '44a353b61dc65b77',
+  },
+  'float math sampled pow 120': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '44bca3d28e92df80',
+  },
+  'float math sampled pow 121': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '44d54d25c6183d2f',
+  },
+  'float math sampled pow 122': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '44efce6770e586fa',
+  },
+  'float math sampled pow 123': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4507d5b34b8d9baa',
+  },
+  'float math sampled pow 124': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4521ed63e54a31d7',
+  },
+  'float math sampled pow 125': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '453b111fd6d406ae',
+  },
+  'float math sampled pow 126': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '455481d2d166c699',
+  },
+  'float math sampled pow 127': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '456f2f961e8051ac',
+  },
+  'float math boundary pow -5e-324/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '8000000000000001',
+  },
+  'float math boundary pow -5e-324/3': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math boundary pow 1/18446744073709552000': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math boundary pow 0.5/18446744073709552000': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math boundary pow 2/-18446744073709552000': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math boundary pow 1.0000000000000002/4611686018427388000': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math boundary pow 0.9999999999999999/4611686018427388000': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '11c44109edb2088f',
+  },
+  'float math boundary pow 1e-300/0.5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '20ca2fe76a3f9475',
+  },
+  'float math boundary pow 1e+300/0.5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '5f138d352e5096af',
+  },
+  'float math boundary pow 2/-1074': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000001',
+  },
+  'float math boundary pow 2/-1075': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math boundary pow 1.7976931348623157e+308/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7fefffffffffffff',
+  },
+  'float math boundary pow -2/-1073': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '8000000000000002',
+  },
+  'float math boundary pow 2/1.3552527156068805e-20': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 0/0': {
+    kind: 'null',
+  },
+  'float math ^ 0/1': {
+    kind: 'null',
+  },
+  'float math ^ 0/2': {
+    kind: 'null',
+  },
+  'float math ^ 0/3': {
+    kind: 'null',
+  },
+  'float math ^ 0/4': {
+    kind: 'null',
+  },
+  'float math ^ 0/5': {
+    kind: 'null',
+  },
+  'float math ^ 0/6': {
+    kind: 'null',
+  },
+  'float math ^ 0/7': {
+    kind: 'null',
+  },
+  'float math ^ 0/8': {
+    kind: 'null',
+  },
+  'float math ^ 0/9': {
+    kind: 'null',
+  },
+  'float math ^ 0/10': {
+    kind: 'null',
+  },
+  'float math ^ 0/11': {
+    kind: 'null',
+  },
+  'float math ^ 0/12': {
+    kind: 'null',
+  },
+  'float math ^ 0/13': {
+    kind: 'null',
+  },
+  'float math ^ 0/14': {
+    kind: 'null',
+  },
+  'float math ^ 0/15': {
+    kind: 'null',
+  },
+  'float math ^ 0/16': {
+    kind: 'null',
+  },
+  'float math ^ 1/0': {
+    kind: 'null',
+  },
+  'float math ^ 1/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 1/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 1/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 1/4': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math ^ 1/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 1/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 1/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 1/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 1/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 1/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 1/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 1/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 1/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 1/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 1/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 1/16': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math ^ 2/0': {
+    kind: 'null',
+  },
+  'float math ^ 2/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 2/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 2/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '8000000000000000',
+  },
+  'float math ^ 2/4': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math ^ 2/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 2/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '8000000000000000',
+  },
+  'float math ^ 2/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 2/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 2/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 2/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 2/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 2/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 2/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 2/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 2/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 2/16': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math ^ 3/0': {
+    kind: 'null',
+  },
+  'float math ^ 3/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 3/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 3/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 3/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 3/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 3/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 3/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 3/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 3/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 3/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 3/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 3/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 3/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 3/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 3/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 3/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 4/0': {
+    kind: 'null',
+  },
+  'float math ^ 4/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 4/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 4/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bff0000000000000',
+  },
+  'float math ^ 4/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bff0000000000000',
+  },
+  'float math ^ 4/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 4/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'bff0000000000000',
+  },
+  'float math ^ 4/7': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math ^ 4/8': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math ^ 4/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 4/10': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math ^ 4/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 4/12': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math ^ 4/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 4/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 4/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 4/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 5/0': {
+    kind: 'null',
+  },
+  'float math ^ 5/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 5/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 5/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4000000000000000',
+  },
+  'float math ^ 5/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fe0000000000000',
+  },
+  'float math ^ 5/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4010000000000000',
+  },
+  'float math ^ 5/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4020000000000000',
+  },
+  'float math ^ 5/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff125fbee250664',
+  },
+  'float math ^ 5/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff6a09e667f3bcd',
+  },
+  'float math ^ 5/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4090000000000000',
+  },
+  'float math ^ 5/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 5/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 5/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 5/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 5/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 5/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 5/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 6/0': {
+    kind: 'null',
+  },
+  'float math ^ 6/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 6/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 6/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4008000000000000',
+  },
+  'float math ^ 6/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fd5555555555555',
+  },
+  'float math ^ 6/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4022000000000000',
+  },
+  'float math ^ 6/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '403b000000000000',
+  },
+  'float math ^ 6/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff1dba3f92c888b',
+  },
+  'float math ^ 6/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ffbb67ae8584caa',
+  },
+  'float math ^ 6/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40ecd52000000000',
+  },
+  'float math ^ 6/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 6/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 6/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 6/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 6/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 6/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 6/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 7/0': {
+    kind: 'null',
+  },
+  'float math ^ 7/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 7/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 7/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fb999999999999a',
+  },
+  'float math ^ 7/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4024000000000000',
+  },
+  'float math ^ 7/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f847ae147ae147c',
+  },
+  'float math ^ 7/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f50624dd2f1a9fd',
+  },
+  'float math ^ 7/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fe96b230bcdc434',
+  },
+  'float math ^ 7/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fd43d136248490f',
+  },
+  'float math ^ 7/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ddb7cdfd9d7bdbf',
+  },
+  'float math ^ 7/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 7/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 7/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 7/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 7/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 7/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 7/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 8/0': {
+    kind: 'null',
+  },
+  'float math ^ 8/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 8/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 8/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fe0000000000000',
+  },
+  'float math ^ 8/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4000000000000000',
+  },
+  'float math ^ 8/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fd0000000000000',
+  },
+  'float math ^ 8/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fc0000000000000',
+  },
+  'float math ^ 8/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3feddb680117ab12',
+  },
+  'float math ^ 8/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fe6a09e667f3bcd',
+  },
+  'float math ^ 8/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f50000000000000',
+  },
+  'float math ^ 8/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 8/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 8/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 8/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 8/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 8/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 8/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 9/0': {
+    kind: 'null',
+  },
+  'float math ^ 9/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 9/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 9/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4024000000000000',
+  },
+  'float math ^ 9/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fb999999999999a',
+  },
+  'float math ^ 9/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4059000000000000',
+  },
+  'float math ^ 9/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '408f400000000000',
+  },
+  'float math ^ 9/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff4248ef8fc2604',
+  },
+  'float math ^ 9/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40094c583ada5b53',
+  },
+  'float math ^ 9/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4202a05f20000000',
+  },
+  'float math ^ 9/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 9/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 9/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 9/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 9/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 9/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 9/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 10/0': {
+    kind: 'null',
+  },
+  'float math ^ 10/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 10/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 10/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '01a56e1fc2f8f359',
+  },
+  'float math ^ 10/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7e37e43c8800759b',
+  },
+  'float math ^ 10/5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 10/6': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 10/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '39b4484bfeebc28a',
+  },
+  'float math ^ 10/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '20ca2fe76a3f9475',
+  },
+  'float math ^ 10/9': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 10/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 10/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 10/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 10/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 10/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 10/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 10/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 11/0': {
+    kind: 'null',
+  },
+  'float math ^ 11/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 11/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 11/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7e37e43c8800759c',
+  },
+  'float math ^ 11/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '01a56e1fc2f8f359',
+  },
+  'float math ^ 11/5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 11/6': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 11/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '46293e5939a08d05',
+  },
+  'float math ^ 11/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '5f138d352e5096af',
+  },
+  'float math ^ 11/9': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 11/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 11/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 11/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 11/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 11/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 11/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 11/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 12/0': {
+    kind: 'null',
+  },
+  'float math ^ 12/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 12/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 12/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000001',
+  },
+  'float math ^ 12/4': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 12/5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 12/6': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 12/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3938406003b2ae40',
+  },
+  'float math ^ 12/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '1e60000000000000',
+  },
+  'float math ^ 12/9': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 12/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 12/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 12/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 12/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 12/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 12/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 12/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 13/0': {
+    kind: 'null',
+  },
+  'float math ^ 13/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 13/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 13/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7fefffffffffffff',
+  },
+  'float math ^ 13/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0004000000000000',
+  },
+  'float math ^ 13/5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 13/6': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 13/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '46551cb453b95384',
+  },
+  'float math ^ 13/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '5ff0000000000000',
+  },
+  'float math ^ 13/9': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 13/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 13/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 13/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 13/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math ^ 13/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 13/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 13/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 14/0': {
+    kind: 'null',
+  },
+  'float math ^ 14/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 14/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 14/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 14/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 14/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 14/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 14/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 14/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 14/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 14/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 14/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 14/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 14/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 14/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 14/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 14/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 15/0': {
+    kind: 'null',
+  },
+  'float math ^ 15/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 15/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 15/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 15/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 15/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 15/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 15/7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 15/8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 15/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 15/10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 15/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 15/12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 15/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 15/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 15/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 15/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math ^ 16/0': {
+    kind: 'null',
+  },
+  'float math ^ 16/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 16/2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math ^ 16/3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '-Infinity',
+  },
+  'float math ^ 16/4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '8000000000000000',
+  },
+  'float math ^ 16/5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 16/6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '-Infinity',
+  },
+  'float math ^ 16/7': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math ^ 16/8': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math ^ 16/9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 16/10': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math ^ 16/11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 16/12': {
+    kind: 'error',
+    code: '2201F',
+  },
+  'float math ^ 16/13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 16/14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'float math ^ 16/15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'Infinity',
+  },
+  'float math ^ 16/16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'float math sampled ^ 0': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fc35199d09a7aaf',
+  },
+  'float math sampled ^ 1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f833b9b01731ed1',
+  },
+  'float math sampled ^ 2': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f4da12044b02066',
+  },
+  'float math sampled ^ 3': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f2015de9574aeee',
+  },
+  'float math sampled ^ 4': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ef70e639bdc3b89',
+  },
+  'float math sampled ^ 5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ed4cb208357a9a0',
+  },
+  'float math sampled ^ 6': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3eb6c2f27ac313bd',
+  },
+  'float math sampled ^ 7': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e9d68d1c45c9f6a',
+  },
+  'float math sampled ^ 8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e85efdc8b933086',
+  },
+  'float math sampled ^ 9': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e728f8a14372497',
+  },
+  'float math sampled ^ 10': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e618e87f9922a84',
+  },
+  'float math sampled ^ 11': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e52584074d84afb',
+  },
+  'float math sampled ^ 12': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e44f629dd97368a',
+  },
+  'float math sampled ^ 13': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e39f86ea566a48f',
+  },
+  'float math sampled ^ 14': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e31513e3adc0ecb',
+  },
+  'float math sampled ^ 15': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e28b422daba9007',
+  },
+  'float math sampled ^ 16': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e22bebcc44941e2',
+  },
+  'float math sampled ^ 17': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e1e1e89efc1167c',
+  },
+  'float math sampled ^ 18': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e19832391e8071c',
+  },
+  'float math sampled ^ 19': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e16b3098d108c5f',
+  },
+  'float math sampled ^ 20': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e152509e6900e0f',
+  },
+  'float math sampled ^ 21': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e148f649cc10896',
+  },
+  'float math sampled ^ 22': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e14d01c3e9a25ce',
+  },
+  'float math sampled ^ 23': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e15e1bb5ff42278',
+  },
+  'float math sampled ^ 24': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e17d762abf25c63',
+  },
+  'float math sampled ^ 25': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e1ade01b5c07fd6',
+  },
+  'float math sampled ^ 26': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e1f4259511d906a',
+  },
+  'float math sampled ^ 27': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e22be5a2d16707f',
+  },
+  'float math sampled ^ 28': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e272253ddd60f02',
+  },
+  'float math sampled ^ 29': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e2d588b12b2ac01',
+  },
+  'float math sampled ^ 30': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e331aedffe25145',
+  },
+  'float math sampled ^ 31': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e39811a095db99b',
+  },
+  'float math sampled ^ 32': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e416f1ebac4de4c',
+  },
+  'float math sampled ^ 33': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e48629ced3ad5dd',
+  },
+  'float math sampled ^ 34': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e516e636892668d',
+  },
+  'float math sampled ^ 35': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e5973142cd33791',
+  },
+  'float math sampled ^ 36': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e62f4f67bce9c6a',
+  },
+  'float math sampled ^ 37': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e6ccb80169d63bc',
+  },
+  'float math sampled ^ 38': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e76483146b96bcd',
+  },
+  'float math sampled ^ 39': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e818e4416a3f503',
+  },
+  'float math sampled ^ 40': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e8c262a9c1f81f0',
+  },
+  'float math sampled ^ 41': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3e96f30cbdb07217',
+  },
+  'float math sampled ^ 42': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ea3042d0fee935e',
+  },
+  'float math sampled ^ 43': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3eb001adcf922245',
+  },
+  'float math sampled ^ 44': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ebb5be13293fba3',
+  },
+  'float math sampled ^ 45': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ec7ba62fc4dc3f4',
+  },
+  'float math sampled ^ 46': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ed4dff83a973826',
+  },
+  'float math sampled ^ 47': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ee29eec7e20192b',
+  },
+  'float math sampled ^ 48': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ef0d5b9282a2692',
+  },
+  'float math sampled ^ 49': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3efed726f77c03dc',
+  },
+  'float math sampled ^ 50': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f0c9c12fa6a19f1',
+  },
+  'float math sampled ^ 51': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f1adeacd1d7e14b',
+  },
+  'float math sampled ^ 52': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f298a6a780c2f70',
+  },
+  'float math sampled ^ 53': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f389015f3962b57',
+  },
+  'float math sampled ^ 54': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f47e49dcc63b753',
+  },
+  'float math sampled ^ 55': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f57803e824f8a20',
+  },
+  'float math sampled ^ 56': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f675ded4e943718',
+  },
+  'float math sampled ^ 57': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f777af421a210ac',
+  },
+  'float math sampled ^ 58': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f87d6b427e613db',
+  },
+  'float math sampled ^ 59': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3f987287f89570fe',
+  },
+  'float math sampled ^ 60': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fa951c173b20b55',
+  },
+  'float math sampled ^ 61': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fba79c19f8ed2fb',
+  },
+  'float math sampled ^ 62': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fcbf22acf10c902',
+  },
+  'float math sampled ^ 63': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3fddc52f363ccea2',
+  },
+  'float math sampled ^ 64': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math sampled ^ 65': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '400159b1911ff718',
+  },
+  'float math sampled ^ 66': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4012fa3c61728b7d',
+  },
+  'float math sampled ^ 67': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4024eede1c3a3fde',
+  },
+  'float math sampled ^ 68': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40374828678781ab',
+  },
+  'float math sampled ^ 69': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '404a1ad7ebc10df8',
+  },
+  'float math sampled ^ 70': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '405d80ea4b32aa42',
+  },
+  'float math sampled ^ 71': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4070cd83028bb53c',
+  },
+  'float math sampled ^ 72': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40834926c178d90f',
+  },
+  'float math sampled ^ 73': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40964d5f7b60b3a5',
+  },
+  'float math sampled ^ 74': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40a9fb27022865ab',
+  },
+  'float math sampled ^ 75': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40be7c79c1119551',
+  },
+  'float math sampled ^ 76': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40d203811acf9b9a',
+  },
+  'float math sampled ^ 77': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40e56fcf5c22544a',
+  },
+  'float math sampled ^ 78': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40f9af85d4ca1786',
+  },
+  'float math sampled ^ 79': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '410efc0b53cb2e62',
+  },
+  'float math sampled ^ 80': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4122cff8feba4a2c',
+  },
+  'float math sampled ^ 81': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4136fe4078390282',
+  },
+  'float math sampled ^ 82': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '414c4892cfa4e436',
+  },
+  'float math sampled ^ 83': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4161815f8dfe6a2b',
+  },
+  'float math sampled ^ 84': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4175cdbc8c5174f6',
+  },
+  'float math sampled ^ 85': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '418b52cb37421bd7',
+  },
+  'float math sampled ^ 86': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41a1392a5d77bdab',
+  },
+  'float math sampled ^ 87': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41b5d790e63a3938',
+  },
+  'float math sampled ^ 88': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41cbdc6b797aec99',
+  },
+  'float math sampled ^ 89': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41e1df144299a801',
+  },
+  'float math sampled ^ 90': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41f70e93286f83b7',
+  },
+  'float math sampled ^ 91': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '420de9b8567a8b7a',
+  },
+  'float math sampled ^ 92': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '422382ad65f9bb41',
+  },
+  'float math sampled ^ 93': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '423996c06d933f87',
+  },
+  'float math sampled ^ 94': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4250debdf9f52a3a',
+  },
+  'float math sampled ^ 95': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '42665c71d636bbee',
+  },
+  'float math sampled ^ 96': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '427dcb121de8acd5',
+  },
+  'float math sampled ^ 97': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4293f30b781f394b',
+  },
+  'float math sampled ^ 98': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '42aad9d521b56966',
+  },
+  'float math sampled ^ 99': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '42c228f71007c8a5',
+  },
+  'float math sampled ^ 100': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '42d8af5bf58ee1d5',
+  },
+  'float math sampled ^ 101': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '42f0dbccc21581de',
+  },
+  'float math sampled ^ 102': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43072329fd8fc5f0',
+  },
+  'float math sampled ^ 103': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '431fe7967f31ab42',
+  },
+  'float math sampled ^ 104': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43361983015624b3',
+  },
+  'float math sampled ^ 105': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '434ec1c7c081ee62',
+  },
+  'float math sampled ^ 106': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4365800d2df0f12e',
+  },
+  'float math sampled ^ 107': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '437e31a1a47b7da0',
+  },
+  'float math sampled ^ 108': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43954ba80e85cc34',
+  },
+  'float math sampled ^ 109': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43ae2bc0cbf4ea5e',
+  },
+  'float math sampled ^ 110': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43c5771a548e2ccb',
+  },
+  'float math sampled ^ 111': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43deac8322188085',
+  },
+  'float math sampled ^ 112': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '43f6025dca122d77',
+  },
+  'float math sampled ^ 113': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '440fb76689edd9ce',
+  },
+  'float math sampled ^ 114': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4426f269ceab3707',
+  },
+  'float math sampled ^ 115': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4440ab870cd09da6',
+  },
+  'float math sampled ^ 116': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4458516ec44260cc',
+  },
+  'float math sampled ^ 117': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4471cef2a780e1e2',
+  },
+  'float math sampled ^ 118': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '448a2f836161ac84',
+  },
+  'float math sampled ^ 119': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '44a353b61dc65b77',
+  },
+  'float math sampled ^ 120': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '44bca3d28e92df80',
+  },
+  'float math sampled ^ 121': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '44d54d25c6183d2f',
+  },
+  'float math sampled ^ 122': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '44efce6770e586fa',
+  },
+  'float math sampled ^ 123': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4507d5b34b8d9baa',
+  },
+  'float math sampled ^ 124': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4521ed63e54a31d7',
+  },
+  'float math sampled ^ 125': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '453b111fd6d406ae',
+  },
+  'float math sampled ^ 126': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '455481d2d166c699',
+  },
+  'float math sampled ^ 127': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '456f2f961e8051ac',
+  },
+  'float math boundary ^ -5e-324/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '8000000000000001',
+  },
+  'float math boundary ^ -5e-324/3': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math boundary ^ 1/18446744073709552000': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float math boundary ^ 0.5/18446744073709552000': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math boundary ^ 2/-18446744073709552000': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math boundary ^ 1.0000000000000002/4611686018427388000': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math boundary ^ 0.9999999999999999/4611686018427388000': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '11c44109edb2088f',
+  },
+  'float math boundary ^ 1e-300/0.5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '20ca2fe76a3f9475',
+  },
+  'float math boundary ^ 1e+300/0.5': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '5f138d352e5096af',
+  },
+  'float math boundary ^ 2/-1074': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000001',
+  },
+  'float math boundary ^ 2/-1075': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float math boundary ^ 1.7976931348623157e+308/1': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '7fefffffffffffff',
+  },
+  'float math boundary ^ -2/-1073': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '8000000000000002',
+  },
+  'float math boundary ^ 2/1.3552527156068805e-20': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '3ff0000000000000',
+  },
+  'float width_bucket 0/10/null/0': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/null/1': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/null/2': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/null/3': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/null/4': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/null/5': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/null/6': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/null/7': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/null/8': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/null/9': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/null/10': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/null/11': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/null/12': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/null/13': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/null/14': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/null/15': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/null/16': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/-1/0': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/-1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/-1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/-1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/-1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/-1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/-1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/-1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/-1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/-1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/-1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/-1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/-1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/-1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/-1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/-1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/-1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/0/0': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/0/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/0/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/0/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/0/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/0/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/0/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/0/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/0/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/0/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/0/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/0/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/0/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/0/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/0/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/0/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/0/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/1/0': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/1/1': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/1/2': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/1/3': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/1/4': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 0/10/1/5': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/1/6': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/1/7': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/1/8': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/1/9': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket 0/10/1/10': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/1/11': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket 0/10/1/12': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/1/13': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket 0/10/1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/1/15': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket 0/10/1/16': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 0/10/10/0': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/10/1': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/10/2': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/10/3': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket 0/10/10/4': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 0/10/10/5': {
+    kind: 'value',
+    value: '3',
+  },
+  'float width_bucket 0/10/10/6': {
+    kind: 'value',
+    value: '4',
+  },
+  'float width_bucket 0/10/10/7': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/10/8': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/10/9': {
+    kind: 'value',
+    value: '11',
+  },
+  'float width_bucket 0/10/10/10': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/10/11': {
+    kind: 'value',
+    value: '11',
+  },
+  'float width_bucket 0/10/10/12': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/10/13': {
+    kind: 'value',
+    value: '11',
+  },
+  'float width_bucket 0/10/10/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/10/15': {
+    kind: 'value',
+    value: '11',
+  },
+  'float width_bucket 0/10/10/16': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 0/10/2147483647/0': {
+    kind: 'null',
+  },
+  'float width_bucket 0/10/2147483647/1': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/2147483647/2': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/2147483647/3': {
+    kind: 'value',
+    value: '214748365',
+  },
+  'float width_bucket 0/10/2147483647/4': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 0/10/2147483647/5': {
+    kind: 'value',
+    value: '429496730',
+  },
+  'float width_bucket 0/10/2147483647/6': {
+    kind: 'value',
+    value: '644245095',
+  },
+  'float width_bucket 0/10/2147483647/7': {
+    kind: 'value',
+    value: '21474837',
+  },
+  'float width_bucket 0/10/2147483647/8': {
+    kind: 'value',
+    value: '107374183',
+  },
+  'float width_bucket 0/10/2147483647/9': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float width_bucket 0/10/2147483647/10': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/2147483647/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float width_bucket 0/10/2147483647/12': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 0/10/2147483647/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float width_bucket 0/10/2147483647/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/10/2147483647/15': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float width_bucket 0/10/2147483647/16': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 10/0/null/0': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/null/1': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/null/2': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/null/3': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/null/4': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/null/5': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/null/6': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/null/7': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/null/8': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/null/9': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/null/10': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/null/11': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/null/12': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/null/13': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/null/14': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/null/15': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/null/16': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/-1/0': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/-1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/-1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/-1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/-1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/-1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/-1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/-1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/-1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/-1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/-1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/-1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/-1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/-1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/-1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/-1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/-1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/0/0': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/0/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/0/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/0/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/0/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/0/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/0/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/0/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/0/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/0/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/0/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/0/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/0/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/0/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/0/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/0/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/0/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/1/0': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/1/1': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket 10/0/1/2': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket 10/0/1/3': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 10/0/1/4': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket 10/0/1/5': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 10/0/1/6': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 10/0/1/7': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 10/0/1/8': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 10/0/1/9': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 10/0/1/10': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 10/0/1/11': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 10/0/1/12': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 10/0/1/13': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 10/0/1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/1/15': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 10/0/1/16': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket 10/0/10/0': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/10/1': {
+    kind: 'value',
+    value: '11',
+  },
+  'float width_bucket 10/0/10/2': {
+    kind: 'value',
+    value: '11',
+  },
+  'float width_bucket 10/0/10/3': {
+    kind: 'value',
+    value: '10',
+  },
+  'float width_bucket 10/0/10/4': {
+    kind: 'value',
+    value: '11',
+  },
+  'float width_bucket 10/0/10/5': {
+    kind: 'value',
+    value: '9',
+  },
+  'float width_bucket 10/0/10/6': {
+    kind: 'value',
+    value: '8',
+  },
+  'float width_bucket 10/0/10/7': {
+    kind: 'value',
+    value: '10',
+  },
+  'float width_bucket 10/0/10/8': {
+    kind: 'value',
+    value: '10',
+  },
+  'float width_bucket 10/0/10/9': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 10/0/10/10': {
+    kind: 'value',
+    value: '10',
+  },
+  'float width_bucket 10/0/10/11': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 10/0/10/12': {
+    kind: 'value',
+    value: '10',
+  },
+  'float width_bucket 10/0/10/13': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 10/0/10/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/10/15': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 10/0/10/16': {
+    kind: 'value',
+    value: '11',
+  },
+  'float width_bucket 10/0/2147483647/0': {
+    kind: 'null',
+  },
+  'float width_bucket 10/0/2147483647/1': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float width_bucket 10/0/2147483647/2': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float width_bucket 10/0/2147483647/3': {
+    kind: 'value',
+    value: '1932735283',
+  },
+  'float width_bucket 10/0/2147483647/4': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float width_bucket 10/0/2147483647/5': {
+    kind: 'value',
+    value: '1717986918',
+  },
+  'float width_bucket 10/0/2147483647/6': {
+    kind: 'value',
+    value: '1503238553',
+  },
+  'float width_bucket 10/0/2147483647/7': {
+    kind: 'value',
+    value: '2126008811',
+  },
+  'float width_bucket 10/0/2147483647/8': {
+    kind: 'value',
+    value: '2040109465',
+  },
+  'float width_bucket 10/0/2147483647/9': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 10/0/2147483647/10': {
+    kind: 'value',
+    value: '2147483647',
+  },
+  'float width_bucket 10/0/2147483647/11': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 10/0/2147483647/12': {
+    kind: 'value',
+    value: '2147483647',
+  },
+  'float width_bucket 10/0/2147483647/13': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 10/0/2147483647/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 10/0/2147483647/15': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 10/0/2147483647/16': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/0': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/1': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/2': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/3': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/4': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/5': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/6': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/7': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/8': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/9': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/10': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/11': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/12': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/13': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/14': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/15': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/16': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/0': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/0': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/0': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/1': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/2': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/3': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/4': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/5': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/6': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/7': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/8': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/9': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/10': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/11': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/12': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/13': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/15': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/16': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/0': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/1': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/2': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/3': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/4': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/5': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/6': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/7': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/8': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/9': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/10': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/11': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/12': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/13': {
+    kind: 'value',
+    value: '11',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/15': {
+    kind: 'value',
+    value: '11',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/16': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/0': {
+    kind: 'null',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/1': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/2': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/3': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/4': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/5': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/6': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/7': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/8': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/9': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/10': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/11': {
+    kind: 'value',
+    value: '1073741830',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/12': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/15': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/16': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/0': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/1': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/2': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/3': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/4': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/5': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/6': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/7': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/8': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/9': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/10': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/11': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/12': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/13': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/14': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/15': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/16': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/0': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/0': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/0': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/1': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/2': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/3': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/4': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/5': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/6': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/7': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/8': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/9': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/10': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/11': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/12': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/13': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/15': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/16': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/0': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/1': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/2': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/3': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/4': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/5': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/6': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/7': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/8': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/9': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/10': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/11': {
+    kind: 'value',
+    value: '5',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/12': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/13': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/15': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/16': {
+    kind: 'value',
+    value: '11',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/0': {
+    kind: 'null',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/1': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/2': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/3': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/4': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/5': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/6': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/7': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/8': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/9': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/10': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/11': {
+    kind: 'value',
+    value: '1073741818',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/12': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/13': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/15': {
+    kind: 'value',
+    value: '0',
+  },
+  'float width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/16': {
+    kind: 'error',
+    code: '22003',
+  },
+  'float width_bucket 1/1/null/0': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/null/1': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/null/2': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/null/3': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/null/4': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/null/5': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/null/6': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/null/7': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/null/8': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/null/9': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/null/10': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/null/11': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/null/12': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/null/13': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/null/14': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/null/15': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/null/16': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/-1/0': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/-1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/-1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/-1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/-1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/-1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/-1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/-1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/-1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/-1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/-1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/-1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/-1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/-1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/-1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/-1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/-1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/0/0': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/0/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/0/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/0/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/0/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/0/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/0/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/0/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/0/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/0/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/0/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/0/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/0/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/0/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/0/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/0/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/0/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/1/0': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/10/0': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/10/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/10/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/10/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/10/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/10/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/10/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/10/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/10/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/10/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/10/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/10/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/10/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/10/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/10/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/10/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/10/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/2147483647/0': {
+    kind: 'null',
+  },
+  'float width_bucket 1/1/2147483647/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/2147483647/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/2147483647/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/2147483647/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/2147483647/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/2147483647/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/2147483647/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/2147483647/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/2147483647/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/2147483647/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/2147483647/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/2147483647/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/2147483647/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/2147483647/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/2147483647/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 1/1/2147483647/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/null/0': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/null/1': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/null/2': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/null/3': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/null/4': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/null/5': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/null/6': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/null/7': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/null/8': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/null/9': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/null/10': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/null/11': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/null/12': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/null/13': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/null/14': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/null/15': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/null/16': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/-1/0': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/-1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/-1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/-1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/-1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/-1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/-1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/-1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/-1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/-1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/-1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/-1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/-1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/-1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/-1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/-1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/-1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/0/0': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/0/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/0/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/0/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/0/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/0/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/0/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/0/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/0/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/0/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/0/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/0/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/0/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/0/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/0/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/0/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/0/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/1/0': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/10/0': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/10/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/10/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/10/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/10/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/10/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/10/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/10/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/10/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/10/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/10/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/10/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/10/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/10/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/10/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/10/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/10/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/2147483647/0': {
+    kind: 'null',
+  },
+  'float width_bucket NaN/2/2147483647/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/2147483647/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/2147483647/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/2147483647/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/2147483647/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/2147483647/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/2147483647/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/2147483647/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/2147483647/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/2147483647/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/2147483647/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/2147483647/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/2147483647/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/2147483647/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/2147483647/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket NaN/2/2147483647/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/null/0': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/null/1': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/null/2': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/null/3': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/null/4': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/null/5': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/null/6': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/null/7': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/null/8': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/null/9': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/null/10': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/null/11': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/null/12': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/null/13': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/null/14': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/null/15': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/null/16': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/-1/0': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/-1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/-1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/-1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/-1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/-1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/-1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/-1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/-1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/-1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/-1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/-1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/-1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/-1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/-1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/-1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/-1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/0/0': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/0/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/0/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/0/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/0/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/0/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/0/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/0/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/0/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/0/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/0/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/0/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/0/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/0/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/0/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/0/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/0/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/1/0': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/10/0': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/10/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/10/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/10/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/10/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/10/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/10/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/10/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/10/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/10/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/10/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/10/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/10/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/10/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/10/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/10/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/10/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/2147483647/0': {
+    kind: 'null',
+  },
+  'float width_bucket 0/Infinity/2147483647/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/2147483647/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/2147483647/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/2147483647/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/2147483647/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/2147483647/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/2147483647/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/2147483647/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/2147483647/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/2147483647/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/2147483647/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/2147483647/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/2147483647/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/2147483647/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/2147483647/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket 0/Infinity/2147483647/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/null/0': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/null/1': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/null/2': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/null/3': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/null/4': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/null/5': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/null/6': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/null/7': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/null/8': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/null/9': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/null/10': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/null/11': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/null/12': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/null/13': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/null/14': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/null/15': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/null/16': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/-1/0': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/-1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/-1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/-1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/-1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/-1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/-1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/-1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/-1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/-1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/-1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/-1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/-1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/-1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/-1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/-1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/-1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/0/0': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/0/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/0/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/0/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/0/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/0/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/0/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/0/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/0/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/0/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/0/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/0/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/0/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/0/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/0/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/0/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/0/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/1/0': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/10/0': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/10/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/10/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/10/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/10/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/10/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/10/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/10/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/10/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/10/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/10/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/10/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/10/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/10/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/10/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/10/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/10/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/2147483647/0': {
+    kind: 'null',
+  },
+  'float width_bucket -Infinity/0/2147483647/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/2147483647/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/2147483647/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/2147483647/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/2147483647/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/2147483647/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/2147483647/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/2147483647/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/2147483647/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/2147483647/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/2147483647/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/2147483647/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/2147483647/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/2147483647/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/2147483647/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket -Infinity/0/2147483647/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'float width_bucket boundary 0': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket boundary 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket boundary 2': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket boundary 3': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket boundary 4': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket boundary 5': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket boundary 6': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket boundary 7': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket boundary 8': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket boundary 9': {
+    kind: 'value',
+    value: '1',
+  },
+  'float width_bucket boundary 10': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket boundary 11': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket boundary 12': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket boundary 13': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket boundary 14': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket boundary 15': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket boundary 16': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket boundary 17': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket boundary 18': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket boundary 19': {
+    kind: 'value',
+    value: '2',
+  },
+  'float width_bucket boundary 20': {
+    kind: 'value',
+    value: '3',
+  },
+  'float width_bucket boundary 21': {
+    kind: 'value',
+    value: '3',
+  },
+  'float width_bucket boundary 22': {
+    kind: 'value',
+    value: '3',
+  },
+  'float width_bucket boundary 23': {
+    kind: 'value',
+    value: '3',
+  },
+  'float width_bucket boundary 24': {
+    kind: 'value',
+    value: '3',
+  },
+  'float width_bucket boundary 25': {
+    kind: 'value',
+    value: '3',
+  },
+  'float width_bucket boundary 26': {
+    kind: 'value',
+    value: '3',
+  },
+  'float width_bucket boundary 27': {
+    kind: 'value',
+    value: '3',
+  },
+  'float width_bucket boundary 28': {
+    kind: 'value',
+    value: '3',
+  },
+  'float width_bucket boundary 29': {
+    kind: 'value',
+    value: '3',
+  },
+  'float width_bucket boundary 30': {
+    kind: 'value',
+    value: '4',
+  },
+  'float width_bucket boundary 31': {
+    kind: 'value',
+    value: '4',
+  },
+  'float width_bucket boundary 32': {
+    kind: 'value',
+    value: '4',
+  },
+  'float width_bucket boundary 33': {
+    kind: 'value',
+    value: '4',
+  },
+  'float width_bucket boundary 34': {
+    kind: 'value',
+    value: '4',
+  },
+  'float width_bucket boundary 35': {
+    kind: 'value',
+    value: '4',
+  },
+  'float width_bucket boundary 36': {
+    kind: 'value',
+    value: '4',
+  },
+  'float width_bucket boundary 37': {
+    kind: 'value',
+    value: '4',
+  },
+  'float width_bucket boundary 38': {
+    kind: 'value',
+    value: '4',
+  },
+  'float width_bucket boundary 39': {
+    kind: 'value',
+    value: '4',
+  },
+  'float width_bucket boundary 40': {
+    kind: 'value',
+    value: '5',
+  },
+  'float width_bucket boundary 41': {
+    kind: 'value',
+    value: '5',
+  },
+  'float width_bucket boundary 42': {
+    kind: 'value',
+    value: '5',
+  },
+  'float width_bucket boundary 43': {
+    kind: 'value',
+    value: '5',
+  },
+  'float width_bucket boundary 44': {
+    kind: 'value',
+    value: '5',
+  },
+  'float width_bucket boundary 45': {
+    kind: 'value',
+    value: '5',
+  },
+  'float width_bucket boundary 46': {
+    kind: 'value',
+    value: '5',
+  },
+  'float width_bucket boundary 47': {
+    kind: 'value',
+    value: '5',
+  },
+  'float width_bucket boundary 48': {
+    kind: 'value',
+    value: '5',
+  },
+  'float width_bucket boundary 49': {
+    kind: 'value',
+    value: '5',
+  },
+  'float width_bucket boundary 50': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket boundary 51': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket boundary 52': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket boundary 53': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket boundary 54': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket boundary 55': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket boundary 56': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket boundary 57': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket boundary 58': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket boundary 59': {
+    kind: 'value',
+    value: '6',
+  },
+  'float width_bucket boundary 60': {
+    kind: 'value',
+    value: '7',
+  },
+  'float width_bucket boundary 61': {
+    kind: 'value',
+    value: '7',
+  },
+  'float width_bucket boundary 62': {
+    kind: 'value',
+    value: '7',
+  },
+  'float width_bucket boundary 63': {
+    kind: 'value',
+    value: '7',
+  },
+  'float width_bucket boundary 64': {
+    kind: 'value',
+    value: '7',
+  },
+  'float width_bucket boundary 65': {
+    kind: 'value',
+    value: '7',
+  },
+  'float width_bucket boundary 66': {
+    kind: 'value',
+    value: '7',
+  },
+  'float width_bucket boundary 67': {
+    kind: 'value',
+    value: '7',
+  },
+  'float width_bucket boundary 68': {
+    kind: 'value',
+    value: '7',
+  },
+  'float width_bucket boundary 69': {
+    kind: 'value',
+    value: '7',
+  },
+  'float width_bucket boundary 70': {
+    kind: 'value',
+    value: '8',
+  },
+  'float width_bucket boundary 71': {
+    kind: 'value',
+    value: '8',
+  },
+  'float width_bucket boundary 72': {
+    kind: 'value',
+    value: '8',
+  },
+  'float width_bucket boundary 73': {
+    kind: 'value',
+    value: '8',
+  },
+  'float width_bucket boundary 74': {
+    kind: 'value',
+    value: '8',
+  },
+  'float width_bucket boundary 75': {
+    kind: 'value',
+    value: '8',
+  },
+  'float width_bucket boundary 76': {
+    kind: 'value',
+    value: '8',
+  },
+  'float width_bucket boundary 77': {
+    kind: 'value',
+    value: '8',
+  },
+  'float width_bucket boundary 78': {
+    kind: 'value',
+    value: '8',
+  },
+  'float width_bucket boundary 79': {
+    kind: 'value',
+    value: '8',
+  },
+  'float width_bucket boundary 80': {
+    kind: 'value',
+    value: '9',
+  },
+  'float width_bucket boundary 81': {
+    kind: 'value',
+    value: '9',
+  },
+  'float width_bucket boundary 82': {
+    kind: 'value',
+    value: '9',
+  },
+  'float width_bucket boundary 83': {
+    kind: 'value',
+    value: '9',
+  },
+  'float width_bucket boundary 84': {
+    kind: 'value',
+    value: '9',
+  },
+  'float width_bucket boundary 85': {
+    kind: 'value',
+    value: '9',
+  },
+  'float width_bucket boundary 86': {
+    kind: 'value',
+    value: '9',
+  },
+  'float width_bucket boundary 87': {
+    kind: 'value',
+    value: '9',
+  },
+  'float width_bucket boundary 88': {
+    kind: 'value',
+    value: '9',
+  },
+  'float width_bucket boundary 89': {
+    kind: 'value',
+    value: '9',
+  },
+  'float width_bucket boundary 90': {
+    kind: 'value',
+    value: '10',
+  },
+  'float width_bucket boundary 91': {
+    kind: 'value',
+    value: '10',
+  },
+  'float width_bucket boundary 92': {
+    kind: 'value',
+    value: '10',
+  },
+  'float width_bucket boundary 93': {
+    kind: 'value',
+    value: '10',
+  },
+  'float width_bucket boundary 94': {
+    kind: 'value',
+    value: '10',
+  },
+  'float width_bucket boundary 95': {
+    kind: 'value',
+    value: '10',
+  },
+  'float width_bucket boundary 96': {
+    kind: 'value',
+    value: '10',
+  },
+  'float width_bucket boundary 97': {
+    kind: 'value',
+    value: '10',
+  },
+  'float width_bucket boundary 98': {
+    kind: 'value',
+    value: '10',
+  },
+  'float width_bucket boundary 99': {
+    kind: 'value',
+    value: '10',
+  },
+  'float width_bucket boundary 100': {
+    kind: 'value',
+    value: '11',
+  },
+  'numeric width_bucket 0/10/null/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/null/1': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/null/2': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/null/3': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/null/4': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/null/5': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/null/6': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/null/7': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/null/8': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/null/9': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/null/10': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/null/11': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/null/12': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/null/13': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/null/14': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/null/15': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/null/16': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/-1/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/-1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/-1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/-1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/-1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/-1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/-1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/-1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/-1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/-1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/-1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/-1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/-1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/-1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/-1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/-1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/-1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/0/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/0/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/0/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/0/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/0/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/0/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/0/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/0/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/0/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/0/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/0/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/0/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/0/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/0/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/0/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/0/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/0/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/1/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/1/1': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/1/2': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/1/3': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/1/4': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 0/10/1/5': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/1/6': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/1/7': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/1/8': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/1/9': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket 0/10/1/10': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/1/11': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket 0/10/1/12': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/1/13': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket 0/10/1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/1/15': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket 0/10/1/16': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 0/10/10/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/10/1': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/10/2': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/10/3': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket 0/10/10/4': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 0/10/10/5': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric width_bucket 0/10/10/6': {
+    kind: 'value',
+    value: '4',
+  },
+  'numeric width_bucket 0/10/10/7': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/10/8': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/10/9': {
+    kind: 'value',
+    value: '11',
+  },
+  'numeric width_bucket 0/10/10/10': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/10/11': {
+    kind: 'value',
+    value: '11',
+  },
+  'numeric width_bucket 0/10/10/12': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/10/13': {
+    kind: 'value',
+    value: '11',
+  },
+  'numeric width_bucket 0/10/10/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/10/15': {
+    kind: 'value',
+    value: '11',
+  },
+  'numeric width_bucket 0/10/10/16': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 0/10/2147483647/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/10/2147483647/1': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/2147483647/2': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/2147483647/3': {
+    kind: 'value',
+    value: '214748365',
+  },
+  'numeric width_bucket 0/10/2147483647/4': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 0/10/2147483647/5': {
+    kind: 'value',
+    value: '429496730',
+  },
+  'numeric width_bucket 0/10/2147483647/6': {
+    kind: 'value',
+    value: '644245095',
+  },
+  'numeric width_bucket 0/10/2147483647/7': {
+    kind: 'value',
+    value: '21474837',
+  },
+  'numeric width_bucket 0/10/2147483647/8': {
+    kind: 'value',
+    value: '107374183',
+  },
+  'numeric width_bucket 0/10/2147483647/9': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric width_bucket 0/10/2147483647/10': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/2147483647/11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric width_bucket 0/10/2147483647/12': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 0/10/2147483647/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric width_bucket 0/10/2147483647/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/10/2147483647/15': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric width_bucket 0/10/2147483647/16': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 10/0/null/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/null/1': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/null/2': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/null/3': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/null/4': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/null/5': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/null/6': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/null/7': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/null/8': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/null/9': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/null/10': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/null/11': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/null/12': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/null/13': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/null/14': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/null/15': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/null/16': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/-1/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/-1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/-1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/-1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/-1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/-1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/-1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/-1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/-1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/-1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/-1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/-1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/-1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/-1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/-1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/-1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/-1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/0/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/0/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/0/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/0/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/0/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/0/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/0/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/0/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/0/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/0/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/0/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/0/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/0/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/0/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/0/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/0/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/0/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/1/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/1/1': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket 10/0/1/2': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket 10/0/1/3': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 10/0/1/4': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket 10/0/1/5': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 10/0/1/6': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 10/0/1/7': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 10/0/1/8': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 10/0/1/9': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 10/0/1/10': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 10/0/1/11': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 10/0/1/12': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 10/0/1/13': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 10/0/1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/1/15': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 10/0/1/16': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket 10/0/10/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/10/1': {
+    kind: 'value',
+    value: '11',
+  },
+  'numeric width_bucket 10/0/10/2': {
+    kind: 'value',
+    value: '11',
+  },
+  'numeric width_bucket 10/0/10/3': {
+    kind: 'value',
+    value: '10',
+  },
+  'numeric width_bucket 10/0/10/4': {
+    kind: 'value',
+    value: '11',
+  },
+  'numeric width_bucket 10/0/10/5': {
+    kind: 'value',
+    value: '9',
+  },
+  'numeric width_bucket 10/0/10/6': {
+    kind: 'value',
+    value: '8',
+  },
+  'numeric width_bucket 10/0/10/7': {
+    kind: 'value',
+    value: '10',
+  },
+  'numeric width_bucket 10/0/10/8': {
+    kind: 'value',
+    value: '10',
+  },
+  'numeric width_bucket 10/0/10/9': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 10/0/10/10': {
+    kind: 'value',
+    value: '10',
+  },
+  'numeric width_bucket 10/0/10/11': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 10/0/10/12': {
+    kind: 'value',
+    value: '10',
+  },
+  'numeric width_bucket 10/0/10/13': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 10/0/10/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/10/15': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 10/0/10/16': {
+    kind: 'value',
+    value: '11',
+  },
+  'numeric width_bucket 10/0/2147483647/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 10/0/2147483647/1': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric width_bucket 10/0/2147483647/2': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric width_bucket 10/0/2147483647/3': {
+    kind: 'value',
+    value: '1932735283',
+  },
+  'numeric width_bucket 10/0/2147483647/4': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric width_bucket 10/0/2147483647/5': {
+    kind: 'value',
+    value: '1717986918',
+  },
+  'numeric width_bucket 10/0/2147483647/6': {
+    kind: 'value',
+    value: '1503238553',
+  },
+  'numeric width_bucket 10/0/2147483647/7': {
+    kind: 'value',
+    value: '2126008811',
+  },
+  'numeric width_bucket 10/0/2147483647/8': {
+    kind: 'value',
+    value: '2040109465',
+  },
+  'numeric width_bucket 10/0/2147483647/9': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 10/0/2147483647/10': {
+    kind: 'value',
+    value: '2147483647',
+  },
+  'numeric width_bucket 10/0/2147483647/11': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 10/0/2147483647/12': {
+    kind: 'value',
+    value: '2147483647',
+  },
+  'numeric width_bucket 10/0/2147483647/13': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 10/0/2147483647/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 10/0/2147483647/15': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 10/0/2147483647/16': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/1': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/2': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/3': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/4': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/5': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/6': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/7': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/8': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/9': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/10': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/11': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/12': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/13': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/14': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/15': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/null/16': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/-1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/0/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/1': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/2': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/3': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/4': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/5': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/6': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/7': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/8': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/9': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/10': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/11': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/12': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/13': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/15': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/1/16': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/1': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/2': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/3': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/4': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/5': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/6': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/7': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/8': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/9': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/10': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/11': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/12': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/13': {
+    kind: 'value',
+    value: '11',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/15': {
+    kind: 'value',
+    value: '11',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/10/16': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/1': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/2': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/3': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/4': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/5': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/6': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/7': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/8': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/9': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/10': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/11': {
+    kind: 'value',
+    value: '1073741830',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/12': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/15': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric width_bucket -1.7976931348623157e+308/1.7976931348623157e+308/2147483647/16': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/1': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/2': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/3': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/4': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/5': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/6': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/7': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/8': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/9': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/10': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/11': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/12': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/13': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/14': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/15': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/null/16': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/-1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/0/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/1': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/2': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/3': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/4': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/5': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/6': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/7': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/8': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/9': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/10': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/11': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/12': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/13': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/15': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/1/16': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/1': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/2': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/3': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/4': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/5': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/6': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/7': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/8': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/9': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/10': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/11': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/12': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/13': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/15': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/10/16': {
+    kind: 'value',
+    value: '11',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/1': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/2': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/3': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/4': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/5': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/6': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/7': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/8': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/9': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/10': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/11': {
+    kind: 'value',
+    value: '1073741818',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/12': {
+    kind: 'value',
+    value: '1073741824',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/13': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/15': {
+    kind: 'value',
+    value: '0',
+  },
+  'numeric width_bucket 1.7976931348623157e+308/-1.7976931348623157e+308/2147483647/16': {
+    kind: 'error',
+    code: '22003',
+  },
+  'numeric width_bucket 1/1/null/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/null/1': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/null/2': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/null/3': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/null/4': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/null/5': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/null/6': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/null/7': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/null/8': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/null/9': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/null/10': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/null/11': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/null/12': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/null/13': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/null/14': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/null/15': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/null/16': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/-1/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/-1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/-1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/-1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/-1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/-1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/-1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/-1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/-1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/-1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/-1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/-1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/-1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/-1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/-1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/-1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/-1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/0/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/0/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/0/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/0/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/0/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/0/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/0/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/0/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/0/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/0/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/0/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/0/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/0/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/0/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/0/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/0/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/0/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/1/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/10/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/10/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/10/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/10/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/10/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/10/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/10/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/10/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/10/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/10/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/10/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/10/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/10/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/10/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/10/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/10/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/10/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/2147483647/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 1/1/2147483647/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/2147483647/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/2147483647/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/2147483647/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/2147483647/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/2147483647/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/2147483647/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/2147483647/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/2147483647/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/2147483647/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/2147483647/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/2147483647/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/2147483647/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/2147483647/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/2147483647/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 1/1/2147483647/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/null/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/null/1': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/null/2': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/null/3': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/null/4': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/null/5': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/null/6': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/null/7': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/null/8': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/null/9': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/null/10': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/null/11': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/null/12': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/null/13': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/null/14': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/null/15': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/null/16': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/-1/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/-1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/-1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/-1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/-1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/-1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/-1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/-1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/-1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/-1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/-1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/-1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/-1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/-1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/-1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/-1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/-1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/0/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/0/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/0/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/0/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/0/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/0/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/0/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/0/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/0/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/0/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/0/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/0/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/0/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/0/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/0/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/0/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/0/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/1/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/10/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/10/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/10/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/10/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/10/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/10/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/10/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/10/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/10/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/10/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/10/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/10/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/10/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/10/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/10/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/10/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/10/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/2147483647/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket NaN/2/2147483647/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/2147483647/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/2147483647/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/2147483647/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/2147483647/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/2147483647/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/2147483647/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/2147483647/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/2147483647/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/2147483647/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/2147483647/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/2147483647/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/2147483647/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/2147483647/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/2147483647/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket NaN/2/2147483647/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/null/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/null/1': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/null/2': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/null/3': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/null/4': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/null/5': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/null/6': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/null/7': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/null/8': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/null/9': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/null/10': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/null/11': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/null/12': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/null/13': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/null/14': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/null/15': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/null/16': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/-1/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/-1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/-1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/-1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/-1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/-1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/-1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/-1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/-1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/-1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/-1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/-1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/-1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/-1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/-1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/-1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/-1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/0/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/0/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/0/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/0/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/0/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/0/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/0/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/0/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/0/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/0/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/0/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/0/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/0/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/0/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/0/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/0/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/0/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/1/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/10/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/10/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/10/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/10/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/10/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/10/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/10/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/10/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/10/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/10/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/10/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/10/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/10/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/10/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/10/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/10/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/10/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/2147483647/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket 0/Infinity/2147483647/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/2147483647/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/2147483647/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/2147483647/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/2147483647/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/2147483647/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/2147483647/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/2147483647/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/2147483647/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/2147483647/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/2147483647/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/2147483647/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/2147483647/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/2147483647/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/2147483647/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket 0/Infinity/2147483647/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/null/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/null/1': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/null/2': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/null/3': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/null/4': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/null/5': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/null/6': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/null/7': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/null/8': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/null/9': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/null/10': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/null/11': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/null/12': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/null/13': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/null/14': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/null/15': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/null/16': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/-1/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/-1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/-1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/-1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/-1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/-1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/-1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/-1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/-1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/-1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/-1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/-1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/-1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/-1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/-1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/-1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/-1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/0/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/0/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/0/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/0/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/0/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/0/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/0/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/0/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/0/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/0/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/0/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/0/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/0/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/0/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/0/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/0/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/0/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/1/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/1/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/1/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/1/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/1/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/1/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/1/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/1/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/1/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/1/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/1/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/1/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/1/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/1/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/1/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/1/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/1/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/10/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/10/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/10/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/10/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/10/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/10/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/10/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/10/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/10/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/10/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/10/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/10/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/10/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/10/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/10/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/10/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/10/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/2147483647/0': {
+    kind: 'null',
+  },
+  'numeric width_bucket -Infinity/0/2147483647/1': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/2147483647/2': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/2147483647/3': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/2147483647/4': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/2147483647/5': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/2147483647/6': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/2147483647/7': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/2147483647/8': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/2147483647/9': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/2147483647/10': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/2147483647/11': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/2147483647/12': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/2147483647/13': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/2147483647/14': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/2147483647/15': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket -Infinity/0/2147483647/16': {
+    kind: 'error',
+    code: '2201G',
+  },
+  'numeric width_bucket boundary 0': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket boundary 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket boundary 2': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket boundary 3': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket boundary 4': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket boundary 5': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket boundary 6': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket boundary 7': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket boundary 8': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket boundary 9': {
+    kind: 'value',
+    value: '1',
+  },
+  'numeric width_bucket boundary 10': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket boundary 11': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket boundary 12': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket boundary 13': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket boundary 14': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket boundary 15': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket boundary 16': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket boundary 17': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket boundary 18': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket boundary 19': {
+    kind: 'value',
+    value: '2',
+  },
+  'numeric width_bucket boundary 20': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric width_bucket boundary 21': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric width_bucket boundary 22': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric width_bucket boundary 23': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric width_bucket boundary 24': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric width_bucket boundary 25': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric width_bucket boundary 26': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric width_bucket boundary 27': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric width_bucket boundary 28': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric width_bucket boundary 29': {
+    kind: 'value',
+    value: '3',
+  },
+  'numeric width_bucket boundary 30': {
+    kind: 'value',
+    value: '4',
+  },
+  'numeric width_bucket boundary 31': {
+    kind: 'value',
+    value: '4',
+  },
+  'numeric width_bucket boundary 32': {
+    kind: 'value',
+    value: '4',
+  },
+  'numeric width_bucket boundary 33': {
+    kind: 'value',
+    value: '4',
+  },
+  'numeric width_bucket boundary 34': {
+    kind: 'value',
+    value: '4',
+  },
+  'numeric width_bucket boundary 35': {
+    kind: 'value',
+    value: '4',
+  },
+  'numeric width_bucket boundary 36': {
+    kind: 'value',
+    value: '4',
+  },
+  'numeric width_bucket boundary 37': {
+    kind: 'value',
+    value: '4',
+  },
+  'numeric width_bucket boundary 38': {
+    kind: 'value',
+    value: '4',
+  },
+  'numeric width_bucket boundary 39': {
+    kind: 'value',
+    value: '4',
+  },
+  'numeric width_bucket boundary 40': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket boundary 41': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket boundary 42': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket boundary 43': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket boundary 44': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket boundary 45': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket boundary 46': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket boundary 47': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket boundary 48': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket boundary 49': {
+    kind: 'value',
+    value: '5',
+  },
+  'numeric width_bucket boundary 50': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket boundary 51': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket boundary 52': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket boundary 53': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket boundary 54': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket boundary 55': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket boundary 56': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket boundary 57': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket boundary 58': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket boundary 59': {
+    kind: 'value',
+    value: '6',
+  },
+  'numeric width_bucket boundary 60': {
+    kind: 'value',
+    value: '7',
+  },
+  'numeric width_bucket boundary 61': {
+    kind: 'value',
+    value: '7',
+  },
+  'numeric width_bucket boundary 62': {
+    kind: 'value',
+    value: '7',
+  },
+  'numeric width_bucket boundary 63': {
+    kind: 'value',
+    value: '7',
+  },
+  'numeric width_bucket boundary 64': {
+    kind: 'value',
+    value: '7',
+  },
+  'numeric width_bucket boundary 65': {
+    kind: 'value',
+    value: '7',
+  },
+  'numeric width_bucket boundary 66': {
+    kind: 'value',
+    value: '7',
+  },
+  'numeric width_bucket boundary 67': {
+    kind: 'value',
+    value: '7',
+  },
+  'numeric width_bucket boundary 68': {
+    kind: 'value',
+    value: '7',
+  },
+  'numeric width_bucket boundary 69': {
+    kind: 'value',
+    value: '7',
+  },
+  'numeric width_bucket boundary 70': {
+    kind: 'value',
+    value: '8',
+  },
+  'numeric width_bucket boundary 71': {
+    kind: 'value',
+    value: '8',
+  },
+  'numeric width_bucket boundary 72': {
+    kind: 'value',
+    value: '8',
+  },
+  'numeric width_bucket boundary 73': {
+    kind: 'value',
+    value: '8',
+  },
+  'numeric width_bucket boundary 74': {
+    kind: 'value',
+    value: '8',
+  },
+  'numeric width_bucket boundary 75': {
+    kind: 'value',
+    value: '8',
+  },
+  'numeric width_bucket boundary 76': {
+    kind: 'value',
+    value: '8',
+  },
+  'numeric width_bucket boundary 77': {
+    kind: 'value',
+    value: '8',
+  },
+  'numeric width_bucket boundary 78': {
+    kind: 'value',
+    value: '8',
+  },
+  'numeric width_bucket boundary 79': {
+    kind: 'value',
+    value: '8',
+  },
+  'numeric width_bucket boundary 80': {
+    kind: 'value',
+    value: '9',
+  },
+  'numeric width_bucket boundary 81': {
+    kind: 'value',
+    value: '9',
+  },
+  'numeric width_bucket boundary 82': {
+    kind: 'value',
+    value: '9',
+  },
+  'numeric width_bucket boundary 83': {
+    kind: 'value',
+    value: '9',
+  },
+  'numeric width_bucket boundary 84': {
+    kind: 'value',
+    value: '9',
+  },
+  'numeric width_bucket boundary 85': {
+    kind: 'value',
+    value: '9',
+  },
+  'numeric width_bucket boundary 86': {
+    kind: 'value',
+    value: '9',
+  },
+  'numeric width_bucket boundary 87': {
+    kind: 'value',
+    value: '9',
+  },
+  'numeric width_bucket boundary 88': {
+    kind: 'value',
+    value: '9',
+  },
+  'numeric width_bucket boundary 89': {
+    kind: 'value',
+    value: '9',
+  },
+  'numeric width_bucket boundary 90': {
+    kind: 'value',
+    value: '10',
+  },
+  'numeric width_bucket boundary 91': {
+    kind: 'value',
+    value: '10',
+  },
+  'numeric width_bucket boundary 92': {
+    kind: 'value',
+    value: '10',
+  },
+  'numeric width_bucket boundary 93': {
+    kind: 'value',
+    value: '10',
+  },
+  'numeric width_bucket boundary 94': {
+    kind: 'value',
+    value: '10',
+  },
+  'numeric width_bucket boundary 95': {
+    kind: 'value',
+    value: '10',
+  },
+  'numeric width_bucket boundary 96': {
+    kind: 'value',
+    value: '10',
+  },
+  'numeric width_bucket boundary 97': {
+    kind: 'value',
+    value: '10',
+  },
+  'numeric width_bucket boundary 98': {
+    kind: 'value',
+    value: '10',
+  },
+  'numeric width_bucket boundary 99': {
+    kind: 'value',
+    value: '10',
+  },
+  'numeric width_bucket boundary 100': {
+    kind: 'value',
+    value: '11',
+  },
 }

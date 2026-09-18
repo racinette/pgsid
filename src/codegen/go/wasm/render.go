@@ -303,6 +303,20 @@ func expression(node *wireNode) (ast.Expr, error) {
 			return nil, err
 		}
 		return &ast.FuncType{Params: parameters, Results: results}, nil
+	case "function-literal":
+		parameters, err := fieldList(node.Parameters)
+		if err != nil {
+			return nil, err
+		}
+		results, err := fieldList(node.Results)
+		if err != nil {
+			return nil, err
+		}
+		body, err := block(node.Body)
+		if err != nil {
+			return nil, err
+		}
+		return &ast.FuncLit{Type: &ast.FuncType{Params: parameters, Results: results}, Body: body}, nil
 	case "ellipsis":
 		value, err := expression(node.Type)
 		if err != nil {

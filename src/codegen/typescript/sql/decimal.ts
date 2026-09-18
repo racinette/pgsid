@@ -41,6 +41,11 @@ export const typescriptDecimalOperators = {
 } satisfies OperatorBindings<typeof PG18_NUMERIC, ts.Expression>
 
 export const typescriptDecimalFunctions = {
+  'function:["pg_catalog","scale"](pg_catalog."numeric")': call('decimalScale'),
+  'function:["pg_catalog","min_scale"](pg_catalog."numeric")': call('decimalMinScale'),
+  'function:["pg_catalog","trim_scale"](pg_catalog."numeric")': call('decimalTrimScale'),
+  'function:["pg_catalog","width_bucket"](pg_catalog."numeric",pg_catalog."numeric",pg_catalog."numeric",pg_catalog.int4)':
+    call('decimalWidthBucket'),
   'function:["pg_catalog","sqrt"](pg_catalog."numeric")': call('decimalSqrt'),
   'function:["pg_catalog","exp"](pg_catalog."numeric")': call('decimalExp'),
   'function:["pg_catalog","ln"](pg_catalog."numeric")': call('decimalLn'),

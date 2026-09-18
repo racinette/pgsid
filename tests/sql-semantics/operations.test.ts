@@ -1,3 +1,9 @@
+import type { SqlExpression } from '../../src/sql-semantics/expressions.js'
+import { floatMathCopyright } from '../../src/sql-semantics/float-math-license.js'
+import { numericMathCopyright } from '../../src/sql-semantics/numeric-math-license.js'
+import { scalarCases } from '../fixtures/sql-semantics/operations/scalar.js'
+import { PG18_BOOLEAN } from '../../src/postgres/builtins/boolean.generated.js'
+import { PG18_TEXT } from '../../src/postgres/builtins/text.generated.js'
 import { fileURLToPath } from 'node:url'
 import { numericCases, numericStressCases } from '../fixtures/sql-semantics/operations/numeric.js'
 import { observeFloat } from '../support/postgres/observe.js'
@@ -32,6 +38,7 @@ const standardCases = [
   ...integerCompositionCases,
   ...integerOperationCases,
   ...numericCases,
+  ...scalarCases,
 ]
 const cases =
   process.env.PGSID_SQL_SEMANTICS_STRESS === '1'
@@ -68,16 +75,33 @@ function goProject(fixtures = cases): string {
     source:
       goSqlRuntime([...emitted.flatMap((result) => result.helpers), 'sqlDecimalText'], 'main') +
       `
+      ${Array.from(
+        { length: Math.ceil(fixtures.length / 128) },
+        (_, batch) =>
+          `func evaluateBatch${batch}() []any { return []any{${emitted
+            .slice(batch * 128, (batch + 1) * 128)
+            .map((_, i) => `evaluate${batch * 128 + i}()`)
+            .join(',')}} }`,
+      ).join('\n')}
+      func evaluatedValues() []any {
+        values := make([]any, 0, ${fixtures.length})
+        ${Array.from({ length: Math.ceil(fixtures.length / 128) }, (_, batch) => `values = append(values, evaluateBatch${batch}()...)`).join('\n')}
+        return values
+      }
       func main() {
         results := []map[string]string{}
         types := []string{${fixtures.map((fixture) => JSON.stringify(fixture.expression.type)).join(',')}}
-        for index, raw := range []any{${emitted.map((_, i) => `evaluate${i}()`).join(',')}} {
+        for index, raw := range evaluatedValues() {
           result := map[string]string{}
           switch value := raw.(type) {
           case SqlInteger:
             if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
             } else if !value.Valid { result["kind"] = "null"
             } else { result["kind"] = "value"; result["value"] = strconv.FormatInt(value.Value, 10) }
+          case SqlText:
+            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
+            } else if !value.Valid { result["kind"] = "null"
+            } else { result["kind"] = "value"; result["value"] = value.Value }
           case SqlBoolean:
             if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
             } else if !value.Valid { result["kind"] = "null"
@@ -116,7 +140,9 @@ function goProject(fixtures = cases): string {
                   ? 'SqlFloat'
                   : result.value.type === 'pg_catalog."numeric"'
                     ? 'SqlDecimal'
-                    : 'SqlInteger',
+                    : result.value.type === 'pg_catalog.text'
+                      ? 'SqlText'
+                      : 'SqlInteger',
             ),
           },
         ],
@@ -126,7 +152,7 @@ function goProject(fixtures = cases): string {
   })
 }
 
-describe('generated PostgreSQL numeric evaluation', () => {
+describe('generated PostgreSQL scalar evaluation', () => {
   beforeAll(async () => {
     pg = await PGlite.create()
   })
@@ -134,9 +160,16 @@ describe('generated PostgreSQL numeric evaluation', () => {
     await pg.close()
   })
 
-  it.each(cases)('$name agrees with PostgreSQL', async (fixture) => {
-    expect(await observeSql(pg, fixture.sql, fixture.expression.type)).toEqual(fixture.expected)
-  })
+  it.each(cases.map((fixture, index) => ({ ...fixture, index })))(
+    '$name agrees with PostgreSQL',
+    async (fixture) => {
+      if (fixture.index > 0 && fixture.index % 1024 === 0) {
+        await pg.close()
+        pg = await PGlite.create()
+      }
+      expect(await observeSql(pg, fixture.sql, fixture.expression.type)).toEqual(fixture.expected)
+    },
+  )
 
   it(
     'executes the generated TypeScript against the shared cases',
@@ -248,8 +281,41 @@ describe('generated PostgreSQL numeric evaluation', () => {
     }
   })
 
-  it('compiles isolated numeric programs with only their required helpers and imports', async () => {
+  it('compiles isolated expression programs with only their required helpers and imports', async () => {
     const names = [
+      'boolean literal false',
+      'boolean and null/false',
+      'boolean or null/true',
+      'boolean not null',
+      'boolean comparison < false/true',
+      'text literal 8',
+      'text length 8',
+      'text octet_length 8',
+      'text comparison < 8/9',
+      'text comparison || 8/9',
+      'null-test pg_catalog.text 0/false',
+      'null-test pg_catalog.int4 0/true',
+      'case pg_catalog.text first match',
+      'case pg_catalog.int4 true',
+      'case pg_catalog.float4 true',
+      'case pg_catalog.float8 true',
+      'case pg_catalog."numeric" true',
+      'case pg_catalog.bool true',
+      'coalesce pg_catalog.text 1',
+      'coalesce pg_catalog.int4 1',
+      'coalesce pg_catalog.float4 1',
+      'coalesce pg_catalog.float8 1',
+      'coalesce pg_catalog."numeric" 1',
+      'coalesce pg_catalog.bool 1',
+      'numeric utility scale 1.2300',
+      'numeric utility min_scale 1.2300',
+      'numeric utility trim_scale 1.2300',
+      'numeric width_bucket boundary 1',
+      'float width_bucket boundary 1',
+      'float math exp 3',
+      'float math ln 3',
+      'float math log10 3',
+      'float math power 5/5',
       'pg_catalog.float4 literal 3',
       'pg_catalog.float4/pg_catalog.float8 / 0',
       'pg_catalog.float4/pg_catalog.float8 = 0',
@@ -298,7 +364,7 @@ describe('generated PostgreSQL numeric evaluation', () => {
       )
       const paths: string[] = []
       for (const [index, name] of names.entries()) {
-        const fixture = numericCases.find((fixture) => fixture.name === name)
+        const fixture = standardCases.find((fixture) => fixture.name === name)
         if (!fixture) throw new Error(`Missing isolated fixture: ${name}`)
         const typescript = emitSqlExpression(fixture.expression, typescriptSqlBackend)
         const path = join(directory, `numeric${index}.ts`)
@@ -332,7 +398,9 @@ describe('generated PostgreSQL numeric evaluation', () => {
                           ? 'SqlFloat'
                           : emitted.value.type === 'pg_catalog."numeric"'
                             ? 'SqlDecimal'
-                            : 'SqlInteger',
+                            : emitted.value.type === 'pg_catalog.text'
+                              ? 'SqlText'
+                              : 'SqlInteger',
                     ),
                   },
                 ],
@@ -397,6 +465,10 @@ describe('generated PostgreSQL numeric evaluation', () => {
         const floats = metadata.args.every((type) => floatTypes.has(type))
         const decimals = metadata.args.some((type) => type === 'pg_catalog."numeric"')
         const decimalFunctions = [
+          'scale',
+          'min_scale',
+          'trim_scale',
+          'width_bucket',
           'sqrt',
           'exp',
           'ln',
@@ -429,7 +501,7 @@ describe('generated PostgreSQL numeric evaluation', () => {
           return (
             integers ||
             (metadata.name === '^' &&
-              metadata.args.every((type) => type === 'pg_catalog."numeric"')) ||
+              (floats || metadata.args.every((type) => type === 'pg_catalog."numeric"'))) ||
             ((floats || metadata.args.every((type) => type === 'pg_catalog."numeric"')) &&
               ['+', '-', '*', '/', '%', '=', '<>', '<', '<=', '>', '>=', '@', '|/', '||/'].includes(
                 metadata.name,
@@ -438,7 +510,9 @@ describe('generated PostgreSQL numeric evaluation', () => {
         }
         return (
           metadata.kind === 'function' &&
-          ((decimals && decimalFunctions.includes(metadata.name)) ||
+          ((metadata.name === 'width_bucket' && metadata.args.length === 4 && primitives) ||
+            (floats && ['exp', 'ln', 'log', 'log10', 'pow', 'power'].includes(metadata.name)) ||
+            (decimals && decimalFunctions.includes(metadata.name)) ||
             (metadata.name === 'numeric' && primitives && metadata.args.length === 1) ||
             (floats &&
               metadata.args.length === 1 &&
@@ -455,10 +529,95 @@ describe('generated PostgreSQL numeric evaluation', () => {
       })
       .map(([signature]) => signature)
       .sort()
-    expect(supported.map((row) => row.signature).sort()).toEqual(expected)
-    expect(supported).toHaveLength(255)
+    const additional = [
+      ...Object.keys(PG18_BOOLEAN).filter((signature) => signature.startsWith('operator:')),
+      ...Object.entries(PG18_TEXT)
+        .filter(
+          ([, metadata]) =>
+            metadata.args.every((type) => type === 'pg_catalog.text') &&
+            (metadata.kind === 'operator'
+              ? ['=', '<>', '<', '<=', '>', '>=', '||'].includes(metadata.name)
+              : metadata.kind === 'function' &&
+                ['length', 'char_length', 'character_length', 'octet_length', 'textcat'].includes(
+                  metadata.name,
+                )),
+        )
+        .map(([signature]) => signature),
+    ]
+    expect(supported.map((row) => row.signature).sort()).toEqual(
+      [...expected, ...additional].sort(),
+    )
+    expect(supported).toHaveLength(285)
     expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
     expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
+  })
+
+  it('preserves math licenses in generated projects', () => {
+    for (const source of [typescriptProject(), goProject()]) {
+      expect(source).toContain(floatMathCopyright)
+      expect(source).toContain(numericMathCopyright)
+    }
+  })
+
+  it('rejects malformed syntax and unsupported text collations in both backends', () => {
+    const integer = { kind: 'integer', type: 'pg_catalog.int4', value: '1' } as const
+    const text = { kind: 'text', type: 'pg_catalog.text', value: 'a' } as const
+    const boolean = { kind: 'boolean', type: 'pg_catalog.bool', value: true } as const
+    const invalid: [SqlExpression, string][] = [
+      [
+        { kind: 'boolean-logic', type: 'pg_catalog.bool', operation: 'and', operands: [boolean] },
+        'Invalid boolean',
+      ],
+      [
+        { kind: 'boolean-logic', type: 'pg_catalog.bool', operation: 'not', operands: [integer] },
+        'Invalid boolean',
+      ],
+      [{ kind: 'case', type: 'pg_catalog.int4', branches: [], otherwise: integer }, 'Invalid CASE'],
+      [
+        {
+          kind: 'case',
+          type: 'pg_catalog.int4',
+          branches: [{ when: integer, then: integer }],
+          otherwise: integer,
+        },
+        'Invalid CASE',
+      ],
+      [
+        {
+          kind: 'case',
+          type: 'pg_catalog.int4',
+          branches: [{ when: boolean, then: text }],
+          otherwise: integer,
+        },
+        'Invalid CASE',
+      ],
+      [{ kind: 'coalesce', type: 'pg_catalog.int4', operands: [] }, 'Invalid COALESCE'],
+      [{ kind: 'coalesce', type: 'pg_catalog.int4', operands: [text] }, 'Invalid COALESCE'],
+      ...['a\0b', '\uD800', '\uDC00'].map(
+        (value) =>
+          [{ kind: 'text', type: 'pg_catalog.text', value }, 'Invalid PostgreSQL UTF8'] as [
+            SqlExpression,
+            string,
+          ],
+      ),
+      ...[undefined, 'en-US'].map(
+        (collation) =>
+          [
+            {
+              kind: 'operator',
+              signature: 'operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.text)',
+              type: 'pg_catalog.bool',
+              operands: [text, text],
+              collation,
+            },
+            'Unsupported text comparison collation',
+          ] as [SqlExpression, string],
+      ),
+    ]
+    for (const [expression, message] of invalid) {
+      expect(() => emitSqlExpression(expression, typescriptSqlBackend)).toThrow(message)
+      expect(() => emitSqlExpression(expression, goSqlBackend)).toThrow(message)
+    }
   })
 
   it('refuses unsupported overloads and inconsistent resolved operands', () => {
@@ -466,13 +625,10 @@ describe('generated PostgreSQL numeric evaluation', () => {
     expect(() =>
       emitSqlExpression(
         {
-          kind: 'operator',
-          signature: 'operator:["pg_catalog","^"](pg_catalog.float8,pg_catalog.float8)',
+          kind: 'function',
+          signature: 'function:["pg_catalog","sin"](pg_catalog.float8)',
           type: 'pg_catalog.float8',
-          operands: [
-            { kind: 'float', type: 'pg_catalog.float8', bits: '3ff0000000000000' },
-            { kind: 'float', type: 'pg_catalog.float8', bits: '3ff0000000000000' },
-          ],
+          operands: [{ kind: 'float', type: 'pg_catalog.float8', bits: '3ff0000000000000' }],
         },
         typescriptSqlBackend,
       ),

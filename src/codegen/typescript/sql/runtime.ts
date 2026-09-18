@@ -1,3 +1,6 @@
+import { floatMathCopyright } from '../../../sql-semantics/float-math-license.js'
+import { typescriptScalarHelpers } from './scalar-runtime.js'
+import { typescriptFloatMathHelpers } from './float-math-runtime.js'
 import ts from 'typescript'
 import { numericMathCopyright } from '../../../sql-semantics/numeric-math-license.js'
 import { typescriptDecimalMathHelpers } from './decimal-math-runtime.js'
@@ -148,7 +151,9 @@ for (const [name, operator] of [
   }
 }
 
+Object.assign(helpers, typescriptScalarHelpers)
 Object.assign(helpers, typescriptFloatHelpers)
+Object.assign(helpers, typescriptFloatMathHelpers)
 Object.assign(helpers, typescriptDecimalHelpers)
 Object.assign(helpers, typescriptDecimalMathHelpers)
 
@@ -216,6 +221,13 @@ export function typescriptSqlRuntime(required: readonly string[]): ts.Statement[
       statements[0]!,
       ts.SyntaxKind.MultiLineCommentTrivia,
       '\n' + numericMathCopyright + '\n',
+      true,
+    )
+  if (included.has('sqlFloatMathBits') && statements.length)
+    ts.addSyntheticLeadingComment(
+      statements[0]!,
+      ts.SyntaxKind.MultiLineCommentTrivia,
+      '\n' + floatMathCopyright + '\n',
       true,
     )
   return statements

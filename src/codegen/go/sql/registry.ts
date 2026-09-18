@@ -1,3 +1,6 @@
+import { goSqlSyntax } from './syntax.js'
+import { goBooleanOperators, goBooleanFunctions } from './boolean.js'
+import { goTextOperators, goTextFunctions } from './text.js'
 import { goFloatOperators, goFloatFunctions } from './floating-point.js'
 import { goDecimalOperators, goDecimalFunctions } from './decimal.js'
 import { go } from '../ast.js'
@@ -7,10 +10,21 @@ import type { ExpressionBackend } from '../../../sql-semantics/expressions.js'
 
 export const goSqlBackend: ExpressionBackend<GoExpression> = {
   bindings: [
+    { domain: 'boolean', operators: goBooleanOperators, functions: goBooleanFunctions },
+    { domain: 'text', operators: goTextOperators, functions: goTextFunctions },
     { domain: 'numeric', operators: goDecimalOperators, functions: goDecimalFunctions },
     { domain: 'numeric', operators: goFloatOperators, functions: goFloatFunctions },
     { domain: 'numeric', operators: goNumericOperators, functions: goNumericFunctions },
   ],
+  syntax: goSqlSyntax,
+  boolean: (value) =>
+    value === null
+      ? { kind: 'composite', type: go.ident('SqlBoolean'), elements: [] }
+      : go.call(go.ident('booleanInput'), [go.ident(value ? 'true' : 'false')]),
+  text: (value) =>
+    value === null
+      ? { kind: 'composite', type: go.ident('SqlText'), elements: [] }
+      : go.call(go.ident('textInput'), [go.string(value)]),
   decimal: (value) =>
     value === null
       ? { kind: 'composite', type: go.ident('SqlDecimal'), elements: [] }

@@ -174,3 +174,19 @@ typescriptFloatHelpers.float8Round = {
     return value < 0 ? -rounded : rounded
   }`,
 }
+
+typescriptFloatHelpers.float8WidthBucket = {
+  dependencies: ['sqlWidthBucketError', 'sqlIntegerRange'],
+  source: `function float8WidthBucket(value: number | null, lower: number | null, upper: number | null, count: bigint | null): bigint | null {
+    if (value === null || lower === null || upper === null || count === null) return null
+    if (count <= 0n || Number.isNaN(value) || !Number.isFinite(lower) || !Number.isFinite(upper) || lower === upper) throw new SqlWidthBucketError()
+    const ascending = lower < upper
+    if (ascending ? value < lower : value > lower) return 0n
+    if (ascending ? value >= upper : value <= upper) return sqlIntegerRange(count + 1n, -2147483648n, 2147483647n)
+    const difference = ascending ? upper - lower : lower - upper
+    const numerator = Number.isFinite(difference) ? (ascending ? value - lower : lower - value) : (ascending ? value / 2 - lower / 2 : lower / 2 - value / 2)
+    const denominator = Number.isFinite(difference) ? difference : (ascending ? upper / 2 - lower / 2 : lower / 2 - upper / 2)
+    const bucket = Math.trunc(Number(count) * (numerator / denominator))
+    return BigInt(Math.min(bucket, Number(count) - 1)) + 1n
+  }`,
+}
