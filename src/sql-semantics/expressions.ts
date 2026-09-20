@@ -1,5 +1,6 @@
 import { functionMetadata, operatorMetadata } from '../postgres/builtins/inventory.js'
 import type { CallableMetadata } from '../postgres/builtins/catalog.js'
+import type { EnumInfo } from '../catalog/types.js'
 import type { CallableEmitter, SqlBindingGroup, TypedSqlExpression } from './signatures.js'
 
 export type IntegerType = 'pg_catalog.int2' | 'pg_catalog.int4' | 'pg_catalog.int8'
@@ -10,10 +11,32 @@ export type NumericType = IntegerType | FloatType | DecimalType
 
 export type TextType = 'pg_catalog.text' | 'pg_catalog."varchar"' | 'pg_catalog.bpchar'
 export type UuidType = 'pg_catalog.uuid'
-export type ScalarType = NumericType | 'pg_catalog.bool' | TextType | UuidType
+export type EnumType = `enum:${string}`
+export type ScalarType = NumericType | 'pg_catalog.bool' | TextType | UuidType | EnumType
 export type SyntaxKind = 'and' | 'or' | 'not' | 'is-null' | 'is-not-null' | 'case' | 'coalesce'
 
+export type EnumDefinition = Readonly<Omit<EnumInfo, 'values'>> & {
+  readonly values: readonly string[]
+}
+
+export function enumType(definition: Pick<EnumDefinition, 'schema' | 'name'>): EnumType {
+  return `enum:${JSON.stringify([definition.schema, definition.name])}`
+}
+
 export type SqlExpression =
+  | {
+      kind: 'enum-coercion'
+      type: EnumType | 'pg_catalog.text'
+      enum: EnumDefinition
+      operand: SqlExpression
+    }
+  | {
+      kind: 'enum-comparison'
+      type: 'pg_catalog.bool'
+      enum: EnumDefinition
+      operation: '=' | '<>' | '<' | '<=' | '>' | '>='
+      operands: readonly SqlExpression[]
+    }
   | {
       kind: 'uuid-coercion'
       type: UuidType | 'pg_catalog.text'
@@ -29,6 +52,7 @@ export type SqlExpression =
   | { kind: 'boolean'; type: 'pg_catalog.bool'; value: boolean | null }
   | { kind: 'text'; type: 'pg_catalog.text'; value: string | null }
   | { kind: 'uuid'; type: UuidType; value: string | null }
+  | { kind: 'enum'; type: EnumType; enum: EnumDefinition; value: string | null }
   | {
       kind: 'boolean-logic'
       type: 'pg_catalog.bool'
@@ -65,6 +89,16 @@ export interface ExpressionBackend<Ast> {
   boolean: (value: boolean | null) => Ast
   text: (value: string | null) => Ast
   uuid: (value: string | null) => Ast
+  enum: (definition: EnumDefinition, value: string | null) => Ast
+  compareEnum: (
+    operation: '=' | '<>' | '<' | '<=' | '>' | '>=',
+    operands: readonly TypedSqlExpression<Ast>[],
+  ) => { expression: Ast; helpers: readonly string[] }
+  coerceEnum: (
+    type: EnumType | 'pg_catalog.text',
+    definition: EnumDefinition,
+    operand: TypedSqlExpression<Ast>,
+  ) => { expression: Ast; helpers: readonly string[] }
   coerceUuid: (
     type: UuidType | 'pg_catalog.text',
     operand: TypedSqlExpression<Ast>,
@@ -90,7 +124,47 @@ export function emitSqlExpression<Ast>(
   backend: ExpressionBackend<Ast>,
 ): { value: TypedSqlExpression<Ast>; helpers: readonly string[] } {
   const helpers = new Set<string>()
+  const validateEnum = (definition: EnumDefinition): EnumType => {
+    const invalidUtf8 = (value: string): boolean =>
+      value.includes('\0') ||
+      /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value)
+    if (
+      definition.schema.length === 0 ||
+      definition.name.length === 0 ||
+      invalidUtf8(definition.schema) ||
+      invalidUtf8(definition.name) ||
+      new TextEncoder().encode(definition.schema).length >= 64 ||
+      new TextEncoder().encode(definition.name).length >= 64 ||
+      definition.values.length === 0 ||
+      new Set(definition.values).size !== definition.values.length ||
+      definition.values.some(
+        (value) => invalidUtf8(value) || new TextEncoder().encode(value).length >= 64,
+      )
+    )
+      throw new Error('Invalid enum definition')
+    return enumType(definition)
+  }
   const emit = (node: SqlExpression): TypedSqlExpression<Ast> => {
+    if (node.kind === 'enum-coercion') {
+      const identity = validateEnum(node.enum)
+      if (!(
+        (node.type === identity && node.operand.type === 'pg_catalog.text') ||
+        (node.type === 'pg_catalog.text' && node.operand.type === identity)
+      ))
+        throw new Error('Invalid enum coercion')
+      const result = backend.coerceEnum(node.type, node.enum, emit(node.operand))
+      for (const helper of result.helpers) helpers.add(helper)
+      return { type: node.type, expression: result.expression }
+    }
+    if (node.kind === 'enum-comparison') {
+      const identity = validateEnum(node.enum)
+      if (node.operands.length !== 2 || node.operands.some((operand) => operand.type !== identity))
+        throw new Error('Invalid enum comparison')
+      const operands = node.operands.map(emit)
+      const result = backend.compareEnum(node.operation, operands)
+      for (const helper of result.helpers) helpers.add(helper)
+      return { type: node.type, expression: result.expression }
+    }
     if (node.kind === 'uuid-coercion') {
       if (!(
         (node.type === 'pg_catalog.uuid' && node.operand.type === 'pg_catalog.text') ||
@@ -136,6 +210,19 @@ export function emitSqlExpression<Ast>(
     if (node.kind === 'uuid') {
       helpers.add('uuidInput')
       return { type: node.type, expression: backend.uuid(node.value) }
+    }
+    if (node.kind === 'enum') {
+      if (node.type !== validateEnum(node.enum)) throw new Error('Invalid enum literal')
+      if (
+        node.value !== null &&
+        (node.value.includes('\0') ||
+          /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(
+            node.value,
+          ))
+      )
+        throw new Error('Invalid enum literal')
+      helpers.add('enumInput')
+      return { type: node.type, expression: backend.enum(node.enum, node.value) }
     }
     if (
       node.kind === 'boolean-logic' ||

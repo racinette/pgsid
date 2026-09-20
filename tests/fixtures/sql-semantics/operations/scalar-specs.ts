@@ -3,6 +3,7 @@ import type { ScalarType, SqlExpression } from '../../../../src/sql-semantics/ex
 import { functionMetadata, operatorMetadata } from '../../../../src/postgres/builtins/inventory.js'
 import type { ExpressionSpec } from './expression-spec.js'
 import { uuidSpecs } from './uuid-specs.js'
+import { enumSpecs } from './enum-specs.js'
 
 interface Operand {
   sql: string
@@ -244,4 +245,9 @@ for (const negated of [false, true])
       operand: failure.expression,
     },
   })
-export const scalarSpecs: readonly ExpressionSpec[] = [...specs, ...textSpecs, ...uuidSpecs]
+export const scalarSpecs: readonly ExpressionSpec[] = [
+  ...specs,
+  ...textSpecs,
+  ...uuidSpecs,
+  ...enumSpecs,
+]

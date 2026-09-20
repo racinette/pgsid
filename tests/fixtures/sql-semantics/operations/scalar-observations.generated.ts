@@ -66888,4 +66888,207 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: '00000000-0000-0000-0000-000000000001',
   },
+  'enum input 0': {
+    kind: 'null',
+  },
+  'enum input 1': {
+    kind: 'value',
+    value: 'zebra',
+  },
+  'enum input 2': {
+    kind: 'value',
+    value: 'apple',
+  },
+  'enum input 3': {
+    kind: 'value',
+    value: "quote's",
+  },
+  'enum input 4': {
+    kind: 'value',
+    value: 'é',
+  },
+  'enum input 5': {
+    kind: 'value',
+    value: 'middle',
+  },
+  'enum input 6': {
+    kind: 'value',
+    value: 'zebra',
+  },
+  'enum invalid input 0': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'enum invalid input 1': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'enum invalid input 2': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'enum invalid input 3': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'enum operator = 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'enum operator <> 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'enum operator < 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'enum operator <= 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'enum operator > 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'enum operator >= 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'enum operator = 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'enum operator <> 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'enum operator < 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'enum operator <= 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'enum operator > 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'enum operator >= 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'enum operator = 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'enum operator <> 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'enum operator < 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'enum operator <= 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'enum operator > 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'enum operator >= 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'enum operator = 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'enum operator <> 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'enum operator < 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'enum operator <= 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'enum operator > 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'enum operator >= 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'enum operator = 4': {
+    kind: 'null',
+  },
+  'enum operator <> 4': {
+    kind: 'null',
+  },
+  'enum operator < 4': {
+    kind: 'null',
+  },
+  'enum operator <= 4': {
+    kind: 'null',
+  },
+  'enum operator > 4': {
+    kind: 'null',
+  },
+  'enum operator >= 4': {
+    kind: 'null',
+  },
+  'enum declaration order differs from lexical order alpha': {
+    kind: 'value',
+    value: 'true',
+  },
+  'enum declaration order differs from lexical order beta': {
+    kind: 'value',
+    value: 'true',
+  },
+  'enum from text 0': {
+    kind: 'null',
+  },
+  'enum from text 1': {
+    kind: 'value',
+    value: 'zebra',
+  },
+  'enum from text 2': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'enum to text 0': {
+    kind: 'null',
+  },
+  'enum to text 1': {
+    kind: 'value',
+    value: 'zebra',
+  },
+  'enum to text 2': {
+    kind: 'value',
+    value: "quote's",
+  },
+  'enum to text 3': {
+    kind: 'value',
+    value: 'é',
+  },
+  'enum null test': {
+    kind: 'value',
+    value: 'true',
+  },
+  'enum case': {
+    kind: 'value',
+    value: 'apple',
+  },
+  'enum coalesce': {
+    kind: 'value',
+    value: 'é',
+  },
 }

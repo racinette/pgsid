@@ -2855,6 +2855,52 @@ function uuidFromText(value: string | null): SqlUuid | null {
 function uuidText(value: SqlUuid | null): string | null {
     return value === null ? null : value.toString();
 }
+class SqlEnum {
+    constructor(readonly type: string, readonly label: string, readonly order: number) { }
+    toString(): string { return this.label; }
+}
+function enumInput(value: string | null, type: string, labels: readonly string[]): SqlEnum | null {
+    if (value === null)
+        return null;
+    const order = labels.indexOf(value);
+    if (order < 0)
+        throw Object.assign(new Error("invalid input value for enum"), { code: "22P02" });
+    return new SqlEnum(type, value, order);
+}
+function enumCompare(left: SqlEnum | null, right: SqlEnum | null): number | null {
+    if (left === null || right === null)
+        return null;
+    if (left.type !== right.type)
+        throw Object.assign(new Error("operator does not exist for distinct enum types"), { code: "42883" });
+    return left.order - right.order;
+}
+function enumEq(left: SqlEnum | null, right: SqlEnum | null): boolean | null {
+    const comparison = enumCompare(left, right);
+    return comparison === null ? null : comparison === 0;
+}
+function enumNe(left: SqlEnum | null, right: SqlEnum | null): boolean | null {
+    const comparison = enumCompare(left, right);
+    return comparison === null ? null : comparison !== 0;
+}
+function enumLt(left: SqlEnum | null, right: SqlEnum | null): boolean | null {
+    const comparison = enumCompare(left, right);
+    return comparison === null ? null : comparison < 0;
+}
+function enumLe(left: SqlEnum | null, right: SqlEnum | null): boolean | null {
+    const comparison = enumCompare(left, right);
+    return comparison === null ? null : comparison <= 0;
+}
+function enumGt(left: SqlEnum | null, right: SqlEnum | null): boolean | null {
+    const comparison = enumCompare(left, right);
+    return comparison === null ? null : comparison > 0;
+}
+function enumGe(left: SqlEnum | null, right: SqlEnum | null): boolean | null {
+    const comparison = enumCompare(left, right);
+    return comparison === null ? null : comparison >= 0;
+}
+function enumText(value: SqlEnum | null): string | null {
+    return value === null ? null : value.label;
+}
 export function evaluate0() {
     return int2Add(int2Input("2"), int2Input("3"));
 }
@@ -90163,4 +90209,163 @@ export function evaluate29101() {
 }
 export function evaluate29102() {
     return sqlCoalesce(() => uuidInput(null), () => uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29103() {
+    return enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+}
+export function evaluate29104() {
+    return enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+}
+export function evaluate29105() {
+    return enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+}
+export function evaluate29106() {
+    return enumInput("quote's", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+}
+export function evaluate29107() {
+    return enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+}
+export function evaluate29108() {
+    return enumInput("middle", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]);
+}
+export function evaluate29109() {
+    return enumInput("zebra", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]);
+}
+export function evaluate29110() {
+    return enumInput("", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+}
+export function evaluate29111() {
+    return enumInput("missing", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+}
+export function evaluate29112() {
+    return enumInput("ZEBRA", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+}
+export function evaluate29113() {
+    return enumInput("zebra ", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+}
+export function evaluate29114() {
+    return enumEq(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29115() {
+    return enumNe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29116() {
+    return enumLt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29117() {
+    return enumLe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29118() {
+    return enumGt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29119() {
+    return enumGe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29120() {
+    return enumEq(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29121() {
+    return enumNe(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29122() {
+    return enumLt(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29123() {
+    return enumLe(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29124() {
+    return enumGt(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29125() {
+    return enumGe(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29126() {
+    return enumEq(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29127() {
+    return enumNe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29128() {
+    return enumLt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29129() {
+    return enumLe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29130() {
+    return enumGt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29131() {
+    return enumGe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29132() {
+    return enumEq(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29133() {
+    return enumNe(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29134() {
+    return enumLt(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29135() {
+    return enumLe(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29136() {
+    return enumGt(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29137() {
+    return enumGe(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29138() {
+    return enumEq(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29139() {
+    return enumNe(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29140() {
+    return enumLt(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29141() {
+    return enumLe(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29142() {
+    return enumGt(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29143() {
+    return enumGe(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29144() {
+    return enumLt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29145() {
+    return enumLt(enumInput("middle", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]), enumInput("apple", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]));
+}
+export function evaluate29146() {
+    return enumInput(textInput(null), "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+}
+export function evaluate29147() {
+    return enumInput(textInput("zebra"), "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+}
+export function evaluate29148() {
+    return enumInput(textInput("missing"), "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+}
+export function evaluate29149() {
+    return enumText(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29150() {
+    return enumText(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29151() {
+    return enumText(enumInput("quote's", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29152() {
+    return enumText(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29153() {
+    return sqlIsNull(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29154() {
+    return sqlCase(() => enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), [() => booleanInput(true), () => enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])]);
+}
+export function evaluate29155() {
+    return sqlCoalesce(() => enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), () => enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }

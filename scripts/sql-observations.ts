@@ -10,15 +10,21 @@ export async function generateSqlObservations(
   domain: 'numeric' | 'scalar',
 ): Promise<void> {
   let pg = await PGlite.create()
+  const setup = [...new Set(specs.flatMap((spec) => spec.setupSql ?? []))]
+  const initialize = async (): Promise<void> => {
+    for (const sql of setup) await pg.exec(sql)
+  }
   try {
     const version = await pg.query<{ server_version_num: string }>('SHOW server_version_num')
     if (Number(version.rows[0]!.server_version_num) !== PG18_BUILTINS_VERSION)
       throw new Error('Unexpected PostgreSQL version')
+    await initialize()
     const expected: Record<string, Awaited<ReturnType<typeof observeSql>>> = {}
     for (const [index, fixture] of specs.entries()) {
       if (index > 0 && index % 1024 === 0) {
         await pg.close()
         pg = await PGlite.create()
+        await initialize()
       }
       if (Object.hasOwn(expected, fixture.name))
         throw new Error(`Duplicate fixture: ${fixture.name}`)

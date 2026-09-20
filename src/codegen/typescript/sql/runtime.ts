@@ -8,6 +8,7 @@ import { typescriptDecimalMathHelpers } from './decimal-math-runtime.js'
 import { typescriptFloatHelpers } from './floating-point-runtime.js'
 import { typescriptDecimalHelpers } from './decimal-runtime.js'
 import { typescriptUuidHelpers } from './uuid-runtime.js'
+import { typescriptEnumHelpers } from './enum-runtime.js'
 
 const helpers: Record<string, { dependencies: readonly string[]; source: string }> = {
   sqlIntegerError: {
@@ -160,6 +161,7 @@ Object.assign(helpers, typescriptFloatMathHelpers)
 Object.assign(helpers, typescriptDecimalHelpers)
 Object.assign(helpers, typescriptDecimalMathHelpers)
 Object.assign(helpers, typescriptUuidHelpers)
+Object.assign(helpers, typescriptEnumHelpers)
 
 for (const [width, bits, shiftMask] of [
   ['int2', 16, 31n],
