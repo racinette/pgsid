@@ -2901,6 +2901,173 @@ function enumGe(left: SqlEnum | null, right: SqlEnum | null): boolean | null {
 function enumText(value: SqlEnum | null): string | null {
     return value === null ? null : value.label;
 }
+class SqlArray {
+    constructor(readonly elementType: string, readonly dimensions: readonly number[], readonly lowerBounds: readonly number[], readonly elements: readonly (bigint | null)[]) { }
+    toString(): string {
+        if (this.dimensions.length === 0)
+            return "{}";
+        let offset = 0;
+        const render = (depth: number): string => {
+            const values: string[] = [];
+            for (let index = 0; index < this.dimensions[depth]!; index++)
+                values.push(depth === this.dimensions.length - 1 ? this.elements[offset++] === null ? "NULL" : this.elements[offset - 1]!.toString() : render(depth + 1));
+            return "{" + values.join(",") + "}";
+        };
+        const value = render(0);
+        return this.lowerBounds.some(bound => bound !== 1) ? this.dimensions.map((dimension, index) => "[" + this.lowerBounds[index]! + ":" + (this.lowerBounds[index]! + dimension - 1) + "]").join("") + "=" + value : value;
+    }
+}
+function arrayInput(elementType: string, dimensions: readonly number[], lowerBounds: readonly number[], elements: readonly (bigint | null)[] | null): SqlArray | null {
+    return elements === null ? null : new SqlArray(elementType, [...dimensions], [...lowerBounds], [...elements]);
+}
+function arrayCardinality(value: SqlArray | null): bigint | null {
+    return value === null ? null : BigInt(value.elements.length);
+}
+function arrayNdims(value: SqlArray | null): bigint | null {
+    return value === null || value.dimensions.length === 0 ? null : BigInt(value.dimensions.length);
+}
+function arrayDims(value: SqlArray | null): string | null {
+    return value === null || value.dimensions.length === 0 ? null : value.dimensions.map((dimension, index) => "[" + value.lowerBounds[index]! + ":" + (value.lowerBounds[index]! + dimension - 1) + "]").join("");
+}
+function arrayLength(value: SqlArray | null, dimension: bigint | null): bigint | null {
+    if (value === null || dimension === null || dimension <= 0n || dimension > BigInt(value.dimensions.length))
+        return null;
+    return BigInt(value.dimensions[Number(dimension) - 1]!);
+}
+function arrayLower(value: SqlArray | null, dimension: bigint | null): bigint | null {
+    if (value === null || dimension === null || dimension <= 0n || dimension > BigInt(value.dimensions.length))
+        return null;
+    return BigInt(value.lowerBounds[Number(dimension) - 1]!);
+}
+function arrayUpper(value: SqlArray | null, dimension: bigint | null): bigint | null {
+    if (value === null || dimension === null || dimension <= 0n || dimension > BigInt(value.dimensions.length))
+        return null;
+    const index = Number(dimension) - 1;
+    return BigInt(value.lowerBounds[index]! + value.dimensions[index]! - 1);
+}
+function arrayEq(left: SqlArray | null, right: SqlArray | null): boolean | null {
+    if (left === null || right === null)
+        return null;
+    if (left.elementType !== right.elementType || left.dimensions.length !== right.dimensions.length || left.dimensions.some((dimension, index) => dimension !== right.dimensions[index]) || left.lowerBounds.some((bound, index) => bound !== right.lowerBounds[index]) || left.elements.length !== right.elements.length)
+        return false;
+    return left.elements.every((element, index) => element === right.elements[index]);
+}
+function arrayNe(left: SqlArray | null, right: SqlArray | null): boolean | null {
+    const equal = arrayEq(left, right);
+    return equal === null ? null : !equal;
+}
+function arrayCompare(left: SqlArray | null, right: SqlArray | null): number | null {
+    if (left === null || right === null)
+        return null;
+    if (left.elementType !== right.elementType)
+        throw Object.assign(new Error("cannot compare arrays of different element types"), { code: "42804" });
+    const count = Math.min(left.elements.length, right.elements.length);
+    for (let index = 0; index < count; index++) {
+        const a = left.elements[index]!, b = right.elements[index]!;
+        if (a === null && b === null)
+            continue;
+        if (a === null)
+            return 1;
+        if (b === null)
+            return -1;
+        if (a < b)
+            return -1;
+        if (a > b)
+            return 1;
+    }
+    if (left.elements.length !== right.elements.length)
+        return left.elements.length < right.elements.length ? -1 : 1;
+    if (left.dimensions.length !== right.dimensions.length)
+        return left.dimensions.length < right.dimensions.length ? -1 : 1;
+    for (let index = 0; index < left.dimensions.length; index++) {
+        if (left.dimensions[index] !== right.dimensions[index])
+            return left.dimensions[index]! < right.dimensions[index]! ? -1 : 1;
+    }
+    for (let index = 0; index < left.lowerBounds.length; index++) {
+        if (left.lowerBounds[index] !== right.lowerBounds[index])
+            return left.lowerBounds[index]! < right.lowerBounds[index]! ? -1 : 1;
+    }
+    return 0;
+}
+function arrayLt(left: SqlArray | null, right: SqlArray | null): boolean | null {
+    const comparison = arrayCompare(left, right);
+    return comparison === null ? null : comparison < 0;
+}
+function arrayLe(left: SqlArray | null, right: SqlArray | null): boolean | null {
+    const comparison = arrayCompare(left, right);
+    return comparison === null ? null : comparison <= 0;
+}
+function arrayGt(left: SqlArray | null, right: SqlArray | null): boolean | null {
+    const comparison = arrayCompare(left, right);
+    return comparison === null ? null : comparison > 0;
+}
+function arrayGe(left: SqlArray | null, right: SqlArray | null): boolean | null {
+    const comparison = arrayCompare(left, right);
+    return comparison === null ? null : comparison >= 0;
+}
+function arrayContains(left: SqlArray | null, right: SqlArray | null): boolean | null {
+    if (left === null || right === null)
+        return null;
+    return right.elements.every(candidate => candidate !== null && left.elements.some(element => element !== null && element === candidate));
+}
+function arrayContained(left: SqlArray | null, right: SqlArray | null): boolean | null {
+    return arrayContains(right, left);
+}
+function arrayOverlap(left: SqlArray | null, right: SqlArray | null): boolean | null {
+    if (left === null || right === null)
+        return null;
+    return left.elements.some(candidate => candidate !== null && right.elements.some(element => element !== null && element === candidate));
+}
+function arrayError(code: string): never {
+    throw Object.assign(new Error("PostgreSQL array operation failed"), { code });
+}
+function arrayConcat(left: SqlArray | null, right: SqlArray | null): SqlArray | null {
+    if (left === null)
+        return right;
+    if (right === null)
+        return left;
+    if (left.elementType !== right.elementType)
+        arrayError("42804");
+    if (left.dimensions.length === 0)
+        return right;
+    if (right.dimensions.length === 0)
+        return left;
+    const difference = left.dimensions.length - right.dimensions.length;
+    if (Math.abs(difference) > 1)
+        arrayError("2202E");
+    let dimensions: number[], lowerBounds: number[];
+    if (difference === 0) {
+        for (let index = 1; index < left.dimensions.length; index++)
+            if (left.dimensions[index] !== right.dimensions[index] || left.lowerBounds[index] !== right.lowerBounds[index])
+                arrayError("2202E");
+        dimensions = [...left.dimensions];
+        dimensions[0] = dimensions[0]! + right.dimensions[0]!;
+        lowerBounds = [...left.lowerBounds];
+    }
+    else {
+        const outer = difference > 0 ? left : right;
+        const inner = difference > 0 ? right : left;
+        for (let index = 0; index < inner.dimensions.length; index++)
+            if (inner.dimensions[index] !== outer.dimensions[index + 1] || inner.lowerBounds[index] !== outer.lowerBounds[index + 1])
+                arrayError("2202E");
+        dimensions = [...outer.dimensions];
+        dimensions[0] = dimensions[0]! + 1;
+        lowerBounds = [...outer.lowerBounds];
+    }
+    return new SqlArray(left.elementType, dimensions, lowerBounds, [...left.elements, ...right.elements]);
+}
+function arraySubscript(value: SqlArray | null, ...subscripts: readonly (bigint | null)[]): bigint | null {
+    if (value === null || subscripts.length !== value.dimensions.length || subscripts.some(subscript => subscript === null))
+        return null;
+    let offset = 0;
+    for (let index = 0; index < subscripts.length; index++) {
+        const position = Number(subscripts[index]!) - value.lowerBounds[index]!;
+        if (position < 0 || position >= value.dimensions[index]!)
+            return null;
+        offset = offset * value.dimensions[index]! + position;
+    }
+    return value.elements[offset]!;
+}
 export function evaluate0() {
     return int2Add(int2Input("2"), int2Input("3"));
 }
@@ -90368,4 +90535,559 @@ export function evaluate29154() {
 }
 export function evaluate29155() {
     return sqlCoalesce(() => enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), () => enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate29156() {
+    return arrayInput("pg_catalog.int4", [], [], null);
+}
+export function evaluate29157() {
+    return arrayInput("pg_catalog.int4", [], [], []);
+}
+export function evaluate29158() {
+    return arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]);
+}
+export function evaluate29159() {
+    return arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input(null), int4Input("3")]);
+}
+export function evaluate29160() {
+    return arrayInput("pg_catalog.int4", [3], [0], [int4Input("7"), int4Input("8"), int4Input("9")]);
+}
+export function evaluate29161() {
+    return arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]);
+}
+export function evaluate29162() {
+    return arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]);
+}
+export function evaluate29163() {
+    return arrayCardinality(arrayInput("pg_catalog.int4", [], [], null));
+}
+export function evaluate29164() {
+    return arrayNdims(arrayInput("pg_catalog.int4", [], [], null));
+}
+export function evaluate29165() {
+    return arrayDims(arrayInput("pg_catalog.int4", [], [], null));
+}
+export function evaluate29166() {
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input(null));
+}
+export function evaluate29167() {
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input(null));
+}
+export function evaluate29168() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input(null));
+}
+export function evaluate29169() {
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("-1"));
+}
+export function evaluate29170() {
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("-1"));
+}
+export function evaluate29171() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("-1"));
+}
+export function evaluate29172() {
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("0"));
+}
+export function evaluate29173() {
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("0"));
+}
+export function evaluate29174() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("0"));
+}
+export function evaluate29175() {
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
+}
+export function evaluate29176() {
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
+}
+export function evaluate29177() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
+}
+export function evaluate29178() {
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("2"));
+}
+export function evaluate29179() {
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("2"));
+}
+export function evaluate29180() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("2"));
+}
+export function evaluate29181() {
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("3"));
+}
+export function evaluate29182() {
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("3"));
+}
+export function evaluate29183() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("3"));
+}
+export function evaluate29184() {
+    return arrayCardinality(arrayInput("pg_catalog.int4", [], [], []));
+}
+export function evaluate29185() {
+    return arrayNdims(arrayInput("pg_catalog.int4", [], [], []));
+}
+export function evaluate29186() {
+    return arrayDims(arrayInput("pg_catalog.int4", [], [], []));
+}
+export function evaluate29187() {
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input(null));
+}
+export function evaluate29188() {
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input(null));
+}
+export function evaluate29189() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input(null));
+}
+export function evaluate29190() {
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("-1"));
+}
+export function evaluate29191() {
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("-1"));
+}
+export function evaluate29192() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("-1"));
+}
+export function evaluate29193() {
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("0"));
+}
+export function evaluate29194() {
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("0"));
+}
+export function evaluate29195() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("0"));
+}
+export function evaluate29196() {
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("1"));
+}
+export function evaluate29197() {
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("1"));
+}
+export function evaluate29198() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("1"));
+}
+export function evaluate29199() {
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("2"));
+}
+export function evaluate29200() {
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("2"));
+}
+export function evaluate29201() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("2"));
+}
+export function evaluate29202() {
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("3"));
+}
+export function evaluate29203() {
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("3"));
+}
+export function evaluate29204() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("3"));
+}
+export function evaluate29205() {
+    return arrayCardinality(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29206() {
+    return arrayNdims(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29207() {
+    return arrayDims(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29208() {
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input(null));
+}
+export function evaluate29209() {
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input(null));
+}
+export function evaluate29210() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input(null));
+}
+export function evaluate29211() {
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("-1"));
+}
+export function evaluate29212() {
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("-1"));
+}
+export function evaluate29213() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("-1"));
+}
+export function evaluate29214() {
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("0"));
+}
+export function evaluate29215() {
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("0"));
+}
+export function evaluate29216() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("0"));
+}
+export function evaluate29217() {
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("1"));
+}
+export function evaluate29218() {
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("1"));
+}
+export function evaluate29219() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("1"));
+}
+export function evaluate29220() {
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("2"));
+}
+export function evaluate29221() {
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("2"));
+}
+export function evaluate29222() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("2"));
+}
+export function evaluate29223() {
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("3"));
+}
+export function evaluate29224() {
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("3"));
+}
+export function evaluate29225() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("3"));
+}
+export function evaluate29226() {
+    return arrayCardinality(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]));
+}
+export function evaluate29227() {
+    return arrayNdims(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]));
+}
+export function evaluate29228() {
+    return arrayDims(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]));
+}
+export function evaluate29229() {
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input(null));
+}
+export function evaluate29230() {
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input(null));
+}
+export function evaluate29231() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input(null));
+}
+export function evaluate29232() {
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("-1"));
+}
+export function evaluate29233() {
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("-1"));
+}
+export function evaluate29234() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("-1"));
+}
+export function evaluate29235() {
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("0"));
+}
+export function evaluate29236() {
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("0"));
+}
+export function evaluate29237() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("0"));
+}
+export function evaluate29238() {
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("1"));
+}
+export function evaluate29239() {
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("1"));
+}
+export function evaluate29240() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("1"));
+}
+export function evaluate29241() {
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("2"));
+}
+export function evaluate29242() {
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("2"));
+}
+export function evaluate29243() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("2"));
+}
+export function evaluate29244() {
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("3"));
+}
+export function evaluate29245() {
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("3"));
+}
+export function evaluate29246() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("3"));
+}
+export function evaluate29247() {
+    return arrayCardinality(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]));
+}
+export function evaluate29248() {
+    return arrayNdims(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]));
+}
+export function evaluate29249() {
+    return arrayDims(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]));
+}
+export function evaluate29250() {
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input(null));
+}
+export function evaluate29251() {
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input(null));
+}
+export function evaluate29252() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input(null));
+}
+export function evaluate29253() {
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("-1"));
+}
+export function evaluate29254() {
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("-1"));
+}
+export function evaluate29255() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("-1"));
+}
+export function evaluate29256() {
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("0"));
+}
+export function evaluate29257() {
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("0"));
+}
+export function evaluate29258() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("0"));
+}
+export function evaluate29259() {
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("1"));
+}
+export function evaluate29260() {
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("1"));
+}
+export function evaluate29261() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("1"));
+}
+export function evaluate29262() {
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("2"));
+}
+export function evaluate29263() {
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("2"));
+}
+export function evaluate29264() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("2"));
+}
+export function evaluate29265() {
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("3"));
+}
+export function evaluate29266() {
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("3"));
+}
+export function evaluate29267() {
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("3"));
+}
+export function evaluate29268() {
+    return arrayEq(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29269() {
+    return arrayNe(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29270() {
+    return arrayLt(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29271() {
+    return arrayLe(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29272() {
+    return arrayGt(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29273() {
+    return arrayGe(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29274() {
+    return arrayEq(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input(null), int4Input("3")]));
+}
+export function evaluate29275() {
+    return arrayNe(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input(null), int4Input("3")]));
+}
+export function evaluate29276() {
+    return arrayLt(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input(null), int4Input("3")]));
+}
+export function evaluate29277() {
+    return arrayLe(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input(null), int4Input("3")]));
+}
+export function evaluate29278() {
+    return arrayGt(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input(null), int4Input("3")]));
+}
+export function evaluate29279() {
+    return arrayGe(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input(null), int4Input("3")]));
+}
+export function evaluate29280() {
+    return arrayEq(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input(null), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29281() {
+    return arrayNe(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input(null), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29282() {
+    return arrayLt(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input(null), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29283() {
+    return arrayLe(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input(null), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29284() {
+    return arrayGt(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input(null), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29285() {
+    return arrayGe(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input(null), int4Input("3")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29286() {
+    return arrayEq(arrayInput("pg_catalog.int4", [3], [0], [int4Input("7"), int4Input("8"), int4Input("9")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("7"), int4Input("8"), int4Input("9")]));
+}
+export function evaluate29287() {
+    return arrayNe(arrayInput("pg_catalog.int4", [3], [0], [int4Input("7"), int4Input("8"), int4Input("9")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("7"), int4Input("8"), int4Input("9")]));
+}
+export function evaluate29288() {
+    return arrayLt(arrayInput("pg_catalog.int4", [3], [0], [int4Input("7"), int4Input("8"), int4Input("9")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("7"), int4Input("8"), int4Input("9")]));
+}
+export function evaluate29289() {
+    return arrayLe(arrayInput("pg_catalog.int4", [3], [0], [int4Input("7"), int4Input("8"), int4Input("9")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("7"), int4Input("8"), int4Input("9")]));
+}
+export function evaluate29290() {
+    return arrayGt(arrayInput("pg_catalog.int4", [3], [0], [int4Input("7"), int4Input("8"), int4Input("9")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("7"), int4Input("8"), int4Input("9")]));
+}
+export function evaluate29291() {
+    return arrayGe(arrayInput("pg_catalog.int4", [3], [0], [int4Input("7"), int4Input("8"), int4Input("9")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("7"), int4Input("8"), int4Input("9")]));
+}
+export function evaluate29292() {
+    return arrayEq(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29293() {
+    return arrayNe(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29294() {
+    return arrayLt(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29295() {
+    return arrayLe(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29296() {
+    return arrayGt(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29297() {
+    return arrayGe(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29298() {
+    return arrayEq(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29299() {
+    return arrayNe(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29300() {
+    return arrayLt(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29301() {
+    return arrayLe(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29302() {
+    return arrayGt(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29303() {
+    return arrayGe(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29304() {
+    return arrayContains(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), arrayInput("pg_catalog.int4", [1], [1], [int4Input("1")]));
+}
+export function evaluate29305() {
+    return arrayContained(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), arrayInput("pg_catalog.int4", [1], [1], [int4Input("1")]));
+}
+export function evaluate29306() {
+    return arrayOverlap(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), arrayInput("pg_catalog.int4", [1], [1], [int4Input("1")]));
+}
+export function evaluate29307() {
+    return arrayContains(arrayInput("pg_catalog.int4", [1], [1], [int4Input("1")]), arrayInput("pg_catalog.int4", [2], [1], [int4Input("1"), int4Input("1")]));
+}
+export function evaluate29308() {
+    return arrayContained(arrayInput("pg_catalog.int4", [1], [1], [int4Input("1")]), arrayInput("pg_catalog.int4", [2], [1], [int4Input("1"), int4Input("1")]));
+}
+export function evaluate29309() {
+    return arrayOverlap(arrayInput("pg_catalog.int4", [1], [1], [int4Input("1")]), arrayInput("pg_catalog.int4", [2], [1], [int4Input("1"), int4Input("1")]));
+}
+export function evaluate29310() {
+    return arrayContains(arrayInput("pg_catalog.int4", [1], [1], [int4Input(null)]), arrayInput("pg_catalog.int4", [1], [1], [int4Input(null)]));
+}
+export function evaluate29311() {
+    return arrayContained(arrayInput("pg_catalog.int4", [1], [1], [int4Input(null)]), arrayInput("pg_catalog.int4", [1], [1], [int4Input(null)]));
+}
+export function evaluate29312() {
+    return arrayOverlap(arrayInput("pg_catalog.int4", [1], [1], [int4Input(null)]), arrayInput("pg_catalog.int4", [1], [1], [int4Input(null)]));
+}
+export function evaluate29313() {
+    return arrayContains(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [], [], []));
+}
+export function evaluate29314() {
+    return arrayContained(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [], [], []));
+}
+export function evaluate29315() {
+    return arrayOverlap(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [], [], []));
+}
+export function evaluate29316() {
+    return arrayContains(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29317() {
+    return arrayContained(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29318() {
+    return arrayOverlap(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29319() {
+    return arrayConcat(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29320() {
+    return arrayConcat(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), arrayInput("pg_catalog.int4", [], [], null));
+}
+export function evaluate29321() {
+    return arrayConcat(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [], [], null));
+}
+export function evaluate29322() {
+    return arrayConcat(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [3], [0], [int4Input("7"), int4Input("8"), int4Input("9")]));
+}
+export function evaluate29323() {
+    return arrayConcat(arrayInput("pg_catalog.int4", [3], [0], [int4Input("7"), int4Input("8"), int4Input("9")]), arrayInput("pg_catalog.int4", [], [], []));
+}
+export function evaluate29324() {
+    return arrayConcat(arrayInput("pg_catalog.int4", [2], [1], [int4Input("1"), int4Input("2")]), arrayInput("pg_catalog.int4", [2], [1], [int4Input("3"), int4Input("4")]));
+}
+export function evaluate29325() {
+    return arrayConcat(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]));
+}
+export function evaluate29326() {
+    return arrayConcat(arrayInput("pg_catalog.int4", [2], [1], [int4Input("1"), int4Input("2")]), arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]));
+}
+export function evaluate29327() {
+    return arrayConcat(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), arrayInput("pg_catalog.int4", [2], [1], [int4Input("1"), int4Input("2")]));
+}
+export function evaluate29328() {
+    return arrayConcat(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), arrayInput("pg_catalog.int4", [1, 3], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3")]));
+}
+export function evaluate29329() {
+    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("1"));
+}
+export function evaluate29330() {
+    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("3"));
+}
+export function evaluate29331() {
+    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")]), int4Input("4"));
+}
+export function evaluate29332() {
+    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input(null), int4Input("3")]), int4Input("2"));
+}
+export function evaluate29333() {
+    return arraySubscript(arrayInput("pg_catalog.int4", [3], [0], [int4Input("7"), int4Input("8"), int4Input("9")]), int4Input("0"));
+}
+export function evaluate29334() {
+    return arraySubscript(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("2"), int4Input("1"));
+}
+export function evaluate29335() {
+    return arraySubscript(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("2"));
+}
+export function evaluate29336() {
+    return arraySubscript(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]), int4Input("1"), int4Input(null));
+}
+export function evaluate29337() {
+    return arraySubscript(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
+}
+export function evaluate29338() {
+    return sqlIsNull(arrayInput("pg_catalog.int4", [], [], null));
+}
+export function evaluate29339() {
+    return sqlCase(() => arrayInput("pg_catalog.int4", [], [], []), [() => booleanInput(true), () => arrayInput("pg_catalog.int4", [3], [1], [int4Input("1"), int4Input("2"), int4Input("3")])]);
+}
+export function evaluate29340() {
+    return sqlCoalesce(() => arrayInput("pg_catalog.int4", [], [], null), () => arrayInput("pg_catalog.int4", [2, 2], [1, 1], [int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4")]));
 }

@@ -1,4 +1,4 @@
-import { enumType, type SqlExpression } from '../../src/sql-semantics/expressions.js'
+import { arrayType, enumType, type SqlExpression } from '../../src/sql-semantics/expressions.js'
 import { floatMathCopyright } from '../../src/sql-semantics/float-math-license.js'
 import { numericMathCopyright } from '../../src/sql-semantics/numeric-math-license.js'
 import { scalarCases } from '../fixtures/sql-semantics/operations/scalar.js'
@@ -80,7 +80,13 @@ function goProject(fixtures = cases): string {
     imports: [{ path: 'encoding/json' }, { path: 'os' }, { path: 'fmt' }, { path: 'math' }],
     source:
       goSqlRuntime(
-        [...emitted.flatMap((result) => result.helpers), 'sqlDecimalText', 'uuidText', 'enumText'],
+        [
+          ...emitted.flatMap((result) => result.helpers),
+          'sqlDecimalText',
+          'uuidText',
+          'enumText',
+          'arrayText',
+        ],
         'main',
       ) +
       `
@@ -138,6 +144,10 @@ function goProject(fixtures = cases): string {
             if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
             } else if !value.Valid { result["kind"] = "null"
             } else { result["kind"] = "value"; result["value"] = enumText(value).Value }
+          case SqlArray:
+            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
+            } else if !value.Valid { result["kind"] = "null"
+            } else { result["kind"] = "value"; result["value"] = arrayText(value).Value }
           default: panic("unexpected SQL value type")
           }
           results = append(results, result)
@@ -165,7 +175,9 @@ function goProject(fixtures = cases): string {
                         ? 'SqlUuid'
                         : result.value.type.startsWith('enum:')
                           ? 'SqlEnum'
-                          : 'SqlInteger',
+                          : result.value.type.startsWith('array:')
+                            ? 'SqlArray'
+                            : 'SqlInteger',
             ),
           },
         ],
@@ -354,6 +366,17 @@ describe('generated PostgreSQL scalar evaluation', () => {
       'enum null test',
       'enum case',
       'enum coalesce',
+      'array input 6',
+      'array cardinality 2',
+      'array dims 4',
+      'array lower 4/1',
+      'array comparison > 2',
+      'array contains 0',
+      'array concat 7',
+      'array subscript 5',
+      'array null test',
+      'array case',
+      'array coalesce',
       'numeric utility scale 1.2300',
       'numeric utility min_scale 1.2300',
       'numeric utility trim_scale 1.2300',
@@ -455,7 +478,9 @@ describe('generated PostgreSQL scalar evaluation', () => {
                                 ? 'SqlUuid'
                                 : emitted.value.type.startsWith('enum:')
                                   ? 'SqlEnum'
-                                  : 'SqlInteger',
+                                  : emitted.value.type.startsWith('array:')
+                                    ? 'SqlArray'
+                                    : 'SqlInteger',
                     ),
                   },
                 ],
@@ -635,6 +660,14 @@ describe('generated PostgreSQL scalar evaluation', () => {
       enum: otherEnumDefinition,
       value: 'first',
     } as const
+    const arrayValue = {
+      kind: 'array',
+      type: arrayType('pg_catalog.int4'),
+      elementType: 'pg_catalog.int4',
+      dimensions: [2],
+      lowerBounds: [1],
+      elements: [integer, integer],
+    } as const
     const invalid: [SqlExpression, string][] = [
       [
         { kind: 'boolean-logic', type: 'pg_catalog.bool', operation: 'and', operands: [boolean] },
@@ -728,6 +761,36 @@ describe('generated PostgreSQL scalar evaluation', () => {
       ],
       [
         {
+          ...arrayValue,
+          dimensions: [2, 2],
+          lowerBounds: [1, 1],
+          elements: [integer, integer, integer],
+        },
+        'Invalid array literal',
+      ],
+      [{ ...arrayValue, dimensions: [2], lowerBounds: [] }, 'Invalid array literal'],
+      [
+        {
+          kind: 'array-operation',
+          type: 'pg_catalog.int4',
+          elementType: 'pg_catalog.int4',
+          operation: 'cardinality',
+          operands: [integer],
+        },
+        'Invalid array operation',
+      ],
+      [
+        {
+          kind: 'array-subscript',
+          type: 'pg_catalog.int4',
+          elementType: 'pg_catalog.int4',
+          array: arrayValue,
+          subscripts: [],
+        },
+        'Invalid array subscript',
+      ],
+      [
+        {
           kind: 'text-coercion',
           type: 'pg_catalog.bpchar',
           length: null,
@@ -778,6 +841,17 @@ describe('generated PostgreSQL scalar evaluation', () => {
       expect(() => emitSqlExpression(expression, typescriptSqlBackend)).toThrow(message)
       expect(() => emitSqlExpression(expression, goSqlBackend)).toThrow(message)
     }
+  })
+
+  it('pins PostgreSQL ragged array rejection categories', async () => {
+    expect(await observeSql(pg, 'ARRAY[[1,2],[3]]::int4[]')).toEqual({
+      kind: 'error',
+      code: '2202E',
+    })
+    expect(await observeSql(pg, "'{{1,2},{3}}'::int4[]")).toEqual({
+      kind: 'error',
+      code: '22P02',
+    })
   })
 
   it('refuses unsupported overloads and inconsistent resolved operands', () => {

@@ -4,6 +4,7 @@ import { functionMetadata, operatorMetadata } from '../../../../src/postgres/bui
 import type { ExpressionSpec } from './expression-spec.js'
 import { uuidSpecs } from './uuid-specs.js'
 import { enumSpecs } from './enum-specs.js'
+import { arraySpecs } from './array-specs.js'
 
 interface Operand {
   sql: string
@@ -250,4 +251,5 @@ export const scalarSpecs: readonly ExpressionSpec[] = [
   ...textSpecs,
   ...uuidSpecs,
   ...enumSpecs,
+  ...arraySpecs,
 ]

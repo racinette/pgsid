@@ -8,6 +8,7 @@ import { goDecimalMathDependencies } from './decimal-math-runtime.js'
 import { goDecimalDependencies } from './decimal-runtime.js'
 import { goUuidDependencies } from './uuid-runtime.js'
 import { goEnumDependencies } from './enum-runtime.js'
+import { goArrayDependencies } from './array-runtime.js'
 
 const dependencies: Record<string, readonly string[]> = {
   float8WidthBucket: ['SqlFloat', 'sqlIntegerRange'],
@@ -77,6 +78,7 @@ Object.assign(dependencies, goDecimalMathDependencies)
 Object.assign(dependencies, goFloatMathDependencies)
 Object.assign(dependencies, goUuidDependencies)
 Object.assign(dependencies, goEnumDependencies)
+Object.assign(dependencies, goArrayDependencies)
 
 export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsql'): string {
   const declarations = new Map(
@@ -90,6 +92,7 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
       'text',
       'uuid',
       'enum',
+      'array',
     ]
       .flatMap((asset) =>
         readFileSync(new URL(`./assets/${asset}.go`, import.meta.url), 'utf8')

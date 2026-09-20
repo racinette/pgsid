@@ -67091,4 +67091,648 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: 'é',
   },
+  'array input 0': {
+    kind: 'null',
+  },
+  'array input 1': {
+    kind: 'value',
+    value: '{}',
+  },
+  'array input 2': {
+    kind: 'value',
+    value: '{1,2,3}',
+  },
+  'array input 3': {
+    kind: 'value',
+    value: '{1,NULL,3}',
+  },
+  'array input 4': {
+    kind: 'value',
+    value: '[0:2]={7,8,9}',
+  },
+  'array input 5': {
+    kind: 'value',
+    value: '{{1,2},{3,4}}',
+  },
+  'array input 6': {
+    kind: 'value',
+    value: '[0:1][3:4]={{1,2},{3,4}}',
+  },
+  'array cardinality 0': {
+    kind: 'null',
+  },
+  'array ndims 0': {
+    kind: 'null',
+  },
+  'array dims 0': {
+    kind: 'null',
+  },
+  'array length 0/null': {
+    kind: 'null',
+  },
+  'array lower 0/null': {
+    kind: 'null',
+  },
+  'array upper 0/null': {
+    kind: 'null',
+  },
+  'array length 0/-1': {
+    kind: 'null',
+  },
+  'array lower 0/-1': {
+    kind: 'null',
+  },
+  'array upper 0/-1': {
+    kind: 'null',
+  },
+  'array length 0/0': {
+    kind: 'null',
+  },
+  'array lower 0/0': {
+    kind: 'null',
+  },
+  'array upper 0/0': {
+    kind: 'null',
+  },
+  'array length 0/1': {
+    kind: 'null',
+  },
+  'array lower 0/1': {
+    kind: 'null',
+  },
+  'array upper 0/1': {
+    kind: 'null',
+  },
+  'array length 0/2': {
+    kind: 'null',
+  },
+  'array lower 0/2': {
+    kind: 'null',
+  },
+  'array upper 0/2': {
+    kind: 'null',
+  },
+  'array length 0/3': {
+    kind: 'null',
+  },
+  'array lower 0/3': {
+    kind: 'null',
+  },
+  'array upper 0/3': {
+    kind: 'null',
+  },
+  'array cardinality 1': {
+    kind: 'value',
+    value: '0',
+  },
+  'array ndims 1': {
+    kind: 'null',
+  },
+  'array dims 1': {
+    kind: 'null',
+  },
+  'array length 1/null': {
+    kind: 'null',
+  },
+  'array lower 1/null': {
+    kind: 'null',
+  },
+  'array upper 1/null': {
+    kind: 'null',
+  },
+  'array length 1/-1': {
+    kind: 'null',
+  },
+  'array lower 1/-1': {
+    kind: 'null',
+  },
+  'array upper 1/-1': {
+    kind: 'null',
+  },
+  'array length 1/0': {
+    kind: 'null',
+  },
+  'array lower 1/0': {
+    kind: 'null',
+  },
+  'array upper 1/0': {
+    kind: 'null',
+  },
+  'array length 1/1': {
+    kind: 'null',
+  },
+  'array lower 1/1': {
+    kind: 'null',
+  },
+  'array upper 1/1': {
+    kind: 'null',
+  },
+  'array length 1/2': {
+    kind: 'null',
+  },
+  'array lower 1/2': {
+    kind: 'null',
+  },
+  'array upper 1/2': {
+    kind: 'null',
+  },
+  'array length 1/3': {
+    kind: 'null',
+  },
+  'array lower 1/3': {
+    kind: 'null',
+  },
+  'array upper 1/3': {
+    kind: 'null',
+  },
+  'array cardinality 2': {
+    kind: 'value',
+    value: '3',
+  },
+  'array ndims 2': {
+    kind: 'value',
+    value: '1',
+  },
+  'array dims 2': {
+    kind: 'value',
+    value: '[1:3]',
+  },
+  'array length 2/null': {
+    kind: 'null',
+  },
+  'array lower 2/null': {
+    kind: 'null',
+  },
+  'array upper 2/null': {
+    kind: 'null',
+  },
+  'array length 2/-1': {
+    kind: 'null',
+  },
+  'array lower 2/-1': {
+    kind: 'null',
+  },
+  'array upper 2/-1': {
+    kind: 'null',
+  },
+  'array length 2/0': {
+    kind: 'null',
+  },
+  'array lower 2/0': {
+    kind: 'null',
+  },
+  'array upper 2/0': {
+    kind: 'null',
+  },
+  'array length 2/1': {
+    kind: 'value',
+    value: '3',
+  },
+  'array lower 2/1': {
+    kind: 'value',
+    value: '1',
+  },
+  'array upper 2/1': {
+    kind: 'value',
+    value: '3',
+  },
+  'array length 2/2': {
+    kind: 'null',
+  },
+  'array lower 2/2': {
+    kind: 'null',
+  },
+  'array upper 2/2': {
+    kind: 'null',
+  },
+  'array length 2/3': {
+    kind: 'null',
+  },
+  'array lower 2/3': {
+    kind: 'null',
+  },
+  'array upper 2/3': {
+    kind: 'null',
+  },
+  'array cardinality 3': {
+    kind: 'value',
+    value: '4',
+  },
+  'array ndims 3': {
+    kind: 'value',
+    value: '2',
+  },
+  'array dims 3': {
+    kind: 'value',
+    value: '[1:2][1:2]',
+  },
+  'array length 3/null': {
+    kind: 'null',
+  },
+  'array lower 3/null': {
+    kind: 'null',
+  },
+  'array upper 3/null': {
+    kind: 'null',
+  },
+  'array length 3/-1': {
+    kind: 'null',
+  },
+  'array lower 3/-1': {
+    kind: 'null',
+  },
+  'array upper 3/-1': {
+    kind: 'null',
+  },
+  'array length 3/0': {
+    kind: 'null',
+  },
+  'array lower 3/0': {
+    kind: 'null',
+  },
+  'array upper 3/0': {
+    kind: 'null',
+  },
+  'array length 3/1': {
+    kind: 'value',
+    value: '2',
+  },
+  'array lower 3/1': {
+    kind: 'value',
+    value: '1',
+  },
+  'array upper 3/1': {
+    kind: 'value',
+    value: '2',
+  },
+  'array length 3/2': {
+    kind: 'value',
+    value: '2',
+  },
+  'array lower 3/2': {
+    kind: 'value',
+    value: '1',
+  },
+  'array upper 3/2': {
+    kind: 'value',
+    value: '2',
+  },
+  'array length 3/3': {
+    kind: 'null',
+  },
+  'array lower 3/3': {
+    kind: 'null',
+  },
+  'array upper 3/3': {
+    kind: 'null',
+  },
+  'array cardinality 4': {
+    kind: 'value',
+    value: '4',
+  },
+  'array ndims 4': {
+    kind: 'value',
+    value: '2',
+  },
+  'array dims 4': {
+    kind: 'value',
+    value: '[0:1][3:4]',
+  },
+  'array length 4/null': {
+    kind: 'null',
+  },
+  'array lower 4/null': {
+    kind: 'null',
+  },
+  'array upper 4/null': {
+    kind: 'null',
+  },
+  'array length 4/-1': {
+    kind: 'null',
+  },
+  'array lower 4/-1': {
+    kind: 'null',
+  },
+  'array upper 4/-1': {
+    kind: 'null',
+  },
+  'array length 4/0': {
+    kind: 'null',
+  },
+  'array lower 4/0': {
+    kind: 'null',
+  },
+  'array upper 4/0': {
+    kind: 'null',
+  },
+  'array length 4/1': {
+    kind: 'value',
+    value: '2',
+  },
+  'array lower 4/1': {
+    kind: 'value',
+    value: '0',
+  },
+  'array upper 4/1': {
+    kind: 'value',
+    value: '1',
+  },
+  'array length 4/2': {
+    kind: 'value',
+    value: '2',
+  },
+  'array lower 4/2': {
+    kind: 'value',
+    value: '3',
+  },
+  'array upper 4/2': {
+    kind: 'value',
+    value: '4',
+  },
+  'array length 4/3': {
+    kind: 'null',
+  },
+  'array lower 4/3': {
+    kind: 'null',
+  },
+  'array upper 4/3': {
+    kind: 'null',
+  },
+  'array comparison = 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array comparison <> 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array comparison < 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array comparison <= 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array comparison > 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array comparison >= 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array comparison = 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array comparison <> 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array comparison < 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array comparison <= 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array comparison > 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array comparison >= 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array comparison = 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array comparison <> 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array comparison < 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array comparison <= 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array comparison > 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array comparison >= 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array comparison = 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array comparison <> 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array comparison < 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array comparison <= 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array comparison > 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array comparison >= 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array comparison = 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array comparison <> 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array comparison < 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array comparison <= 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array comparison > 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array comparison >= 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array comparison = 5': {
+    kind: 'null',
+  },
+  'array comparison <> 5': {
+    kind: 'null',
+  },
+  'array comparison < 5': {
+    kind: 'null',
+  },
+  'array comparison <= 5': {
+    kind: 'null',
+  },
+  'array comparison > 5': {
+    kind: 'null',
+  },
+  'array comparison >= 5': {
+    kind: 'null',
+  },
+  'array contains 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array contained 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array overlap 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array contains 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array contained 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array overlap 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array contains 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array contained 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array overlap 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array contains 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array contained 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array overlap 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'array contains 4': {
+    kind: 'null',
+  },
+  'array contained 4': {
+    kind: 'null',
+  },
+  'array overlap 4': {
+    kind: 'null',
+  },
+  'array concat 0': {
+    kind: 'value',
+    value: '{1,2,3}',
+  },
+  'array concat 1': {
+    kind: 'value',
+    value: '{1,2,3}',
+  },
+  'array concat 2': {
+    kind: 'null',
+  },
+  'array concat 3': {
+    kind: 'value',
+    value: '[0:2]={7,8,9}',
+  },
+  'array concat 4': {
+    kind: 'value',
+    value: '[0:2]={7,8,9}',
+  },
+  'array concat 5': {
+    kind: 'value',
+    value: '{1,2,3,4}',
+  },
+  'array concat 6': {
+    kind: 'value',
+    value: '{{1,2},{3,4},{1,2},{3,4}}',
+  },
+  'array concat 7': {
+    kind: 'value',
+    value: '{{1,2},{1,2},{3,4}}',
+  },
+  'array concat 8': {
+    kind: 'value',
+    value: '{{1,2},{3,4},{1,2}}',
+  },
+  'array concat 9': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'array subscript 0': {
+    kind: 'value',
+    value: '1',
+  },
+  'array subscript 1': {
+    kind: 'value',
+    value: '3',
+  },
+  'array subscript 2': {
+    kind: 'null',
+  },
+  'array subscript 3': {
+    kind: 'null',
+  },
+  'array subscript 4': {
+    kind: 'value',
+    value: '7',
+  },
+  'array subscript 5': {
+    kind: 'value',
+    value: '3',
+  },
+  'array subscript 6': {
+    kind: 'null',
+  },
+  'array subscript 7': {
+    kind: 'null',
+  },
+  'array subscript 8': {
+    kind: 'null',
+  },
+  'array null test': {
+    kind: 'value',
+    value: 'true',
+  },
+  'array case': {
+    kind: 'value',
+    value: '{1,2,3}',
+  },
+  'array coalesce': {
+    kind: 'value',
+    value: '{{1,2},{3,4}}',
+  },
 }
