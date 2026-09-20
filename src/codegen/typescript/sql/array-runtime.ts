@@ -507,7 +507,7 @@ export const typescriptArrayHelpers: Record<
   const amount = Number(count), outer = value.dimensions[0] ?? 0
   if (amount < 0 || amount > outer) arrayError('2202E')
   if (amount === outer) return new SqlArray(value.elementType, [], [], [])
-  if (value.dimensions.length === 0 || amount === 0) return value
+  if (value.dimensions.length === 0) return value
   const chunk = value.elements.length / outer
   const dimensions = [...value.dimensions]
   dimensions[0] = outer - amount
@@ -567,15 +567,20 @@ export const typescriptArrayHelpers: Record<
   value: SqlArray | null,
   bounds: readonly (readonly [bigint | null, bigint | null])[],
 ): SqlArray | null {
-  if (value === null || value.dimensions.length === 0 || bounds.length !== value.dimensions.length)
+  if (value === null || value.dimensions.length === 0 || bounds.length > value.dimensions.length)
     return value === null ? null : new SqlArray(value.elementType, [], [], [])
-  const lowers = bounds.map((bound, index) =>
-    Math.max(value.lowerBounds[index]!, Number(bound[0] ?? BigInt(value.lowerBounds[index]!))),
+  const lowers = value.dimensions.map((_, index) =>
+    Math.max(
+      value.lowerBounds[index]!,
+      Number(bounds[index]?.[0] ?? BigInt(value.lowerBounds[index]!)),
+    ),
   )
-  const uppers = bounds.map((bound, index) =>
+  const uppers = value.dimensions.map((dimension, index) =>
     Math.min(
-      value.lowerBounds[index]! + value.dimensions[index]! - 1,
-      Number(bound[1] ?? BigInt(value.lowerBounds[index]! + value.dimensions[index]! - 1)),
+      value.lowerBounds[index]! + dimension - 1,
+      Number(
+        bounds[index]?.[1] ?? BigInt(value.lowerBounds[index]! + value.dimensions[index]! - 1),
+      ),
     ),
   )
   if (lowers.some((lower, index) => lower > uppers[index]!))

@@ -3128,10 +3128,10 @@ function arraySlice(value: SqlArray | null, bounds: readonly (readonly [
     bigint | null,
     bigint | null
 ])[]): SqlArray | null {
-    if (value === null || value.dimensions.length === 0 || bounds.length !== value.dimensions.length)
+    if (value === null || value.dimensions.length === 0 || bounds.length > value.dimensions.length)
         return value === null ? null : new SqlArray(value.elementType, [], [], []);
-    const lowers = bounds.map((bound, index) => Math.max(value.lowerBounds[index]!, Number(bound[0] ?? BigInt(value.lowerBounds[index]!))));
-    const uppers = bounds.map((bound, index) => Math.min(value.lowerBounds[index]! + value.dimensions[index]! - 1, Number(bound[1] ?? BigInt(value.lowerBounds[index]! + value.dimensions[index]! - 1))));
+    const lowers = value.dimensions.map((_, index) => Math.max(value.lowerBounds[index]!, Number(bounds[index]?.[0] ?? BigInt(value.lowerBounds[index]!))));
+    const uppers = value.dimensions.map((dimension, index) => Math.min(value.lowerBounds[index]! + dimension - 1, Number(bounds[index]?.[1] ?? BigInt(value.lowerBounds[index]! + value.dimensions[index]! - 1))));
     if (lowers.some((lower, index) => lower > uppers[index]!))
         return new SqlArray(value.elementType, [], [], []);
     const dimensions = lowers.map((lower, index) => uppers[index]! - lower + 1);
@@ -3271,7 +3271,7 @@ function arrayTrim(value: SqlArray | null, count: bigint | null): SqlArray | nul
         arrayError("2202E");
     if (amount === outer)
         return new SqlArray(value.elementType, [], [], []);
-    if (value.dimensions.length === 0 || amount === 0)
+    if (value.dimensions.length === 0)
         return value;
     const chunk = value.elements.length / outer;
     const dimensions = [...value.dimensions];
@@ -91649,164 +91649,170 @@ export function evaluate29434() {
     return arraySlice(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), [[int4Input("2"), int4Input("3")], [int4Input("1"), int4Input("2")]]);
 }
 export function evaluate29435() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("2")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arraySlice(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), [[int4Input("2"), int4Input("3")]]);
 }
 export function evaluate29436() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("5")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arrayAssign(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("2")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate29437() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("-2")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arrayAssign(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("5")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate29438() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [], [], []), [int4Input("4")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arrayAssign(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("-2")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate29439() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [], [], null), [int4Input("4")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arrayAssign(arrayInput("pg_catalog.int4", [], [], []), [int4Input("4")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate29440() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), [int4Input("2"), int4Input("1")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arrayAssign(arrayInput("pg_catalog.int4", [], [], null), [int4Input("4")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate29441() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return arrayAssign(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), [int4Input("2"), int4Input("1")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate29442() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayAppend(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate29443() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate29444() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayAppend(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate29445() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [], [], []), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate29446() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [], [], []));
+    return arrayAppend(arrayInput("pg_catalog.int4", [], [], []), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate29447() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [], [], null), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate29448() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [], [], null));
+    return arrayAppend(arrayInput("pg_catalog.int4", [], [], null), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate29449() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [], [], null));
 }
 export function evaluate29450() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]));
+    return arrayAppend(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate29451() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("4")));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]));
 }
 export function evaluate29452() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("0")), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayAppend(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("4")));
 }
 export function evaluate29453() {
-    return arrayPosition(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("0")), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate29454() {
-    return arrayPositions(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return arrayPosition(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate29455() {
-    return arrayPosition(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
+    return arrayPositions(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate29456() {
-    return arrayPositions(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
+    return arrayPosition(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
 }
 export function evaluate29457() {
-    return arrayPosition(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("2")), int4Input("1"));
+    return arrayPositions(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
 }
 export function evaluate29458() {
-    return arrayPosition(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arrayPosition(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("2")), int4Input("1"));
 }
 export function evaluate29459() {
-    return arrayPositions(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arrayPosition(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate29460() {
-    return arrayPosition(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
+    return arrayPositions(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate29461() {
-    return arrayPositions(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
+    return arrayPosition(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
 }
 export function evaluate29462() {
-    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return arrayPositions(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
 }
 export function evaluate29463() {
-    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("7")));
+    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate29464() {
-    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("1")));
+    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("7")));
 }
 export function evaluate29465() {
-    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("7")));
+    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("1")));
 }
 export function evaluate29466() {
-    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("7")));
 }
 export function evaluate29467() {
-    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("9")), arrayElementInput("pg_catalog.int4", int4Input("7")));
+    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate29468() {
-    return arrayFill(arrayElementInput("pg_catalog.int4", int4Input("5")), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("9")), arrayElementInput("pg_catalog.int4", int4Input("7")));
 }
 export function evaluate29469() {
-    return arrayFill(arrayElementInput("pg_catalog.int4", int4Input(null)), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("0")), arrayElementInput("pg_catalog.int4", int4Input("-1"))]));
+    return arrayFill(arrayElementInput("pg_catalog.int4", int4Input("5")), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate29470() {
-    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("0"));
+    return arrayFill(arrayElementInput("pg_catalog.int4", int4Input(null)), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("0")), arrayElementInput("pg_catalog.int4", int4Input("-1"))]));
 }
 export function evaluate29471() {
-    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("1"));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("0"));
 }
 export function evaluate29472() {
-    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("3"));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("1"));
 }
 export function evaluate29473() {
-    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("4"));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("3"));
 }
 export function evaluate29474() {
-    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("-1"));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("4"));
 }
 export function evaluate29475() {
-    return arrayReverse(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("-1"));
 }
 export function evaluate29476() {
-    return arrayReverse(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("0"));
 }
 export function evaluate29477() {
-    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return arrayReverse(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate29478() {
-    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(true));
+    return arrayReverse(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]));
 }
 export function evaluate29479() {
-    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(false), booleanInput(true));
+    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate29480() {
-    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(true), booleanInput(false));
+    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(true));
 }
 export function evaluate29481() {
-    return arraySort(arrayInput("pg_catalog.int4", [3, 2], [0, 1], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("9")), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(false), booleanInput(true));
 }
 export function evaluate29482() {
-    return arrayConcat(arrayCoerce("pg_catalog.int4", arrayInput("pg_catalog.int2", [1], [1], [arrayElementInput("pg_catalog.int2", int2Input("1"))])), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(true), booleanInput(false));
 }
 export function evaluate29483() {
-    return arrayConcat(arrayCoerce("pg_catalog.int8", arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))])), arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("2"))]));
+    return arraySort(arrayInput("pg_catalog.int4", [3, 2], [0, 1], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("9")), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate29484() {
-    return arrayConcat(arrayCoerce("pg_catalog.\"numeric\"", arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("1"))])), arrayInput("pg_catalog.\"numeric\"", [1], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.5"))]));
+    return arrayConcat(arrayCoerce("pg_catalog.int4", arrayInput("pg_catalog.int2", [1], [1], [arrayElementInput("pg_catalog.int2", int2Input("1"))])), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate29485() {
-    return arrayConcat(arrayCoerce("pg_catalog.float4", arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))])), arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("40200000"))]));
+    return arrayConcat(arrayCoerce("pg_catalog.int8", arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))])), arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("2"))]));
 }
 export function evaluate29486() {
-    return arrayConcat(arrayCoerce("pg_catalog.float8", arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("3fc00000"))])), arrayInput("pg_catalog.float8", [1], [1], [arrayElementInput("pg_catalog.float8", float8Input("4004000000000000"))]));
+    return arrayConcat(arrayCoerce("pg_catalog.\"numeric\"", arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("1"))])), arrayInput("pg_catalog.\"numeric\"", [1], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.5"))]));
 }
 export function evaluate29487() {
-    return arrayConcat(arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), arrayCoerce("pg_catalog.text", arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b"))])));
+    return arrayConcat(arrayCoerce("pg_catalog.float4", arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))])), arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("40200000"))]));
 }
 export function evaluate29488() {
+    return arrayConcat(arrayCoerce("pg_catalog.float8", arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("3fc00000"))])), arrayInput("pg_catalog.float8", [1], [1], [arrayElementInput("pg_catalog.float8", float8Input("4004000000000000"))]));
+}
+export function evaluate29489() {
+    return arrayConcat(arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), arrayCoerce("pg_catalog.text", arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b"))])));
+}
+export function evaluate29490() {
     return arrayConcat(arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]), arrayCoerce("pg_catalog.\"varchar\"", arrayInput("pg_catalog.bpchar", [1], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b "))])));
 }

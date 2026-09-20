@@ -975,7 +975,7 @@ func arrayTrim(value SqlArray, count SqlInteger) SqlArray {
 	if count.Value == outer {
 		return SqlArray{ElementType: value.ElementType, Valid: true}
 	}
-	if len(value.Dimensions) == 0 || count.Value == 0 {
+	if len(value.Dimensions) == 0 {
 		return value
 	}
 	chunk := int64(len(value.Elements)) / outer
@@ -1082,20 +1082,21 @@ func arraySlice(
 	if value.Error != "" || !value.Valid {
 		return value
 	}
-	if len(value.Dimensions) == 0 || len(lowers) != len(value.Dimensions) {
+	if len(value.Dimensions) == 0 || len(lowers) > len(value.Dimensions) {
 		return SqlArray{ElementType: value.ElementType, Valid: true}
 	}
-	lowerValues, upperValues := make([]int64, len(lowers)), make([]int64, len(uppers))
-	for index := range lowers {
+	lowerValues := make([]int64, len(value.Dimensions))
+	upperValues := make([]int64, len(value.Dimensions))
+	for index := range value.Dimensions {
 		lowerValues[index] = value.LowerBounds[index]
 		upperValues[index] = value.LowerBounds[index] + value.Dimensions[index] - 1
-		if lowerProvided[index] {
+		if index < len(lowers) && lowerProvided[index] {
 			if !lowers[index].Valid {
 				return SqlArray{}
 			}
 			lowerValues[index] = max(lowerValues[index], lowers[index].Value)
 		}
-		if upperProvided[index] {
+		if index < len(uppers) && upperProvided[index] {
 			if !uppers[index].Valid {
 				return SqlArray{}
 			}
@@ -1105,7 +1106,7 @@ func arraySlice(
 			return SqlArray{ElementType: value.ElementType, Valid: true}
 		}
 	}
-	dimensions := make([]int64, len(lowers))
+	dimensions := make([]int64, len(value.Dimensions))
 	for index := range dimensions {
 		dimensions[index] = upperValues[index] - lowerValues[index] + 1
 	}
