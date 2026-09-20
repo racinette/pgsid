@@ -70289,4 +70289,571 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: '{"a": 1, "b": [2, 3], "c": null}',
   },
+  'jsonb concat 0': {
+    kind: 'value',
+    value: '{"a": 3, "b": 2}',
+  },
+  'jsonb concat fn 0': {
+    kind: 'value',
+    value: '{"a": 3, "b": 2}',
+  },
+  'jsonb concat 1': {
+    kind: 'value',
+    value: '{"a": 1}',
+  },
+  'jsonb concat fn 1': {
+    kind: 'value',
+    value: '{"a": 1}',
+  },
+  'jsonb concat 2': {
+    kind: 'value',
+    value: '{"a": 1}',
+  },
+  'jsonb concat fn 2': {
+    kind: 'value',
+    value: '{"a": 1}',
+  },
+  'jsonb concat 3': {
+    kind: 'value',
+    value: '[1, 2, 3]',
+  },
+  'jsonb concat fn 3': {
+    kind: 'value',
+    value: '[1, 2, 3]',
+  },
+  'jsonb concat 4': {
+    kind: 'value',
+    value: '[1]',
+  },
+  'jsonb concat fn 4': {
+    kind: 'value',
+    value: '[1]',
+  },
+  'jsonb concat 5': {
+    kind: 'value',
+    value: '[1, 2]',
+  },
+  'jsonb concat fn 5': {
+    kind: 'value',
+    value: '[1, 2]',
+  },
+  'jsonb concat 6': {
+    kind: 'value',
+    value: '[1, 2]',
+  },
+  'jsonb concat fn 6': {
+    kind: 'value',
+    value: '[1, 2]',
+  },
+  'jsonb concat 7': {
+    kind: 'value',
+    value: '[1, 2]',
+  },
+  'jsonb concat fn 7': {
+    kind: 'value',
+    value: '[1, 2]',
+  },
+  'jsonb concat 8': {
+    kind: 'value',
+    value: '[{"a": 1}, 2]',
+  },
+  'jsonb concat fn 8': {
+    kind: 'value',
+    value: '[{"a": 1}, 2]',
+  },
+  'jsonb concat 9': {
+    kind: 'value',
+    value: '[2, {"a": 1}]',
+  },
+  'jsonb concat fn 9': {
+    kind: 'value',
+    value: '[2, {"a": 1}]',
+  },
+  'jsonb concat 10': {
+    kind: 'value',
+    value: '[{"a": 1}]',
+  },
+  'jsonb concat fn 10': {
+    kind: 'value',
+    value: '[{"a": 1}]',
+  },
+  'jsonb concat 11': {
+    kind: 'value',
+    value: '[null, 1]',
+  },
+  'jsonb concat fn 11': {
+    kind: 'value',
+    value: '[null, 1]',
+  },
+  'jsonb concat 12': {
+    kind: 'value',
+    value: '[true, {"a": 1}]',
+  },
+  'jsonb concat fn 12': {
+    kind: 'value',
+    value: '[true, {"a": 1}]',
+  },
+  'jsonb concat 13': {
+    kind: 'null',
+  },
+  'jsonb concat fn 13': {
+    kind: 'null',
+  },
+  'jsonb delete key': {
+    kind: 'value',
+    value: '{"b": 2}',
+  },
+  'jsonb delete missing key': {
+    kind: 'value',
+    value: '{"a": 1}',
+  },
+  'jsonb delete string element': {
+    kind: 'value',
+    value: '["b"]',
+  },
+  'jsonb delete key scalar': {
+    kind: 'error',
+    code: '22023',
+  },
+  'jsonb delete key fn': {
+    kind: 'value',
+    value: '{"b": 2}',
+  },
+  'jsonb delete index': {
+    kind: 'value',
+    value: '[10, 30]',
+  },
+  'jsonb delete index negative': {
+    kind: 'value',
+    value: '[10, 20]',
+  },
+  'jsonb delete index oob': {
+    kind: 'value',
+    value: '[10, 20, 30]',
+  },
+  'jsonb delete index object': {
+    kind: 'error',
+    code: '22023',
+  },
+  'jsonb delete index scalar': {
+    kind: 'error',
+    code: '22023',
+  },
+  'jsonb delete index fn': {
+    kind: 'value',
+    value: '[10, 30]',
+  },
+  'jsonb delete keys': {
+    kind: 'value',
+    value: '{"b": 2}',
+  },
+  'jsonb delete keys array': {
+    kind: 'value',
+    value: '["a", "c"]',
+  },
+  'jsonb delete keys empty': {
+    kind: 'value',
+    value: '{"a": 1}',
+  },
+  'jsonb delete keys fn': {
+    kind: 'value',
+    value: '{"b": 2}',
+  },
+  'jsonb delete path': {
+    kind: 'value',
+    value: '{"a": {"c": 2}}',
+  },
+  'jsonb delete path empty': {
+    kind: 'value',
+    value: '{"a": 1}',
+  },
+  'jsonb delete path scalar': {
+    kind: 'error',
+    code: '22023',
+  },
+  'jsonb delete path index': {
+    kind: 'value',
+    value: '[10, 30]',
+  },
+  'jsonb delete path leading zero': {
+    kind: 'value',
+    value: '[10, 30]',
+  },
+  'jsonb delete path plus': {
+    kind: 'value',
+    value: '[10, 30]',
+  },
+  'jsonb delete path null': {
+    kind: 'error',
+    code: '22004',
+  },
+  'jsonb delete path fn': {
+    kind: 'value',
+    value: '{"a": {"c": 2}}',
+  },
+  'jsonb set replace': {
+    kind: 'value',
+    value: '{"a": 2}',
+  },
+  'jsonb set create': {
+    kind: 'value',
+    value: '{"a": 1, "b": 2}',
+  },
+  'jsonb set no create': {
+    kind: 'value',
+    value: '{"a": 1}',
+  },
+  'jsonb set array': {
+    kind: 'value',
+    value: '[10, 9, 30]',
+  },
+  'jsonb set array append': {
+    kind: 'value',
+    value: '[10, 20, 30, 9]',
+  },
+  'jsonb set array negative': {
+    kind: 'value',
+    value: '[10, 20, 9]',
+  },
+  'jsonb set nested': {
+    kind: 'value',
+    value: '{"a": [1, 9]}',
+  },
+  'jsonb set scalar': {
+    kind: 'error',
+    code: '22023',
+  },
+  'jsonb set empty path': {
+    kind: 'value',
+    value: '{"a": 1}',
+  },
+  'jsonb set empty array': {
+    kind: 'value',
+    value: '[2]',
+  },
+  'jsonb set missing nested': {
+    kind: 'value',
+    value: '{"a": 1}',
+  },
+  'jsonb set bad index': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'jsonb insert object': {
+    kind: 'value',
+    value: '{"a": 1, "b": 2}',
+  },
+  'jsonb insert existing': {
+    kind: 'error',
+    code: '22023',
+  },
+  'jsonb insert before': {
+    kind: 'value',
+    value: '[1, 2, 3]',
+  },
+  'jsonb insert after': {
+    kind: 'value',
+    value: '[1, 3, 2]',
+  },
+  'jsonb set_lax json null': {
+    kind: 'value',
+    value: '{"a": null}',
+  },
+  'jsonb set_lax delete': {
+    kind: 'value',
+    value: '{}',
+  },
+  'jsonb set_lax return': {
+    kind: 'value',
+    value: '{"a": 1}',
+  },
+  'jsonb set_lax raise': {
+    kind: 'error',
+    code: '22004',
+  },
+  'jsonb set_lax invalid': {
+    kind: 'error',
+    code: '22023',
+  },
+  'jsonb set_lax value': {
+    kind: 'value',
+    value: '{"a": 2}',
+  },
+  'json strip nulls': {
+    kind: 'value',
+    value: '{"a":1,"c":{}}',
+  },
+  'json strip nulls array': {
+    kind: 'value',
+    value: '[1,2]',
+  },
+  'json strip nulls keep array': {
+    kind: 'value',
+    value: '[1,null,2]',
+  },
+  'json strip nulls number': {
+    kind: 'value',
+    value: '1e2',
+  },
+  'jsonb strip nulls': {
+    kind: 'value',
+    value: '{"a": 1, "c": [null, 2]}',
+  },
+  'jsonb strip nulls array': {
+    kind: 'value',
+    value: '{"a": 1, "c": [2]}',
+  },
+  'jsonb pretty object': {
+    kind: 'value',
+    value: '{\n    "a": 3,\n    "b": [\n        1,\n        2\n    ]\n}',
+  },
+  'jsonb pretty scalar': {
+    kind: 'value',
+    value: '1',
+  },
+  'jsonb pretty empty array': {
+    kind: 'value',
+    value: '[\n]',
+  },
+  'jsonb pretty empty object': {
+    kind: 'value',
+    value: '{\n}',
+  },
+  'jsonb to bool true': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb to bool false': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb to bool null': {
+    kind: 'null',
+  },
+  'jsonb to bool number': {
+    kind: 'error',
+    code: '22023',
+  },
+  'jsonb to int4': {
+    kind: 'value',
+    value: '3',
+  },
+  'jsonb to int4 half': {
+    kind: 'value',
+    value: '3',
+  },
+  'jsonb to int4 negative half': {
+    kind: 'value',
+    value: '-3',
+  },
+  'jsonb to int2 overflow': {
+    kind: 'error',
+    code: '22003',
+  },
+  'jsonb to numeric': {
+    kind: 'value',
+    value: '1.2300',
+  },
+  'jsonb to int8': {
+    kind: 'value',
+    value: '3',
+  },
+  'jsonb to float4': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: '42c80000',
+  },
+  'jsonb to float8': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4059000000000000',
+  },
+  'jsonb to int4 bool': {
+    kind: 'error',
+    code: '22023',
+  },
+  'jsonb to int4 array': {
+    kind: 'error',
+    code: '22023',
+  },
+  'json object pairs': {
+    kind: 'value',
+    value: '{"a" : "1", "b" : "2"}',
+  },
+  'json object empty': {
+    kind: 'value',
+    value: '{}',
+  },
+  'json object odd': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'json object two arg': {
+    kind: 'value',
+    value: '{"a" : "1", "b" : "2"}',
+  },
+  'json object two arg mismatch': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'json object 2d': {
+    kind: 'value',
+    value: '{"a" : "1", "b" : "2"}',
+  },
+  'json object null value': {
+    kind: 'value',
+    value: '{"a" : null}',
+  },
+  'json object null key': {
+    kind: 'error',
+    code: '22004',
+  },
+  'json object duplicate': {
+    kind: 'value',
+    value: '{"a" : "1", "a" : "2"}',
+  },
+  'jsonb object pairs': {
+    kind: 'value',
+    value: '{"a": "1", "b": "2"}',
+  },
+  'jsonb object duplicate': {
+    kind: 'value',
+    value: '{"a": "2"}',
+  },
+  'jsonb object two arg': {
+    kind: 'value',
+    value: '{"a": "1", "b": "2"}',
+  },
+  'array to json': {
+    kind: 'value',
+    value: '[1,2]',
+  },
+  'array to json pretty': {
+    kind: 'value',
+    value: '[1,\n 2]',
+  },
+  'array to json 2d pretty': {
+    kind: 'value',
+    value: '[[1,2],\n [3,4]]',
+  },
+  'array to json empty': {
+    kind: 'value',
+    value: '[]',
+  },
+  'array to json nulls': {
+    kind: 'value',
+    value: '[1,null,2]',
+  },
+  'to json int': {
+    kind: 'value',
+    value: '1',
+  },
+  'to json text': {
+    kind: 'value',
+    value: '"hi"',
+  },
+  'to json bool': {
+    kind: 'value',
+    value: 'true',
+  },
+  'to json numeric': {
+    kind: 'value',
+    value: '1.2300',
+  },
+  'to json nan': {
+    kind: 'value',
+    value: '"NaN"',
+  },
+  'to json infinity': {
+    kind: 'value',
+    value: '"Infinity"',
+  },
+  'to json neg zero': {
+    kind: 'value',
+    value: '-0',
+  },
+  'to json array': {
+    kind: 'value',
+    value: '[1,2]',
+  },
+  'to json array nulls': {
+    kind: 'value',
+    value: '[1,null,2]',
+  },
+  'to json json': {
+    kind: 'value',
+    value: '{"a":1}',
+  },
+  'to json jsonb': {
+    kind: 'value',
+    value: '{"a": 2, "b": 1}',
+  },
+  'to json uuid': {
+    kind: 'value',
+    value: '"550e8400-e29b-41d4-a716-446655440000"',
+  },
+  'to jsonb numeric': {
+    kind: 'value',
+    value: '1.2300',
+  },
+  'to jsonb array': {
+    kind: 'value',
+    value: '[1, null, 2]',
+  },
+  'json build array empty': {
+    kind: 'value',
+    value: '[]',
+  },
+  'json build object empty': {
+    kind: 'value',
+    value: '{}',
+  },
+  'jsonb build array empty': {
+    kind: 'value',
+    value: '[]',
+  },
+  'jsonb build object empty': {
+    kind: 'value',
+    value: '{}',
+  },
+  'json build array values': {
+    kind: 'value',
+    value: '[1, "a", true, null]',
+  },
+  'json build array of array': {
+    kind: 'value',
+    value: '[[1,2]]',
+  },
+  'json build object values': {
+    kind: 'value',
+    value: '{"a" : 1, "b" : null}',
+  },
+  'json build object int key': {
+    kind: 'value',
+    value: '{"1" : "a"}',
+  },
+  'json build object bool key': {
+    kind: 'value',
+    value: '{"true" : "a"}',
+  },
+  'json build object array key': {
+    kind: 'error',
+    code: '22023',
+  },
+  'json build object odd': {
+    kind: 'error',
+    code: '22023',
+  },
+  'jsonb build array values': {
+    kind: 'value',
+    value: '[1, "a"]',
+  },
+  'jsonb build object values': {
+    kind: 'value',
+    value: '{"a": 2, "b": 1}',
+  },
+  'to json enum': {
+    kind: 'value',
+    value: '"apple"',
+  },
 }

@@ -1374,3 +1374,1127 @@ func sqlCoalesceJsonb(operands ...func() SqlJsonb) SqlJsonb {
 	}
 	return SqlJsonb{}
 }
+
+func jsonbNodeCopy(node SqlJsonNode) SqlJsonNode {
+	if node.Kind == "array" {
+		elements := make([]SqlJsonNode, len(node.Elements))
+		for index, element := range node.Elements {
+			elements[index] = jsonbNodeCopy(element)
+		}
+		return SqlJsonNode{Kind: "array", Elements: elements}
+	}
+	if node.Kind == "object" {
+		pairs := make([]SqlJsonPair, len(node.Pairs))
+		for index, pair := range node.Pairs {
+			pairs[index] = SqlJsonPair{Key: pair.Key, Value: jsonbNodeCopy(pair.Value)}
+		}
+		return SqlJsonNode{Kind: "object", Pairs: pairs}
+	}
+	return node
+}
+
+func jsonbConcat(left, right SqlJsonb) SqlJsonb {
+	if left.Error != "" {
+		return jsonbFail(left.Error)
+	}
+	if right.Error != "" {
+		return jsonbFail(right.Error)
+	}
+	if !left.Valid || !right.Valid {
+		return SqlJsonb{}
+	}
+	leftObject := left.Node.Kind == "object"
+	rightObject := right.Node.Kind == "object"
+	leftEmpty := leftObject && len(left.Node.Pairs) == 0 || left.Node.Kind == "array" && len(left.Node.Elements) == 0
+	rightEmpty := rightObject && len(right.Node.Pairs) == 0 || right.Node.Kind == "array" && len(right.Node.Elements) == 0
+	scalar := func(kind string) bool {
+		return kind == "null" || kind == "bool" || kind == "number" || kind == "string"
+	}
+	if leftObject == rightObject {
+		if leftEmpty && !scalar(right.Node.Kind) {
+			return right
+		}
+		if rightEmpty && !scalar(left.Node.Kind) {
+			return left
+		}
+	}
+	if leftObject && rightObject {
+		last := map[string]SqlJsonNode{}
+		order := []string{}
+		for _, pair := range left.Node.Pairs {
+			if _, exists := last[pair.Key]; !exists {
+				order = append(order, pair.Key)
+			}
+			last[pair.Key] = pair.Value
+		}
+		for _, pair := range right.Node.Pairs {
+			if _, exists := last[pair.Key]; !exists {
+				order = append(order, pair.Key)
+			}
+			last[pair.Key] = pair.Value
+		}
+		pairs := make([]SqlJsonPair, len(order))
+		for index, key := range order {
+			pairs[index] = SqlJsonPair{Key: key, Value: last[key]}
+		}
+		return SqlJsonb{Node: jsonbCanonicalize(SqlJsonNode{Kind: "object", Pairs: pairs}), Valid: true}
+	}
+	wrap := func(node SqlJsonNode) []SqlJsonNode {
+		if node.Kind == "array" {
+			elements := make([]SqlJsonNode, len(node.Elements))
+			for index, element := range node.Elements {
+				elements[index] = jsonbNodeCopy(element)
+			}
+			return elements
+		}
+		return []SqlJsonNode{jsonbNodeCopy(node)}
+	}
+	return SqlJsonb{Node: SqlJsonNode{Kind: "array", Elements: append(wrap(left.Node), wrap(right.Node)...)}, Valid: true}
+}
+
+func jsonbDeleteKey(value SqlJsonb, key SqlText) SqlJsonb {
+	if value.Error != "" {
+		return jsonbFail(value.Error)
+	}
+	if key.Error != "" {
+		return jsonbFail(key.Error)
+	}
+	if !value.Valid || !key.Valid {
+		return SqlJsonb{}
+	}
+	if value.Node.Kind != "array" && value.Node.Kind != "object" {
+		return jsonbFail("22023")
+	}
+	if value.Node.Kind == "object" {
+		if len(value.Node.Pairs) == 0 {
+			return value
+		}
+		pairs := []SqlJsonPair{}
+		for _, pair := range value.Node.Pairs {
+			if pair.Key != key.Value {
+				pairs = append(pairs, pair)
+			}
+		}
+		return SqlJsonb{Node: SqlJsonNode{Kind: "object", Pairs: pairs}, Valid: true}
+	}
+	if len(value.Node.Elements) == 0 {
+		return value
+	}
+	elements := []SqlJsonNode{}
+	for _, element := range value.Node.Elements {
+		if !(element.Kind == "string" && element.String == key.Value) {
+			elements = append(elements, element)
+		}
+	}
+	return SqlJsonb{Node: SqlJsonNode{Kind: "array", Elements: elements}, Valid: true}
+}
+
+func jsonbDeleteIndex(value SqlJsonb, index SqlInteger) SqlJsonb {
+	if value.Error != "" {
+		return jsonbFail(value.Error)
+	}
+	if index.Error != "" {
+		return jsonbFail(index.Error)
+	}
+	if !value.Valid || !index.Valid {
+		return SqlJsonb{}
+	}
+	if value.Node.Kind != "array" {
+		return jsonbFail("22023")
+	}
+	count := int64(len(value.Node.Elements))
+	if count == 0 {
+		return value
+	}
+	idx := index.Value
+	if idx < 0 {
+		abs := -idx
+		if idx == -2147483648 {
+			abs = 2147483648
+		}
+		if abs > count {
+			idx = count
+		} else {
+			idx = count + idx
+		}
+	}
+	if idx >= count {
+		return value
+	}
+	elements := []SqlJsonNode{}
+	for position, element := range value.Node.Elements {
+		if int64(position) != idx {
+			elements = append(elements, element)
+		}
+	}
+	return SqlJsonb{Node: SqlJsonNode{Kind: "array", Elements: elements}, Valid: true}
+}
+
+func jsonbDeleteKeys(value SqlJsonb, keys SqlArray) SqlJsonb {
+	if value.Error != "" {
+		return jsonbFail(value.Error)
+	}
+	if keys.Error != "" {
+		return jsonbFail(keys.Error)
+	}
+	if !value.Valid || !keys.Valid {
+		return SqlJsonb{}
+	}
+	if len(keys.Dimensions) > 1 {
+		return jsonbFail("2202E")
+	}
+	if value.Node.Kind != "array" && value.Node.Kind != "object" {
+		return jsonbFail("22023")
+	}
+	path, err, valid := jsonPathKeys(keys)
+	if err != "" {
+		return jsonbFail(err)
+	}
+	if !valid {
+		return SqlJsonb{}
+	}
+	count := len(value.Node.Elements)
+	if value.Node.Kind == "object" {
+		count = len(value.Node.Pairs)
+	}
+	if count == 0 || len(path) == 0 {
+		return value
+	}
+	result := value
+	for _, key := range path {
+		if key == nil {
+			continue
+		}
+		result = jsonbDeleteKey(result, SqlText{Value: *key, Valid: true})
+		if result.Error != "" {
+			return result
+		}
+	}
+	return result
+}
+
+func jsonbPathInt(value string) (int64, string) {
+	trimmed := strings.TrimLeft(value, " \t\n\r\v\f")
+	number, err := strconv.ParseInt(trimmed, 10, 32)
+	if err != nil {
+		return 0, "22P02"
+	}
+	return number, ""
+}
+
+func jsonbSetPath(node SqlJsonNode, path []*string, level int, next *SqlJsonNode, op string) (SqlJsonNode, string) {
+	if path[level] == nil {
+		return SqlJsonNode{}, "22004"
+	}
+	last := level == len(path)-1
+	createOrInsert := op == "create" || op == "insert-before" || op == "insert-after"
+	if node.Kind == "object" {
+		key := *path[level]
+		if len(node.Pairs) == 0 && createOrInsert && last && next != nil {
+			return jsonbCanonicalize(SqlJsonNode{Kind: "object", Pairs: []SqlJsonPair{{Key: key, Value: *next}}}), ""
+		}
+		match := -1
+		for index, pair := range node.Pairs {
+			if pair.Key == key {
+				match = index
+				break
+			}
+		}
+		if match >= 0 {
+			if last {
+				if op == "insert-before" || op == "insert-after" {
+					return SqlJsonNode{}, "22023"
+				}
+				if op == "delete" {
+					pairs := []SqlJsonPair{}
+					for index, pair := range node.Pairs {
+						if index != match {
+							pairs = append(pairs, pair)
+						}
+					}
+					return SqlJsonNode{Kind: "object", Pairs: pairs}, ""
+				}
+				pairs := make([]SqlJsonPair, len(node.Pairs))
+				copy(pairs, node.Pairs)
+				pairs[match] = SqlJsonPair{Key: key, Value: *next}
+				return jsonbCanonicalize(SqlJsonNode{Kind: "object", Pairs: pairs}), ""
+			}
+			pairs := make([]SqlJsonPair, len(node.Pairs))
+			copy(pairs, node.Pairs)
+			updated, err := jsonbSetPath(node.Pairs[match].Value, path, level+1, next, op)
+			if err != "" {
+				return SqlJsonNode{}, err
+			}
+			pairs[match] = SqlJsonPair{Key: key, Value: updated}
+			return jsonbCanonicalize(SqlJsonNode{Kind: "object", Pairs: pairs}), ""
+		}
+		if createOrInsert && last && next != nil {
+			pairs := append(append([]SqlJsonPair{}, node.Pairs...), SqlJsonPair{Key: key, Value: *next})
+			return jsonbCanonicalize(SqlJsonNode{Kind: "object", Pairs: pairs}), ""
+		}
+		return node, ""
+	}
+	if node.Kind == "array" {
+		count := int64(len(node.Elements))
+		idx, err := jsonbPathInt(*path[level])
+		if err != "" {
+			return SqlJsonNode{}, err
+		}
+		if idx < 0 {
+			abs := -idx
+			if idx == -2147483648 {
+				abs = 2147483648
+			}
+			if abs > count {
+				idx = -2147483648
+			} else {
+				idx = count + idx
+			}
+		}
+		if idx > 0 && idx > count {
+			idx = count
+		}
+		if (idx == -2147483648 || count == 0) && last && createOrInsert && next != nil {
+			return SqlJsonNode{Kind: "array", Elements: append([]SqlJsonNode{*next}, node.Elements...)}, ""
+		}
+		if idx >= 0 && idx < count {
+			if last {
+				elements := []SqlJsonNode{}
+				for index, element := range node.Elements {
+					if int64(index) == idx {
+						if op == "insert-before" || op == "create" {
+							elements = append(elements, *next)
+						}
+						if op == "insert-after" || op == "insert-before" {
+							elements = append(elements, element)
+						}
+						if op == "insert-after" || op == "replace" {
+							elements = append(elements, *next)
+						}
+					} else {
+						elements = append(elements, element)
+					}
+				}
+				return SqlJsonNode{Kind: "array", Elements: elements}, ""
+			}
+			updated, err := jsonbSetPath(node.Elements[idx], path, level+1, next, op)
+			if err != "" {
+				return SqlJsonNode{}, err
+			}
+			elements := make([]SqlJsonNode, len(node.Elements))
+			copy(elements, node.Elements)
+			elements[idx] = updated
+			return SqlJsonNode{Kind: "array", Elements: elements}, ""
+		}
+		if createOrInsert && last && next != nil {
+			return SqlJsonNode{Kind: "array", Elements: append(append([]SqlJsonNode{}, node.Elements...), *next)}, ""
+		}
+		return node, ""
+	}
+	return node, ""
+}
+
+func jsonbMutatePath(value SqlJsonb, path SqlArray, next *SqlJsonb, op string) SqlJsonb {
+	if value.Error != "" {
+		return jsonbFail(value.Error)
+	}
+	if path.Error != "" {
+		return jsonbFail(path.Error)
+	}
+	if next != nil && next.Error != "" {
+		return jsonbFail(next.Error)
+	}
+	if !value.Valid || !path.Valid || (op != "delete" && (next == nil || !next.Valid)) {
+		return SqlJsonb{}
+	}
+	if len(path.Dimensions) > 1 {
+		return jsonbFail("2202E")
+	}
+	if value.Node.Kind != "array" && value.Node.Kind != "object" {
+		return jsonbFail("22023")
+	}
+	keys, err, valid := jsonPathKeys(path)
+	if err != "" {
+		return jsonbFail(err)
+	}
+	if !valid {
+		return SqlJsonb{}
+	}
+	count := len(value.Node.Elements)
+	if value.Node.Kind == "object" {
+		count = len(value.Node.Pairs)
+	}
+	if len(keys) == 0 || (count == 0 && op != "create" && op != "insert-before" && op != "insert-after") {
+		return value
+	}
+	var nextNode *SqlJsonNode
+	if next != nil {
+		nextNode = &next.Node
+	}
+	node, err := jsonbSetPath(value.Node, keys, 0, nextNode, op)
+	if err != "" {
+		return jsonbFail(err)
+	}
+	return SqlJsonb{Node: node, Valid: true}
+}
+
+func jsonbDeletePath(value SqlJsonb, path SqlArray) SqlJsonb {
+	return jsonbMutatePath(value, path, nil, "delete")
+}
+
+func jsonbSet(value SqlJsonb, path SqlArray, next SqlJsonb, create SqlBoolean) SqlJsonb {
+	if create.Error != "" {
+		return jsonbFail(create.Error)
+	}
+	if !create.Valid {
+		return SqlJsonb{}
+	}
+	op := "replace"
+	if create.Value {
+		op = "create"
+	}
+	return jsonbMutatePath(value, path, &next, op)
+}
+
+func jsonbInsert(value SqlJsonb, path SqlArray, next SqlJsonb, after SqlBoolean) SqlJsonb {
+	if after.Error != "" {
+		return jsonbFail(after.Error)
+	}
+	if !after.Valid {
+		return SqlJsonb{}
+	}
+	op := "insert-before"
+	if after.Value {
+		op = "insert-after"
+	}
+	return jsonbMutatePath(value, path, &next, op)
+}
+
+func jsonbSetLax(value SqlJsonb, path SqlArray, next SqlJsonb, create SqlBoolean, treatment SqlText) SqlJsonb {
+	if value.Error != "" {
+		return jsonbFail(value.Error)
+	}
+	if path.Error != "" {
+		return jsonbFail(path.Error)
+	}
+	if create.Error != "" {
+		return jsonbFail(create.Error)
+	}
+	if treatment.Error != "" {
+		return jsonbFail(treatment.Error)
+	}
+	if !value.Valid || !path.Valid || !create.Valid {
+		return SqlJsonb{}
+	}
+	if !treatment.Valid {
+		return jsonbFail("22023")
+	}
+	if next.Error != "" {
+		return jsonbFail(next.Error)
+	}
+	if next.Valid {
+		return jsonbSet(value, path, next, create)
+	}
+	switch treatment.Value {
+	case "raise_exception":
+		return jsonbFail("22004")
+	case "use_json_null":
+		return jsonbSet(value, path, SqlJsonb{Node: SqlJsonNode{Kind: "null", Raw: "null"}, Valid: true}, create)
+	case "delete_key":
+		return jsonbDeletePath(value, path)
+	case "return_target":
+		return value
+	default:
+		return jsonbFail("22023")
+	}
+}
+
+func jsonFormatCompact(node SqlJsonNode) string {
+	switch node.Kind {
+	case "null":
+		return "null"
+	case "bool":
+		if node.Bool {
+			return "true"
+		}
+		return "false"
+	case "number":
+		if node.Raw != "" {
+			return node.Raw
+		}
+		return sqlDecimalText(node.Number)
+	case "string":
+		return jsonbEscape(node.String)
+	case "array":
+		parts := make([]string, len(node.Elements))
+		for index, element := range node.Elements {
+			parts[index] = jsonFormatCompact(element)
+		}
+		return "[" + strings.Join(parts, ",") + "]"
+	default:
+		parts := make([]string, len(node.Pairs))
+		for index, pair := range node.Pairs {
+			parts[index] = jsonbEscape(pair.Key) + ":" + jsonFormatCompact(pair.Value)
+		}
+		return "{" + strings.Join(parts, ",") + "}"
+	}
+}
+
+func jsonStripNullsNode(node SqlJsonNode, arrays bool) SqlJsonNode {
+	if node.Kind == "object" {
+		pairs := []SqlJsonPair{}
+		for _, pair := range node.Pairs {
+			if pair.Value.Kind == "null" {
+				continue
+			}
+			pairs = append(pairs, SqlJsonPair{Key: pair.Key, Value: jsonStripNullsNode(pair.Value, arrays)})
+		}
+		return SqlJsonNode{Kind: "object", Pairs: pairs}
+	}
+	if node.Kind == "array" {
+		elements := []SqlJsonNode{}
+		for _, element := range node.Elements {
+			if arrays && element.Kind == "null" {
+				continue
+			}
+			elements = append(elements, jsonStripNullsNode(element, arrays))
+		}
+		return SqlJsonNode{Kind: "array", Elements: elements}
+	}
+	return node
+}
+
+func jsonStripNulls(value SqlJson, arrays SqlBoolean) SqlJson {
+	if value.Error != "" {
+		return jsonFail(value.Error)
+	}
+	if arrays.Error != "" {
+		return jsonFail(arrays.Error)
+	}
+	if !value.Valid || !arrays.Valid {
+		return SqlJson{}
+	}
+	node := jsonStripNullsNode(value.Node, arrays.Value)
+	return SqlJson{Text: jsonFormatCompact(node), Node: node, Valid: true}
+}
+
+func jsonbStripNulls(value SqlJsonb, arrays SqlBoolean) SqlJsonb {
+	if value.Error != "" {
+		return jsonbFail(value.Error)
+	}
+	if arrays.Error != "" {
+		return jsonbFail(arrays.Error)
+	}
+	if !value.Valid || !arrays.Valid {
+		return SqlJsonb{}
+	}
+	if value.Node.Kind != "array" && value.Node.Kind != "object" {
+		return value
+	}
+	return SqlJsonb{Node: jsonbCanonicalize(jsonStripNullsNode(value.Node, arrays.Value)), Valid: true}
+}
+
+func jsonbPretty(value SqlJsonb) SqlText {
+	if value.Error != "" {
+		return SqlText{Error: value.Error}
+	}
+	if !value.Valid {
+		return SqlText{}
+	}
+	var render func(node SqlJsonNode, level int) string
+	render = func(node SqlJsonNode, level int) string {
+		if node.Kind != "array" && node.Kind != "object" {
+			return jsonbFormat(node)
+		}
+		open, close := "[", "]"
+		items := []string{}
+		if node.Kind == "object" {
+			open, close = "{", "}"
+			for _, pair := range node.Pairs {
+				items = append(items, jsonbEscape(pair.Key)+": "+render(pair.Value, level+1))
+			}
+		} else {
+			for _, element := range node.Elements {
+				items = append(items, render(element, level+1))
+			}
+		}
+		pad := strings.Repeat("    ", level)
+		if len(items) == 0 {
+			return open + "\n" + pad + close
+		}
+		inner := make([]string, len(items))
+		for index, item := range items {
+			inner[index] = strings.Repeat("    ", level+1) + item
+		}
+		return open + "\n" + strings.Join(inner, ",\n") + "\n" + pad + close
+	}
+	return SqlText{Value: render(value.Node, 0), Valid: true}
+}
+
+func jsonbToBool(value SqlJsonb) SqlBoolean {
+	if value.Error != "" {
+		return SqlBoolean{Error: value.Error}
+	}
+	if !value.Valid {
+		return SqlBoolean{}
+	}
+	if value.Node.Kind == "null" {
+		return SqlBoolean{}
+	}
+	if value.Node.Kind != "bool" {
+		return SqlBoolean{Error: "22023"}
+	}
+	return SqlBoolean{Value: value.Node.Bool, Valid: true}
+}
+
+func jsonbToNumeric(value SqlJsonb) SqlDecimal {
+	if value.Error != "" {
+		return SqlDecimal{Error: value.Error}
+	}
+	if !value.Valid {
+		return SqlDecimal{}
+	}
+	if value.Node.Kind == "null" {
+		return SqlDecimal{}
+	}
+	if value.Node.Kind != "number" {
+		return SqlDecimal{Error: "22023"}
+	}
+	return value.Node.Number
+}
+
+func jsonbToInt2(value SqlJsonb) SqlInteger { return int2FromDecimal(jsonbToNumeric(value)) }
+func jsonbToInt4(value SqlJsonb) SqlInteger { return int4FromDecimal(jsonbToNumeric(value)) }
+func jsonbToInt8(value SqlJsonb) SqlInteger { return int8FromDecimal(jsonbToNumeric(value)) }
+func jsonbToFloat4(value SqlJsonb) SqlFloat { return float4FromDecimal(jsonbToNumeric(value)) }
+func jsonbToFloat8(value SqlJsonb) SqlFloat { return float8FromDecimal(jsonbToNumeric(value)) }
+
+func jsonArrayText(element SqlArrayElement) (*string, string) {
+	if element.Error != "" {
+		return nil, element.Error
+	}
+	if !element.Valid {
+		return nil, ""
+	}
+	text := element.Value.(SqlText)
+	if text.Error != "" {
+		return nil, text.Error
+	}
+	if !text.Valid {
+		return nil, ""
+	}
+	value := text.Value
+	return &value, ""
+}
+
+func jsonTextPairs(keys SqlArray, values *SqlArray) ([]SqlJsonPair, string) {
+	if values == nil {
+		if len(keys.Dimensions) > 2 {
+			return nil, "2202E"
+		}
+		if len(keys.Dimensions) == 2 && keys.Dimensions[1] != 2 {
+			return nil, "2202E"
+		}
+		if len(keys.Dimensions) == 1 && len(keys.Elements)%2 != 0 {
+			return nil, "2202E"
+		}
+		if len(keys.Dimensions) == 0 {
+			return []SqlJsonPair{}, ""
+		}
+		pairs := []SqlJsonPair{}
+		for index := 0; index < len(keys.Elements); index += 2 {
+			key, err := jsonArrayText(keys.Elements[index])
+			if err != "" {
+				return nil, err
+			}
+			if key == nil {
+				return nil, "22004"
+			}
+			value, err := jsonArrayText(keys.Elements[index+1])
+			if err != "" {
+				return nil, err
+			}
+			pair := SqlJsonPair{Key: *key, Value: SqlJsonNode{Kind: "null", Raw: "null"}}
+			if value != nil {
+				pair.Value = SqlJsonNode{Kind: "string", String: *value}
+			}
+			pairs = append(pairs, pair)
+		}
+		return pairs, ""
+	}
+	if len(keys.Dimensions) > 1 || len(keys.Dimensions) != len(values.Dimensions) {
+		return nil, "2202E"
+	}
+	if len(keys.Dimensions) == 0 {
+		return []SqlJsonPair{}, ""
+	}
+	if len(keys.Elements) != len(values.Elements) {
+		return nil, "2202E"
+	}
+	pairs := make([]SqlJsonPair, len(keys.Elements))
+	for index, element := range keys.Elements {
+		key, err := jsonArrayText(element)
+		if err != "" {
+			return nil, err
+		}
+		if key == nil {
+			return nil, "22004"
+		}
+		value, err := jsonArrayText(values.Elements[index])
+		if err != "" {
+			return nil, err
+		}
+		pair := SqlJsonPair{Key: *key, Value: SqlJsonNode{Kind: "null", Raw: "null"}}
+		if value != nil {
+			pair.Value = SqlJsonNode{Kind: "string", String: *value}
+		}
+		pairs[index] = pair
+	}
+	return pairs, ""
+}
+
+func jsonObject(keys SqlArray) SqlJson {
+	if keys.Error != "" {
+		return jsonFail(keys.Error)
+	}
+	if !keys.Valid {
+		return SqlJson{}
+	}
+	pairs, err := jsonTextPairs(keys, nil)
+	if err != "" {
+		return jsonFail(err)
+	}
+	parts := make([]string, len(pairs))
+	for index, pair := range pairs {
+		value := "null"
+		if pair.Value.Kind == "string" {
+			value = jsonbEscape(pair.Value.String)
+		}
+		parts[index] = jsonbEscape(pair.Key) + " : " + value
+	}
+	text := "{" + strings.Join(parts, ", ") + "}"
+	node, err := jsonParse(text, false)
+	if err != "" {
+		return jsonFail(err)
+	}
+	return SqlJson{Text: text, Node: node, Valid: true}
+}
+
+func jsonObjectPair(keys, values SqlArray) SqlJson {
+	if keys.Error != "" {
+		return jsonFail(keys.Error)
+	}
+	if values.Error != "" {
+		return jsonFail(values.Error)
+	}
+	if !keys.Valid || !values.Valid {
+		return SqlJson{}
+	}
+	pairs, err := jsonTextPairs(keys, &values)
+	if err != "" {
+		return jsonFail(err)
+	}
+	parts := make([]string, len(pairs))
+	for index, pair := range pairs {
+		value := "null"
+		if pair.Value.Kind == "string" {
+			value = jsonbEscape(pair.Value.String)
+		}
+		parts[index] = jsonbEscape(pair.Key) + " : " + value
+	}
+	text := "{" + strings.Join(parts, ", ") + "}"
+	node, parseErr := jsonParse(text, false)
+	if parseErr != "" {
+		return jsonFail(parseErr)
+	}
+	return SqlJson{Text: text, Node: node, Valid: true}
+}
+
+func jsonbObject(keys SqlArray) SqlJsonb {
+	if keys.Error != "" {
+		return jsonbFail(keys.Error)
+	}
+	if !keys.Valid {
+		return SqlJsonb{}
+	}
+	pairs, err := jsonTextPairs(keys, nil)
+	if err != "" {
+		return jsonbFail(err)
+	}
+	return SqlJsonb{Node: jsonbCanonicalize(SqlJsonNode{Kind: "object", Pairs: pairs}), Valid: true}
+}
+
+func jsonbObjectPair(keys, values SqlArray) SqlJsonb {
+	if keys.Error != "" {
+		return jsonbFail(keys.Error)
+	}
+	if values.Error != "" {
+		return jsonbFail(values.Error)
+	}
+	if !keys.Valid || !values.Valid {
+		return SqlJsonb{}
+	}
+	pairs, err := jsonTextPairs(keys, &values)
+	if err != "" {
+		return jsonbFail(err)
+	}
+	return SqlJsonb{Node: jsonbCanonicalize(SqlJsonNode{Kind: "object", Pairs: pairs}), Valid: true}
+}
+
+func jsonDatumError(value any) string {
+	switch typed := value.(type) {
+	case SqlInteger:
+		return typed.Error
+	case SqlFloat:
+		return typed.Error
+	case SqlDecimal:
+		return typed.Error
+	case SqlBoolean:
+		return typed.Error
+	case SqlText:
+		return typed.Error
+	case SqlUuid:
+		return typed.Error
+	case SqlEnum:
+		return typed.Error
+	case SqlJson:
+		return typed.Error
+	case SqlJsonb:
+		return typed.Error
+	case SqlArray:
+		return typed.Error
+	default:
+		return ""
+	}
+}
+
+func jsonDatumNull(value any) bool {
+	switch typed := value.(type) {
+	case SqlInteger:
+		return !typed.Valid
+	case SqlFloat:
+		return !typed.Valid
+	case SqlDecimal:
+		return !typed.Valid
+	case SqlBoolean:
+		return !typed.Valid
+	case SqlText:
+		return !typed.Valid
+	case SqlUuid:
+		return !typed.Valid
+	case SqlEnum:
+		return !typed.Valid
+	case SqlJson:
+		return !typed.Valid
+	case SqlJsonb:
+		return !typed.Valid
+	case SqlArray:
+		return !typed.Valid
+	case nil:
+		return true
+	default:
+		return false
+	}
+}
+
+func jsonFloatText(value float64, float4 bool) string {
+	switch {
+	case math.IsNaN(value):
+		return "NaN"
+	case math.IsInf(value, 1):
+		return "Infinity"
+	case math.IsInf(value, -1):
+		return "-Infinity"
+	case value == 0 && math.Signbit(value):
+		return "-0"
+	default:
+		bits := 64
+		if float4 {
+			bits = 32
+		}
+		return strconv.FormatFloat(value, 'g', -1, bits)
+	}
+}
+
+func jsonKeyString(typeName string, value any) (string, string) {
+	if err := jsonDatumError(value); err != "" {
+		return "", err
+	}
+	if jsonDatumNull(value) {
+		return "", "22004"
+	}
+	switch typed := value.(type) {
+	case SqlArray:
+		return "", "22023"
+	case SqlJson, SqlJsonb:
+		return "", "22023"
+	case SqlBoolean:
+		if typed.Value {
+			return "true", ""
+		}
+		return "false", ""
+	case SqlInteger:
+		return strconv.FormatInt(typed.Value, 10), ""
+	case SqlFloat:
+		return jsonFloatText(typed.Value, typeName == "pg_catalog.float4"), ""
+	case SqlDecimal:
+		return sqlDecimalText(typed), ""
+	case SqlText:
+		return typed.Value, ""
+	case SqlUuid:
+		return uuidText(typed).Value, ""
+	case SqlEnum:
+		return typed.Label, ""
+	default:
+		return "", "22023"
+	}
+}
+
+func jsonFromValue(typeName string, value any, asKey bool) (string, SqlJsonNode, string) {
+	if asKey {
+		key, err := jsonKeyString(typeName, value)
+		if err != "" {
+			return "", SqlJsonNode{}, err
+		}
+		text := jsonbEscape(key)
+		return text, SqlJsonNode{Kind: "string", Raw: text, String: key}, ""
+	}
+	if err := jsonDatumError(value); err != "" {
+		return "", SqlJsonNode{}, err
+	}
+	if jsonDatumNull(value) {
+		return "null", SqlJsonNode{Kind: "null", Raw: "null"}, ""
+	}
+	switch typed := value.(type) {
+	case SqlBoolean:
+		text := "false"
+		if typed.Value {
+			text = "true"
+		}
+		return text, SqlJsonNode{Kind: "bool", Raw: text, Bool: typed.Value}, ""
+	case SqlInteger:
+		text := strconv.FormatInt(typed.Value, 10)
+		return text, SqlJsonNode{Kind: "number", Raw: text, Number: decimalInput(text)}, ""
+	case SqlFloat:
+		text := jsonFloatText(typed.Value, typeName == "pg_catalog.float4")
+		if text == "NaN" || text == "Infinity" || text == "-Infinity" {
+			escaped := jsonbEscape(text)
+			return escaped, SqlJsonNode{Kind: "string", Raw: escaped, String: text}, ""
+		}
+		return text, SqlJsonNode{Kind: "number", Raw: text, Number: decimalInput(text)}, ""
+	case SqlDecimal:
+		text := sqlDecimalText(typed)
+		if len(text) == 0 || (text[0] != '-' && (text[0] < '0' || text[0] > '9')) || (text[0] == '-' && (len(text) < 2 || text[1] < '0' || text[1] > '9')) {
+			escaped := jsonbEscape(text)
+			return escaped, SqlJsonNode{Kind: "string", Raw: escaped, String: text}, ""
+		}
+		return text, SqlJsonNode{Kind: "number", Raw: text, Number: typed}, ""
+	case SqlText:
+		text := jsonbEscape(typed.Value)
+		return text, SqlJsonNode{Kind: "string", Raw: text, String: typed.Value}, ""
+	case SqlJson:
+		return typed.Text, typed.Node, ""
+	case SqlJsonb:
+		return jsonbFormat(typed.Node), typed.Node, ""
+	case SqlUuid:
+		label := uuidText(typed).Value
+		text := jsonbEscape(label)
+		return text, SqlJsonNode{Kind: "string", Raw: text, String: label}, ""
+	case SqlEnum:
+		text := jsonbEscape(typed.Label)
+		return text, SqlJsonNode{Kind: "string", Raw: text, String: typed.Label}, ""
+	case SqlArray:
+		return jsonArrayFromSql(typed, false)
+	default:
+		return "", SqlJsonNode{}, "22023"
+	}
+}
+
+func jsonArrayFromSql(array SqlArray, pretty bool) (string, SqlJsonNode, string) {
+	if array.Error != "" {
+		return "", SqlJsonNode{}, array.Error
+	}
+	if !array.Valid {
+		return "null", SqlJsonNode{Kind: "null", Raw: "null"}, ""
+	}
+	if len(array.Dimensions) == 0 {
+		return "[]", SqlJsonNode{Kind: "array"}, ""
+	}
+	offset := 0
+	var walk func(dim int, usePretty bool) (string, SqlJsonNode, string)
+	walk = func(dim int, usePretty bool) (string, SqlJsonNode, string) {
+		n := int(array.Dimensions[dim])
+		texts := make([]string, n)
+		elements := make([]SqlJsonNode, n)
+		sep := ","
+		if usePretty {
+			sep = ",\n "
+		}
+		for index := 0; index < n; index++ {
+			if dim == len(array.Dimensions)-1 {
+				element := array.Elements[offset]
+				offset++
+				if element.Error != "" {
+					return "", SqlJsonNode{}, element.Error
+				}
+				if !element.Valid {
+					texts[index] = "null"
+					elements[index] = SqlJsonNode{Kind: "null", Raw: "null"}
+					continue
+				}
+				text, node, err := jsonFromValue(array.ElementType, element.Value, false)
+				if err != "" {
+					return "", SqlJsonNode{}, err
+				}
+				texts[index] = text
+				elements[index] = node
+			} else {
+				text, node, err := walk(dim+1, false)
+				if err != "" {
+					return "", SqlJsonNode{}, err
+				}
+				texts[index] = text
+				elements[index] = node
+			}
+		}
+		return "[" + strings.Join(texts, sep) + "]", SqlJsonNode{Kind: "array", Elements: elements}, ""
+	}
+	return walk(0, pretty)
+}
+
+func arrayToJson(value SqlArray) SqlJson {
+	if value.Error != "" {
+		return jsonFail(value.Error)
+	}
+	if !value.Valid {
+		return SqlJson{}
+	}
+	text, node, err := jsonArrayFromSql(value, false)
+	if err != "" {
+		return jsonFail(err)
+	}
+	return SqlJson{Text: text, Node: node, Valid: true}
+}
+
+func arrayToJsonPretty(value SqlArray, pretty SqlBoolean) SqlJson {
+	if value.Error != "" {
+		return jsonFail(value.Error)
+	}
+	if pretty.Error != "" {
+		return jsonFail(pretty.Error)
+	}
+	if !value.Valid || !pretty.Valid {
+		return SqlJson{}
+	}
+	if !pretty.Value {
+		return arrayToJson(value)
+	}
+	text, node, err := jsonArrayFromSql(value, true)
+	if err != "" {
+		return jsonFail(err)
+	}
+	return SqlJson{Text: text, Node: node, Valid: true}
+}
+
+func toJson(typeName string, value any) SqlJson {
+	if err := jsonDatumError(value); err != "" {
+		return jsonFail(err)
+	}
+	if jsonDatumNull(value) {
+		return SqlJson{}
+	}
+	text, node, err := jsonFromValue(typeName, value, false)
+	if err != "" {
+		return jsonFail(err)
+	}
+	return SqlJson{Text: text, Node: node, Valid: true}
+}
+
+func toJsonb(typeName string, value any) SqlJsonb {
+	if err := jsonDatumError(value); err != "" {
+		return jsonbFail(err)
+	}
+	if jsonDatumNull(value) {
+		return SqlJsonb{}
+	}
+	_, node, err := jsonFromValue(typeName, value, false)
+	if err != "" {
+		return jsonbFail(err)
+	}
+	return SqlJsonb{Node: jsonbCanonicalize(node), Valid: true}
+}
+
+func jsonBuildArray(args ...any) SqlJson {
+	texts := []string{}
+	elements := []SqlJsonNode{}
+	for index := 0; index < len(args); index += 2 {
+		if err := jsonDatumError(args[index+1]); err != "" {
+			return jsonFail(err)
+		}
+		text, node, err := jsonFromValue(args[index].(string), args[index+1], false)
+		if err != "" {
+			return jsonFail(err)
+		}
+		texts = append(texts, text)
+		elements = append(elements, node)
+	}
+	return SqlJson{Text: "[" + strings.Join(texts, ", ") + "]", Node: SqlJsonNode{Kind: "array", Elements: elements}, Valid: true}
+}
+
+func jsonBuildObject(args ...any) SqlJson {
+	if len(args)%4 != 0 {
+		return jsonFail("22023")
+	}
+	parts := []string{}
+	for index := 0; index < len(args); index += 4 {
+		key, err := jsonKeyString(args[index].(string), args[index+1])
+		if err != "" {
+			return jsonFail(err)
+		}
+		text, _, err := jsonFromValue(args[index+2].(string), args[index+3], false)
+		if err != "" {
+			return jsonFail(err)
+		}
+		parts = append(parts, jsonbEscape(key)+" : "+text)
+	}
+	text := "{" + strings.Join(parts, ", ") + "}"
+	node, err := jsonParse(text, false)
+	if err != "" {
+		return jsonFail(err)
+	}
+	return SqlJson{Text: text, Node: node, Valid: true}
+}
+
+func jsonbBuildArray(args ...any) SqlJsonb {
+	elements := []SqlJsonNode{}
+	for index := 0; index < len(args); index += 2 {
+		if err := jsonDatumError(args[index+1]); err != "" {
+			return jsonbFail(err)
+		}
+		_, node, err := jsonFromValue(args[index].(string), args[index+1], false)
+		if err != "" {
+			return jsonbFail(err)
+		}
+		elements = append(elements, node)
+	}
+	return SqlJsonb{Node: jsonbCanonicalize(SqlJsonNode{Kind: "array", Elements: elements}), Valid: true}
+}
+
+func jsonbBuildObject(args ...any) SqlJsonb {
+	if len(args)%4 != 0 {
+		return jsonbFail("22023")
+	}
+	pairs := []SqlJsonPair{}
+	for index := 0; index < len(args); index += 4 {
+		key, err := jsonKeyString(args[index].(string), args[index+1])
+		if err != "" {
+			return jsonbFail(err)
+		}
+		_, node, err := jsonFromValue(args[index+2].(string), args[index+3], false)
+		if err != "" {
+			return jsonbFail(err)
+		}
+		pairs = append(pairs, SqlJsonPair{Key: key, Value: node})
+	}
+	return SqlJsonb{Node: jsonbCanonicalize(SqlJsonNode{Kind: "object", Pairs: pairs}), Valid: true}
+}

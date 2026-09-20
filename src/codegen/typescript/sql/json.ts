@@ -22,6 +22,23 @@ function call<M extends CallableMetadata>(helper: string): CallableEmitter<M, ts
   }
 }
 
+function typedCall<M extends CallableMetadata>(helper: string): CallableEmitter<M, ts.Expression> {
+  return {
+    helpers: [helper],
+    emit: (metadata, operands) => ({
+      type: metadata.result,
+      expression: factory.createCallExpression(
+        identifier(helper),
+        undefined,
+        operands.flatMap((operand) => [
+          factory.createStringLiteral(operand.type),
+          operand.expression,
+        ]),
+      ),
+    }),
+  }
+}
+
 export const typescriptJsonOperators = {
   'operator:["pg_catalog","->"](pg_catalog."json",pg_catalog.int4)': call('jsonArrayElement'),
   'operator:["pg_catalog","->"](pg_catalog."json",pg_catalog.text)': call('jsonObjectField'),
@@ -46,6 +63,11 @@ export const typescriptJsonOperators = {
   'operator:["pg_catalog","?"](pg_catalog.jsonb,pg_catalog.text)': call('jsonbExists'),
   'operator:["pg_catalog","?&"](pg_catalog.jsonb,pg_catalog._text)': call('jsonbExistsAll'),
   'operator:["pg_catalog","?|"](pg_catalog.jsonb,pg_catalog._text)': call('jsonbExistsAny'),
+  'operator:["pg_catalog","||"](pg_catalog.jsonb,pg_catalog.jsonb)': call('jsonbConcat'),
+  'operator:["pg_catalog","-"](pg_catalog.jsonb,pg_catalog.text)': call('jsonbDeleteKey'),
+  'operator:["pg_catalog","-"](pg_catalog.jsonb,pg_catalog.int4)': call('jsonbDeleteIndex'),
+  'operator:["pg_catalog","-"](pg_catalog.jsonb,pg_catalog._text)': call('jsonbDeleteKeys'),
+  'operator:["pg_catalog","#-"](pg_catalog.jsonb,pg_catalog._text)': call('jsonbDeletePath'),
 } satisfies OperatorBindings<typeof PG18_JSON, ts.Expression>
 
 export const typescriptJsonFunctions = {
@@ -93,4 +115,50 @@ export const typescriptJsonFunctions = {
     call('jsonbExistsAll'),
   'function:["pg_catalog","jsonb_exists_any"](pg_catalog.jsonb,pg_catalog._text)':
     call('jsonbExistsAny'),
+  'function:["pg_catalog","jsonb_concat"](pg_catalog.jsonb,pg_catalog.jsonb)': call('jsonbConcat'),
+  'function:["pg_catalog","jsonb_delete"](pg_catalog.jsonb,pg_catalog.text)':
+    call('jsonbDeleteKey'),
+  'function:["pg_catalog","jsonb_delete"](pg_catalog.jsonb,pg_catalog.int4)':
+    call('jsonbDeleteIndex'),
+  'function:["pg_catalog","jsonb_delete"](pg_catalog.jsonb,pg_catalog._text)':
+    call('jsonbDeleteKeys'),
+  'function:["pg_catalog","jsonb_delete_path"](pg_catalog.jsonb,pg_catalog._text)':
+    call('jsonbDeletePath'),
+  'function:["pg_catalog","jsonb_set"](pg_catalog.jsonb,pg_catalog._text,pg_catalog.jsonb,pg_catalog.bool)':
+    call('jsonbSet'),
+  'function:["pg_catalog","jsonb_insert"](pg_catalog.jsonb,pg_catalog._text,pg_catalog.jsonb,pg_catalog.bool)':
+    call('jsonbInsert'),
+  'function:["pg_catalog","jsonb_set_lax"](pg_catalog.jsonb,pg_catalog._text,pg_catalog.jsonb,pg_catalog.bool,pg_catalog.text)':
+    call('jsonbSetLax'),
+  'function:["pg_catalog","json_strip_nulls"](pg_catalog."json",pg_catalog.bool)':
+    call('jsonStripNulls'),
+  'function:["pg_catalog","jsonb_strip_nulls"](pg_catalog.jsonb,pg_catalog.bool)':
+    call('jsonbStripNulls'),
+  'function:["pg_catalog","jsonb_pretty"](pg_catalog.jsonb)': call('jsonbPretty'),
+  'function:["pg_catalog","bool"](pg_catalog.jsonb)': call('jsonbToBool'),
+  'function:["pg_catalog","numeric"](pg_catalog.jsonb)': call('jsonbToNumeric'),
+  'function:["pg_catalog","int2"](pg_catalog.jsonb)': call('jsonbToInt2'),
+  'function:["pg_catalog","int4"](pg_catalog.jsonb)': call('jsonbToInt4'),
+  'function:["pg_catalog","int8"](pg_catalog.jsonb)': call('jsonbToInt8'),
+  'function:["pg_catalog","float4"](pg_catalog.jsonb)': call('jsonbToFloat4'),
+  'function:["pg_catalog","float8"](pg_catalog.jsonb)': call('jsonbToFloat8'),
+  'function:["pg_catalog","json_object"](pg_catalog._text)': call('jsonObject'),
+  'function:["pg_catalog","json_object"](pg_catalog._text,pg_catalog._text)':
+    call('jsonObjectPair'),
+  'function:["pg_catalog","jsonb_object"](pg_catalog._text)': call('jsonbObject'),
+  'function:["pg_catalog","jsonb_object"](pg_catalog._text,pg_catalog._text)':
+    call('jsonbObjectPair'),
+  'function:["pg_catalog","array_to_json"](pg_catalog.anyarray)': call('arrayToJson'),
+  'function:["pg_catalog","array_to_json"](pg_catalog.anyarray,pg_catalog.bool)':
+    call('arrayToJsonPretty'),
+  'function:["pg_catalog","to_json"](pg_catalog.anyelement)': typedCall('toJson'),
+  'function:["pg_catalog","to_jsonb"](pg_catalog.anyelement)': typedCall('toJsonb'),
+  'function:["pg_catalog","json_build_array"]()': typedCall('jsonBuildArray'),
+  'function:["pg_catalog","json_build_array"](pg_catalog."any")': typedCall('jsonBuildArray'),
+  'function:["pg_catalog","json_build_object"]()': typedCall('jsonBuildObject'),
+  'function:["pg_catalog","json_build_object"](pg_catalog."any")': typedCall('jsonBuildObject'),
+  'function:["pg_catalog","jsonb_build_array"]()': typedCall('jsonbBuildArray'),
+  'function:["pg_catalog","jsonb_build_array"](pg_catalog."any")': typedCall('jsonbBuildArray'),
+  'function:["pg_catalog","jsonb_build_object"]()': typedCall('jsonbBuildObject'),
+  'function:["pg_catalog","jsonb_build_object"](pg_catalog."any")': typedCall('jsonbBuildObject'),
 } satisfies FunctionBindings<typeof PG18_JSON, ts.Expression>

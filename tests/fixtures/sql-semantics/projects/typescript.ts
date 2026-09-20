@@ -4040,6 +4040,581 @@ function jsonbToJson(value: SqlJsonb | null): SqlJson | null {
     const text = jsonbFormat(value.node);
     return new SqlJson(text, value.node);
 }
+function jsonbNodeCopy(node: SqlJsonNode): SqlJsonNode {
+    if (node.kind === "array")
+        return { kind: "array", raw: "", elements: node.elements.map(jsonbNodeCopy) };
+    if (node.kind === "object")
+        return {
+            kind: "object",
+            raw: "",
+            pairs: node.pairs.map(pair => ({ key: pair.key, value: jsonbNodeCopy(pair.value) })),
+        };
+    return node;
+}
+function jsonbConcat(left: SqlJsonb | null, right: SqlJsonb | null): SqlJsonb | null {
+    if (left === null || right === null)
+        return null;
+    const leftObject = left.node.kind === "object";
+    const rightObject = right.node.kind === "object";
+    const leftEmpty = leftObject ? left.node.pairs.length === 0 : left.node.kind === "array" && left.node.elements.length === 0;
+    const rightEmpty = rightObject ? right.node.pairs.length === 0 : right.node.kind === "array" && right.node.elements.length === 0;
+    if (leftObject === rightObject) {
+        if (leftEmpty && right.node.kind !== "null" && right.node.kind !== "bool" && right.node.kind !== "number" && right.node.kind !== "string")
+            return right;
+        if (rightEmpty && left.node.kind !== "null" && left.node.kind !== "bool" && left.node.kind !== "number" && left.node.kind !== "string")
+            return left;
+    }
+    if (leftObject && rightObject) {
+        const last = new Map<string, SqlJsonNode>();
+        for (const pair of left.node.pairs)
+            last.set(pair.key, pair.value);
+        for (const pair of right.node.pairs)
+            last.set(pair.key, pair.value);
+        return new SqlJsonb(jsonbCanonicalize({
+            kind: "object",
+            raw: "",
+            pairs: [...last.entries()].map(([key, value]) => ({ key, value })),
+        }));
+    }
+    const wrap = (node: SqlJsonNode): SqlJsonNode[] => node.kind === "array" ? node.elements.map(jsonbNodeCopy) : [jsonbNodeCopy(node)];
+    return new SqlJsonb({ kind: "array", raw: "", elements: [...wrap(left.node), ...wrap(right.node)] });
+}
+function jsonbDeleteKey(value: SqlJsonb | null, key: string | null): SqlJsonb | null {
+    if (value === null || key === null)
+        return null;
+    if (value.node.kind !== "array" && value.node.kind !== "object")
+        jsonError("22023");
+    if (value.node.kind === "object") {
+        if (value.node.pairs.length === 0)
+            return value;
+        return new SqlJsonb({
+            kind: "object",
+            raw: "",
+            pairs: value.node.pairs.filter(pair => pair.key !== key),
+        });
+    }
+    if (value.node.elements.length === 0)
+        return value;
+    return new SqlJsonb({
+        kind: "array",
+        raw: "",
+        elements: value.node.elements.filter(element => !(element.kind === "string" && element.value === key)),
+    });
+}
+function jsonbDeleteIndex(value: SqlJsonb | null, index: bigint | null): SqlJsonb | null {
+    if (value === null || index === null)
+        return null;
+    if (value.node.kind !== "array")
+        jsonError("22023");
+    const count = value.node.elements.length;
+    if (count === 0)
+        return value;
+    let idx = Number(index);
+    if (idx < 0) {
+        const abs = idx === -2147483648 ? 2147483648 : -idx;
+        idx = abs > count ? count : count + idx;
+    }
+    if (idx >= count)
+        return value;
+    return new SqlJsonb({
+        kind: "array",
+        raw: "",
+        elements: value.node.elements.filter((_, position) => position !== idx),
+    });
+}
+function jsonbDeleteKeys(value: SqlJsonb | null, keys: SqlArray | null): SqlJsonb | null {
+    if (value === null || keys === null)
+        return null;
+    if (keys.dimensions.length > 1)
+        jsonError("2202E");
+    if (value.node.kind !== "array" && value.node.kind !== "object")
+        jsonError("22023");
+    const path = jsonPathKeys(keys)!;
+    if ((value.node.kind === "object" ? value.node.pairs.length : value.node.elements.length) === 0 || path.length === 0)
+        return value;
+    let result: SqlJsonb | null = value;
+    for (const key of path)
+        if (key !== null)
+            result = jsonbDeleteKey(result, key);
+    return result;
+}
+function jsonbPathInt(value: string): number {
+    const match = /^[ \t\n\r\v\f]*([+-]?\d+)$/.exec(value);
+    if (!match)
+        jsonError("22P02");
+    const number = Number(match[1]);
+    if (!Number.isInteger(number) || number < -2147483648 || number > 2147483647)
+        jsonError("22P02");
+    return number;
+}
+function jsonbSetPath(node: SqlJsonNode, path: readonly (string | null)[], level: number, next: SqlJsonNode | null, op: "create" | "replace" | "delete" | "insert-before" | "insert-after"): SqlJsonNode {
+    if (path[level] === null)
+        jsonError("22004");
+    const last = level === path.length - 1;
+    const createOrInsert = op === "create" || op === "insert-before" || op === "insert-after";
+    if (node.kind === "object") {
+        const key = path[level]!;
+        if (node.pairs.length === 0 && createOrInsert && last && next)
+            return jsonbCanonicalize({ kind: "object", raw: "", pairs: [{ key, value: next }] });
+        const match = node.pairs.findIndex(pair => pair.key === key);
+        if (match >= 0) {
+            if (last) {
+                if (op === "insert-before" || op === "insert-after")
+                    jsonError("22023");
+                if (op === "delete")
+                    return {
+                        kind: "object",
+                        raw: "",
+                        pairs: node.pairs.filter((_, index) => index !== match),
+                    };
+                return jsonbCanonicalize({
+                    kind: "object",
+                    raw: "",
+                    pairs: node.pairs.map((pair, index) => (index === match ? { key, value: next! } : pair)),
+                });
+            }
+            return jsonbCanonicalize({
+                kind: "object",
+                raw: "",
+                pairs: node.pairs.map((pair, index) => index === match ? { key, value: jsonbSetPath(pair.value, path, level + 1, next, op) } : pair),
+            });
+        }
+        if (createOrInsert && last && next)
+            return jsonbCanonicalize({
+                kind: "object",
+                raw: "",
+                pairs: [...node.pairs, { key, value: next }],
+            });
+        return node;
+    }
+    if (node.kind === "array") {
+        const count = node.elements.length;
+        let idx = jsonbPathInt(path[level]!);
+        if (idx < 0) {
+            const abs = idx === -2147483648 ? 2147483648 : -idx;
+            idx = abs > count ? -2147483648 : count + idx;
+        }
+        if (idx > 0 && idx > count)
+            idx = count;
+        if ((idx === -2147483648 || count === 0) && last && createOrInsert && next)
+            return { kind: "array", raw: "", elements: [next, ...node.elements] };
+        if (idx >= 0 && idx < count) {
+            if (last) {
+                const elements: SqlJsonNode[] = [];
+                for (let index = 0; index < count; index++) {
+                    if (index === idx) {
+                        if (op === "insert-before" || op === "create")
+                            elements.push(next!);
+                        if (op === "insert-after" || op === "insert-before")
+                            elements.push(node.elements[index]!);
+                        if (op === "insert-after" || op === "replace")
+                            elements.push(next!);
+                    }
+                    else
+                        elements.push(node.elements[index]!);
+                }
+                return { kind: "array", raw: "", elements };
+            }
+            return {
+                kind: "array",
+                raw: "",
+                elements: node.elements.map((element, index) => index === idx ? jsonbSetPath(element, path, level + 1, next, op) : element),
+            };
+        }
+        if (createOrInsert && last && next)
+            return { kind: "array", raw: "", elements: [...node.elements, next] };
+        return node;
+    }
+    return node;
+}
+function jsonbMutatePath(value: SqlJsonb | null, path: SqlArray | null, next: SqlJsonb | null, op: "create" | "replace" | "delete" | "insert-before" | "insert-after"): SqlJsonb | null {
+    if (value === null || path === null || (op !== "delete" && next === null))
+        return null;
+    if (path.dimensions.length > 1)
+        jsonError("2202E");
+    if (value.node.kind !== "array" && value.node.kind !== "object")
+        jsonError("22023");
+    const keys = jsonPathKeys(path);
+    if (keys === null)
+        return null;
+    if (keys.length === 0 || ((value.node.kind === "object" ? value.node.pairs.length : value.node.elements.length) === 0 && op !== "create" && op !== "insert-before" && op !== "insert-after"))
+        return value;
+    return new SqlJsonb(jsonbSetPath(value.node, keys, 0, next?.node ?? null, op));
+}
+function jsonbDeletePath(value: SqlJsonb | null, path: SqlArray | null): SqlJsonb | null {
+    return jsonbMutatePath(value, path, null, "delete");
+}
+function jsonbSet(value: SqlJsonb | null, path: SqlArray | null, next: SqlJsonb | null, create: boolean | null): SqlJsonb | null {
+    if (value === null || path === null || next === null || create === null)
+        return null;
+    return jsonbMutatePath(value, path, next, create ? "create" : "replace");
+}
+function jsonbInsert(value: SqlJsonb | null, path: SqlArray | null, next: SqlJsonb | null, after: boolean | null): SqlJsonb | null {
+    if (value === null || path === null || next === null || after === null)
+        return null;
+    return jsonbMutatePath(value, path, next, after ? "insert-after" : "insert-before");
+}
+function jsonbSetLax(value: SqlJsonb | null, path: SqlArray | null, next: SqlJsonb | null, create: boolean | null, treatment: string | null): SqlJsonb | null {
+    if (value === null || path === null || create === null)
+        return null;
+    if (treatment === null)
+        jsonError("22023");
+    if (next !== null)
+        return jsonbSet(value, path, next, create);
+    if (treatment === "raise_exception")
+        jsonError("22004");
+    if (treatment === "use_json_null")
+        return jsonbSet(value, path, new SqlJsonb({ kind: "null", raw: "null" }), create);
+    if (treatment === "delete_key")
+        return jsonbDeletePath(value, path);
+    if (treatment === "return_target")
+        return value;
+    return jsonError("22023");
+}
+function jsonStripNullsNode(node: SqlJsonNode, arrays: boolean): SqlJsonNode {
+    if (node.kind === "object")
+        return {
+            kind: "object",
+            raw: "",
+            pairs: node.pairs.filter(pair => pair.value.kind !== "null").map(pair => ({ key: pair.key, value: jsonStripNullsNode(pair.value, arrays) })),
+        };
+    if (node.kind === "array")
+        return {
+            kind: "array",
+            raw: "",
+            elements: (arrays ? node.elements.filter(element => element.kind !== "null") : node.elements).map(element => jsonStripNullsNode(element, arrays)),
+        };
+    return node;
+}
+function jsonFormatCompact(node: SqlJsonNode): string {
+    if (node.kind === "null" || node.kind === "bool" || node.kind === "number")
+        return node.kind === "number" ? node.raw : node.kind === "null" ? "null" : node.value ? "true" : "false";
+    if (node.kind === "string")
+        return jsonbEscape(node.value);
+    if (node.kind === "array")
+        return "[" + node.elements.map(jsonFormatCompact).join(",") + "]";
+    return "{" + node.pairs.map(pair => jsonbEscape(pair.key) + ":" + jsonFormatCompact(pair.value)).join(",") + "}";
+}
+function jsonStripNulls(value: SqlJson | null, arrays: boolean | null): SqlJson | null {
+    if (value === null || arrays === null)
+        return null;
+    const node = jsonStripNullsNode(value.node, arrays);
+    return new SqlJson(jsonFormatCompact(node), node);
+}
+function jsonbStripNulls(value: SqlJsonb | null, arrays: boolean | null): SqlJsonb | null {
+    if (value === null || arrays === null)
+        return null;
+    if (value.node.kind !== "array" && value.node.kind !== "object")
+        return value;
+    return new SqlJsonb(jsonbCanonicalize(jsonStripNullsNode(value.node, arrays)));
+}
+function jsonbPretty(value: SqlJsonb | null): string | null {
+    if (value === null)
+        return null;
+    const render = (node: SqlJsonNode, level: number): string => {
+        if (node.kind !== "array" && node.kind !== "object")
+            return jsonbFormat(node);
+        const open = node.kind === "array" ? "[" : "{";
+        const close = node.kind === "array" ? "]" : "}";
+        const items = node.kind === "array" ? node.elements.map(element => render(element, level + 1)) : node.pairs.map(pair => jsonbEscape(pair.key) + ": " + render(pair.value, level + 1));
+        const pad = (depth: number): string => "    ".repeat(depth);
+        if (items.length === 0)
+            return open + "\n" + pad(level) + close;
+        return open + "\n" + items.map(item => pad(level + 1) + item).join(",\n") + "\n" + pad(level) + close;
+    };
+    return render(value.node, 0);
+}
+function jsonbToBool(value: SqlJsonb | null): boolean | null {
+    if (value === null)
+        return null;
+    if (value.node.kind === "null")
+        return null;
+    if (value.node.kind !== "bool")
+        jsonError("22023");
+    return value.node.value;
+}
+function jsonbToNumeric(value: SqlJsonb | null): SqlDecimal | null {
+    if (value === null)
+        return null;
+    if (value.node.kind === "null")
+        return null;
+    if (value.node.kind !== "number")
+        jsonError("22023");
+    return value.node.value;
+}
+function jsonbToInt4(value: SqlJsonb | null): bigint | null {
+    return int4FromDecimal(jsonbToNumeric(value));
+}
+function jsonbToInt2(value: SqlJsonb | null): bigint | null {
+    return int2FromDecimal(jsonbToNumeric(value));
+}
+function jsonbToInt8(value: SqlJsonb | null): bigint | null {
+    return int8FromDecimal(jsonbToNumeric(value));
+}
+function jsonbToFloat4(value: SqlJsonb | null): number | null {
+    return float4FromDecimal(jsonbToNumeric(value));
+}
+function jsonbToFloat8(value: SqlJsonb | null): number | null {
+    return float8FromDecimal(jsonbToNumeric(value));
+}
+function jsonTextPairs(keys: SqlArray, values: SqlArray | null): {
+    key: string;
+    value: string | null;
+}[] {
+    if (values === null) {
+        if (keys.dimensions.length > 2)
+            jsonError("2202E");
+        if (keys.dimensions.length === 2 && keys.dimensions[1] !== 2)
+            jsonError("2202E");
+        if (keys.dimensions.length === 1 && keys.elements.length % 2 !== 0)
+            jsonError("2202E");
+        if (keys.dimensions.length === 0)
+            return [];
+        const pairs: {
+            key: string;
+            value: string | null;
+        }[] = [];
+        for (let index = 0; index < keys.elements.length; index += 2) {
+            const key = keys.elements[index]!;
+            const value = keys.elements[index + 1]!;
+            if (key.value === null)
+                jsonError("22004");
+            pairs.push({ key: String(key.value), value: value.value === null ? null : String(value.value) });
+        }
+        return pairs;
+    }
+    if (keys.dimensions.length > 1 || keys.dimensions.length !== values.dimensions.length)
+        jsonError("2202E");
+    if (keys.dimensions.length === 0)
+        return [];
+    if (keys.elements.length !== values.elements.length)
+        jsonError("2202E");
+    return keys.elements.map((key, index) => {
+        if (key.value === null)
+            jsonError("22004");
+        const value = values.elements[index]!;
+        return { key: String(key.value), value: value.value === null ? null : String(value.value) };
+    });
+}
+function jsonObject(keys: SqlArray | null): SqlJson | null {
+    if (keys === null)
+        return null;
+    const pairs = jsonTextPairs(keys, null);
+    const text = "{" + pairs.map(pair => jsonbEscape(pair.key) + " : " + (pair.value === null ? "null" : jsonbEscape(pair.value))).join(", ") + "}";
+    return new SqlJson(text, jsonParse(text, false));
+}
+function jsonObjectPair(keys: SqlArray | null, values: SqlArray | null): SqlJson | null {
+    if (keys === null || values === null)
+        return null;
+    const pairs = jsonTextPairs(keys, values);
+    const text = "{" + pairs.map(pair => jsonbEscape(pair.key) + " : " + (pair.value === null ? "null" : jsonbEscape(pair.value))).join(", ") + "}";
+    return new SqlJson(text, jsonParse(text, false));
+}
+function jsonbObject(keys: SqlArray | null): SqlJsonb | null {
+    if (keys === null)
+        return null;
+    return new SqlJsonb(jsonbCanonicalize({
+        kind: "object",
+        raw: "",
+        pairs: jsonTextPairs(keys, null).map(pair => ({
+            key: pair.key,
+            value: pair.value === null ? { kind: "null" as const, raw: "null" } : { kind: "string" as const, raw: "", value: pair.value },
+        })),
+    }));
+}
+function jsonbObjectPair(keys: SqlArray | null, values: SqlArray | null): SqlJsonb | null {
+    if (keys === null || values === null)
+        return null;
+    return new SqlJsonb(jsonbCanonicalize({
+        kind: "object",
+        raw: "",
+        pairs: jsonTextPairs(keys, values).map(pair => ({
+            key: pair.key,
+            value: pair.value === null ? { kind: "null" as const, raw: "null" } : { kind: "string" as const, raw: "", value: pair.value },
+        })),
+    }));
+}
+function jsonKeyString(type: string, value: any): string {
+    if (value === null)
+        jsonError("22004");
+    if (value instanceof SqlArray || value instanceof SqlJson || value instanceof SqlJsonb)
+        jsonError("22023");
+    if (typeof value === "boolean")
+        return value ? "true" : "false";
+    if (typeof value === "bigint")
+        return value.toString();
+    if (typeof value === "number")
+        return arrayFloatText(value, type === "pg_catalog.float4");
+    if (typeof value === "string")
+        return value;
+    if (value instanceof SqlDecimal)
+        return value.toString();
+    if (value instanceof SqlUuid || value instanceof SqlEnum)
+        return value.toString();
+    return jsonError("22023");
+}
+function jsonFromValue(type: string, value: any, asKey: boolean): {
+    text: string;
+    node: SqlJsonNode;
+} {
+    if (asKey) {
+        const key = jsonKeyString(type, value);
+        return { text: jsonbEscape(key), node: { kind: "string", raw: jsonbEscape(key), value: key } };
+    }
+    if (value === null)
+        return { text: "null", node: { kind: "null", raw: "null" } };
+    if (typeof value === "boolean") {
+        const text = value ? "true" : "false";
+        return { text, node: { kind: "bool", raw: text, value } };
+    }
+    if (typeof value === "bigint") {
+        const text = value.toString();
+        return { text, node: { kind: "number", raw: text, value: decimalInput(text)! } };
+    }
+    if (typeof value === "number") {
+        const text = arrayFloatText(value, type === "pg_catalog.float4");
+        if (text === "NaN" || text === "Infinity" || text === "-Infinity")
+            return { text: jsonbEscape(text), node: { kind: "string", raw: jsonbEscape(text), value: text } };
+        return { text, node: { kind: "number", raw: text, value: decimalInput(text)! } };
+    }
+    if (typeof value === "string")
+        return { text: jsonbEscape(value), node: { kind: "string", raw: jsonbEscape(value), value } };
+    if (value instanceof SqlDecimal) {
+        const text = value.toString();
+        if (!/^-?\d/.test(text))
+            return { text: jsonbEscape(text), node: { kind: "string", raw: jsonbEscape(text), value: text } };
+        return { text, node: { kind: "number", raw: text, value } };
+    }
+    if (value instanceof SqlJson)
+        return { text: value.text, node: value.node };
+    if (value instanceof SqlJsonb)
+        return { text: jsonbFormat(value.node), node: value.node };
+    if (value instanceof SqlUuid || value instanceof SqlEnum) {
+        const text = value.toString();
+        return { text: jsonbEscape(text), node: { kind: "string", raw: jsonbEscape(text), value: text } };
+    }
+    if (value instanceof SqlArray) {
+        let offset = 0;
+        const walk = (dim: number, pretty: boolean): {
+            text: string;
+            node: SqlJsonNode;
+        } => {
+            if (value.dimensions.length === 0)
+                return { text: "[]", node: { kind: "array", raw: "[]", elements: [] } };
+            const texts: string[] = [];
+            const elements: SqlJsonNode[] = [];
+            const sep = pretty ? ",\n " : ",";
+            for (let index = 0; index < value.dimensions[dim]!; index++) {
+                if (dim === value.dimensions.length - 1) {
+                    const element = value.elements[offset++]!;
+                    const converted = jsonFromValue(value.elementType, element.value, false);
+                    texts.push(converted.text);
+                    elements.push(converted.node);
+                }
+                else {
+                    const nested = walk(dim + 1, false);
+                    texts.push(nested.text);
+                    elements.push(nested.node);
+                }
+            }
+            return { text: "[" + texts.join(sep) + "]", node: { kind: "array", raw: "", elements } };
+        };
+        return walk(0, false);
+    }
+    return jsonError("22023");
+}
+function arrayToJson(value: SqlArray | null): SqlJson | null {
+    if (value === null)
+        return null;
+    const converted = jsonFromValue(value.elementType, value, false);
+    return new SqlJson(converted.text, converted.node);
+}
+function arrayToJsonPretty(value: SqlArray | null, pretty: boolean | null): SqlJson | null {
+    if (value === null || pretty === null)
+        return null;
+    if (!pretty)
+        return arrayToJson(value);
+    let offset = 0;
+    const walk = (dim: number, usePretty: boolean): {
+        text: string;
+        node: SqlJsonNode;
+    } => {
+        if (value.dimensions.length === 0)
+            return { text: "[]", node: { kind: "array", raw: "[]", elements: [] } };
+        const texts: string[] = [];
+        const elements: SqlJsonNode[] = [];
+        const sep = usePretty ? ",\n " : ",";
+        for (let index = 0; index < value.dimensions[dim]!; index++) {
+            if (dim === value.dimensions.length - 1) {
+                const element = value.elements[offset++]!;
+                const converted = jsonFromValue(value.elementType, element.value, false);
+                texts.push(converted.text);
+                elements.push(converted.node);
+            }
+            else {
+                const nested = walk(dim + 1, false);
+                texts.push(nested.text);
+                elements.push(nested.node);
+            }
+        }
+        return { text: "[" + texts.join(sep) + "]", node: { kind: "array", raw: "", elements } };
+    };
+    const converted = walk(0, true);
+    return new SqlJson(converted.text, converted.node);
+}
+function toJson(type: string, value: any): SqlJson | null {
+    if (value === null)
+        return null;
+    const converted = jsonFromValue(type, value, false);
+    return new SqlJson(converted.text, converted.node);
+}
+function toJsonb(type: string, value: any): SqlJsonb | null {
+    if (value === null)
+        return null;
+    return new SqlJsonb(jsonbCanonicalize(jsonFromValue(type, value, false).node));
+}
+function jsonBuildArray(...args: any[]): SqlJson {
+    const texts: string[] = [];
+    const elements: SqlJsonNode[] = [];
+    for (let index = 0; index < args.length; index += 2) {
+        const converted = jsonFromValue(args[index], args[index + 1], false);
+        texts.push(converted.text);
+        elements.push(converted.node);
+    }
+    return new SqlJson("[" + texts.join(", ") + "]", { kind: "array", raw: "", elements });
+}
+function jsonBuildObject(...args: any[]): SqlJson {
+    if (args.length % 4 !== 0)
+        jsonError("22023");
+    const texts: string[] = [];
+    for (let index = 0; index < args.length; index += 4) {
+        const key = jsonKeyString(args[index], args[index + 1]);
+        const value = jsonFromValue(args[index + 2], args[index + 3], false);
+        texts.push(jsonbEscape(key) + " : " + value.text);
+    }
+    const text = "{" + texts.join(", ") + "}";
+    return new SqlJson(text, jsonParse(text, false));
+}
+function jsonbBuildArray(...args: any[]): SqlJsonb {
+    const elements: SqlJsonNode[] = [];
+    for (let index = 0; index < args.length; index += 2)
+        elements.push(jsonFromValue(args[index], args[index + 1], false).node);
+    return new SqlJsonb(jsonbCanonicalize({ kind: "array", raw: "", elements }));
+}
+function jsonbBuildObject(...args: any[]): SqlJsonb {
+    if (args.length % 4 !== 0)
+        jsonError("22023");
+    const pairs: {
+        key: string;
+        value: SqlJsonNode;
+    }[] = [];
+    for (let index = 0; index < args.length; index += 4)
+        pairs.push({
+            key: jsonKeyString(args[index], args[index + 1]),
+            value: jsonFromValue(args[index + 2], args[index + 3], false).node,
+        });
+    return new SqlJsonb(jsonbCanonicalize({ kind: "object", raw: "", pairs }));
+}
 export function evaluate0() {
     return int2Add(int2Input("2"), int2Input("3"));
 }
@@ -94060,4 +94635,430 @@ export function evaluate30005() {
 }
 export function evaluate30006() {
     return sqlCoalesce(() => jsonbInput(null), () => jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
+}
+export function evaluate30007() {
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":2,\"a\":3}"));
+}
+export function evaluate30008() {
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":2,\"a\":3}"));
+}
+export function evaluate30009() {
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
+}
+export function evaluate30010() {
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
+}
+export function evaluate30011() {
+    return jsonbConcat(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
+}
+export function evaluate30012() {
+    return jsonbConcat(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
+}
+export function evaluate30013() {
+    return jsonbConcat(jsonbInput("[1]"), jsonbInput("[2,3]"));
+}
+export function evaluate30014() {
+    return jsonbConcat(jsonbInput("[1]"), jsonbInput("[2,3]"));
+}
+export function evaluate30015() {
+    return jsonbConcat(jsonbInput("[]"), jsonbInput("[1]"));
+}
+export function evaluate30016() {
+    return jsonbConcat(jsonbInput("[]"), jsonbInput("[1]"));
+}
+export function evaluate30017() {
+    return jsonbConcat(jsonbInput("1"), jsonbInput("2"));
+}
+export function evaluate30018() {
+    return jsonbConcat(jsonbInput("1"), jsonbInput("2"));
+}
+export function evaluate30019() {
+    return jsonbConcat(jsonbInput("1"), jsonbInput("[2]"));
+}
+export function evaluate30020() {
+    return jsonbConcat(jsonbInput("1"), jsonbInput("[2]"));
+}
+export function evaluate30021() {
+    return jsonbConcat(jsonbInput("[1]"), jsonbInput("2"));
+}
+export function evaluate30022() {
+    return jsonbConcat(jsonbInput("[1]"), jsonbInput("2"));
+}
+export function evaluate30023() {
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[2]"));
+}
+export function evaluate30024() {
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[2]"));
+}
+export function evaluate30025() {
+    return jsonbConcat(jsonbInput("[2]"), jsonbInput("{\"a\":1}"));
+}
+export function evaluate30026() {
+    return jsonbConcat(jsonbInput("[2]"), jsonbInput("{\"a\":1}"));
+}
+export function evaluate30027() {
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[]"));
+}
+export function evaluate30028() {
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[]"));
+}
+export function evaluate30029() {
+    return jsonbConcat(jsonbInput("null"), jsonbInput("[1]"));
+}
+export function evaluate30030() {
+    return jsonbConcat(jsonbInput("null"), jsonbInput("[1]"));
+}
+export function evaluate30031() {
+    return jsonbConcat(jsonbInput("true"), jsonbInput("{\"a\":1}"));
+}
+export function evaluate30032() {
+    return jsonbConcat(jsonbInput("true"), jsonbInput("{\"a\":1}"));
+}
+export function evaluate30033() {
+    return jsonbConcat(jsonbInput(null), jsonbInput("1"));
+}
+export function evaluate30034() {
+    return jsonbConcat(jsonbInput(null), jsonbInput("1"));
+}
+export function evaluate30035() {
+    return jsonbDeleteKey(jsonbInput("{\"a\":1,\"b\":2}"), textInput("a"));
+}
+export function evaluate30036() {
+    return jsonbDeleteKey(jsonbInput("{\"a\":1}"), textInput("missing"));
+}
+export function evaluate30037() {
+    return jsonbDeleteKey(jsonbInput("[\"a\",\"b\",\"a\"]"), textInput("a"));
+}
+export function evaluate30038() {
+    return jsonbDeleteKey(jsonbInput("1"), textInput("a"));
+}
+export function evaluate30039() {
+    return jsonbDeleteKey(jsonbInput("{\"a\":1,\"b\":2}"), textInput("a"));
+}
+export function evaluate30040() {
+    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("1"));
+}
+export function evaluate30041() {
+    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("-1"));
+}
+export function evaluate30042() {
+    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("99"));
+}
+export function evaluate30043() {
+    return jsonbDeleteIndex(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), int4Input("0"));
+}
+export function evaluate30044() {
+    return jsonbDeleteIndex(jsonbInput("1"), int4Input("0"));
+}
+export function evaluate30045() {
+    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("1"));
+}
+export function evaluate30046() {
+    return jsonbDeleteKeys(jsonbInput("{\"a\":1,\"b\":2,\"c\":3}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("c"))]));
+}
+export function evaluate30047() {
+    return jsonbDeleteKeys(jsonbInput("[\"a\",\"b\",\"c\"]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate30048() {
+    return jsonbDeleteKeys(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+}
+export function evaluate30049() {
+    return jsonbDeleteKeys(jsonbInput("{\"a\":1,\"b\":2,\"c\":3}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("c"))]));
+}
+export function evaluate30050() {
+    return jsonbDeletePath(jsonbInput("{\"a\":{\"b\":1,\"c\":2}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate30051() {
+    return jsonbDeletePath(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+}
+export function evaluate30052() {
+    return jsonbDeletePath(jsonbInput("1"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate30053() {
+    return jsonbDeletePath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]));
+}
+export function evaluate30054() {
+    return jsonbDeletePath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+}
+export function evaluate30055() {
+    return jsonbDeletePath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+}
+export function evaluate30056() {
+    return jsonbDeletePath(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+}
+export function evaluate30057() {
+    return jsonbDeletePath(jsonbInput("{\"a\":{\"b\":1,\"c\":2}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate30058() {
+    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(true));
+}
+export function evaluate30059() {
+    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(true));
+}
+export function evaluate30060() {
+    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(false));
+}
+export function evaluate30061() {
+    return jsonbSet(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("9"), booleanInput(true));
+}
+export function evaluate30062() {
+    return jsonbSet(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("5"))]), jsonbInput("9"), booleanInput(true));
+}
+export function evaluate30063() {
+    return jsonbSet(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("-1"))]), jsonbInput("9"), booleanInput(true));
+}
+export function evaluate30064() {
+    return jsonbSet(jsonbInput("{\"a\":[1,2]}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("9"), booleanInput(true));
+}
+export function evaluate30065() {
+    return jsonbSet(jsonbInput("1"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(true));
+}
+export function evaluate30066() {
+    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []), jsonbInput("2"), booleanInput(true));
+}
+export function evaluate30067() {
+    return jsonbSet(jsonbInput("[]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("0"))]), jsonbInput("2"), booleanInput(true));
+}
+export function evaluate30068() {
+    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(true));
+}
+export function evaluate30069() {
+    return jsonbSet(jsonbInput("[1]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("foo"))]), jsonbInput("2"), booleanInput(true));
+}
+export function evaluate30070() {
+    return jsonbInsert(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(false));
+}
+export function evaluate30071() {
+    return jsonbInsert(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(false));
+}
+export function evaluate30072() {
+    return jsonbInsert(jsonbInput("[1,3]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("2"), booleanInput(false));
+}
+export function evaluate30073() {
+    return jsonbInsert(jsonbInput("[1,3]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("2"), booleanInput(true));
+}
+export function evaluate30074() {
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("use_json_null"));
+}
+export function evaluate30075() {
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("delete_key"));
+}
+export function evaluate30076() {
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("return_target"));
+}
+export function evaluate30077() {
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("raise_exception"));
+}
+export function evaluate30078() {
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("nope"));
+}
+export function evaluate30079() {
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(true), textInput("use_json_null"));
+}
+export function evaluate30080() {
+    return jsonStripNulls(jsonInput("{\"a\":1,\"b\":null,\"c\":{\"d\":null}}"), booleanInput(false));
+}
+export function evaluate30081() {
+    return jsonStripNulls(jsonInput("[1, null, 2]"), booleanInput(true));
+}
+export function evaluate30082() {
+    return jsonStripNulls(jsonInput("[1, null, 2]"), booleanInput(false));
+}
+export function evaluate30083() {
+    return jsonStripNulls(jsonInput("1e2"), booleanInput(false));
+}
+export function evaluate30084() {
+    return jsonbStripNulls(jsonbInput("{\"a\":1,\"b\":null,\"c\":[null,2]}"), booleanInput(false));
+}
+export function evaluate30085() {
+    return jsonbStripNulls(jsonbInput("{\"a\":1,\"b\":null,\"c\":[null,2]}"), booleanInput(true));
+}
+export function evaluate30086() {
+    return jsonbPretty(jsonbInput("{\"b\":[1,2],\"a\":3}"));
+}
+export function evaluate30087() {
+    return jsonbPretty(jsonbInput("1"));
+}
+export function evaluate30088() {
+    return jsonbPretty(jsonbInput("[]"));
+}
+export function evaluate30089() {
+    return jsonbPretty(jsonbInput("{}"));
+}
+export function evaluate30090() {
+    return jsonbToBool(jsonbInput("true"));
+}
+export function evaluate30091() {
+    return jsonbToBool(jsonbInput("false"));
+}
+export function evaluate30092() {
+    return jsonbToBool(jsonbInput("null"));
+}
+export function evaluate30093() {
+    return jsonbToBool(jsonbInput("1"));
+}
+export function evaluate30094() {
+    return jsonbToInt4(jsonbInput("2.9"));
+}
+export function evaluate30095() {
+    return jsonbToInt4(jsonbInput("2.5"));
+}
+export function evaluate30096() {
+    return jsonbToInt4(jsonbInput("-2.5"));
+}
+export function evaluate30097() {
+    return jsonbToInt2(jsonbInput("40000"));
+}
+export function evaluate30098() {
+    return jsonbToNumeric(jsonbInput("1.2300"));
+}
+export function evaluate30099() {
+    return jsonbToInt8(jsonbInput("2.9"));
+}
+export function evaluate30100() {
+    return jsonbToFloat4(jsonbInput("1e2"));
+}
+export function evaluate30101() {
+    return jsonbToFloat8(jsonbInput("1e2"));
+}
+export function evaluate30102() {
+    return jsonbToInt4(jsonbInput("true"));
+}
+export function evaluate30103() {
+    return jsonbToInt4(jsonbInput("[1]"));
+}
+export function evaluate30104() {
+    return jsonObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+}
+export function evaluate30105() {
+    return jsonObject(arrayInput("pg_catalog.text", [], [], []));
+}
+export function evaluate30106() {
+    return jsonObject(arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate30107() {
+    return jsonObjectPair(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+}
+export function evaluate30108() {
+    return jsonObjectPair(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1"))]), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("x"))]));
+}
+export function evaluate30109() {
+    return jsonObject(arrayInput("pg_catalog.text", [2, 2], [1, 1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+}
+export function evaluate30110() {
+    return jsonObject(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput(null))]));
+}
+export function evaluate30111() {
+    return jsonObject(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput(null)), arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate30112() {
+    return jsonObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+}
+export function evaluate30113() {
+    return jsonbObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("2")), arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+}
+export function evaluate30114() {
+    return jsonbObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+}
+export function evaluate30115() {
+    return jsonbObjectPair(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+}
+export function evaluate30116() {
+    return arrayToJson(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+}
+export function evaluate30117() {
+    return arrayToJsonPretty(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(true));
+}
+export function evaluate30118() {
+    return arrayToJsonPretty(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), booleanInput(true));
+}
+export function evaluate30119() {
+    return arrayToJson(arrayInput("pg_catalog.int4", [], [], []));
+}
+export function evaluate30120() {
+    return arrayToJson(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+}
+export function evaluate30121() {
+    return toJson("pg_catalog.int4", int4Input("1"));
+}
+export function evaluate30122() {
+    return toJson("pg_catalog.text", textInput("hi"));
+}
+export function evaluate30123() {
+    return toJson("pg_catalog.bool", booleanInput(true));
+}
+export function evaluate30124() {
+    return toJson("pg_catalog.\"numeric\"", decimalInput("1.2300"));
+}
+export function evaluate30125() {
+    return toJson("pg_catalog.float8", float8Input("7ff8000000000000"));
+}
+export function evaluate30126() {
+    return toJson("pg_catalog.float8", float8Input("7ff0000000000000"));
+}
+export function evaluate30127() {
+    return toJson("pg_catalog.float8", float8Input("8000000000000000"));
+}
+export function evaluate30128() {
+    return toJson("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+}
+export function evaluate30129() {
+    return toJson("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+}
+export function evaluate30130() {
+    return toJson("pg_catalog.\"json\"", jsonInput("{\"a\":1}"));
+}
+export function evaluate30131() {
+    return toJson("pg_catalog.jsonb", jsonbInput("{\"b\":1,\"a\":2}"));
+}
+export function evaluate30132() {
+    return toJson("pg_catalog.uuid", uuidInput("550e8400-e29b-41d4-a716-446655440000"));
+}
+export function evaluate30133() {
+    return toJsonb("pg_catalog.\"numeric\"", decimalInput("1.2300"));
+}
+export function evaluate30134() {
+    return toJsonb("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+}
+export function evaluate30135() {
+    return jsonBuildArray();
+}
+export function evaluate30136() {
+    return jsonBuildObject();
+}
+export function evaluate30137() {
+    return jsonbBuildArray();
+}
+export function evaluate30138() {
+    return jsonbBuildObject();
+}
+export function evaluate30139() {
+    return jsonBuildArray("pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"), "pg_catalog.bool", booleanInput(true), "pg_catalog.int4", int4Input(null));
+}
+export function evaluate30140() {
+    return jsonBuildArray("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+}
+export function evaluate30141() {
+    return jsonBuildObject("pg_catalog.text", textInput("a"), "pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("b"), "pg_catalog.text", textInput(null));
+}
+export function evaluate30142() {
+    return jsonBuildObject("pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"));
+}
+export function evaluate30143() {
+    return jsonBuildObject("pg_catalog.bool", booleanInput(true), "pg_catalog.text", textInput("a"));
+}
+export function evaluate30144() {
+    return jsonBuildObject("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]), "pg_catalog.text", textInput("a"));
+}
+export function evaluate30145() {
+    return jsonBuildObject("pg_catalog.text", textInput("a"));
+}
+export function evaluate30146() {
+    return jsonbBuildArray("pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"));
+}
+export function evaluate30147() {
+    return jsonbBuildObject("pg_catalog.text", textInput("b"), "pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"), "pg_catalog.int4", int4Input("2"));
+}
+export function evaluate30148() {
+    return toJson("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }

@@ -705,3 +705,699 @@ typescriptJsonHelpers.jsonbContained = {
   return jsonbContains(right, left)
 }`,
 }
+
+Object.assign(typescriptJsonHelpers, {
+  jsonbNodeCopy: {
+    dependencies: ['SqlJsonNode'],
+    source: `function jsonbNodeCopy(node: SqlJsonNode): SqlJsonNode {
+  if (node.kind === 'array')
+    return { kind: 'array', raw: '', elements: node.elements.map(jsonbNodeCopy) }
+  if (node.kind === 'object')
+    return {
+      kind: 'object',
+      raw: '',
+      pairs: node.pairs.map((pair) => ({ key: pair.key, value: jsonbNodeCopy(pair.value) })),
+    }
+  return node
+}`,
+  },
+  jsonbConcat: {
+    dependencies: ['SqlJsonb', 'jsonbCanonicalize', 'jsonbNodeCopy'],
+    source: `function jsonbConcat(left: SqlJsonb | null, right: SqlJsonb | null): SqlJsonb | null {
+  if (left === null || right === null) return null
+  const leftObject = left.node.kind === 'object'
+  const rightObject = right.node.kind === 'object'
+  const leftEmpty =
+    leftObject ? left.node.pairs.length === 0 : left.node.kind === 'array' && left.node.elements.length === 0
+  const rightEmpty =
+    rightObject ? right.node.pairs.length === 0 : right.node.kind === 'array' && right.node.elements.length === 0
+  if (leftObject === rightObject) {
+    if (leftEmpty && right.node.kind !== 'null' && right.node.kind !== 'bool' && right.node.kind !== 'number' && right.node.kind !== 'string')
+      return right
+    if (rightEmpty && left.node.kind !== 'null' && left.node.kind !== 'bool' && left.node.kind !== 'number' && left.node.kind !== 'string')
+      return left
+  }
+  if (leftObject && rightObject) {
+    const last = new Map<string, SqlJsonNode>()
+    for (const pair of left.node.pairs) last.set(pair.key, pair.value)
+    for (const pair of right.node.pairs) last.set(pair.key, pair.value)
+    return new SqlJsonb(
+      jsonbCanonicalize({
+        kind: 'object',
+        raw: '',
+        pairs: [...last.entries()].map(([key, value]) => ({ key, value })),
+      }),
+    )
+  }
+  const wrap = (node: SqlJsonNode): SqlJsonNode[] =>
+    node.kind === 'array' ? node.elements.map(jsonbNodeCopy) : [jsonbNodeCopy(node)]
+  return new SqlJsonb({ kind: 'array', raw: '', elements: [...wrap(left.node), ...wrap(right.node)] })
+}`,
+  },
+  jsonbDeleteKey: {
+    dependencies: ['SqlJsonb', 'jsonError'],
+    source: `function jsonbDeleteKey(value: SqlJsonb | null, key: string | null): SqlJsonb | null {
+  if (value === null || key === null) return null
+  if (value.node.kind !== 'array' && value.node.kind !== 'object') jsonError('22023')
+  if (value.node.kind === 'object') {
+    if (value.node.pairs.length === 0) return value
+    return new SqlJsonb({
+      kind: 'object',
+      raw: '',
+      pairs: value.node.pairs.filter((pair) => pair.key !== key),
+    })
+  }
+  if (value.node.elements.length === 0) return value
+  return new SqlJsonb({
+    kind: 'array',
+    raw: '',
+    elements: value.node.elements.filter((element) => !(element.kind === 'string' && element.value === key)),
+  })
+}`,
+  },
+  jsonbDeleteIndex: {
+    dependencies: ['SqlJsonb', 'jsonError'],
+    source: `function jsonbDeleteIndex(value: SqlJsonb | null, index: bigint | null): SqlJsonb | null {
+  if (value === null || index === null) return null
+  if (value.node.kind !== 'array') jsonError('22023')
+  const count = value.node.elements.length
+  if (count === 0) return value
+  let idx = Number(index)
+  if (idx < 0) {
+    const abs = idx === -2147483648 ? 2147483648 : -idx
+    idx = abs > count ? count : count + idx
+  }
+  if (idx >= count) return value
+  return new SqlJsonb({
+    kind: 'array',
+    raw: '',
+    elements: value.node.elements.filter((_, position) => position !== idx),
+  })
+}`,
+  },
+  jsonbDeleteKeys: {
+    dependencies: ['SqlJsonb', 'jsonPathKeys', 'jsonbDeleteKey', 'jsonError'],
+    source: `function jsonbDeleteKeys(value: SqlJsonb | null, keys: SqlArray | null): SqlJsonb | null {
+  if (value === null || keys === null) return null
+  if (keys.dimensions.length > 1) jsonError('2202E')
+  if (value.node.kind !== 'array' && value.node.kind !== 'object') jsonError('22023')
+  const path = jsonPathKeys(keys)!
+  if (
+    (value.node.kind === 'object' ? value.node.pairs.length : value.node.elements.length) === 0 ||
+    path.length === 0
+  )
+    return value
+  let result: SqlJsonb | null = value
+  for (const key of path) if (key !== null) result = jsonbDeleteKey(result, key)
+  return result
+}`,
+  },
+  jsonbPathInt: {
+    dependencies: ['jsonError'],
+    source: `function jsonbPathInt(value: string): number {
+  const match = /^[ \\t\\n\\r\\v\\f]*([+-]?\\d+)$/.exec(value)
+  if (!match) jsonError('22P02')
+  const number = Number(match[1])
+  if (!Number.isInteger(number) || number < -2147483648 || number > 2147483647) jsonError('22P02')
+  return number
+}`,
+  },
+  jsonbSetPath: {
+    dependencies: ['SqlJsonNode', 'jsonbPathInt', 'jsonbCanonicalize', 'jsonError'],
+    source: `function jsonbSetPath(
+  node: SqlJsonNode,
+  path: readonly (string | null)[],
+  level: number,
+  next: SqlJsonNode | null,
+  op: 'create' | 'replace' | 'delete' | 'insert-before' | 'insert-after',
+): SqlJsonNode {
+  if (path[level] === null) jsonError('22004')
+  const last = level === path.length - 1
+  const createOrInsert = op === 'create' || op === 'insert-before' || op === 'insert-after'
+  if (node.kind === 'object') {
+    const key = path[level]!
+    if (node.pairs.length === 0 && createOrInsert && last && next)
+      return jsonbCanonicalize({ kind: 'object', raw: '', pairs: [{ key, value: next }] })
+    const match = node.pairs.findIndex((pair) => pair.key === key)
+    if (match >= 0) {
+      if (last) {
+        if (op === 'insert-before' || op === 'insert-after') jsonError('22023')
+        if (op === 'delete')
+          return {
+            kind: 'object',
+            raw: '',
+            pairs: node.pairs.filter((_, index) => index !== match),
+          }
+        return jsonbCanonicalize({
+          kind: 'object',
+          raw: '',
+          pairs: node.pairs.map((pair, index) => (index === match ? { key, value: next! } : pair)),
+        })
+      }
+      return jsonbCanonicalize({
+        kind: 'object',
+        raw: '',
+        pairs: node.pairs.map((pair, index) =>
+          index === match ? { key, value: jsonbSetPath(pair.value, path, level + 1, next, op) } : pair,
+        ),
+      })
+    }
+    if (createOrInsert && last && next)
+      return jsonbCanonicalize({
+        kind: 'object',
+        raw: '',
+        pairs: [...node.pairs, { key, value: next }],
+      })
+    return node
+  }
+  if (node.kind === 'array') {
+    const count = node.elements.length
+    let idx = jsonbPathInt(path[level]!)
+    if (idx < 0) {
+      const abs = idx === -2147483648 ? 2147483648 : -idx
+      idx = abs > count ? -2147483648 : count + idx
+    }
+    if (idx > 0 && idx > count) idx = count
+    if ((idx === -2147483648 || count === 0) && last && createOrInsert && next)
+      return { kind: 'array', raw: '', elements: [next, ...node.elements] }
+    if (idx >= 0 && idx < count) {
+      if (last) {
+        const elements: SqlJsonNode[] = []
+        for (let index = 0; index < count; index++) {
+          if (index === idx) {
+            if (op === 'insert-before' || op === 'create') elements.push(next!)
+            if (op === 'insert-after' || op === 'insert-before') elements.push(node.elements[index]!)
+            if (op === 'insert-after' || op === 'replace') elements.push(next!)
+          } else elements.push(node.elements[index]!)
+        }
+        return { kind: 'array', raw: '', elements }
+      }
+      return {
+        kind: 'array',
+        raw: '',
+        elements: node.elements.map((element, index) =>
+          index === idx ? jsonbSetPath(element, path, level + 1, next, op) : element,
+        ),
+      }
+    }
+    if (createOrInsert && last && next)
+      return { kind: 'array', raw: '', elements: [...node.elements, next] }
+    return node
+  }
+  return node
+}`,
+  },
+  jsonbMutatePath: {
+    dependencies: ['SqlJsonb', 'jsonPathKeys', 'jsonbSetPath', 'jsonError'],
+    source: `function jsonbMutatePath(
+  value: SqlJsonb | null,
+  path: SqlArray | null,
+  next: SqlJsonb | null,
+  op: 'create' | 'replace' | 'delete' | 'insert-before' | 'insert-after',
+): SqlJsonb | null {
+  if (value === null || path === null || (op !== 'delete' && next === null)) return null
+  if (path.dimensions.length > 1) jsonError('2202E')
+  if (value.node.kind !== 'array' && value.node.kind !== 'object') jsonError('22023')
+  const keys = jsonPathKeys(path)
+  if (keys === null) return null
+  if (
+    keys.length === 0 ||
+    ((value.node.kind === 'object' ? value.node.pairs.length : value.node.elements.length) === 0 &&
+      op !== 'create' &&
+      op !== 'insert-before' &&
+      op !== 'insert-after')
+  )
+    return value
+  return new SqlJsonb(jsonbSetPath(value.node, keys, 0, next?.node ?? null, op))
+}`,
+  },
+  jsonbDeletePath: {
+    dependencies: ['jsonbMutatePath'],
+    source: `function jsonbDeletePath(value: SqlJsonb | null, path: SqlArray | null): SqlJsonb | null {
+  return jsonbMutatePath(value, path, null, 'delete')
+}`,
+  },
+  jsonbSet: {
+    dependencies: ['jsonbMutatePath'],
+    source: `function jsonbSet(
+  value: SqlJsonb | null,
+  path: SqlArray | null,
+  next: SqlJsonb | null,
+  create: boolean | null,
+): SqlJsonb | null {
+  if (value === null || path === null || next === null || create === null) return null
+  return jsonbMutatePath(value, path, next, create ? 'create' : 'replace')
+}`,
+  },
+  jsonbInsert: {
+    dependencies: ['jsonbMutatePath'],
+    source: `function jsonbInsert(
+  value: SqlJsonb | null,
+  path: SqlArray | null,
+  next: SqlJsonb | null,
+  after: boolean | null,
+): SqlJsonb | null {
+  if (value === null || path === null || next === null || after === null) return null
+  return jsonbMutatePath(value, path, next, after ? 'insert-after' : 'insert-before')
+}`,
+  },
+  jsonbSetLax: {
+    dependencies: ['SqlJsonb', 'jsonbSet', 'jsonbDeletePath', 'jsonError'],
+    source: `function jsonbSetLax(
+  value: SqlJsonb | null,
+  path: SqlArray | null,
+  next: SqlJsonb | null,
+  create: boolean | null,
+  treatment: string | null,
+): SqlJsonb | null {
+  if (value === null || path === null || create === null) return null
+  if (treatment === null) jsonError('22023')
+  if (next !== null) return jsonbSet(value, path, next, create)
+  if (treatment === 'raise_exception') jsonError('22004')
+  if (treatment === 'use_json_null')
+    return jsonbSet(value, path, new SqlJsonb({ kind: 'null', raw: 'null' }), create)
+  if (treatment === 'delete_key') return jsonbDeletePath(value, path)
+  if (treatment === 'return_target') return value
+  return jsonError('22023')
+}`,
+  },
+  jsonFormatCompact: {
+    dependencies: ['SqlJsonNode', 'jsonbEscape'],
+    source: `function jsonFormatCompact(node: SqlJsonNode): string {
+  if (node.kind === 'null' || node.kind === 'bool' || node.kind === 'number')
+    return node.kind === 'number' ? node.raw : node.kind === 'null' ? 'null' : node.value ? 'true' : 'false'
+  if (node.kind === 'string') return jsonbEscape(node.value)
+  if (node.kind === 'array') return '[' + node.elements.map(jsonFormatCompact).join(',') + ']'
+  return '{' + node.pairs.map((pair) => jsonbEscape(pair.key) + ':' + jsonFormatCompact(pair.value)).join(',') + '}'
+}`,
+  },
+  jsonStripNullsNode: {
+    dependencies: ['SqlJsonNode'],
+    source: `function jsonStripNullsNode(node: SqlJsonNode, arrays: boolean): SqlJsonNode {
+  if (node.kind === 'object')
+    return {
+      kind: 'object',
+      raw: '',
+      pairs: node.pairs
+        .filter((pair) => pair.value.kind !== 'null')
+        .map((pair) => ({ key: pair.key, value: jsonStripNullsNode(pair.value, arrays) })),
+    }
+  if (node.kind === 'array')
+    return {
+      kind: 'array',
+      raw: '',
+      elements: (arrays ? node.elements.filter((element) => element.kind !== 'null') : node.elements).map(
+        (element) => jsonStripNullsNode(element, arrays),
+      ),
+    }
+  return node
+}`,
+  },
+  jsonStripNulls: {
+    dependencies: ['SqlJson', 'jsonStripNullsNode', 'jsonFormatCompact'],
+    source: `function jsonStripNulls(value: SqlJson | null, arrays: boolean | null): SqlJson | null {
+  if (value === null || arrays === null) return null
+  const node = jsonStripNullsNode(value.node, arrays)
+  return new SqlJson(jsonFormatCompact(node), node)
+}`,
+  },
+  jsonbStripNulls: {
+    dependencies: ['SqlJsonb', 'jsonStripNullsNode', 'jsonbCanonicalize'],
+    source: `function jsonbStripNulls(value: SqlJsonb | null, arrays: boolean | null): SqlJsonb | null {
+  if (value === null || arrays === null) return null
+  if (value.node.kind !== 'array' && value.node.kind !== 'object') return value
+  return new SqlJsonb(jsonbCanonicalize(jsonStripNullsNode(value.node, arrays)))
+}`,
+  },
+  jsonbPretty: {
+    dependencies: ['SqlJsonb', 'jsonbEscape', 'jsonbFormat'],
+    source: `function jsonbPretty(value: SqlJsonb | null): string | null {
+  if (value === null) return null
+  const render = (node: SqlJsonNode, level: number): string => {
+    if (node.kind !== 'array' && node.kind !== 'object') return jsonbFormat(node)
+    const open = node.kind === 'array' ? '[' : '{'
+    const close = node.kind === 'array' ? ']' : '}'
+    const items =
+      node.kind === 'array'
+        ? node.elements.map((element) => render(element, level + 1))
+        : node.pairs.map((pair) => jsonbEscape(pair.key) + ': ' + render(pair.value, level + 1))
+    const pad = (depth: number): string => '    '.repeat(depth)
+    if (items.length === 0) return open + '\\n' + pad(level) + close
+    return open + '\\n' + items.map((item) => pad(level + 1) + item).join(',\\n') + '\\n' + pad(level) + close
+  }
+  return render(value.node, 0)
+}`,
+  },
+  jsonbToBool: {
+    dependencies: ['SqlJsonb', 'jsonError'],
+    source: `function jsonbToBool(value: SqlJsonb | null): boolean | null {
+  if (value === null) return null
+  if (value.node.kind === 'null') return null
+  if (value.node.kind !== 'bool') jsonError('22023')
+  return value.node.value
+}`,
+  },
+  jsonbToNumeric: {
+    dependencies: ['SqlJsonb', 'jsonError'],
+    source: `function jsonbToNumeric(value: SqlJsonb | null): SqlDecimal | null {
+  if (value === null) return null
+  if (value.node.kind === 'null') return null
+  if (value.node.kind !== 'number') jsonError('22023')
+  return value.node.value
+}`,
+  },
+  jsonbToInt2: {
+    dependencies: ['jsonbToNumeric', 'int2FromDecimal'],
+    source: `function jsonbToInt2(value: SqlJsonb | null): bigint | null {
+  return int2FromDecimal(jsonbToNumeric(value))
+}`,
+  },
+  jsonbToInt4: {
+    dependencies: ['jsonbToNumeric', 'int4FromDecimal'],
+    source: `function jsonbToInt4(value: SqlJsonb | null): bigint | null {
+  return int4FromDecimal(jsonbToNumeric(value))
+}`,
+  },
+  jsonbToInt8: {
+    dependencies: ['jsonbToNumeric', 'int8FromDecimal'],
+    source: `function jsonbToInt8(value: SqlJsonb | null): bigint | null {
+  return int8FromDecimal(jsonbToNumeric(value))
+}`,
+  },
+  jsonbToFloat4: {
+    dependencies: ['jsonbToNumeric', 'float4FromDecimal'],
+    source: `function jsonbToFloat4(value: SqlJsonb | null): number | null {
+  return float4FromDecimal(jsonbToNumeric(value))
+}`,
+  },
+  jsonbToFloat8: {
+    dependencies: ['jsonbToNumeric', 'float8FromDecimal'],
+    source: `function jsonbToFloat8(value: SqlJsonb | null): number | null {
+  return float8FromDecimal(jsonbToNumeric(value))
+}`,
+  },
+  jsonTextPairs: {
+    dependencies: ['SqlArray', 'jsonError'],
+    source: `function jsonTextPairs(keys: SqlArray, values: SqlArray | null): { key: string; value: string | null }[] {
+  if (values === null) {
+    if (keys.dimensions.length > 2) jsonError('2202E')
+    if (keys.dimensions.length === 2 && keys.dimensions[1] !== 2) jsonError('2202E')
+    if (keys.dimensions.length === 1 && keys.elements.length % 2 !== 0) jsonError('2202E')
+    if (keys.dimensions.length === 0) return []
+    const pairs: { key: string; value: string | null }[] = []
+    for (let index = 0; index < keys.elements.length; index += 2) {
+      const key = keys.elements[index]!
+      const value = keys.elements[index + 1]!
+      if (key.value === null) jsonError('22004')
+      pairs.push({ key: String(key.value), value: value.value === null ? null : String(value.value) })
+    }
+    return pairs
+  }
+  if (keys.dimensions.length > 1 || keys.dimensions.length !== values.dimensions.length) jsonError('2202E')
+  if (keys.dimensions.length === 0) return []
+  if (keys.elements.length !== values.elements.length) jsonError('2202E')
+  return keys.elements.map((key, index) => {
+    if (key.value === null) jsonError('22004')
+    const value = values.elements[index]!
+    return { key: String(key.value), value: value.value === null ? null : String(value.value) }
+  })
+}`,
+  },
+  jsonObject: {
+    dependencies: ['SqlJson', 'jsonTextPairs', 'jsonbEscape', 'jsonParse'],
+    source: `function jsonObject(keys: SqlArray | null): SqlJson | null {
+  if (keys === null) return null
+  const pairs = jsonTextPairs(keys, null)
+  const text =
+    '{' +
+    pairs
+      .map((pair) => jsonbEscape(pair.key) + ' : ' + (pair.value === null ? 'null' : jsonbEscape(pair.value)))
+      .join(', ') +
+    '}'
+  return new SqlJson(text, jsonParse(text, false))
+}`,
+  },
+  jsonObjectPair: {
+    dependencies: ['SqlJson', 'jsonTextPairs', 'jsonbEscape', 'jsonParse'],
+    source: `function jsonObjectPair(keys: SqlArray | null, values: SqlArray | null): SqlJson | null {
+  if (keys === null || values === null) return null
+  const pairs = jsonTextPairs(keys, values)
+  const text =
+    '{' +
+    pairs
+      .map((pair) => jsonbEscape(pair.key) + ' : ' + (pair.value === null ? 'null' : jsonbEscape(pair.value)))
+      .join(', ') +
+    '}'
+  return new SqlJson(text, jsonParse(text, false))
+}`,
+  },
+  jsonbObject: {
+    dependencies: ['SqlJsonb', 'jsonTextPairs', 'jsonbCanonicalize'],
+    source: `function jsonbObject(keys: SqlArray | null): SqlJsonb | null {
+  if (keys === null) return null
+  return new SqlJsonb(
+    jsonbCanonicalize({
+      kind: 'object',
+      raw: '',
+      pairs: jsonTextPairs(keys, null).map((pair) => ({
+        key: pair.key,
+        value:
+          pair.value === null
+            ? { kind: 'null' as const, raw: 'null' }
+            : { kind: 'string' as const, raw: '', value: pair.value },
+      })),
+    }),
+  )
+}`,
+  },
+  jsonbObjectPair: {
+    dependencies: ['SqlJsonb', 'jsonTextPairs', 'jsonbCanonicalize'],
+    source: `function jsonbObjectPair(keys: SqlArray | null, values: SqlArray | null): SqlJsonb | null {
+  if (keys === null || values === null) return null
+  return new SqlJsonb(
+    jsonbCanonicalize({
+      kind: 'object',
+      raw: '',
+      pairs: jsonTextPairs(keys, values).map((pair) => ({
+        key: pair.key,
+        value:
+          pair.value === null
+            ? { kind: 'null' as const, raw: 'null' }
+            : { kind: 'string' as const, raw: '', value: pair.value },
+      })),
+    }),
+  )
+}`,
+  },
+  jsonKeyString: {
+    dependencies: [
+      'SqlDecimal',
+      'SqlUuid',
+      'SqlEnum',
+      'SqlJson',
+      'SqlJsonb',
+      'SqlArray',
+      'arrayFloatText',
+      'jsonError',
+    ],
+    source: `function jsonKeyString(type: string, value: any): string {
+  if (value === null) jsonError('22004')
+  if (value instanceof SqlArray || value instanceof SqlJson || value instanceof SqlJsonb) jsonError('22023')
+  if (typeof value === 'boolean') return value ? 'true' : 'false'
+  if (typeof value === 'bigint') return value.toString()
+  if (typeof value === 'number') return arrayFloatText(value, type === 'pg_catalog.float4')
+  if (typeof value === 'string') return value
+  if (value instanceof SqlDecimal) return value.toString()
+  if (value instanceof SqlUuid || value instanceof SqlEnum) return value.toString()
+  return jsonError('22023')
+}`,
+  },
+  jsonFromValue: {
+    dependencies: [
+      'SqlJsonNode',
+      'SqlDecimal',
+      'SqlJson',
+      'SqlJsonb',
+      'SqlUuid',
+      'SqlEnum',
+      'SqlArray',
+      'arrayFloatText',
+      'jsonbEscape',
+      'jsonbFormat',
+      'decimalInput',
+      'jsonKeyString',
+      'jsonError',
+    ],
+    source: `function jsonFromValue(
+  type: string,
+  value: any,
+  asKey: boolean,
+): { text: string; node: SqlJsonNode } {
+  if (asKey) {
+    const key = jsonKeyString(type, value)
+    return { text: jsonbEscape(key), node: { kind: 'string', raw: jsonbEscape(key), value: key } }
+  }
+  if (value === null) return { text: 'null', node: { kind: 'null', raw: 'null' } }
+  if (typeof value === 'boolean') {
+    const text = value ? 'true' : 'false'
+    return { text, node: { kind: 'bool', raw: text, value } }
+  }
+  if (typeof value === 'bigint') {
+    const text = value.toString()
+    return { text, node: { kind: 'number', raw: text, value: decimalInput(text)! } }
+  }
+  if (typeof value === 'number') {
+    const text = arrayFloatText(value, type === 'pg_catalog.float4')
+    if (text === 'NaN' || text === 'Infinity' || text === '-Infinity')
+      return { text: jsonbEscape(text), node: { kind: 'string', raw: jsonbEscape(text), value: text } }
+    return { text, node: { kind: 'number', raw: text, value: decimalInput(text)! } }
+  }
+  if (typeof value === 'string')
+    return { text: jsonbEscape(value), node: { kind: 'string', raw: jsonbEscape(value), value } }
+  if (value instanceof SqlDecimal) {
+    const text = value.toString()
+    if (!/^-?\\d/.test(text))
+      return { text: jsonbEscape(text), node: { kind: 'string', raw: jsonbEscape(text), value: text } }
+    return { text, node: { kind: 'number', raw: text, value } }
+  }
+  if (value instanceof SqlJson) return { text: value.text, node: value.node }
+  if (value instanceof SqlJsonb) return { text: jsonbFormat(value.node), node: value.node }
+  if (value instanceof SqlUuid || value instanceof SqlEnum) {
+    const text = value.toString()
+    return { text: jsonbEscape(text), node: { kind: 'string', raw: jsonbEscape(text), value: text } }
+  }
+  if (value instanceof SqlArray) {
+    let offset = 0
+    const walk = (dim: number, pretty: boolean): { text: string; node: SqlJsonNode } => {
+      if (value.dimensions.length === 0) return { text: '[]', node: { kind: 'array', raw: '[]', elements: [] } }
+      const texts: string[] = []
+      const elements: SqlJsonNode[] = []
+      const sep = pretty ? ',\\n ' : ','
+      for (let index = 0; index < value.dimensions[dim]!; index++) {
+        if (dim === value.dimensions.length - 1) {
+          const element = value.elements[offset++]!
+          const converted = jsonFromValue(value.elementType, element.value, false)
+          texts.push(converted.text)
+          elements.push(converted.node)
+        } else {
+          const nested = walk(dim + 1, false)
+          texts.push(nested.text)
+          elements.push(nested.node)
+        }
+      }
+      return { text: '[' + texts.join(sep) + ']', node: { kind: 'array', raw: '', elements } }
+    }
+    return walk(0, false)
+  }
+  return jsonError('22023')
+}`,
+  },
+  arrayToJson: {
+    dependencies: ['SqlJson', 'SqlArray', 'jsonFromValue'],
+    source: `function arrayToJson(value: SqlArray | null): SqlJson | null {
+  if (value === null) return null
+  const converted = jsonFromValue(value.elementType, value, false)
+  return new SqlJson(converted.text, converted.node)
+}`,
+  },
+  arrayToJsonPretty: {
+    dependencies: ['SqlJson', 'SqlArray', 'jsonFromValue', 'arrayToJson'],
+    source: `function arrayToJsonPretty(value: SqlArray | null, pretty: boolean | null): SqlJson | null {
+  if (value === null || pretty === null) return null
+  if (!pretty) return arrayToJson(value)
+  let offset = 0
+  const walk = (dim: number, usePretty: boolean): { text: string; node: SqlJsonNode } => {
+    if (value.dimensions.length === 0) return { text: '[]', node: { kind: 'array', raw: '[]', elements: [] } }
+    const texts: string[] = []
+    const elements: SqlJsonNode[] = []
+    const sep = usePretty ? ',\\n ' : ','
+    for (let index = 0; index < value.dimensions[dim]!; index++) {
+      if (dim === value.dimensions.length - 1) {
+        const element = value.elements[offset++]!
+        const converted = jsonFromValue(value.elementType, element.value, false)
+        texts.push(converted.text)
+        elements.push(converted.node)
+      } else {
+        const nested = walk(dim + 1, false)
+        texts.push(nested.text)
+        elements.push(nested.node)
+      }
+    }
+    return { text: '[' + texts.join(sep) + ']', node: { kind: 'array', raw: '', elements } }
+  }
+  const converted = walk(0, true)
+  return new SqlJson(converted.text, converted.node)
+}`,
+  },
+  toJson: {
+    dependencies: ['SqlJson', 'jsonFromValue'],
+    source: `function toJson(type: string, value: any): SqlJson | null {
+  if (value === null) return null
+  const converted = jsonFromValue(type, value, false)
+  return new SqlJson(converted.text, converted.node)
+}`,
+  },
+  toJsonb: {
+    dependencies: ['SqlJsonb', 'jsonFromValue', 'jsonbCanonicalize'],
+    source: `function toJsonb(type: string, value: any): SqlJsonb | null {
+  if (value === null) return null
+  return new SqlJsonb(jsonbCanonicalize(jsonFromValue(type, value, false).node))
+}`,
+  },
+  jsonBuildArray: {
+    dependencies: ['SqlJson', 'jsonFromValue'],
+    source: `function jsonBuildArray(...args: any[]): SqlJson {
+  const texts: string[] = []
+  const elements: SqlJsonNode[] = []
+  for (let index = 0; index < args.length; index += 2) {
+    const converted = jsonFromValue(args[index], args[index + 1], false)
+    texts.push(converted.text)
+    elements.push(converted.node)
+  }
+  return new SqlJson('[' + texts.join(', ') + ']', { kind: 'array', raw: '', elements })
+}`,
+  },
+  jsonBuildObject: {
+    dependencies: [
+      'SqlJson',
+      'jsonFromValue',
+      'jsonKeyString',
+      'jsonbEscape',
+      'jsonParse',
+      'jsonError',
+    ],
+    source: `function jsonBuildObject(...args: any[]): SqlJson {
+  if (args.length % 4 !== 0) jsonError('22023')
+  const texts: string[] = []
+  for (let index = 0; index < args.length; index += 4) {
+    const key = jsonKeyString(args[index], args[index + 1])
+    const value = jsonFromValue(args[index + 2], args[index + 3], false)
+    texts.push(jsonbEscape(key) + ' : ' + value.text)
+  }
+  const text = '{' + texts.join(', ') + '}'
+  return new SqlJson(text, jsonParse(text, false))
+}`,
+  },
+  jsonbBuildArray: {
+    dependencies: ['SqlJsonb', 'jsonFromValue', 'jsonbCanonicalize'],
+    source: `function jsonbBuildArray(...args: any[]): SqlJsonb {
+  const elements: SqlJsonNode[] = []
+  for (let index = 0; index < args.length; index += 2)
+    elements.push(jsonFromValue(args[index], args[index + 1], false).node)
+  return new SqlJsonb(jsonbCanonicalize({ kind: 'array', raw: '', elements }))
+}`,
+  },
+  jsonbBuildObject: {
+    dependencies: ['SqlJsonb', 'jsonFromValue', 'jsonKeyString', 'jsonbCanonicalize', 'jsonError'],
+    source: `function jsonbBuildObject(...args: any[]): SqlJsonb {
+  if (args.length % 4 !== 0) jsonError('22023')
+  const pairs: { key: string; value: SqlJsonNode }[] = []
+  for (let index = 0; index < args.length; index += 4)
+    pairs.push({
+      key: jsonKeyString(args[index], args[index + 1]),
+      value: jsonFromValue(args[index + 2], args[index + 3], false).node,
+    })
+  return new SqlJsonb(jsonbCanonicalize({ kind: 'object', raw: '', pairs }))
+}`,
+  },
+})
