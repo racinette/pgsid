@@ -11,6 +11,8 @@ export type NumericType = IntegerType | FloatType | DecimalType
 
 export type TextType = 'pg_catalog.text' | 'pg_catalog."varchar"' | 'pg_catalog.bpchar'
 export type UuidType = 'pg_catalog.uuid'
+export type JsonType = 'pg_catalog."json"'
+export type JsonbType = 'pg_catalog.jsonb'
 export type EnumType = `enum:${string}`
 export const BUILTIN_ARRAY_ELEMENT_TYPES = [
   'pg_catalog.int2',
@@ -28,7 +30,14 @@ export const BUILTIN_ARRAY_ELEMENT_TYPES = [
 export type ArrayElementType = (typeof BUILTIN_ARRAY_ELEMENT_TYPES)[number] | EnumType
 export type ArrayType = `array:${ArrayElementType}`
 export type ScalarType =
-  NumericType | 'pg_catalog.bool' | TextType | UuidType | EnumType | ArrayType
+  | NumericType
+  | 'pg_catalog.bool'
+  | TextType
+  | UuidType
+  | JsonType
+  | JsonbType
+  | EnumType
+  | ArrayType
 export type SyntaxKind = 'and' | 'or' | 'not' | 'is-null' | 'is-not-null' | 'case' | 'coalesce'
 
 export type EnumDefinition = Readonly<Omit<EnumInfo, 'values'>> & {
@@ -199,6 +208,11 @@ export type SqlExpression =
       operand: SqlExpression
     }
   | {
+      kind: 'json-coercion'
+      type: JsonType | JsonbType | 'pg_catalog.text'
+      operand: SqlExpression
+    }
+  | {
       kind: 'text-coercion'
       type: TextType
       length: number | null
@@ -208,6 +222,8 @@ export type SqlExpression =
   | { kind: 'boolean'; type: 'pg_catalog.bool'; value: boolean | null }
   | { kind: 'text'; type: 'pg_catalog.text'; value: string | null }
   | { kind: 'uuid'; type: UuidType; value: string | null }
+  | { kind: 'json'; type: JsonType; value: string | null }
+  | { kind: 'jsonb'; type: JsonbType; value: string | null }
   | { kind: 'enum'; type: EnumType; enum: EnumDefinition; value: string | null }
   | {
       kind: 'array'
@@ -253,6 +269,8 @@ export interface ExpressionBackend<Ast> {
   boolean: (value: boolean | null) => Ast
   text: (value: string | null) => Ast
   uuid: (value: string | null) => Ast
+  json: (value: string | null) => Ast
+  jsonb: (value: string | null) => Ast
   enum: (definition: EnumDefinition, value: string | null) => Ast
   array: (
     elementType: ArrayElementType,
@@ -320,6 +338,10 @@ export interface ExpressionBackend<Ast> {
   ) => { expression: Ast; helpers: readonly string[] }
   coerceUuid: (
     type: UuidType | 'pg_catalog.text',
+    operand: TypedSqlExpression<Ast>,
+  ) => { expression: Ast; helpers: readonly string[] }
+  coerceJson: (
+    type: JsonType | JsonbType | 'pg_catalog.text',
     operand: TypedSqlExpression<Ast>,
   ) => { expression: Ast; helpers: readonly string[] }
   coerceText: (
@@ -604,6 +626,22 @@ export function emitSqlExpression<Ast>(
       for (const helper of result.helpers) helpers.add(helper)
       return { type: node.type, expression: result.expression }
     }
+    if (node.kind === 'json-coercion') {
+      const jsonTypes = ['pg_catalog."json"', 'pg_catalog.jsonb'] as const
+      if (!(
+        (jsonTypes.includes(node.type as (typeof jsonTypes)[number]) &&
+          node.operand.type === 'pg_catalog.text') ||
+        (node.type === 'pg_catalog.text' &&
+          jsonTypes.includes(node.operand.type as (typeof jsonTypes)[number])) ||
+        (jsonTypes.includes(node.type as (typeof jsonTypes)[number]) &&
+          jsonTypes.includes(node.operand.type as (typeof jsonTypes)[number]) &&
+          node.type !== node.operand.type)
+      ))
+        throw new Error('Invalid JSON coercion')
+      const result = backend.coerceJson(node.type, emit(node.operand))
+      for (const helper of result.helpers) helpers.add(helper)
+      return { type: node.type, expression: result.expression }
+    }
     if (node.kind === 'text-coercion') {
       if (
         !['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(node.type) ||
@@ -639,6 +677,21 @@ export function emitSqlExpression<Ast>(
     if (node.kind === 'uuid') {
       helpers.add('uuidInput')
       return { type: node.type, expression: backend.uuid(node.value) }
+    }
+    if (node.kind === 'json' || node.kind === 'jsonb') {
+      if (
+        node.value !== null &&
+        (node.value.includes('\0') ||
+          /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(
+            node.value,
+          ))
+      )
+        throw new Error('Invalid JSON literal')
+      helpers.add(node.kind === 'json' ? 'jsonInput' : 'jsonbInput')
+      return {
+        type: node.type,
+        expression: node.kind === 'json' ? backend.json(node.value) : backend.jsonb(node.value),
+      }
     }
     if (node.kind === 'enum') {
       if (node.type !== validateEnum(node.enum)) throw new Error('Invalid enum literal')
@@ -785,7 +838,12 @@ export function emitSqlExpression<Ast>(
     if (node.type !== metadata.result || operands.length !== metadata.args.length)
       throw new Error(`Invalid resolved expression: ${signature}`)
     for (let i = 0; i < operands.length; i++) {
-      if (operands[i]!.type !== metadata.args[i])
+      const declared = metadata.args[i]!
+      const actual = operands[i]!.type
+      if (
+        actual !== declared &&
+        !(declared === 'pg_catalog._text' && actual === arrayType('pg_catalog.text'))
+      )
         throw new Error(`Operand type mismatch: ${signature}, argument ${i}`)
     }
     const binding = backend.bindings

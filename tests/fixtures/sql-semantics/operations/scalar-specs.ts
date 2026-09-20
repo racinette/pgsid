@@ -7,6 +7,7 @@ import { enumSpecs } from './enum-specs.js'
 import { arraySpecs } from './array-specs.js'
 import { polymorphicArraySpecs } from './polymorphic-array-specs.js'
 import { arrayCompletionSpecs } from './array-completion-specs.js'
+import { jsonSpecs } from './json-specs.js'
 
 interface Operand {
   sql: string
@@ -256,4 +257,5 @@ export const scalarSpecs: readonly ExpressionSpec[] = [
   ...arraySpecs,
   ...polymorphicArraySpecs,
   ...arrayCompletionSpecs,
+  ...jsonSpecs,
 ]

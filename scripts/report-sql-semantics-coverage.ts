@@ -34,6 +34,8 @@ export function sqlSemanticsCoverage(
       expression.kind === 'boolean' ||
       expression.kind === 'text' ||
       expression.kind === 'uuid' ||
+      expression.kind === 'json' ||
+      expression.kind === 'jsonb' ||
       expression.kind === 'enum'
     )
       return
@@ -84,6 +86,7 @@ export function sqlSemanticsCoverage(
       expression.kind === 'null-test' ||
       expression.kind === 'text-coercion' ||
       expression.kind === 'uuid-coercion' ||
+      expression.kind === 'json-coercion' ||
       expression.kind === 'enum-coercion'
     ) {
       record(expression.operand, name)

@@ -9,6 +9,7 @@ import { goDecimalDependencies } from './decimal-runtime.js'
 import { goUuidDependencies } from './uuid-runtime.js'
 import { goEnumDependencies } from './enum-runtime.js'
 import { goArrayDependencies } from './array-runtime.js'
+import { goJsonDependencies } from './json-runtime.js'
 
 const dependencies: Record<string, readonly string[]> = {
   float8WidthBucket: ['SqlFloat', 'sqlIntegerRange'],
@@ -79,6 +80,7 @@ Object.assign(dependencies, goFloatMathDependencies)
 Object.assign(dependencies, goUuidDependencies)
 Object.assign(dependencies, goEnumDependencies)
 Object.assign(dependencies, goArrayDependencies)
+Object.assign(dependencies, goJsonDependencies)
 
 export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsql'): string {
   const declarations = new Map(
@@ -93,6 +95,7 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
       'uuid',
       'enum',
       'array',
+      'json',
     ]
       .flatMap((asset) =>
         readFileSync(new URL(`./assets/${asset}.go`, import.meta.url), 'utf8')
@@ -117,9 +120,15 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
   }
   for (const name of required) include(name)
   const body = output.join('\n')
-  const imports = ['math', 'math/big', 'sort', 'strconv', 'strings', 'unicode/utf8'].filter(
-    (name) => body.includes(`${name.split('/').at(-1)}.`),
-  )
+  const imports = [
+    'bytes',
+    'math',
+    'math/big',
+    'sort',
+    'strconv',
+    'strings',
+    'unicode/utf8',
+  ].filter((name) => body.includes(`${name.split('/').at(-1)}.`))
   if (body.includes('decimal.')) imports.push('github.com/shopspring/decimal')
   const copyright =
     (included.has('SqlDecimalMath') ? '/*\n' + numericMathCopyright + '\n*/\n' : '') +
