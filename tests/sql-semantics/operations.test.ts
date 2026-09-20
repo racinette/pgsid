@@ -36,6 +36,10 @@ import {
 import { integerOperationCases } from '../fixtures/sql-semantics/operations/integer-operations.js'
 import { PG18_NUMERIC } from '../../src/postgres/builtins/numeric.generated.js'
 import { PG18_UUID } from '../../src/postgres/builtins/uuid.generated.js'
+import {
+  typescriptJsonFunctions,
+  typescriptJsonOperators,
+} from '../../src/codegen/typescript/sql/json.js'
 import { observeSql } from '../support/postgres/observe.js'
 import type { SqlObservation } from '../support/postgres/observe.js'
 
@@ -92,6 +96,8 @@ function goProject(fixtures = cases): string {
           'uuidText',
           'enumText',
           'arrayText',
+          'jsonText',
+          'jsonbText',
         ],
         'main',
       ) +
@@ -154,6 +160,14 @@ function goProject(fixtures = cases): string {
             if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
             } else if !value.Valid { result["kind"] = "null"
             } else { result["kind"] = "value"; result["value"] = arrayText(value).Value }
+          case SqlJson:
+            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
+            } else if !value.Valid { result["kind"] = "null"
+            } else { result["kind"] = "value"; result["value"] = jsonText(value).Value }
+          case SqlJsonb:
+            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
+            } else if !value.Valid { result["kind"] = "null"
+            } else { result["kind"] = "value"; result["value"] = jsonbText(value).Value }
           default: panic("unexpected SQL value type")
           }
           results = append(results, result)
@@ -179,11 +193,15 @@ function goProject(fixtures = cases): string {
                       ? 'SqlText'
                       : result.value.type === 'pg_catalog.uuid'
                         ? 'SqlUuid'
-                        : result.value.type.startsWith('enum:')
-                          ? 'SqlEnum'
-                          : result.value.type.startsWith('array:')
-                            ? 'SqlArray'
-                            : 'SqlInteger',
+                        : result.value.type === 'pg_catalog."json"'
+                          ? 'SqlJson'
+                          : result.value.type === 'pg_catalog.jsonb'
+                            ? 'SqlJsonb'
+                            : result.value.type.startsWith('enum:')
+                              ? 'SqlEnum'
+                              : result.value.type.startsWith('array:')
+                                ? 'SqlArray'
+                                : 'SqlInteger',
             ),
           },
         ],
@@ -404,6 +422,27 @@ describe('generated PostgreSQL scalar evaluation', () => {
       'array anycompatible float4 float8',
       'array anycompatible text varchar',
       'array anycompatible varchar bpchar',
+      'json input 11',
+      'jsonb input 11',
+      'json typeof object',
+      'jsonb typeof number',
+      'json array length',
+      'json object field 0',
+      'jsonb object field text 2',
+      'json array element 3',
+      'jsonb array element on scalar',
+      'json path 2',
+      'jsonb path text 4',
+      'jsonb operator < 4',
+      'jsonb cmp 0',
+      'jsonb contains 1',
+      'jsonb exists 4',
+      'jsonb exists all 1',
+      'json from text 1',
+      'jsonb to json 2',
+      'json null test',
+      'json case',
+      'jsonb coalesce',
       ...[
         'int2',
         'int8',
@@ -520,11 +559,15 @@ describe('generated PostgreSQL scalar evaluation', () => {
                               ? 'SqlText'
                               : emitted.value.type === 'pg_catalog.uuid'
                                 ? 'SqlUuid'
-                                : emitted.value.type.startsWith('enum:')
-                                  ? 'SqlEnum'
-                                  : emitted.value.type.startsWith('array:')
-                                    ? 'SqlArray'
-                                    : 'SqlInteger',
+                                : emitted.value.type === 'pg_catalog."json"'
+                                  ? 'SqlJson'
+                                  : emitted.value.type === 'pg_catalog.jsonb'
+                                    ? 'SqlJsonb'
+                                    : emitted.value.type.startsWith('enum:')
+                                      ? 'SqlEnum'
+                                      : emitted.value.type.startsWith('array:')
+                                        ? 'SqlArray'
+                                        : 'SqlInteger',
                     ),
                   },
                 ],
@@ -661,11 +704,13 @@ describe('generated PostgreSQL scalar evaluation', () => {
           signature.startsWith('operator:') ||
           /"uuid_(?:eq|ne|lt|le|gt|ge|cmp|extract_version)"/.test(signature),
       ),
+      ...Object.keys(typescriptJsonOperators),
+      ...Object.keys(typescriptJsonFunctions),
     ]
     expect(supported.map((row) => row.signature).sort()).toEqual(
       [...expected, ...additional].sort(),
     )
-    expect(supported).toHaveLength(352)
+    expect(supported).toHaveLength(403)
     expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
     expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
   })
@@ -795,6 +840,18 @@ describe('generated PostgreSQL scalar evaluation', () => {
       ],
       [{ kind: 'uuid-coercion', type: 'pg_catalog.uuid', operand: uuid }, 'Invalid UUID coercion'],
       [{ kind: 'uuid-coercion', type: 'pg_catalog.text', operand: text }, 'Invalid UUID coercion'],
+      [
+        {
+          kind: 'json-coercion',
+          type: 'pg_catalog."json"',
+          operand: { kind: 'json', type: 'pg_catalog."json"', value: '1' },
+        },
+        'Invalid JSON coercion',
+      ],
+      [
+        { kind: 'json-coercion', type: 'pg_catalog.text', operand: integer },
+        'Invalid JSON coercion',
+      ],
       [
         {
           kind: 'enum-coercion',

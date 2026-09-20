@@ -68337,4 +68337,1956 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: '{a,b}',
   },
+  'json input 0': {
+    kind: 'null',
+  },
+  'jsonb input 0': {
+    kind: 'null',
+  },
+  'json input 1': {
+    kind: 'value',
+    value: 'null',
+  },
+  'jsonb input 1': {
+    kind: 'value',
+    value: 'null',
+  },
+  'json input 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb input 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'json input 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb input 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'json input 4': {
+    kind: 'value',
+    value: '0',
+  },
+  'jsonb input 4': {
+    kind: 'value',
+    value: '0',
+  },
+  'json input 5': {
+    kind: 'value',
+    value: '1.2300',
+  },
+  'jsonb input 5': {
+    kind: 'value',
+    value: '1.2300',
+  },
+  'json input 6': {
+    kind: 'value',
+    value: '1e2',
+  },
+  'jsonb input 6': {
+    kind: 'value',
+    value: '100',
+  },
+  'json input 7': {
+    kind: 'value',
+    value: '"hi"',
+  },
+  'jsonb input 7': {
+    kind: 'value',
+    value: '"hi"',
+  },
+  'json input 8': {
+    kind: 'value',
+    value: '[]',
+  },
+  'jsonb input 8': {
+    kind: 'value',
+    value: '[]',
+  },
+  'json input 9': {
+    kind: 'value',
+    value: '{}',
+  },
+  'jsonb input 9': {
+    kind: 'value',
+    value: '{}',
+  },
+  'json input 10': {
+    kind: 'value',
+    value: '[1, null, 3]',
+  },
+  'jsonb input 10': {
+    kind: 'value',
+    value: '[1, null, 3]',
+  },
+  'json input 11': {
+    kind: 'value',
+    value: '{"b":2,"a":1}',
+  },
+  'jsonb input 11': {
+    kind: 'value',
+    value: '{"a": 1, "b": 2}',
+  },
+  'json input 12': {
+    kind: 'value',
+    value: '{"a":1,"a":2}',
+  },
+  'jsonb input 12': {
+    kind: 'value',
+    value: '{"a": 2}',
+  },
+  'json input 13': {
+    kind: 'value',
+    value: ' { "a" : 1 } ',
+  },
+  'jsonb input 13': {
+    kind: 'value',
+    value: '{"a": 1}',
+  },
+  'json input 14': {
+    kind: 'value',
+    value: '{"aa":1,"b":2}',
+  },
+  'jsonb input 14': {
+    kind: 'value',
+    value: '{"b": 2, "aa": 1}',
+  },
+  'json input 15': {
+    kind: 'value',
+    value: '"\\u0041"',
+  },
+  'jsonb input 15': {
+    kind: 'value',
+    value: '"A"',
+  },
+  'json input 16': {
+    kind: 'value',
+    value: '"a\\/b"',
+  },
+  'jsonb input 16': {
+    kind: 'value',
+    value: '"a/b"',
+  },
+  'json input 17': {
+    kind: 'value',
+    value: '"\\uD83D\\uDE00"',
+  },
+  'jsonb input 17': {
+    kind: 'value',
+    value: '"😀"',
+  },
+  'json input 18': {
+    kind: 'value',
+    value: '9007199254740993',
+  },
+  'jsonb input 18': {
+    kind: 'value',
+    value: '9007199254740993',
+  },
+  'json input 19': {
+    kind: 'value',
+    value: '-0',
+  },
+  'jsonb input 19': {
+    kind: 'value',
+    value: '0',
+  },
+  'json invalid input 0': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'jsonb invalid input 0': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'json invalid input 1': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'jsonb invalid input 1': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'json invalid input 2': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'jsonb invalid input 2': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'json invalid input 3': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'jsonb invalid input 3': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'json invalid input 4': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'jsonb invalid input 4': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'json invalid input 5': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'jsonb invalid input 5': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'json unicode input 0': {
+    kind: 'value',
+    value: '"\\uD800"',
+  },
+  'jsonb unicode invalid 0': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'json unicode input 1': {
+    kind: 'value',
+    value: '"\\u0000"',
+  },
+  'jsonb unicode invalid 1': {
+    kind: 'error',
+    code: '22P05',
+  },
+  'json unicode input 2': {
+    kind: 'value',
+    value: '"a\\u0000b"',
+  },
+  'jsonb unicode invalid 2': {
+    kind: 'error',
+    code: '22P05',
+  },
+  'json typeof object': {
+    kind: 'value',
+    value: 'object',
+  },
+  'json typeof array': {
+    kind: 'value',
+    value: 'array',
+  },
+  'json typeof scalar': {
+    kind: 'value',
+    value: 'number',
+  },
+  'json typeof null value': {
+    kind: 'value',
+    value: 'null',
+  },
+  'json typeof sql null': {
+    kind: 'null',
+  },
+  'json typeof whitespace array': {
+    kind: 'value',
+    value: 'array',
+  },
+  'jsonb typeof object': {
+    kind: 'value',
+    value: 'object',
+  },
+  'jsonb typeof number': {
+    kind: 'value',
+    value: 'number',
+  },
+  'jsonb typeof json null': {
+    kind: 'value',
+    value: 'null',
+  },
+  'jsonb typeof sql null': {
+    kind: 'null',
+  },
+  'json array length': {
+    kind: 'value',
+    value: '3',
+  },
+  'json array length nested': {
+    kind: 'value',
+    value: '2',
+  },
+  'json array length empty': {
+    kind: 'value',
+    value: '0',
+  },
+  'json array length object': {
+    kind: 'error',
+    code: '22023',
+  },
+  'json array length scalar': {
+    kind: 'error',
+    code: '22023',
+  },
+  'jsonb array length': {
+    kind: 'value',
+    value: '3',
+  },
+  'jsonb array length scalar': {
+    kind: 'error',
+    code: '22023',
+  },
+  'jsonb array length object': {
+    kind: 'error',
+    code: '22023',
+  },
+  'json object field 0': {
+    kind: 'value',
+    value: '1',
+  },
+  'json object field text 0': {
+    kind: 'value',
+    value: '1',
+  },
+  'jsonb object field 0': {
+    kind: 'value',
+    value: '1',
+  },
+  'jsonb object field text 0': {
+    kind: 'value',
+    value: '1',
+  },
+  'json object field fn 0': {
+    kind: 'value',
+    value: '1',
+  },
+  'json object field text fn 0': {
+    kind: 'value',
+    value: '1',
+  },
+  'jsonb object field fn 0': {
+    kind: 'value',
+    value: '1',
+  },
+  'jsonb object field text fn 0': {
+    kind: 'value',
+    value: '1',
+  },
+  'json object field 1': {
+    kind: 'value',
+    value: '[2,3]',
+  },
+  'json object field text 1': {
+    kind: 'value',
+    value: '[2,3]',
+  },
+  'jsonb object field 1': {
+    kind: 'value',
+    value: '[2, 3]',
+  },
+  'jsonb object field text 1': {
+    kind: 'value',
+    value: '[2, 3]',
+  },
+  'json object field fn 1': {
+    kind: 'value',
+    value: '[2,3]',
+  },
+  'json object field text fn 1': {
+    kind: 'value',
+    value: '[2,3]',
+  },
+  'jsonb object field fn 1': {
+    kind: 'value',
+    value: '[2, 3]',
+  },
+  'jsonb object field text fn 1': {
+    kind: 'value',
+    value: '[2, 3]',
+  },
+  'json object field 2': {
+    kind: 'value',
+    value: 'null',
+  },
+  'json object field text 2': {
+    kind: 'null',
+  },
+  'jsonb object field 2': {
+    kind: 'value',
+    value: 'null',
+  },
+  'jsonb object field text 2': {
+    kind: 'null',
+  },
+  'json object field fn 2': {
+    kind: 'value',
+    value: 'null',
+  },
+  'json object field text fn 2': {
+    kind: 'null',
+  },
+  'jsonb object field fn 2': {
+    kind: 'value',
+    value: 'null',
+  },
+  'jsonb object field text fn 2': {
+    kind: 'null',
+  },
+  'json object field 3': {
+    kind: 'null',
+  },
+  'json object field text 3': {
+    kind: 'null',
+  },
+  'jsonb object field 3': {
+    kind: 'null',
+  },
+  'jsonb object field text 3': {
+    kind: 'null',
+  },
+  'json object field fn 3': {
+    kind: 'null',
+  },
+  'json object field text fn 3': {
+    kind: 'null',
+  },
+  'jsonb object field fn 3': {
+    kind: 'null',
+  },
+  'jsonb object field text fn 3': {
+    kind: 'null',
+  },
+  'json object field 4': {
+    kind: 'null',
+  },
+  'json object field text 4': {
+    kind: 'null',
+  },
+  'jsonb object field 4': {
+    kind: 'null',
+  },
+  'jsonb object field text 4': {
+    kind: 'null',
+  },
+  'json object field fn 4': {
+    kind: 'null',
+  },
+  'json object field text fn 4': {
+    kind: 'null',
+  },
+  'jsonb object field fn 4': {
+    kind: 'null',
+  },
+  'jsonb object field text fn 4': {
+    kind: 'null',
+  },
+  'json object field 5': {
+    kind: 'null',
+  },
+  'json object field text 5': {
+    kind: 'null',
+  },
+  'jsonb object field 5': {
+    kind: 'null',
+  },
+  'jsonb object field text 5': {
+    kind: 'null',
+  },
+  'json object field fn 5': {
+    kind: 'null',
+  },
+  'json object field text fn 5': {
+    kind: 'null',
+  },
+  'jsonb object field fn 5': {
+    kind: 'null',
+  },
+  'jsonb object field text fn 5': {
+    kind: 'null',
+  },
+  'json object field duplicate': {
+    kind: 'value',
+    value: '2',
+  },
+  'json object field whitespace': {
+    kind: 'value',
+    value: '1',
+  },
+  'json object field on array': {
+    kind: 'null',
+  },
+  'jsonb object field on array': {
+    kind: 'null',
+  },
+  'json object field on scalar': {
+    kind: 'null',
+  },
+  'jsonb object field on scalar': {
+    kind: 'null',
+  },
+  'json array element 0': {
+    kind: 'value',
+    value: '10',
+  },
+  'json array element text 0': {
+    kind: 'value',
+    value: '10',
+  },
+  'jsonb array element 0': {
+    kind: 'value',
+    value: '10',
+  },
+  'jsonb array element text 0': {
+    kind: 'value',
+    value: '10',
+  },
+  'json array element fn 0': {
+    kind: 'value',
+    value: '10',
+  },
+  'json array element text fn 0': {
+    kind: 'value',
+    value: '10',
+  },
+  'jsonb array element fn 0': {
+    kind: 'value',
+    value: '10',
+  },
+  'jsonb array element text fn 0': {
+    kind: 'value',
+    value: '10',
+  },
+  'json array element 1': {
+    kind: 'value',
+    value: '20',
+  },
+  'json array element text 1': {
+    kind: 'value',
+    value: '20',
+  },
+  'jsonb array element 1': {
+    kind: 'value',
+    value: '20',
+  },
+  'jsonb array element text 1': {
+    kind: 'value',
+    value: '20',
+  },
+  'json array element fn 1': {
+    kind: 'value',
+    value: '20',
+  },
+  'json array element text fn 1': {
+    kind: 'value',
+    value: '20',
+  },
+  'jsonb array element fn 1': {
+    kind: 'value',
+    value: '20',
+  },
+  'jsonb array element text fn 1': {
+    kind: 'value',
+    value: '20',
+  },
+  'json array element 2': {
+    kind: 'value',
+    value: '30',
+  },
+  'json array element text 2': {
+    kind: 'value',
+    value: '30',
+  },
+  'jsonb array element 2': {
+    kind: 'value',
+    value: '30',
+  },
+  'jsonb array element text 2': {
+    kind: 'value',
+    value: '30',
+  },
+  'json array element fn 2': {
+    kind: 'value',
+    value: '30',
+  },
+  'json array element text fn 2': {
+    kind: 'value',
+    value: '30',
+  },
+  'jsonb array element fn 2': {
+    kind: 'value',
+    value: '30',
+  },
+  'jsonb array element text fn 2': {
+    kind: 'value',
+    value: '30',
+  },
+  'json array element 3': {
+    kind: 'value',
+    value: '30',
+  },
+  'json array element text 3': {
+    kind: 'value',
+    value: '30',
+  },
+  'jsonb array element 3': {
+    kind: 'value',
+    value: '30',
+  },
+  'jsonb array element text 3': {
+    kind: 'value',
+    value: '30',
+  },
+  'json array element fn 3': {
+    kind: 'value',
+    value: '30',
+  },
+  'json array element text fn 3': {
+    kind: 'value',
+    value: '30',
+  },
+  'jsonb array element fn 3': {
+    kind: 'value',
+    value: '30',
+  },
+  'jsonb array element text fn 3': {
+    kind: 'value',
+    value: '30',
+  },
+  'json array element 4': {
+    kind: 'null',
+  },
+  'json array element text 4': {
+    kind: 'null',
+  },
+  'jsonb array element 4': {
+    kind: 'null',
+  },
+  'jsonb array element text 4': {
+    kind: 'null',
+  },
+  'json array element fn 4': {
+    kind: 'null',
+  },
+  'json array element text fn 4': {
+    kind: 'null',
+  },
+  'jsonb array element fn 4': {
+    kind: 'null',
+  },
+  'jsonb array element text fn 4': {
+    kind: 'null',
+  },
+  'json array element 5': {
+    kind: 'null',
+  },
+  'json array element text 5': {
+    kind: 'null',
+  },
+  'jsonb array element 5': {
+    kind: 'null',
+  },
+  'jsonb array element text 5': {
+    kind: 'null',
+  },
+  'json array element fn 5': {
+    kind: 'null',
+  },
+  'json array element text fn 5': {
+    kind: 'null',
+  },
+  'jsonb array element fn 5': {
+    kind: 'null',
+  },
+  'jsonb array element text fn 5': {
+    kind: 'null',
+  },
+  'json array element of null': {
+    kind: 'value',
+    value: 'null',
+  },
+  'json array element text of null': {
+    kind: 'null',
+  },
+  'json array element on object': {
+    kind: 'null',
+  },
+  'json array element on scalar': {
+    kind: 'null',
+  },
+  'jsonb array element on object': {
+    kind: 'null',
+  },
+  'jsonb array element on scalar': {
+    kind: 'value',
+    value: '1',
+  },
+  'jsonb array element text on string': {
+    kind: 'value',
+    value: 'hi',
+  },
+  'json array element text on string': {
+    kind: 'null',
+  },
+  'jsonb array element negative scalar': {
+    kind: 'value',
+    value: '1',
+  },
+  'json path 0': {
+    kind: 'value',
+    value: '{"b":[1,2,3]}',
+  },
+  'json path text 0': {
+    kind: 'value',
+    value: '{"b":[1,2,3]}',
+  },
+  'jsonb path 0': {
+    kind: 'value',
+    value: '{"b": [1, 2, 3]}',
+  },
+  'jsonb path text 0': {
+    kind: 'value',
+    value: '{"b": [1, 2, 3]}',
+  },
+  'json extract path 0': {
+    kind: 'value',
+    value: '{"b":[1,2,3]}',
+  },
+  'json extract path text 0': {
+    kind: 'value',
+    value: '{"b":[1,2,3]}',
+  },
+  'jsonb extract path 0': {
+    kind: 'value',
+    value: '{"b": [1, 2, 3]}',
+  },
+  'jsonb extract path text 0': {
+    kind: 'value',
+    value: '{"b": [1, 2, 3]}',
+  },
+  'json path 1': {
+    kind: 'value',
+    value: '[1,2,3]',
+  },
+  'json path text 1': {
+    kind: 'value',
+    value: '[1,2,3]',
+  },
+  'jsonb path 1': {
+    kind: 'value',
+    value: '[1, 2, 3]',
+  },
+  'jsonb path text 1': {
+    kind: 'value',
+    value: '[1, 2, 3]',
+  },
+  'json extract path 1': {
+    kind: 'value',
+    value: '[1,2,3]',
+  },
+  'json extract path text 1': {
+    kind: 'value',
+    value: '[1,2,3]',
+  },
+  'jsonb extract path 1': {
+    kind: 'value',
+    value: '[1, 2, 3]',
+  },
+  'jsonb extract path text 1': {
+    kind: 'value',
+    value: '[1, 2, 3]',
+  },
+  'json path 2': {
+    kind: 'value',
+    value: '2',
+  },
+  'json path text 2': {
+    kind: 'value',
+    value: '2',
+  },
+  'jsonb path 2': {
+    kind: 'value',
+    value: '2',
+  },
+  'jsonb path text 2': {
+    kind: 'value',
+    value: '2',
+  },
+  'json extract path 2': {
+    kind: 'value',
+    value: '2',
+  },
+  'json extract path text 2': {
+    kind: 'value',
+    value: '2',
+  },
+  'jsonb extract path 2': {
+    kind: 'value',
+    value: '2',
+  },
+  'jsonb extract path text 2': {
+    kind: 'value',
+    value: '2',
+  },
+  'json path 3': {
+    kind: 'value',
+    value: '3',
+  },
+  'json path text 3': {
+    kind: 'value',
+    value: '3',
+  },
+  'jsonb path 3': {
+    kind: 'value',
+    value: '3',
+  },
+  'jsonb path text 3': {
+    kind: 'value',
+    value: '3',
+  },
+  'json extract path 3': {
+    kind: 'value',
+    value: '3',
+  },
+  'json extract path text 3': {
+    kind: 'value',
+    value: '3',
+  },
+  'jsonb extract path 3': {
+    kind: 'value',
+    value: '3',
+  },
+  'jsonb extract path text 3': {
+    kind: 'value',
+    value: '3',
+  },
+  'json path 4': {
+    kind: 'null',
+  },
+  'json path text 4': {
+    kind: 'null',
+  },
+  'jsonb path 4': {
+    kind: 'null',
+  },
+  'jsonb path text 4': {
+    kind: 'null',
+  },
+  'json extract path 4': {
+    kind: 'null',
+  },
+  'json extract path text 4': {
+    kind: 'null',
+  },
+  'jsonb extract path 4': {
+    kind: 'null',
+  },
+  'jsonb extract path text 4': {
+    kind: 'null',
+  },
+  'json path 5': {
+    kind: 'null',
+  },
+  'json path text 5': {
+    kind: 'null',
+  },
+  'jsonb path 5': {
+    kind: 'null',
+  },
+  'jsonb path text 5': {
+    kind: 'null',
+  },
+  'json extract path 5': {
+    kind: 'null',
+  },
+  'json extract path text 5': {
+    kind: 'null',
+  },
+  'jsonb extract path 5': {
+    kind: 'null',
+  },
+  'jsonb extract path text 5': {
+    kind: 'null',
+  },
+  'json path 6': {
+    kind: 'value',
+    value: '{"a":{"b":[1,2,3]}}',
+  },
+  'json path text 6': {
+    kind: 'value',
+    value: '{"a":{"b":[1,2,3]}}',
+  },
+  'jsonb path 6': {
+    kind: 'value',
+    value: '{"a": {"b": [1, 2, 3]}}',
+  },
+  'jsonb path text 6': {
+    kind: 'value',
+    value: '{"a": {"b": [1, 2, 3]}}',
+  },
+  'json extract path 6': {
+    kind: 'value',
+    value: '{"a":{"b":[1,2,3]}}',
+  },
+  'json extract path text 6': {
+    kind: 'value',
+    value: '{"a":{"b":[1,2,3]}}',
+  },
+  'jsonb extract path 6': {
+    kind: 'value',
+    value: '{"a": {"b": [1, 2, 3]}}',
+  },
+  'jsonb extract path text 6': {
+    kind: 'value',
+    value: '{"a": {"b": [1, 2, 3]}}',
+  },
+  'json path 7': {
+    kind: 'null',
+  },
+  'json path text 7': {
+    kind: 'null',
+  },
+  'jsonb path 7': {
+    kind: 'null',
+  },
+  'jsonb path text 7': {
+    kind: 'null',
+  },
+  'json extract path 7': {
+    kind: 'null',
+  },
+  'json extract path text 7': {
+    kind: 'null',
+  },
+  'jsonb extract path 7': {
+    kind: 'null',
+  },
+  'jsonb extract path text 7': {
+    kind: 'null',
+  },
+  'json path 8': {
+    kind: 'null',
+  },
+  'json path text 8': {
+    kind: 'null',
+  },
+  'jsonb path 8': {
+    kind: 'null',
+  },
+  'jsonb path text 8': {
+    kind: 'null',
+  },
+  'json extract path 8': {
+    kind: 'null',
+  },
+  'json extract path text 8': {
+    kind: 'null',
+  },
+  'jsonb extract path 8': {
+    kind: 'null',
+  },
+  'jsonb extract path text 8': {
+    kind: 'null',
+  },
+  'json path array index': {
+    kind: 'value',
+    value: '20',
+  },
+  'json path leading zero index': {
+    kind: 'value',
+    value: '20',
+  },
+  'jsonb path leading zero index': {
+    kind: 'value',
+    value: '20',
+  },
+  'json path object numeric key': {
+    kind: 'value',
+    value: '"a"',
+  },
+  'json path null element': {
+    kind: 'null',
+  },
+  'json path sql null': {
+    kind: 'null',
+  },
+  'jsonb path on scalar': {
+    kind: 'null',
+  },
+  'json path on scalar': {
+    kind: 'null',
+  },
+  'jsonb operator = 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator <> 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator < 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator <= 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator > 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator >= 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb cmp 0': {
+    kind: 'value',
+    value: '-1',
+  },
+  'jsonb operator = 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator <> 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator < 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator <= 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator > 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator >= 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb cmp 1': {
+    kind: 'value',
+    value: '-1',
+  },
+  'jsonb operator = 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator <> 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator < 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator <= 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator > 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator >= 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb cmp 2': {
+    kind: 'value',
+    value: '-1',
+  },
+  'jsonb operator = 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator <> 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator < 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator <= 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator > 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator >= 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb cmp 3': {
+    kind: 'value',
+    value: '1',
+  },
+  'jsonb operator = 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator <> 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator < 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator <= 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator > 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator >= 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb cmp 4': {
+    kind: 'value',
+    value: '-1',
+  },
+  'jsonb operator = 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator <> 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator < 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator <= 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator > 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator >= 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb cmp 5': {
+    kind: 'value',
+    value: '-1',
+  },
+  'jsonb operator = 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator <> 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator < 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator <= 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator > 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator >= 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb cmp 6': {
+    kind: 'value',
+    value: '-1',
+  },
+  'jsonb operator = 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator <> 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator < 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator <= 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator > 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator >= 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb cmp 7': {
+    kind: 'value',
+    value: '-1',
+  },
+  'jsonb operator = 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator <> 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator < 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator <= 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator > 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator >= 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb cmp 8': {
+    kind: 'value',
+    value: '-1',
+  },
+  'jsonb operator = 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator <> 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator < 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator <= 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator > 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator >= 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb cmp 9': {
+    kind: 'value',
+    value: '-1',
+  },
+  'jsonb operator = 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator <> 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator < 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator <= 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator > 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator >= 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb cmp 10': {
+    kind: 'value',
+    value: '-25',
+  },
+  'jsonb operator = 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator <> 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator < 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator <= 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator > 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator >= 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb cmp 11': {
+    kind: 'value',
+    value: '-31',
+  },
+  'jsonb operator = 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator <> 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator < 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator <= 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator > 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator >= 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb cmp 12': {
+    kind: 'value',
+    value: '-1',
+  },
+  'jsonb operator = 13': {
+    kind: 'null',
+  },
+  'jsonb operator <> 13': {
+    kind: 'null',
+  },
+  'jsonb operator < 13': {
+    kind: 'null',
+  },
+  'jsonb operator <= 13': {
+    kind: 'null',
+  },
+  'jsonb operator > 13': {
+    kind: 'null',
+  },
+  'jsonb operator >= 13': {
+    kind: 'null',
+  },
+  'jsonb cmp 13': {
+    kind: 'null',
+  },
+  'jsonb operator = 14': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator <> 14': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator < 14': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator <= 14': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb operator > 14': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb operator >= 14': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb cmp 14': {
+    kind: 'value',
+    value: '0',
+  },
+  'jsonb function eq': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb function ne': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb function lt': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb function le': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb function gt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb function ge': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contains 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains fn 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained fn 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains fn 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained fn 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contained 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contains fn 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contained fn 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contains 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains fn 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained fn 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains fn 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained fn 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains fn 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained fn 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contained 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contains fn 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contained fn 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contains 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains fn 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained fn 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains fn 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained fn 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains fn 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained fn 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contained 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contains fn 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contained fn 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contains 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains fn 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained fn 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contained 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contains fn 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contained fn 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contains 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains fn 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contained fn 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb contains 14': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contained 14': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contains fn 14': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contained fn 14': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb contains 15': {
+    kind: 'null',
+  },
+  'jsonb contained 15': {
+    kind: 'null',
+  },
+  'jsonb contains fn 15': {
+    kind: 'null',
+  },
+  'jsonb contained fn 15': {
+    kind: 'null',
+  },
+  'jsonb exists 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists fn 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists fn 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists fn 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists fn 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists fn 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists fn 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists fn 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists fn 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists 8': {
+    kind: 'null',
+  },
+  'jsonb exists fn 8': {
+    kind: 'null',
+  },
+  'jsonb exists all 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists any 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists all fn 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists any fn 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists all 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists any 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists all fn 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists any fn 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists all 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists any 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists all fn 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists any fn 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists all 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists any 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists all fn 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists any fn 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists all 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists any 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists all fn 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists any fn 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists all 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists any 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb exists all fn 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'jsonb exists any fn 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'json from text 0': {
+    kind: 'null',
+  },
+  'jsonb from text 0': {
+    kind: 'null',
+  },
+  'json from text 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'jsonb from text 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'json from text 2': {
+    kind: 'value',
+    value: '{"b":2,"a":1}',
+  },
+  'jsonb from text 2': {
+    kind: 'value',
+    value: '{"a": 1, "b": 2}',
+  },
+  'json from text 3': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'jsonb from text 3': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'json from text 4': {
+    kind: 'value',
+    value: '"\\u0000"',
+  },
+  'jsonb from text 4': {
+    kind: 'error',
+    code: '22P05',
+  },
+  'json to text 0': {
+    kind: 'null',
+  },
+  'jsonb to text 0': {
+    kind: 'null',
+  },
+  'json to jsonb 0': {
+    kind: 'null',
+  },
+  'jsonb to json 0': {
+    kind: 'null',
+  },
+  'json to text 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'jsonb to text 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'json to jsonb 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'jsonb to json 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'json to text 2': {
+    kind: 'value',
+    value: ' { "a" : 1 } ',
+  },
+  'jsonb to text 2': {
+    kind: 'value',
+    value: '{"a": 1}',
+  },
+  'json to jsonb 2': {
+    kind: 'value',
+    value: '{"a": 1}',
+  },
+  'jsonb to json 2': {
+    kind: 'value',
+    value: '{"a": 1}',
+  },
+  'json to text 3': {
+    kind: 'value',
+    value: '{"a":1,"a":2}',
+  },
+  'jsonb to text 3': {
+    kind: 'value',
+    value: '{"a": 2}',
+  },
+  'json to jsonb 3': {
+    kind: 'value',
+    value: '{"a": 2}',
+  },
+  'jsonb to json 3': {
+    kind: 'value',
+    value: '{"a": 2}',
+  },
+  'json null test': {
+    kind: 'value',
+    value: 'true',
+  },
+  'jsonb null test': {
+    kind: 'value',
+    value: 'false',
+  },
+  'json case': {
+    kind: 'value',
+    value: '{"a":1,"b":[2,3],"c":null}',
+  },
+  'jsonb case': {
+    kind: 'value',
+    value: '[10, 20, 30]',
+  },
+  'json coalesce': {
+    kind: 'value',
+    value: '{"a":1,"b":[2,3],"c":null}',
+  },
+  'jsonb coalesce': {
+    kind: 'value',
+    value: '{"a": 1, "b": [2, 3], "c": null}',
+  },
 }

@@ -10,6 +10,8 @@ function suffix(type: string): string {
   if (type === 'pg_catalog.bool') return 'Boolean'
   if (['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type)) return 'Text'
   if (type === 'pg_catalog.uuid') return 'Uuid'
+  if (type === 'pg_catalog."json"') return 'Json'
+  if (type === 'pg_catalog.jsonb') return 'Jsonb'
   if (type.startsWith('enum:')) return 'Enum'
   if (type.startsWith('array:')) return 'Array'
   throw new Error(`Unsupported conditional value type: ${type}`)

@@ -3343,6 +3343,703 @@ function arrayCoerce(target: string, value: SqlArray | null): SqlArray | null {
         return value;
     return new SqlArray(target, value.dimensions, value.lowerBounds, value.elements.map(element => arrayCoerceElement(target, element)));
 }
+type SqlJsonNode = {
+    kind: "null";
+    raw: string;
+} | {
+    kind: "bool";
+    raw: string;
+    value: boolean;
+} | {
+    kind: "number";
+    raw: string;
+    value: SqlDecimal;
+} | {
+    kind: "string";
+    raw: string;
+    value: string;
+} | {
+    kind: "array";
+    raw: string;
+    elements: SqlJsonNode[];
+} | {
+    kind: "object";
+    raw: string;
+    pairs: {
+        key: string;
+        value: SqlJsonNode;
+    }[];
+};
+class SqlJson {
+    constructor(readonly text: string, readonly node: SqlJsonNode) { }
+    toString(): string { return this.text; }
+}
+function jsonError(code: string): never {
+    throw Object.assign(new Error("invalid json"), { code });
+}
+function jsonParse(input: string, forJsonb: boolean): SqlJsonNode {
+    let index = 0;
+    function error(code = "22P02"): never {
+        return jsonError(code);
+    }
+    const skip = (): void => {
+        while (index < input.length && " \t\n\r".includes(input[index]!))
+            index++;
+    };
+    const unpaired = (value: string): boolean => /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value);
+    const parseString = (): string => {
+        if (input[index] !== "\"")
+            error();
+        index++;
+        let value = "";
+        while (index < input.length) {
+            const char = input[index]!;
+            if (char === "\"") {
+                index++;
+                return value;
+            }
+            if (char === "\\") {
+                index++;
+                const escape = input[index];
+                if (escape === undefined)
+                    error();
+                index++;
+                if (escape === "\"" || escape === "\\" || escape === "/")
+                    value += escape;
+                else if (escape === "b")
+                    value += "\b";
+                else if (escape === "f")
+                    value += "\f";
+                else if (escape === "n")
+                    value += "\n";
+                else if (escape === "r")
+                    value += "\r";
+                else if (escape === "t")
+                    value += "\t";
+                else if (escape === "u") {
+                    const hex = input.slice(index, index + 4);
+                    if (!/^[0-9a-fA-F]{4}$/.test(hex))
+                        error();
+                    index += 4;
+                    const code = Number.parseInt(hex, 16);
+                    if (code >= 55296 && code <= 56319 && input[index] === "\\" && input[index + 1] === "u") {
+                        const lowHex = input.slice(index + 2, index + 6);
+                        if (/^[0-9a-fA-F]{4}$/.test(lowHex)) {
+                            const low = Number.parseInt(lowHex, 16);
+                            if (low >= 56320 && low <= 57343) {
+                                index += 6;
+                                value += String.fromCodePoint(((code - 55296) << 10) + (low - 56320) + 65536);
+                                continue;
+                            }
+                        }
+                    }
+                    value += String.fromCharCode(code);
+                }
+                else
+                    error();
+                continue;
+            }
+            if (char.charCodeAt(0) < 32)
+                error();
+            value += char;
+            index++;
+        }
+        return error();
+    };
+    const parseNumber = (): string => {
+        const start = index;
+        if (input[index] === "-")
+            index++;
+        if (input[index] === "0")
+            index++;
+        else if (input[index] !== undefined && input[index]! >= "1" && input[index]! <= "9") {
+            index++;
+            while (input[index] !== undefined && input[index]! >= "0" && input[index]! <= "9")
+                index++;
+        }
+        else
+            error();
+        if (input[index] === ".") {
+            index++;
+            if (input[index] === undefined || input[index]! < "0" || input[index]! > "9")
+                error();
+            while (input[index] !== undefined && input[index]! >= "0" && input[index]! <= "9")
+                index++;
+        }
+        if (input[index] === "e" || input[index] === "E") {
+            index++;
+            if (input[index] === "+" || input[index] === "-")
+                index++;
+            if (input[index] === undefined || input[index]! < "0" || input[index]! > "9")
+                error();
+            while (input[index] !== undefined && input[index]! >= "0" && input[index]! <= "9")
+                index++;
+        }
+        return input.slice(start, index);
+    };
+    const parseValue = (): SqlJsonNode => {
+        skip();
+        const start = index;
+        if (input.startsWith("null", index) && !/[A-Za-z0-9_]/.test(input[index + 4] ?? "")) {
+            index += 4;
+            return { kind: "null", raw: input.slice(start, index) };
+        }
+        if (input.startsWith("true", index) && !/[A-Za-z0-9_]/.test(input[index + 4] ?? "")) {
+            index += 4;
+            return { kind: "bool", raw: input.slice(start, index), value: true };
+        }
+        if (input.startsWith("false", index) && !/[A-Za-z0-9_]/.test(input[index + 5] ?? "")) {
+            index += 5;
+            return { kind: "bool", raw: input.slice(start, index), value: false };
+        }
+        if (input[index] === "\"") {
+            const value = parseString();
+            if (forJsonb) {
+                if (value.includes("\0"))
+                    error("22P05");
+                if (unpaired(value))
+                    error();
+            }
+            return { kind: "string", raw: input.slice(start, index), value };
+        }
+        if (input[index] === "-" || (input[index] !== undefined && input[index]! >= "0" && input[index]! <= "9")) {
+            const raw = parseNumber();
+            let number = decimalInput(raw)!;
+            if (number.value.isZero() && /^-/.test(raw))
+                number = decimalInput(raw.replace(/^-/, ""))!;
+            return { kind: "number", raw, value: number };
+        }
+        if (input[index] === "[") {
+            index++;
+            skip();
+            const elements: SqlJsonNode[] = [];
+            if (input[index] !== "]") {
+                for (;;) {
+                    elements.push(parseValue());
+                    skip();
+                    if (input[index] === ",") {
+                        index++;
+                        continue;
+                    }
+                    break;
+                }
+            }
+            if (input[index] !== "]")
+                error();
+            index++;
+            return { kind: "array", raw: input.slice(start, index), elements };
+        }
+        if (input[index] === "{") {
+            index++;
+            skip();
+            const pairs: {
+                key: string;
+                value: SqlJsonNode;
+            }[] = [];
+            if (input[index] !== "}") {
+                for (;;) {
+                    skip();
+                    if (input[index] !== "\"")
+                        error();
+                    const key = parseString();
+                    if (forJsonb) {
+                        if (key.includes("\0"))
+                            error("22P05");
+                        if (unpaired(key))
+                            error();
+                    }
+                    skip();
+                    if (input[index] !== ":")
+                        error();
+                    index++;
+                    pairs.push({ key, value: parseValue() });
+                    skip();
+                    if (input[index] === ",") {
+                        index++;
+                        continue;
+                    }
+                    break;
+                }
+            }
+            if (input[index] !== "}")
+                error();
+            index++;
+            return { kind: "object", raw: input.slice(start, index), pairs };
+        }
+        return error();
+    };
+    const value = parseValue();
+    skip();
+    if (index !== input.length)
+        error();
+    return value;
+}
+function jsonInput(value: string | null): SqlJson | null {
+    return value === null ? null : new SqlJson(value, jsonParse(value, false));
+}
+function jsonbEscape(value: string): string {
+    let output = "\"";
+    for (const char of value) {
+        const code = char.codePointAt(0)!;
+        if (char === "\"")
+            output += "\\\"";
+        else if (char === "\\")
+            output += "\\\\";
+        else if (char === "\b")
+            output += "\\b";
+        else if (char === "\f")
+            output += "\\f";
+        else if (char === "\n")
+            output += "\\n";
+        else if (char === "\r")
+            output += "\\r";
+        else if (char === "\t")
+            output += "\\t";
+        else if (code < 32)
+            output += "\\u" + code.toString(16).padStart(4, "0");
+        else
+            output += char;
+    }
+    return output + "\"";
+}
+function jsonbFormat(node: SqlJsonNode): string {
+    if (node.kind === "null")
+        return "null";
+    if (node.kind === "bool")
+        return node.value ? "true" : "false";
+    if (node.kind === "number")
+        return node.value.toString();
+    if (node.kind === "string")
+        return jsonbEscape(node.value);
+    if (node.kind === "array")
+        return "[" + node.elements.map(element => jsonbFormat(element)).join(", ") + "]";
+    return "{" + node.pairs.map(pair => jsonbEscape(pair.key) + ": " + jsonbFormat(pair.value)).join(", ") + "}";
+}
+class SqlJsonb {
+    constructor(readonly node: SqlJsonNode) { }
+    toString(): string { return jsonbFormat(this.node); }
+}
+function jsonUtf8Bytes(value: string): number[] {
+    const bytes: number[] = [];
+    for (let index = 0; index < value.length; index++) {
+        let code = value.charCodeAt(index);
+        if (code >= 55296 && code <= 56319 && index + 1 < value.length) {
+            const low = value.charCodeAt(index + 1);
+            if (low >= 56320 && low <= 57343) {
+                code = ((code - 55296) << 10) + (low - 56320) + 65536;
+                index++;
+            }
+        }
+        if (code < 128)
+            bytes.push(code);
+        else if (code < 2048)
+            bytes.push(192 | (code >> 6), 128 | (code & 63));
+        else if (code < 65536)
+            bytes.push(224 | (code >> 12), 128 | ((code >> 6) & 63), 128 | (code & 63));
+        else
+            bytes.push(240 | (code >> 18), 128 | ((code >> 12) & 63), 128 | ((code >> 6) & 63), 128 | (code & 63));
+    }
+    return bytes;
+}
+function jsonStringCompare(left: string, right: string): number {
+    const leftBytes = jsonUtf8Bytes(left);
+    const rightBytes = jsonUtf8Bytes(right);
+    const length = Math.min(leftBytes.length, rightBytes.length);
+    for (let index = 0; index < length; index++) {
+        if (leftBytes[index] !== rightBytes[index])
+            return leftBytes[index]! - rightBytes[index]!;
+    }
+    if (leftBytes.length === rightBytes.length)
+        return 0;
+    return leftBytes.length < rightBytes.length ? -1 : 1;
+}
+function jsonbKeyCompare(left: string, right: string): number {
+    const leftBytes = jsonUtf8Bytes(left);
+    const rightBytes = jsonUtf8Bytes(right);
+    if (leftBytes.length !== rightBytes.length)
+        return leftBytes.length > rightBytes.length ? 1 : -1;
+    return jsonStringCompare(left, right);
+}
+function jsonbCanonicalize(node: SqlJsonNode): SqlJsonNode {
+    if (node.kind === "array")
+        return { kind: "array", raw: "", elements: node.elements.map(jsonbCanonicalize) };
+    if (node.kind === "object") {
+        const last = new Map<string, SqlJsonNode>();
+        for (const pair of node.pairs)
+            last.set(pair.key, jsonbCanonicalize(pair.value));
+        return {
+            kind: "object",
+            raw: "",
+            pairs: [...last.entries()].sort((left, right) => jsonbKeyCompare(left[0], right[0])).map(([key, value]) => ({ key, value })),
+        };
+    }
+    return node;
+}
+function jsonbInput(value: string | null): SqlJsonb | null {
+    return value === null ? null : new SqlJsonb(jsonbCanonicalize(jsonParse(value, true)));
+}
+function jsonTypeof(value: SqlJson | null): string | null {
+    return value === null ? null : value.node.kind === "bool" ? "boolean" : value.node.kind;
+}
+function jsonbTypeof(value: SqlJsonb | null): string | null {
+    return value === null ? null : value.node.kind === "bool" ? "boolean" : value.node.kind;
+}
+function jsonArrayLength(value: SqlJson | null): bigint | null {
+    if (value === null)
+        return null;
+    if (value.node.kind === "array")
+        return BigInt(value.node.elements.length);
+    throw Object.assign(new Error("cannot get array length"), {
+        code: "22023",
+    });
+}
+function jsonbArrayLength(value: SqlJsonb | null): bigint | null {
+    if (value === null)
+        return null;
+    if (value.node.kind === "array")
+        return BigInt(value.node.elements.length);
+    throw Object.assign(new Error("cannot get array length"), { code: "22023" });
+}
+function jsonField(node: SqlJsonNode, key: string): SqlJsonNode | null {
+    if (node.kind !== "object")
+        return null;
+    for (let index = node.pairs.length - 1; index >= 0; index--)
+        if (node.pairs[index]!.key === key)
+            return node.pairs[index]!.value;
+    return null;
+}
+function jsonObjectField(value: SqlJson | null, key: string | null): SqlJson | null {
+    if (value === null || key === null)
+        return null;
+    const node = jsonField(value.node, key);
+    return node === null ? null : new SqlJson(node.raw, node);
+}
+function jsonAsText(node: SqlJsonNode | null, jsonb: boolean): string | null {
+    if (node === null || node.kind === "null")
+        return null;
+    if (node.kind === "string")
+        return node.value;
+    if (node.kind === "bool")
+        return node.value ? "true" : "false";
+    if (node.kind === "number")
+        return jsonb ? node.value.toString() : node.raw;
+    return jsonb ? jsonbFormat(node) : node.raw;
+}
+function jsonObjectFieldText(value: SqlJson | null, key: string | null): string | null {
+    return value === null || key === null ? null : jsonAsText(jsonField(value.node, key), false);
+}
+function jsonbObjectField(value: SqlJsonb | null, key: string | null): SqlJsonb | null {
+    if (value === null || key === null)
+        return null;
+    const node = jsonField(value.node, key);
+    return node === null ? null : new SqlJsonb(node);
+}
+function jsonbObjectFieldText(value: SqlJsonb | null, key: string | null): string | null {
+    return value === null || key === null ? null : jsonAsText(jsonField(value.node, key), true);
+}
+function jsonIndex(node: SqlJsonNode, index: number, rawScalar: boolean): SqlJsonNode | null {
+    const elements = node.kind === "array" ? node.elements : rawScalar && node.kind !== "object" ? [node] : null;
+    if (elements === null)
+        return null;
+    if (index < 0)
+        index += elements.length;
+    return index >= 0 && index < elements.length ? elements[index]! : null;
+}
+function jsonArrayElement(value: SqlJson | null, index: bigint | null): SqlJson | null {
+    if (value === null || index === null)
+        return null;
+    const node = jsonIndex(value.node, Number(index), false);
+    return node === null ? null : new SqlJson(node.raw, node);
+}
+function jsonArrayElementText(value: SqlJson | null, index: bigint | null): string | null {
+    return value === null || index === null ? null : jsonAsText(jsonIndex(value.node, Number(index), false), false);
+}
+function jsonbArrayElement(value: SqlJsonb | null, index: bigint | null): SqlJsonb | null {
+    if (value === null || index === null)
+        return null;
+    const node = jsonIndex(value.node, Number(index), true);
+    return node === null ? null : new SqlJsonb(node);
+}
+function jsonbArrayElementText(value: SqlJsonb | null, index: bigint | null): string | null {
+    return value === null || index === null ? null : jsonAsText(jsonIndex(value.node, Number(index), true), true);
+}
+function jsonPathKeys(path: SqlArray | null): (string | null)[] | null {
+    if (path === null)
+        return null;
+    return path.elements.map(element => (element.value === null ? null : String(element.value)));
+}
+function jsonPathIndex(value: string): number | null {
+    const match = /^[ \t\n\r\v\f]*([+-]?\d+)$/.exec(value);
+    if (!match)
+        return null;
+    const number = Number(match[1]);
+    if (!Number.isInteger(number) || number < -2147483647 || number > 2147483647)
+        return null;
+    return number;
+}
+function jsonExtract(node: SqlJsonNode, path: readonly (string | null)[], rawScalar: boolean): SqlJsonNode | null {
+    if (path.some(step => step === null))
+        return null;
+    let current: SqlJsonNode | null = node;
+    for (const step of path) {
+        if (current === null)
+            return null;
+        if (current.kind === "object")
+            current = jsonField(current, step!);
+        else if (current.kind === "array" || rawScalar) {
+            const index = jsonPathIndex(step!);
+            current = index === null ? null : jsonIndex(current, index, rawScalar && current.kind !== "array");
+        }
+        else
+            current = null;
+    }
+    return current;
+}
+function jsonExtractPath(value: SqlJson | null, path: SqlArray | null): SqlJson | null {
+    const keys = jsonPathKeys(path);
+    if (value === null || keys === null)
+        return null;
+    const node = jsonExtract(value.node, keys, false);
+    return node === null ? null : new SqlJson(node.raw, node);
+}
+function jsonExtractPathText(value: SqlJson | null, path: SqlArray | null): string | null {
+    const keys = jsonPathKeys(path);
+    return value === null || keys === null ? null : jsonAsText(jsonExtract(value.node, keys, false), false);
+}
+function jsonbExtractPath(value: SqlJsonb | null, path: SqlArray | null): SqlJsonb | null {
+    const keys = jsonPathKeys(path);
+    if (value === null || keys === null)
+        return null;
+    const node = jsonExtract(value.node, keys, false);
+    return node === null ? null : new SqlJsonb(node);
+}
+function jsonbExtractPathText(value: SqlJsonb | null, path: SqlArray | null): string | null {
+    const keys = jsonPathKeys(path);
+    return value === null || keys === null ? null : jsonAsText(jsonExtract(value.node, keys, false), true);
+}
+function jsonbTypeRank(kind: string): number {
+    return kind === "null" ? 0 : kind === "string" ? 1 : kind === "number" ? 2 : kind === "bool" ? 3 : kind === "array" ? 16 : 17;
+}
+function jsonbScalarCompare(left: SqlJsonNode, right: SqlJsonNode): number {
+    if (left.kind === "null")
+        return 0;
+    if (left.kind === "bool" && right.kind === "bool")
+        return Number(left.value) - Number(right.value);
+    if (left.kind === "number" && right.kind === "number")
+        return sqlDecimalCompare(left.value.value, right.value.value);
+    if (left.kind === "string" && right.kind === "string")
+        return jsonStringCompare(left.value, right.value);
+    return 0;
+}
+function jsonbCompare(left: SqlJsonb | null, right: SqlJsonb | null): bigint | null {
+    if (left === null || right === null)
+        return null;
+    type Token = {
+        kind: "array";
+        rawScalar: boolean;
+        count: number;
+    } | {
+        kind: "object";
+        count: number;
+    } | {
+        kind: "end";
+    } | {
+        kind: "key";
+        value: string;
+    } | {
+        kind: "scalar";
+        node: SqlJsonNode;
+    };
+    const walk = function* (node: SqlJsonNode, root: boolean): Generator<Token> {
+        const wrap = root && node.kind !== "array" && node.kind !== "object";
+        if (wrap) {
+            yield { kind: "array", rawScalar: true, count: 1 };
+            yield { kind: "scalar", node };
+            yield { kind: "end" };
+            return;
+        }
+        if (node.kind === "array") {
+            yield { kind: "array", rawScalar: false, count: node.elements.length };
+            for (const element of node.elements) {
+                if (element.kind === "array" || element.kind === "object")
+                    yield* walk(element, false);
+                else
+                    yield { kind: "scalar", node: element };
+            }
+            yield { kind: "end" };
+            return;
+        }
+        if (node.kind === "object") {
+            yield { kind: "object", count: node.pairs.length };
+            for (const pair of node.pairs) {
+                yield { kind: "key", value: pair.key };
+                if (pair.value.kind === "array" || pair.value.kind === "object")
+                    yield* walk(pair.value, false);
+                else
+                    yield { kind: "scalar", node: pair.value };
+            }
+            yield { kind: "end" };
+        }
+    };
+    const tokenType = (token: Token): number => token.kind === "array" ? 16 : token.kind === "object" ? 17 : token.kind === "key" ? 1 : token.kind === "scalar" ? jsonbTypeRank(token.node.kind) : 0;
+    const leftTokens = walk(left.node, true);
+    const rightTokens = walk(right.node, true);
+    for (;;) {
+        const a = leftTokens.next();
+        const b = rightTokens.next();
+        if (a.done && b.done)
+            return 0n;
+        const va = a.value!, vb = b.value!;
+        if (va.kind === vb.kind) {
+            if (va.kind === "end")
+                continue;
+            if (va.kind === "array" && vb.kind === "array") {
+                let result = 0;
+                if (va.rawScalar !== vb.rawScalar)
+                    result = va.rawScalar ? -1 : 1;
+                if (va.count !== vb.count)
+                    result = va.count > vb.count ? 1 : -1;
+                if (result !== 0)
+                    return BigInt(result);
+                continue;
+            }
+            if (va.kind === "object" && vb.kind === "object") {
+                if (va.count !== vb.count)
+                    return BigInt(va.count > vb.count ? 1 : -1);
+                continue;
+            }
+            if (va.kind === "key" && vb.kind === "key") {
+                const result = jsonStringCompare(va.value, vb.value);
+                if (result !== 0)
+                    return BigInt(result);
+                continue;
+            }
+            if (va.kind === "scalar" && vb.kind === "scalar") {
+                if (va.node.kind === vb.node.kind) {
+                    const result = jsonbScalarCompare(va.node, vb.node);
+                    if (result !== 0)
+                        return BigInt(result);
+                }
+                else
+                    return BigInt(jsonbTypeRank(va.node.kind) > jsonbTypeRank(vb.node.kind) ? 1 : -1);
+            }
+        }
+        else
+            return BigInt(tokenType(va) > tokenType(vb) ? 1 : -1);
+    }
+}
+function jsonbEq(left: SqlJsonb | null, right: SqlJsonb | null): boolean | null {
+    const comparison = jsonbCompare(left, right);
+    return comparison === null ? null : comparison === 0n;
+}
+function jsonbNe(left: SqlJsonb | null, right: SqlJsonb | null): boolean | null {
+    const comparison = jsonbCompare(left, right);
+    return comparison === null ? null : comparison !== 0n;
+}
+function jsonbLt(left: SqlJsonb | null, right: SqlJsonb | null): boolean | null {
+    const comparison = jsonbCompare(left, right);
+    return comparison === null ? null : comparison < 0n;
+}
+function jsonbLe(left: SqlJsonb | null, right: SqlJsonb | null): boolean | null {
+    const comparison = jsonbCompare(left, right);
+    return comparison === null ? null : comparison <= 0n;
+}
+function jsonbGt(left: SqlJsonb | null, right: SqlJsonb | null): boolean | null {
+    const comparison = jsonbCompare(left, right);
+    return comparison === null ? null : comparison > 0n;
+}
+function jsonbGe(left: SqlJsonb | null, right: SqlJsonb | null): boolean | null {
+    const comparison = jsonbCompare(left, right);
+    return comparison === null ? null : comparison >= 0n;
+}
+function jsonbContains(left: SqlJsonb | null, right: SqlJsonb | null): boolean | null {
+    if (left === null || right === null)
+        return null;
+    const container = (node: SqlJsonNode): boolean => node.kind === "array" || node.kind === "object";
+    const deep = (value: SqlJsonNode, contained: SqlJsonNode): boolean => {
+        if (contained.kind === "object") {
+            if (value.kind !== "object" || value.pairs.length < contained.pairs.length)
+                return false;
+            for (const pair of contained.pairs) {
+                const match = value.pairs.find(item => item.key === pair.key)?.value;
+                if (!match)
+                    return false;
+                if (!container(match) && !container(pair.value)) {
+                    if (match.kind !== pair.value.kind || jsonbScalarCompare(match, pair.value) !== 0)
+                        return false;
+                }
+                else if (container(match) && container(pair.value)) {
+                    if (!deep(match, pair.value))
+                        return false;
+                }
+                else
+                    return false;
+            }
+            return true;
+        }
+        const valueRaw = !container(value);
+        const containedRaw = !container(contained);
+        if (value.kind === "object")
+            return false;
+        if (valueRaw && !containedRaw)
+            return false;
+        const values = valueRaw ? [value] : value.kind === "array" ? value.elements : [];
+        const items = containedRaw ? [contained] : contained.kind === "array" ? contained.elements : [];
+        for (const item of items) {
+            if (!container(item)) {
+                if (!values.some(element => !container(element) && element.kind === item.kind && jsonbScalarCompare(element, item) === 0))
+                    return false;
+            }
+            else if (!values.filter(container).some(element => deep(element, item)))
+                return false;
+        }
+        return true;
+    };
+    if ((left.node.kind === "object") !== (right.node.kind === "object"))
+        return false;
+    return deep(left.node, right.node);
+}
+function jsonbContained(left: SqlJsonb | null, right: SqlJsonb | null): boolean | null {
+    return jsonbContains(right, left);
+}
+function jsonbExists(value: SqlJsonb | null, key: string | null): boolean | null {
+    if (value === null || key === null)
+        return null;
+    if (value.node.kind === "object")
+        return value.node.pairs.some(pair => pair.key === key);
+    if (value.node.kind === "array")
+        return value.node.elements.some(element => element.kind === "string" && element.value === key);
+    return value.node.kind === "string" && value.node.value === key;
+}
+function jsonbExistsAll(value: SqlJsonb | null, keys: SqlArray | null): boolean | null {
+    const path = jsonPathKeys(keys);
+    if (value === null || path === null)
+        return null;
+    return path.every(key => key === null || jsonbExists(value, key) === true);
+}
+function jsonbExistsAny(value: SqlJsonb | null, keys: SqlArray | null): boolean | null {
+    const path = jsonPathKeys(keys);
+    if (value === null || path === null)
+        return null;
+    return path.some(key => key !== null && jsonbExists(value, key) === true);
+}
+function jsonFromText(value: string | null): SqlJson | null { return jsonInput(value); }
+function jsonbFromText(value: string | null): SqlJsonb | null { return jsonbInput(value); }
+function jsonText(value: SqlJson | null): string | null {
+    return value === null ? null : value.text;
+}
+function jsonbText(value: SqlJsonb | null): string | null {
+    return value === null ? null : value.toString();
+}
+function jsonToJsonb(value: SqlJson | null): SqlJsonb | null {
+    return value === null ? null : new SqlJsonb(jsonbCanonicalize(jsonParse(value.text, true)));
+}
+function jsonbToJson(value: SqlJsonb | null): SqlJson | null {
+    if (value === null)
+        return null;
+    const text = jsonbFormat(value.node);
+    return new SqlJson(text, value.node);
+}
 export function evaluate0() {
     return int2Add(int2Input("2"), int2Input("3"));
 }
@@ -91815,4 +92512,1552 @@ export function evaluate29489() {
 }
 export function evaluate29490() {
     return arrayConcat(arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]), arrayCoerce("pg_catalog.\"varchar\"", arrayInput("pg_catalog.bpchar", [1], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b "))])));
+}
+export function evaluate29491() {
+    return jsonInput(null);
+}
+export function evaluate29492() {
+    return jsonbInput(null);
+}
+export function evaluate29493() {
+    return jsonInput("null");
+}
+export function evaluate29494() {
+    return jsonbInput("null");
+}
+export function evaluate29495() {
+    return jsonInput("true");
+}
+export function evaluate29496() {
+    return jsonbInput("true");
+}
+export function evaluate29497() {
+    return jsonInput("false");
+}
+export function evaluate29498() {
+    return jsonbInput("false");
+}
+export function evaluate29499() {
+    return jsonInput("0");
+}
+export function evaluate29500() {
+    return jsonbInput("0");
+}
+export function evaluate29501() {
+    return jsonInput("1.2300");
+}
+export function evaluate29502() {
+    return jsonbInput("1.2300");
+}
+export function evaluate29503() {
+    return jsonInput("1e2");
+}
+export function evaluate29504() {
+    return jsonbInput("1e2");
+}
+export function evaluate29505() {
+    return jsonInput("\"hi\"");
+}
+export function evaluate29506() {
+    return jsonbInput("\"hi\"");
+}
+export function evaluate29507() {
+    return jsonInput("[]");
+}
+export function evaluate29508() {
+    return jsonbInput("[]");
+}
+export function evaluate29509() {
+    return jsonInput("{}");
+}
+export function evaluate29510() {
+    return jsonbInput("{}");
+}
+export function evaluate29511() {
+    return jsonInput("[1, null, 3]");
+}
+export function evaluate29512() {
+    return jsonbInput("[1, null, 3]");
+}
+export function evaluate29513() {
+    return jsonInput("{\"b\":2,\"a\":1}");
+}
+export function evaluate29514() {
+    return jsonbInput("{\"b\":2,\"a\":1}");
+}
+export function evaluate29515() {
+    return jsonInput("{\"a\":1,\"a\":2}");
+}
+export function evaluate29516() {
+    return jsonbInput("{\"a\":1,\"a\":2}");
+}
+export function evaluate29517() {
+    return jsonInput(" { \"a\" : 1 } ");
+}
+export function evaluate29518() {
+    return jsonbInput(" { \"a\" : 1 } ");
+}
+export function evaluate29519() {
+    return jsonInput("{\"aa\":1,\"b\":2}");
+}
+export function evaluate29520() {
+    return jsonbInput("{\"aa\":1,\"b\":2}");
+}
+export function evaluate29521() {
+    return jsonInput("\"\\u0041\"");
+}
+export function evaluate29522() {
+    return jsonbInput("\"\\u0041\"");
+}
+export function evaluate29523() {
+    return jsonInput("\"a\\/b\"");
+}
+export function evaluate29524() {
+    return jsonbInput("\"a\\/b\"");
+}
+export function evaluate29525() {
+    return jsonInput("\"\\uD83D\\uDE00\"");
+}
+export function evaluate29526() {
+    return jsonbInput("\"\\uD83D\\uDE00\"");
+}
+export function evaluate29527() {
+    return jsonInput("9007199254740993");
+}
+export function evaluate29528() {
+    return jsonbInput("9007199254740993");
+}
+export function evaluate29529() {
+    return jsonInput("-0");
+}
+export function evaluate29530() {
+    return jsonbInput("-0");
+}
+export function evaluate29531() {
+    return jsonInput("");
+}
+export function evaluate29532() {
+    return jsonbInput("");
+}
+export function evaluate29533() {
+    return jsonInput("01");
+}
+export function evaluate29534() {
+    return jsonbInput("01");
+}
+export function evaluate29535() {
+    return jsonInput("truee");
+}
+export function evaluate29536() {
+    return jsonbInput("truee");
+}
+export function evaluate29537() {
+    return jsonInput("[1,]");
+}
+export function evaluate29538() {
+    return jsonbInput("[1,]");
+}
+export function evaluate29539() {
+    return jsonInput("{a:1}");
+}
+export function evaluate29540() {
+    return jsonbInput("{a:1}");
+}
+export function evaluate29541() {
+    return jsonInput("1 2");
+}
+export function evaluate29542() {
+    return jsonbInput("1 2");
+}
+export function evaluate29543() {
+    return jsonInput("\"\\uD800\"");
+}
+export function evaluate29544() {
+    return jsonbInput("\"\\uD800\"");
+}
+export function evaluate29545() {
+    return jsonInput("\"\\u0000\"");
+}
+export function evaluate29546() {
+    return jsonbInput("\"\\u0000\"");
+}
+export function evaluate29547() {
+    return jsonInput("\"a\\u0000b\"");
+}
+export function evaluate29548() {
+    return jsonbInput("\"a\\u0000b\"");
+}
+export function evaluate29549() {
+    return jsonTypeof(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
+}
+export function evaluate29550() {
+    return jsonTypeof(jsonInput("[10,20,30]"));
+}
+export function evaluate29551() {
+    return jsonTypeof(jsonInput("1"));
+}
+export function evaluate29552() {
+    return jsonTypeof(jsonInput("null"));
+}
+export function evaluate29553() {
+    return jsonTypeof(jsonInput(null));
+}
+export function evaluate29554() {
+    return jsonTypeof(jsonInput("  [1]"));
+}
+export function evaluate29555() {
+    return jsonbTypeof(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
+}
+export function evaluate29556() {
+    return jsonbTypeof(jsonbInput("1"));
+}
+export function evaluate29557() {
+    return jsonbTypeof(jsonbInput("null"));
+}
+export function evaluate29558() {
+    return jsonbTypeof(jsonbInput(null));
+}
+export function evaluate29559() {
+    return jsonArrayLength(jsonInput("[10,20,30]"));
+}
+export function evaluate29560() {
+    return jsonArrayLength(jsonInput("[[1],2]"));
+}
+export function evaluate29561() {
+    return jsonArrayLength(jsonInput("[]"));
+}
+export function evaluate29562() {
+    return jsonArrayLength(jsonInput("{}"));
+}
+export function evaluate29563() {
+    return jsonArrayLength(jsonInput("1"));
+}
+export function evaluate29564() {
+    return jsonbArrayLength(jsonbInput("[10,20,30]"));
+}
+export function evaluate29565() {
+    return jsonbArrayLength(jsonbInput("1"));
+}
+export function evaluate29566() {
+    return jsonbArrayLength(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
+}
+export function evaluate29567() {
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+}
+export function evaluate29568() {
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+}
+export function evaluate29569() {
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+}
+export function evaluate29570() {
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+}
+export function evaluate29571() {
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+}
+export function evaluate29572() {
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+}
+export function evaluate29573() {
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+}
+export function evaluate29574() {
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+}
+export function evaluate29575() {
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+}
+export function evaluate29576() {
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+}
+export function evaluate29577() {
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+}
+export function evaluate29578() {
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+}
+export function evaluate29579() {
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+}
+export function evaluate29580() {
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+}
+export function evaluate29581() {
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+}
+export function evaluate29582() {
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+}
+export function evaluate29583() {
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+}
+export function evaluate29584() {
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+}
+export function evaluate29585() {
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+}
+export function evaluate29586() {
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+}
+export function evaluate29587() {
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+}
+export function evaluate29588() {
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+}
+export function evaluate29589() {
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+}
+export function evaluate29590() {
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+}
+export function evaluate29591() {
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+}
+export function evaluate29592() {
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+}
+export function evaluate29593() {
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+}
+export function evaluate29594() {
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+}
+export function evaluate29595() {
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+}
+export function evaluate29596() {
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+}
+export function evaluate29597() {
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+}
+export function evaluate29598() {
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+}
+export function evaluate29599() {
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+}
+export function evaluate29600() {
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+}
+export function evaluate29601() {
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+}
+export function evaluate29602() {
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+}
+export function evaluate29603() {
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+}
+export function evaluate29604() {
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+}
+export function evaluate29605() {
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+}
+export function evaluate29606() {
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+}
+export function evaluate29607() {
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+}
+export function evaluate29608() {
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+}
+export function evaluate29609() {
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+}
+export function evaluate29610() {
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+}
+export function evaluate29611() {
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+}
+export function evaluate29612() {
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+}
+export function evaluate29613() {
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+}
+export function evaluate29614() {
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+}
+export function evaluate29615() {
+    return jsonObjectField(jsonInput("{\"a\":1,\"a\":2}"), textInput("a"));
+}
+export function evaluate29616() {
+    return jsonObjectField(jsonInput(" { \"a\" : 1 } "), textInput("a"));
+}
+export function evaluate29617() {
+    return jsonObjectField(jsonInput("[10,20,30]"), textInput("a"));
+}
+export function evaluate29618() {
+    return jsonbObjectField(jsonbInput("[10,20,30]"), textInput("a"));
+}
+export function evaluate29619() {
+    return jsonObjectField(jsonInput("1"), textInput("a"));
+}
+export function evaluate29620() {
+    return jsonbObjectField(jsonbInput("1"), textInput("a"));
+}
+export function evaluate29621() {
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("0"));
+}
+export function evaluate29622() {
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("0"));
+}
+export function evaluate29623() {
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("0"));
+}
+export function evaluate29624() {
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("0"));
+}
+export function evaluate29625() {
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("0"));
+}
+export function evaluate29626() {
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("0"));
+}
+export function evaluate29627() {
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("0"));
+}
+export function evaluate29628() {
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("0"));
+}
+export function evaluate29629() {
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("1"));
+}
+export function evaluate29630() {
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("1"));
+}
+export function evaluate29631() {
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("1"));
+}
+export function evaluate29632() {
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("1"));
+}
+export function evaluate29633() {
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("1"));
+}
+export function evaluate29634() {
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("1"));
+}
+export function evaluate29635() {
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("1"));
+}
+export function evaluate29636() {
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("1"));
+}
+export function evaluate29637() {
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("2"));
+}
+export function evaluate29638() {
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("2"));
+}
+export function evaluate29639() {
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("2"));
+}
+export function evaluate29640() {
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("2"));
+}
+export function evaluate29641() {
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("2"));
+}
+export function evaluate29642() {
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("2"));
+}
+export function evaluate29643() {
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("2"));
+}
+export function evaluate29644() {
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("2"));
+}
+export function evaluate29645() {
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-1"));
+}
+export function evaluate29646() {
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-1"));
+}
+export function evaluate29647() {
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-1"));
+}
+export function evaluate29648() {
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-1"));
+}
+export function evaluate29649() {
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-1"));
+}
+export function evaluate29650() {
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-1"));
+}
+export function evaluate29651() {
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-1"));
+}
+export function evaluate29652() {
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-1"));
+}
+export function evaluate29653() {
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-4"));
+}
+export function evaluate29654() {
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-4"));
+}
+export function evaluate29655() {
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-4"));
+}
+export function evaluate29656() {
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-4"));
+}
+export function evaluate29657() {
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-4"));
+}
+export function evaluate29658() {
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-4"));
+}
+export function evaluate29659() {
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-4"));
+}
+export function evaluate29660() {
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-4"));
+}
+export function evaluate29661() {
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input(null));
+}
+export function evaluate29662() {
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input(null));
+}
+export function evaluate29663() {
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input(null));
+}
+export function evaluate29664() {
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input(null));
+}
+export function evaluate29665() {
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input(null));
+}
+export function evaluate29666() {
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input(null));
+}
+export function evaluate29667() {
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input(null));
+}
+export function evaluate29668() {
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input(null));
+}
+export function evaluate29669() {
+    return jsonArrayElement(jsonInput("[1, null, 3]"), int4Input("1"));
+}
+export function evaluate29670() {
+    return jsonArrayElementText(jsonInput("[1, null, 3]"), int4Input("1"));
+}
+export function evaluate29671() {
+    return jsonArrayElement(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), int4Input("0"));
+}
+export function evaluate29672() {
+    return jsonArrayElement(jsonInput("1"), int4Input("0"));
+}
+export function evaluate29673() {
+    return jsonbArrayElement(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), int4Input("0"));
+}
+export function evaluate29674() {
+    return jsonbArrayElement(jsonbInput("1"), int4Input("0"));
+}
+export function evaluate29675() {
+    return jsonbArrayElementText(jsonbInput("\"hi\""), int4Input("0"));
+}
+export function evaluate29676() {
+    return jsonArrayElementText(jsonInput("\"hi\""), int4Input("0"));
+}
+export function evaluate29677() {
+    return jsonbArrayElement(jsonbInput("1"), int4Input("-1"));
+}
+export function evaluate29678() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate29679() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate29680() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate29681() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate29682() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate29683() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate29684() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate29685() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate29686() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate29687() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate29688() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate29689() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate29690() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate29691() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate29692() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate29693() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate29694() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+}
+export function evaluate29695() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+}
+export function evaluate29696() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+}
+export function evaluate29697() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+}
+export function evaluate29698() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+}
+export function evaluate29699() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+}
+export function evaluate29700() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+}
+export function evaluate29701() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+}
+export function evaluate29702() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+}
+export function evaluate29703() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+}
+export function evaluate29704() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+}
+export function evaluate29705() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+}
+export function evaluate29706() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+}
+export function evaluate29707() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+}
+export function evaluate29708() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+}
+export function evaluate29709() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+}
+export function evaluate29710() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+}
+export function evaluate29711() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+}
+export function evaluate29712() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+}
+export function evaluate29713() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+}
+export function evaluate29714() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+}
+export function evaluate29715() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+}
+export function evaluate29716() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+}
+export function evaluate29717() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+}
+export function evaluate29718() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+}
+export function evaluate29719() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+}
+export function evaluate29720() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+}
+export function evaluate29721() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+}
+export function evaluate29722() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+}
+export function evaluate29723() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+}
+export function evaluate29724() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+}
+export function evaluate29725() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+}
+export function evaluate29726() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+}
+export function evaluate29727() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+}
+export function evaluate29728() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+}
+export function evaluate29729() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+}
+export function evaluate29730() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+}
+export function evaluate29731() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+}
+export function evaluate29732() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+}
+export function evaluate29733() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+}
+export function evaluate29734() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+}
+export function evaluate29735() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+}
+export function evaluate29736() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+}
+export function evaluate29737() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+}
+export function evaluate29738() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+}
+export function evaluate29739() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+}
+export function evaluate29740() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+}
+export function evaluate29741() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+}
+export function evaluate29742() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+}
+export function evaluate29743() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+}
+export function evaluate29744() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+}
+export function evaluate29745() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+}
+export function evaluate29746() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+}
+export function evaluate29747() {
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+}
+export function evaluate29748() {
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+}
+export function evaluate29749() {
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+}
+export function evaluate29750() {
+    return jsonExtractPath(jsonInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]));
+}
+export function evaluate29751() {
+    return jsonExtractPath(jsonInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+}
+export function evaluate29752() {
+    return jsonbExtractPath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+}
+export function evaluate29753() {
+    return jsonExtractPath(jsonInput("{\"1\":\"a\"}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]));
+}
+export function evaluate29754() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+}
+export function evaluate29755() {
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], null));
+}
+export function evaluate29756() {
+    return jsonbExtractPath(jsonbInput("\"hi\""), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("0"))]));
+}
+export function evaluate29757() {
+    return jsonExtractPath(jsonInput("\"hi\""), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("0"))]));
+}
+export function evaluate29758() {
+    return jsonbEq(jsonbInput("null"), jsonbInput("\"\""));
+}
+export function evaluate29759() {
+    return jsonbNe(jsonbInput("null"), jsonbInput("\"\""));
+}
+export function evaluate29760() {
+    return jsonbLt(jsonbInput("null"), jsonbInput("\"\""));
+}
+export function evaluate29761() {
+    return jsonbLe(jsonbInput("null"), jsonbInput("\"\""));
+}
+export function evaluate29762() {
+    return jsonbGt(jsonbInput("null"), jsonbInput("\"\""));
+}
+export function evaluate29763() {
+    return jsonbGe(jsonbInput("null"), jsonbInput("\"\""));
+}
+export function evaluate29764() {
+    return jsonbCompare(jsonbInput("null"), jsonbInput("\"\""));
+}
+export function evaluate29765() {
+    return jsonbEq(jsonbInput("\"\""), jsonbInput("0"));
+}
+export function evaluate29766() {
+    return jsonbNe(jsonbInput("\"\""), jsonbInput("0"));
+}
+export function evaluate29767() {
+    return jsonbLt(jsonbInput("\"\""), jsonbInput("0"));
+}
+export function evaluate29768() {
+    return jsonbLe(jsonbInput("\"\""), jsonbInput("0"));
+}
+export function evaluate29769() {
+    return jsonbGt(jsonbInput("\"\""), jsonbInput("0"));
+}
+export function evaluate29770() {
+    return jsonbGe(jsonbInput("\"\""), jsonbInput("0"));
+}
+export function evaluate29771() {
+    return jsonbCompare(jsonbInput("\"\""), jsonbInput("0"));
+}
+export function evaluate29772() {
+    return jsonbEq(jsonbInput("0"), jsonbInput("false"));
+}
+export function evaluate29773() {
+    return jsonbNe(jsonbInput("0"), jsonbInput("false"));
+}
+export function evaluate29774() {
+    return jsonbLt(jsonbInput("0"), jsonbInput("false"));
+}
+export function evaluate29775() {
+    return jsonbLe(jsonbInput("0"), jsonbInput("false"));
+}
+export function evaluate29776() {
+    return jsonbGt(jsonbInput("0"), jsonbInput("false"));
+}
+export function evaluate29777() {
+    return jsonbGe(jsonbInput("0"), jsonbInput("false"));
+}
+export function evaluate29778() {
+    return jsonbCompare(jsonbInput("0"), jsonbInput("false"));
+}
+export function evaluate29779() {
+    return jsonbEq(jsonbInput("false"), jsonbInput("[]"));
+}
+export function evaluate29780() {
+    return jsonbNe(jsonbInput("false"), jsonbInput("[]"));
+}
+export function evaluate29781() {
+    return jsonbLt(jsonbInput("false"), jsonbInput("[]"));
+}
+export function evaluate29782() {
+    return jsonbLe(jsonbInput("false"), jsonbInput("[]"));
+}
+export function evaluate29783() {
+    return jsonbGt(jsonbInput("false"), jsonbInput("[]"));
+}
+export function evaluate29784() {
+    return jsonbGe(jsonbInput("false"), jsonbInput("[]"));
+}
+export function evaluate29785() {
+    return jsonbCompare(jsonbInput("false"), jsonbInput("[]"));
+}
+export function evaluate29786() {
+    return jsonbEq(jsonbInput("[]"), jsonbInput("null"));
+}
+export function evaluate29787() {
+    return jsonbNe(jsonbInput("[]"), jsonbInput("null"));
+}
+export function evaluate29788() {
+    return jsonbLt(jsonbInput("[]"), jsonbInput("null"));
+}
+export function evaluate29789() {
+    return jsonbLe(jsonbInput("[]"), jsonbInput("null"));
+}
+export function evaluate29790() {
+    return jsonbGt(jsonbInput("[]"), jsonbInput("null"));
+}
+export function evaluate29791() {
+    return jsonbGe(jsonbInput("[]"), jsonbInput("null"));
+}
+export function evaluate29792() {
+    return jsonbCompare(jsonbInput("[]"), jsonbInput("null"));
+}
+export function evaluate29793() {
+    return jsonbEq(jsonbInput("[]"), jsonbInput("{}"));
+}
+export function evaluate29794() {
+    return jsonbNe(jsonbInput("[]"), jsonbInput("{}"));
+}
+export function evaluate29795() {
+    return jsonbLt(jsonbInput("[]"), jsonbInput("{}"));
+}
+export function evaluate29796() {
+    return jsonbLe(jsonbInput("[]"), jsonbInput("{}"));
+}
+export function evaluate29797() {
+    return jsonbGt(jsonbInput("[]"), jsonbInput("{}"));
+}
+export function evaluate29798() {
+    return jsonbGe(jsonbInput("[]"), jsonbInput("{}"));
+}
+export function evaluate29799() {
+    return jsonbCompare(jsonbInput("[]"), jsonbInput("{}"));
+}
+export function evaluate29800() {
+    return jsonbEq(jsonbInput("[1]"), jsonbInput("[1,2]"));
+}
+export function evaluate29801() {
+    return jsonbNe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+}
+export function evaluate29802() {
+    return jsonbLt(jsonbInput("[1]"), jsonbInput("[1,2]"));
+}
+export function evaluate29803() {
+    return jsonbLe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+}
+export function evaluate29804() {
+    return jsonbGt(jsonbInput("[1]"), jsonbInput("[1,2]"));
+}
+export function evaluate29805() {
+    return jsonbGe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+}
+export function evaluate29806() {
+    return jsonbCompare(jsonbInput("[1]"), jsonbInput("[1,2]"));
+}
+export function evaluate29807() {
+    return jsonbEq(jsonbInput("[2]"), jsonbInput("[1,2]"));
+}
+export function evaluate29808() {
+    return jsonbNe(jsonbInput("[2]"), jsonbInput("[1,2]"));
+}
+export function evaluate29809() {
+    return jsonbLt(jsonbInput("[2]"), jsonbInput("[1,2]"));
+}
+export function evaluate29810() {
+    return jsonbLe(jsonbInput("[2]"), jsonbInput("[1,2]"));
+}
+export function evaluate29811() {
+    return jsonbGt(jsonbInput("[2]"), jsonbInput("[1,2]"));
+}
+export function evaluate29812() {
+    return jsonbGe(jsonbInput("[2]"), jsonbInput("[1,2]"));
+}
+export function evaluate29813() {
+    return jsonbCompare(jsonbInput("[2]"), jsonbInput("[1,2]"));
+}
+export function evaluate29814() {
+    return jsonbEq(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+}
+export function evaluate29815() {
+    return jsonbNe(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+}
+export function evaluate29816() {
+    return jsonbLt(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+}
+export function evaluate29817() {
+    return jsonbLe(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+}
+export function evaluate29818() {
+    return jsonbGt(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+}
+export function evaluate29819() {
+    return jsonbGe(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+}
+export function evaluate29820() {
+    return jsonbCompare(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+}
+export function evaluate29821() {
+    return jsonbEq(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+}
+export function evaluate29822() {
+    return jsonbNe(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+}
+export function evaluate29823() {
+    return jsonbLt(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+}
+export function evaluate29824() {
+    return jsonbLe(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+}
+export function evaluate29825() {
+    return jsonbGt(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+}
+export function evaluate29826() {
+    return jsonbGe(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+}
+export function evaluate29827() {
+    return jsonbCompare(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+}
+export function evaluate29828() {
+    return jsonbEq(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+}
+export function evaluate29829() {
+    return jsonbNe(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+}
+export function evaluate29830() {
+    return jsonbLt(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+}
+export function evaluate29831() {
+    return jsonbLe(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+}
+export function evaluate29832() {
+    return jsonbGt(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+}
+export function evaluate29833() {
+    return jsonbGe(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+}
+export function evaluate29834() {
+    return jsonbCompare(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+}
+export function evaluate29835() {
+    return jsonbEq(jsonbInput("\"B\""), jsonbInput("\"a\""));
+}
+export function evaluate29836() {
+    return jsonbNe(jsonbInput("\"B\""), jsonbInput("\"a\""));
+}
+export function evaluate29837() {
+    return jsonbLt(jsonbInput("\"B\""), jsonbInput("\"a\""));
+}
+export function evaluate29838() {
+    return jsonbLe(jsonbInput("\"B\""), jsonbInput("\"a\""));
+}
+export function evaluate29839() {
+    return jsonbGt(jsonbInput("\"B\""), jsonbInput("\"a\""));
+}
+export function evaluate29840() {
+    return jsonbGe(jsonbInput("\"B\""), jsonbInput("\"a\""));
+}
+export function evaluate29841() {
+    return jsonbCompare(jsonbInput("\"B\""), jsonbInput("\"a\""));
+}
+export function evaluate29842() {
+    return jsonbEq(jsonbInput("1.0"), jsonbInput("100"));
+}
+export function evaluate29843() {
+    return jsonbNe(jsonbInput("1.0"), jsonbInput("100"));
+}
+export function evaluate29844() {
+    return jsonbLt(jsonbInput("1.0"), jsonbInput("100"));
+}
+export function evaluate29845() {
+    return jsonbLe(jsonbInput("1.0"), jsonbInput("100"));
+}
+export function evaluate29846() {
+    return jsonbGt(jsonbInput("1.0"), jsonbInput("100"));
+}
+export function evaluate29847() {
+    return jsonbGe(jsonbInput("1.0"), jsonbInput("100"));
+}
+export function evaluate29848() {
+    return jsonbCompare(jsonbInput("1.0"), jsonbInput("100"));
+}
+export function evaluate29849() {
+    return jsonbEq(jsonbInput(null), jsonbInput("[1]"));
+}
+export function evaluate29850() {
+    return jsonbNe(jsonbInput(null), jsonbInput("[1]"));
+}
+export function evaluate29851() {
+    return jsonbLt(jsonbInput(null), jsonbInput("[1]"));
+}
+export function evaluate29852() {
+    return jsonbLe(jsonbInput(null), jsonbInput("[1]"));
+}
+export function evaluate29853() {
+    return jsonbGt(jsonbInput(null), jsonbInput("[1]"));
+}
+export function evaluate29854() {
+    return jsonbGe(jsonbInput(null), jsonbInput("[1]"));
+}
+export function evaluate29855() {
+    return jsonbCompare(jsonbInput(null), jsonbInput("[1]"));
+}
+export function evaluate29856() {
+    return jsonbEq(jsonbInput("[1]"), jsonbInput("[1]"));
+}
+export function evaluate29857() {
+    return jsonbNe(jsonbInput("[1]"), jsonbInput("[1]"));
+}
+export function evaluate29858() {
+    return jsonbLt(jsonbInput("[1]"), jsonbInput("[1]"));
+}
+export function evaluate29859() {
+    return jsonbLe(jsonbInput("[1]"), jsonbInput("[1]"));
+}
+export function evaluate29860() {
+    return jsonbGt(jsonbInput("[1]"), jsonbInput("[1]"));
+}
+export function evaluate29861() {
+    return jsonbGe(jsonbInput("[1]"), jsonbInput("[1]"));
+}
+export function evaluate29862() {
+    return jsonbCompare(jsonbInput("[1]"), jsonbInput("[1]"));
+}
+export function evaluate29863() {
+    return jsonbEq(jsonbInput("[1]"), jsonbInput("[1,2]"));
+}
+export function evaluate29864() {
+    return jsonbNe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+}
+export function evaluate29865() {
+    return jsonbLt(jsonbInput("[1]"), jsonbInput("[1,2]"));
+}
+export function evaluate29866() {
+    return jsonbLe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+}
+export function evaluate29867() {
+    return jsonbGt(jsonbInput("[1]"), jsonbInput("[1,2]"));
+}
+export function evaluate29868() {
+    return jsonbGe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+}
+export function evaluate29869() {
+    return jsonbContains(jsonbInput("1"), jsonbInput("1"));
+}
+export function evaluate29870() {
+    return jsonbContained(jsonbInput("1"), jsonbInput("1"));
+}
+export function evaluate29871() {
+    return jsonbContains(jsonbInput("1"), jsonbInput("1"));
+}
+export function evaluate29872() {
+    return jsonbContained(jsonbInput("1"), jsonbInput("1"));
+}
+export function evaluate29873() {
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("1"));
+}
+export function evaluate29874() {
+    return jsonbContained(jsonbInput("1"), jsonbInput("[1]"));
+}
+export function evaluate29875() {
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("1"));
+}
+export function evaluate29876() {
+    return jsonbContained(jsonbInput("1"), jsonbInput("[1]"));
+}
+export function evaluate29877() {
+    return jsonbContains(jsonbInput("1"), jsonbInput("[1]"));
+}
+export function evaluate29878() {
+    return jsonbContained(jsonbInput("[1]"), jsonbInput("1"));
+}
+export function evaluate29879() {
+    return jsonbContains(jsonbInput("1"), jsonbInput("[1]"));
+}
+export function evaluate29880() {
+    return jsonbContained(jsonbInput("[1]"), jsonbInput("1"));
+}
+export function evaluate29881() {
+    return jsonbContains(jsonbInput("[1,2]"), jsonbInput("[1,1]"));
+}
+export function evaluate29882() {
+    return jsonbContained(jsonbInput("[1,1]"), jsonbInput("[1,2]"));
+}
+export function evaluate29883() {
+    return jsonbContains(jsonbInput("[1,2]"), jsonbInput("[1,1]"));
+}
+export function evaluate29884() {
+    return jsonbContained(jsonbInput("[1,1]"), jsonbInput("[1,2]"));
+}
+export function evaluate29885() {
+    return jsonbContains(jsonbInput("{\"a\":[1,2]}"), jsonbInput("{\"a\":[1]}"));
+}
+export function evaluate29886() {
+    return jsonbContained(jsonbInput("{\"a\":[1]}"), jsonbInput("{\"a\":[1,2]}"));
+}
+export function evaluate29887() {
+    return jsonbContains(jsonbInput("{\"a\":[1,2]}"), jsonbInput("{\"a\":[1]}"));
+}
+export function evaluate29888() {
+    return jsonbContained(jsonbInput("{\"a\":[1]}"), jsonbInput("{\"a\":[1,2]}"));
+}
+export function evaluate29889() {
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("[]"));
+}
+export function evaluate29890() {
+    return jsonbContained(jsonbInput("[]"), jsonbInput("[1]"));
+}
+export function evaluate29891() {
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("[]"));
+}
+export function evaluate29892() {
+    return jsonbContained(jsonbInput("[]"), jsonbInput("[1]"));
+}
+export function evaluate29893() {
+    return jsonbContains(jsonbInput("[]"), jsonbInput("[1]"));
+}
+export function evaluate29894() {
+    return jsonbContained(jsonbInput("[1]"), jsonbInput("[]"));
+}
+export function evaluate29895() {
+    return jsonbContains(jsonbInput("[]"), jsonbInput("[1]"));
+}
+export function evaluate29896() {
+    return jsonbContained(jsonbInput("[1]"), jsonbInput("[]"));
+}
+export function evaluate29897() {
+    return jsonbContains(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
+}
+export function evaluate29898() {
+    return jsonbContained(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
+}
+export function evaluate29899() {
+    return jsonbContains(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
+}
+export function evaluate29900() {
+    return jsonbContained(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
+}
+export function evaluate29901() {
+    return jsonbContains(jsonbInput("{}"), jsonbInput("{}"));
+}
+export function evaluate29902() {
+    return jsonbContained(jsonbInput("{}"), jsonbInput("{}"));
+}
+export function evaluate29903() {
+    return jsonbContains(jsonbInput("{}"), jsonbInput("{}"));
+}
+export function evaluate29904() {
+    return jsonbContained(jsonbInput("{}"), jsonbInput("{}"));
+}
+export function evaluate29905() {
+    return jsonbContains(jsonbInput("[null]"), jsonbInput("null"));
+}
+export function evaluate29906() {
+    return jsonbContained(jsonbInput("null"), jsonbInput("[null]"));
+}
+export function evaluate29907() {
+    return jsonbContains(jsonbInput("[null]"), jsonbInput("null"));
+}
+export function evaluate29908() {
+    return jsonbContained(jsonbInput("null"), jsonbInput("[null]"));
+}
+export function evaluate29909() {
+    return jsonbContains(jsonbInput("null"), jsonbInput("[null]"));
+}
+export function evaluate29910() {
+    return jsonbContained(jsonbInput("[null]"), jsonbInput("null"));
+}
+export function evaluate29911() {
+    return jsonbContains(jsonbInput("null"), jsonbInput("[null]"));
+}
+export function evaluate29912() {
+    return jsonbContained(jsonbInput("[null]"), jsonbInput("null"));
+}
+export function evaluate29913() {
+    return jsonbContains(jsonbInput("false"), jsonbInput("false"));
+}
+export function evaluate29914() {
+    return jsonbContained(jsonbInput("false"), jsonbInput("false"));
+}
+export function evaluate29915() {
+    return jsonbContains(jsonbInput("false"), jsonbInput("false"));
+}
+export function evaluate29916() {
+    return jsonbContained(jsonbInput("false"), jsonbInput("false"));
+}
+export function evaluate29917() {
+    return jsonbContains(jsonbInput("true"), jsonbInput("false"));
+}
+export function evaluate29918() {
+    return jsonbContained(jsonbInput("false"), jsonbInput("true"));
+}
+export function evaluate29919() {
+    return jsonbContains(jsonbInput("true"), jsonbInput("false"));
+}
+export function evaluate29920() {
+    return jsonbContained(jsonbInput("false"), jsonbInput("true"));
+}
+export function evaluate29921() {
+    return jsonbContains(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
+}
+export function evaluate29922() {
+    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
+}
+export function evaluate29923() {
+    return jsonbContains(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
+}
+export function evaluate29924() {
+    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
+}
+export function evaluate29925() {
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("[[1]]"));
+}
+export function evaluate29926() {
+    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[1]"));
+}
+export function evaluate29927() {
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("[[1]]"));
+}
+export function evaluate29928() {
+    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[1]"));
+}
+export function evaluate29929() {
+    return jsonbContains(jsonbInput(null), jsonbInput("1"));
+}
+export function evaluate29930() {
+    return jsonbContained(jsonbInput("1"), jsonbInput(null));
+}
+export function evaluate29931() {
+    return jsonbContains(jsonbInput(null), jsonbInput("1"));
+}
+export function evaluate29932() {
+    return jsonbContained(jsonbInput("1"), jsonbInput(null));
+}
+export function evaluate29933() {
+    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("a"));
+}
+export function evaluate29934() {
+    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("a"));
+}
+export function evaluate29935() {
+    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("b"));
+}
+export function evaluate29936() {
+    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("b"));
+}
+export function evaluate29937() {
+    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("a"));
+}
+export function evaluate29938() {
+    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("a"));
+}
+export function evaluate29939() {
+    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("1"));
+}
+export function evaluate29940() {
+    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("1"));
+}
+export function evaluate29941() {
+    return jsonbExists(jsonbInput("\"hello\""), textInput("hello"));
+}
+export function evaluate29942() {
+    return jsonbExists(jsonbInput("\"hello\""), textInput("hello"));
+}
+export function evaluate29943() {
+    return jsonbExists(jsonbInput("true"), textInput("true"));
+}
+export function evaluate29944() {
+    return jsonbExists(jsonbInput("true"), textInput("true"));
+}
+export function evaluate29945() {
+    return jsonbExists(jsonbInput("{\"\":\"x\"}"), textInput(""));
+}
+export function evaluate29946() {
+    return jsonbExists(jsonbInput("{\"\":\"x\"}"), textInput(""));
+}
+export function evaluate29947() {
+    return jsonbExists(jsonbInput("[\"\"]"), textInput(""));
+}
+export function evaluate29948() {
+    return jsonbExists(jsonbInput("[\"\"]"), textInput(""));
+}
+export function evaluate29949() {
+    return jsonbExists(jsonbInput(null), textInput("a"));
+}
+export function evaluate29950() {
+    return jsonbExists(jsonbInput(null), textInput("a"));
+}
+export function evaluate29951() {
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate29952() {
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate29953() {
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate29954() {
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate29955() {
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate29956() {
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate29957() {
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate29958() {
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate29959() {
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate29960() {
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate29961() {
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate29962() {
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
+}
+export function evaluate29963() {
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+}
+export function evaluate29964() {
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+}
+export function evaluate29965() {
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+}
+export function evaluate29966() {
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+}
+export function evaluate29967() {
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+}
+export function evaluate29968() {
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+}
+export function evaluate29969() {
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+}
+export function evaluate29970() {
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+}
+export function evaluate29971() {
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate29972() {
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate29973() {
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate29974() {
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
+}
+export function evaluate29975() {
+    return jsonFromText(textInput(null));
+}
+export function evaluate29976() {
+    return jsonbFromText(textInput(null));
+}
+export function evaluate29977() {
+    return jsonFromText(textInput("1"));
+}
+export function evaluate29978() {
+    return jsonbFromText(textInput("1"));
+}
+export function evaluate29979() {
+    return jsonFromText(textInput("{\"b\":2,\"a\":1}"));
+}
+export function evaluate29980() {
+    return jsonbFromText(textInput("{\"b\":2,\"a\":1}"));
+}
+export function evaluate29981() {
+    return jsonFromText(textInput("not-json"));
+}
+export function evaluate29982() {
+    return jsonbFromText(textInput("not-json"));
+}
+export function evaluate29983() {
+    return jsonFromText(textInput("\"\\u0000\""));
+}
+export function evaluate29984() {
+    return jsonbFromText(textInput("\"\\u0000\""));
+}
+export function evaluate29985() {
+    return jsonText(jsonInput(null));
+}
+export function evaluate29986() {
+    return jsonbText(jsonbInput(null));
+}
+export function evaluate29987() {
+    return jsonToJsonb(jsonInput(null));
+}
+export function evaluate29988() {
+    return jsonbToJson(jsonbInput(null));
+}
+export function evaluate29989() {
+    return jsonText(jsonInput("1"));
+}
+export function evaluate29990() {
+    return jsonbText(jsonbInput("1"));
+}
+export function evaluate29991() {
+    return jsonToJsonb(jsonInput("1"));
+}
+export function evaluate29992() {
+    return jsonbToJson(jsonbInput("1"));
+}
+export function evaluate29993() {
+    return jsonText(jsonInput(" { \"a\" : 1 } "));
+}
+export function evaluate29994() {
+    return jsonbText(jsonbInput(" { \"a\" : 1 } "));
+}
+export function evaluate29995() {
+    return jsonToJsonb(jsonInput(" { \"a\" : 1 } "));
+}
+export function evaluate29996() {
+    return jsonbToJson(jsonbInput(" { \"a\" : 1 } "));
+}
+export function evaluate29997() {
+    return jsonText(jsonInput("{\"a\":1,\"a\":2}"));
+}
+export function evaluate29998() {
+    return jsonbText(jsonbInput("{\"a\":1,\"a\":2}"));
+}
+export function evaluate29999() {
+    return jsonToJsonb(jsonInput("{\"a\":1,\"a\":2}"));
+}
+export function evaluate30000() {
+    return jsonbToJson(jsonbInput("{\"a\":1,\"a\":2}"));
+}
+export function evaluate30001() {
+    return sqlIsNull(jsonInput(null));
+}
+export function evaluate30002() {
+    return sqlIsNotNull(jsonbInput(null));
+}
+export function evaluate30003() {
+    return sqlCase(() => jsonInput("[10,20,30]"), [() => booleanInput(true), () => jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}")]);
+}
+export function evaluate30004() {
+    return sqlCase(() => jsonbInput("[10,20,30]"), [() => booleanInput(false), () => jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}")]);
+}
+export function evaluate30005() {
+    return sqlCoalesce(() => jsonInput(null), () => jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
+}
+export function evaluate30006() {
+    return sqlCoalesce(() => jsonbInput(null), () => jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
 }

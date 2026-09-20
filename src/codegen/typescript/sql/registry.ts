@@ -8,6 +8,7 @@ import { factory, identifier } from '../ast.js'
 import { typescriptNumericOperators, typescriptNumericFunctions } from './numeric.js'
 import { arrayType, enumType, type ExpressionBackend } from '../../../sql-semantics/expressions.js'
 import { typescriptUuidFunctions, typescriptUuidOperators } from './uuid.js'
+import { typescriptJsonFunctions, typescriptJsonOperators } from './json.js'
 
 export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
   bindings: [
@@ -29,6 +30,7 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
       functions: typescriptNumericFunctions,
     },
     { domain: 'uuid', operators: typescriptUuidOperators, functions: typescriptUuidFunctions },
+    { domain: 'json', operators: typescriptJsonOperators, functions: typescriptJsonFunctions },
   ],
   array: (elementType, dimensions, lowerBounds, elements) => ({
     expression: factory.createCallExpression(identifier('arrayInput'), undefined, [
@@ -217,6 +219,24 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
       helpers: [helper],
     }
   },
+  coerceJson: (type, operand) => {
+    const helper =
+      type === 'pg_catalog.text'
+        ? operand.type === 'pg_catalog.jsonb'
+          ? 'jsonbText'
+          : 'jsonText'
+        : type === 'pg_catalog.jsonb'
+          ? operand.type === 'pg_catalog.text'
+            ? 'jsonbFromText'
+            : 'jsonToJsonb'
+          : operand.type === 'pg_catalog.text'
+            ? 'jsonFromText'
+            : 'jsonbToJson'
+    return {
+      expression: factory.createCallExpression(identifier(helper), undefined, [operand.expression]),
+      helpers: [helper],
+    }
+  },
   coerceText: (type, length, explicit, operand) => {
     const helpers: string[] = []
     let expression = operand.expression
@@ -246,6 +266,14 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
     ]),
   uuid: (value) =>
     factory.createCallExpression(identifier('uuidInput'), undefined, [
+      value === null ? factory.createNull() : factory.createStringLiteral(value),
+    ]),
+  json: (value) =>
+    factory.createCallExpression(identifier('jsonInput'), undefined, [
+      value === null ? factory.createNull() : factory.createStringLiteral(value),
+    ]),
+  jsonb: (value) =>
+    factory.createCallExpression(identifier('jsonbInput'), undefined, [
       value === null ? factory.createNull() : factory.createStringLiteral(value),
     ]),
   enum: (definition, value) =>

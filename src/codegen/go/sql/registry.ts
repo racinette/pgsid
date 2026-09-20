@@ -8,6 +8,7 @@ import type { GoExpression } from '../ast.js'
 import { goNumericOperators, goNumericFunctions } from './numeric.js'
 import { arrayType, enumType, type ExpressionBackend } from '../../../sql-semantics/expressions.js'
 import { goUuidFunctions, goUuidOperators } from './uuid.js'
+import { goJsonFunctions, goJsonOperators } from './json.js'
 
 export const goSqlBackend: ExpressionBackend<GoExpression> = {
   bindings: [
@@ -17,6 +18,7 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
     { domain: 'numeric', operators: goFloatOperators, functions: goFloatFunctions },
     { domain: 'numeric', operators: goNumericOperators, functions: goNumericFunctions },
     { domain: 'uuid', operators: goUuidOperators, functions: goUuidFunctions },
+    { domain: 'json', operators: goJsonOperators, functions: goJsonFunctions },
   ],
   array: (elementType, dimensions, lowerBounds, elements) => ({
     expression:
@@ -229,6 +231,24 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
       helpers: [helper],
     }
   },
+  coerceJson: (type, operand) => {
+    const helper =
+      type === 'pg_catalog.text'
+        ? operand.type === 'pg_catalog.jsonb'
+          ? 'jsonbText'
+          : 'jsonText'
+        : type === 'pg_catalog.jsonb'
+          ? operand.type === 'pg_catalog.text'
+            ? 'jsonbFromText'
+            : 'jsonToJsonb'
+          : operand.type === 'pg_catalog.text'
+            ? 'jsonFromText'
+            : 'jsonbToJson'
+    return {
+      expression: go.call(go.ident(helper), [operand.expression]),
+      helpers: [helper],
+    }
+  },
   coerceText: (type, length, explicit, operand) => {
     const helpers: string[] = []
     let expression = operand.expression
@@ -260,6 +280,14 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
     value === null
       ? { kind: 'composite', type: go.ident('SqlUuid'), elements: [] }
       : go.call(go.ident('uuidInput'), [go.string(value)]),
+  json: (value) =>
+    value === null
+      ? go.composite(go.ident('SqlJson'))
+      : go.call(go.ident('jsonInput'), [go.string(value)]),
+  jsonb: (value) =>
+    value === null
+      ? go.composite(go.ident('SqlJsonb'))
+      : go.call(go.ident('jsonbInput'), [go.string(value)]),
   enum: (definition, value) =>
     value === null
       ? go.composite(go.ident('SqlEnum'))
