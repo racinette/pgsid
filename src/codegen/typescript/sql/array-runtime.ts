@@ -2,14 +2,90 @@ export const typescriptArrayHelpers: Record<
   string,
   { dependencies: readonly string[]; source: string }
 > = {
-  SqlArray: {
+  SqlArrayElement: {
     dependencies: [],
+    source: `class SqlArrayElement {
+  constructor(readonly value: any) {}
+}`,
+  },
+  arrayElementInput: {
+    dependencies: ['SqlArrayElement'],
+    source: `function arrayElementInput(value: any): SqlArrayElement {
+  return new SqlArrayElement(value)
+}`,
+  },
+  arrayFloatText: {
+    dependencies: [],
+    source: `function arrayFloatText(value: number, float4: boolean): string {
+  if (Number.isNaN(value)) return 'NaN'
+  if (value === Infinity) return 'Infinity'
+  if (value === -Infinity) return '-Infinity'
+  if (Object.is(value, -0)) return '-0'
+  if (!float4) return value.toString()
+  const rounded = Math.fround(value)
+  for (let precision = 1; precision <= 9; precision++) {
+    const candidate = rounded.toPrecision(precision)
+    if (Object.is(Math.fround(Number(candidate)), rounded))
+      return candidate
+        .replace(/(\\.\\d*?[1-9])0+(?=e|$)|\\.0+(?=e|$)/u, '$1')
+  }
+  return rounded.toString()
+}`,
+  },
+  arrayElementText: {
+    dependencies: ['SqlDecimal', 'SqlUuid', 'SqlEnum', 'arrayFloatText'],
+    source: `function arrayElementText(elementType: string, value: any): string {
+  let output: string
+  if (elementType === 'pg_catalog.bool') output = value ? 't' : 'f'
+  else if (elementType === 'pg_catalog.float4' || elementType === 'pg_catalog.float8')
+    output = arrayFloatText(value, elementType === 'pg_catalog.float4')
+  else output = value.toString()
+  if (
+    ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(elementType) &&
+    (output === '' || /^NULL$/i.test(output) || /[,"\\\\{}\\s]/u.test(output))
+  )
+    return '"' + output.replace(/[\\\\"]/gu, '\\\\$&') + '"'
+  return output
+}`,
+  },
+  arrayElementCompare: {
+    dependencies: [
+      'floatEq',
+      'floatLt',
+      'decimalEq',
+      'decimalLt',
+      'sqlTextCompare',
+      'bpcharText',
+      'uuidCompare',
+      'enumCompare',
+    ],
+    source: `function arrayElementCompare(elementType: string, left: any, right: any): number {
+  if (/^pg_catalog\\.int[248]$/.test(elementType))
+    return left < right ? -1 : left > right ? 1 : 0
+  if (/^pg_catalog\\.float[48]$/.test(elementType))
+    return floatEq(left, right) ? 0 : floatLt(left, right) ? -1 : 1
+  if (elementType === 'pg_catalog."numeric"')
+    return decimalEq(left, right) ? 0 : decimalLt(left, right) ? -1 : 1
+  if (elementType === 'pg_catalog.bool')
+    return Number(left) - Number(right)
+  if (['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(elementType))
+    return sqlTextCompare(
+      elementType === 'pg_catalog.bpchar' ? bpcharText(left)! : left,
+      elementType === 'pg_catalog.bpchar' ? bpcharText(right)! : right,
+    )
+  if (elementType === 'pg_catalog.uuid') return Number(uuidCompare(left, right)!)
+  if (elementType.startsWith('enum:')) return enumCompare(left, right)!
+  throw new Error('unsupported PostgreSQL array element type')
+}`,
+  },
+  SqlArray: {
+    dependencies: ['SqlArrayElement', 'arrayElementText'],
     source: `class SqlArray {
   constructor(
     readonly elementType: string,
     readonly dimensions: readonly number[],
     readonly lowerBounds: readonly number[],
-    readonly elements: readonly (bigint | null)[],
+    readonly elements: readonly SqlArrayElement[],
   ) {}
   toString(): string {
     if (this.dimensions.length === 0) return '{}'
@@ -19,9 +95,9 @@ export const typescriptArrayHelpers: Record<
       for (let index = 0; index < this.dimensions[depth]!; index++)
         values.push(
           depth === this.dimensions.length - 1
-            ? this.elements[offset++] === null
+            ? this.elements[offset++]!.value === null
               ? 'NULL'
-              : this.elements[offset - 1]!.toString()
+              : arrayElementText(this.elementType, this.elements[offset - 1]!.value)
             : render(depth + 1),
         )
       return '{' + values.join(',') + '}'
@@ -41,7 +117,7 @@ export const typescriptArrayHelpers: Record<
   elementType: string,
   dimensions: readonly number[],
   lowerBounds: readonly number[],
-  elements: readonly (bigint | null)[] | null,
+  elements: readonly SqlArrayElement[] | null,
 ): SqlArray | null {
   return elements === null
     ? null
@@ -93,19 +169,19 @@ export const typescriptArrayHelpers: Record<
 }`,
   },
   arrayCompare: {
-    dependencies: ['SqlArray'],
+    dependencies: ['SqlArray', 'arrayElementCompare'],
     source: `function arrayCompare(left: SqlArray | null, right: SqlArray | null): number | null {
   if (left === null || right === null) return null
   if (left.elementType !== right.elementType)
     throw Object.assign(new Error('cannot compare arrays of different element types'), { code: '42804' })
   const count = Math.min(left.elements.length, right.elements.length)
   for (let index = 0; index < count; index++) {
-    const a = left.elements[index]!, b = right.elements[index]!
+    const a = left.elements[index]!.value, b = right.elements[index]!.value
     if (a === null && b === null) continue
     if (a === null) return 1
     if (b === null) return -1
-    if (a < b) return -1
-    if (a > b) return 1
+    const comparison = arrayElementCompare(left.elementType, a, b)
+    if (comparison !== 0) return comparison
   }
   if (left.elements.length !== right.elements.length)
     return left.elements.length < right.elements.length ? -1 : 1
@@ -123,7 +199,7 @@ export const typescriptArrayHelpers: Record<
 }`,
   },
   arrayEq: {
-    dependencies: ['SqlArray'],
+    dependencies: ['SqlArray', 'arrayElementCompare'],
     source: `function arrayEq(left: SqlArray | null, right: SqlArray | null): boolean | null {
   if (left === null || right === null) return null
   if (
@@ -133,7 +209,12 @@ export const typescriptArrayHelpers: Record<
     left.lowerBounds.some((bound, index) => bound !== right.lowerBounds[index]) ||
     left.elements.length !== right.elements.length
   ) return false
-  return left.elements.every((element, index) => element === right.elements[index])
+  return left.elements.every((element, index) => {
+    const a = element.value, b = right.elements[index]!.value
+    return a === null || b === null
+      ? a === null && b === null
+      : arrayElementCompare(left.elementType, a, b) === 0
+  })
 }`,
   },
   arrayNe: {
@@ -144,11 +225,16 @@ export const typescriptArrayHelpers: Record<
 }`,
   },
   arrayContains: {
-    dependencies: ['SqlArray'],
+    dependencies: ['SqlArray', 'arrayElementCompare'],
     source: `function arrayContains(left: SqlArray | null, right: SqlArray | null): boolean | null {
   if (left === null || right === null) return null
   return right.elements.every((candidate) =>
-    candidate !== null && left.elements.some((element) => element !== null && element === candidate),
+    candidate.value !== null &&
+    left.elements.some(
+      (element) =>
+        element.value !== null &&
+        arrayElementCompare(left.elementType, element.value, candidate.value) === 0,
+    ),
   )
 }`,
   },
@@ -159,11 +245,16 @@ export const typescriptArrayHelpers: Record<
 }`,
   },
   arrayOverlap: {
-    dependencies: ['SqlArray'],
+    dependencies: ['SqlArray', 'arrayElementCompare'],
     source: `function arrayOverlap(left: SqlArray | null, right: SqlArray | null): boolean | null {
   if (left === null || right === null) return null
   return left.elements.some((candidate) =>
-    candidate !== null && right.elements.some((element) => element !== null && element === candidate),
+    candidate.value !== null &&
+    right.elements.some(
+      (element) =>
+        element.value !== null &&
+        arrayElementCompare(left.elementType, element.value, candidate.value) === 0,
+    ),
   )
 }`,
   },
@@ -210,7 +301,7 @@ export const typescriptArrayHelpers: Record<
   },
   arraySubscript: {
     dependencies: ['SqlArray'],
-    source: `function arraySubscript(value: SqlArray | null, ...subscripts: readonly (bigint | null)[]): bigint | null {
+    source: `function arraySubscript(value: SqlArray | null, ...subscripts: readonly (bigint | null)[]): any {
   if (
     value === null ||
     subscripts.length !== value.dimensions.length ||
@@ -222,7 +313,7 @@ export const typescriptArrayHelpers: Record<
     if (position < 0 || position >= value.dimensions[index]!) return null
     offset = offset * value.dimensions[index]! + position
   }
-  return value.elements[offset]!
+  return value.elements[offset]!.value
 }`,
   },
 }

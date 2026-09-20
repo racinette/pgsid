@@ -30,8 +30,8 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
     },
     { domain: 'uuid', operators: typescriptUuidOperators, functions: typescriptUuidFunctions },
   ],
-  array: (elementType, dimensions, lowerBounds, elements) =>
-    factory.createCallExpression(identifier('arrayInput'), undefined, [
+  array: (elementType, dimensions, lowerBounds, elements) => ({
+    expression: factory.createCallExpression(identifier('arrayInput'), undefined, [
       factory.createStringLiteral(elementType),
       factory.createArrayLiteralExpression(
         dimensions.map((dimension) => factory.createNumericLiteral(dimension)),
@@ -41,8 +41,16 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
       ),
       elements === null
         ? factory.createNull()
-        : factory.createArrayLiteralExpression(elements.map((element) => element.expression)),
+        : factory.createArrayLiteralExpression(
+            elements.map((element) =>
+              factory.createCallExpression(identifier('arrayElementInput'), undefined, [
+                element.expression,
+              ]),
+            ),
+          ),
     ]),
+    helpers: elements === null ? [] : ['arrayElementInput'],
+  }),
   arrayOperation: (operation, operands) => {
     const helper = {
       cardinality: 'arrayCardinality',
@@ -71,7 +79,7 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
       helpers: [helper],
     }
   },
-  arraySubscript: (array, subscripts) => ({
+  arraySubscript: (_elementType, array, subscripts) => ({
     expression: factory.createCallExpression(identifier('arraySubscript'), undefined, [
       array.expression,
       ...subscripts.map((subscript) => subscript.expression),

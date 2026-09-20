@@ -1,4 +1,10 @@
-import { arrayType, enumType, type SqlExpression } from '../../src/sql-semantics/expressions.js'
+import {
+  BUILTIN_ARRAY_ELEMENT_TYPES,
+  arrayType,
+  enumType,
+  resolveArrayPolymorphicType,
+  type SqlExpression,
+} from '../../src/sql-semantics/expressions.js'
 import { floatMathCopyright } from '../../src/sql-semantics/float-math-license.js'
 import { numericMathCopyright } from '../../src/sql-semantics/numeric-math-license.js'
 import { scalarCases } from '../fixtures/sql-semantics/operations/scalar.js'
@@ -377,6 +383,23 @@ describe('generated PostgreSQL scalar evaluation', () => {
       'array null test',
       'array case',
       'array coalesce',
+      ...[
+        'int2',
+        'int8',
+        'float4',
+        'float8',
+        'numeric',
+        'boolean',
+        'text',
+        'varchar',
+        'bpchar',
+        'uuid',
+        'enum',
+      ].flatMap((family) => [
+        `polymorphic array ${family} input`,
+        `polymorphic array ${family} ordering`,
+        `polymorphic array ${family} subscript`,
+      ]),
       'numeric utility scale 1.2300',
       'numeric utility min_scale 1.2300',
       'numeric utility trim_scale 1.2300',
@@ -633,6 +656,29 @@ describe('generated PostgreSQL scalar evaluation', () => {
     }
   })
 
+  it('substitutes PostgreSQL array pseudo-types with resolved concrete types', () => {
+    expect(BUILTIN_ARRAY_ELEMENT_TYPES).toHaveLength(11)
+    expect(
+      resolveArrayPolymorphicType(['pg_catalog.anyarray'], 'pg_catalog.anyelement', [
+        arrayType('pg_catalog.uuid'),
+      ]),
+    ).toBe('pg_catalog.uuid')
+    expect(
+      resolveArrayPolymorphicType(
+        ['pg_catalog.anycompatiblearray', 'pg_catalog.anycompatiblearray'],
+        'pg_catalog.anycompatiblearray',
+        [arrayType('pg_catalog.text'), arrayType('pg_catalog.text')],
+      ),
+    ).toBe(arrayType('pg_catalog.text'))
+    expect(
+      resolveArrayPolymorphicType(
+        ['pg_catalog.anyarray', 'pg_catalog.anyarray'],
+        'pg_catalog.bool',
+        [arrayType('pg_catalog.int4'), arrayType('pg_catalog.int8')],
+      ),
+    ).toBeNull()
+  })
+
   it('rejects malformed syntax and unsupported text collations in both backends', () => {
     const integer = { kind: 'integer', type: 'pg_catalog.int4', value: '1' } as const
     const text = { kind: 'text', type: 'pg_catalog.text', value: 'a' } as const
@@ -837,6 +883,14 @@ describe('generated PostgreSQL scalar evaluation', () => {
           'Unsupported text collation',
         ])
     }
+    const textArrayComparison = standardCases.find(
+      (fixture) => fixture.name === 'polymorphic array text ordering',
+    )!
+    for (const collation of [undefined, 'en-US'])
+      invalid.push([
+        { ...textArrayComparison.expression, collation } as SqlExpression,
+        'Unsupported array element collation',
+      ])
     for (const [expression, message] of invalid) {
       expect(() => emitSqlExpression(expression, typescriptSqlBackend)).toThrow(message)
       expect(() => emitSqlExpression(expression, goSqlBackend)).toThrow(message)
