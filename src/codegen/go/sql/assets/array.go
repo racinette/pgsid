@@ -10,30 +10,98 @@ type SqlArray struct {
 }
 
 type SqlArrayElement struct {
+	Type  string
 	Value any
 	Valid bool
 	Error string
 }
 
-func arrayElementInput(value any) SqlArrayElement {
+func arrayElementInput(elementType string, value any) SqlArrayElement {
 	switch typed := value.(type) {
 	case SqlInteger:
-		return SqlArrayElement{Value: typed, Valid: typed.Valid, Error: typed.Error}
+		return SqlArrayElement{Type: elementType, Value: typed, Valid: typed.Valid, Error: typed.Error}
 	case SqlFloat:
-		return SqlArrayElement{Value: typed, Valid: typed.Valid, Error: typed.Error}
+		return SqlArrayElement{Type: elementType, Value: typed, Valid: typed.Valid, Error: typed.Error}
 	case SqlDecimal:
-		return SqlArrayElement{Value: typed, Valid: typed.Valid, Error: typed.Error}
+		return SqlArrayElement{Type: elementType, Value: typed, Valid: typed.Valid, Error: typed.Error}
 	case SqlBoolean:
-		return SqlArrayElement{Value: typed, Valid: typed.Valid, Error: typed.Error}
+		return SqlArrayElement{Type: elementType, Value: typed, Valid: typed.Valid, Error: typed.Error}
 	case SqlText:
-		return SqlArrayElement{Value: typed, Valid: typed.Valid, Error: typed.Error}
+		return SqlArrayElement{Type: elementType, Value: typed, Valid: typed.Valid, Error: typed.Error}
 	case SqlUuid:
-		return SqlArrayElement{Value: typed, Valid: typed.Valid, Error: typed.Error}
+		return SqlArrayElement{Type: elementType, Value: typed, Valid: typed.Valid, Error: typed.Error}
 	case SqlEnum:
-		return SqlArrayElement{Value: typed, Valid: typed.Valid, Error: typed.Error}
+		return SqlArrayElement{Type: elementType, Value: typed, Valid: typed.Valid, Error: typed.Error}
 	default:
 		return SqlArrayElement{Error: "XX000"}
 	}
+}
+
+func arrayCoerceElement(target string, element SqlArrayElement) SqlArrayElement {
+	if element.Type == target || !element.Valid || element.Error != "" {
+		element.Type = target
+		return element
+	}
+	source := element.Type
+	var value any
+	switch target {
+	case `pg_catalog."numeric"`:
+		if strings.HasPrefix(source, "pg_catalog.int") {
+			value = decimalFromInteger(element.Value.(SqlInteger))
+		}
+	case "pg_catalog.float4":
+		switch typed := element.Value.(type) {
+		case SqlInteger:
+			value = float4FromInteger(typed)
+		case SqlDecimal:
+			value = float4FromDecimal(typed)
+		case SqlFloat:
+			value = SqlFloat{Value: float64(float32(typed.Value)), Valid: true}
+		}
+	case "pg_catalog.float8":
+		switch typed := element.Value.(type) {
+		case SqlInteger:
+			value = float8FromInteger(typed)
+		case SqlDecimal:
+			value = float8FromDecimal(typed)
+		case SqlFloat:
+			value = typed
+		}
+	case "pg_catalog.text", `pg_catalog."varchar"`:
+		if source == "pg_catalog.bpchar" {
+			value = bpcharText(element.Value.(SqlText))
+		} else if source == "pg_catalog.text" || source == `pg_catalog."varchar"` {
+			value = element.Value
+		}
+	default:
+		if strings.HasPrefix(target, "pg_catalog.int") && strings.HasPrefix(source, "pg_catalog.int") {
+			value = element.Value
+		}
+	}
+	if value == nil {
+		return SqlArrayElement{Error: "XX000"}
+	}
+	return arrayElementInput(target, value)
+}
+
+func arrayCoerce(target string, value SqlArray) SqlArray {
+	if value.Error != "" || value.ElementType == target {
+		return value
+	}
+	if !value.Valid {
+		value.ElementType = target
+		return value
+	}
+	elements := make([]SqlArrayElement, len(value.Elements))
+	for index, element := range value.Elements {
+		elements[index] = arrayCoerceElement(target, element)
+		if elements[index].Error != "" {
+			return SqlArray{Error: elements[index].Error}
+		}
+	}
+	value.ElementType = target
+	value.Elements = elements
+	return value
 }
 
 func arrayElementText(elementType string, element SqlArrayElement) string {
@@ -628,6 +696,504 @@ func arraySubscriptEnum(value SqlArray, subscripts ...SqlInteger) SqlEnum {
 		return SqlEnum{}
 	}
 	return element.Value.(SqlEnum)
+}
+
+func arrayElementNotDistinct(elementType string, left, right SqlArrayElement) (bool, string) {
+	if !left.Valid || !right.Valid {
+		return !left.Valid && !right.Valid, ""
+	}
+	comparison := arrayElementCompare(elementType, left, right)
+	return comparison.Valid && comparison.Value == 0, comparison.Error
+}
+
+func arrayAppend(value SqlArray, element SqlArrayElement) SqlArray {
+	if value.Error != "" {
+		return value
+	}
+	if !value.Valid || len(value.Dimensions) == 0 {
+		return SqlArray{
+			ElementType: element.Type,
+			Dimensions:  []int64{1},
+			LowerBounds: []int64{1},
+			Elements:    []SqlArrayElement{element},
+			Valid:       true,
+		}
+	}
+	if len(value.Dimensions) != 1 {
+		return SqlArray{Error: "22000"}
+	}
+	dimension := value.Dimensions[0] + 1
+	if value.LowerBounds[0]+dimension-1 > 2147483647 {
+		return SqlArray{Error: "22003"}
+	}
+	value.Dimensions = []int64{dimension}
+	value.Elements = append(append([]SqlArrayElement{}, value.Elements...), element)
+	return value
+}
+
+func arrayPrepend(element SqlArrayElement, value SqlArray) SqlArray {
+	if value.Error != "" {
+		return value
+	}
+	if !value.Valid || len(value.Dimensions) == 0 {
+		return SqlArray{
+			ElementType: element.Type,
+			Dimensions:  []int64{1},
+			LowerBounds: []int64{1},
+			Elements:    []SqlArrayElement{element},
+			Valid:       true,
+		}
+	}
+	if len(value.Dimensions) != 1 {
+		return SqlArray{Error: "22000"}
+	}
+	if value.LowerBounds[0] == -2147483648 {
+		return SqlArray{Error: "22003"}
+	}
+	value.Dimensions = []int64{value.Dimensions[0] + 1}
+	value.Elements = append([]SqlArrayElement{element}, value.Elements...)
+	return value
+}
+
+func arrayPosition(value SqlArray, search SqlArrayElement) SqlInteger {
+	if value.Error != "" {
+		return SqlInteger{Error: value.Error}
+	}
+	if !value.Valid {
+		return SqlInteger{}
+	}
+	if len(value.Dimensions) > 1 {
+		return SqlInteger{Error: "0A000"}
+	}
+	if len(value.Dimensions) == 0 {
+		return SqlInteger{}
+	}
+	return arrayPositionFrom(value, search, value.LowerBounds[0])
+}
+
+func arrayPositionStart(value SqlArray, search SqlArrayElement, start SqlInteger) SqlInteger {
+	if start.Error != "" {
+		return SqlInteger{Error: start.Error}
+	}
+	if !start.Valid {
+		return SqlInteger{Error: "22004"}
+	}
+	if value.Error != "" {
+		return SqlInteger{Error: value.Error}
+	}
+	if !value.Valid {
+		return SqlInteger{}
+	}
+	if len(value.Dimensions) > 1 {
+		return SqlInteger{Error: "0A000"}
+	}
+	if len(value.Dimensions) == 0 {
+		return SqlInteger{}
+	}
+	return arrayPositionFrom(value, search, start.Value)
+}
+
+func arrayPositionFrom(value SqlArray, search SqlArrayElement, start int64) SqlInteger {
+	first := max(int64(0), start-value.LowerBounds[0])
+	for index := first; index < int64(len(value.Elements)); index++ {
+		match, code := arrayElementNotDistinct(value.ElementType, value.Elements[index], search)
+		if code != "" {
+			return SqlInteger{Error: code}
+		}
+		if match {
+			return SqlInteger{Value: value.LowerBounds[0] + index, Valid: true}
+		}
+	}
+	return SqlInteger{}
+}
+
+func arrayPositions(value SqlArray, search SqlArrayElement) SqlArray {
+	if value.Error != "" {
+		return SqlArray{Error: value.Error}
+	}
+	if !value.Valid {
+		return SqlArray{}
+	}
+	if len(value.Dimensions) > 1 {
+		return SqlArray{Error: "0A000"}
+	}
+	elements := []SqlArrayElement{}
+	if len(value.Dimensions) == 1 {
+		for index, element := range value.Elements {
+			match, code := arrayElementNotDistinct(value.ElementType, element, search)
+			if code != "" {
+				return SqlArray{Error: code}
+			}
+			if match {
+				position := SqlInteger{Value: value.LowerBounds[0] + int64(index), Valid: true}
+				elements = append(elements, arrayElementInput("pg_catalog.int4", position))
+			}
+		}
+	}
+	if len(elements) == 0 {
+		return SqlArray{ElementType: "pg_catalog.int4", Valid: true}
+	}
+	return SqlArray{
+		ElementType: "pg_catalog.int4",
+		Dimensions:  []int64{int64(len(elements))},
+		LowerBounds: []int64{1},
+		Elements:    elements,
+		Valid:       true,
+	}
+}
+
+func arrayRemove(value SqlArray, search SqlArrayElement) SqlArray {
+	if value.Error != "" || !value.Valid {
+		return value
+	}
+	if len(value.Dimensions) > 1 {
+		return SqlArray{Error: "0A000"}
+	}
+	if len(value.Dimensions) == 0 {
+		return value
+	}
+	elements := []SqlArrayElement{}
+	for _, element := range value.Elements {
+		match, code := arrayElementNotDistinct(value.ElementType, element, search)
+		if code != "" {
+			return SqlArray{Error: code}
+		}
+		if !match {
+			elements = append(elements, element)
+		}
+	}
+	if len(elements) == 0 {
+		return SqlArray{ElementType: value.ElementType, Valid: true}
+	}
+	value.Dimensions = []int64{int64(len(elements))}
+	value.Elements = elements
+	return value
+}
+
+func arrayReplace(value SqlArray, search, replacement SqlArrayElement) SqlArray {
+	if value.Error != "" || !value.Valid {
+		return value
+	}
+	elements := append([]SqlArrayElement{}, value.Elements...)
+	for index, element := range elements {
+		match, code := arrayElementNotDistinct(value.ElementType, element, search)
+		if code != "" {
+			return SqlArray{Error: code}
+		}
+		if match {
+			elements[index] = replacement
+		}
+	}
+	value.Elements = elements
+	return value
+}
+
+func arrayFill(element SqlArrayElement, dimensions SqlArray) SqlArray {
+	return arrayFillInternal(element, dimensions, SqlArray{}, false)
+}
+
+func arrayFillBounds(element SqlArrayElement, dimensions, lowerBounds SqlArray) SqlArray {
+	return arrayFillInternal(element, dimensions, lowerBounds, true)
+}
+
+func arrayFillInternal(element SqlArrayElement, dimensions, lowerBounds SqlArray, hasBounds bool) SqlArray {
+	if dimensions.Error != "" {
+		return SqlArray{Error: dimensions.Error}
+	}
+	if !dimensions.Valid || (hasBounds && !lowerBounds.Valid) {
+		return SqlArray{Error: "22004"}
+	}
+	if len(dimensions.Dimensions) > 1 || (hasBounds && len(lowerBounds.Dimensions) > 1) {
+		return SqlArray{Error: "2202E"}
+	}
+	dims := make([]int64, len(dimensions.Elements))
+	for index, value := range dimensions.Elements {
+		if !value.Valid {
+			return SqlArray{Error: "22004"}
+		}
+		dims[index] = value.Value.(SqlInteger).Value
+		if dims[index] < 0 {
+			return SqlArray{Error: "54000"}
+		}
+	}
+	if len(dims) > 6 {
+		return SqlArray{Error: "54000"}
+	}
+	lbs := make([]int64, len(dims))
+	if hasBounds {
+		if len(lowerBounds.Elements) != len(dims) {
+			return SqlArray{Error: "2202E"}
+		}
+		for index, value := range lowerBounds.Elements {
+			if !value.Valid {
+				return SqlArray{Error: "22004"}
+			}
+			lbs[index] = value.Value.(SqlInteger).Value
+		}
+	} else {
+		for index := range lbs {
+			lbs[index] = 1
+		}
+	}
+	count := int64(1)
+	for _, dimension := range dims {
+		count *= dimension
+	}
+	if len(dims) == 0 || count == 0 {
+		return SqlArray{ElementType: element.Type, Valid: true}
+	}
+	elements := make([]SqlArrayElement, count)
+	for index := range elements {
+		elements[index] = element
+	}
+	return SqlArray{
+		ElementType: element.Type,
+		Dimensions:  dims,
+		LowerBounds: lbs,
+		Elements:    elements,
+		Valid:       true,
+	}
+}
+
+func arrayTrim(value SqlArray, count SqlInteger) SqlArray {
+	if value.Error != "" {
+		return value
+	}
+	if count.Error != "" {
+		return SqlArray{Error: count.Error}
+	}
+	if !value.Valid || !count.Valid {
+		return SqlArray{}
+	}
+	outer := int64(0)
+	if len(value.Dimensions) > 0 {
+		outer = value.Dimensions[0]
+	}
+	if count.Value < 0 || count.Value > outer {
+		return SqlArray{Error: "2202E"}
+	}
+	if count.Value == outer {
+		return SqlArray{ElementType: value.ElementType, Valid: true}
+	}
+	if len(value.Dimensions) == 0 || count.Value == 0 {
+		return value
+	}
+	chunk := int64(len(value.Elements)) / outer
+	value.Dimensions = append([]int64{}, value.Dimensions...)
+	value.Dimensions[0] = outer - count.Value
+	value.LowerBounds = make([]int64, len(value.Dimensions))
+	for index := range value.LowerBounds {
+		value.LowerBounds[index] = 1
+	}
+	value.Elements = append([]SqlArrayElement{}, value.Elements[:int64(len(value.Elements))-count.Value*chunk]...)
+	return value
+}
+
+func arrayReverse(value SqlArray) SqlArray {
+	if value.Error != "" || !value.Valid || len(value.Dimensions) == 0 || value.Dimensions[0] < 2 {
+		return value
+	}
+	outer := value.Dimensions[0]
+	chunk := int64(len(value.Elements)) / outer
+	elements := make([]SqlArrayElement, 0, len(value.Elements))
+	for index := outer - 1; index >= 0; index-- {
+		elements = append(elements, value.Elements[index*chunk:(index+1)*chunk]...)
+	}
+	value.Elements = elements
+	return value
+}
+
+func arraySort(value SqlArray) SqlArray {
+	return arraySortInternal(value, SqlBoolean{Value: false, Valid: true}, SqlBoolean{Value: false, Valid: true})
+}
+
+func arraySortOrder(value SqlArray, descending SqlBoolean) SqlArray {
+	return arraySortInternal(value, descending, descending)
+}
+
+func arraySortNulls(value SqlArray, descending, nullsFirst SqlBoolean) SqlArray {
+	return arraySortInternal(value, descending, nullsFirst)
+}
+
+func arraySortInternal(value SqlArray, descending, nullsFirst SqlBoolean) SqlArray {
+	if value.Error != "" {
+		return value
+	}
+	if descending.Error != "" {
+		return SqlArray{Error: descending.Error}
+	}
+	if nullsFirst.Error != "" {
+		return SqlArray{Error: nullsFirst.Error}
+	}
+	if !value.Valid || !descending.Valid || !nullsFirst.Valid {
+		return SqlArray{}
+	}
+	if len(value.Dimensions) == 0 || value.Dimensions[0] < 2 {
+		return value
+	}
+	outer := int(value.Dimensions[0])
+	chunk := len(value.Elements) / outer
+	slices := make([][]SqlArrayElement, outer)
+	for index := range slices {
+		slices[index] = append([]SqlArrayElement{}, value.Elements[index*chunk:(index+1)*chunk]...)
+	}
+	sort.SliceStable(slices, func(i, j int) bool {
+		for index := 0; index < chunk; index++ {
+			left, right := slices[i][index], slices[j][index]
+			if !left.Valid || !right.Valid {
+				if !left.Valid && !right.Valid {
+					continue
+				}
+				if len(value.Dimensions) == 1 {
+					return !left.Valid == nullsFirst.Value
+				}
+				comparison := int64(-1)
+				if !left.Valid {
+					comparison = 1
+				}
+				if descending.Value {
+					comparison = -comparison
+				}
+				return comparison < 0
+			}
+			comparison := arrayElementCompare(value.ElementType, left, right)
+			if comparison.Value != 0 {
+				if descending.Value {
+					return comparison.Value > 0
+				}
+				return comparison.Value < 0
+			}
+		}
+		return false
+	})
+	elements := make([]SqlArrayElement, 0, len(value.Elements))
+	for _, slice := range slices {
+		elements = append(elements, slice...)
+	}
+	value.Elements = elements
+	return value
+}
+
+func arraySlice(
+	value SqlArray,
+	lowers, uppers []SqlInteger,
+	lowerProvided, upperProvided []bool,
+) SqlArray {
+	if value.Error != "" || !value.Valid {
+		return value
+	}
+	if len(value.Dimensions) == 0 || len(lowers) != len(value.Dimensions) {
+		return SqlArray{ElementType: value.ElementType, Valid: true}
+	}
+	lowerValues, upperValues := make([]int64, len(lowers)), make([]int64, len(uppers))
+	for index := range lowers {
+		lowerValues[index] = value.LowerBounds[index]
+		upperValues[index] = value.LowerBounds[index] + value.Dimensions[index] - 1
+		if lowerProvided[index] {
+			if !lowers[index].Valid {
+				return SqlArray{}
+			}
+			lowerValues[index] = max(lowerValues[index], lowers[index].Value)
+		}
+		if upperProvided[index] {
+			if !uppers[index].Valid {
+				return SqlArray{}
+			}
+			upperValues[index] = min(upperValues[index], uppers[index].Value)
+		}
+		if lowerValues[index] > upperValues[index] {
+			return SqlArray{ElementType: value.ElementType, Valid: true}
+		}
+	}
+	dimensions := make([]int64, len(lowers))
+	for index := range dimensions {
+		dimensions[index] = upperValues[index] - lowerValues[index] + 1
+	}
+	elements := []SqlArrayElement{}
+	var visit func(int, int64)
+	visit = func(depth int, offset int64) {
+		if depth == len(value.Dimensions) {
+			elements = append(elements, value.Elements[offset])
+			return
+		}
+		stride := int64(1)
+		for _, dimension := range value.Dimensions[depth+1:] {
+			stride *= dimension
+		}
+		for coordinate := lowerValues[depth]; coordinate <= upperValues[depth]; coordinate++ {
+			visit(depth+1, offset+(coordinate-value.LowerBounds[depth])*stride)
+		}
+	}
+	visit(0, 0)
+	lowerBounds := make([]int64, len(dimensions))
+	for index := range lowerBounds {
+		lowerBounds[index] = 1
+	}
+	return SqlArray{
+		ElementType: value.ElementType,
+		Dimensions:  dimensions,
+		LowerBounds: lowerBounds,
+		Elements:    elements,
+		Valid:       true,
+	}
+}
+
+func arrayAssign(value SqlArray, subscripts []SqlInteger, element SqlArrayElement) SqlArray {
+	for _, subscript := range subscripts {
+		if subscript.Error != "" {
+			return SqlArray{Error: subscript.Error}
+		}
+		if !subscript.Valid {
+			return SqlArray{Error: "22004"}
+		}
+	}
+	if value.Error != "" {
+		return value
+	}
+	if !value.Valid || len(value.Dimensions) == 0 {
+		dimensions, lowerBounds := make([]int64, len(subscripts)), make([]int64, len(subscripts))
+		for index, subscript := range subscripts {
+			dimensions[index] = 1
+			lowerBounds[index] = subscript.Value
+		}
+		return SqlArray{
+			ElementType: element.Type,
+			Dimensions:  dimensions,
+			LowerBounds: lowerBounds,
+			Elements:    []SqlArrayElement{element},
+			Valid:       true,
+		}
+	}
+	if len(subscripts) != len(value.Dimensions) {
+		return SqlArray{Error: "2202E"}
+	}
+	if len(value.Dimensions) == 1 {
+		oldLower := value.LowerBounds[0]
+		oldUpper := oldLower + value.Dimensions[0] - 1
+		lower := min(oldLower, subscripts[0].Value)
+		upper := max(oldUpper, subscripts[0].Value)
+		elements := make([]SqlArrayElement, upper-lower+1)
+		for index := range elements {
+			elements[index] = SqlArrayElement{Type: value.ElementType}
+		}
+		copy(elements[oldLower-lower:], value.Elements)
+		elements[subscripts[0].Value-lower] = element
+		value.Dimensions = []int64{int64(len(elements))}
+		value.LowerBounds = []int64{lower}
+		value.Elements = elements
+		return value
+	}
+	offset := int64(0)
+	for index, subscript := range subscripts {
+		position := subscript.Value - value.LowerBounds[index]
+		if position < 0 || position >= value.Dimensions[index] {
+			return SqlArray{Error: "2202E"}
+		}
+		offset = offset*value.Dimensions[index] + position
+	}
+	value.Elements = append([]SqlArrayElement{}, value.Elements...)
+	value.Elements[offset] = element
+	return value
 }
 
 func sqlIsNullArray(value SqlArray) SqlBoolean {

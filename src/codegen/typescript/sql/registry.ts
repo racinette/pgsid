@@ -6,7 +6,7 @@ import { typescriptDecimalOperators, typescriptDecimalFunctions } from './decima
 import ts from 'typescript'
 import { factory, identifier } from '../ast.js'
 import { typescriptNumericOperators, typescriptNumericFunctions } from './numeric.js'
-import { enumType, type ExpressionBackend } from '../../../sql-semantics/expressions.js'
+import { arrayType, enumType, type ExpressionBackend } from '../../../sql-semantics/expressions.js'
 import { typescriptUuidFunctions, typescriptUuidOperators } from './uuid.js'
 
 export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
@@ -44,6 +44,7 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
         : factory.createArrayLiteralExpression(
             elements.map((element) =>
               factory.createCallExpression(identifier('arrayElementInput'), undefined, [
+                factory.createStringLiteral(elementType),
                 element.expression,
               ]),
             ),
@@ -51,7 +52,7 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
     ]),
     helpers: elements === null ? [] : ['arrayElementInput'],
   }),
-  arrayOperation: (operation, operands) => {
+  arrayOperation: (operation, elementType, operands) => {
     const helper = {
       cardinality: 'arrayCardinality',
       ndims: 'arrayNdims',
@@ -63,6 +64,16 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
       contained: 'arrayContained',
       overlap: 'arrayOverlap',
       concat: 'arrayConcat',
+      append: 'arrayAppend',
+      prepend: 'arrayPrepend',
+      position: 'arrayPosition',
+      positions: 'arrayPositions',
+      remove: 'arrayRemove',
+      replace: 'arrayReplace',
+      fill: 'arrayFill',
+      trim: 'arrayTrim',
+      reverse: 'arrayReverse',
+      sort: 'arraySort',
       '=': 'arrayEq',
       '<>': 'arrayNe',
       '<': 'arrayLt',
@@ -70,13 +81,56 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
       '>': 'arrayGt',
       '>=': 'arrayGe',
     }[operation]
+    const arrayIndexes =
+      operation === 'concat'
+        ? [0, 1]
+        : operation === 'prepend'
+          ? [1]
+          : operation === 'fill'
+            ? []
+            : [0]
+    const scalarIndexesByOperation: Record<string, number[]> = {
+      append: [1],
+      prepend: [0],
+      position: [1],
+      positions: [1],
+      remove: [1],
+      replace: [1, 2],
+      fill: [0],
+    }
+    const scalarIndexes = scalarIndexesByOperation[operation] ?? []
+    const helpers = new Set([helper])
+    const args = operands.map((operand, index) => {
+      if (arrayIndexes.includes(index) && operand.type.startsWith('array:')) {
+        if (operand.type !== arrayType(elementType)) {
+          helpers.add('arrayCoerce')
+          return factory.createCallExpression(identifier('arrayCoerce'), undefined, [
+            factory.createStringLiteral(elementType),
+            operand.expression,
+          ])
+        }
+        return operand.expression
+      }
+      if (scalarIndexes.includes(index)) {
+        helpers.add('arrayElementInput')
+        let expression = factory.createCallExpression(identifier('arrayElementInput'), undefined, [
+          factory.createStringLiteral(operand.type),
+          operand.expression,
+        ])
+        if (operand.type !== elementType) {
+          helpers.add('arrayCoerceElement')
+          expression = factory.createCallExpression(identifier('arrayCoerceElement'), undefined, [
+            factory.createStringLiteral(elementType),
+            expression,
+          ])
+        }
+        return expression
+      }
+      return operand.expression
+    })
     return {
-      expression: factory.createCallExpression(
-        identifier(helper),
-        undefined,
-        operands.map((operand) => operand.expression),
-      ),
-      helpers: [helper],
+      expression: factory.createCallExpression(identifier(helper), undefined, args),
+      helpers: [...helpers],
     }
   },
   arraySubscript: (_elementType, array, subscripts) => ({
@@ -86,6 +140,42 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
     ]),
     helpers: ['arraySubscript'],
   }),
+  arraySlice: (array, bounds) => ({
+    expression: factory.createCallExpression(identifier('arraySlice'), undefined, [
+      array.expression,
+      factory.createArrayLiteralExpression(
+        bounds.map((bound) =>
+          factory.createArrayLiteralExpression([
+            bound.lower?.expression ?? factory.createNull(),
+            bound.upper?.expression ?? factory.createNull(),
+          ]),
+        ),
+      ),
+    ]),
+    helpers: ['arraySlice'],
+  }),
+  arrayAssign: (elementType, array, subscripts, value) => {
+    const helpers = ['arrayAssign', 'arrayElementInput']
+    let element = factory.createCallExpression(identifier('arrayElementInput'), undefined, [
+      factory.createStringLiteral(value.type),
+      value.expression,
+    ])
+    if (value.type !== elementType) {
+      helpers.push('arrayCoerceElement')
+      element = factory.createCallExpression(identifier('arrayCoerceElement'), undefined, [
+        factory.createStringLiteral(elementType),
+        element,
+      ])
+    }
+    return {
+      expression: factory.createCallExpression(identifier('arrayAssign'), undefined, [
+        array.expression,
+        factory.createArrayLiteralExpression(subscripts.map((subscript) => subscript.expression)),
+        element,
+      ]),
+      helpers,
+    }
+  },
   coerceEnum: (type, definition, operand) => {
     const helper = type === 'pg_catalog.text' ? 'enumText' : 'enumInput'
     return {

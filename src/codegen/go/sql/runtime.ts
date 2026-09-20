@@ -117,8 +117,8 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
   }
   for (const name of required) include(name)
   const body = output.join('\n')
-  const imports = ['math', 'math/big', 'strconv', 'strings', 'unicode/utf8'].filter((name) =>
-    body.includes(`${name.split('/').at(-1)}.`),
+  const imports = ['math', 'math/big', 'sort', 'strconv', 'strings', 'unicode/utf8'].filter(
+    (name) => body.includes(`${name.split('/').at(-1)}.`),
   )
   if (body.includes('decimal.')) imports.push('github.com/shopspring/decimal')
   const copyright =

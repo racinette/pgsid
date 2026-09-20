@@ -383,6 +383,27 @@ describe('generated PostgreSQL scalar evaluation', () => {
       'array null test',
       'array case',
       'array coalesce',
+      'array slice multidimensional',
+      'array assign 1',
+      'array assign multidimensional',
+      'array append 0',
+      'array prepend 2',
+      'array scalar concat append',
+      'array position 0',
+      'array positions 1',
+      'array remove 0',
+      'array replace 1',
+      'array fill custom bounds',
+      'array trim 1',
+      'array reverse multidimensional',
+      'array sort 3',
+      'array sort multidimensional',
+      'array anycompatible int2 int4',
+      'array anycompatible int8 numeric',
+      'array anycompatible int4 float4',
+      'array anycompatible float4 float8',
+      'array anycompatible text varchar',
+      'array anycompatible varchar bpchar',
       ...[
         'int2',
         'int8',
@@ -672,6 +693,13 @@ describe('generated PostgreSQL scalar evaluation', () => {
     ).toBe(arrayType('pg_catalog.text'))
     expect(
       resolveArrayPolymorphicType(
+        ['pg_catalog.anycompatiblearray', 'pg_catalog.anycompatiblearray'],
+        'pg_catalog.anycompatiblearray',
+        [arrayType('pg_catalog.int2'), arrayType('pg_catalog.int4')],
+      ),
+    ).toBe(arrayType('pg_catalog.int4'))
+    expect(
+      resolveArrayPolymorphicType(
         ['pg_catalog.anyarray', 'pg_catalog.anyarray'],
         'pg_catalog.bool',
         [arrayType('pg_catalog.int4'), arrayType('pg_catalog.int8')],
@@ -834,6 +862,27 @@ describe('generated PostgreSQL scalar evaluation', () => {
           subscripts: [],
         },
         'Invalid array subscript',
+      ],
+      [
+        {
+          kind: 'array-slice',
+          type: arrayType('pg_catalog.int4'),
+          elementType: 'pg_catalog.int4',
+          array: arrayValue,
+          bounds: [],
+        },
+        'Invalid array slice',
+      ],
+      [
+        {
+          kind: 'array-assign',
+          type: arrayType('pg_catalog.int4'),
+          elementType: 'pg_catalog.int4',
+          array: arrayValue,
+          subscripts: [integer],
+          value: uuid,
+        },
+        'Invalid array assignment',
       ],
       [
         {
