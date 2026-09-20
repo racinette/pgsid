@@ -33,7 +33,8 @@ export function sqlSemanticsCoverage(
       expression.kind === 'decimal' ||
       expression.kind === 'boolean' ||
       expression.kind === 'text' ||
-      expression.kind === 'uuid'
+      expression.kind === 'uuid' ||
+      expression.kind === 'enum'
     )
       return
     if (expression.kind === 'case') {
@@ -48,10 +49,15 @@ export function sqlSemanticsCoverage(
       expression.operands.forEach((operand) => record(operand, name))
       return
     }
+    if (expression.kind === 'enum-comparison') {
+      expression.operands.forEach((operand) => record(operand, name))
+      return
+    }
     if (
       expression.kind === 'null-test' ||
       expression.kind === 'text-coercion' ||
-      expression.kind === 'uuid-coercion'
+      expression.kind === 'uuid-coercion' ||
+      expression.kind === 'enum-coercion'
     ) {
       record(expression.operand, name)
       return

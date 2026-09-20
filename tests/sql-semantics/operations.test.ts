@@ -1,4 +1,4 @@
-import type { SqlExpression } from '../../src/sql-semantics/expressions.js'
+import { enumType, type SqlExpression } from '../../src/sql-semantics/expressions.js'
 import { floatMathCopyright } from '../../src/sql-semantics/float-math-license.js'
 import { numericMathCopyright } from '../../src/sql-semantics/numeric-math-license.js'
 import { scalarCases } from '../fixtures/sql-semantics/operations/scalar.js'
@@ -45,7 +45,12 @@ const cases =
   process.env.PGSID_SQL_SEMANTICS_STRESS === '1'
     ? [...standardCases, ...numericStressCases]
     : standardCases
+const setupSql = [...new Set(cases.flatMap((fixture) => fixture.setupSql ?? []))]
 let pg: PGlite
+
+async function initializePostgres(): Promise<void> {
+  for (const sql of setupSql) await pg.exec(sql)
+}
 
 function typescriptProject(fixtures = cases): string {
   const emitted = fixtures.map((fixture) =>
@@ -75,7 +80,7 @@ function goProject(fixtures = cases): string {
     imports: [{ path: 'encoding/json' }, { path: 'os' }, { path: 'fmt' }, { path: 'math' }],
     source:
       goSqlRuntime(
-        [...emitted.flatMap((result) => result.helpers), 'sqlDecimalText', 'uuidText'],
+        [...emitted.flatMap((result) => result.helpers), 'sqlDecimalText', 'uuidText', 'enumText'],
         'main',
       ) +
       `
@@ -129,6 +134,10 @@ function goProject(fixtures = cases): string {
             if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
             } else if !value.Valid { result["kind"] = "null"
             } else { result["kind"] = "value"; result["value"] = uuidText(value).Value }
+          case SqlEnum:
+            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
+            } else if !value.Valid { result["kind"] = "null"
+            } else { result["kind"] = "value"; result["value"] = enumText(value).Value }
           default: panic("unexpected SQL value type")
           }
           results = append(results, result)
@@ -154,7 +163,9 @@ function goProject(fixtures = cases): string {
                       ? 'SqlText'
                       : result.value.type === 'pg_catalog.uuid'
                         ? 'SqlUuid'
-                        : 'SqlInteger',
+                        : result.value.type.startsWith('enum:')
+                          ? 'SqlEnum'
+                          : 'SqlInteger',
             ),
           },
         ],
@@ -167,6 +178,7 @@ function goProject(fixtures = cases): string {
 describe('generated PostgreSQL scalar evaluation', () => {
   beforeAll(async () => {
     pg = await PGlite.create()
+    await initializePostgres()
   })
   afterAll(async () => {
     await pg.close()
@@ -178,6 +190,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
       if (fixture.index > 0 && fixture.index % 1024 === 0) {
         await pg.close()
         pg = await PGlite.create()
+        await initializePostgres()
       }
       expect(await observeSql(pg, fixture.sql, fixture.expression.type)).toEqual(fixture.expected)
     },
@@ -333,6 +346,14 @@ describe('generated PostgreSQL scalar evaluation', () => {
       'uuid null test',
       'uuid case',
       'uuid coalesce',
+      'enum input 3',
+      'enum operator < 0',
+      'enum declaration order differs from lexical order beta',
+      'enum from text 1',
+      'enum to text 3',
+      'enum null test',
+      'enum case',
+      'enum coalesce',
       'numeric utility scale 1.2300',
       'numeric utility min_scale 1.2300',
       'numeric utility trim_scale 1.2300',
@@ -432,7 +453,9 @@ describe('generated PostgreSQL scalar evaluation', () => {
                               ? 'SqlText'
                               : emitted.value.type === 'pg_catalog.uuid'
                                 ? 'SqlUuid'
-                                : 'SqlInteger',
+                                : emitted.value.type.startsWith('enum:')
+                                  ? 'SqlEnum'
+                                  : 'SqlInteger',
                     ),
                   },
                 ],
@@ -594,6 +617,24 @@ describe('generated PostgreSQL scalar evaluation', () => {
       type: 'pg_catalog.uuid',
       value: '00000000-0000-0000-0000-000000000000',
     } as const
+    const enumDefinition = { schema: 'public', name: 'state', values: ['first', 'second'] } as const
+    const enumValue = {
+      kind: 'enum',
+      type: enumType(enumDefinition),
+      enum: enumDefinition,
+      value: 'first',
+    } as const
+    const otherEnumDefinition = {
+      schema: 'other',
+      name: 'state',
+      values: ['first', 'second'],
+    } as const
+    const otherEnumValue = {
+      kind: 'enum',
+      type: enumType(otherEnumDefinition),
+      enum: otherEnumDefinition,
+      value: 'first',
+    } as const
     const invalid: [SqlExpression, string][] = [
       [
         { kind: 'boolean-logic', type: 'pg_catalog.bool', operation: 'and', operands: [boolean] },
@@ -647,6 +688,44 @@ describe('generated PostgreSQL scalar evaluation', () => {
       ],
       [{ kind: 'uuid-coercion', type: 'pg_catalog.uuid', operand: uuid }, 'Invalid UUID coercion'],
       [{ kind: 'uuid-coercion', type: 'pg_catalog.text', operand: text }, 'Invalid UUID coercion'],
+      [
+        {
+          kind: 'enum-coercion',
+          type: enumType(enumDefinition),
+          enum: enumDefinition,
+          operand: enumValue,
+        },
+        'Invalid enum coercion',
+      ],
+      [
+        {
+          kind: 'enum-comparison',
+          type: 'pg_catalog.bool',
+          enum: enumDefinition,
+          operation: '=',
+          operands: [enumValue, text],
+        },
+        'Invalid enum comparison',
+      ],
+      [
+        {
+          kind: 'enum-comparison',
+          type: 'pg_catalog.bool',
+          enum: enumDefinition,
+          operation: '=',
+          operands: [enumValue, otherEnumValue],
+        },
+        'Invalid enum comparison',
+      ],
+      [
+        {
+          kind: 'enum',
+          type: enumType({ schema: 'public', name: 'bad' }),
+          enum: { schema: 'public', name: 'bad', values: ['duplicate', 'duplicate'] },
+          value: 'duplicate',
+        },
+        'Invalid enum definition',
+      ],
       [
         {
           kind: 'text-coercion',

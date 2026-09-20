@@ -6,7 +6,7 @@ import { goDecimalOperators, goDecimalFunctions } from './decimal.js'
 import { go } from '../ast.js'
 import type { GoExpression } from '../ast.js'
 import { goNumericOperators, goNumericFunctions } from './numeric.js'
-import type { ExpressionBackend } from '../../../sql-semantics/expressions.js'
+import { enumType, type ExpressionBackend } from '../../../sql-semantics/expressions.js'
 import { goUuidFunctions, goUuidOperators } from './uuid.js'
 
 export const goSqlBackend: ExpressionBackend<GoExpression> = {
@@ -18,6 +18,42 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
     { domain: 'numeric', operators: goNumericOperators, functions: goNumericFunctions },
     { domain: 'uuid', operators: goUuidOperators, functions: goUuidFunctions },
   ],
+  coerceEnum: (type, definition, operand) => {
+    const helper = type === 'pg_catalog.text' ? 'enumText' : 'enumFromText'
+    return {
+      expression: go.call(
+        go.ident(helper),
+        helper === 'enumText'
+          ? [operand.expression]
+          : [
+              operand.expression,
+              go.string(type),
+              go.composite(
+                go.slice(go.ident('string')),
+                definition.values.map((value) => go.string(value)),
+              ),
+            ],
+      ),
+      helpers: [helper],
+    }
+  },
+  compareEnum: (operation, operands) => {
+    const helper = {
+      '=': 'enumEq',
+      '<>': 'enumNe',
+      '<': 'enumLt',
+      '<=': 'enumLe',
+      '>': 'enumGt',
+      '>=': 'enumGe',
+    }[operation]
+    return {
+      expression: go.call(
+        go.ident(helper),
+        operands.map((operand) => operand.expression),
+      ),
+      helpers: [helper],
+    }
+  },
   coerceUuid: (type, operand) => {
     const helper = type === 'pg_catalog.uuid' ? 'uuidFromText' : 'uuidText'
     return {
@@ -56,6 +92,17 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
     value === null
       ? { kind: 'composite', type: go.ident('SqlUuid'), elements: [] }
       : go.call(go.ident('uuidInput'), [go.string(value)]),
+  enum: (definition, value) =>
+    value === null
+      ? go.composite(go.ident('SqlEnum'))
+      : go.call(go.ident('enumInput'), [
+          go.string(value),
+          go.string(enumType(definition)),
+          go.composite(
+            go.slice(go.ident('string')),
+            definition.values.map((label) => go.string(label)),
+          ),
+        ]),
   decimal: (value) =>
     value === null
       ? { kind: 'composite', type: go.ident('SqlDecimal'), elements: [] }

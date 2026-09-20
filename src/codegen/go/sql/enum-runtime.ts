@@ -1,0 +1,18 @@
+export const goEnumDependencies: Record<string, readonly string[]> = {
+  SqlEnum: [],
+  enumInput: ['SqlEnum'],
+  enumFromText: ['SqlEnum', 'SqlText', 'enumInput'],
+  enumText: ['SqlEnum', 'SqlText'],
+  enumCompare: ['SqlEnum', 'SqlInteger'],
+  enumComparison: ['SqlEnum', 'SqlBoolean', 'enumCompare'],
+  enumEq: ['SqlEnum', 'SqlBoolean', 'enumComparison'],
+  enumNe: ['SqlEnum', 'SqlBoolean', 'enumComparison'],
+  enumLt: ['SqlEnum', 'SqlBoolean', 'enumComparison'],
+  enumLe: ['SqlEnum', 'SqlBoolean', 'enumComparison'],
+  enumGt: ['SqlEnum', 'SqlBoolean', 'enumComparison'],
+  enumGe: ['SqlEnum', 'SqlBoolean', 'enumComparison'],
+  sqlIsNullEnum: ['SqlEnum', 'SqlBoolean'],
+  sqlIsNotNullEnum: ['SqlEnum', 'SqlBoolean'],
+  sqlCaseEnum: ['SqlEnum', 'SqlBoolean'],
+  sqlCoalesceEnum: ['SqlEnum'],
+}

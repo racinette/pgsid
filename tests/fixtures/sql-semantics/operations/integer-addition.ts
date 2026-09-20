@@ -4,6 +4,7 @@ import type { OperatorSignatures } from '../../../../src/sql-semantics/signature
 import type { SqlObservation } from '../../../support/postgres/observe.js'
 
 export interface EvaluationCase {
+  setupSql?: string
   name: string
   sql: string
   expression: SqlExpression

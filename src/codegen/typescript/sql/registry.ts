@@ -6,7 +6,7 @@ import { typescriptDecimalOperators, typescriptDecimalFunctions } from './decima
 import ts from 'typescript'
 import { factory, identifier } from '../ast.js'
 import { typescriptNumericOperators, typescriptNumericFunctions } from './numeric.js'
-import type { ExpressionBackend } from '../../../sql-semantics/expressions.js'
+import { enumType, type ExpressionBackend } from '../../../sql-semantics/expressions.js'
 import { typescriptUuidFunctions, typescriptUuidOperators } from './uuid.js'
 
 export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
@@ -30,6 +30,40 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
     },
     { domain: 'uuid', operators: typescriptUuidOperators, functions: typescriptUuidFunctions },
   ],
+  coerceEnum: (type, definition, operand) => {
+    const helper = type === 'pg_catalog.text' ? 'enumText' : 'enumInput'
+    return {
+      expression:
+        helper === 'enumText'
+          ? factory.createCallExpression(identifier(helper), undefined, [operand.expression])
+          : factory.createCallExpression(identifier(helper), undefined, [
+              operand.expression,
+              factory.createStringLiteral(type),
+              factory.createArrayLiteralExpression(
+                definition.values.map((value) => factory.createStringLiteral(value)),
+              ),
+            ]),
+      helpers: [helper],
+    }
+  },
+  compareEnum: (operation, operands) => {
+    const helper = {
+      '=': 'enumEq',
+      '<>': 'enumNe',
+      '<': 'enumLt',
+      '<=': 'enumLe',
+      '>': 'enumGt',
+      '>=': 'enumGe',
+    }[operation]
+    return {
+      expression: factory.createCallExpression(
+        identifier(helper),
+        undefined,
+        operands.map((operand) => operand.expression),
+      ),
+      helpers: [helper],
+    }
+  },
   coerceUuid: (type, operand) => {
     const helper = type === 'pg_catalog.uuid' ? 'uuidFromText' : 'uuidText'
     return {
@@ -67,6 +101,14 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
   uuid: (value) =>
     factory.createCallExpression(identifier('uuidInput'), undefined, [
       value === null ? factory.createNull() : factory.createStringLiteral(value),
+    ]),
+  enum: (definition, value) =>
+    factory.createCallExpression(identifier('enumInput'), undefined, [
+      value === null ? factory.createNull() : factory.createStringLiteral(value),
+      factory.createStringLiteral(enumType(definition)),
+      factory.createArrayLiteralExpression(
+        definition.values.map((label) => factory.createStringLiteral(label)),
+      ),
     ]),
   decimal: (value) =>
     factory.createCallExpression(identifier('decimalInput'), undefined, [
