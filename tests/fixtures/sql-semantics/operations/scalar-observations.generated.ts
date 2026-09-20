@@ -68090,4 +68090,243 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: 'apple',
   },
+  'array slice 0': {
+    kind: 'value',
+    value: '{1,2}',
+  },
+  'array slice 1': {
+    kind: 'value',
+    value: '{1,2}',
+  },
+  'array slice 2': {
+    kind: 'value',
+    value: '{1,2}',
+  },
+  'array slice 3': {
+    kind: 'value',
+    value: '{2,3}',
+  },
+  'array slice 4': {
+    kind: 'value',
+    value: '{}',
+  },
+  'array slice multidimensional': {
+    kind: 'value',
+    value: '{{3,4},{5,6}}',
+  },
+  'array assign 0': {
+    kind: 'value',
+    value: '{1,9,3}',
+  },
+  'array assign 1': {
+    kind: 'value',
+    value: '{1,2,3,NULL,9}',
+  },
+  'array assign 2': {
+    kind: 'value',
+    value: '[-2:2]={9,NULL,1,2,3}',
+  },
+  'array assign 3': {
+    kind: 'value',
+    value: '[4:4]={9}',
+  },
+  'array assign 4': {
+    kind: 'value',
+    value: '[4:4]={9}',
+  },
+  'array assign multidimensional': {
+    kind: 'value',
+    value: '{{1,2},{9,4},{5,6}}',
+  },
+  'array append 0': {
+    kind: 'value',
+    value: '{1,2,3,NULL}',
+  },
+  'array prepend 0': {
+    kind: 'value',
+    value: '{9,1,2,3}',
+  },
+  'array append 1': {
+    kind: 'value',
+    value: '[0:3]={1,2,3,NULL}',
+  },
+  'array prepend 1': {
+    kind: 'value',
+    value: '[0:3]={9,1,2,3}',
+  },
+  'array append 2': {
+    kind: 'value',
+    value: '{NULL}',
+  },
+  'array prepend 2': {
+    kind: 'value',
+    value: '{9}',
+  },
+  'array append 3': {
+    kind: 'value',
+    value: '{NULL}',
+  },
+  'array prepend 3': {
+    kind: 'value',
+    value: '{9}',
+  },
+  'array append 4': {
+    kind: 'error',
+    code: '22000',
+  },
+  'array prepend 4': {
+    kind: 'error',
+    code: '22000',
+  },
+  'array scalar concat append': {
+    kind: 'value',
+    value: '{1,2,3,4}',
+  },
+  'array scalar concat prepend': {
+    kind: 'value',
+    value: '{0,1,2,3}',
+  },
+  'array position 0': {
+    kind: 'value',
+    value: '2',
+  },
+  'array positions 0': {
+    kind: 'value',
+    value: '{2,4}',
+  },
+  'array position 1': {
+    kind: 'value',
+    value: '3',
+  },
+  'array positions 1': {
+    kind: 'value',
+    value: '{3}',
+  },
+  'array position 2': {
+    kind: 'value',
+    value: '1',
+  },
+  'array position 3': {
+    kind: 'null',
+  },
+  'array positions 3': {
+    kind: 'value',
+    value: '{}',
+  },
+  'array position 4': {
+    kind: 'error',
+    code: '0A000',
+  },
+  'array positions 4': {
+    kind: 'error',
+    code: '0A000',
+  },
+  'array remove 0': {
+    kind: 'value',
+    value: '{1,2}',
+  },
+  'array replace 0': {
+    kind: 'value',
+    value: '{1,7,2,7}',
+  },
+  'array remove 1': {
+    kind: 'value',
+    value: '{NULL,2,NULL}',
+  },
+  'array replace 1': {
+    kind: 'value',
+    value: '{7,NULL,2,NULL}',
+  },
+  'array remove 2': {
+    kind: 'value',
+    value: '{1,NULL,2,NULL}',
+  },
+  'array replace 2': {
+    kind: 'value',
+    value: '{1,NULL,2,NULL}',
+  },
+  'array fill default bounds': {
+    kind: 'value',
+    value: '{{5,5,5},{5,5,5}}',
+  },
+  'array fill custom bounds': {
+    kind: 'value',
+    value: '[0:1][-1:1]={{NULL,NULL,NULL},{NULL,NULL,NULL}}',
+  },
+  'array trim 0': {
+    kind: 'value',
+    value: '{{1,2},{3,4},{5,6}}',
+  },
+  'array trim 1': {
+    kind: 'value',
+    value: '{{1,2},{3,4}}',
+  },
+  'array trim 2': {
+    kind: 'value',
+    value: '{}',
+  },
+  'array trim 3': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'array trim 4': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'array reverse one dimensional': {
+    kind: 'value',
+    value: '[0:2]={3,2,1}',
+  },
+  'array reverse multidimensional': {
+    kind: 'value',
+    value: '{{5,6},{3,4},{1,2}}',
+  },
+  'array sort 0': {
+    kind: 'value',
+    value: '[0:3]={1,2,3,NULL}',
+  },
+  'array sort 1': {
+    kind: 'value',
+    value: '[0:3]={NULL,3,2,1}',
+  },
+  'array sort 2': {
+    kind: 'value',
+    value: '[0:3]={NULL,1,2,3}',
+  },
+  'array sort 3': {
+    kind: 'value',
+    value: '[0:3]={3,2,1,NULL}',
+  },
+  'array sort multidimensional': {
+    kind: 'value',
+    value: '[0:2][1:2]={{1,2},{1,9},{3,4}}',
+  },
+  'array anycompatible int2 int4': {
+    kind: 'value',
+    value: '{1,2}',
+  },
+  'array anycompatible int4 int8': {
+    kind: 'value',
+    value: '{1,2}',
+  },
+  'array anycompatible int8 numeric': {
+    kind: 'value',
+    value: '{1,2.5}',
+  },
+  'array anycompatible int4 float4': {
+    kind: 'value',
+    value: '{1,2.5}',
+  },
+  'array anycompatible float4 float8': {
+    kind: 'value',
+    value: '{1.5,2.5}',
+  },
+  'array anycompatible text varchar': {
+    kind: 'value',
+    value: '{a,b}',
+  },
+  'array anycompatible varchar bpchar': {
+    kind: 'value',
+    value: '{a,b}',
+  },
 }

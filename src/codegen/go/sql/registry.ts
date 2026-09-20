@@ -6,7 +6,7 @@ import { goDecimalOperators, goDecimalFunctions } from './decimal.js'
 import { go } from '../ast.js'
 import type { GoExpression } from '../ast.js'
 import { goNumericOperators, goNumericFunctions } from './numeric.js'
-import { enumType, type ExpressionBackend } from '../../../sql-semantics/expressions.js'
+import { arrayType, enumType, type ExpressionBackend } from '../../../sql-semantics/expressions.js'
 import { goUuidFunctions, goUuidOperators } from './uuid.js'
 
 export const goSqlBackend: ExpressionBackend<GoExpression> = {
@@ -35,14 +35,17 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
             go.composite(
               go.slice(go.ident('SqlArrayElement')),
               elements.map((element) =>
-                go.call(go.ident('arrayElementInput'), [element.expression]),
+                go.call(go.ident('arrayElementInput'), [
+                  go.string(elementType),
+                  element.expression,
+                ]),
               ),
             ),
           ]),
     helpers: elements === null ? [] : ['arrayElementInput'],
   }),
-  arrayOperation: (operation, operands) => {
-    const helper = {
+  arrayOperation: (operation, elementType, operands) => {
+    let helper = {
       cardinality: 'arrayCardinality',
       ndims: 'arrayNdims',
       dims: 'arrayDims',
@@ -53,6 +56,16 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
       contained: 'arrayContained',
       overlap: 'arrayOverlap',
       concat: 'arrayConcat',
+      append: 'arrayAppend',
+      prepend: 'arrayPrepend',
+      position: 'arrayPosition',
+      positions: 'arrayPositions',
+      remove: 'arrayRemove',
+      replace: 'arrayReplace',
+      fill: 'arrayFill',
+      trim: 'arrayTrim',
+      reverse: 'arrayReverse',
+      sort: 'arraySort',
       '=': 'arrayEq',
       '<>': 'arrayNe',
       '<': 'arrayLt',
@@ -60,12 +73,54 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
       '>': 'arrayGt',
       '>=': 'arrayGe',
     }[operation]
+    if (operation === 'position' && operands.length === 3) helper = 'arrayPositionStart'
+    if (operation === 'fill' && operands.length === 3) helper = 'arrayFillBounds'
+    if (operation === 'sort' && operands.length === 2) helper = 'arraySortOrder'
+    if (operation === 'sort' && operands.length === 3) helper = 'arraySortNulls'
+    const arrayIndexes =
+      operation === 'concat'
+        ? [0, 1]
+        : operation === 'prepend'
+          ? [1]
+          : operation === 'fill'
+            ? []
+            : [0]
+    const scalarIndexesByOperation: Record<string, number[]> = {
+      append: [1],
+      prepend: [0],
+      position: [1],
+      positions: [1],
+      remove: [1],
+      replace: [1, 2],
+      fill: [0],
+    }
+    const scalarIndexes = scalarIndexesByOperation[operation] ?? []
+    const helpers = new Set([helper])
+    const args = operands.map((operand, index) => {
+      if (arrayIndexes.includes(index) && operand.type.startsWith('array:')) {
+        if (operand.type !== arrayType(elementType)) {
+          helpers.add('arrayCoerce')
+          return go.call(go.ident('arrayCoerce'), [go.string(elementType), operand.expression])
+        }
+        return operand.expression
+      }
+      if (scalarIndexes.includes(index)) {
+        helpers.add('arrayElementInput')
+        let expression = go.call(go.ident('arrayElementInput'), [
+          go.string(operand.type),
+          operand.expression,
+        ])
+        if (operand.type !== elementType) {
+          helpers.add('arrayCoerceElement')
+          expression = go.call(go.ident('arrayCoerceElement'), [go.string(elementType), expression])
+        }
+        return expression
+      }
+      return operand.expression
+    })
     return {
-      expression: go.call(
-        go.ident(helper),
-        operands.map((operand) => operand.expression),
-      ),
-      helpers: [helper],
+      expression: go.call(go.ident(helper), args),
+      helpers: [...helpers],
     }
   },
   arraySubscript: (elementType, array, subscripts) => {
@@ -88,6 +143,47 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
         ...subscripts.map((subscript) => subscript.expression),
       ]),
       helpers: [helper],
+    }
+  },
+  arraySlice: (array, bounds) => ({
+    expression: go.call(go.ident('arraySlice'), [
+      array.expression,
+      go.composite(
+        go.slice(go.ident('SqlInteger')),
+        bounds.map((bound) => bound.lower?.expression ?? go.composite(go.ident('SqlInteger'))),
+      ),
+      go.composite(
+        go.slice(go.ident('SqlInteger')),
+        bounds.map((bound) => bound.upper?.expression ?? go.composite(go.ident('SqlInteger'))),
+      ),
+      go.composite(
+        go.slice(go.ident('bool')),
+        bounds.map((bound) => go.ident(bound.lower === null ? 'false' : 'true')),
+      ),
+      go.composite(
+        go.slice(go.ident('bool')),
+        bounds.map((bound) => go.ident(bound.upper === null ? 'false' : 'true')),
+      ),
+    ]),
+    helpers: ['arraySlice'],
+  }),
+  arrayAssign: (elementType, array, subscripts, value) => {
+    const helpers = ['arrayAssign', 'arrayElementInput']
+    let element = go.call(go.ident('arrayElementInput'), [go.string(value.type), value.expression])
+    if (value.type !== elementType) {
+      helpers.push('arrayCoerceElement')
+      element = go.call(go.ident('arrayCoerceElement'), [go.string(elementType), element])
+    }
+    return {
+      expression: go.call(go.ident('arrayAssign'), [
+        array.expression,
+        go.composite(
+          go.slice(go.ident('SqlInteger')),
+          subscripts.map((subscript) => subscript.expression),
+        ),
+        element,
+      ]),
+      helpers,
     }
   },
   coerceEnum: (type, definition, operand) => {

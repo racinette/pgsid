@@ -5,13 +5,64 @@ export const typescriptArrayHelpers: Record<
   SqlArrayElement: {
     dependencies: [],
     source: `class SqlArrayElement {
-  constructor(readonly value: any) {}
+  constructor(readonly type: string, readonly value: any) {}
 }`,
   },
   arrayElementInput: {
     dependencies: ['SqlArrayElement'],
-    source: `function arrayElementInput(value: any): SqlArrayElement {
-  return new SqlArrayElement(value)
+    source: `function arrayElementInput(type: string, value: any): SqlArrayElement {
+  return new SqlArrayElement(type, value)
+}`,
+  },
+  arrayCoerceElement: {
+    dependencies: [
+      'SqlArrayElement',
+      'arrayElementInput',
+      'decimalFromInteger',
+      'float4FromDecimal',
+      'float8FromDecimal',
+      'bpcharText',
+    ],
+    source: `function arrayCoerceElement(target: string, element: SqlArrayElement): SqlArrayElement {
+  if (element.type === target || element.value === null)
+    return new SqlArrayElement(target, element.value)
+  const source = element.type
+  let value = element.value
+  if (target === 'pg_catalog."numeric"' && /^pg_catalog\\.int[248]$/.test(source))
+    value = decimalFromInteger(value)
+  else if (target === 'pg_catalog.float4') {
+    if (source === 'pg_catalog."numeric"') value = float4FromDecimal(value)
+    else value = Math.fround(typeof value === 'bigint' ? Number(value) : value)
+  } else if (target === 'pg_catalog.float8') {
+    if (source === 'pg_catalog."numeric"') value = float8FromDecimal(value)
+    else value = typeof value === 'bigint' ? Number(value) : value
+  } else if (
+    ['pg_catalog.text', 'pg_catalog."varchar"'].includes(target) &&
+    source === 'pg_catalog.bpchar'
+  ) value = bpcharText(value)
+  else if (
+    !(
+      /^pg_catalog\\.int[248]$/.test(target) &&
+      /^pg_catalog\\.int[248]$/.test(source)
+    ) &&
+    !(
+      ['pg_catalog.text', 'pg_catalog."varchar"'].includes(target) &&
+      ['pg_catalog.text', 'pg_catalog."varchar"'].includes(source)
+    )
+  ) throw new Error('unsupported PostgreSQL anycompatible coercion')
+  return arrayElementInput(target, value)
+}`,
+  },
+  arrayCoerce: {
+    dependencies: ['SqlArray', 'arrayCoerceElement'],
+    source: `function arrayCoerce(target: string, value: SqlArray | null): SqlArray | null {
+  if (value === null || value.elementType === target) return value
+  return new SqlArray(
+    target,
+    value.dimensions,
+    value.lowerBounds,
+    value.elements.map((element) => arrayCoerceElement(target, element)),
+  )
 }`,
   },
   arrayFloatText: {
@@ -314,6 +365,274 @@ export const typescriptArrayHelpers: Record<
     offset = offset * value.dimensions[index]! + position
   }
   return value.elements[offset]!.value
+}`,
+  },
+  arrayElementNotDistinct: {
+    dependencies: ['SqlArrayElement', 'arrayElementCompare'],
+    source: `function arrayElementNotDistinct(
+  elementType: string,
+  left: SqlArrayElement,
+  right: SqlArrayElement,
+): boolean {
+  if (left.value === null || right.value === null)
+    return left.value === null && right.value === null
+  return arrayElementCompare(elementType, left.value, right.value) === 0
+}`,
+  },
+  arrayAppend: {
+    dependencies: ['SqlArray', 'SqlArrayElement', 'arrayError'],
+    source: `function arrayAppend(value: SqlArray | null, element: SqlArrayElement): SqlArray {
+  if (value === null || value.dimensions.length === 0)
+    return new SqlArray(element.type, [1], [1], [element])
+  if (value.dimensions.length !== 1) arrayError('22000')
+  const dimensions = [value.dimensions[0]! + 1]
+  if (value.lowerBounds[0]! + dimensions[0]! - 1 > 2147483647) arrayError('22003')
+  return new SqlArray(value.elementType, dimensions, value.lowerBounds, [...value.elements, element])
+}`,
+  },
+  arrayPrepend: {
+    dependencies: ['SqlArray', 'SqlArrayElement', 'arrayError'],
+    source: `function arrayPrepend(element: SqlArrayElement, value: SqlArray | null): SqlArray {
+  if (value === null || value.dimensions.length === 0)
+    return new SqlArray(element.type, [1], [1], [element])
+  if (value.dimensions.length !== 1) arrayError('22000')
+  if (value.lowerBounds[0] === -2147483648) arrayError('22003')
+  return new SqlArray(
+    value.elementType,
+    [value.dimensions[0]! + 1],
+    value.lowerBounds,
+    [element, ...value.elements],
+  )
+}`,
+  },
+  arrayPosition: {
+    dependencies: ['SqlArray', 'SqlArrayElement', 'arrayElementNotDistinct', 'arrayError'],
+    source: `function arrayPosition(
+  value: SqlArray | null,
+  search: SqlArrayElement,
+  start?: bigint | null,
+): bigint | null {
+  if (value === null) return null
+  if (value.dimensions.length > 1) arrayError('0A000')
+  if (value.dimensions.length === 0) return null
+  if (arguments.length >= 3 && start === null) arrayError('22004')
+  const minimum = start === undefined ? value.lowerBounds[0]! : Number(start)
+  for (let index = Math.max(0, minimum - value.lowerBounds[0]!); index < value.elements.length; index++)
+    if (arrayElementNotDistinct(value.elementType, value.elements[index]!, search))
+      return BigInt(value.lowerBounds[0]! + index)
+  return null
+}`,
+  },
+  arrayPositions: {
+    dependencies: [
+      'SqlArray',
+      'SqlArrayElement',
+      'arrayElementNotDistinct',
+      'arrayElementInput',
+      'arrayError',
+    ],
+    source: `function arrayPositions(value: SqlArray | null, search: SqlArrayElement): SqlArray | null {
+  if (value === null) return null
+  if (value.dimensions.length > 1) arrayError('0A000')
+  const elements: SqlArrayElement[] = []
+  if (value.dimensions.length === 1)
+    for (let index = 0; index < value.elements.length; index++)
+      if (arrayElementNotDistinct(value.elementType, value.elements[index]!, search))
+        elements.push(arrayElementInput('pg_catalog.int4', BigInt(value.lowerBounds[0]! + index)))
+  return elements.length === 0
+    ? new SqlArray('pg_catalog.int4', [], [], [])
+    : new SqlArray('pg_catalog.int4', [elements.length], [1], elements)
+}`,
+  },
+  arrayRemove: {
+    dependencies: ['SqlArray', 'SqlArrayElement', 'arrayElementNotDistinct', 'arrayError'],
+    source: `function arrayRemove(value: SqlArray | null, search: SqlArrayElement): SqlArray | null {
+  if (value === null) return null
+  if (value.dimensions.length > 1) arrayError('0A000')
+  if (value.dimensions.length === 0) return value
+  const elements = value.elements.filter(
+    (element) => !arrayElementNotDistinct(value.elementType, element, search),
+  )
+  return elements.length === 0
+    ? new SqlArray(value.elementType, [], [], [])
+    : new SqlArray(value.elementType, [elements.length], value.lowerBounds, elements)
+}`,
+  },
+  arrayReplace: {
+    dependencies: ['SqlArray', 'SqlArrayElement', 'arrayElementNotDistinct'],
+    source: `function arrayReplace(
+  value: SqlArray | null,
+  search: SqlArrayElement,
+  replacement: SqlArrayElement,
+): SqlArray | null {
+  if (value === null) return null
+  return new SqlArray(
+    value.elementType,
+    value.dimensions,
+    value.lowerBounds,
+    value.elements.map((element) =>
+      arrayElementNotDistinct(value.elementType, element, search) ? replacement : element,
+    ),
+  )
+}`,
+  },
+  arrayFill: {
+    dependencies: ['SqlArray', 'SqlArrayElement', 'arrayError'],
+    source: `function arrayFill(
+  element: SqlArrayElement,
+  dimensions: SqlArray | null,
+  lowerBounds?: SqlArray | null,
+): SqlArray {
+  if (dimensions === null || (arguments.length >= 3 && lowerBounds === null)) arrayError('22004')
+  if (dimensions.dimensions.length > 1 || (lowerBounds && lowerBounds.dimensions.length > 1))
+    arrayError('2202E')
+  if (dimensions.elements.some((value) => value.value === null) ||
+      lowerBounds?.elements.some((value) => value.value === null)) arrayError('22004')
+  const dims = dimensions.elements.map((value) => Number(value.value))
+  if (dims.length > 6) arrayError('54000')
+  if (dims.some((dimension) => dimension < 0)) arrayError('54000')
+  const lbs = lowerBounds
+    ? lowerBounds.elements.map((value) => Number(value.value))
+    : dims.map(() => 1)
+  if (lbs.length !== dims.length) arrayError('2202E')
+  const count = dims.reduce((total, dimension) => total * dimension, 1)
+  if (dims.length === 0 || count === 0) return new SqlArray(element.type, [], [], [])
+  return new SqlArray(element.type, dims, lbs, Array.from({ length: count }, () => element))
+}`,
+  },
+  arrayTrim: {
+    dependencies: ['SqlArray', 'arrayError'],
+    source: `function arrayTrim(value: SqlArray | null, count: bigint | null): SqlArray | null {
+  if (value === null || count === null) return null
+  const amount = Number(count), outer = value.dimensions[0] ?? 0
+  if (amount < 0 || amount > outer) arrayError('2202E')
+  if (amount === outer) return new SqlArray(value.elementType, [], [], [])
+  if (value.dimensions.length === 0 || amount === 0) return value
+  const chunk = value.elements.length / outer
+  const dimensions = [...value.dimensions]
+  dimensions[0] = outer - amount
+  return new SqlArray(
+    value.elementType,
+    dimensions,
+    dimensions.map(() => 1),
+    value.elements.slice(0, value.elements.length - amount * chunk),
+  )
+}`,
+  },
+  arrayReverse: {
+    dependencies: ['SqlArray'],
+    source: `function arrayReverse(value: SqlArray | null): SqlArray | null {
+  if (value === null || value.dimensions.length === 0 || value.dimensions[0]! < 2) return value
+  const outer = value.dimensions[0]!, chunk = value.elements.length / outer
+  const elements: SqlArrayElement[] = []
+  for (let index = outer - 1; index >= 0; index--)
+    elements.push(...value.elements.slice(index * chunk, (index + 1) * chunk))
+  return new SqlArray(value.elementType, value.dimensions, value.lowerBounds, elements)
+}`,
+  },
+  arraySort: {
+    dependencies: ['SqlArray', 'arrayElementCompare'],
+    source: `function arraySort(
+  value: SqlArray | null,
+  descending: boolean | null = false,
+  nullsFirst: boolean | null = descending,
+): SqlArray | null {
+  if (value === null || descending === null || nullsFirst === null) return null
+  if (value.dimensions.length === 0 || value.dimensions[0]! < 2) return value
+  const outer = value.dimensions[0]!, chunk = value.elements.length / outer
+  const slices = Array.from({ length: outer }, (_, index) =>
+    value.elements.slice(index * chunk, (index + 1) * chunk),
+  )
+  slices.sort((left, right) => {
+    for (let index = 0; index < chunk; index++) {
+      const a = left[index]!, b = right[index]!
+      if (a.value === null || b.value === null) {
+        if (a.value === null && b.value === null) continue
+        if (value.dimensions.length === 1)
+          return a.value === null ? (nullsFirst ? -1 : 1) : nullsFirst ? 1 : -1
+        const comparison = a.value === null ? 1 : -1
+        return descending ? -comparison : comparison
+      }
+      const comparison = arrayElementCompare(value.elementType, a.value, b.value)
+      if (comparison !== 0) return descending ? -comparison : comparison
+    }
+    return 0
+  })
+  return new SqlArray(value.elementType, value.dimensions, value.lowerBounds, slices.flat())
+}`,
+  },
+  arraySlice: {
+    dependencies: ['SqlArray'],
+    source: `function arraySlice(
+  value: SqlArray | null,
+  bounds: readonly (readonly [bigint | null, bigint | null])[],
+): SqlArray | null {
+  if (value === null || value.dimensions.length === 0 || bounds.length !== value.dimensions.length)
+    return value === null ? null : new SqlArray(value.elementType, [], [], [])
+  const lowers = bounds.map((bound, index) =>
+    Math.max(value.lowerBounds[index]!, Number(bound[0] ?? BigInt(value.lowerBounds[index]!))),
+  )
+  const uppers = bounds.map((bound, index) =>
+    Math.min(
+      value.lowerBounds[index]! + value.dimensions[index]! - 1,
+      Number(bound[1] ?? BigInt(value.lowerBounds[index]! + value.dimensions[index]! - 1)),
+    ),
+  )
+  if (lowers.some((lower, index) => lower > uppers[index]!))
+    return new SqlArray(value.elementType, [], [], [])
+  const dimensions = lowers.map((lower, index) => uppers[index]! - lower + 1)
+  const elements: SqlArrayElement[] = []
+  const visit = (depth: number, offset: number): void => {
+    if (depth === value.dimensions.length) { elements.push(value.elements[offset]!); return }
+    const stride = value.dimensions.slice(depth + 1).reduce((total, dimension) => total * dimension, 1)
+    for (let coordinate = lowers[depth]!; coordinate <= uppers[depth]!; coordinate++)
+      visit(depth + 1, offset + (coordinate - value.lowerBounds[depth]!) * stride)
+  }
+  visit(0, 0)
+  return new SqlArray(value.elementType, dimensions, dimensions.map(() => 1), elements)
+}`,
+  },
+  arrayAssign: {
+    dependencies: ['SqlArray', 'SqlArrayElement', 'arrayError'],
+    source: `function arrayAssign(
+  value: SqlArray | null,
+  subscripts: readonly (bigint | null)[],
+  element: SqlArrayElement,
+): SqlArray {
+  if (subscripts.some((subscript) => subscript === null)) arrayError('22004')
+  const indexes = subscripts.map(Number)
+  if (value === null || value.dimensions.length === 0)
+    return new SqlArray(
+      element.type,
+      indexes.map(() => 1),
+      indexes,
+      [element],
+    )
+  if (indexes.length !== value.dimensions.length) arrayError('2202E')
+  if (value.dimensions.length === 1) {
+    const oldLower = value.lowerBounds[0]!, oldUpper = oldLower + value.dimensions[0]! - 1
+    const lower = Math.min(oldLower, indexes[0]!), upper = Math.max(oldUpper, indexes[0]!)
+    const elements = Array.from(
+      { length: upper - lower + 1 },
+      (_, index) => {
+        const coordinate = lower + index
+        return coordinate < oldLower || coordinate > oldUpper
+          ? new SqlArrayElement(value.elementType, null)
+          : value.elements[coordinate - oldLower]!
+      },
+    )
+    elements[indexes[0]! - lower] = element
+    return new SqlArray(value.elementType, [elements.length], [lower], elements)
+  }
+  let offset = 0
+  for (let index = 0; index < indexes.length; index++) {
+    const position = indexes[index]! - value.lowerBounds[index]!
+    if (position < 0 || position >= value.dimensions[index]!) arrayError('2202E')
+    offset = offset * value.dimensions[index]! + position
+  }
+  const elements = [...value.elements]
+  elements[offset] = element
+  return new SqlArray(value.elementType, value.dimensions, value.lowerBounds, elements)
 }`,
   },
 }
