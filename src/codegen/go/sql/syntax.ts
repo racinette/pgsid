@@ -12,6 +12,10 @@ function suffix(type: string): string {
   if (type === 'pg_catalog.uuid') return 'Uuid'
   if (type === 'pg_catalog."json"') return 'Json'
   if (type === 'pg_catalog.jsonb') return 'Jsonb'
+  if (type === 'pg_catalog.date') return 'Date'
+  if (type === 'pg_catalog."time"') return 'Time'
+  if (type === 'pg_catalog."timestamp"') return 'Timestamp'
+  if (type === 'pg_catalog."interval"') return 'Interval'
   if (type.startsWith('enum:')) return 'Enum'
   if (type.startsWith('array:')) return 'Array'
   throw new Error(`Unsupported conditional value type: ${type}`)

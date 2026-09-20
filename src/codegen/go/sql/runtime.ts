@@ -10,6 +10,7 @@ import { goUuidDependencies } from './uuid-runtime.js'
 import { goEnumDependencies } from './enum-runtime.js'
 import { goArrayDependencies } from './array-runtime.js'
 import { goJsonDependencies } from './json-runtime.js'
+import { goTemporalDependencies } from './temporal-runtime.js'
 
 const dependencies: Record<string, readonly string[]> = {
   float8WidthBucket: ['SqlFloat', 'sqlIntegerRange'],
@@ -81,6 +82,7 @@ Object.assign(dependencies, goUuidDependencies)
 Object.assign(dependencies, goEnumDependencies)
 Object.assign(dependencies, goArrayDependencies)
 Object.assign(dependencies, goJsonDependencies)
+Object.assign(dependencies, goTemporalDependencies)
 
 export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsql'): string {
   const declarations = new Map(
@@ -96,6 +98,7 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
       'enum',
       'array',
       'json',
+      'temporal',
     ]
       .flatMap((asset) =>
         readFileSync(new URL(`./assets/${asset}.go`, import.meta.url), 'utf8')

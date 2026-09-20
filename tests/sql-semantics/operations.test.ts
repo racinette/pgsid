@@ -40,6 +40,10 @@ import {
   typescriptJsonFunctions,
   typescriptJsonOperators,
 } from '../../src/codegen/typescript/sql/json.js'
+import {
+  typescriptTemporalFunctions,
+  typescriptTemporalOperators,
+} from '../../src/codegen/typescript/sql/temporal.js'
 import { observeSql } from '../support/postgres/observe.js'
 import type { SqlObservation } from '../support/postgres/observe.js'
 
@@ -98,6 +102,10 @@ function goProject(fixtures = cases): string {
           'arrayText',
           'jsonText',
           'jsonbText',
+          'dateText',
+          'timeText',
+          'timestampText',
+          'intervalText',
         ],
         'main',
       ) +
@@ -168,6 +176,22 @@ function goProject(fixtures = cases): string {
             if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
             } else if !value.Valid { result["kind"] = "null"
             } else { result["kind"] = "value"; result["value"] = jsonbText(value).Value }
+          case SqlDate:
+            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
+            } else if !value.Valid { result["kind"] = "null"
+            } else { result["kind"] = "value"; result["value"] = dateText(value).Value }
+          case SqlTime:
+            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
+            } else if !value.Valid { result["kind"] = "null"
+            } else { result["kind"] = "value"; result["value"] = timeText(value).Value }
+          case SqlTimestamp:
+            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
+            } else if !value.Valid { result["kind"] = "null"
+            } else { result["kind"] = "value"; result["value"] = timestampText(value).Value }
+          case SqlInterval:
+            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
+            } else if !value.Valid { result["kind"] = "null"
+            } else { result["kind"] = "value"; result["value"] = intervalText(value).Value }
           default: panic("unexpected SQL value type")
           }
           results = append(results, result)
@@ -197,11 +221,19 @@ function goProject(fixtures = cases): string {
                           ? 'SqlJson'
                           : result.value.type === 'pg_catalog.jsonb'
                             ? 'SqlJsonb'
-                            : result.value.type.startsWith('enum:')
-                              ? 'SqlEnum'
-                              : result.value.type.startsWith('array:')
-                                ? 'SqlArray'
-                                : 'SqlInteger',
+                            : result.value.type === 'pg_catalog.date'
+                              ? 'SqlDate'
+                              : result.value.type === 'pg_catalog."time"'
+                                ? 'SqlTime'
+                                : result.value.type === 'pg_catalog."timestamp"'
+                                  ? 'SqlTimestamp'
+                                  : result.value.type === 'pg_catalog."interval"'
+                                    ? 'SqlInterval'
+                                    : result.value.type.startsWith('enum:')
+                                      ? 'SqlEnum'
+                                      : result.value.type.startsWith('array:')
+                                        ? 'SqlArray'
+                                        : 'SqlInteger',
             ),
           },
         ],
@@ -455,6 +487,30 @@ describe('generated PostgreSQL scalar evaluation', () => {
       'to json array',
       'json build array values',
       'json build object values',
+      'date input 1',
+      'date operator < 0',
+      'date function eq',
+      'date cmp 1',
+      'date finite infinity',
+      'make date',
+      'date null test',
+      'date case',
+      'date coalesce',
+      'time input 3',
+      'time operator < 0',
+      'time cmp 1',
+      'make time',
+      'timestamp input 2',
+      'timestamp operator < 0',
+      'timestamp finite',
+      'make timestamp',
+      'timestamp coalesce',
+      'interval input 6',
+      'interval operator = 0',
+      'interval cmp 0',
+      'interval finite infinity',
+      'make interval',
+      'interval case',
       ...[
         'int2',
         'int8',
@@ -575,11 +631,19 @@ describe('generated PostgreSQL scalar evaluation', () => {
                                   ? 'SqlJson'
                                   : emitted.value.type === 'pg_catalog.jsonb'
                                     ? 'SqlJsonb'
-                                    : emitted.value.type.startsWith('enum:')
-                                      ? 'SqlEnum'
-                                      : emitted.value.type.startsWith('array:')
-                                        ? 'SqlArray'
-                                        : 'SqlInteger',
+                                    : emitted.value.type === 'pg_catalog.date'
+                                      ? 'SqlDate'
+                                      : emitted.value.type === 'pg_catalog."time"'
+                                        ? 'SqlTime'
+                                        : emitted.value.type === 'pg_catalog."timestamp"'
+                                          ? 'SqlTimestamp'
+                                          : emitted.value.type === 'pg_catalog."interval"'
+                                            ? 'SqlInterval'
+                                            : emitted.value.type.startsWith('enum:')
+                                              ? 'SqlEnum'
+                                              : emitted.value.type.startsWith('array:')
+                                                ? 'SqlArray'
+                                                : 'SqlInteger',
                     ),
                   },
                 ],
@@ -718,11 +782,13 @@ describe('generated PostgreSQL scalar evaluation', () => {
       ),
       ...Object.keys(typescriptJsonOperators),
       ...Object.keys(typescriptJsonFunctions),
+      ...Object.keys(typescriptTemporalOperators),
+      ...Object.keys(typescriptTemporalFunctions),
     ]
     expect(supported.map((row) => row.signature).sort()).toEqual(
       [...expected, ...additional].sort(),
     )
-    expect(supported).toHaveLength(442)
+    expect(supported).toHaveLength(501)
     expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
     expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
   })

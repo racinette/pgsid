@@ -9,6 +9,7 @@ import { goNumericOperators, goNumericFunctions } from './numeric.js'
 import { arrayType, enumType, type ExpressionBackend } from '../../../sql-semantics/expressions.js'
 import { goUuidFunctions, goUuidOperators } from './uuid.js'
 import { goJsonFunctions, goJsonOperators } from './json.js'
+import { goTemporalFunctions, goTemporalOperators } from './temporal.js'
 
 export const goSqlBackend: ExpressionBackend<GoExpression> = {
   bindings: [
@@ -19,6 +20,7 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
     { domain: 'numeric', operators: goNumericOperators, functions: goNumericFunctions },
     { domain: 'uuid', operators: goUuidOperators, functions: goUuidFunctions },
     { domain: 'json', operators: goJsonOperators, functions: goJsonFunctions },
+    { domain: 'temporal', operators: goTemporalOperators, functions: goTemporalFunctions },
   ],
   array: (elementType, dimensions, lowerBounds, elements) => ({
     expression:
@@ -288,6 +290,27 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
     value === null
       ? go.composite(go.ident('SqlJsonb'))
       : go.call(go.ident('jsonbInput'), [go.string(value)]),
+  temporal: (type, value) => {
+    const helper =
+      type === 'pg_catalog.date'
+        ? 'dateInput'
+        : type === 'pg_catalog."time"'
+          ? 'timeInput'
+          : type === 'pg_catalog."timestamp"'
+            ? 'timestampInput'
+            : 'intervalInput'
+    const result =
+      type === 'pg_catalog.date'
+        ? 'SqlDate'
+        : type === 'pg_catalog."time"'
+          ? 'SqlTime'
+          : type === 'pg_catalog."timestamp"'
+            ? 'SqlTimestamp'
+            : 'SqlInterval'
+    return value === null
+      ? go.composite(go.ident(result))
+      : go.call(go.ident(helper), [go.string(value)])
+  },
   enum: (definition, value) =>
     value === null
       ? go.composite(go.ident('SqlEnum'))

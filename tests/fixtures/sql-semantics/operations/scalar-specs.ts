@@ -8,6 +8,7 @@ import { arraySpecs } from './array-specs.js'
 import { polymorphicArraySpecs } from './polymorphic-array-specs.js'
 import { arrayCompletionSpecs } from './array-completion-specs.js'
 import { jsonSpecs } from './json-specs.js'
+import { temporalSpecs } from './temporal-specs.js'
 
 interface Operand {
   sql: string
@@ -258,4 +259,5 @@ export const scalarSpecs: readonly ExpressionSpec[] = [
   ...polymorphicArraySpecs,
   ...arrayCompletionSpecs,
   ...jsonSpecs,
+  ...temporalSpecs,
 ]

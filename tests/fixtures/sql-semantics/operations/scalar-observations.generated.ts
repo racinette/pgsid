@@ -70856,4 +70856,1039 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: '"apple"',
   },
+  'date input 0': {
+    kind: 'null',
+  },
+  'date input 1': {
+    kind: 'value',
+    value: '2020-01-02',
+  },
+  'date input 2': {
+    kind: 'value',
+    value: '2020-01-02',
+  },
+  'date input 3': {
+    kind: 'value',
+    value: '2024-01-05',
+  },
+  'date input 4': {
+    kind: 'value',
+    value: '2024-02-29',
+  },
+  'date input 5': {
+    kind: 'value',
+    value: '0001-01-01',
+  },
+  'date input 6': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'date input 7': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'date input 8': {
+    kind: 'value',
+    value: '-infinity',
+  },
+  'date invalid 0': {
+    kind: 'error',
+    code: '22007',
+  },
+  'date invalid 1': {
+    kind: 'error',
+    code: '22007',
+  },
+  'date invalid 2': {
+    kind: 'error',
+    code: '22008',
+  },
+  'date invalid 3': {
+    kind: 'error',
+    code: '22008',
+  },
+  'time input 0': {
+    kind: 'null',
+  },
+  'time input 1': {
+    kind: 'value',
+    value: '00:00:00',
+  },
+  'time input 2': {
+    kind: 'value',
+    value: '12:34:00',
+  },
+  'time input 3': {
+    kind: 'value',
+    value: '12:34:56',
+  },
+  'time input 4': {
+    kind: 'value',
+    value: '12:34:56.1',
+  },
+  'time input 5': {
+    kind: 'value',
+    value: '12:34:56.123456',
+  },
+  'time input 6': {
+    kind: 'value',
+    value: '24:00:00',
+  },
+  'time invalid 0': {
+    kind: 'error',
+    code: '22008',
+  },
+  'time invalid 1': {
+    kind: 'error',
+    code: '22008',
+  },
+  'time invalid 2': {
+    kind: 'error',
+    code: '22023',
+  },
+  'timestamp input 0': {
+    kind: 'null',
+  },
+  'timestamp input 1': {
+    kind: 'value',
+    value: '2020-01-02 00:00:00',
+  },
+  'timestamp input 2': {
+    kind: 'value',
+    value: '2020-01-02 03:04:05',
+  },
+  'timestamp input 3': {
+    kind: 'value',
+    value: '2020-01-02 03:04:05',
+  },
+  'timestamp input 4': {
+    kind: 'value',
+    value: '2020-01-03 00:00:00',
+  },
+  'timestamp input 5': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'timestamp input 6': {
+    kind: 'value',
+    value: '-infinity',
+  },
+  'timestamp invalid': {
+    kind: 'error',
+    code: '22007',
+  },
+  'interval input 0': {
+    kind: 'null',
+  },
+  'interval input 1': {
+    kind: 'value',
+    value: '00:00:00',
+  },
+  'interval input 2': {
+    kind: 'value',
+    value: '1 year',
+  },
+  'interval input 3': {
+    kind: 'value',
+    value: '2 mons',
+  },
+  'interval input 4': {
+    kind: 'value',
+    value: '3 days',
+  },
+  'interval input 5': {
+    kind: 'value',
+    value: '04:05:06',
+  },
+  'interval input 6': {
+    kind: 'value',
+    value: '1 year 2 mons 3 days 04:05:06',
+  },
+  'interval input 7': {
+    kind: 'value',
+    value: '7 days',
+  },
+  'interval input 8': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'interval input 9': {
+    kind: 'value',
+    value: '-infinity',
+  },
+  'interval invalid': {
+    kind: 'error',
+    code: '22007',
+  },
+  'date operator = 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date operator <> 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date operator < 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date operator <= 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date operator > 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date operator >= 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date operator = 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date operator <> 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date operator < 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date operator <= 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date operator > 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date operator >= 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date operator = 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date operator <> 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date operator < 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date operator <= 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date operator > 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date operator >= 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date operator = 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date operator <> 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date operator < 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date operator <= 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date operator > 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date operator >= 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date operator = 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date operator <> 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date operator < 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date operator <= 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date operator > 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date operator >= 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date operator = 5': {
+    kind: 'null',
+  },
+  'date operator <> 5': {
+    kind: 'null',
+  },
+  'date operator < 5': {
+    kind: 'null',
+  },
+  'date operator <= 5': {
+    kind: 'null',
+  },
+  'date operator > 5': {
+    kind: 'null',
+  },
+  'date operator >= 5': {
+    kind: 'null',
+  },
+  'date function eq': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date function eq null': {
+    kind: 'null',
+  },
+  'date operator boundary =': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date function ne': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date function ne null': {
+    kind: 'null',
+  },
+  'date operator boundary <>': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date function lt': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date function lt null': {
+    kind: 'null',
+  },
+  'date operator boundary <': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date function le': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date function le null': {
+    kind: 'null',
+  },
+  'date operator boundary <=': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date function gt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date function gt null': {
+    kind: 'null',
+  },
+  'date operator boundary >': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date function ge': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date function ge null': {
+    kind: 'null',
+  },
+  'date operator boundary >=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date cmp 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'date cmp 1': {
+    kind: 'value',
+    value: '-1',
+  },
+  'date cmp 2': {
+    kind: 'value',
+    value: '1',
+  },
+  'date cmp 3': {
+    kind: 'null',
+  },
+  'time operator = 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time operator <> 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time operator < 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time operator <= 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time operator > 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time operator >= 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time operator = 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time operator <> 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time operator < 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time operator <= 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time operator > 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time operator >= 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time operator = 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time operator <> 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time operator < 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time operator <= 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time operator > 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time operator >= 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time operator = 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time operator <> 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time operator < 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time operator <= 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time operator > 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time operator >= 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time operator = 4': {
+    kind: 'null',
+  },
+  'time operator <> 4': {
+    kind: 'null',
+  },
+  'time operator < 4': {
+    kind: 'null',
+  },
+  'time operator <= 4': {
+    kind: 'null',
+  },
+  'time operator > 4': {
+    kind: 'null',
+  },
+  'time operator >= 4': {
+    kind: 'null',
+  },
+  'time function eq': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time function eq null': {
+    kind: 'null',
+  },
+  'time operator boundary =': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time function ne': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time function ne null': {
+    kind: 'null',
+  },
+  'time operator boundary <>': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time function lt': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time function lt null': {
+    kind: 'null',
+  },
+  'time operator boundary <': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time function le': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time function le null': {
+    kind: 'null',
+  },
+  'time operator boundary <=': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time function gt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time function gt null': {
+    kind: 'null',
+  },
+  'time operator boundary >': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time function ge': {
+    kind: 'value',
+    value: 'false',
+  },
+  'time function ge null': {
+    kind: 'null',
+  },
+  'time operator boundary >=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'time cmp 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'time cmp 1': {
+    kind: 'value',
+    value: '-1',
+  },
+  'time cmp 2': {
+    kind: 'null',
+  },
+  'timestamp operator = 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp operator <> 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp operator < 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp operator <= 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp operator > 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp operator >= 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp operator = 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp operator <> 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp operator < 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp operator <= 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp operator > 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp operator >= 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp operator = 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp operator <> 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp operator < 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp operator <= 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp operator > 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp operator >= 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp operator = 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp operator <> 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp operator < 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp operator <= 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp operator > 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp operator >= 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp operator = 4': {
+    kind: 'null',
+  },
+  'timestamp operator <> 4': {
+    kind: 'null',
+  },
+  'timestamp operator < 4': {
+    kind: 'null',
+  },
+  'timestamp operator <= 4': {
+    kind: 'null',
+  },
+  'timestamp operator > 4': {
+    kind: 'null',
+  },
+  'timestamp operator >= 4': {
+    kind: 'null',
+  },
+  'timestamp function eq': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp function eq null': {
+    kind: 'null',
+  },
+  'timestamp operator boundary =': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp function ne': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp function ne null': {
+    kind: 'null',
+  },
+  'timestamp operator boundary <>': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp function lt': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp function lt null': {
+    kind: 'null',
+  },
+  'timestamp operator boundary <': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp function le': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp function le null': {
+    kind: 'null',
+  },
+  'timestamp operator boundary <=': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp function gt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp function gt null': {
+    kind: 'null',
+  },
+  'timestamp operator boundary >': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp function ge': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp function ge null': {
+    kind: 'null',
+  },
+  'timestamp operator boundary >=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp cmp 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'timestamp cmp 1': {
+    kind: 'value',
+    value: '-1',
+  },
+  'timestamp cmp 2': {
+    kind: 'null',
+  },
+  'interval operator = 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval operator <> 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval operator < 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval operator <= 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval operator > 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval operator >= 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval operator = 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval operator <> 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval operator < 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval operator <= 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval operator > 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval operator >= 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval operator = 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval operator <> 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval operator < 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval operator <= 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval operator > 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval operator >= 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval operator = 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval operator <> 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval operator < 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval operator <= 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval operator > 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval operator >= 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval operator = 4': {
+    kind: 'null',
+  },
+  'interval operator <> 4': {
+    kind: 'null',
+  },
+  'interval operator < 4': {
+    kind: 'null',
+  },
+  'interval operator <= 4': {
+    kind: 'null',
+  },
+  'interval operator > 4': {
+    kind: 'null',
+  },
+  'interval operator >= 4': {
+    kind: 'null',
+  },
+  'interval function eq': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval function eq null': {
+    kind: 'null',
+  },
+  'interval operator boundary =': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval function ne': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval function ne null': {
+    kind: 'null',
+  },
+  'interval operator boundary <>': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval function lt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval function lt null': {
+    kind: 'null',
+  },
+  'interval operator boundary <': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval function le': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval function le null': {
+    kind: 'null',
+  },
+  'interval operator boundary <=': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval function gt': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval function gt null': {
+    kind: 'null',
+  },
+  'interval operator boundary >': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval function ge': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval function ge null': {
+    kind: 'null',
+  },
+  'interval operator boundary >=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval cmp 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'interval cmp 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'interval cmp 2': {
+    kind: 'null',
+  },
+  'date finite': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date finite infinity': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date finite null': {
+    kind: 'null',
+  },
+  'timestamp finite': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp finite infinity': {
+    kind: 'value',
+    value: 'false',
+  },
+  'interval finite': {
+    kind: 'value',
+    value: 'true',
+  },
+  'interval finite infinity': {
+    kind: 'value',
+    value: 'false',
+  },
+  'make date': {
+    kind: 'value',
+    value: '2020-01-02',
+  },
+  'make date bc': {
+    kind: 'value',
+    value: '0001-01-01 BC',
+  },
+  'make date invalid': {
+    kind: 'error',
+    code: '22008',
+  },
+  'make time': {
+    kind: 'value',
+    value: '12:34:56.5',
+  },
+  'make time overflow': {
+    kind: 'error',
+    code: '22008',
+  },
+  'make timestamp': {
+    kind: 'value',
+    value: '2020-01-02 03:04:05.5',
+  },
+  'make interval': {
+    kind: 'value',
+    value: '1 year 2 mons 3 days 04:05:06.5',
+  },
+  'date null test': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date case': {
+    kind: 'value',
+    value: '2020-01-02',
+  },
+  'date coalesce': {
+    kind: 'value',
+    value: '2020-01-02',
+  },
+  'time case': {
+    kind: 'value',
+    value: '18:00:00',
+  },
+  'timestamp coalesce': {
+    kind: 'value',
+    value: '2020-01-02 03:04:05',
+  },
+  'interval case': {
+    kind: 'value',
+    value: '1 mon',
+  },
 }
