@@ -9,6 +9,7 @@ import { typescriptNumericOperators, typescriptNumericFunctions } from './numeri
 import { arrayType, enumType, type ExpressionBackend } from '../../../sql-semantics/expressions.js'
 import { typescriptUuidFunctions, typescriptUuidOperators } from './uuid.js'
 import { typescriptJsonFunctions, typescriptJsonOperators } from './json.js'
+import { typescriptTemporalFunctions, typescriptTemporalOperators } from './temporal.js'
 
 export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
   bindings: [
@@ -31,6 +32,11 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
     },
     { domain: 'uuid', operators: typescriptUuidOperators, functions: typescriptUuidFunctions },
     { domain: 'json', operators: typescriptJsonOperators, functions: typescriptJsonFunctions },
+    {
+      domain: 'temporal',
+      operators: typescriptTemporalOperators,
+      functions: typescriptTemporalFunctions,
+    },
   ],
   array: (elementType, dimensions, lowerBounds, elements) => ({
     expression: factory.createCallExpression(identifier('arrayInput'), undefined, [
@@ -276,6 +282,20 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
     factory.createCallExpression(identifier('jsonbInput'), undefined, [
       value === null ? factory.createNull() : factory.createStringLiteral(value),
     ]),
+  temporal: (type, value) =>
+    factory.createCallExpression(
+      identifier(
+        type === 'pg_catalog.date'
+          ? 'dateInput'
+          : type === 'pg_catalog."time"'
+            ? 'timeInput'
+            : type === 'pg_catalog."timestamp"'
+              ? 'timestampInput'
+              : 'intervalInput',
+      ),
+      undefined,
+      [value === null ? factory.createNull() : factory.createStringLiteral(value)],
+    ),
   enum: (definition, value) =>
     factory.createCallExpression(identifier('enumInput'), undefined, [
       value === null ? factory.createNull() : factory.createStringLiteral(value),

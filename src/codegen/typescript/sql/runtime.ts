@@ -11,6 +11,7 @@ import { typescriptUuidHelpers } from './uuid-runtime.js'
 import { typescriptEnumHelpers } from './enum-runtime.js'
 import { typescriptArrayHelpers } from './array-runtime.js'
 import { typescriptJsonHelpers } from './json-runtime.js'
+import { typescriptTemporalHelpers } from './temporal-runtime.js'
 
 const helpers: Record<string, { dependencies: readonly string[]; source: string }> = {
   sqlIntegerError: {
@@ -166,6 +167,7 @@ Object.assign(helpers, typescriptUuidHelpers)
 Object.assign(helpers, typescriptEnumHelpers)
 Object.assign(helpers, typescriptArrayHelpers)
 Object.assign(helpers, typescriptJsonHelpers)
+Object.assign(helpers, typescriptTemporalHelpers)
 
 for (const [width, bits, shiftMask] of [
   ['int2', 16, 31n],

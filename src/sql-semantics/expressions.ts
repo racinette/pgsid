@@ -13,6 +13,8 @@ export type TextType = 'pg_catalog.text' | 'pg_catalog."varchar"' | 'pg_catalog.
 export type UuidType = 'pg_catalog.uuid'
 export type JsonType = 'pg_catalog."json"'
 export type JsonbType = 'pg_catalog.jsonb'
+export type TemporalType =
+  'pg_catalog.date' | 'pg_catalog."time"' | 'pg_catalog."timestamp"' | 'pg_catalog."interval"'
 export type EnumType = `enum:${string}`
 export const BUILTIN_ARRAY_ELEMENT_TYPES = [
   'pg_catalog.int2',
@@ -36,6 +38,7 @@ export type ScalarType =
   | UuidType
   | JsonType
   | JsonbType
+  | TemporalType
   | EnumType
   | ArrayType
 export type SyntaxKind = 'and' | 'or' | 'not' | 'is-null' | 'is-not-null' | 'case' | 'coalesce'
@@ -249,6 +252,7 @@ export type SqlExpression =
   | { kind: 'uuid'; type: UuidType; value: string | null }
   | { kind: 'json'; type: JsonType; value: string | null }
   | { kind: 'jsonb'; type: JsonbType; value: string | null }
+  | { kind: 'temporal'; type: TemporalType; value: string | null }
   | { kind: 'enum'; type: EnumType; enum: EnumDefinition; value: string | null }
   | {
       kind: 'array'
@@ -296,6 +300,7 @@ export interface ExpressionBackend<Ast> {
   uuid: (value: string | null) => Ast
   json: (value: string | null) => Ast
   jsonb: (value: string | null) => Ast
+  temporal: (type: TemporalType, value: string | null) => Ast
   enum: (definition: EnumDefinition, value: string | null) => Ast
   array: (
     elementType: ArrayElementType,
@@ -717,6 +722,26 @@ export function emitSqlExpression<Ast>(
         type: node.type,
         expression: node.kind === 'json' ? backend.json(node.value) : backend.jsonb(node.value),
       }
+    }
+    if (node.kind === 'temporal') {
+      if (
+        node.value !== null &&
+        (node.value.includes('\0') ||
+          /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(
+            node.value,
+          ))
+      )
+        throw new Error('Invalid temporal literal')
+      const helper =
+        node.type === 'pg_catalog.date'
+          ? 'dateInput'
+          : node.type === 'pg_catalog."time"'
+            ? 'timeInput'
+            : node.type === 'pg_catalog."timestamp"'
+              ? 'timestampInput'
+              : 'intervalInput'
+      helpers.add(helper)
+      return { type: node.type, expression: backend.temporal(node.type, node.value) }
     }
     if (node.kind === 'enum') {
       if (node.type !== validateEnum(node.enum)) throw new Error('Invalid enum literal')

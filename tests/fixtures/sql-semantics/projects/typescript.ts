@@ -4615,6 +4615,519 @@ function jsonbBuildObject(...args: any[]): SqlJsonb {
         });
     return new SqlJsonb(jsonbCanonicalize({ kind: "object", raw: "", pairs }));
 }
+function temporalJ2date(jd: number): {
+    year: number;
+    month: number;
+    day: number;
+} {
+    let julian = (jd + 32044) >>> 0;
+    let quad = Math.trunc(julian / 146097);
+    const extra = (julian - quad * 146097) * 4 + 3;
+    julian += 60 + quad * 3 + Math.trunc(extra / 146097);
+    quad = Math.trunc(julian / 1461);
+    julian -= quad * 1461;
+    let y = Math.trunc(julian * 4 / 1461);
+    julian = ((y !== 0) ? ((julian + 305) % 365) : ((julian + 306) % 366)) + 123;
+    y += quad * 4;
+    const year = y - 4800;
+    quad = Math.trunc(julian * 2141 / 65536);
+    return { year, month: (quad + 10) % 12 + 1, day: julian - Math.trunc((7834 * quad) / 256) };
+}
+function temporalPad(value: number, width: number): string {
+    const sign = value < 0 ? "-" : "";
+    return sign + String(Math.abs(value)).padStart(width, "0");
+}
+function dateFormat(days: number): string {
+    if (days === -2147483648)
+        return "-infinity";
+    if (days === 2147483647)
+        return "infinity";
+    const { year, month, day } = temporalJ2date(days + 2451545);
+    const display = year > 0 ? year : -(year - 1);
+    return temporalPad(display, 4) + "-" + temporalPad(month, 2) + "-" + temporalPad(day, 2) + (year <= 0 ? " BC" : "");
+}
+class SqlDate {
+    constructor(readonly days: number) { }
+    toString(): string { return dateFormat(this.days); }
+}
+function temporalSpecial(value: string): -1 | 0 | 1 | null {
+    const text = value.trim().toLowerCase();
+    if (text === "infinity" || text === "+infinity")
+        return 1;
+    if (text === "-infinity")
+        return -1;
+    return text.length === 0 ? 0 : null;
+}
+function temporalDate2j(year: number, month: number, day: number): number {
+    if (month > 2) {
+        month += 1;
+        year += 4800;
+    }
+    else {
+        month += 13;
+        year += 4799;
+    }
+    const century = Math.trunc(year / 100);
+    return year * 365 - 32167 + Math.trunc(year / 4) - century + Math.trunc(century / 4) + Math.trunc((7834 * month) / 256) + day;
+}
+function temporalIsLeap(year: number): boolean {
+    return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+}
+function temporalMonthDays(year: number, month: number): number {
+    return [31, temporalIsLeap(year) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31][month - 1] ?? 0;
+}
+function temporalError(code: string): never {
+    throw Object.assign(new Error("invalid temporal value"), { code });
+}
+function temporalParseDate(value: string): number {
+    const match = /^\s*(\d{1,7})-(\d{1,2})-(\d{1,2})(?:\s+BC)?\s*$/i.exec(value);
+    if (!match)
+        temporalError("22007");
+    const bc = /bc\s*$/i.test(value);
+    let year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    if (bc) {
+        if (year <= 0)
+            temporalError("22008");
+        year = -(year - 1);
+    }
+    else if (year <= 0)
+        temporalError("22008");
+    if (month < 1 || month > 12 || day < 1 || day > temporalMonthDays(year, month))
+        temporalError("22008");
+    if (year < -4713 || (year === -4713 && month < 11))
+        temporalError("22008");
+    const days = temporalDate2j(year, month, day) - 2451545;
+    if (days < -2451545 || days >= 2145031949)
+        temporalError("22008");
+    return days;
+}
+function dateInput(value: string | null): SqlDate | null {
+    if (value === null)
+        return null;
+    const special = temporalSpecial(value);
+    if (special === 1)
+        return new SqlDate(2147483647);
+    if (special === -1)
+        return new SqlDate(-2147483648);
+    return new SqlDate(temporalParseDate(value));
+}
+function temporalSecondsText(sec: number, usec: number): string {
+    let text = temporalPad(Math.abs(sec), 2);
+    if (usec === 0)
+        return text;
+    let fraction = String(Math.abs(usec)).padStart(6, "0");
+    while (fraction.endsWith("0"))
+        fraction = fraction.slice(0, -1);
+    return text + "." + fraction;
+}
+function timeFormat(usec: bigint): string {
+    const hour = usec / 3600000000n;
+    const rest = usec % 3600000000n;
+    const minute = rest / 60000000n;
+    const second = rest % 60000000n;
+    return temporalPad(Number(hour), 2) + ":" + temporalPad(Number(minute), 2) + ":" + temporalSecondsText(Number(second / 1000000n), Number(second % 1000000n));
+}
+class SqlTime {
+    constructor(readonly usec: bigint) { }
+    toString(): string { return timeFormat(this.usec); }
+}
+function temporalParseTime(value: string, roll: boolean): {
+    days: number;
+    usec: bigint;
+} {
+    const match = /^\s*(\d{1,2}):(\d{1,2})(?::(\d{1,2})(?:\.(\d{1,6}))?)?\s*$/.exec(value);
+    if (!match)
+        temporalError("22023");
+    const hour = Number(match[1]);
+    const minute = Number(match[2]);
+    const second = Number(match[3] ?? "0");
+    const fraction = (match[4] ?? "").padEnd(6, "0");
+    const usec = BigInt(second) * 1000000n + BigInt(fraction);
+    if (hour < 0 || hour > 24 || minute < 0 || minute > 59 || second < 0 || second > 59 || usec > 60000000n)
+        temporalError("22008");
+    const total = BigInt(hour) * 3600000000n + BigInt(minute) * 60000000n + usec;
+    if (!roll && total > 86400000000n)
+        temporalError("22008");
+    if (roll && total === 86400000000n)
+        return { days: 1, usec: 0n };
+    if (total > 86400000000n)
+        temporalError("22008");
+    return { days: 0, usec: total };
+}
+function timeInput(value: string | null): SqlTime | null {
+    if (value === null)
+        return null;
+    return new SqlTime(temporalParseTime(value, false).usec);
+}
+function timestampFormat(usec: bigint): string {
+    if (usec === -9223372036854775808n)
+        return "-infinity";
+    if (usec === 9223372036854775807n)
+        return "infinity";
+    let days = usec / 86400000000n;
+    let time = usec % 86400000000n;
+    if (time < 0n) {
+        time += 86400000000n;
+        days -= 1n;
+    }
+    return dateFormat(Number(days)) + " " + timeFormat(time);
+}
+class SqlTimestamp {
+    constructor(readonly usec: bigint) { }
+    toString(): string { return timestampFormat(this.usec); }
+}
+function timestampInput(value: string | null): SqlTimestamp | null {
+    if (value === null)
+        return null;
+    const special = temporalSpecial(value);
+    if (special === 1)
+        return new SqlTimestamp(9223372036854775807n);
+    if (special === -1)
+        return new SqlTimestamp(-9223372036854775808n);
+    const match = /^\s*(\d{1,7}-\d{1,2}-\d{1,2}(?:\s+BC)?)(?:[ T](.+))?\s*$/i.exec(value);
+    if (!match)
+        temporalError("22007");
+    const days = temporalParseDate(match[1]!);
+    const time = match[2] ? temporalParseTime(match[2], true) : { days: 0, usec: 0n };
+    const usec = BigInt(days + time.days) * 86400000000n + time.usec;
+    if (usec < -211813488000000000n || usec >= 9223371331200000000n)
+        temporalError("22008");
+    return new SqlTimestamp(usec);
+}
+function intervalFormat(month: number, day: number, time: bigint): string {
+    if (month === -2147483648 && day === -2147483648 && time === -9223372036854775808n)
+        return "-infinity";
+    if (month === 2147483647 && day === 2147483647 && time === 9223372036854775807n)
+        return "infinity";
+    const year = Math.trunc(month / 12);
+    const mon = month % 12;
+    let remaining = time;
+    const hour = remaining / 3600000000n;
+    remaining %= 3600000000n;
+    const minute = remaining / 60000000n;
+    remaining %= 60000000n;
+    const sec = remaining / 1000000n;
+    const usec = remaining % 1000000n;
+    let text = "";
+    let zero = true;
+    let before = false;
+    const part = (value: number, unit: string): void => {
+        if (value === 0)
+            return;
+        text += (zero ? "" : " ") + (before && value > 0 ? "+" : "") + String(value) + " " + unit + (value !== 1 ? "s" : "");
+        before = value < 0;
+        zero = false;
+    };
+    part(year, "year");
+    part(mon, "mon");
+    part(day, "day");
+    if (zero || hour !== 0n || minute !== 0n || sec !== 0n || usec !== 0n) {
+        const minus = hour < 0n || minute < 0n || sec < 0n || usec < 0n;
+        const absHour = hour < 0n ? -hour : hour;
+        text += (zero ? "" : " ") + (minus ? "-" : before ? "+" : "") + temporalPad(Number(absHour), 2) + ":" + temporalPad(Number(minute < 0n ? -minute : minute), 2) + ":" + temporalSecondsText(Number(sec), Number(usec));
+    }
+    return text;
+}
+class SqlInterval {
+    constructor(readonly month: number, readonly day: number, readonly time: bigint) { }
+    toString(): string { return intervalFormat(this.month, this.day, this.time); }
+}
+function intervalInput(value: string | null): SqlInterval | null {
+    if (value === null)
+        return null;
+    const special = temporalSpecial(value);
+    if (special === 1)
+        return new SqlInterval(2147483647, 2147483647, 9223372036854775807n);
+    if (special === -1)
+        return new SqlInterval(-2147483648, -2147483648, -9223372036854775808n);
+    let text = value.trim();
+    if (text.length === 0)
+        temporalError("22007");
+    const ago = /\s+ago\s*$/i.test(text);
+    if (ago)
+        text = text.replace(/\s+ago\s*$/i, "");
+    let month = 0, day = 0, time = 0n;
+    if (/^\d+$/.test(text)) {
+        time = BigInt(text) * 1000000n;
+    }
+    else {
+        const tokens = text.split(/\s+/).filter(Boolean);
+        let index = 0;
+        const units: Record<string, "month" | "day" | "week" | "time"> = {
+            year: "month",
+            years: "month",
+            yr: "month",
+            yrs: "month",
+            month: "month",
+            months: "month",
+            mon: "month",
+            mons: "month",
+            week: "week",
+            weeks: "week",
+            day: "day",
+            days: "day",
+            hour: "time",
+            hours: "time",
+            hr: "time",
+            hrs: "time",
+            minute: "time",
+            minutes: "time",
+            min: "time",
+            mins: "time",
+            second: "time",
+            seconds: "time",
+            sec: "time",
+            secs: "time",
+        };
+        const scale: Record<string, bigint> = {
+            year: 12n,
+            years: 12n,
+            yr: 12n,
+            yrs: 12n,
+            month: 1n,
+            months: 1n,
+            mon: 1n,
+            mons: 1n,
+            week: 7n,
+            weeks: 7n,
+            day: 1n,
+            days: 1n,
+            hour: 3600000000n,
+            hours: 3600000000n,
+            hr: 3600000000n,
+            hrs: 3600000000n,
+            minute: 60000000n,
+            minutes: 60000000n,
+            min: 60000000n,
+            mins: 60000000n,
+            second: 1000000n,
+            seconds: 1000000n,
+            sec: 1000000n,
+            secs: 1000000n,
+        };
+        while (index < tokens.length) {
+            const token = tokens[index]!;
+            if (/^\d{1,2}:\d{1,2}(?::\d{1,2}(?:\.\d{1,6})?)?$/.test(token)) {
+                time += temporalParseTime(token, false).usec;
+                index++;
+                continue;
+            }
+            if (!/^[+-]?\d+$/.test(token) || index + 1 >= tokens.length)
+                temporalError("22007");
+            const amount = BigInt(token);
+            const unit = tokens[index + 1]!.toLowerCase();
+            const kind = units[unit];
+            const factor = scale[unit];
+            if (!kind || factor === undefined)
+                temporalError("22007");
+            if (kind === "month")
+                month += Number(amount * factor);
+            else if (kind === "day" || kind === "week")
+                day += Number(amount * factor);
+            else
+                time += amount * factor;
+            index += 2;
+        }
+    }
+    if (ago) {
+        month = -month;
+        day = -day;
+        time = -time;
+    }
+    return new SqlInterval(month, day, time);
+}
+function dateCompare(left: SqlDate | null, right: SqlDate | null): bigint | null {
+    if (left === null || right === null)
+        return null;
+    return BigInt(Math.sign(left.days - right.days));
+}
+function dateEq(left: SqlDate | null, right: SqlDate | null): boolean | null {
+    const comparison = dateCompare(left, right);
+    return comparison === null ? null : comparison === 0n;
+}
+function dateNe(left: SqlDate | null, right: SqlDate | null): boolean | null {
+    const comparison = dateCompare(left, right);
+    return comparison === null ? null : comparison !== 0n;
+}
+function dateLt(left: SqlDate | null, right: SqlDate | null): boolean | null {
+    const comparison = dateCompare(left, right);
+    return comparison === null ? null : comparison < 0n;
+}
+function dateLe(left: SqlDate | null, right: SqlDate | null): boolean | null {
+    const comparison = dateCompare(left, right);
+    return comparison === null ? null : comparison <= 0n;
+}
+function dateGt(left: SqlDate | null, right: SqlDate | null): boolean | null {
+    const comparison = dateCompare(left, right);
+    return comparison === null ? null : comparison > 0n;
+}
+function dateGe(left: SqlDate | null, right: SqlDate | null): boolean | null {
+    const comparison = dateCompare(left, right);
+    return comparison === null ? null : comparison >= 0n;
+}
+function timeCompare(left: SqlTime | null, right: SqlTime | null): bigint | null {
+    if (left === null || right === null)
+        return null;
+    return left.usec === right.usec ? 0n : left.usec < right.usec ? -1n : 1n;
+}
+function timeEq(left: SqlTime | null, right: SqlTime | null): boolean | null {
+    const comparison = timeCompare(left, right);
+    return comparison === null ? null : comparison === 0n;
+}
+function timeNe(left: SqlTime | null, right: SqlTime | null): boolean | null {
+    const comparison = timeCompare(left, right);
+    return comparison === null ? null : comparison !== 0n;
+}
+function timeLt(left: SqlTime | null, right: SqlTime | null): boolean | null {
+    const comparison = timeCompare(left, right);
+    return comparison === null ? null : comparison < 0n;
+}
+function timeLe(left: SqlTime | null, right: SqlTime | null): boolean | null {
+    const comparison = timeCompare(left, right);
+    return comparison === null ? null : comparison <= 0n;
+}
+function timeGt(left: SqlTime | null, right: SqlTime | null): boolean | null {
+    const comparison = timeCompare(left, right);
+    return comparison === null ? null : comparison > 0n;
+}
+function timeGe(left: SqlTime | null, right: SqlTime | null): boolean | null {
+    const comparison = timeCompare(left, right);
+    return comparison === null ? null : comparison >= 0n;
+}
+function timestampCompare(left: SqlTimestamp | null, right: SqlTimestamp | null): bigint | null {
+    if (left === null || right === null)
+        return null;
+    return left.usec === right.usec ? 0n : left.usec < right.usec ? -1n : 1n;
+}
+function timestampEq(left: SqlTimestamp | null, right: SqlTimestamp | null): boolean | null {
+    const comparison = timestampCompare(left, right);
+    return comparison === null ? null : comparison === 0n;
+}
+function timestampNe(left: SqlTimestamp | null, right: SqlTimestamp | null): boolean | null {
+    const comparison = timestampCompare(left, right);
+    return comparison === null ? null : comparison !== 0n;
+}
+function timestampLt(left: SqlTimestamp | null, right: SqlTimestamp | null): boolean | null {
+    const comparison = timestampCompare(left, right);
+    return comparison === null ? null : comparison < 0n;
+}
+function timestampLe(left: SqlTimestamp | null, right: SqlTimestamp | null): boolean | null {
+    const comparison = timestampCompare(left, right);
+    return comparison === null ? null : comparison <= 0n;
+}
+function timestampGt(left: SqlTimestamp | null, right: SqlTimestamp | null): boolean | null {
+    const comparison = timestampCompare(left, right);
+    return comparison === null ? null : comparison > 0n;
+}
+function timestampGe(left: SqlTimestamp | null, right: SqlTimestamp | null): boolean | null {
+    const comparison = timestampCompare(left, right);
+    return comparison === null ? null : comparison >= 0n;
+}
+function intervalCompare(left: SqlInterval | null, right: SqlInterval | null): bigint | null {
+    if (left === null || right === null)
+        return null;
+    const span = (value: SqlInterval): bigint => value.time + BigInt(value.month * 30 + value.day) * 86400000000n;
+    const difference = span(left) - span(right);
+    return difference === 0n ? 0n : difference < 0n ? -1n : 1n;
+}
+function intervalEq(left: SqlInterval | null, right: SqlInterval | null): boolean | null {
+    const comparison = intervalCompare(left, right);
+    return comparison === null ? null : comparison === 0n;
+}
+function intervalNe(left: SqlInterval | null, right: SqlInterval | null): boolean | null {
+    const comparison = intervalCompare(left, right);
+    return comparison === null ? null : comparison !== 0n;
+}
+function intervalLt(left: SqlInterval | null, right: SqlInterval | null): boolean | null {
+    const comparison = intervalCompare(left, right);
+    return comparison === null ? null : comparison < 0n;
+}
+function intervalLe(left: SqlInterval | null, right: SqlInterval | null): boolean | null {
+    const comparison = intervalCompare(left, right);
+    return comparison === null ? null : comparison <= 0n;
+}
+function intervalGt(left: SqlInterval | null, right: SqlInterval | null): boolean | null {
+    const comparison = intervalCompare(left, right);
+    return comparison === null ? null : comparison > 0n;
+}
+function intervalGe(left: SqlInterval | null, right: SqlInterval | null): boolean | null {
+    const comparison = intervalCompare(left, right);
+    return comparison === null ? null : comparison >= 0n;
+}
+function dateFinite(value: SqlDate | null): boolean | null {
+    return value === null ? null : value.days !== -2147483648 && value.days !== 2147483647;
+}
+function timestampFinite(value: SqlTimestamp | null): boolean | null {
+    return value === null ? null : value.usec !== -9223372036854775808n && value.usec !== 9223372036854775807n;
+}
+function intervalFinite(value: SqlInterval | null): boolean | null {
+    return value === null ? null : !((value.month === -2147483648 && value.day === -2147483648 && value.time === -9223372036854775808n) || (value.month === 2147483647 && value.day === 2147483647 && value.time === 9223372036854775807n));
+}
+function makeDate(year: bigint | null, month: bigint | null, day: bigint | null): SqlDate | null {
+    if (year === null || month === null || day === null)
+        return null;
+    let y = Number(year);
+    const m = Number(month);
+    const d = Number(day);
+    if (y < 0) {
+        if (y === -2147483648)
+            temporalError("22008");
+        y = -y;
+        y = -(y - 1);
+    }
+    else if (y === 0)
+        temporalError("22008");
+    if (m < 1 || m > 12 || d < 1 || d > temporalMonthDays(y, m))
+        temporalError("22008");
+    const days = temporalDate2j(y, m, d) - 2451545;
+    if (days < -2451545 || days >= 2145031949)
+        temporalError("22008");
+    return new SqlDate(days);
+}
+function makeTime(hour: bigint | null, minute: bigint | null, second: number | null): SqlTime | null {
+    if (hour === null || minute === null || second === null)
+        return null;
+    if (!Number.isFinite(second) || Number.isNaN(second))
+        temporalError("22008");
+    const usec = BigInt(Math.round(second * 1000000));
+    const h = Number(hour), m = Number(minute);
+    if (h < 0 || h > 24 || m < 0 || m >= 60 || usec < 0n || usec > 60000000n)
+        temporalError("22008");
+    const total = BigInt(h) * 3600000000n + BigInt(m) * 60000000n + usec;
+    if (total > 86400000000n)
+        temporalError("22008");
+    return new SqlTime(total);
+}
+function makeTimestamp(year: bigint | null, month: bigint | null, day: bigint | null, hour: bigint | null, minute: bigint | null, second: number | null): SqlTimestamp | null {
+    if (year === null || month === null || day === null || hour === null || minute === null || second === null)
+        return null;
+    const date = makeDate(year, month, day);
+    const time = makeTime(hour, minute, second);
+    if (date === null || time === null)
+        return null;
+    const usec = BigInt(date.days) * 86400000000n + time.usec;
+    if (usec < -211813488000000000n || usec >= 9223371331200000000n)
+        temporalError("22008");
+    return new SqlTimestamp(usec);
+}
+function makeInterval(years: bigint | null, months: bigint | null, weeks: bigint | null, days: bigint | null, hours: bigint | null, mins: bigint | null, secs: number | null): SqlInterval | null {
+    if (years === null || months === null || weeks === null || days === null || hours === null || mins === null || secs === null)
+        return null;
+    if (!Number.isFinite(secs) || Number.isNaN(secs))
+        temporalError("22008");
+    const month = Number(years) * 12 + Number(months);
+    const day = Number(weeks) * 7 + Number(days);
+    if (!Number.isSafeInteger(month) || month > 2147483647 || month < -2147483648)
+        temporalError("22008");
+    if (!Number.isSafeInteger(day) || day > 2147483647 || day < -2147483648)
+        temporalError("22008");
+    const time = BigInt(hours) * 3600000000n + BigInt(mins) * 60000000n + BigInt(Math.round(secs * 1000000));
+    if ((month === -2147483648 && day === -2147483648 && time === -9223372036854775808n) || (month === 2147483647 && day === 2147483647 && time === 9223372036854775807n))
+        temporalError("22008");
+    return new SqlInterval(month, day, time);
+}
 export function evaluate0() {
     return int2Add(int2Input("2"), int2Input("3"));
 }
@@ -95061,4 +95574,823 @@ export function evaluate30147() {
 }
 export function evaluate30148() {
     return toJson("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+}
+export function evaluate30149() {
+    return dateInput(null);
+}
+export function evaluate30150() {
+    return dateInput("2020-01-02");
+}
+export function evaluate30151() {
+    return dateInput(" 2020-01-02");
+}
+export function evaluate30152() {
+    return dateInput("2024-1-5");
+}
+export function evaluate30153() {
+    return dateInput("2024-02-29");
+}
+export function evaluate30154() {
+    return dateInput("0001-01-01");
+}
+export function evaluate30155() {
+    return dateInput("infinity");
+}
+export function evaluate30156() {
+    return dateInput("+infinity");
+}
+export function evaluate30157() {
+    return dateInput("-infinity");
+}
+export function evaluate30158() {
+    return dateInput("");
+}
+export function evaluate30159() {
+    return dateInput("not-a-date");
+}
+export function evaluate30160() {
+    return dateInput("2023-02-29");
+}
+export function evaluate30161() {
+    return dateInput("2024-02-30");
+}
+export function evaluate30162() {
+    return timeInput(null);
+}
+export function evaluate30163() {
+    return timeInput("00:00:00");
+}
+export function evaluate30164() {
+    return timeInput("12:34");
+}
+export function evaluate30165() {
+    return timeInput("12:34:56");
+}
+export function evaluate30166() {
+    return timeInput("12:34:56.1");
+}
+export function evaluate30167() {
+    return timeInput("12:34:56.123456");
+}
+export function evaluate30168() {
+    return timeInput("24:00:00");
+}
+export function evaluate30169() {
+    return timeInput("12:60:00");
+}
+export function evaluate30170() {
+    return timeInput("24:00:01");
+}
+export function evaluate30171() {
+    return timeInput("not-a-time");
+}
+export function evaluate30172() {
+    return timestampInput(null);
+}
+export function evaluate30173() {
+    return timestampInput("2020-01-02");
+}
+export function evaluate30174() {
+    return timestampInput("2020-01-02 03:04:05");
+}
+export function evaluate30175() {
+    return timestampInput("2020-01-02T03:04:05");
+}
+export function evaluate30176() {
+    return timestampInput("2020-01-02 24:00:00");
+}
+export function evaluate30177() {
+    return timestampInput("infinity");
+}
+export function evaluate30178() {
+    return timestampInput("-infinity");
+}
+export function evaluate30179() {
+    return timestampInput("not-a-timestamp");
+}
+export function evaluate30180() {
+    return intervalInput(null);
+}
+export function evaluate30181() {
+    return intervalInput("0");
+}
+export function evaluate30182() {
+    return intervalInput("1 year");
+}
+export function evaluate30183() {
+    return intervalInput("2 months");
+}
+export function evaluate30184() {
+    return intervalInput("3 days");
+}
+export function evaluate30185() {
+    return intervalInput("04:05:06");
+}
+export function evaluate30186() {
+    return intervalInput("1 year 2 mons 3 days 04:05:06");
+}
+export function evaluate30187() {
+    return intervalInput("1 week");
+}
+export function evaluate30188() {
+    return intervalInput("infinity");
+}
+export function evaluate30189() {
+    return intervalInput("-infinity");
+}
+export function evaluate30190() {
+    return intervalInput("not-an-interval");
+}
+export function evaluate30191() {
+    return dateEq(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate30192() {
+    return dateNe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate30193() {
+    return dateLt(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate30194() {
+    return dateLe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate30195() {
+    return dateGt(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate30196() {
+    return dateGe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate30197() {
+    return dateEq(dateInput("2020-01-02"), dateInput("2020-01-01"));
+}
+export function evaluate30198() {
+    return dateNe(dateInput("2020-01-02"), dateInput("2020-01-01"));
+}
+export function evaluate30199() {
+    return dateLt(dateInput("2020-01-02"), dateInput("2020-01-01"));
+}
+export function evaluate30200() {
+    return dateLe(dateInput("2020-01-02"), dateInput("2020-01-01"));
+}
+export function evaluate30201() {
+    return dateGt(dateInput("2020-01-02"), dateInput("2020-01-01"));
+}
+export function evaluate30202() {
+    return dateGe(dateInput("2020-01-02"), dateInput("2020-01-01"));
+}
+export function evaluate30203() {
+    return dateEq(dateInput("2020-01-01"), dateInput("2020-01-01"));
+}
+export function evaluate30204() {
+    return dateNe(dateInput("2020-01-01"), dateInput("2020-01-01"));
+}
+export function evaluate30205() {
+    return dateLt(dateInput("2020-01-01"), dateInput("2020-01-01"));
+}
+export function evaluate30206() {
+    return dateLe(dateInput("2020-01-01"), dateInput("2020-01-01"));
+}
+export function evaluate30207() {
+    return dateGt(dateInput("2020-01-01"), dateInput("2020-01-01"));
+}
+export function evaluate30208() {
+    return dateGe(dateInput("2020-01-01"), dateInput("2020-01-01"));
+}
+export function evaluate30209() {
+    return dateEq(dateInput("infinity"), dateInput("2020-01-01"));
+}
+export function evaluate30210() {
+    return dateNe(dateInput("infinity"), dateInput("2020-01-01"));
+}
+export function evaluate30211() {
+    return dateLt(dateInput("infinity"), dateInput("2020-01-01"));
+}
+export function evaluate30212() {
+    return dateLe(dateInput("infinity"), dateInput("2020-01-01"));
+}
+export function evaluate30213() {
+    return dateGt(dateInput("infinity"), dateInput("2020-01-01"));
+}
+export function evaluate30214() {
+    return dateGe(dateInput("infinity"), dateInput("2020-01-01"));
+}
+export function evaluate30215() {
+    return dateEq(dateInput("-infinity"), dateInput("2020-01-01"));
+}
+export function evaluate30216() {
+    return dateNe(dateInput("-infinity"), dateInput("2020-01-01"));
+}
+export function evaluate30217() {
+    return dateLt(dateInput("-infinity"), dateInput("2020-01-01"));
+}
+export function evaluate30218() {
+    return dateLe(dateInput("-infinity"), dateInput("2020-01-01"));
+}
+export function evaluate30219() {
+    return dateGt(dateInput("-infinity"), dateInput("2020-01-01"));
+}
+export function evaluate30220() {
+    return dateGe(dateInput("-infinity"), dateInput("2020-01-01"));
+}
+export function evaluate30221() {
+    return dateEq(dateInput(null), dateInput("2020-01-01"));
+}
+export function evaluate30222() {
+    return dateNe(dateInput(null), dateInput("2020-01-01"));
+}
+export function evaluate30223() {
+    return dateLt(dateInput(null), dateInput("2020-01-01"));
+}
+export function evaluate30224() {
+    return dateLe(dateInput(null), dateInput("2020-01-01"));
+}
+export function evaluate30225() {
+    return dateGt(dateInput(null), dateInput("2020-01-01"));
+}
+export function evaluate30226() {
+    return dateGe(dateInput(null), dateInput("2020-01-01"));
+}
+export function evaluate30227() {
+    return dateEq(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate30228() {
+    return dateEq(dateInput(null), dateInput("2020-01-02"));
+}
+export function evaluate30229() {
+    return dateEq(dateInput("infinity"), dateInput("-infinity"));
+}
+export function evaluate30230() {
+    return dateNe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate30231() {
+    return dateNe(dateInput(null), dateInput("2020-01-02"));
+}
+export function evaluate30232() {
+    return dateNe(dateInput("infinity"), dateInput("-infinity"));
+}
+export function evaluate30233() {
+    return dateLt(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate30234() {
+    return dateLt(dateInput(null), dateInput("2020-01-02"));
+}
+export function evaluate30235() {
+    return dateLt(dateInput("infinity"), dateInput("-infinity"));
+}
+export function evaluate30236() {
+    return dateLe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate30237() {
+    return dateLe(dateInput(null), dateInput("2020-01-02"));
+}
+export function evaluate30238() {
+    return dateLe(dateInput("infinity"), dateInput("-infinity"));
+}
+export function evaluate30239() {
+    return dateGt(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate30240() {
+    return dateGt(dateInput(null), dateInput("2020-01-02"));
+}
+export function evaluate30241() {
+    return dateGt(dateInput("infinity"), dateInput("-infinity"));
+}
+export function evaluate30242() {
+    return dateGe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate30243() {
+    return dateGe(dateInput(null), dateInput("2020-01-02"));
+}
+export function evaluate30244() {
+    return dateGe(dateInput("infinity"), dateInput("-infinity"));
+}
+export function evaluate30245() {
+    return dateCompare(dateInput("2020-01-01"), dateInput("2020-01-01"));
+}
+export function evaluate30246() {
+    return dateCompare(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate30247() {
+    return dateCompare(dateInput("infinity"), dateInput("-infinity"));
+}
+export function evaluate30248() {
+    return dateCompare(dateInput(null), dateInput("2020-01-01"));
+}
+export function evaluate30249() {
+    return timeEq(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate30250() {
+    return timeNe(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate30251() {
+    return timeLt(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate30252() {
+    return timeLe(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate30253() {
+    return timeGt(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate30254() {
+    return timeGe(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate30255() {
+    return timeEq(timeInput("18:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30256() {
+    return timeNe(timeInput("18:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30257() {
+    return timeLt(timeInput("18:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30258() {
+    return timeLe(timeInput("18:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30259() {
+    return timeGt(timeInput("18:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30260() {
+    return timeGe(timeInput("18:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30261() {
+    return timeEq(timeInput("12:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30262() {
+    return timeNe(timeInput("12:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30263() {
+    return timeLt(timeInput("12:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30264() {
+    return timeLe(timeInput("12:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30265() {
+    return timeGt(timeInput("12:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30266() {
+    return timeGe(timeInput("12:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30267() {
+    return timeEq(timeInput("24:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30268() {
+    return timeNe(timeInput("24:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30269() {
+    return timeLt(timeInput("24:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30270() {
+    return timeLe(timeInput("24:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30271() {
+    return timeGt(timeInput("24:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30272() {
+    return timeGe(timeInput("24:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30273() {
+    return timeEq(timeInput(null), timeInput("12:00:00"));
+}
+export function evaluate30274() {
+    return timeNe(timeInput(null), timeInput("12:00:00"));
+}
+export function evaluate30275() {
+    return timeLt(timeInput(null), timeInput("12:00:00"));
+}
+export function evaluate30276() {
+    return timeLe(timeInput(null), timeInput("12:00:00"));
+}
+export function evaluate30277() {
+    return timeGt(timeInput(null), timeInput("12:00:00"));
+}
+export function evaluate30278() {
+    return timeGe(timeInput(null), timeInput("12:00:00"));
+}
+export function evaluate30279() {
+    return timeEq(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate30280() {
+    return timeEq(timeInput(null), timeInput("18:00:00"));
+}
+export function evaluate30281() {
+    return timeEq(timeInput("24:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30282() {
+    return timeNe(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate30283() {
+    return timeNe(timeInput(null), timeInput("18:00:00"));
+}
+export function evaluate30284() {
+    return timeNe(timeInput("24:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30285() {
+    return timeLt(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate30286() {
+    return timeLt(timeInput(null), timeInput("18:00:00"));
+}
+export function evaluate30287() {
+    return timeLt(timeInput("24:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30288() {
+    return timeLe(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate30289() {
+    return timeLe(timeInput(null), timeInput("18:00:00"));
+}
+export function evaluate30290() {
+    return timeLe(timeInput("24:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30291() {
+    return timeGt(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate30292() {
+    return timeGt(timeInput(null), timeInput("18:00:00"));
+}
+export function evaluate30293() {
+    return timeGt(timeInput("24:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30294() {
+    return timeGe(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate30295() {
+    return timeGe(timeInput(null), timeInput("18:00:00"));
+}
+export function evaluate30296() {
+    return timeGe(timeInput("24:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30297() {
+    return timeCompare(timeInput("12:00:00"), timeInput("12:00:00"));
+}
+export function evaluate30298() {
+    return timeCompare(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate30299() {
+    return timeCompare(timeInput(null), timeInput("12:00:00"));
+}
+export function evaluate30300() {
+    return timestampEq(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30301() {
+    return timestampNe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30302() {
+    return timestampLt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30303() {
+    return timestampLe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30304() {
+    return timestampGt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30305() {
+    return timestampGe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30306() {
+    return timestampEq(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30307() {
+    return timestampNe(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30308() {
+    return timestampLt(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30309() {
+    return timestampLe(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30310() {
+    return timestampGt(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30311() {
+    return timestampGe(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30312() {
+    return timestampEq(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30313() {
+    return timestampNe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30314() {
+    return timestampLt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30315() {
+    return timestampLe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30316() {
+    return timestampGt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30317() {
+    return timestampGe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30318() {
+    return timestampEq(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30319() {
+    return timestampNe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30320() {
+    return timestampLt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30321() {
+    return timestampLe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30322() {
+    return timestampGt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30323() {
+    return timestampGe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30324() {
+    return timestampEq(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30325() {
+    return timestampNe(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30326() {
+    return timestampLt(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30327() {
+    return timestampLe(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30328() {
+    return timestampGt(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30329() {
+    return timestampGe(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30330() {
+    return timestampEq(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30331() {
+    return timestampEq(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30332() {
+    return timestampEq(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30333() {
+    return timestampNe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30334() {
+    return timestampNe(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30335() {
+    return timestampNe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30336() {
+    return timestampLt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30337() {
+    return timestampLt(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30338() {
+    return timestampLt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30339() {
+    return timestampLe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30340() {
+    return timestampLe(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30341() {
+    return timestampLe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30342() {
+    return timestampGt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30343() {
+    return timestampGt(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30344() {
+    return timestampGt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30345() {
+    return timestampGe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30346() {
+    return timestampGe(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30347() {
+    return timestampGe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30348() {
+    return timestampCompare(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30349() {
+    return timestampCompare(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30350() {
+    return timestampCompare(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30351() {
+    return intervalEq(intervalInput("1 year"), intervalInput("360 days"));
+}
+export function evaluate30352() {
+    return intervalNe(intervalInput("1 year"), intervalInput("360 days"));
+}
+export function evaluate30353() {
+    return intervalLt(intervalInput("1 year"), intervalInput("360 days"));
+}
+export function evaluate30354() {
+    return intervalLe(intervalInput("1 year"), intervalInput("360 days"));
+}
+export function evaluate30355() {
+    return intervalGt(intervalInput("1 year"), intervalInput("360 days"));
+}
+export function evaluate30356() {
+    return intervalGe(intervalInput("1 year"), intervalInput("360 days"));
+}
+export function evaluate30357() {
+    return intervalEq(intervalInput("1 mon"), intervalInput("30 days"));
+}
+export function evaluate30358() {
+    return intervalNe(intervalInput("1 mon"), intervalInput("30 days"));
+}
+export function evaluate30359() {
+    return intervalLt(intervalInput("1 mon"), intervalInput("30 days"));
+}
+export function evaluate30360() {
+    return intervalLe(intervalInput("1 mon"), intervalInput("30 days"));
+}
+export function evaluate30361() {
+    return intervalGt(intervalInput("1 mon"), intervalInput("30 days"));
+}
+export function evaluate30362() {
+    return intervalGe(intervalInput("1 mon"), intervalInput("30 days"));
+}
+export function evaluate30363() {
+    return intervalEq(intervalInput("1 year"), intervalInput("1 mon"));
+}
+export function evaluate30364() {
+    return intervalNe(intervalInput("1 year"), intervalInput("1 mon"));
+}
+export function evaluate30365() {
+    return intervalLt(intervalInput("1 year"), intervalInput("1 mon"));
+}
+export function evaluate30366() {
+    return intervalLe(intervalInput("1 year"), intervalInput("1 mon"));
+}
+export function evaluate30367() {
+    return intervalGt(intervalInput("1 year"), intervalInput("1 mon"));
+}
+export function evaluate30368() {
+    return intervalGe(intervalInput("1 year"), intervalInput("1 mon"));
+}
+export function evaluate30369() {
+    return intervalEq(intervalInput("infinity"), intervalInput("1 year"));
+}
+export function evaluate30370() {
+    return intervalNe(intervalInput("infinity"), intervalInput("1 year"));
+}
+export function evaluate30371() {
+    return intervalLt(intervalInput("infinity"), intervalInput("1 year"));
+}
+export function evaluate30372() {
+    return intervalLe(intervalInput("infinity"), intervalInput("1 year"));
+}
+export function evaluate30373() {
+    return intervalGt(intervalInput("infinity"), intervalInput("1 year"));
+}
+export function evaluate30374() {
+    return intervalGe(intervalInput("infinity"), intervalInput("1 year"));
+}
+export function evaluate30375() {
+    return intervalEq(intervalInput(null), intervalInput("1 year"));
+}
+export function evaluate30376() {
+    return intervalNe(intervalInput(null), intervalInput("1 year"));
+}
+export function evaluate30377() {
+    return intervalLt(intervalInput(null), intervalInput("1 year"));
+}
+export function evaluate30378() {
+    return intervalLe(intervalInput(null), intervalInput("1 year"));
+}
+export function evaluate30379() {
+    return intervalGt(intervalInput(null), intervalInput("1 year"));
+}
+export function evaluate30380() {
+    return intervalGe(intervalInput(null), intervalInput("1 year"));
+}
+export function evaluate30381() {
+    return intervalEq(intervalInput("1 year"), intervalInput("1 mon"));
+}
+export function evaluate30382() {
+    return intervalEq(intervalInput(null), intervalInput("1 mon"));
+}
+export function evaluate30383() {
+    return intervalEq(intervalInput("infinity"), intervalInput("1 year"));
+}
+export function evaluate30384() {
+    return intervalNe(intervalInput("1 year"), intervalInput("1 mon"));
+}
+export function evaluate30385() {
+    return intervalNe(intervalInput(null), intervalInput("1 mon"));
+}
+export function evaluate30386() {
+    return intervalNe(intervalInput("infinity"), intervalInput("1 year"));
+}
+export function evaluate30387() {
+    return intervalLt(intervalInput("1 year"), intervalInput("1 mon"));
+}
+export function evaluate30388() {
+    return intervalLt(intervalInput(null), intervalInput("1 mon"));
+}
+export function evaluate30389() {
+    return intervalLt(intervalInput("infinity"), intervalInput("1 year"));
+}
+export function evaluate30390() {
+    return intervalLe(intervalInput("1 year"), intervalInput("1 mon"));
+}
+export function evaluate30391() {
+    return intervalLe(intervalInput(null), intervalInput("1 mon"));
+}
+export function evaluate30392() {
+    return intervalLe(intervalInput("infinity"), intervalInput("1 year"));
+}
+export function evaluate30393() {
+    return intervalGt(intervalInput("1 year"), intervalInput("1 mon"));
+}
+export function evaluate30394() {
+    return intervalGt(intervalInput(null), intervalInput("1 mon"));
+}
+export function evaluate30395() {
+    return intervalGt(intervalInput("infinity"), intervalInput("1 year"));
+}
+export function evaluate30396() {
+    return intervalGe(intervalInput("1 year"), intervalInput("1 mon"));
+}
+export function evaluate30397() {
+    return intervalGe(intervalInput(null), intervalInput("1 mon"));
+}
+export function evaluate30398() {
+    return intervalGe(intervalInput("infinity"), intervalInput("1 year"));
+}
+export function evaluate30399() {
+    return intervalCompare(intervalInput("1 year"), intervalInput("360 days"));
+}
+export function evaluate30400() {
+    return intervalCompare(intervalInput("1 year"), intervalInput("1 mon"));
+}
+export function evaluate30401() {
+    return intervalCompare(intervalInput(null), intervalInput("1 year"));
+}
+export function evaluate30402() {
+    return dateFinite(dateInput("2020-01-01"));
+}
+export function evaluate30403() {
+    return dateFinite(dateInput("infinity"));
+}
+export function evaluate30404() {
+    return dateFinite(dateInput(null));
+}
+export function evaluate30405() {
+    return timestampFinite(timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30406() {
+    return timestampFinite(timestampInput("infinity"));
+}
+export function evaluate30407() {
+    return intervalFinite(intervalInput("1 year"));
+}
+export function evaluate30408() {
+    return intervalFinite(intervalInput("infinity"));
+}
+export function evaluate30409() {
+    return makeDate(int4Input("2020"), int4Input("1"), int4Input("2"));
+}
+export function evaluate30410() {
+    return makeDate(int4Input("-1"), int4Input("1"), int4Input("1"));
+}
+export function evaluate30411() {
+    return makeDate(int4Input("2023"), int4Input("2"), int4Input("29"));
+}
+export function evaluate30412() {
+    return makeTime(int4Input("12"), int4Input("34"), float8Input("404c400000000000"));
+}
+export function evaluate30413() {
+    return makeTime(int4Input("24"), int4Input("0"), float8Input("3fb999999999999a"));
+}
+export function evaluate30414() {
+    return makeTimestamp(int4Input("2020"), int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4"), float8Input("4016000000000000"));
+}
+export function evaluate30415() {
+    return makeInterval(int4Input("1"), int4Input("2"), int4Input("0"), int4Input("3"), int4Input("4"), int4Input("5"), float8Input("401a000000000000"));
+}
+export function evaluate30416() {
+    return sqlIsNull(dateInput(null));
+}
+export function evaluate30417() {
+    return sqlCase(() => dateInput("2020-01-01"), [() => booleanInput(true), () => dateInput("2020-01-02")]);
+}
+export function evaluate30418() {
+    return sqlCoalesce(() => dateInput(null), () => dateInput("2020-01-02"));
+}
+export function evaluate30419() {
+    return sqlCase(() => timeInput("12:00:00"), [() => booleanInput(true), () => timeInput("18:00:00")]);
+}
+export function evaluate30420() {
+    return sqlCoalesce(() => timestampInput(null), () => timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30421() {
+    return sqlCase(() => intervalInput("1 mon"), [() => booleanInput(false), () => intervalInput("1 year")]);
 }
