@@ -11,6 +11,7 @@ function suffix(type: string): string {
   if (['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type)) return 'Text'
   if (type === 'pg_catalog.uuid') return 'Uuid'
   if (type.startsWith('enum:')) return 'Enum'
+  if (type.startsWith('array:')) return 'Array'
   throw new Error(`Unsupported conditional value type: ${type}`)
 }
 export function goSqlSyntax(

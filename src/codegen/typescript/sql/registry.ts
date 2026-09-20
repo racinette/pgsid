@@ -30,6 +30,54 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
     },
     { domain: 'uuid', operators: typescriptUuidOperators, functions: typescriptUuidFunctions },
   ],
+  array: (elementType, dimensions, lowerBounds, elements) =>
+    factory.createCallExpression(identifier('arrayInput'), undefined, [
+      factory.createStringLiteral(elementType),
+      factory.createArrayLiteralExpression(
+        dimensions.map((dimension) => factory.createNumericLiteral(dimension)),
+      ),
+      factory.createArrayLiteralExpression(
+        lowerBounds.map((bound) => factory.createNumericLiteral(bound)),
+      ),
+      elements === null
+        ? factory.createNull()
+        : factory.createArrayLiteralExpression(elements.map((element) => element.expression)),
+    ]),
+  arrayOperation: (operation, operands) => {
+    const helper = {
+      cardinality: 'arrayCardinality',
+      ndims: 'arrayNdims',
+      dims: 'arrayDims',
+      length: 'arrayLength',
+      lower: 'arrayLower',
+      upper: 'arrayUpper',
+      contains: 'arrayContains',
+      contained: 'arrayContained',
+      overlap: 'arrayOverlap',
+      concat: 'arrayConcat',
+      '=': 'arrayEq',
+      '<>': 'arrayNe',
+      '<': 'arrayLt',
+      '<=': 'arrayLe',
+      '>': 'arrayGt',
+      '>=': 'arrayGe',
+    }[operation]
+    return {
+      expression: factory.createCallExpression(
+        identifier(helper),
+        undefined,
+        operands.map((operand) => operand.expression),
+      ),
+      helpers: [helper],
+    }
+  },
+  arraySubscript: (array, subscripts) => ({
+    expression: factory.createCallExpression(identifier('arraySubscript'), undefined, [
+      array.expression,
+      ...subscripts.map((subscript) => subscript.expression),
+    ]),
+    helpers: ['arraySubscript'],
+  }),
   coerceEnum: (type, definition, operand) => {
     const helper = type === 'pg_catalog.text' ? 'enumText' : 'enumInput'
     return {

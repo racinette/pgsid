@@ -18,6 +18,58 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
     { domain: 'numeric', operators: goNumericOperators, functions: goNumericFunctions },
     { domain: 'uuid', operators: goUuidOperators, functions: goUuidFunctions },
   ],
+  array: (elementType, dimensions, lowerBounds, elements) =>
+    elements === null
+      ? go.composite(go.ident('SqlArray'))
+      : go.call(go.ident('arrayInput'), [
+          go.string(elementType),
+          go.composite(
+            go.slice(go.ident('int64')),
+            dimensions.map((dimension) => go.number(dimension)),
+          ),
+          go.composite(
+            go.slice(go.ident('int64')),
+            lowerBounds.map((bound) => go.number(bound)),
+          ),
+          go.composite(
+            go.slice(go.ident('SqlInteger')),
+            elements.map((element) => element.expression),
+          ),
+        ]),
+  arrayOperation: (operation, operands) => {
+    const helper = {
+      cardinality: 'arrayCardinality',
+      ndims: 'arrayNdims',
+      dims: 'arrayDims',
+      length: 'arrayLength',
+      lower: 'arrayLower',
+      upper: 'arrayUpper',
+      contains: 'arrayContains',
+      contained: 'arrayContained',
+      overlap: 'arrayOverlap',
+      concat: 'arrayConcat',
+      '=': 'arrayEq',
+      '<>': 'arrayNe',
+      '<': 'arrayLt',
+      '<=': 'arrayLe',
+      '>': 'arrayGt',
+      '>=': 'arrayGe',
+    }[operation]
+    return {
+      expression: go.call(
+        go.ident(helper),
+        operands.map((operand) => operand.expression),
+      ),
+      helpers: [helper],
+    }
+  },
+  arraySubscript: (array, subscripts) => ({
+    expression: go.call(go.ident('arraySubscript'), [
+      array.expression,
+      ...subscripts.map((subscript) => subscript.expression),
+    ]),
+    helpers: ['arraySubscript'],
+  }),
   coerceEnum: (type, definition, operand) => {
     const helper = type === 'pg_catalog.text' ? 'enumText' : 'enumFromText'
     return {

@@ -53,6 +53,19 @@ export function sqlSemanticsCoverage(
       expression.operands.forEach((operand) => record(operand, name))
       return
     }
+    if (expression.kind === 'array') {
+      expression.elements?.forEach((element) => record(element, name))
+      return
+    }
+    if (expression.kind === 'array-operation' || expression.kind === 'array-comparison') {
+      expression.operands.forEach((operand) => record(operand, name))
+      return
+    }
+    if (expression.kind === 'array-subscript') {
+      record(expression.array, name)
+      expression.subscripts.forEach((subscript) => record(subscript, name))
+      return
+    }
     if (
       expression.kind === 'null-test' ||
       expression.kind === 'text-coercion' ||

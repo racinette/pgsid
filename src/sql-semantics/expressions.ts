@@ -12,7 +12,10 @@ export type NumericType = IntegerType | FloatType | DecimalType
 export type TextType = 'pg_catalog.text' | 'pg_catalog."varchar"' | 'pg_catalog.bpchar'
 export type UuidType = 'pg_catalog.uuid'
 export type EnumType = `enum:${string}`
-export type ScalarType = NumericType | 'pg_catalog.bool' | TextType | UuidType | EnumType
+export type ArrayElementType = 'pg_catalog.int4'
+export type ArrayType = `array:${ArrayElementType}`
+export type ScalarType =
+  NumericType | 'pg_catalog.bool' | TextType | UuidType | EnumType | ArrayType
 export type SyntaxKind = 'and' | 'or' | 'not' | 'is-null' | 'is-not-null' | 'case' | 'coalesce'
 
 export type EnumDefinition = Readonly<Omit<EnumInfo, 'values'>> & {
@@ -23,7 +26,42 @@ export function enumType(definition: Pick<EnumDefinition, 'schema' | 'name'>): E
   return `enum:${JSON.stringify([definition.schema, definition.name])}`
 }
 
+export function arrayType(elementType: ArrayElementType): ArrayType {
+  return `array:${elementType}`
+}
+
 export type SqlExpression =
+  | {
+      kind: 'array-operation'
+      type: ScalarType
+      elementType: ArrayElementType
+      operation:
+        | 'cardinality'
+        | 'ndims'
+        | 'dims'
+        | 'length'
+        | 'lower'
+        | 'upper'
+        | 'contains'
+        | 'contained'
+        | 'overlap'
+        | 'concat'
+      operands: readonly SqlExpression[]
+    }
+  | {
+      kind: 'array-comparison'
+      type: 'pg_catalog.bool'
+      elementType: ArrayElementType
+      operation: '=' | '<>' | '<' | '<=' | '>' | '>='
+      operands: readonly SqlExpression[]
+    }
+  | {
+      kind: 'array-subscript'
+      type: ArrayElementType
+      elementType: ArrayElementType
+      array: SqlExpression
+      subscripts: readonly SqlExpression[]
+    }
   | {
       kind: 'enum-coercion'
       type: EnumType | 'pg_catalog.text'
@@ -53,6 +91,14 @@ export type SqlExpression =
   | { kind: 'text'; type: 'pg_catalog.text'; value: string | null }
   | { kind: 'uuid'; type: UuidType; value: string | null }
   | { kind: 'enum'; type: EnumType; enum: EnumDefinition; value: string | null }
+  | {
+      kind: 'array'
+      type: ArrayType
+      elementType: ArrayElementType
+      dimensions: readonly number[]
+      lowerBounds: readonly number[]
+      elements: readonly SqlExpression[] | null
+    }
   | {
       kind: 'boolean-logic'
       type: 'pg_catalog.bool'
@@ -90,6 +136,36 @@ export interface ExpressionBackend<Ast> {
   text: (value: string | null) => Ast
   uuid: (value: string | null) => Ast
   enum: (definition: EnumDefinition, value: string | null) => Ast
+  array: (
+    elementType: ArrayElementType,
+    dimensions: readonly number[],
+    lowerBounds: readonly number[],
+    elements: readonly TypedSqlExpression<Ast>[] | null,
+  ) => Ast
+  arrayOperation: (
+    operation:
+      | 'cardinality'
+      | 'ndims'
+      | 'dims'
+      | 'length'
+      | 'lower'
+      | 'upper'
+      | 'contains'
+      | 'contained'
+      | 'overlap'
+      | 'concat'
+      | '='
+      | '<>'
+      | '<'
+      | '<='
+      | '>'
+      | '>=',
+    operands: readonly TypedSqlExpression<Ast>[],
+  ) => { expression: Ast; helpers: readonly string[] }
+  arraySubscript: (
+    array: TypedSqlExpression<Ast>,
+    subscripts: readonly TypedSqlExpression<Ast>[],
+  ) => { expression: Ast; helpers: readonly string[] }
   compareEnum: (
     operation: '=' | '<>' | '<' | '<=' | '>' | '>=',
     operands: readonly TypedSqlExpression<Ast>[],
@@ -145,6 +221,60 @@ export function emitSqlExpression<Ast>(
     return enumType(definition)
   }
   const emit = (node: SqlExpression): TypedSqlExpression<Ast> => {
+    if (node.kind === 'array-operation' || node.kind === 'array-comparison') {
+      const identity = arrayType(node.elementType)
+      const metadataOperations = ['cardinality', 'ndims', 'dims'] as const
+      const dimensionOperations = ['length', 'lower', 'upper'] as const
+      const binaryOperations = [
+        'contains',
+        'contained',
+        'overlap',
+        'concat',
+        '=',
+        '<>',
+        '<',
+        '<=',
+        '>',
+        '>=',
+      ] as const
+      const expectedType =
+        node.operation === 'dims'
+          ? 'pg_catalog.text'
+          : node.operation === 'concat'
+            ? identity
+            : metadataOperations.includes(node.operation as (typeof metadataOperations)[number]) ||
+                dimensionOperations.includes(node.operation as (typeof dimensionOperations)[number])
+              ? 'pg_catalog.int4'
+              : 'pg_catalog.bool'
+      const validOperands =
+        (metadataOperations.includes(node.operation as (typeof metadataOperations)[number]) &&
+          node.operands.length === 1 &&
+          node.operands[0]?.type === identity) ||
+        (dimensionOperations.includes(node.operation as (typeof dimensionOperations)[number]) &&
+          node.operands.length === 2 &&
+          node.operands[0]?.type === identity &&
+          node.operands[1]?.type === 'pg_catalog.int4') ||
+        (binaryOperations.includes(node.operation as (typeof binaryOperations)[number]) &&
+          node.operands.length === 2 &&
+          node.operands.every((operand) => operand.type === identity))
+      if (!validOperands || node.type !== expectedType) throw new Error('Invalid array operation')
+      const operands = node.operands.map(emit)
+      const result = backend.arrayOperation(node.operation, operands)
+      for (const helper of result.helpers) helpers.add(helper)
+      return { type: node.type, expression: result.expression }
+    }
+    if (node.kind === 'array-subscript') {
+      const identity = arrayType(node.elementType)
+      if (
+        node.array.type !== identity ||
+        node.subscripts.length === 0 ||
+        node.subscripts.some((subscript) => subscript.type !== 'pg_catalog.int4')
+      )
+        throw new Error('Invalid array subscript')
+      const result = backend.arraySubscript(emit(node.array), node.subscripts.map(emit))
+      for (const helper of result.helpers) helpers.add(helper)
+      return { type: node.type, expression: result.expression }
+    }
     if (node.kind === 'enum-coercion') {
       const identity = validateEnum(node.enum)
       if (!(
@@ -223,6 +353,40 @@ export function emitSqlExpression<Ast>(
         throw new Error('Invalid enum literal')
       helpers.add('enumInput')
       return { type: node.type, expression: backend.enum(node.enum, node.value) }
+    }
+    if (node.kind === 'array') {
+      const identity = arrayType(node.elementType)
+      const dimensionsValid =
+        node.dimensions.length === node.lowerBounds.length &&
+        node.dimensions.length <= 6 &&
+        node.dimensions.every((dimension) => Number.isInteger(dimension) && dimension > 0) &&
+        node.lowerBounds.every(
+          (bound, index) =>
+            Number.isInteger(bound) &&
+            bound >= -2147483648 &&
+            bound <= 2147483647 &&
+            bound + node.dimensions[index]! - 1 <= 2147483647,
+        )
+      const count = node.dimensions.reduce((total, dimension) => total * dimension, 1)
+      if (
+        node.type !== identity ||
+        (node.elements === null
+          ? node.dimensions.length !== 0 || node.lowerBounds.length !== 0
+          : !dimensionsValid ||
+            node.elements.length !== (node.dimensions.length === 0 ? 0 : count) ||
+            node.elements.some((element) => element.type !== node.elementType))
+      )
+        throw new Error('Invalid array literal')
+      helpers.add('arrayInput')
+      return {
+        type: node.type,
+        expression: backend.array(
+          node.elementType,
+          node.dimensions,
+          node.lowerBounds,
+          node.elements?.map(emit) ?? null,
+        ),
+      }
     }
     if (
       node.kind === 'boolean-logic' ||
