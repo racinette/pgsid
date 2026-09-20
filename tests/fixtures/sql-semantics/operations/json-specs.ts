@@ -1,5 +1,11 @@
-import { arrayType, type SqlExpression } from '../../../../src/sql-semantics/expressions.js'
+import {
+  arrayType,
+  enumType,
+  type FloatType,
+  type SqlExpression,
+} from '../../../../src/sql-semantics/expressions.js'
 import { functionMetadata, operatorMetadata } from '../../../../src/postgres/builtins/inventory.js'
+import { enumAlpha, enumSetupSql } from './enum-specs.js'
 import type { ExpressionSpec } from './expression-spec.js'
 
 interface Operand {
@@ -44,9 +50,97 @@ const textArray = (values: readonly (string | null)[] | null): Operand => ({
     elements: values?.map((value) => text(value).expression) ?? null,
   },
 })
+const boolean = (value: boolean | null): Operand => ({
+  sql: `${value === null ? 'NULL' : String(value)}::bool`,
+  expression: { kind: 'boolean', type: 'pg_catalog.bool', value },
+})
+const decimal = (value: string | null): Operand => ({
+  sql: `${value === null ? 'NULL' : quote(value)}::numeric`,
+  expression: { kind: 'decimal', type: 'pg_catalog."numeric"', value },
+})
+const float = (type: FloatType, value: number | null, sql?: string): Operand => {
+  const single = type === 'pg_catalog.float4'
+  const view = new DataView(new ArrayBuffer(single ? 4 : 8))
+  if (value !== null) {
+    if (single) view.setFloat32(0, value)
+    else view.setFloat64(0, value)
+  }
+  return {
+    sql:
+      sql ?? `${value === null ? 'NULL' : quote(String(value))}::${single ? 'float4' : 'float8'}`,
+    expression: {
+      kind: 'float',
+      type,
+      bits:
+        value === null
+          ? null
+          : Array.from(new Uint8Array(view.buffer), (byte) =>
+              byte.toString(16).padStart(2, '0'),
+            ).join(''),
+    },
+  }
+}
+const uuid = (value: string | null): Operand => ({
+  sql: value === null ? 'NULL::uuid' : `${quote(value)}::uuid`,
+  expression: { kind: 'uuid', type: 'pg_catalog.uuid', value },
+})
+const enumValue = (value: string | null): Operand => ({
+  sql:
+    value === null
+      ? `NULL::${enumAlpha.schema}.${enumAlpha.name}`
+      : `${quote(value)}::${enumAlpha.schema}.${enumAlpha.name}`,
+  expression: {
+    kind: 'enum',
+    type: enumType(enumAlpha),
+    enum: enumAlpha,
+    value,
+  },
+})
+const intArray = (values: readonly (string | null)[] | null): Operand => ({
+  sql:
+    values === null
+      ? 'NULL::int4[]'
+      : values.length === 0
+        ? 'ARRAY[]::int4[]'
+        : `ARRAY[${values.map((value) => (value === null ? 'NULL' : value)).join(',')}]::int4[]`,
+  expression: {
+    kind: 'array',
+    type: arrayType('pg_catalog.int4'),
+    elementType: 'pg_catalog.int4',
+    dimensions: values === null || values.length === 0 ? [] : [values.length],
+    lowerBounds: values === null || values.length === 0 ? [] : [1],
+    elements: values?.map((value) => integer(value).expression) ?? null,
+  },
+})
+const intArray2d = (rows: readonly (readonly (string | null)[])[]): Operand => ({
+  sql: `ARRAY[${rows
+    .map((row) => `[${row.map((value) => (value === null ? 'NULL' : value)).join(',')}]`)
+    .join(',')}]::int4[]`,
+  expression: {
+    kind: 'array',
+    type: arrayType('pg_catalog.int4'),
+    elementType: 'pg_catalog.int4',
+    dimensions: [rows.length, rows[0]!.length],
+    lowerBounds: [1, 1],
+    elements: rows.flat().map((value) => integer(value).expression),
+  },
+})
+const textArray2d = (rows: readonly (readonly (string | null)[])[]): Operand => ({
+  sql: `ARRAY[${rows
+    .map((row) => `[${row.map((value) => (value === null ? 'NULL' : quote(value))).join(',')}]`)
+    .join(',')}]::text[]`,
+  expression: {
+    kind: 'array',
+    type: arrayType('pg_catalog.text'),
+    elementType: 'pg_catalog.text',
+    dimensions: [rows.length, rows[0]!.length],
+    lowerBounds: [1, 1],
+    elements: rows.flat().map((value) => text(value).expression),
+  },
+})
 
-function add(name: string, operand: Operand): Operand {
-  specs.push({ name, ...operand })
+function add(name: string, operand: Operand, setupSql?: string): Operand {
+  specs.push({ name, ...operand, ...(setupSql ? { setupSql } : {}) })
   return operand
 }
 
@@ -55,16 +149,23 @@ function callable(
   callableName: string,
   operands: Operand[],
   operator = false,
+  catalogArgs?: readonly string[],
 ): Operand {
-  const signature = `${operator ? 'operator' : 'function'}:["pg_catalog","${callableName}"](${operands.map((operand) => catalogType(operand.expression.type)).join(',')})`
+  const signature = `${operator ? 'operator' : 'function'}:["pg_catalog","${callableName}"](${(
+    catalogArgs ?? operands.map((operand) => catalogType(operand.expression.type))
+  ).join(',')})`
   const metadata = operator ? operatorMetadata(signature) : functionMetadata(signature)
   const variadic = metadata.kind !== 'operator' && metadata.variadic
+  const variadicArray =
+    Boolean(variadic) &&
+    variadic !== 'pg_catalog."any"' &&
+    operands[operands.length - 1]?.expression.type.startsWith('array:')
   return add(name, {
     sql: operator
       ? `((${operands[0]!.sql}) ${callableName} (${operands[1]!.sql}))`
       : `pg_catalog.${callableName}(${operands
           .map((operand, index) =>
-            variadic && index === operands.length - 1
+            variadicArray && index === operands.length - 1
               ? `VARIADIC (${operand.sql})`
               : `(${operand.sql})`,
           )
@@ -409,5 +510,355 @@ add('jsonb coalesce', {
     operands: [nilb.expression, objectb.expression],
   },
 })
+
+const anyArgs = ['pg_catalog."any"'] as const
+const anyelement = ['pg_catalog.anyelement'] as const
+const anyarray = ['pg_catalog.anyarray'] as const
+
+for (const [index, [left, right]] of (
+  [
+    [jsonb('{"a":1}'), jsonb('{"b":2,"a":3}')],
+    [jsonb('{"a":1}'), jsonb('{}')],
+    [jsonb('{}'), jsonb('{"a":1}')],
+    [jsonb('[1]'), jsonb('[2,3]')],
+    [jsonb('[]'), jsonb('[1]')],
+    [jsonb('1'), jsonb('2')],
+    [jsonb('1'), jsonb('[2]')],
+    [jsonb('[1]'), jsonb('2')],
+    [jsonb('{"a":1}'), jsonb('[2]')],
+    [jsonb('[2]'), jsonb('{"a":1}')],
+    [jsonb('{"a":1}'), jsonb('[]')],
+    [jsonb('null'), jsonb('[1]')],
+    [jsonb('true'), jsonb('{"a":1}')],
+    [jsonb(null), jsonb('1')],
+  ] satisfies readonly (readonly [Operand, Operand])[]
+).entries()) {
+  callable(`jsonb concat ${index}`, '||', [left, right], true)
+  callable(`jsonb concat fn ${index}`, 'jsonb_concat', [left, right])
+}
+
+callable('jsonb delete key', '-', [jsonb('{"a":1,"b":2}'), text('a')], true)
+callable('jsonb delete missing key', '-', [jsonb('{"a":1}'), text('missing')], true)
+callable('jsonb delete string element', '-', [jsonb('["a","b","a"]'), text('a')], true)
+callable('jsonb delete key scalar', '-', [scalarb, text('a')], true)
+callable('jsonb delete key fn', 'jsonb_delete', [jsonb('{"a":1,"b":2}'), text('a')])
+callable('jsonb delete index', '-', [arrayb, integer('1')], true)
+callable('jsonb delete index negative', '-', [arrayb, integer('-1')], true)
+callable('jsonb delete index oob', '-', [arrayb, integer('99')], true)
+callable('jsonb delete index object', '-', [objectb, integer('0')], true)
+callable('jsonb delete index scalar', '-', [scalarb, integer('0')], true)
+callable('jsonb delete index fn', 'jsonb_delete', [arrayb, integer('1')])
+callable('jsonb delete keys', '-', [jsonb('{"a":1,"b":2,"c":3}'), textArray(['a', 'c'])], true)
+callable('jsonb delete keys array', '-', [jsonb('["a","b","c"]'), textArray(['b'])], true)
+callable('jsonb delete keys empty', '-', [jsonb('{"a":1}'), textArray([])], true)
+callable('jsonb delete keys fn', 'jsonb_delete', [
+  jsonb('{"a":1,"b":2,"c":3}'),
+  textArray(['a', 'c']),
+])
+callable('jsonb delete path', '#-', [jsonb('{"a":{"b":1,"c":2}}'), textArray(['a', 'b'])], true)
+callable('jsonb delete path empty', '#-', [jsonb('{"a":1}'), textArray([])], true)
+callable('jsonb delete path scalar', '#-', [scalarb, textArray(['a'])], true)
+callable('jsonb delete path index', '#-', [arrayb, textArray(['1'])], true)
+callable('jsonb delete path leading zero', '#-', [arrayb, textArray(['01'])], true)
+callable('jsonb delete path plus', '#-', [arrayb, textArray(['+1'])], true)
+callable('jsonb delete path null', '#-', [jsonb('{"a":1}'), textArray([null])], true)
+callable('jsonb delete path fn', 'jsonb_delete_path', [
+  jsonb('{"a":{"b":1,"c":2}}'),
+  textArray(['a', 'b']),
+])
+
+callable('jsonb set replace', 'jsonb_set', [
+  jsonb('{"a":1}'),
+  textArray(['a']),
+  jsonb('2'),
+  boolean(true),
+])
+callable('jsonb set create', 'jsonb_set', [
+  jsonb('{"a":1}'),
+  textArray(['b']),
+  jsonb('2'),
+  boolean(true),
+])
+callable('jsonb set no create', 'jsonb_set', [
+  jsonb('{"a":1}'),
+  textArray(['b']),
+  jsonb('2'),
+  boolean(false),
+])
+callable('jsonb set array', 'jsonb_set', [arrayb, textArray(['1']), jsonb('9'), boolean(true)])
+callable('jsonb set array append', 'jsonb_set', [
+  arrayb,
+  textArray(['5']),
+  jsonb('9'),
+  boolean(true),
+])
+callable('jsonb set array negative', 'jsonb_set', [
+  arrayb,
+  textArray(['-1']),
+  jsonb('9'),
+  boolean(true),
+])
+callable('jsonb set nested', 'jsonb_set', [
+  jsonb('{"a":[1,2]}'),
+  textArray(['a', '1']),
+  jsonb('9'),
+  boolean(true),
+])
+callable('jsonb set scalar', 'jsonb_set', [scalarb, textArray(['a']), jsonb('2'), boolean(true)])
+callable('jsonb set empty path', 'jsonb_set', [
+  jsonb('{"a":1}'),
+  textArray([]),
+  jsonb('2'),
+  boolean(true),
+])
+callable('jsonb set empty array', 'jsonb_set', [
+  jsonb('[]'),
+  textArray(['0']),
+  jsonb('2'),
+  boolean(true),
+])
+callable('jsonb set missing nested', 'jsonb_set', [
+  jsonb('{"a":1}'),
+  textArray(['a', 'b']),
+  jsonb('2'),
+  boolean(true),
+])
+callable('jsonb set bad index', 'jsonb_set', [
+  jsonb('[1]'),
+  textArray(['foo']),
+  jsonb('2'),
+  boolean(true),
+])
+callable('jsonb insert object', 'jsonb_insert', [
+  jsonb('{"a":1}'),
+  textArray(['b']),
+  jsonb('2'),
+  boolean(false),
+])
+callable('jsonb insert existing', 'jsonb_insert', [
+  jsonb('{"a":1}'),
+  textArray(['a']),
+  jsonb('2'),
+  boolean(false),
+])
+callable('jsonb insert before', 'jsonb_insert', [
+  jsonb('[1,3]'),
+  textArray(['1']),
+  jsonb('2'),
+  boolean(false),
+])
+callable('jsonb insert after', 'jsonb_insert', [
+  jsonb('[1,3]'),
+  textArray(['1']),
+  jsonb('2'),
+  boolean(true),
+])
+callable('jsonb set_lax json null', 'jsonb_set_lax', [
+  jsonb('{"a":1}'),
+  textArray(['a']),
+  jsonb(null),
+  boolean(true),
+  text('use_json_null'),
+])
+callable('jsonb set_lax delete', 'jsonb_set_lax', [
+  jsonb('{"a":1}'),
+  textArray(['a']),
+  jsonb(null),
+  boolean(true),
+  text('delete_key'),
+])
+callable('jsonb set_lax return', 'jsonb_set_lax', [
+  jsonb('{"a":1}'),
+  textArray(['a']),
+  jsonb(null),
+  boolean(true),
+  text('return_target'),
+])
+callable('jsonb set_lax raise', 'jsonb_set_lax', [
+  jsonb('{"a":1}'),
+  textArray(['a']),
+  jsonb(null),
+  boolean(true),
+  text('raise_exception'),
+])
+callable('jsonb set_lax invalid', 'jsonb_set_lax', [
+  jsonb('{"a":1}'),
+  textArray(['a']),
+  jsonb(null),
+  boolean(true),
+  text('nope'),
+])
+callable('jsonb set_lax value', 'jsonb_set_lax', [
+  jsonb('{"a":1}'),
+  textArray(['a']),
+  jsonb('2'),
+  boolean(true),
+  text('use_json_null'),
+])
+
+callable('json strip nulls', 'json_strip_nulls', [
+  json('{"a":1,"b":null,"c":{"d":null}}'),
+  boolean(false),
+])
+callable('json strip nulls array', 'json_strip_nulls', [json('[1, null, 2]'), boolean(true)])
+callable('json strip nulls keep array', 'json_strip_nulls', [json('[1, null, 2]'), boolean(false)])
+callable('json strip nulls number', 'json_strip_nulls', [json('1e2'), boolean(false)])
+callable('jsonb strip nulls', 'jsonb_strip_nulls', [
+  jsonb('{"a":1,"b":null,"c":[null,2]}'),
+  boolean(false),
+])
+callable('jsonb strip nulls array', 'jsonb_strip_nulls', [
+  jsonb('{"a":1,"b":null,"c":[null,2]}'),
+  boolean(true),
+])
+callable('jsonb pretty object', 'jsonb_pretty', [jsonb('{"b":[1,2],"a":3}')])
+callable('jsonb pretty scalar', 'jsonb_pretty', [scalarb])
+callable('jsonb pretty empty array', 'jsonb_pretty', [jsonb('[]')])
+callable('jsonb pretty empty object', 'jsonb_pretty', [jsonb('{}')])
+
+callable('jsonb to bool true', 'bool', [jsonb('true')])
+callable('jsonb to bool false', 'bool', [jsonb('false')])
+callable('jsonb to bool null', 'bool', [jsonb('null')])
+callable('jsonb to bool number', 'bool', [jsonb('1')])
+callable('jsonb to int4', 'int4', [jsonb('2.9')])
+callable('jsonb to int4 half', 'int4', [jsonb('2.5')])
+callable('jsonb to int4 negative half', 'int4', [jsonb('-2.5')])
+callable('jsonb to int2 overflow', 'int2', [jsonb('40000')])
+callable('jsonb to numeric', 'numeric', [jsonb('1.2300')])
+callable('jsonb to int8', 'int8', [jsonb('2.9')])
+callable('jsonb to float4', 'float4', [jsonb('1e2')])
+callable('jsonb to float8', 'float8', [jsonb('1e2')])
+callable('jsonb to int4 bool', 'int4', [jsonb('true')])
+callable('jsonb to int4 array', 'int4', [jsonb('[1]')])
+
+callable('json object pairs', 'json_object', [textArray(['a', '1', 'b', '2'])])
+callable('json object empty', 'json_object', [textArray([])])
+callable('json object odd', 'json_object', [textArray(['a'])])
+callable('json object two arg', 'json_object', [textArray(['a', 'b']), textArray(['1', '2'])])
+callable('json object two arg mismatch', 'json_object', [textArray(['a', '1']), textArray(['x'])])
+callable('json object 2d', 'json_object', [
+  textArray2d([
+    ['a', '1'],
+    ['b', '2'],
+  ]),
+])
+callable('json object null value', 'json_object', [textArray(['a', null])])
+callable('json object null key', 'json_object', [textArray([null, 'a'])])
+callable('json object duplicate', 'json_object', [textArray(['a', '1', 'a', '2'])])
+callable('jsonb object pairs', 'jsonb_object', [textArray(['b', '2', 'a', '1'])])
+callable('jsonb object duplicate', 'jsonb_object', [textArray(['a', '1', 'a', '2'])])
+callable('jsonb object two arg', 'jsonb_object', [textArray(['a', 'b']), textArray(['1', '2'])])
+
+callable('array to json', 'array_to_json', [intArray(['1', '2'])], false, anyarray)
+callable('array to json pretty', 'array_to_json', [intArray(['1', '2']), boolean(true)], false, [
+  'pg_catalog.anyarray',
+  'pg_catalog.bool',
+])
+callable(
+  'array to json 2d pretty',
+  'array_to_json',
+  [
+    intArray2d([
+      ['1', '2'],
+      ['3', '4'],
+    ]),
+    boolean(true),
+  ],
+  false,
+  ['pg_catalog.anyarray', 'pg_catalog.bool'],
+)
+callable('array to json empty', 'array_to_json', [intArray([])], false, anyarray)
+callable('array to json nulls', 'array_to_json', [intArray(['1', null, '2'])], false, anyarray)
+
+callable('to json int', 'to_json', [integer('1')], false, anyelement)
+callable('to json text', 'to_json', [text('hi')], false, anyelement)
+callable('to json bool', 'to_json', [boolean(true)], false, anyelement)
+callable('to json numeric', 'to_json', [decimal('1.2300')], false, anyelement)
+callable(
+  'to json nan',
+  'to_json',
+  [float('pg_catalog.float8', Number.NaN, `'NaN'::float8`)],
+  false,
+  anyelement,
+)
+callable(
+  'to json infinity',
+  'to_json',
+  [float('pg_catalog.float8', Number.POSITIVE_INFINITY, `'Infinity'::float8`)],
+  false,
+  anyelement,
+)
+callable(
+  'to json neg zero',
+  'to_json',
+  [float('pg_catalog.float8', -0, '(-0::float8)')],
+  false,
+  anyelement,
+)
+callable('to json array', 'to_json', [intArray(['1', '2'])], false, anyelement)
+callable('to json array nulls', 'to_json', [intArray(['1', null, '2'])], false, anyelement)
+callable('to json json', 'to_json', [json('{"a":1}')], false, anyelement)
+callable('to json jsonb', 'to_json', [jsonb('{"b":1,"a":2}')], false, anyelement)
+callable(
+  'to json uuid',
+  'to_json',
+  [uuid('550e8400-e29b-41d4-a716-446655440000')],
+  false,
+  anyelement,
+)
+callable('to jsonb numeric', 'to_jsonb', [decimal('1.2300')], false, anyelement)
+callable('to jsonb array', 'to_jsonb', [intArray(['1', null, '2'])], false, anyelement)
+callable('json build array empty', 'json_build_array', [])
+callable('json build object empty', 'json_build_object', [])
+callable('jsonb build array empty', 'jsonb_build_array', [])
+callable('jsonb build object empty', 'jsonb_build_object', [])
+callable(
+  'json build array values',
+  'json_build_array',
+  [integer('1'), text('a'), boolean(true), integer(null)],
+  false,
+  anyArgs,
+)
+callable('json build array of array', 'json_build_array', [intArray(['1', '2'])], false, anyArgs)
+callable(
+  'json build object values',
+  'json_build_object',
+  [text('a'), integer('1'), text('b'), text(null)],
+  false,
+  anyArgs,
+)
+callable(
+  'json build object int key',
+  'json_build_object',
+  [integer('1'), text('a')],
+  false,
+  anyArgs,
+)
+callable(
+  'json build object bool key',
+  'json_build_object',
+  [boolean(true), text('a')],
+  false,
+  anyArgs,
+)
+callable(
+  'json build object array key',
+  'json_build_object',
+  [intArray(['1']), text('a')],
+  false,
+  anyArgs,
+)
+callable('json build object odd', 'json_build_object', [text('a')], false, anyArgs)
+callable('jsonb build array values', 'jsonb_build_array', [integer('1'), text('a')], false, anyArgs)
+callable(
+  'jsonb build object values',
+  'jsonb_build_object',
+  [text('b'), integer('1'), text('a'), integer('2')],
+  false,
+  anyArgs,
+)
+
+callable('to json enum', 'to_json', [enumValue('apple')], false, anyelement)
+specs[specs.length - 1]!.setupSql = enumSetupSql
 
 export const jsonSpecs: readonly ExpressionSpec[] = specs

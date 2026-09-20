@@ -443,6 +443,18 @@ describe('generated PostgreSQL scalar evaluation', () => {
       'json null test',
       'json case',
       'jsonb coalesce',
+      'jsonb concat 0',
+      'jsonb delete key',
+      'jsonb set replace',
+      'jsonb insert before',
+      'jsonb set_lax delete',
+      'json strip nulls',
+      'jsonb pretty object',
+      'jsonb to int4',
+      'json object pairs',
+      'to json array',
+      'json build array values',
+      'json build object values',
       ...[
         'int2',
         'int8',
@@ -710,7 +722,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
     expect(supported.map((row) => row.signature).sort()).toEqual(
       [...expected, ...additional].sort(),
     )
-    expect(supported).toHaveLength(403)
+    expect(supported).toHaveLength(442)
     expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
     expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
   })

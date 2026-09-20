@@ -52,6 +52,31 @@ export function arrayType(elementType: ArrayElementType): ArrayType {
   return `array:${elementType}`
 }
 
+function isJsonConvertibleType(type: string): boolean {
+  if (
+    type === 'pg_catalog.bool' ||
+    type === 'pg_catalog.uuid' ||
+    type === 'pg_catalog."json"' ||
+    type === 'pg_catalog.jsonb' ||
+    type.startsWith('enum:')
+  )
+    return true
+  if (/^pg_catalog\.(int[248]|float[48]|"numeric"|text|"varchar"|bpchar)$/.test(type)) return true
+  return type.startsWith('array:') ? isJsonConvertibleType(type.slice('array:'.length)) : false
+}
+
+function operandMatchesDeclared(declared: string, actual: string): boolean {
+  if (actual === declared) return true
+  if (declared === 'pg_catalog._text' && actual === arrayType('pg_catalog.text')) return true
+  if (declared === 'pg_catalog.anyelement' && isJsonConvertibleType(actual)) return true
+  if (declared === 'pg_catalog."any"' && isJsonConvertibleType(actual)) return true
+  return (
+    declared === 'pg_catalog.anyarray' &&
+    actual.startsWith('array:') &&
+    isJsonConvertibleType(actual.slice('array:'.length))
+  )
+}
+
 function isArrayElementType(type: string): type is ArrayElementType {
   return (
     (BUILTIN_ARRAY_ELEMENT_TYPES as readonly string[]).includes(type) || type.startsWith('enum:')
@@ -835,15 +860,17 @@ export function emitSqlExpression<Ast>(
     ) {
       throw new Error(`Invalid cast function: ${signature}`)
     }
-    if (node.type !== metadata.result || operands.length !== metadata.args.length)
+    const variadicAny = metadata.kind === 'function' && metadata.variadic === 'pg_catalog."any"'
+    if (node.type !== metadata.result) throw new Error(`Invalid resolved expression: ${signature}`)
+    if (variadicAny) {
+      if (operands.length < 1) throw new Error(`Invalid resolved expression: ${signature}`)
+    } else if (operands.length !== metadata.args.length) {
       throw new Error(`Invalid resolved expression: ${signature}`)
+    }
     for (let i = 0; i < operands.length; i++) {
-      const declared = metadata.args[i]!
+      const declared = variadicAny ? 'pg_catalog."any"' : metadata.args[i]!
       const actual = operands[i]!.type
-      if (
-        actual !== declared &&
-        !(declared === 'pg_catalog._text' && actual === arrayType('pg_catalog.text'))
-      )
+      if (!operandMatchesDeclared(declared, actual))
         throw new Error(`Operand type mismatch: ${signature}, argument ${i}`)
     }
     const binding = backend.bindings
