@@ -190,6 +190,16 @@ add('array slice multidimensional', {
     ],
   },
 })
+add('array slice omitted trailing dimensions', {
+  sql: `(${matrix.sql})[2:3]`,
+  expression: {
+    kind: 'array-slice',
+    type: arrayType('pg_catalog.int4'),
+    elementType: 'pg_catalog.int4',
+    array: matrix.expression,
+    bounds: [{ lower: int4('2').expression, upper: int4('3').expression }],
+  },
+})
 
 for (const [index, [value, position, replacement]] of (
   [
@@ -328,6 +338,13 @@ for (const [index, count] of ['0', '1', '3', '4', '-1'].entries())
     [matrix, scalar(int4(count))],
     `pg_catalog.trim_array(${matrix.sql}, ${count}::int4)`,
   )
+operation(
+  'array trim zero normalizes lower bound',
+  'trim',
+  'pg_catalog.int4',
+  [custom, scalar(int4('0'))],
+  `pg_catalog.trim_array(${custom.sql}, 0::int4)`,
+)
 operation(
   'array reverse one dimensional',
   'reverse',

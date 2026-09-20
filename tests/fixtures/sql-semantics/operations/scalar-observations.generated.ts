@@ -68114,6 +68114,10 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: '{{3,4},{5,6}}',
   },
+  'array slice omitted trailing dimensions': {
+    kind: 'value',
+    value: '{{3,4},{5,6}}',
+  },
   'array assign 0': {
     kind: 'value',
     value: '{1,9,3}',
@@ -68272,6 +68276,10 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
   'array trim 4': {
     kind: 'error',
     code: '2202E',
+  },
+  'array trim zero normalizes lower bound': {
+    kind: 'value',
+    value: '{1,2,3}',
   },
   'array reverse one dimensional': {
     kind: 'value',
