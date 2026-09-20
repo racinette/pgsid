@@ -29,6 +29,7 @@ import {
 } from '../fixtures/sql-semantics/operations/integer-addition.js'
 import { integerOperationCases } from '../fixtures/sql-semantics/operations/integer-operations.js'
 import { PG18_NUMERIC } from '../../src/postgres/builtins/numeric.generated.js'
+import { PG18_UUID } from '../../src/postgres/builtins/uuid.generated.js'
 import { observeSql } from '../support/postgres/observe.js'
 import type { SqlObservation } from '../support/postgres/observe.js'
 
@@ -73,7 +74,10 @@ function goProject(fixtures = cases): string {
     package: 'main',
     imports: [{ path: 'encoding/json' }, { path: 'os' }, { path: 'fmt' }, { path: 'math' }],
     source:
-      goSqlRuntime([...emitted.flatMap((result) => result.helpers), 'sqlDecimalText'], 'main') +
+      goSqlRuntime(
+        [...emitted.flatMap((result) => result.helpers), 'sqlDecimalText', 'uuidText'],
+        'main',
+      ) +
       `
       ${Array.from(
         { length: Math.ceil(fixtures.length / 128) },
@@ -121,6 +125,10 @@ function goProject(fixtures = cases): string {
               } else if types[index] == "pg_catalog.float4" { result["value"] = fmt.Sprintf("%08x", math.Float32bits(float32(value.Value)))
               } else { result["value"] = fmt.Sprintf("%016x", math.Float64bits(value.Value)) }
             }
+          case SqlUuid:
+            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
+            } else if !value.Valid { result["kind"] = "null"
+            } else { result["kind"] = "value"; result["value"] = uuidText(value).Value }
           default: panic("unexpected SQL value type")
           }
           results = append(results, result)
@@ -144,7 +152,9 @@ function goProject(fixtures = cases): string {
                           result.value.type,
                         )
                       ? 'SqlText'
-                      : 'SqlInteger',
+                      : result.value.type === 'pg_catalog.uuid'
+                        ? 'SqlUuid'
+                        : 'SqlInteger',
             ),
           },
         ],
@@ -313,6 +323,16 @@ describe('generated PostgreSQL scalar evaluation', () => {
       'coalesce pg_catalog.float8 1',
       'coalesce pg_catalog."numeric" 1',
       'coalesce pg_catalog.bool 1',
+      'uuid input 3',
+      'uuid operator < 0',
+      'uuid function eq',
+      'uuid cmp 2',
+      'uuid extract version 2',
+      'uuid from text 1',
+      'uuid to text 1',
+      'uuid null test',
+      'uuid case',
+      'uuid coalesce',
       'numeric utility scale 1.2300',
       'numeric utility min_scale 1.2300',
       'numeric utility trim_scale 1.2300',
@@ -410,7 +430,9 @@ describe('generated PostgreSQL scalar evaluation', () => {
                                   'pg_catalog.bpchar',
                                 ].includes(emitted.value.type)
                               ? 'SqlText'
-                              : 'SqlInteger',
+                              : emitted.value.type === 'pg_catalog.uuid'
+                                ? 'SqlUuid'
+                                : 'SqlInteger',
                     ),
                   },
                 ],
@@ -542,11 +564,16 @@ describe('generated PostgreSQL scalar evaluation', () => {
     const additional = [
       ...Object.keys(PG18_BOOLEAN).filter((signature) => signature.startsWith('operator:')),
       ...textSignatures,
+      ...Object.keys(PG18_UUID).filter(
+        (signature) =>
+          signature.startsWith('operator:') ||
+          /"uuid_(?:eq|ne|lt|le|gt|ge|cmp|extract_version)"/.test(signature),
+      ),
     ]
     expect(supported.map((row) => row.signature).sort()).toEqual(
       [...expected, ...additional].sort(),
     )
-    expect(supported).toHaveLength(338)
+    expect(supported).toHaveLength(352)
     expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
     expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
   })
@@ -562,6 +589,11 @@ describe('generated PostgreSQL scalar evaluation', () => {
     const integer = { kind: 'integer', type: 'pg_catalog.int4', value: '1' } as const
     const text = { kind: 'text', type: 'pg_catalog.text', value: 'a' } as const
     const boolean = { kind: 'boolean', type: 'pg_catalog.bool', value: true } as const
+    const uuid = {
+      kind: 'uuid',
+      type: 'pg_catalog.uuid',
+      value: '00000000-0000-0000-0000-000000000000',
+    } as const
     const invalid: [SqlExpression, string][] = [
       [
         { kind: 'boolean-logic', type: 'pg_catalog.bool', operation: 'and', operands: [boolean] },
@@ -613,6 +645,8 @@ describe('generated PostgreSQL scalar evaluation', () => {
         },
         'Invalid text coercion',
       ],
+      [{ kind: 'uuid-coercion', type: 'pg_catalog.uuid', operand: uuid }, 'Invalid UUID coercion'],
+      [{ kind: 'uuid-coercion', type: 'pg_catalog.text', operand: text }, 'Invalid UUID coercion'],
       [
         {
           kind: 'text-coercion',

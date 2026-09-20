@@ -7,6 +7,7 @@ import { go } from '../ast.js'
 import type { GoExpression } from '../ast.js'
 import { goNumericOperators, goNumericFunctions } from './numeric.js'
 import type { ExpressionBackend } from '../../../sql-semantics/expressions.js'
+import { goUuidFunctions, goUuidOperators } from './uuid.js'
 
 export const goSqlBackend: ExpressionBackend<GoExpression> = {
   bindings: [
@@ -15,7 +16,15 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
     { domain: 'numeric', operators: goDecimalOperators, functions: goDecimalFunctions },
     { domain: 'numeric', operators: goFloatOperators, functions: goFloatFunctions },
     { domain: 'numeric', operators: goNumericOperators, functions: goNumericFunctions },
+    { domain: 'uuid', operators: goUuidOperators, functions: goUuidFunctions },
   ],
+  coerceUuid: (type, operand) => {
+    const helper = type === 'pg_catalog.uuid' ? 'uuidFromText' : 'uuidText'
+    return {
+      expression: go.call(go.ident(helper), [operand.expression]),
+      helpers: [helper],
+    }
+  },
   coerceText: (type, length, explicit, operand) => {
     const helpers: string[] = []
     let expression = operand.expression
@@ -43,6 +52,10 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
     value === null
       ? { kind: 'composite', type: go.ident('SqlText'), elements: [] }
       : go.call(go.ident('textInput'), [go.string(value)]),
+  uuid: (value) =>
+    value === null
+      ? { kind: 'composite', type: go.ident('SqlUuid'), elements: [] }
+      : go.call(go.ident('uuidInput'), [go.string(value)]),
   decimal: (value) =>
     value === null
       ? { kind: 'composite', type: go.ident('SqlDecimal'), elements: [] }

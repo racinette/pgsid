@@ -7,6 +7,7 @@ import ts from 'typescript'
 import { factory, identifier } from '../ast.js'
 import { typescriptNumericOperators, typescriptNumericFunctions } from './numeric.js'
 import type { ExpressionBackend } from '../../../sql-semantics/expressions.js'
+import { typescriptUuidFunctions, typescriptUuidOperators } from './uuid.js'
 
 export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
   bindings: [
@@ -27,7 +28,15 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
       operators: typescriptNumericOperators,
       functions: typescriptNumericFunctions,
     },
+    { domain: 'uuid', operators: typescriptUuidOperators, functions: typescriptUuidFunctions },
   ],
+  coerceUuid: (type, operand) => {
+    const helper = type === 'pg_catalog.uuid' ? 'uuidFromText' : 'uuidText'
+    return {
+      expression: factory.createCallExpression(identifier(helper), undefined, [operand.expression]),
+      helpers: [helper],
+    }
+  },
   coerceText: (type, length, explicit, operand) => {
     const helpers: string[] = []
     let expression = operand.expression
@@ -53,6 +62,10 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
     ]),
   text: (value) =>
     factory.createCallExpression(identifier('textInput'), undefined, [
+      value === null ? factory.createNull() : factory.createStringLiteral(value),
+    ]),
+  uuid: (value) =>
+    factory.createCallExpression(identifier('uuidInput'), undefined, [
       value === null ? factory.createNull() : factory.createStringLiteral(value),
     ]),
   decimal: (value) =>
