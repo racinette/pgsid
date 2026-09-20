@@ -67735,4 +67735,359 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: '{{1,2},{3,4}}',
   },
+  'polymorphic array int2 input': {
+    kind: 'value',
+    value: '{1,2,NULL}',
+  },
+  'polymorphic array int2 cardinality': {
+    kind: 'value',
+    value: '3',
+  },
+  'polymorphic array int2 equality': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array int2 ordering': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array int2 contains': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array int2 overlap': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array int2 concat': {
+    kind: 'value',
+    value: '{1,2,1}',
+  },
+  'polymorphic array int2 subscript': {
+    kind: 'value',
+    value: '2',
+  },
+  'polymorphic array int8 input': {
+    kind: 'value',
+    value: '{1,2,NULL}',
+  },
+  'polymorphic array int8 cardinality': {
+    kind: 'value',
+    value: '3',
+  },
+  'polymorphic array int8 equality': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array int8 ordering': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array int8 contains': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array int8 overlap': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array int8 concat': {
+    kind: 'value',
+    value: '{1,2,1}',
+  },
+  'polymorphic array int8 subscript': {
+    kind: 'value',
+    value: '2',
+  },
+  'polymorphic array float4 input': {
+    kind: 'value',
+    value: '{0.1,NaN,NULL}',
+  },
+  'polymorphic array float4 cardinality': {
+    kind: 'value',
+    value: '3',
+  },
+  'polymorphic array float4 equality': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array float4 ordering': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array float4 contains': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array float4 overlap': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array float4 concat': {
+    kind: 'value',
+    value: '{0.1,NaN,0.1}',
+  },
+  'polymorphic array float4 subscript': {
+    kind: 'float',
+    type: 'pg_catalog.float4',
+    value: 'NaN',
+  },
+  'polymorphic array float8 input': {
+    kind: 'value',
+    value: '{0.1,NaN,NULL}',
+  },
+  'polymorphic array float8 cardinality': {
+    kind: 'value',
+    value: '3',
+  },
+  'polymorphic array float8 equality': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array float8 ordering': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array float8 contains': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array float8 overlap': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array float8 concat': {
+    kind: 'value',
+    value: '{0.1,NaN,0.1}',
+  },
+  'polymorphic array float8 subscript': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: 'NaN',
+  },
+  'polymorphic array numeric input': {
+    kind: 'value',
+    value: '{1.20,2.30,NULL}',
+  },
+  'polymorphic array numeric cardinality': {
+    kind: 'value',
+    value: '3',
+  },
+  'polymorphic array numeric equality': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array numeric ordering': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array numeric contains': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array numeric overlap': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array numeric concat': {
+    kind: 'value',
+    value: '{1.20,2.30,1.20}',
+  },
+  'polymorphic array numeric subscript': {
+    kind: 'value',
+    value: '2.30',
+  },
+  'polymorphic array boolean input': {
+    kind: 'value',
+    value: '{f,t,NULL}',
+  },
+  'polymorphic array boolean cardinality': {
+    kind: 'value',
+    value: '3',
+  },
+  'polymorphic array boolean equality': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array boolean ordering': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array boolean contains': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array boolean overlap': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array boolean concat': {
+    kind: 'value',
+    value: '{f,t,f}',
+  },
+  'polymorphic array boolean subscript': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array text input': {
+    kind: 'value',
+    value: '{"a,b","NULL",NULL}',
+  },
+  'polymorphic array text cardinality': {
+    kind: 'value',
+    value: '3',
+  },
+  'polymorphic array text equality': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array text ordering': {
+    kind: 'value',
+    value: 'false',
+  },
+  'polymorphic array text contains': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array text overlap': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array text concat': {
+    kind: 'value',
+    value: '{"a,b","NULL","a,b"}',
+  },
+  'polymorphic array text subscript': {
+    kind: 'value',
+    value: 'NULL',
+  },
+  'polymorphic array varchar input': {
+    kind: 'value',
+    value: '{a,b,NULL}',
+  },
+  'polymorphic array varchar cardinality': {
+    kind: 'value',
+    value: '3',
+  },
+  'polymorphic array varchar equality': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array varchar ordering': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array varchar contains': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array varchar overlap': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array varchar concat': {
+    kind: 'value',
+    value: '{a,b,a}',
+  },
+  'polymorphic array varchar subscript': {
+    kind: 'value',
+    value: 'b',
+  },
+  'polymorphic array bpchar input': {
+    kind: 'value',
+    value: '{"a ",b,NULL}',
+  },
+  'polymorphic array bpchar cardinality': {
+    kind: 'value',
+    value: '3',
+  },
+  'polymorphic array bpchar equality': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array bpchar ordering': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array bpchar contains': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array bpchar overlap': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array bpchar concat': {
+    kind: 'value',
+    value: '{"a ",b,"a "}',
+  },
+  'polymorphic array bpchar subscript': {
+    kind: 'value',
+    value: 'b',
+  },
+  'polymorphic array uuid input': {
+    kind: 'value',
+    value: '{00000000-0000-0000-0000-000000000001,00000000-0000-0000-0000-000000000002,NULL}',
+  },
+  'polymorphic array uuid cardinality': {
+    kind: 'value',
+    value: '3',
+  },
+  'polymorphic array uuid equality': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array uuid ordering': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array uuid contains': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array uuid overlap': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array uuid concat': {
+    kind: 'value',
+    value:
+      '{00000000-0000-0000-0000-000000000001,00000000-0000-0000-0000-000000000002,00000000-0000-0000-0000-000000000001}',
+  },
+  'polymorphic array uuid subscript': {
+    kind: 'value',
+    value: '00000000-0000-0000-0000-000000000002',
+  },
+  'polymorphic array enum input': {
+    kind: 'value',
+    value: '{zebra,apple,NULL}',
+  },
+  'polymorphic array enum cardinality': {
+    kind: 'value',
+    value: '3',
+  },
+  'polymorphic array enum equality': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array enum ordering': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array enum contains': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array enum overlap': {
+    kind: 'value',
+    value: 'true',
+  },
+  'polymorphic array enum concat': {
+    kind: 'value',
+    value: '{zebra,apple,zebra}',
+  },
+  'polymorphic array enum subscript': {
+    kind: 'value',
+    value: 'apple',
+  },
 }

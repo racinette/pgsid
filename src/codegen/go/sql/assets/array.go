@@ -4,12 +4,125 @@ type SqlArray struct {
 	ElementType string
 	Dimensions  []int64
 	LowerBounds []int64
-	Elements    []SqlInteger
+	Elements    []SqlArrayElement
 	Valid       bool
 	Error       string
 }
 
-func arrayInput(elementType string, dimensions, lowerBounds []int64, elements []SqlInteger) SqlArray {
+type SqlArrayElement struct {
+	Value any
+	Valid bool
+	Error string
+}
+
+func arrayElementInput(value any) SqlArrayElement {
+	switch typed := value.(type) {
+	case SqlInteger:
+		return SqlArrayElement{Value: typed, Valid: typed.Valid, Error: typed.Error}
+	case SqlFloat:
+		return SqlArrayElement{Value: typed, Valid: typed.Valid, Error: typed.Error}
+	case SqlDecimal:
+		return SqlArrayElement{Value: typed, Valid: typed.Valid, Error: typed.Error}
+	case SqlBoolean:
+		return SqlArrayElement{Value: typed, Valid: typed.Valid, Error: typed.Error}
+	case SqlText:
+		return SqlArrayElement{Value: typed, Valid: typed.Valid, Error: typed.Error}
+	case SqlUuid:
+		return SqlArrayElement{Value: typed, Valid: typed.Valid, Error: typed.Error}
+	case SqlEnum:
+		return SqlArrayElement{Value: typed, Valid: typed.Valid, Error: typed.Error}
+	default:
+		return SqlArrayElement{Error: "XX000"}
+	}
+}
+
+func arrayElementText(elementType string, element SqlArrayElement) string {
+	var output string
+	switch value := element.Value.(type) {
+	case SqlInteger:
+		output = strconv.FormatInt(value.Value, 10)
+	case SqlFloat:
+		switch {
+		case math.IsNaN(value.Value):
+			output = "NaN"
+		case math.IsInf(value.Value, 1):
+			output = "Infinity"
+		case math.IsInf(value.Value, -1):
+			output = "-Infinity"
+		default:
+			bits := 64
+			if elementType == "pg_catalog.float4" {
+				bits = 32
+			}
+			output = strconv.FormatFloat(value.Value, 'g', -1, bits)
+		}
+	case SqlDecimal:
+		output = sqlDecimalText(value)
+	case SqlBoolean:
+		if value.Value {
+			output = "t"
+		} else {
+			output = "f"
+		}
+	case SqlText:
+		output = value.Value
+	case SqlUuid:
+		output = uuidText(value).Value
+	case SqlEnum:
+		output = value.Label
+	}
+	if elementType == "pg_catalog.text" || elementType == `pg_catalog."varchar"` || elementType == "pg_catalog.bpchar" {
+		quote := output == "" || strings.EqualFold(output, "NULL") || strings.ContainsAny(output, ",\"\\{} \t\r\n")
+		if quote {
+			output = `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(output) + `"`
+		}
+	}
+	return output
+}
+
+func arrayElementCompare(elementType string, left, right SqlArrayElement) SqlInteger {
+	switch a := left.Value.(type) {
+	case SqlInteger:
+		b := right.Value.(SqlInteger)
+		if a.Value < b.Value {
+			return SqlInteger{Value: -1, Valid: true}
+		}
+		if a.Value > b.Value {
+			return SqlInteger{Value: 1, Valid: true}
+		}
+		return SqlInteger{Value: 0, Valid: true}
+	case SqlFloat:
+		return sqlFloatCompare(a, right.Value.(SqlFloat))
+	case SqlDecimal:
+		return sqlDecimalCompare(a, right.Value.(SqlDecimal))
+	case SqlBoolean:
+		b := right.Value.(SqlBoolean)
+		av, bv := int64(0), int64(0)
+		if a.Value {
+			av = 1
+		}
+		if b.Value {
+			bv = 1
+		}
+		return SqlInteger{Value: av - bv, Valid: true}
+	case SqlText:
+		b := right.Value.(SqlText)
+		leftText, rightText := a.Value, b.Value
+		if elementType == "pg_catalog.bpchar" {
+			leftText = strings.TrimRight(leftText, " ")
+			rightText = strings.TrimRight(rightText, " ")
+		}
+		return SqlInteger{Value: int64(strings.Compare(leftText, rightText)), Valid: true}
+	case SqlUuid:
+		return uuidCompare(a, right.Value.(SqlUuid))
+	case SqlEnum:
+		return enumCompare(a, right.Value.(SqlEnum))
+	default:
+		return SqlInteger{Error: "XX000"}
+	}
+}
+
+func arrayInput(elementType string, dimensions, lowerBounds []int64, elements []SqlArrayElement) SqlArray {
 	for _, element := range elements {
 		if element.Error != "" {
 			return SqlArray{Error: element.Error}
@@ -19,7 +132,7 @@ func arrayInput(elementType string, dimensions, lowerBounds []int64, elements []
 		ElementType: elementType,
 		Dimensions:  append([]int64{}, dimensions...),
 		LowerBounds: append([]int64{}, lowerBounds...),
-		Elements:    append([]SqlInteger{}, elements...),
+		Elements:    append([]SqlArrayElement{}, elements...),
 		Valid:       true,
 	}
 }
@@ -49,7 +162,7 @@ func arrayText(value SqlArray) SqlText {
 				if !element.Valid {
 					output.WriteString("NULL")
 				} else {
-					output.WriteString(strconv.FormatInt(element.Value, 10))
+					output.WriteString(arrayElementText(value.ElementType, element))
 				}
 			} else {
 				output.WriteString(render(depth + 1))
@@ -176,11 +289,12 @@ func arrayCompare(left, right SqlArray) SqlInteger {
 		if !b.Valid {
 			return SqlInteger{Value: -1, Valid: true}
 		}
-		if a.Value < b.Value {
-			return SqlInteger{Value: -1, Valid: true}
+		comparison := arrayElementCompare(left.ElementType, a, b)
+		if comparison.Error != "" {
+			return comparison
 		}
-		if a.Value > b.Value {
-			return SqlInteger{Value: 1, Valid: true}
+		if comparison.Value != 0 {
+			return comparison
 		}
 	}
 	if len(left.Elements) != len(right.Elements) {
@@ -264,8 +378,17 @@ func arrayEq(left, right SqlArray) SqlBoolean {
 	}
 	for index, element := range left.Elements {
 		other := right.Elements[index]
-		if element.Valid != other.Valid || (element.Valid && element.Value != other.Value) {
+		if element.Valid != other.Valid {
 			return SqlBoolean{Value: false, Valid: true}
+		}
+		if element.Valid {
+			comparison := arrayElementCompare(left.ElementType, element, other)
+			if comparison.Error != "" {
+				return SqlBoolean{Error: comparison.Error}
+			}
+			if comparison.Value != 0 {
+				return SqlBoolean{Value: false, Valid: true}
+			}
 		}
 	}
 	return SqlBoolean{Value: true, Valid: true}
@@ -296,9 +419,15 @@ func arrayContains(left, right SqlArray) SqlBoolean {
 		}
 		found := false
 		for _, element := range left.Elements {
-			if element.Valid && element.Value == candidate.Value {
-				found = true
-				break
+			if element.Valid {
+				comparison := arrayElementCompare(left.ElementType, element, candidate)
+				if comparison.Error != "" {
+					return SqlBoolean{Error: comparison.Error}
+				}
+				if comparison.Value == 0 {
+					found = true
+					break
+				}
 			}
 		}
 		if !found {
@@ -325,8 +454,14 @@ func arrayOverlap(left, right SqlArray) SqlBoolean {
 			continue
 		}
 		for _, element := range right.Elements {
-			if element.Valid && element.Value == candidate.Value {
-				return SqlBoolean{Value: true, Valid: true}
+			if element.Valid {
+				comparison := arrayElementCompare(left.ElementType, element, candidate)
+				if comparison.Error != "" {
+					return SqlBoolean{Error: comparison.Error}
+				}
+				if comparison.Value == 0 {
+					return SqlBoolean{Value: true, Valid: true}
+				}
 			}
 		}
 	}
@@ -383,7 +518,7 @@ func arrayConcat(left, right SqlArray) SqlArray {
 		dimensions[0]++
 		lowerBounds = append([]int64{}, outer.LowerBounds...)
 	}
-	elements := append([]SqlInteger{}, left.Elements...)
+	elements := append([]SqlArrayElement{}, left.Elements...)
 	elements = append(elements, right.Elements...)
 	return SqlArray{
 		ElementType: left.ElementType,
@@ -394,28 +529,105 @@ func arrayConcat(left, right SqlArray) SqlArray {
 	}
 }
 
-func arraySubscript(value SqlArray, subscripts ...SqlInteger) SqlInteger {
+func arraySubscript(value SqlArray, subscripts ...SqlInteger) SqlArrayElement {
 	if value.Error != "" {
-		return SqlInteger{Error: value.Error}
+		return SqlArrayElement{Error: value.Error}
 	}
 	if !value.Valid || len(subscripts) != len(value.Dimensions) {
-		return SqlInteger{}
+		return SqlArrayElement{}
 	}
 	offset := int64(0)
 	for index, subscript := range subscripts {
 		if subscript.Error != "" {
-			return SqlInteger{Error: subscript.Error}
+			return SqlArrayElement{Error: subscript.Error}
 		}
 		if !subscript.Valid {
-			return SqlInteger{}
+			return SqlArrayElement{}
 		}
 		position := subscript.Value - value.LowerBounds[index]
 		if position < 0 || position >= value.Dimensions[index] {
-			return SqlInteger{}
+			return SqlArrayElement{}
 		}
 		offset = offset*value.Dimensions[index] + position
 	}
 	return value.Elements[offset]
+}
+
+func arraySubscriptInteger(value SqlArray, subscripts ...SqlInteger) SqlInteger {
+	element := arraySubscript(value, subscripts...)
+	if element.Error != "" {
+		return SqlInteger{Error: element.Error}
+	}
+	if !element.Valid {
+		return SqlInteger{}
+	}
+	return element.Value.(SqlInteger)
+}
+
+func arraySubscriptFloat(value SqlArray, subscripts ...SqlInteger) SqlFloat {
+	element := arraySubscript(value, subscripts...)
+	if element.Error != "" {
+		return SqlFloat{Error: element.Error}
+	}
+	if !element.Valid {
+		return SqlFloat{}
+	}
+	return element.Value.(SqlFloat)
+}
+
+func arraySubscriptDecimal(value SqlArray, subscripts ...SqlInteger) SqlDecimal {
+	element := arraySubscript(value, subscripts...)
+	if element.Error != "" {
+		return SqlDecimal{Error: element.Error}
+	}
+	if !element.Valid {
+		return SqlDecimal{}
+	}
+	return element.Value.(SqlDecimal)
+}
+
+func arraySubscriptBoolean(value SqlArray, subscripts ...SqlInteger) SqlBoolean {
+	element := arraySubscript(value, subscripts...)
+	if element.Error != "" {
+		return SqlBoolean{Error: element.Error}
+	}
+	if !element.Valid {
+		return SqlBoolean{}
+	}
+	return element.Value.(SqlBoolean)
+}
+
+func arraySubscriptText(value SqlArray, subscripts ...SqlInteger) SqlText {
+	element := arraySubscript(value, subscripts...)
+	if element.Error != "" {
+		return SqlText{Error: element.Error}
+	}
+	if !element.Valid {
+		return SqlText{}
+	}
+	return element.Value.(SqlText)
+}
+
+func arraySubscriptUuid(value SqlArray, subscripts ...SqlInteger) SqlUuid {
+	element := arraySubscript(value, subscripts...)
+	if element.Error != "" {
+		return SqlUuid{Error: element.Error}
+	}
+	if !element.Valid {
+		return SqlUuid{}
+	}
+	return element.Value.(SqlUuid)
+}
+
+func arraySubscriptEnum(value SqlArray, subscripts ...SqlInteger) SqlEnum {
+	element := arraySubscript(value, subscripts...)
+	if element.Error != "" {
+		return SqlEnum{Error: element.Error}
+	}
+	if !element.Valid {
+		return SqlEnum{}
+	}
+	return element.Value.(SqlEnum)
 }
 
 func sqlIsNullArray(value SqlArray) SqlBoolean {

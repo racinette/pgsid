@@ -12,7 +12,20 @@ export type NumericType = IntegerType | FloatType | DecimalType
 export type TextType = 'pg_catalog.text' | 'pg_catalog."varchar"' | 'pg_catalog.bpchar'
 export type UuidType = 'pg_catalog.uuid'
 export type EnumType = `enum:${string}`
-export type ArrayElementType = 'pg_catalog.int4'
+export const BUILTIN_ARRAY_ELEMENT_TYPES = [
+  'pg_catalog.int2',
+  'pg_catalog.int4',
+  'pg_catalog.int8',
+  'pg_catalog.float4',
+  'pg_catalog.float8',
+  'pg_catalog."numeric"',
+  'pg_catalog.bool',
+  'pg_catalog.text',
+  'pg_catalog."varchar"',
+  'pg_catalog.bpchar',
+  'pg_catalog.uuid',
+] as const
+export type ArrayElementType = (typeof BUILTIN_ARRAY_ELEMENT_TYPES)[number] | EnumType
 export type ArrayType = `array:${ArrayElementType}`
 export type ScalarType =
   NumericType | 'pg_catalog.bool' | TextType | UuidType | EnumType | ArrayType
@@ -30,11 +43,59 @@ export function arrayType(elementType: ArrayElementType): ArrayType {
   return `array:${elementType}`
 }
 
+function isArrayElementType(type: string): type is ArrayElementType {
+  return (
+    (BUILTIN_ARRAY_ELEMENT_TYPES as readonly string[]).includes(type) || type.startsWith('enum:')
+  )
+}
+
+type ArrayPseudoType =
+  | 'pg_catalog.anyarray'
+  | 'pg_catalog.anycompatiblearray'
+  | 'pg_catalog.anyelement'
+  | 'pg_catalog.anycompatible'
+
+export function resolveArrayPolymorphicType(
+  declaredArguments: readonly ArrayPseudoType[],
+  declaredResult: ArrayPseudoType | ScalarType,
+  concreteArguments: readonly ScalarType[],
+): ScalarType | null {
+  if (declaredArguments.length !== concreteArguments.length) return null
+  let elementType: ArrayElementType | undefined
+  for (let index = 0; index < declaredArguments.length; index++) {
+    const declared = declaredArguments[index]!
+    const concrete = concreteArguments[index]!
+    const array = declared === 'pg_catalog.anyarray' || declared === 'pg_catalog.anycompatiblearray'
+    const candidate = array
+      ? concrete.startsWith('array:')
+        ? concrete.slice('array:'.length)
+        : null
+      : concrete
+    if (
+      !candidate ||
+      !isArrayElementType(candidate) ||
+      (elementType !== undefined && candidate !== elementType)
+    )
+      return null
+    elementType = candidate
+  }
+  if (!elementType) return null
+  if (
+    declaredResult === 'pg_catalog.anyarray' ||
+    declaredResult === 'pg_catalog.anycompatiblearray'
+  )
+    return arrayType(elementType)
+  if (declaredResult === 'pg_catalog.anyelement' || declaredResult === 'pg_catalog.anycompatible')
+    return elementType
+  return declaredResult
+}
+
 export type SqlExpression =
   | {
       kind: 'array-operation'
       type: ScalarType
       elementType: ArrayElementType
+      collation?: string
       operation:
         | 'cardinality'
         | 'ndims'
@@ -52,6 +113,7 @@ export type SqlExpression =
       kind: 'array-comparison'
       type: 'pg_catalog.bool'
       elementType: ArrayElementType
+      collation?: string
       operation: '=' | '<>' | '<' | '<=' | '>' | '>='
       operands: readonly SqlExpression[]
     }
@@ -141,7 +203,7 @@ export interface ExpressionBackend<Ast> {
     dimensions: readonly number[],
     lowerBounds: readonly number[],
     elements: readonly TypedSqlExpression<Ast>[] | null,
-  ) => Ast
+  ) => { expression: Ast; helpers: readonly string[] }
   arrayOperation: (
     operation:
       | 'cardinality'
@@ -163,6 +225,7 @@ export interface ExpressionBackend<Ast> {
     operands: readonly TypedSqlExpression<Ast>[],
   ) => { expression: Ast; helpers: readonly string[] }
   arraySubscript: (
+    elementType: ArrayElementType,
     array: TypedSqlExpression<Ast>,
     subscripts: readonly TypedSqlExpression<Ast>[],
   ) => { expression: Ast; helpers: readonly string[] }
@@ -246,6 +309,23 @@ export function emitSqlExpression<Ast>(
                 dimensionOperations.includes(node.operation as (typeof dimensionOperations)[number])
               ? 'pg_catalog.int4'
               : 'pg_catalog.bool'
+      const declaredArguments: ArrayPseudoType[] =
+        node.operation === 'concat'
+          ? ['pg_catalog.anycompatiblearray', 'pg_catalog.anycompatiblearray']
+          : dimensionOperations.includes(node.operation as (typeof dimensionOperations)[number])
+            ? ['pg_catalog.anyarray']
+            : metadataOperations.includes(node.operation as (typeof metadataOperations)[number])
+              ? ['pg_catalog.anyarray']
+              : ['pg_catalog.anyarray', 'pg_catalog.anyarray']
+      const polymorphicArguments: ScalarType[] =
+        node.operation === 'length' || node.operation === 'lower' || node.operation === 'upper'
+          ? [node.operands[0]!.type as ScalarType]
+          : node.operands.map((operand) => operand.type as ScalarType)
+      const resolved = resolveArrayPolymorphicType(
+        declaredArguments,
+        node.operation === 'concat' ? 'pg_catalog.anycompatiblearray' : expectedType,
+        polymorphicArguments,
+      )
       const validOperands =
         (metadataOperations.includes(node.operation as (typeof metadataOperations)[number]) &&
           node.operands.length === 1 &&
@@ -257,7 +337,31 @@ export function emitSqlExpression<Ast>(
         (binaryOperations.includes(node.operation as (typeof binaryOperations)[number]) &&
           node.operands.length === 2 &&
           node.operands.every((operand) => operand.type === identity))
-      if (!validOperands || node.type !== expectedType) throw new Error('Invalid array operation')
+      const comparesElements = [
+        'contains',
+        'contained',
+        'overlap',
+        '=',
+        '<>',
+        '<',
+        '<=',
+        '>',
+        '>=',
+      ].includes(node.operation)
+      const textElement = ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(
+        node.elementType,
+      )
+      if (
+        !validOperands ||
+        node.type !== expectedType ||
+        resolved !== expectedType ||
+        (comparesElements && textElement && node.collation !== 'C')
+      )
+        throw new Error(
+          comparesElements && textElement && node.collation !== 'C'
+            ? 'Unsupported array element collation: expected C'
+            : 'Invalid array operation',
+        )
       const operands = node.operands.map(emit)
       const result = backend.arrayOperation(node.operation, operands)
       for (const helper of result.helpers) helpers.add(helper)
@@ -267,11 +371,18 @@ export function emitSqlExpression<Ast>(
       const identity = arrayType(node.elementType)
       if (
         node.array.type !== identity ||
+        resolveArrayPolymorphicType(['pg_catalog.anyarray'], 'pg_catalog.anyelement', [
+          node.array.type,
+        ]) !== node.type ||
         node.subscripts.length === 0 ||
         node.subscripts.some((subscript) => subscript.type !== 'pg_catalog.int4')
       )
         throw new Error('Invalid array subscript')
-      const result = backend.arraySubscript(emit(node.array), node.subscripts.map(emit))
+      const result = backend.arraySubscript(
+        node.elementType,
+        emit(node.array),
+        node.subscripts.map(emit),
+      )
       for (const helper of result.helpers) helpers.add(helper)
       return { type: node.type, expression: result.expression }
     }
@@ -378,14 +489,16 @@ export function emitSqlExpression<Ast>(
       )
         throw new Error('Invalid array literal')
       helpers.add('arrayInput')
+      const result = backend.array(
+        node.elementType,
+        node.dimensions,
+        node.lowerBounds,
+        node.elements?.map(emit) ?? null,
+      )
+      for (const helper of result.helpers) helpers.add(helper)
       return {
         type: node.type,
-        expression: backend.array(
-          node.elementType,
-          node.dimensions,
-          node.lowerBounds,
-          node.elements?.map(emit) ?? null,
-        ),
+        expression: result.expression,
       }
     }
     if (

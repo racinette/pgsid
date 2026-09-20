@@ -5,6 +5,7 @@ import type { ExpressionSpec } from './expression-spec.js'
 import { uuidSpecs } from './uuid-specs.js'
 import { enumSpecs } from './enum-specs.js'
 import { arraySpecs } from './array-specs.js'
+import { polymorphicArraySpecs } from './polymorphic-array-specs.js'
 
 interface Operand {
   sql: string
@@ -252,4 +253,5 @@ export const scalarSpecs: readonly ExpressionSpec[] = [
   ...uuidSpecs,
   ...enumSpecs,
   ...arraySpecs,
+  ...polymorphicArraySpecs,
 ]

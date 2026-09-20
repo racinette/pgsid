@@ -170,3 +170,4 @@ add('enum coalesce', {
 })
 
 export const enumSpecs: readonly ExpressionSpec[] = specs
+export { alpha as enumAlpha, beta as enumBeta, setupSql as enumSetupSql }
