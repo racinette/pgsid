@@ -32,7 +32,8 @@ export function sqlSemanticsCoverage(
       expression.kind === 'float' ||
       expression.kind === 'decimal' ||
       expression.kind === 'boolean' ||
-      expression.kind === 'text'
+      expression.kind === 'text' ||
+      expression.kind === 'uuid'
     )
       return
     if (expression.kind === 'case') {
@@ -47,7 +48,11 @@ export function sqlSemanticsCoverage(
       expression.operands.forEach((operand) => record(operand, name))
       return
     }
-    if (expression.kind === 'null-test' || expression.kind === 'text-coercion') {
+    if (
+      expression.kind === 'null-test' ||
+      expression.kind === 'text-coercion' ||
+      expression.kind === 'uuid-coercion'
+    ) {
       record(expression.operand, name)
       return
     }

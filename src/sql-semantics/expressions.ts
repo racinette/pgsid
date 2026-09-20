@@ -9,10 +9,16 @@ export type DecimalType = 'pg_catalog."numeric"'
 export type NumericType = IntegerType | FloatType | DecimalType
 
 export type TextType = 'pg_catalog.text' | 'pg_catalog."varchar"' | 'pg_catalog.bpchar'
-export type ScalarType = NumericType | 'pg_catalog.bool' | TextType
+export type UuidType = 'pg_catalog.uuid'
+export type ScalarType = NumericType | 'pg_catalog.bool' | TextType | UuidType
 export type SyntaxKind = 'and' | 'or' | 'not' | 'is-null' | 'is-not-null' | 'case' | 'coalesce'
 
 export type SqlExpression =
+  | {
+      kind: 'uuid-coercion'
+      type: UuidType | 'pg_catalog.text'
+      operand: SqlExpression
+    }
   | {
       kind: 'text-coercion'
       type: TextType
@@ -22,6 +28,7 @@ export type SqlExpression =
     }
   | { kind: 'boolean'; type: 'pg_catalog.bool'; value: boolean | null }
   | { kind: 'text'; type: 'pg_catalog.text'; value: string | null }
+  | { kind: 'uuid'; type: UuidType; value: string | null }
   | {
       kind: 'boolean-logic'
       type: 'pg_catalog.bool'
@@ -57,6 +64,11 @@ export interface ExpressionBackend<Ast> {
   bindings: readonly SqlBindingGroup<Ast>[]
   boolean: (value: boolean | null) => Ast
   text: (value: string | null) => Ast
+  uuid: (value: string | null) => Ast
+  coerceUuid: (
+    type: UuidType | 'pg_catalog.text',
+    operand: TypedSqlExpression<Ast>,
+  ) => { expression: Ast; helpers: readonly string[] }
   coerceText: (
     type: TextType,
     length: number | null,
@@ -79,6 +91,16 @@ export function emitSqlExpression<Ast>(
 ): { value: TypedSqlExpression<Ast>; helpers: readonly string[] } {
   const helpers = new Set<string>()
   const emit = (node: SqlExpression): TypedSqlExpression<Ast> => {
+    if (node.kind === 'uuid-coercion') {
+      if (!(
+        (node.type === 'pg_catalog.uuid' && node.operand.type === 'pg_catalog.text') ||
+        (node.type === 'pg_catalog.text' && node.operand.type === 'pg_catalog.uuid')
+      ))
+        throw new Error('Invalid UUID coercion')
+      const result = backend.coerceUuid(node.type, emit(node.operand))
+      for (const helper of result.helpers) helpers.add(helper)
+      return { type: node.type, expression: result.expression }
+    }
     if (node.kind === 'text-coercion') {
       if (
         !['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(node.type) ||
@@ -110,6 +132,10 @@ export function emitSqlExpression<Ast>(
         node.kind === 'boolean' ? backend.boolean(node.value) : backend.text(node.value)
       helpers.add(node.kind === 'boolean' ? 'booleanInput' : 'textInput')
       return { type: node.type, expression }
+    }
+    if (node.kind === 'uuid') {
+      helpers.add('uuidInput')
+      return { type: node.type, expression: backend.uuid(node.value) }
     }
     if (
       node.kind === 'boolean-logic' ||

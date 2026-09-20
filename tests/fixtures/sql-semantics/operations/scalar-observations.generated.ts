@@ -66575,4 +66575,317 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'error',
     code: 'XX000',
   },
+  'uuid input 0': {
+    kind: 'null',
+  },
+  'uuid input 1': {
+    kind: 'value',
+    value: '00000000-0000-0000-0000-000000000000',
+  },
+  'uuid input 2': {
+    kind: 'value',
+    value: 'ffffffff-ffff-ffff-ffff-ffffffffffff',
+  },
+  'uuid input 3': {
+    kind: 'value',
+    value: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+  },
+  'uuid input 4': {
+    kind: 'value',
+    value: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+  },
+  'uuid input 5': {
+    kind: 'value',
+    value: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+  },
+  'uuid input 6': {
+    kind: 'value',
+    value: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+  },
+  'uuid invalid input 0': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'uuid invalid input 1': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'uuid invalid input 2': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'uuid invalid input 3': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'uuid invalid input 4': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'uuid invalid input 5': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'uuid invalid input 6': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'uuid invalid input 7': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'uuid invalid input 8': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'uuid operator = 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid operator <> 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid operator < 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid operator <= 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid operator > 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid operator >= 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid operator = 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid operator <> 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid operator < 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid operator <= 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid operator > 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid operator >= 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid operator = 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid operator <> 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid operator < 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid operator <= 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid operator > 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid operator >= 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid operator = 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid operator <> 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid operator < 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid operator <= 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid operator > 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid operator >= 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid operator = 4': {
+    kind: 'null',
+  },
+  'uuid operator <> 4': {
+    kind: 'null',
+  },
+  'uuid operator < 4': {
+    kind: 'null',
+  },
+  'uuid operator <= 4': {
+    kind: 'null',
+  },
+  'uuid operator > 4': {
+    kind: 'null',
+  },
+  'uuid operator >= 4': {
+    kind: 'null',
+  },
+  'uuid function eq': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid function eq null': {
+    kind: 'null',
+  },
+  'uuid operator boundary =': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid function ne': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid function ne null': {
+    kind: 'null',
+  },
+  'uuid operator boundary <>': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid function lt': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid function lt null': {
+    kind: 'null',
+  },
+  'uuid operator boundary <': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid function le': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid function le null': {
+    kind: 'null',
+  },
+  'uuid operator boundary <=': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid function gt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid function gt null': {
+    kind: 'null',
+  },
+  'uuid operator boundary >': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid function ge': {
+    kind: 'value',
+    value: 'false',
+  },
+  'uuid function ge null': {
+    kind: 'null',
+  },
+  'uuid operator boundary >=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid cmp 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'uuid cmp 1': {
+    kind: 'value',
+    value: '-255',
+  },
+  'uuid cmp 2': {
+    kind: 'value',
+    value: '255',
+  },
+  'uuid cmp 3': {
+    kind: 'null',
+  },
+  'uuid extract version 0': {
+    kind: 'null',
+  },
+  'uuid extract version 1': {
+    kind: 'value',
+    value: '0',
+  },
+  'uuid extract version 2': {
+    kind: 'value',
+    value: '4',
+  },
+  'uuid extract version 3': {
+    kind: 'value',
+    value: '7',
+  },
+  'uuid extract version 4': {
+    kind: 'value',
+    value: '15',
+  },
+  'uuid extract version 5': {
+    kind: 'null',
+  },
+  'uuid extract version 6': {
+    kind: 'null',
+  },
+  'uuid from text 0': {
+    kind: 'null',
+  },
+  'uuid from text 1': {
+    kind: 'value',
+    value: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+  },
+  'uuid from text 2': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'uuid to text 0': {
+    kind: 'null',
+  },
+  'uuid to text 1': {
+    kind: 'value',
+    value: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
+  },
+  'uuid null test': {
+    kind: 'value',
+    value: 'true',
+  },
+  'uuid case': {
+    kind: 'value',
+    value: '00000000-0000-0000-0000-000000000001',
+  },
+  'uuid coalesce': {
+    kind: 'value',
+    value: '00000000-0000-0000-0000-000000000001',
+  },
 }

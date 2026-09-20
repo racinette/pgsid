@@ -7,6 +7,7 @@ import { numericMathCopyright } from '../../../sql-semantics/numeric-math-licens
 import { typescriptDecimalMathHelpers } from './decimal-math-runtime.js'
 import { typescriptFloatHelpers } from './floating-point-runtime.js'
 import { typescriptDecimalHelpers } from './decimal-runtime.js'
+import { typescriptUuidHelpers } from './uuid-runtime.js'
 
 const helpers: Record<string, { dependencies: readonly string[]; source: string }> = {
   sqlIntegerError: {
@@ -158,6 +159,7 @@ Object.assign(helpers, typescriptFloatHelpers)
 Object.assign(helpers, typescriptFloatMathHelpers)
 Object.assign(helpers, typescriptDecimalHelpers)
 Object.assign(helpers, typescriptDecimalMathHelpers)
+Object.assign(helpers, typescriptUuidHelpers)
 
 for (const [width, bits, shiftMask] of [
   ['int2', 16, 31n],

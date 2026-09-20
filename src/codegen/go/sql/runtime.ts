@@ -6,6 +6,7 @@ import { readFileSync } from 'node:fs'
 import { numericMathCopyright } from '../../../sql-semantics/numeric-math-license.js'
 import { goDecimalMathDependencies } from './decimal-math-runtime.js'
 import { goDecimalDependencies } from './decimal-runtime.js'
+import { goUuidDependencies } from './uuid-runtime.js'
 
 const dependencies: Record<string, readonly string[]> = {
   float8WidthBucket: ['SqlFloat', 'sqlIntegerRange'],
@@ -73,10 +74,11 @@ Object.assign(dependencies, goTextDependencies)
 Object.assign(dependencies, goDecimalDependencies)
 Object.assign(dependencies, goDecimalMathDependencies)
 Object.assign(dependencies, goFloatMathDependencies)
+Object.assign(dependencies, goUuidDependencies)
 
 export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsql'): string {
   const declarations = new Map(
-    ['integer', 'floating-point', 'decimal', 'decimal-math', 'float-math', 'scalar', 'text']
+    ['integer', 'floating-point', 'decimal', 'decimal-math', 'float-math', 'scalar', 'text', 'uuid']
       .flatMap((asset) =>
         readFileSync(new URL(`./assets/${asset}.go`, import.meta.url), 'utf8')
           .split(/\n(?=type |func )/)

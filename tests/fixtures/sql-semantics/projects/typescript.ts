@@ -2777,6 +2777,84 @@ function textTranslate(value: string | null, from: string | null, to: string | n
         return index < 0 ? character : (target[index] ?? "");
     }).join("");
 }
+class SqlUuid {
+    constructor(readonly bytes: Uint8Array) { }
+    toString(): string {
+        const hex = Array.from(this.bytes, byte => byte.toString(16).padStart(2, "0")).join("");
+        return hex.slice(0, 8) + "-" + hex.slice(8, 12) + "-" + hex.slice(12, 16) + "-" + hex.slice(16, 20) + "-" + hex.slice(20);
+    }
+}
+function uuidInput(value: string | null): SqlUuid | null {
+    if (value === null)
+        return null;
+    let index = 0;
+    const braces = value[0] === "{";
+    if (braces)
+        index++;
+    const bytes = new Uint8Array(16);
+    for (let i = 0; i < bytes.length; i++) {
+        const pair = value.slice(index, index + 2);
+        if (!/^[0-9a-f]{2}$/i.test(pair))
+            throw Object.assign(new Error("invalid input syntax for type uuid"), { code: "22P02" });
+        bytes[i] = Number.parseInt(pair, 16);
+        index += 2;
+        if (value[index] === "-" && i % 2 === 1 && i < bytes.length - 1)
+            index++;
+    }
+    if (braces) {
+        if (value[index] !== "}")
+            throw Object.assign(new Error("invalid input syntax for type uuid"), { code: "22P02" });
+        index++;
+    }
+    if (index !== value.length)
+        throw Object.assign(new Error("invalid input syntax for type uuid"), { code: "22P02" });
+    return new SqlUuid(bytes);
+}
+function uuidCompare(left: SqlUuid | null, right: SqlUuid | null): bigint | null {
+    if (left === null || right === null)
+        return null;
+    for (let i = 0; i < 16; i++) {
+        const difference = left.bytes[i]! - right.bytes[i]!;
+        if (difference !== 0)
+            return BigInt(difference);
+    }
+    return 0n;
+}
+function uuidEq(left: SqlUuid | null, right: SqlUuid | null): boolean | null {
+    const comparison = uuidCompare(left, right);
+    return comparison === null ? null : comparison === 0n;
+}
+function uuidNe(left: SqlUuid | null, right: SqlUuid | null): boolean | null {
+    const comparison = uuidCompare(left, right);
+    return comparison === null ? null : comparison !== 0n;
+}
+function uuidLt(left: SqlUuid | null, right: SqlUuid | null): boolean | null {
+    const comparison = uuidCompare(left, right);
+    return comparison === null ? null : comparison < 0n;
+}
+function uuidLe(left: SqlUuid | null, right: SqlUuid | null): boolean | null {
+    const comparison = uuidCompare(left, right);
+    return comparison === null ? null : comparison <= 0n;
+}
+function uuidGt(left: SqlUuid | null, right: SqlUuid | null): boolean | null {
+    const comparison = uuidCompare(left, right);
+    return comparison === null ? null : comparison > 0n;
+}
+function uuidGe(left: SqlUuid | null, right: SqlUuid | null): boolean | null {
+    const comparison = uuidCompare(left, right);
+    return comparison === null ? null : comparison >= 0n;
+}
+function uuidExtractVersion(value: SqlUuid | null): bigint | null {
+    if (value === null || (value.bytes[8]! & 192) !== 128)
+        return null;
+    return BigInt(value.bytes[6]! >> 4);
+}
+function uuidFromText(value: string | null): SqlUuid | null {
+    return uuidInput(value);
+}
+function uuidText(value: SqlUuid | null): string | null {
+    return value === null ? null : value.toString();
+}
 export function evaluate0() {
     return int2Add(int2Input("2"), int2Input("3"));
 }
@@ -89836,4 +89914,253 @@ export function evaluate29018() {
 }
 export function evaluate29019() {
     return bpcharCoerce(textInput("\uD83D\uDE00"), int4Input("2147483647"), booleanInput(true));
+}
+export function evaluate29020() {
+    return uuidInput(null);
+}
+export function evaluate29021() {
+    return uuidInput("00000000-0000-0000-0000-000000000000");
+}
+export function evaluate29022() {
+    return uuidInput("FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF");
+}
+export function evaluate29023() {
+    return uuidInput("{a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11}");
+}
+export function evaluate29024() {
+    return uuidInput("a0eebc999c0b4ef8bb6d6bb9bd380a11");
+}
+export function evaluate29025() {
+    return uuidInput("a0ee-bc99-9c0b-4ef8-bb6d-6bb9-bd38-0a11");
+}
+export function evaluate29026() {
+    return uuidInput("a0eebc99-9c0b4ef8-bb6d6bb9bd380a11");
+}
+export function evaluate29027() {
+    return uuidInput("");
+}
+export function evaluate29028() {
+    return uuidInput("0");
+}
+export function evaluate29029() {
+    return uuidInput("00000000-0000-0000-0000-00000000000");
+}
+export function evaluate29030() {
+    return uuidInput("00000000-0000-0000-0000-0000000000000");
+}
+export function evaluate29031() {
+    return uuidInput("00000000-0000-0000-0000-00000000000g");
+}
+export function evaluate29032() {
+    return uuidInput("0000000-00000-0000-0000-000000000000");
+}
+export function evaluate29033() {
+    return uuidInput("{00000000-0000-0000-0000-000000000000");
+}
+export function evaluate29034() {
+    return uuidInput("00000000-0000-0000-0000-000000000000}");
+}
+export function evaluate29035() {
+    return uuidInput(" 00000000-0000-0000-0000-000000000000");
+}
+export function evaluate29036() {
+    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29037() {
+    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29038() {
+    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29039() {
+    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29040() {
+    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29041() {
+    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29042() {
+    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29043() {
+    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29044() {
+    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29045() {
+    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29046() {
+    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29047() {
+    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29048() {
+    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29049() {
+    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29050() {
+    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29051() {
+    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29052() {
+    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29053() {
+    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29054() {
+    return uuidEq(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29055() {
+    return uuidNe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29056() {
+    return uuidLt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29057() {
+    return uuidLe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29058() {
+    return uuidGt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29059() {
+    return uuidGe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29060() {
+    return uuidEq(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29061() {
+    return uuidNe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29062() {
+    return uuidLt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29063() {
+    return uuidLe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29064() {
+    return uuidGt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29065() {
+    return uuidGe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29066() {
+    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29067() {
+    return uuidEq(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29068() {
+    return uuidEq(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29069() {
+    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29070() {
+    return uuidNe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29071() {
+    return uuidNe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29072() {
+    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29073() {
+    return uuidLt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29074() {
+    return uuidLt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29075() {
+    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29076() {
+    return uuidLe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29077() {
+    return uuidLe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29078() {
+    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29079() {
+    return uuidGt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29080() {
+    return uuidGt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29081() {
+    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29082() {
+    return uuidGe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+}
+export function evaluate29083() {
+    return uuidGe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29084() {
+    return uuidCompare(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29085() {
+    return uuidCompare(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"));
+}
+export function evaluate29086() {
+    return uuidCompare(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29087() {
+    return uuidCompare(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+}
+export function evaluate29088() {
+    return uuidExtractVersion(uuidInput(null));
+}
+export function evaluate29089() {
+    return uuidExtractVersion(uuidInput("00000000-0000-0000-8000-000000000000"));
+}
+export function evaluate29090() {
+    return uuidExtractVersion(uuidInput("00000000-0000-4000-8000-000000000000"));
+}
+export function evaluate29091() {
+    return uuidExtractVersion(uuidInput("00000000-0000-7000-8000-000000000000"));
+}
+export function evaluate29092() {
+    return uuidExtractVersion(uuidInput("00000000-0000-f000-b000-000000000000"));
+}
+export function evaluate29093() {
+    return uuidExtractVersion(uuidInput("00000000-0000-4000-0000-000000000000"));
+}
+export function evaluate29094() {
+    return uuidExtractVersion(uuidInput("00000000-0000-4000-c000-000000000000"));
+}
+export function evaluate29095() {
+    return uuidFromText(textInput(null));
+}
+export function evaluate29096() {
+    return uuidFromText(textInput("A0EEBC999C0B4EF8BB6D6BB9BD380A11"));
+}
+export function evaluate29097() {
+    return uuidFromText(textInput("not-a-uuid"));
+}
+export function evaluate29098() {
+    return uuidText(uuidInput(null));
+}
+export function evaluate29099() {
+    return uuidText(uuidInput("a0eebc999c0b4ef8bb6d6bb9bd380a11"));
+}
+export function evaluate29100() {
+    return sqlIsNull(uuidInput(null));
+}
+export function evaluate29101() {
+    return sqlCase(() => uuidInput("00000000-0000-0000-0000-000000000000"), [() => booleanInput(true), () => uuidInput("00000000-0000-0000-0000-000000000001")]);
+}
+export function evaluate29102() {
+    return sqlCoalesce(() => uuidInput(null), () => uuidInput("00000000-0000-0000-0000-000000000001"));
 }
