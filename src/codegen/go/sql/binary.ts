@@ -74,4 +74,12 @@ export const goBinaryFunctions = {
   'function:["pg_catalog","substring"](pg_catalog.bytea,pg_catalog.int4)': call('byteaSubstr'),
   'function:["pg_catalog","substring"](pg_catalog.bytea,pg_catalog.int4,pg_catalog.int4)':
     call('byteaSubstrLength'),
+  'function:["pg_catalog","bytea"](pg_catalog.int2)': call('byteaFromInt2'),
+  'function:["pg_catalog","bytea"](pg_catalog.int4)': call('byteaFromInt4'),
+  'function:["pg_catalog","bytea"](pg_catalog.int8)': call('byteaFromInt8'),
+  'function:["pg_catalog","int2"](pg_catalog.bytea)': call('byteaToInt2'),
+  'function:["pg_catalog","int4"](pg_catalog.bytea)': call('byteaToInt4'),
+  'function:["pg_catalog","int8"](pg_catalog.bytea)': call('byteaToInt8'),
+  'function:["pg_catalog","encode"](pg_catalog.bytea,pg_catalog.text)': call('byteaEncode'),
+  'function:["pg_catalog","decode"](pg_catalog.text,pg_catalog.text)': call('byteaDecodeFormat'),
 } satisfies FunctionBindings<typeof PG18_BINARY, GoExpression>

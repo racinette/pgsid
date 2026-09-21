@@ -1516,3 +1516,315 @@ func byteaSetBit(value SqlText, index, next SqlInteger) SqlText {
 	}
 	return SqlText{Value: byteaHex(out), Valid: true}
 }
+
+func byteaFromSigned(value int64, width int) []byte {
+	out := make([]byte, width)
+	for index := width - 1; index >= 0; index-- {
+		out[index] = byte(value)
+		value >>= 8
+	}
+	return out
+}
+
+func byteaFromInt(value SqlInteger, width int) SqlText {
+	if value.Error != "" {
+		return SqlText{Error: value.Error}
+	}
+	if !value.Valid {
+		return SqlText{}
+	}
+	return SqlText{Value: byteaHex(byteaFromSigned(value.Value, width)), Valid: true}
+}
+
+func byteaFromInt2(value SqlInteger) SqlText { return byteaFromInt(value, 2) }
+func byteaFromInt4(value SqlInteger) SqlText { return byteaFromInt(value, 4) }
+func byteaFromInt8(value SqlInteger) SqlText { return byteaFromInt(value, 8) }
+
+func byteaToSigned(decoded []byte, width int) (int64, string) {
+	if len(decoded) > width {
+		return 0, "22003"
+	}
+	var result uint64
+	for _, item := range decoded {
+		result = result<<8 | uint64(item)
+	}
+	switch width {
+	case 2:
+		return int64(int16(result)), ""
+	case 4:
+		return int64(int32(result)), ""
+	default:
+		return int64(result), ""
+	}
+}
+
+func byteaToInt(value SqlText, width int) SqlInteger {
+	if value.Error != "" {
+		return SqlInteger{Error: value.Error}
+	}
+	if !value.Valid {
+		return SqlInteger{}
+	}
+	decoded, err := byteaDecode(value.Value)
+	if err != "" {
+		return SqlInteger{Error: err}
+	}
+	signed, err := byteaToSigned(decoded, width)
+	if err != "" {
+		return SqlInteger{Error: err}
+	}
+	return SqlInteger{Value: signed, Valid: true}
+}
+
+func byteaToInt2(value SqlText) SqlInteger { return byteaToInt(value, 2) }
+func byteaToInt4(value SqlText) SqlInteger { return byteaToInt(value, 4) }
+func byteaToInt8(value SqlText) SqlInteger { return byteaToInt(value, 8) }
+
+func byteaEncodingName(format string) string {
+	out := []byte(format)
+	for index, item := range out {
+		if item >= 'A' && item <= 'Z' {
+			out[index] = item + 32
+		}
+	}
+	return string(out)
+}
+
+func byteaHexText(decoded []byte) string {
+	const digits = "0123456789abcdef"
+	out := make([]byte, len(decoded)*2)
+	for index, item := range decoded {
+		out[index*2] = digits[item>>4]
+		out[index*2+1] = digits[item&0x0f]
+	}
+	return string(out)
+}
+
+func byteaHexValue(item byte) int {
+	switch {
+	case item >= '0' && item <= '9':
+		return int(item - '0')
+	case item >= 'A' && item <= 'F':
+		return int(item - 'A' + 10)
+	case item >= 'a' && item <= 'f':
+		return int(item - 'a' + 10)
+	default:
+		return -1
+	}
+}
+
+func byteaHexDecodeText(decoded []byte) ([]byte, string) {
+	out := make([]byte, 0, len(decoded)/2)
+	index := 0
+	for index < len(decoded) {
+		for index < len(decoded) && (decoded[index] == ' ' || decoded[index] == '\n' || decoded[index] == '\t' || decoded[index] == '\r') {
+			index++
+		}
+		if index >= len(decoded) {
+			break
+		}
+		high := byteaHexValue(decoded[index])
+		if high < 0 {
+			return nil, "22023"
+		}
+		index++
+		if index >= len(decoded) {
+			return nil, "22023"
+		}
+		low := byteaHexValue(decoded[index])
+		if low < 0 {
+			return nil, "22023"
+		}
+		index++
+		out = append(out, byte((high<<4)|low))
+	}
+	return out, ""
+}
+
+func byteaBase64Encode(decoded []byte) string {
+	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+	out := make([]byte, 0, (len(decoded)+2)/3*4+len(decoded)/57)
+	line := 0
+	pos := 2
+	var buf uint32
+	for _, item := range decoded {
+		buf |= uint32(item) << (pos << 3)
+		pos--
+		if pos < 0 {
+			out = append(out, alphabet[(buf>>18)&63], alphabet[(buf>>12)&63], alphabet[(buf>>6)&63], alphabet[buf&63])
+			line += 4
+			pos = 2
+			buf = 0
+		}
+		if line == 76 {
+			out = append(out, '\n')
+			line = 0
+		}
+	}
+	if pos != 2 {
+		out = append(out, alphabet[(buf>>18)&63], alphabet[(buf>>12)&63])
+		if pos == 0 {
+			out = append(out, alphabet[(buf>>6)&63])
+		} else {
+			out = append(out, '=')
+		}
+		out = append(out, '=')
+	}
+	return string(out)
+}
+
+func byteaBase64Value(item byte) int {
+	switch {
+	case item >= 'A' && item <= 'Z':
+		return int(item - 'A')
+	case item >= 'a' && item <= 'z':
+		return int(item - 'a' + 26)
+	case item >= '0' && item <= '9':
+		return int(item - '0' + 52)
+	case item == '+':
+		return 62
+	case item == '/':
+		return 63
+	default:
+		return -1
+	}
+}
+
+func byteaBase64Decode(decoded []byte) ([]byte, string) {
+	out := make([]byte, 0, len(decoded)*3/4)
+	var buf uint32
+	pos := 0
+	end := 0
+	for _, item := range decoded {
+		if item == ' ' || item == '\t' || item == '\n' || item == '\r' {
+			continue
+		}
+		value := 0
+		if item == '=' {
+			if end == 0 {
+				if pos == 2 {
+					end = 1
+				} else if pos == 3 {
+					end = 2
+				} else {
+					return nil, "22023"
+				}
+			}
+		} else {
+			if item == 0 || item >= 127 {
+				return nil, "22023"
+			}
+			value = byteaBase64Value(item)
+			if value < 0 {
+				return nil, "22023"
+			}
+		}
+		buf = (buf << 6) + uint32(value)
+		pos++
+		if pos == 4 {
+			out = append(out, byte((buf>>16)&255))
+			if end == 0 || end > 1 {
+				out = append(out, byte((buf>>8)&255))
+			}
+			if end == 0 || end > 2 {
+				out = append(out, byte(buf&255))
+			}
+			buf = 0
+			pos = 0
+		}
+	}
+	if pos != 0 {
+		return nil, "22023"
+	}
+	return out, ""
+}
+
+func byteaEscapeEncode(decoded []byte) string {
+	out := make([]byte, 0, len(decoded))
+	for _, item := range decoded {
+		if item == 0 || item >= 128 {
+			out = append(out, '\\', '0'+(item>>6), '0'+((item>>3)&7), '0'+(item&7))
+		} else if item == '\\' {
+			out = append(out, '\\', '\\')
+		} else {
+			out = append(out, item)
+		}
+	}
+	return string(out)
+}
+
+func byteaEscapeDecode(decoded []byte) ([]byte, string) {
+	out := make([]byte, 0, len(decoded))
+	for index := 0; index < len(decoded); index++ {
+		if decoded[index] != '\\' {
+			out = append(out, decoded[index])
+		} else if index+3 < len(decoded) &&
+			decoded[index+1] >= '0' && decoded[index+1] <= '3' &&
+			decoded[index+2] >= '0' && decoded[index+2] <= '7' &&
+			decoded[index+3] >= '0' && decoded[index+3] <= '7' {
+			out = append(out, ((decoded[index+1]-'0')<<6)|((decoded[index+2]-'0')<<3)|(decoded[index+3]-'0'))
+			index += 3
+		} else if index+1 < len(decoded) && decoded[index+1] == '\\' {
+			out = append(out, '\\')
+			index++
+		} else {
+			return nil, "22P02"
+		}
+	}
+	return out, ""
+}
+
+func byteaEncode(value, format SqlText) SqlText {
+	if value.Error != "" {
+		return SqlText{Error: value.Error}
+	}
+	if format.Error != "" {
+		return SqlText{Error: format.Error}
+	}
+	if !value.Valid || !format.Valid {
+		return SqlText{}
+	}
+	decoded, err := byteaDecode(value.Value)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	switch byteaEncodingName(format.Value) {
+	case "hex":
+		return SqlText{Value: byteaHexText(decoded), Valid: true}
+	case "base64":
+		return SqlText{Value: byteaBase64Encode(decoded), Valid: true}
+	case "escape":
+		return SqlText{Value: byteaEscapeEncode(decoded), Valid: true}
+	default:
+		return SqlText{Error: "22023"}
+	}
+}
+
+func byteaDecodeFormat(value, format SqlText) SqlText {
+	if value.Error != "" {
+		return SqlText{Error: value.Error}
+	}
+	if format.Error != "" {
+		return SqlText{Error: format.Error}
+	}
+	if !value.Valid || !format.Valid {
+		return SqlText{}
+	}
+	input := []byte(value.Value)
+	var decoded []byte
+	var err string
+	switch byteaEncodingName(format.Value) {
+	case "hex":
+		decoded, err = byteaHexDecodeText(input)
+	case "base64":
+		decoded, err = byteaBase64Decode(input)
+	case "escape":
+		decoded, err = byteaEscapeDecode(input)
+	default:
+		err = "22023"
+	}
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	return SqlText{Value: byteaHex(decoded), Valid: true}
+}

@@ -1076,4 +1076,288 @@ export const typescriptTextHelpers: Record<
   return byteaHex(out)
 }`,
   },
+  byteaFromSigned: {
+    dependencies: ['byteaHex'],
+    source: `function byteaFromSigned(value: bigint | null, width: number): string | null {
+  if (value === null) return null
+  const out: number[] = []
+  let current = value
+  for (let index = 0; index < width; index++) {
+    out.push(Number(current & 255n))
+    current >>= 8n
+  }
+  out.reverse()
+  return byteaHex(out)
+}`,
+  },
+  byteaFromInt2: {
+    dependencies: ['byteaFromSigned'],
+    source: `function byteaFromInt2(value: bigint | null): string | null {
+  return byteaFromSigned(value, 2)
+}`,
+  },
+  byteaFromInt4: {
+    dependencies: ['byteaFromSigned'],
+    source: `function byteaFromInt4(value: bigint | null): string | null {
+  return byteaFromSigned(value, 4)
+}`,
+  },
+  byteaFromInt8: {
+    dependencies: ['byteaFromSigned'],
+    source: `function byteaFromInt8(value: bigint | null): string | null {
+  return byteaFromSigned(value, 8)
+}`,
+  },
+  byteaToSigned: {
+    dependencies: ['byteaDecode', 'sqlTextError'],
+    source: `function byteaToSigned(value: string | null, width: number): bigint | null {
+  if (value === null) return null
+  const bytes = byteaDecode(value)
+  if (bytes.length > width) sqlTextError('22003')
+  let result = 0n
+  for (const byte of bytes) result = (result << 8n) | BigInt(byte)
+  const sign = 1n << BigInt(width * 8 - 1)
+  return result >= sign ? result - (sign << 1n) : result
+}`,
+  },
+  byteaToInt2: {
+    dependencies: ['byteaToSigned'],
+    source: `function byteaToInt2(value: string | null): bigint | null {
+  return byteaToSigned(value, 2)
+}`,
+  },
+  byteaToInt4: {
+    dependencies: ['byteaToSigned'],
+    source: `function byteaToInt4(value: string | null): bigint | null {
+  return byteaToSigned(value, 4)
+}`,
+  },
+  byteaToInt8: {
+    dependencies: ['byteaToSigned'],
+    source: `function byteaToInt8(value: string | null): bigint | null {
+  return byteaToSigned(value, 8)
+}`,
+  },
+  byteaEncodingName: {
+    dependencies: [],
+    source: `function byteaEncodingName(format: string): string {
+  let name = ''
+  for (const character of format) {
+    const code = character.charCodeAt(0)
+    name += code >= 65 && code <= 90 ? String.fromCharCode(code + 32) : character
+  }
+  return name
+}`,
+  },
+  byteaHexText: {
+    dependencies: [],
+    source: `function byteaHexText(bytes: Uint8Array): string {
+  let out = ''
+  for (const byte of bytes) out += byte.toString(16).padStart(2, '0')
+  return out
+}`,
+  },
+  byteaHexValue: {
+    dependencies: [],
+    source: `function byteaHexValue(byte: number): number {
+  if (byte >= 48 && byte <= 57) return byte - 48
+  if (byte >= 65 && byte <= 70) return byte - 55
+  if (byte >= 97 && byte <= 102) return byte - 87
+  return -1
+}`,
+  },
+  byteaHexDecodeText: {
+    dependencies: ['byteaHexValue', 'sqlTextError'],
+    source: `function byteaHexDecodeText(bytes: Uint8Array): number[] {
+  const out: number[] = []
+  let index = 0
+  while (index < bytes.length) {
+    while (
+      index < bytes.length &&
+      (bytes[index] === 32 || bytes[index] === 10 || bytes[index] === 9 || bytes[index] === 13)
+    )
+      index++
+    if (index >= bytes.length) break
+    const high = byteaHexValue(bytes[index]!)
+    if (high < 0) sqlTextError('22023')
+    index++
+    if (index >= bytes.length) sqlTextError('22023')
+    const low = byteaHexValue(bytes[index]!)
+    if (low < 0) sqlTextError('22023')
+    index++
+    out.push((high << 4) | low)
+  }
+  return out
+}`,
+  },
+  byteaBase64Encode: {
+    dependencies: [],
+    source: `function byteaBase64Encode(bytes: Uint8Array): string {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+  let out = ''
+  let line = 0
+  let pos = 2
+  let buf = 0
+  for (const byte of bytes) {
+    buf |= byte << (pos << 3)
+    pos--
+    if (pos < 0) {
+      out += alphabet[(buf >> 18) & 63]!
+      out += alphabet[(buf >> 12) & 63]!
+      out += alphabet[(buf >> 6) & 63]!
+      out += alphabet[buf & 63]!
+      line += 4
+      pos = 2
+      buf = 0
+    }
+    if (line === 76) {
+      out += '\\n'
+      line = 0
+    }
+  }
+  if (pos !== 2) {
+    out += alphabet[(buf >> 18) & 63]!
+    out += alphabet[(buf >> 12) & 63]!
+    out += pos === 0 ? alphabet[(buf >> 6) & 63]! : '='
+    out += '='
+  }
+  return out
+}`,
+  },
+  byteaBase64Value: {
+    dependencies: [],
+    source: `function byteaBase64Value(byte: number): number {
+  if (byte >= 65 && byte <= 90) return byte - 65
+  if (byte >= 97 && byte <= 122) return byte - 71
+  if (byte >= 48 && byte <= 57) return byte + 4
+  if (byte === 43) return 62
+  if (byte === 47) return 63
+  return -1
+}`,
+  },
+  byteaBase64Decode: {
+    dependencies: ['byteaBase64Value', 'sqlTextError'],
+    source: `function byteaBase64Decode(bytes: Uint8Array): number[] {
+  const out: number[] = []
+  let buf = 0
+  let pos = 0
+  let end = 0
+  for (const byte of bytes) {
+    if (byte === 32 || byte === 9 || byte === 10 || byte === 13) continue
+    let value = 0
+    if (byte === 61) {
+      if (end === 0) {
+        if (pos === 2) end = 1
+        else if (pos === 3) end = 2
+        else sqlTextError('22023')
+      }
+    } else {
+      value = byte > 0 && byte < 127 ? byteaBase64Value(byte) : -1
+      if (value < 0) sqlTextError('22023')
+    }
+    buf = (buf << 6) + value
+    pos++
+    if (pos === 4) {
+      out.push((buf >> 16) & 255)
+      if (end === 0 || end > 1) out.push((buf >> 8) & 255)
+      if (end === 0 || end > 2) out.push(buf & 255)
+      buf = 0
+      pos = 0
+    }
+  }
+  if (pos !== 0) sqlTextError('22023')
+  return out
+}`,
+  },
+  byteaEscapeEncode: {
+    dependencies: [],
+    source: `function byteaEscapeEncode(bytes: Uint8Array): string {
+  let out = ''
+  for (const byte of bytes) {
+    if (byte === 0 || byte >= 128)
+      out += '\\\\' + (byte >> 6).toString() + ((byte >> 3) & 7).toString() + (byte & 7).toString()
+    else if (byte === 92) out += '\\\\\\\\'
+    else out += String.fromCharCode(byte)
+  }
+  return out
+}`,
+  },
+  byteaEscapeDecode: {
+    dependencies: ['sqlTextError'],
+    source: `function byteaEscapeDecode(bytes: Uint8Array): number[] {
+  const out: number[] = []
+  for (let index = 0; index < bytes.length; index++) {
+    if (bytes[index] !== 92) out.push(bytes[index]!)
+    else if (
+      index + 3 < bytes.length &&
+      bytes[index + 1]! >= 48 &&
+      bytes[index + 1]! <= 51 &&
+      bytes[index + 2]! >= 48 &&
+      bytes[index + 2]! <= 55 &&
+      bytes[index + 3]! >= 48 &&
+      bytes[index + 3]! <= 55
+    ) {
+      out.push(
+        ((bytes[index + 1]! - 48) << 6) |
+          ((bytes[index + 2]! - 48) << 3) |
+          (bytes[index + 3]! - 48),
+      )
+      index += 3
+    } else if (index + 1 < bytes.length && bytes[index + 1] === 92) {
+      out.push(92)
+      index += 1
+    } else sqlTextError('22P02')
+  }
+  return out
+}`,
+  },
+  byteaEncode: {
+    dependencies: [
+      'byteaDecode',
+      'byteaEncodingName',
+      'byteaHexText',
+      'byteaBase64Encode',
+      'byteaEscapeEncode',
+      'sqlTextError',
+    ],
+    source: `function byteaEncode(value: string | null, format: string | null): string | null {
+  if (value === null || format === null) return null
+  const bytes = byteaDecode(value)
+  switch (byteaEncodingName(format)) {
+    case 'hex':
+      return byteaHexText(bytes)
+    case 'base64':
+      return byteaBase64Encode(bytes)
+    case 'escape':
+      return byteaEscapeEncode(bytes)
+    default:
+      sqlTextError('22023')
+  }
+}`,
+  },
+  byteaDecodeFormat: {
+    dependencies: [
+      'textUtf8Encode',
+      'byteaEncodingName',
+      'byteaHexDecodeText',
+      'byteaBase64Decode',
+      'byteaEscapeDecode',
+      'byteaHex',
+      'sqlTextError',
+    ],
+    source: `function byteaDecodeFormat(value: string | null, format: string | null): string | null {
+  if (value === null || format === null) return null
+  const bytes = textUtf8Encode(value)
+  switch (byteaEncodingName(format)) {
+    case 'hex':
+      return byteaHex(byteaHexDecodeText(bytes))
+    case 'base64':
+      return byteaHex(byteaBase64Decode(bytes))
+    case 'escape':
+      return byteaHex(byteaEscapeDecode(bytes))
+    default:
+      sqlTextError('22023')
+  }
+}`,
+  },
 }
