@@ -10,6 +10,7 @@ import { numericMathCopyright } from '../../src/sql-semantics/numeric-math-licen
 import { scalarCases } from '../fixtures/sql-semantics/operations/scalar.js'
 import { PG18_BOOLEAN } from '../../src/postgres/builtins/boolean.generated.js'
 import {
+  byteaAccessSignatures,
   byteaLengthSignatures,
   byteaSliceSignatures,
   byteaLikeSignatures,
@@ -524,6 +525,10 @@ describe('generated PostgreSQL scalar evaluation', () => {
       'bytea overlay 2',
       'bytea trim btrim 0',
       'bytea reverse 3',
+      'bytea get byte 0',
+      'bytea get bit 4',
+      'bytea set byte 2',
+      'bytea set bit 1',
       'date input 1',
       'date operator < 0',
       'date function eq',
@@ -821,6 +826,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
       ...nameLikeSignatures,
       ...byteaLikeSignatures,
       ...byteaLengthSignatures,
+      ...byteaAccessSignatures,
       ...byteaSliceSignatures,
       ...byteaOrderSignatures,
       ...Object.keys(PG18_UUID).filter(
@@ -836,7 +842,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
     expect(supported.map((row) => row.signature).sort()).toEqual(
       [...expected, ...additional].sort(),
     )
-    expect(supported).toHaveLength(803)
+    expect(supported).toHaveLength(807)
     expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
     expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
   })

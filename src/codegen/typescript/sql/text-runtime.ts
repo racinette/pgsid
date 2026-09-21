@@ -1018,4 +1018,62 @@ export const typescriptTextHelpers: Record<
   return byteaHex(out)
 }`,
   },
+  byteaGetByte: {
+    dependencies: ['byteaDecode', 'sqlTextError'],
+    source: `function byteaGetByte(value: string | null, index: bigint | null): bigint | null {
+  if (value === null || index === null) return null
+  const bytes = byteaDecode(value)
+  const position = Number(index)
+  if (position < 0 || position >= bytes.length) sqlTextError('2202E')
+  return BigInt(bytes[position]!)
+}`,
+  },
+  byteaGetBit: {
+    dependencies: ['byteaDecode', 'sqlTextError'],
+    source: `function byteaGetBit(value: string | null, index: bigint | null): bigint | null {
+  if (value === null || index === null) return null
+  const bytes = byteaDecode(value)
+  if (index < 0n || index >= BigInt(bytes.length) * 8n) sqlTextError('2202E')
+  const position = Number(index / 8n)
+  const bit = Number(index % 8n)
+  return (bytes[position]! & (1 << bit)) === 0 ? 0n : 1n
+}`,
+  },
+  byteaSetByte: {
+    dependencies: ['byteaDecode', 'byteaHex', 'sqlTextError'],
+    source: `function byteaSetByte(
+  value: string | null,
+  index: bigint | null,
+  next: bigint | null,
+): string | null {
+  if (value === null || index === null || next === null) return null
+  const bytes = byteaDecode(value)
+  const position = Number(index)
+  if (position < 0 || position >= bytes.length) sqlTextError('2202E')
+  const out: number[] = []
+  for (const byte of bytes) out.push(byte)
+  out[position] = Number(next) & 255
+  return byteaHex(out)
+}`,
+  },
+  byteaSetBit: {
+    dependencies: ['byteaDecode', 'byteaHex', 'sqlTextError'],
+    source: `function byteaSetBit(
+  value: string | null,
+  index: bigint | null,
+  next: bigint | null,
+): string | null {
+  if (value === null || index === null || next === null) return null
+  const bytes = byteaDecode(value)
+  if (index < 0n || index >= BigInt(bytes.length) * 8n) sqlTextError('2202E')
+  if (next !== 0n && next !== 1n) sqlTextError('22023')
+  const position = Number(index / 8n)
+  const bit = Number(index % 8n)
+  const out: number[] = []
+  for (const byte of bytes) out.push(byte)
+  const mask = 1 << bit
+  out[position] = next === 0n ? out[position]! & ~mask & 255 : out[position]! | mask
+  return byteaHex(out)
+}`,
+  },
 }

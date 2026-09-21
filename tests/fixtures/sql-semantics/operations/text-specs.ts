@@ -1,6 +1,7 @@
 import type { SqlExpression, TextType } from '../../../../src/sql-semantics/expressions.js'
 import { functionMetadata, operatorMetadata } from '../../../../src/postgres/builtins/inventory.js'
 import {
+  byteaAccessSignatures,
   byteaLengthSignatures,
   byteaSliceSignatures,
   byteaLikeSignatures,
@@ -18,6 +19,14 @@ const specs: ExpressionSpec[] = []
 const text = (value: string | null): Operand => ({
   sql: value === null ? 'NULL::text' : `'${value.replaceAll("'", "''")}'::text`,
   expression: { kind: 'text', type: 'pg_catalog.text', value },
+})
+const int8 = (value: number | null): Operand => ({
+  sql: `${value === null ? 'NULL' : `'${value}'`}::int8`,
+  expression: {
+    kind: 'integer',
+    type: 'pg_catalog.int8',
+    value: value === null ? null : String(value),
+  },
 })
 const integer = (value: number | null): Operand => ({
   sql: `${value === null ? 'NULL' : `'${value}'`}::int4`,
@@ -562,5 +571,89 @@ for (const [index, value] of [null, '', '01', '0102', 'ff00', '0001ff'].entries(
   add(
     `bytea reverse ${index}`,
     byteaCall('function:["pg_catalog","reverse"](pg_catalog.bytea)', [bytea(value)]),
+  )
+const byteaGetByteCases: readonly (readonly [string | null, number | null])[] = [
+  ['ff80', 0],
+  ['ff80', 1],
+  ['ff80', -1],
+  ['ff80', 2],
+  ['ff80', null],
+  [null, 0],
+  ['', 0],
+  ['00ff', 1],
+]
+for (const [index, [value, position]] of byteaGetByteCases.entries())
+  add(
+    `bytea get byte ${index}`,
+    byteaCall('function:["pg_catalog","get_byte"](pg_catalog.bytea,pg_catalog.int4)', [
+      bytea(value),
+      integer(position),
+    ]),
+  )
+const byteaGetBitCases: readonly (readonly [string | null, number | null])[] = [
+  ['01', 0],
+  ['01', 1],
+  ['01', 7],
+  ['01', 8],
+  ['80', 7],
+  ['80', 0],
+  ['0001', 8],
+  ['0001', 0],
+  ['01', -1],
+  ['', 0],
+  [null, 0],
+  ['01', null],
+]
+for (const [index, [value, position]] of byteaGetBitCases.entries())
+  add(
+    `bytea get bit ${index}`,
+    byteaCall('function:["pg_catalog","get_bit"](pg_catalog.bytea,pg_catalog.int8)', [
+      bytea(value),
+      int8(position),
+    ]),
+  )
+const byteaSetByteCases: readonly (readonly [string | null, number | null, number | null])[] = [
+  ['0000', 1, 255],
+  ['0000', 0, 256],
+  ['0000', 0, -1],
+  ['ffff', 1, 0],
+  ['00', -1, 1],
+  ['00', 1, 1],
+  ['', 0, 1],
+  [null, 0, 1],
+  ['00', null, 1],
+  ['00', 0, null],
+  ['abcd', 0, 2147483647],
+]
+for (const [index, [value, position, next]] of byteaSetByteCases.entries())
+  add(
+    `bytea set byte ${index}`,
+    byteaCall(
+      'function:["pg_catalog","set_byte"](pg_catalog.bytea,pg_catalog.int4,pg_catalog.int4)',
+      [bytea(value), integer(position), integer(next)],
+    ),
+  )
+const byteaSetBitCases: readonly (readonly [string | null, number | null, number | null])[] = [
+  ['00', 0, 1],
+  ['00', 7, 1],
+  ['ff', 0, 0],
+  ['00', 8, 1],
+  ['0000', 8, 1],
+  ['00', 0, 2],
+  ['00', -1, 2],
+  ['00', 0, -1],
+  ['ff', 7, 0],
+  [null, 0, 1],
+  ['00', null, 1],
+  ['00', 0, null],
+  ['', 0, 1],
+]
+for (const [index, [value, position, next]] of byteaSetBitCases.entries())
+  add(
+    `bytea set bit ${index}`,
+    byteaCall(
+      'function:["pg_catalog","set_bit"](pg_catalog.bytea,pg_catalog.int8,pg_catalog.int4)',
+      [bytea(value), int8(position), integer(next)],
+    ),
   )
 export const textSpecs: readonly ExpressionSpec[] = specs

@@ -82,4 +82,8 @@ export const goTextDependencies: Record<string, readonly string[]> = {
   byteaTrimLeft: ['SqlText', 'byteaTrim'],
   byteaTrimRight: ['SqlText', 'byteaTrim'],
   byteaReverse: ['SqlText', 'byteaDecode', 'byteaHex'],
+  byteaGetByte: ['SqlInteger', 'SqlText', 'byteaDecode'],
+  byteaGetBit: ['SqlInteger', 'SqlText', 'byteaDecode'],
+  byteaSetByte: ['SqlText', 'SqlInteger', 'byteaDecode', 'byteaHex'],
+  byteaSetBit: ['SqlText', 'SqlInteger', 'byteaDecode', 'byteaHex'],
 }
