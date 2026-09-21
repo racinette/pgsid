@@ -47,6 +47,10 @@ export const goBinaryFunctions = {
   'function:["pg_catalog","bytealt"](pg_catalog.bytea,pg_catalog.bytea)': call('byteaLt'),
   'function:["pg_catalog","byteane"](pg_catalog.bytea,pg_catalog.bytea)': call('byteaNe'),
   'function:["pg_catalog","byteanlike"](pg_catalog.bytea,pg_catalog.bytea)': call('byteaNotLike'),
+  'function:["pg_catalog","bit_count"](pg_catalog.bytea)': call('byteaBitCount'),
+  'function:["pg_catalog","bit_length"](pg_catalog.bytea)': call('byteaBitLength'),
+  'function:["pg_catalog","length"](pg_catalog.bytea)': call('byteaOctetLength'),
   'function:["pg_catalog","like_escape"](pg_catalog.bytea,pg_catalog.bytea)':
     call('byteaLikeEscape'),
+  'function:["pg_catalog","octet_length"](pg_catalog.bytea)': call('byteaOctetLength'),
 } satisfies FunctionBindings<typeof PG18_BINARY, GoExpression>

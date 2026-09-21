@@ -1147,3 +1147,54 @@ func byteaSmaller(left, right SqlText) SqlText {
 	}
 	return right
 }
+
+func byteaOctetLength(value SqlText) SqlInteger {
+	if value.Error != "" {
+		return SqlInteger{Error: value.Error}
+	}
+	if !value.Valid {
+		return SqlInteger{}
+	}
+	bytes, err := byteaDecode(value.Value)
+	if err != "" {
+		return SqlInteger{Error: err}
+	}
+	return SqlInteger{Value: int64(len(bytes)), Valid: true}
+}
+
+func byteaBitLength(value SqlText) SqlInteger {
+	length := byteaOctetLength(value)
+	if length.Error != "" {
+		return length
+	}
+	if !length.Valid {
+		return SqlInteger{}
+	}
+	bits := length.Value * 8
+	if bits > 2147483647 {
+		return SqlInteger{Error: "22003"}
+	}
+	return SqlInteger{Value: bits, Valid: true}
+}
+
+func byteaBitCount(value SqlText) SqlInteger {
+	if value.Error != "" {
+		return SqlInteger{Error: value.Error}
+	}
+	if !value.Valid {
+		return SqlInteger{}
+	}
+	bytes, err := byteaDecode(value.Value)
+	if err != "" {
+		return SqlInteger{Error: err}
+	}
+	var count int64
+	for _, item := range bytes {
+		bits := item
+		for bits != 0 {
+			count += int64(bits & 1)
+			bits >>= 1
+		}
+	}
+	return SqlInteger{Value: count, Valid: true}
+}

@@ -1,6 +1,7 @@
 import type { SqlExpression, TextType } from '../../../../src/sql-semantics/expressions.js'
 import { functionMetadata, operatorMetadata } from '../../../../src/postgres/builtins/inventory.js'
 import {
+  byteaLengthSignatures,
   byteaLikeSignatures,
   byteaOrderSignatures,
   nameLikeSignatures,
@@ -445,4 +446,19 @@ const byteaOrderPairs: readonly (readonly [string | null, string | null])[] = [
 for (const signature of byteaOrderSignatures)
   for (const [index, [left, right]] of byteaOrderPairs.entries())
     add(`bytea order ${signature} ${index}`, byteaCall(signature, [bytea(left), bytea(right)]))
+const byteaLengths: readonly (string | null)[] = [
+  null,
+  '',
+  '00',
+  'ff',
+  '80',
+  '0f',
+  '01',
+  '4142',
+  'ffff',
+  '0001ff',
+]
+for (const signature of byteaLengthSignatures)
+  for (const [index, value] of byteaLengths.entries())
+    add(`bytea length ${signature} ${index}`, byteaCall(signature, [bytea(value)]))
 export const textSpecs: readonly ExpressionSpec[] = specs

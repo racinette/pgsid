@@ -77842,6 +77842,162 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
   'bytea order operator:["pg_catalog","||"](pg_catalog.bytea,pg_catalog.bytea) 13': {
     kind: 'null',
   },
+  'bytea length function:["pg_catalog","bit_count"](pg_catalog.bytea) 0': {
+    kind: 'null',
+  },
+  'bytea length function:["pg_catalog","bit_count"](pg_catalog.bytea) 1': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea length function:["pg_catalog","bit_count"](pg_catalog.bytea) 2': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea length function:["pg_catalog","bit_count"](pg_catalog.bytea) 3': {
+    kind: 'value',
+    value: '8',
+  },
+  'bytea length function:["pg_catalog","bit_count"](pg_catalog.bytea) 4': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea length function:["pg_catalog","bit_count"](pg_catalog.bytea) 5': {
+    kind: 'value',
+    value: '4',
+  },
+  'bytea length function:["pg_catalog","bit_count"](pg_catalog.bytea) 6': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea length function:["pg_catalog","bit_count"](pg_catalog.bytea) 7': {
+    kind: 'value',
+    value: '4',
+  },
+  'bytea length function:["pg_catalog","bit_count"](pg_catalog.bytea) 8': {
+    kind: 'value',
+    value: '16',
+  },
+  'bytea length function:["pg_catalog","bit_count"](pg_catalog.bytea) 9': {
+    kind: 'value',
+    value: '9',
+  },
+  'bytea length function:["pg_catalog","bit_length"](pg_catalog.bytea) 0': {
+    kind: 'null',
+  },
+  'bytea length function:["pg_catalog","bit_length"](pg_catalog.bytea) 1': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea length function:["pg_catalog","bit_length"](pg_catalog.bytea) 2': {
+    kind: 'value',
+    value: '8',
+  },
+  'bytea length function:["pg_catalog","bit_length"](pg_catalog.bytea) 3': {
+    kind: 'value',
+    value: '8',
+  },
+  'bytea length function:["pg_catalog","bit_length"](pg_catalog.bytea) 4': {
+    kind: 'value',
+    value: '8',
+  },
+  'bytea length function:["pg_catalog","bit_length"](pg_catalog.bytea) 5': {
+    kind: 'value',
+    value: '8',
+  },
+  'bytea length function:["pg_catalog","bit_length"](pg_catalog.bytea) 6': {
+    kind: 'value',
+    value: '8',
+  },
+  'bytea length function:["pg_catalog","bit_length"](pg_catalog.bytea) 7': {
+    kind: 'value',
+    value: '16',
+  },
+  'bytea length function:["pg_catalog","bit_length"](pg_catalog.bytea) 8': {
+    kind: 'value',
+    value: '16',
+  },
+  'bytea length function:["pg_catalog","bit_length"](pg_catalog.bytea) 9': {
+    kind: 'value',
+    value: '24',
+  },
+  'bytea length function:["pg_catalog","length"](pg_catalog.bytea) 0': {
+    kind: 'null',
+  },
+  'bytea length function:["pg_catalog","length"](pg_catalog.bytea) 1': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea length function:["pg_catalog","length"](pg_catalog.bytea) 2': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea length function:["pg_catalog","length"](pg_catalog.bytea) 3': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea length function:["pg_catalog","length"](pg_catalog.bytea) 4': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea length function:["pg_catalog","length"](pg_catalog.bytea) 5': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea length function:["pg_catalog","length"](pg_catalog.bytea) 6': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea length function:["pg_catalog","length"](pg_catalog.bytea) 7': {
+    kind: 'value',
+    value: '2',
+  },
+  'bytea length function:["pg_catalog","length"](pg_catalog.bytea) 8': {
+    kind: 'value',
+    value: '2',
+  },
+  'bytea length function:["pg_catalog","length"](pg_catalog.bytea) 9': {
+    kind: 'value',
+    value: '3',
+  },
+  'bytea length function:["pg_catalog","octet_length"](pg_catalog.bytea) 0': {
+    kind: 'null',
+  },
+  'bytea length function:["pg_catalog","octet_length"](pg_catalog.bytea) 1': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea length function:["pg_catalog","octet_length"](pg_catalog.bytea) 2': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea length function:["pg_catalog","octet_length"](pg_catalog.bytea) 3': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea length function:["pg_catalog","octet_length"](pg_catalog.bytea) 4': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea length function:["pg_catalog","octet_length"](pg_catalog.bytea) 5': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea length function:["pg_catalog","octet_length"](pg_catalog.bytea) 6': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea length function:["pg_catalog","octet_length"](pg_catalog.bytea) 7': {
+    kind: 'value',
+    value: '2',
+  },
+  'bytea length function:["pg_catalog","octet_length"](pg_catalog.bytea) 8': {
+    kind: 'value',
+    value: '2',
+  },
+  'bytea length function:["pg_catalog","octet_length"](pg_catalog.bytea) 9': {
+    kind: 'value',
+    value: '3',
+  },
   'uuid input 0': {
     kind: 'null',
   },

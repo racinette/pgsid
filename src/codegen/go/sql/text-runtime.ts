@@ -68,4 +68,7 @@ export const goTextDependencies: Record<string, readonly string[]> = {
   byteaCat: ['SqlText', 'byteaDecode', 'byteaHex'],
   byteaLarger: ['SqlText', 'byteaCompare'],
   byteaSmaller: ['SqlText', 'byteaCompare'],
+  byteaOctetLength: ['SqlInteger', 'SqlText', 'byteaDecode'],
+  byteaBitLength: ['SqlInteger', 'byteaOctetLength'],
+  byteaBitCount: ['SqlInteger', 'SqlText', 'byteaDecode'],
 }
