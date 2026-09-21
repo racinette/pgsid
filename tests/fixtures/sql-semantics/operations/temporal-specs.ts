@@ -132,6 +132,10 @@ for (const [index, value] of [
   '1 week',
   'infinity',
   '-infinity',
+  '-05:00:00',
+  '+03:00:00',
+  '-05:30',
+  '1 day -02:00:00',
 ].entries())
   add(`interval input ${index}`, interval(value))
 add('interval invalid', interval('not-an-interval'))
@@ -940,5 +944,37 @@ callable('interval larger', 'interval_larger', [year, days360])
 callable('interval smaller', 'interval_smaller', [year, days360])
 callable('interval larger equal span', 'interval_larger', [interval('1 day'), interval('24 hours')])
 callable('interval larger inf', 'interval_larger', [intervalInf, year])
+
+const offsetEast = interval('03:00:00')
+const offsetWest = interval('-05:00:00')
+const offsetFraction = interval('03:00:00.75')
+const lateUtc = timetz('23:00:00+00')
+callable('timezone interval timestamp', 'timezone', [offsetEast, stamp])
+callable('timezone interval timestamp west', 'timezone', [offsetWest, stamp])
+callable('timezone interval timestamp fraction', 'timezone', [offsetFraction, stamp])
+callable('timezone interval timestamp hours', 'timezone', [hours25, morning])
+callable('timezone interval timestamp inf', 'timezone', [offsetEast, timestampInf])
+callable('timezone interval timestamp inf month', 'timezone', [month, timestampInf])
+callable('timezone interval timestamp month', 'timezone', [month, stamp])
+callable('timezone interval timestamp day', 'timezone', [interval('1 day'), stamp])
+callable('timezone interval timestamp inf zone', 'timezone', [intervalInf, stamp])
+callable('timezone interval timestamp null', 'timezone', [intervalNil, stamp])
+callable('timezone interval timestamp null stamp', 'timezone', [offsetEast, timestampNil])
+callable('timezone interval timestamptz', 'timezone', [offsetEast, instant])
+callable('timezone interval timestamptz west', 'timezone', [offsetWest, instant])
+callable('timezone interval timestamptz fraction', 'timezone', [offsetFraction, instant])
+callable('timezone interval timestamptz inf', 'timezone', [offsetEast, timestamptzInf])
+callable('timezone interval timestamptz inf month', 'timezone', [month, timestamptzInf])
+callable('timezone interval timestamptz month', 'timezone', [month, instant])
+callable('timezone interval timestamptz inf zone', 'timezone', [intervalInf, instant])
+callable('timezone interval timestamptz null', 'timezone', [intervalNil, instant])
+callable('timezone interval timetz', 'timezone', [offsetEast, utcNoon])
+callable('timezone interval timetz west', 'timezone', [offsetWest, utcNoon])
+callable('timezone interval timetz offset', 'timezone', [offsetEast, offsetNoon])
+callable('timezone interval timetz wrap', 'timezone', [offsetEast, lateUtc])
+callable('timezone interval timetz fraction', 'timezone', [offsetFraction, utcNoon])
+callable('timezone interval timetz month', 'timezone', [month, utcNoon])
+callable('timezone interval timetz inf zone', 'timezone', [intervalInf, utcNoon])
+callable('timezone interval timetz null', 'timezone', [intervalNil, utcNoon])
 
 export const temporalSpecs: readonly ExpressionSpec[] = specs

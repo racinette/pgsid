@@ -294,8 +294,10 @@ export const typescriptTemporalHelpers: Record<
     }
     while (index < tokens.length) {
       const token = tokens[index]!
-      if (/^\\d{1,2}:\\d{1,2}(?::\\d{1,2}(?:\\.\\d{1,6})?)?$/.test(token)) {
-        time += temporalParseTime(token, false).usec
+      const clock = /^([+-])?(\\d{1,2}:\\d{1,2}(?::\\d{1,2}(?:\\.\\d{1,6})?)?)$/.exec(token)
+      if (clock) {
+        const usec = temporalParseTime(clock[2]!, false).usec
+        time += clock[1] === '-' ? -usec : usec
         index++
         continue
       }
