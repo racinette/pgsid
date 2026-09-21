@@ -802,4 +802,143 @@ callable('date timestamp overflow', '<', [largeDate, timestampInf], true)
 callable('date timestamp compare overflow', 'date_cmp_timestamp', [largeDate, stamp])
 callable('date timestamp null', '=', [dateNil, stampMidnight], true)
 
+const overlapStart = timestamp('2020-01-02 10:00:00')
+const overlapMid = timestamp('2020-01-02 12:00:00')
+const overlapEnd = timestamp('2020-01-02 14:00:00')
+const overlapLate = timestamp('2020-01-02 16:00:00')
+callable('overlaps timestamp', 'overlaps', [overlapStart, overlapEnd, overlapMid, overlapLate])
+callable('overlaps timestamp adjacent', 'overlaps', [
+  overlapStart,
+  overlapMid,
+  overlapMid,
+  overlapEnd,
+])
+callable('overlaps timestamp reversed', 'overlaps', [
+  overlapEnd,
+  overlapStart,
+  overlapLate,
+  overlapMid,
+])
+callable('overlaps timestamp equal start', 'overlaps', [
+  overlapMid,
+  overlapMid,
+  overlapMid,
+  overlapEnd,
+])
+callable('overlaps timestamp null end true', 'overlaps', [
+  overlapMid,
+  timestampNil,
+  overlapStart,
+  overlapEnd,
+])
+callable('overlaps timestamp null both', 'overlaps', [
+  timestampNil,
+  timestampNil,
+  overlapStart,
+  overlapEnd,
+])
+callable('overlaps timestamp interval interval', 'overlaps', [
+  overlapStart,
+  hours2,
+  overlapMid,
+  hours2,
+])
+callable('overlaps timestamp interval timestamp', 'overlaps', [
+  overlapStart,
+  hours2,
+  overlapMid,
+  overlapLate,
+])
+callable('overlaps timestamp timestamp interval', 'overlaps', [
+  overlapStart,
+  overlapEnd,
+  overlapMid,
+  hours2,
+])
+callable('overlaps timestamp infinity', 'overlaps', [
+  timestampInf,
+  stampAfternoon,
+  stampMidnight,
+  timestampInf,
+])
+
+const overlapInstantStart = timestamptz('2020-01-02 10:00:00+00')
+const overlapInstantMid = timestamptz('2020-01-02 12:00:00+00')
+const overlapInstantEnd = timestamptz('2020-01-02 14:00:00+00')
+const overlapInstantLate = timestamptz('2020-01-02 16:00:00+00')
+callable('overlaps timestamptz', 'overlaps', [
+  overlapInstantStart,
+  overlapInstantEnd,
+  overlapInstantMid,
+  overlapInstantLate,
+])
+callable('overlaps timestamptz interval interval', 'overlaps', [
+  overlapInstantStart,
+  hours2,
+  overlapInstantMid,
+  hours2,
+])
+callable('overlaps timestamptz interval timestamptz', 'overlaps', [
+  overlapInstantStart,
+  hours2,
+  overlapInstantMid,
+  overlapInstantLate,
+])
+callable('overlaps timestamptz timestamptz interval', 'overlaps', [
+  overlapInstantStart,
+  overlapInstantEnd,
+  overlapInstantMid,
+  hours2,
+])
+
+callable('overlaps time', 'overlaps', [noon, evening, time('15:00:00'), lateEvening])
+callable('overlaps time wrap', 'overlaps', [
+  lateEvening,
+  hours2,
+  time('00:30:00'),
+  time('01:30:00'),
+])
+callable('overlaps time interval interval', 'overlaps', [noon, hours2, time('13:00:00'), hours2])
+callable('overlaps time interval time', 'overlaps', [noon, hours2, time('13:00:00'), evening])
+callable('overlaps time time interval', 'overlaps', [noon, evening, time('17:00:00'), hours2])
+callable('overlaps time null start', 'overlaps', [timeNil, evening, noon, lateEvening])
+
+callable('overlaps timetz', 'overlaps', [utcNoon, utcEvening, offsetNoon, timetz('18:00:00+00')])
+callable('overlaps timetz null', 'overlaps', [utcNoon, timetzNil, utcEvening, utcNoon])
+
+callable('age timestamp', 'age', [timestamp('2001-04-10'), timestamp('1957-06-13')])
+callable('age timestamp reverse', 'age', [timestamp('1957-06-13'), timestamp('2001-04-10')])
+callable('age timestamp month end', 'age', [timestamp('2020-03-31'), timestamp('2020-02-29')])
+callable('age timestamp leap', 'age', [timestamp('2021-03-01'), timestamp('2020-02-29')])
+callable('age timestamp microseconds', 'age', [
+  timestamp('2020-01-02 03:04:05.5'),
+  timestamp('2020-01-02 03:04:04.25'),
+])
+callable('age timestamp bc', 'age', [timestamp('0001-01-01'), timestamp('0001-01-01 BC')])
+callable('age timestamp inf', 'age', [timestampInf, morning])
+callable('age timestamp inf inf', 'age', [timestampInf, timestampInf])
+callable('age timestamp null', 'age', [timestampNil, morning])
+callable('age timestamptz', 'age', [
+  timestamptz('2001-04-10 00:00:00+00'),
+  timestamptz('1957-06-13 00:00:00+00'),
+])
+callable('age timestamptz inf', 'age', [timestamptzInf, instant])
+
+callable('date larger', 'date_larger', [early, late])
+callable('date smaller', 'date_smaller', [early, late])
+callable('date larger inf', 'date_larger', [dateInf, late])
+callable('date larger null', 'date_larger', [dateNil, late])
+callable('time larger', 'time_larger', [noon, evening])
+callable('time smaller', 'time_smaller', [noon, evening])
+callable('timestamp larger', 'timestamp_larger', [morning, later])
+callable('timestamp smaller', 'timestamp_smaller', [morning, later])
+callable('timestamptz larger', 'timestamptz_larger', [instant, laterInstant])
+callable('timestamptz smaller', 'timestamptz_smaller', [instant, laterInstant])
+callable('timetz larger', 'timetz_larger', [utcNoon, offsetNoon])
+callable('timetz smaller', 'timetz_smaller', [utcNoon, offsetNoon])
+callable('interval larger', 'interval_larger', [year, days360])
+callable('interval smaller', 'interval_smaller', [year, days360])
+callable('interval larger equal span', 'interval_larger', [interval('1 day'), interval('24 hours')])
+callable('interval larger inf', 'interval_larger', [intervalInf, year])
+
 export const temporalSpecs: readonly ExpressionSpec[] = specs

@@ -73563,4 +73563,196 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
   'date timestamp null': {
     kind: 'null',
   },
+  'overlaps timestamp': {
+    kind: 'value',
+    value: 'true',
+  },
+  'overlaps timestamp adjacent': {
+    kind: 'value',
+    value: 'false',
+  },
+  'overlaps timestamp reversed': {
+    kind: 'value',
+    value: 'true',
+  },
+  'overlaps timestamp equal start': {
+    kind: 'value',
+    value: 'true',
+  },
+  'overlaps timestamp null end true': {
+    kind: 'value',
+    value: 'true',
+  },
+  'overlaps timestamp null both': {
+    kind: 'null',
+  },
+  'overlaps timestamp interval interval': {
+    kind: 'value',
+    value: 'false',
+  },
+  'overlaps timestamp interval timestamp': {
+    kind: 'value',
+    value: 'false',
+  },
+  'overlaps timestamp timestamp interval': {
+    kind: 'value',
+    value: 'true',
+  },
+  'overlaps timestamp infinity': {
+    kind: 'value',
+    value: 'true',
+  },
+  'overlaps timestamptz': {
+    kind: 'value',
+    value: 'true',
+  },
+  'overlaps timestamptz interval interval': {
+    kind: 'value',
+    value: 'false',
+  },
+  'overlaps timestamptz interval timestamptz': {
+    kind: 'value',
+    value: 'false',
+  },
+  'overlaps timestamptz timestamptz interval': {
+    kind: 'value',
+    value: 'true',
+  },
+  'overlaps time': {
+    kind: 'value',
+    value: 'true',
+  },
+  'overlaps time wrap': {
+    kind: 'value',
+    value: 'true',
+  },
+  'overlaps time interval interval': {
+    kind: 'value',
+    value: 'true',
+  },
+  'overlaps time interval time': {
+    kind: 'value',
+    value: 'true',
+  },
+  'overlaps time time interval': {
+    kind: 'value',
+    value: 'true',
+  },
+  'overlaps time null start': {
+    kind: 'value',
+    value: 'true',
+  },
+  'overlaps timetz': {
+    kind: 'value',
+    value: 'true',
+  },
+  'overlaps timetz null': {
+    kind: 'null',
+  },
+  'age timestamp': {
+    kind: 'value',
+    value: '43 years 9 mons 27 days',
+  },
+  'age timestamp reverse': {
+    kind: 'value',
+    value: '-43 years -9 mons -27 days',
+  },
+  'age timestamp month end': {
+    kind: 'value',
+    value: '1 mon 2 days',
+  },
+  'age timestamp leap': {
+    kind: 'value',
+    value: '1 year 1 day',
+  },
+  'age timestamp microseconds': {
+    kind: 'value',
+    value: '00:00:01.25',
+  },
+  'age timestamp bc': {
+    kind: 'value',
+    value: '1 year',
+  },
+  'age timestamp inf': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'age timestamp inf inf': {
+    kind: 'error',
+    code: '22008',
+  },
+  'age timestamp null': {
+    kind: 'null',
+  },
+  'age timestamptz': {
+    kind: 'value',
+    value: '43 years 9 mons 27 days',
+  },
+  'age timestamptz inf': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'date larger': {
+    kind: 'value',
+    value: '2020-01-02',
+  },
+  'date smaller': {
+    kind: 'value',
+    value: '2020-01-01',
+  },
+  'date larger inf': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'date larger null': {
+    kind: 'null',
+  },
+  'time larger': {
+    kind: 'value',
+    value: '18:00:00',
+  },
+  'time smaller': {
+    kind: 'value',
+    value: '12:00:00',
+  },
+  'timestamp larger': {
+    kind: 'value',
+    value: '2020-01-03 00:00:00',
+  },
+  'timestamp smaller': {
+    kind: 'value',
+    value: '2020-01-02 03:04:05',
+  },
+  'timestamptz larger': {
+    kind: 'value',
+    value: '2020-01-01 13:00:00+00',
+  },
+  'timestamptz smaller': {
+    kind: 'value',
+    value: '2020-01-01 12:00:00+00',
+  },
+  'timetz larger': {
+    kind: 'value',
+    value: '12:00:00+00',
+  },
+  'timetz smaller': {
+    kind: 'value',
+    value: '13:00:00+01',
+  },
+  'interval larger': {
+    kind: 'value',
+    value: '360 days',
+  },
+  'interval smaller': {
+    kind: 'value',
+    value: '360 days',
+  },
+  'interval larger equal span': {
+    kind: 'value',
+    value: '24:00:00',
+  },
+  'interval larger inf': {
+    kind: 'value',
+    value: 'infinity',
+  },
 }

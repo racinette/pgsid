@@ -1,0 +1,92 @@
+export const temporalOverlapsFunctions: ReadonlyArray<readonly [string, string]> = [
+  [
+    'function:["pg_catalog","overlaps"](pg_catalog."time",pg_catalog."time",pg_catalog."time",pg_catalog."time")',
+    'overlapsTime',
+  ],
+  [
+    'function:["pg_catalog","overlaps"](pg_catalog."time",pg_catalog."interval",pg_catalog."time",pg_catalog."interval")',
+    'overlapsTimeIntervalInterval',
+  ],
+  [
+    'function:["pg_catalog","overlaps"](pg_catalog."time",pg_catalog."interval",pg_catalog."time",pg_catalog."time")',
+    'overlapsTimeIntervalTime',
+  ],
+  [
+    'function:["pg_catalog","overlaps"](pg_catalog."time",pg_catalog."time",pg_catalog."time",pg_catalog."interval")',
+    'overlapsTimeTimeInterval',
+  ],
+  [
+    'function:["pg_catalog","overlaps"](pg_catalog."timestamp",pg_catalog."timestamp",pg_catalog."timestamp",pg_catalog."timestamp")',
+    'overlapsTimestamp',
+  ],
+  [
+    'function:["pg_catalog","overlaps"](pg_catalog."timestamp",pg_catalog."interval",pg_catalog."timestamp",pg_catalog."interval")',
+    'overlapsTimestampIntervalInterval',
+  ],
+  [
+    'function:["pg_catalog","overlaps"](pg_catalog."timestamp",pg_catalog."interval",pg_catalog."timestamp",pg_catalog."timestamp")',
+    'overlapsTimestampIntervalTimestamp',
+  ],
+  [
+    'function:["pg_catalog","overlaps"](pg_catalog."timestamp",pg_catalog."timestamp",pg_catalog."timestamp",pg_catalog."interval")',
+    'overlapsTimestampTimestampInterval',
+  ],
+  [
+    'function:["pg_catalog","overlaps"](pg_catalog.timestamptz,pg_catalog.timestamptz,pg_catalog.timestamptz,pg_catalog.timestamptz)',
+    'overlapsTimestamptz',
+  ],
+  [
+    'function:["pg_catalog","overlaps"](pg_catalog.timestamptz,pg_catalog."interval",pg_catalog.timestamptz,pg_catalog."interval")',
+    'overlapsTimestamptzIntervalInterval',
+  ],
+  [
+    'function:["pg_catalog","overlaps"](pg_catalog.timestamptz,pg_catalog."interval",pg_catalog.timestamptz,pg_catalog.timestamptz)',
+    'overlapsTimestamptzIntervalTimestamptz',
+  ],
+  [
+    'function:["pg_catalog","overlaps"](pg_catalog.timestamptz,pg_catalog.timestamptz,pg_catalog.timestamptz,pg_catalog."interval")',
+    'overlapsTimestamptzTimestamptzInterval',
+  ],
+  [
+    'function:["pg_catalog","overlaps"](pg_catalog.timetz,pg_catalog.timetz,pg_catalog.timetz,pg_catalog.timetz)',
+    'overlapsTimetz',
+  ],
+  ['function:["pg_catalog","age"](pg_catalog."timestamp",pg_catalog."timestamp")', 'ageTimestamp'],
+  [
+    'function:["pg_catalog","age"](pg_catalog.timestamptz,pg_catalog.timestamptz)',
+    'ageTimestamptz',
+  ],
+  ['function:["pg_catalog","date_larger"](pg_catalog.date,pg_catalog.date)', 'dateLarger'],
+  ['function:["pg_catalog","date_smaller"](pg_catalog.date,pg_catalog.date)', 'dateSmaller'],
+  ['function:["pg_catalog","time_larger"](pg_catalog."time",pg_catalog."time")', 'timeLarger'],
+  ['function:["pg_catalog","time_smaller"](pg_catalog."time",pg_catalog."time")', 'timeSmaller'],
+  [
+    'function:["pg_catalog","timestamp_larger"](pg_catalog."timestamp",pg_catalog."timestamp")',
+    'timestampLarger',
+  ],
+  [
+    'function:["pg_catalog","timestamp_smaller"](pg_catalog."timestamp",pg_catalog."timestamp")',
+    'timestampSmaller',
+  ],
+  [
+    'function:["pg_catalog","timestamptz_larger"](pg_catalog.timestamptz,pg_catalog.timestamptz)',
+    'timestamptzLarger',
+  ],
+  [
+    'function:["pg_catalog","timestamptz_smaller"](pg_catalog.timestamptz,pg_catalog.timestamptz)',
+    'timestamptzSmaller',
+  ],
+  ['function:["pg_catalog","timetz_larger"](pg_catalog.timetz,pg_catalog.timetz)', 'timetzLarger'],
+  [
+    'function:["pg_catalog","timetz_smaller"](pg_catalog.timetz,pg_catalog.timetz)',
+    'timetzSmaller',
+  ],
+  [
+    'function:["pg_catalog","interval_larger"](pg_catalog."interval",pg_catalog."interval")',
+    'intervalLarger',
+  ],
+  [
+    'function:["pg_catalog","interval_smaller"](pg_catalog."interval",pg_catalog."interval")',
+    'intervalSmaller',
+  ],
+]

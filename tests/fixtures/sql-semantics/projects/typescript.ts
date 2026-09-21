@@ -6918,6 +6918,263 @@ function timestamptzTimestampGe(left: SqlTimestamptz | null, right: SqlTimestamp
     const comparison = timestamptzTimestampCompare(left, right);
     return comparison === null ? null : comparison >= 0n;
 }
+function temporalUsecCompare(left: {
+    usec: bigint;
+}, right: {
+    usec: bigint;
+}): number {
+    return left.usec === right.usec ? 0 : left.usec < right.usec ? -1 : 1;
+}
+function temporalTimetzOrder(left: SqlTimeTz, right: SqlTimeTz): number {
+    const leftGmt = left.usec + BigInt(left.zone) * 1000000n;
+    const rightGmt = right.usec + BigInt(right.zone) * 1000000n;
+    if (leftGmt !== rightGmt)
+        return leftGmt < rightGmt ? -1 : 1;
+    if (left.zone !== right.zone)
+        return left.zone < right.zone ? -1 : 1;
+    return 0;
+}
+function temporalOverlaps<T>(ts1: T | null, te1: T | null, ts2: T | null, te2: T | null, compare: (left: T, right: T) => number): boolean | null {
+    let ts1Null = ts1 === null;
+    let te1Null = te1 === null;
+    let ts2Null = ts2 === null;
+    let te2Null = te2 === null;
+    if (ts1Null) {
+        if (te1Null)
+            return null;
+        ts1 = te1;
+        te1Null = true;
+    }
+    else if (!te1Null && compare(ts1 as T, te1 as T) > 0) {
+        const swap = ts1;
+        ts1 = te1;
+        te1 = swap;
+    }
+    if (ts2Null) {
+        if (te2Null)
+            return null;
+        ts2 = te2;
+        te2Null = true;
+    }
+    else if (!te2Null && compare(ts2 as T, te2 as T) > 0) {
+        const swap = ts2;
+        ts2 = te2;
+        te2 = swap;
+    }
+    const order = compare(ts1 as T, ts2 as T);
+    if (order > 0) {
+        if (te2Null)
+            return null;
+        if (compare(ts1 as T, te2 as T) < 0)
+            return true;
+        if (te1Null)
+            return null;
+        return false;
+    }
+    if (order < 0) {
+        if (te1Null)
+            return null;
+        if (compare(ts2 as T, te1 as T) < 0)
+            return true;
+        if (te2Null)
+            return null;
+        return false;
+    }
+    if (te1Null || te2Null)
+        return null;
+    return true;
+}
+function temporalItm2interval(year: number, month: number, day: number, hour: number, minute: number, second: number, usec: number): SqlInterval {
+    const totalMonths = year * 12 + month;
+    if (totalMonths > 2147483647 || totalMonths < -2147483648)
+        temporalError("22008");
+    const time = BigInt(hour) * 3600000000n + BigInt(minute) * 60000000n + BigInt(second) * 1000000n + BigInt(usec);
+    return temporalIntervalFinite(totalMonths, day, time);
+}
+function temporalTimestampAge(dt1: bigint, dt2: bigint): SqlInterval {
+    const inf1 = temporalTimestampIsInf(dt1);
+    const inf2 = temporalTimestampIsInf(dt2);
+    if (inf1 < 0) {
+        if (inf2 < 0)
+            temporalError("22008");
+        return temporalIntervalSentinel(-1);
+    }
+    if (inf1 > 0) {
+        if (inf2 > 0)
+            temporalError("22008");
+        return temporalIntervalSentinel(1);
+    }
+    if (inf2 < 0)
+        return temporalIntervalSentinel(1);
+    if (inf2 > 0)
+        return temporalIntervalSentinel(-1);
+    const left = temporalTimestampCivilParts(dt1);
+    const right = temporalTimestampCivilParts(dt2);
+    let usec = left.fsec - right.fsec;
+    let sec = left.second - right.second;
+    let min = left.minute - right.minute;
+    let hour = left.hour - right.hour;
+    let mday = left.day - right.day;
+    let mon = left.month - right.month;
+    let year = left.year - right.year;
+    const negative = dt1 < dt2;
+    if (negative) {
+        usec = -usec;
+        sec = -sec;
+        min = -min;
+        hour = -hour;
+        mday = -mday;
+        mon = -mon;
+        year = -year;
+    }
+    while (usec < 0) {
+        usec += 1000000;
+        sec--;
+    }
+    while (sec < 0) {
+        sec += 60;
+        min--;
+    }
+    while (min < 0) {
+        min += 60;
+        hour--;
+    }
+    while (hour < 0) {
+        hour += 24;
+        mday--;
+    }
+    while (mday < 0) {
+        mday += temporalMonthDays(negative ? left.year : right.year, negative ? left.month : right.month);
+        mon--;
+    }
+    while (mon < 0) {
+        mon += 12;
+        year--;
+    }
+    if (negative) {
+        usec = -usec;
+        sec = -sec;
+        min = -min;
+        hour = -hour;
+        mday = -mday;
+        mon = -mon;
+        year = -year;
+    }
+    return temporalItm2interval(year, mon, mday, hour, min, sec, usec);
+}
+function overlapsTimestamp(ts1: SqlTimestamp | null, te1: SqlTimestamp | null, ts2: SqlTimestamp | null, te2: SqlTimestamp | null): boolean | null {
+    return temporalOverlaps(ts1, te1, ts2, te2, temporalUsecCompare);
+}
+function overlapsTimestampIntervalInterval(ts1: SqlTimestamp | null, span1: SqlInterval | null, ts2: SqlTimestamp | null, span2: SqlInterval | null): boolean | null {
+    return overlapsTimestamp(ts1, timestampPlInterval(ts1, span1), ts2, timestampPlInterval(ts2, span2));
+}
+function overlapsTimestampIntervalTimestamp(ts1: SqlTimestamp | null, span1: SqlInterval | null, ts2: SqlTimestamp | null, te2: SqlTimestamp | null): boolean | null {
+    return overlapsTimestamp(ts1, timestampPlInterval(ts1, span1), ts2, te2);
+}
+function overlapsTimestampTimestampInterval(ts1: SqlTimestamp | null, te1: SqlTimestamp | null, ts2: SqlTimestamp | null, span2: SqlInterval | null): boolean | null {
+    return overlapsTimestamp(ts1, te1, ts2, timestampPlInterval(ts2, span2));
+}
+function overlapsTimestamptz(ts1: SqlTimestamptz | null, te1: SqlTimestamptz | null, ts2: SqlTimestamptz | null, te2: SqlTimestamptz | null): boolean | null {
+    return temporalOverlaps(ts1, te1, ts2, te2, temporalUsecCompare);
+}
+function overlapsTimestamptzIntervalInterval(ts1: SqlTimestamptz | null, span1: SqlInterval | null, ts2: SqlTimestamptz | null, span2: SqlInterval | null): boolean | null {
+    return overlapsTimestamptz(ts1, timestamptzPlInterval(ts1, span1), ts2, timestamptzPlInterval(ts2, span2));
+}
+function overlapsTimestamptzIntervalTimestamptz(ts1: SqlTimestamptz | null, span1: SqlInterval | null, ts2: SqlTimestamptz | null, te2: SqlTimestamptz | null): boolean | null {
+    return overlapsTimestamptz(ts1, timestamptzPlInterval(ts1, span1), ts2, te2);
+}
+function overlapsTimestamptzTimestamptzInterval(ts1: SqlTimestamptz | null, te1: SqlTimestamptz | null, ts2: SqlTimestamptz | null, span2: SqlInterval | null): boolean | null {
+    return overlapsTimestamptz(ts1, te1, ts2, timestamptzPlInterval(ts2, span2));
+}
+function overlapsTime(ts1: SqlTime | null, te1: SqlTime | null, ts2: SqlTime | null, te2: SqlTime | null): boolean | null {
+    return temporalOverlaps(ts1, te1, ts2, te2, temporalUsecCompare);
+}
+function overlapsTimeIntervalTime(ts1: SqlTime | null, span1: SqlInterval | null, ts2: SqlTime | null, te2: SqlTime | null): boolean | null {
+    return overlapsTime(ts1, timePlInterval(ts1, span1), ts2, te2);
+}
+function overlapsTimeIntervalInterval(ts1: SqlTime | null, span1: SqlInterval | null, ts2: SqlTime | null, span2: SqlInterval | null): boolean | null {
+    return overlapsTime(ts1, timePlInterval(ts1, span1), ts2, timePlInterval(ts2, span2));
+}
+function overlapsTimeTimeInterval(ts1: SqlTime | null, te1: SqlTime | null, ts2: SqlTime | null, span2: SqlInterval | null): boolean | null {
+    return overlapsTime(ts1, te1, ts2, timePlInterval(ts2, span2));
+}
+function overlapsTimetz(ts1: SqlTimeTz | null, te1: SqlTimeTz | null, ts2: SqlTimeTz | null, te2: SqlTimeTz | null): boolean | null {
+    return temporalOverlaps(ts1, te1, ts2, te2, temporalTimetzOrder);
+}
+function ageTimestamp(later: SqlTimestamp | null, earlier: SqlTimestamp | null): SqlInterval | null {
+    if (later === null || earlier === null)
+        return null;
+    return temporalTimestampAge(later.usec, earlier.usec);
+}
+function ageTimestamptz(later: SqlTimestamptz | null, earlier: SqlTimestamptz | null): SqlInterval | null {
+    if (later === null || earlier === null)
+        return null;
+    return temporalTimestampAge(later.usec, earlier.usec);
+}
+function dateLarger(left: SqlDate | null, right: SqlDate | null): SqlDate | null {
+    if (left === null || right === null)
+        return null;
+    return left.days > right.days ? left : right;
+}
+function dateSmaller(left: SqlDate | null, right: SqlDate | null): SqlDate | null {
+    if (left === null || right === null)
+        return null;
+    return left.days < right.days ? left : right;
+}
+function timeLarger(left: SqlTime | null, right: SqlTime | null): SqlTime | null {
+    if (left === null || right === null)
+        return null;
+    return left.usec > right.usec ? left : right;
+}
+function timeSmaller(left: SqlTime | null, right: SqlTime | null): SqlTime | null {
+    if (left === null || right === null)
+        return null;
+    return left.usec < right.usec ? left : right;
+}
+function timestampLarger(left: SqlTimestamp | null, right: SqlTimestamp | null): SqlTimestamp | null {
+    if (left === null || right === null)
+        return null;
+    return left.usec > right.usec ? left : right;
+}
+function timestampSmaller(left: SqlTimestamp | null, right: SqlTimestamp | null): SqlTimestamp | null {
+    if (left === null || right === null)
+        return null;
+    return left.usec < right.usec ? left : right;
+}
+function timestamptzLarger(left: SqlTimestamptz | null, right: SqlTimestamptz | null): SqlTimestamptz | null {
+    if (left === null || right === null)
+        return null;
+    return left.usec > right.usec ? left : right;
+}
+function timestamptzSmaller(left: SqlTimestamptz | null, right: SqlTimestamptz | null): SqlTimestamptz | null {
+    if (left === null || right === null)
+        return null;
+    return left.usec < right.usec ? left : right;
+}
+function timetzLarger(left: SqlTimeTz | null, right: SqlTimeTz | null): SqlTimeTz | null {
+    if (left === null || right === null)
+        return null;
+    const order = timetzCompare(left, right);
+    return order === null ? null : order > 0n ? left : right;
+}
+function timetzSmaller(left: SqlTimeTz | null, right: SqlTimeTz | null): SqlTimeTz | null {
+    if (left === null || right === null)
+        return null;
+    const order = timetzCompare(left, right);
+    return order === null ? null : order < 0n ? left : right;
+}
+function intervalLarger(left: SqlInterval | null, right: SqlInterval | null): SqlInterval | null {
+    if (left === null || right === null)
+        return null;
+    const order = intervalCompare(left, right);
+    return order === null ? null : order > 0n ? left : right;
+}
+function intervalSmaller(left: SqlInterval | null, right: SqlInterval | null): SqlInterval | null {
+    if (left === null || right === null)
+        return null;
+    const order = intervalCompare(left, right);
+    return order === null ? null : order < 0n ? left : right;
+}
 export function evaluate0() {
     return int2Add(int2Input("2"), int2Input("3"));
 }
@@ -99467,4 +99724,151 @@ export function evaluate30848() {
 }
 export function evaluate30849() {
     return dateTimestampEq(dateInput(null), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate30850() {
+    return overlapsTimestamp(timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 16:00:00"));
+}
+export function evaluate30851() {
+    return overlapsTimestamp(timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 14:00:00"));
+}
+export function evaluate30852() {
+    return overlapsTimestamp(timestampInput("2020-01-02 14:00:00"), timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 16:00:00"), timestampInput("2020-01-02 12:00:00"));
+}
+export function evaluate30853() {
+    return overlapsTimestamp(timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 14:00:00"));
+}
+export function evaluate30854() {
+    return overlapsTimestamp(timestampInput("2020-01-02 12:00:00"), timestampInput(null), timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"));
+}
+export function evaluate30855() {
+    return overlapsTimestamp(timestampInput(null), timestampInput(null), timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"));
+}
+export function evaluate30856() {
+    return overlapsTimestampIntervalInterval(timestampInput("2020-01-02 10:00:00"), intervalInput("02:00:00"), timestampInput("2020-01-02 12:00:00"), intervalInput("02:00:00"));
+}
+export function evaluate30857() {
+    return overlapsTimestampIntervalTimestamp(timestampInput("2020-01-02 10:00:00"), intervalInput("02:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 16:00:00"));
+}
+export function evaluate30858() {
+    return overlapsTimestampTimestampInterval(timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"), timestampInput("2020-01-02 12:00:00"), intervalInput("02:00:00"));
+}
+export function evaluate30859() {
+    return overlapsTimestamp(timestampInput("infinity"), timestampInput("2020-01-02 15:00:00"), timestampInput("2020-01-02 00:00:00"), timestampInput("infinity"));
+}
+export function evaluate30860() {
+    return overlapsTimestamptz(timestamptzInput("2020-01-02 10:00:00+00"), timestamptzInput("2020-01-02 14:00:00+00"), timestamptzInput("2020-01-02 12:00:00+00"), timestamptzInput("2020-01-02 16:00:00+00"));
+}
+export function evaluate30861() {
+    return overlapsTimestamptzIntervalInterval(timestamptzInput("2020-01-02 10:00:00+00"), intervalInput("02:00:00"), timestamptzInput("2020-01-02 12:00:00+00"), intervalInput("02:00:00"));
+}
+export function evaluate30862() {
+    return overlapsTimestamptzIntervalTimestamptz(timestamptzInput("2020-01-02 10:00:00+00"), intervalInput("02:00:00"), timestamptzInput("2020-01-02 12:00:00+00"), timestamptzInput("2020-01-02 16:00:00+00"));
+}
+export function evaluate30863() {
+    return overlapsTimestamptzTimestamptzInterval(timestamptzInput("2020-01-02 10:00:00+00"), timestamptzInput("2020-01-02 14:00:00+00"), timestamptzInput("2020-01-02 12:00:00+00"), intervalInput("02:00:00"));
+}
+export function evaluate30864() {
+    return overlapsTime(timeInput("12:00:00"), timeInput("18:00:00"), timeInput("15:00:00"), timeInput("23:00:00"));
+}
+export function evaluate30865() {
+    return overlapsTimeIntervalTime(timeInput("23:00:00"), intervalInput("02:00:00"), timeInput("00:30:00"), timeInput("01:30:00"));
+}
+export function evaluate30866() {
+    return overlapsTimeIntervalInterval(timeInput("12:00:00"), intervalInput("02:00:00"), timeInput("13:00:00"), intervalInput("02:00:00"));
+}
+export function evaluate30867() {
+    return overlapsTimeIntervalTime(timeInput("12:00:00"), intervalInput("02:00:00"), timeInput("13:00:00"), timeInput("18:00:00"));
+}
+export function evaluate30868() {
+    return overlapsTimeTimeInterval(timeInput("12:00:00"), timeInput("18:00:00"), timeInput("17:00:00"), intervalInput("02:00:00"));
+}
+export function evaluate30869() {
+    return overlapsTime(timeInput(null), timeInput("18:00:00"), timeInput("12:00:00"), timeInput("23:00:00"));
+}
+export function evaluate30870() {
+    return overlapsTimetz(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"), timetzInput("13:00:00+01"), timetzInput("18:00:00+00"));
+}
+export function evaluate30871() {
+    return overlapsTimetz(timetzInput("12:00:00+00"), timetzInput(null), timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate30872() {
+    return ageTimestamp(timestampInput("2001-04-10"), timestampInput("1957-06-13"));
+}
+export function evaluate30873() {
+    return ageTimestamp(timestampInput("1957-06-13"), timestampInput("2001-04-10"));
+}
+export function evaluate30874() {
+    return ageTimestamp(timestampInput("2020-03-31"), timestampInput("2020-02-29"));
+}
+export function evaluate30875() {
+    return ageTimestamp(timestampInput("2021-03-01"), timestampInput("2020-02-29"));
+}
+export function evaluate30876() {
+    return ageTimestamp(timestampInput("2020-01-02 03:04:05.5"), timestampInput("2020-01-02 03:04:04.25"));
+}
+export function evaluate30877() {
+    return ageTimestamp(timestampInput("0001-01-01"), timestampInput("0001-01-01 BC"));
+}
+export function evaluate30878() {
+    return ageTimestamp(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30879() {
+    return ageTimestamp(timestampInput("infinity"), timestampInput("infinity"));
+}
+export function evaluate30880() {
+    return ageTimestamp(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate30881() {
+    return ageTimestamptz(timestamptzInput("2001-04-10 00:00:00+00"), timestamptzInput("1957-06-13 00:00:00+00"));
+}
+export function evaluate30882() {
+    return ageTimestamptz(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30883() {
+    return dateLarger(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate30884() {
+    return dateSmaller(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate30885() {
+    return dateLarger(dateInput("infinity"), dateInput("2020-01-02"));
+}
+export function evaluate30886() {
+    return dateLarger(dateInput(null), dateInput("2020-01-02"));
+}
+export function evaluate30887() {
+    return timeLarger(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate30888() {
+    return timeSmaller(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate30889() {
+    return timestampLarger(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30890() {
+    return timestampSmaller(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate30891() {
+    return timestamptzLarger(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30892() {
+    return timestamptzSmaller(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30893() {
+    return timetzLarger(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate30894() {
+    return timetzSmaller(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate30895() {
+    return intervalLarger(intervalInput("1 year"), intervalInput("360 days"));
+}
+export function evaluate30896() {
+    return intervalSmaller(intervalInput("1 year"), intervalInput("360 days"));
+}
+export function evaluate30897() {
+    return intervalLarger(intervalInput("1 day"), intervalInput("24 hours"));
+}
+export function evaluate30898() {
+    return intervalLarger(intervalInput("infinity"), intervalInput("1 year"));
 }

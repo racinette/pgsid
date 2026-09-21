@@ -101,6 +101,7 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
       'temporal',
       'temporal-extract',
       'temporal-arithmetic',
+      'temporal-overlaps',
     ]
       .flatMap((asset) =>
         readFileSync(new URL(`./assets/${asset}.go`, import.meta.url), 'utf8')
