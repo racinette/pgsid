@@ -100,6 +100,7 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
       'json',
       'temporal',
       'temporal-extract',
+      'temporal-arithmetic',
     ]
       .flatMap((asset) =>
         readFileSync(new URL(`./assets/${asset}.go`, import.meta.url), 'utf8')

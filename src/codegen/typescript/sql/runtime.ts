@@ -13,6 +13,7 @@ import { typescriptArrayHelpers } from './array-runtime.js'
 import { typescriptJsonHelpers } from './json-runtime.js'
 import { typescriptTemporalHelpers } from './temporal-runtime.js'
 import { typescriptTemporalExtractHelpers } from './temporal-extract-runtime.js'
+import { typescriptTemporalArithmeticHelpers } from './temporal-arithmetic-runtime.js'
 
 const helpers: Record<string, { dependencies: readonly string[]; source: string }> = {
   sqlIntegerError: {
@@ -170,6 +171,7 @@ Object.assign(helpers, typescriptArrayHelpers)
 Object.assign(helpers, typescriptJsonHelpers)
 Object.assign(helpers, typescriptTemporalHelpers)
 Object.assign(helpers, typescriptTemporalExtractHelpers)
+Object.assign(helpers, typescriptTemporalArithmeticHelpers)
 
 for (const [width, bits, shiftMask] of [
   ['int2', 16, 31n],
