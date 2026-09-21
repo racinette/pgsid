@@ -256,6 +256,7 @@ export type SqlExpression =
   | { kind: 'text'; type: 'pg_catalog.text'; value: string | null }
   | { kind: 'name'; type: 'pg_catalog.name'; value: string | null }
   | { kind: 'bytea'; type: 'pg_catalog.bytea'; value: string | null }
+  | { kind: 'bit'; type: 'pg_catalog."bit"' | 'pg_catalog.varbit'; value: string | null }
   | { kind: 'uuid'; type: UuidType; value: string | null }
   | { kind: 'json'; type: JsonType; value: string | null }
   | { kind: 'jsonb'; type: JsonbType; value: string | null }
@@ -306,6 +307,7 @@ export interface ExpressionBackend<Ast> {
   text: (value: string | null) => Ast
   name: (value: string | null) => Ast
   bytea: (value: string | null) => Ast
+  bit: (value: string | null) => Ast
   uuid: (value: string | null) => Ast
   json: (value: string | null) => Ast
   jsonb: (value: string | null) => Ast
@@ -716,6 +718,22 @@ export function emitSqlExpression<Ast>(
         throw new Error('Invalid bytea literal')
       helpers.add('byteaInput')
       return { type: node.type, expression: backend.bytea(node.value) }
+    }
+    if (node.kind === 'bit') {
+      const validBitLiteral = (value: string): boolean => {
+        if (value.length === 0) return true
+        const lead = value[0]
+        if (lead === 'x' || lead === 'X') return /^[0-9a-fA-F]*$/u.test(value.slice(1))
+        const body = lead === 'b' || lead === 'B' ? value.slice(1) : value
+        return /^[01]*$/u.test(body)
+      }
+      if (
+        (node.type !== 'pg_catalog."bit"' && node.type !== 'pg_catalog.varbit') ||
+        (node.value !== null && !validBitLiteral(node.value))
+      )
+        throw new Error('Invalid bit string')
+      helpers.add('bitInput')
+      return { type: node.type, expression: backend.bit(node.value) }
     }
     if (node.kind === 'boolean' || node.kind === 'text') {
       if (

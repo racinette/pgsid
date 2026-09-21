@@ -1,3 +1,4 @@
+import { goBitDependencies } from './bit-runtime.js'
 import { goTextDependencies } from './text-runtime.js'
 import { goScalarDependencies } from './scalar-runtime.js'
 import { floatMathCopyright } from '../../../sql-semantics/float-math-license.js'
@@ -75,6 +76,7 @@ for (const name of ['Eq', 'Ne', 'Lt', 'Le', 'Gt', 'Ge'])
 
 Object.assign(dependencies, goScalarDependencies)
 Object.assign(dependencies, goTextDependencies)
+Object.assign(dependencies, goBitDependencies)
 Object.assign(dependencies, goDecimalDependencies)
 Object.assign(dependencies, goDecimalMathDependencies)
 Object.assign(dependencies, goFloatMathDependencies)
@@ -94,6 +96,7 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
       'float-math',
       'scalar',
       'text',
+      'bit',
       'uuid',
       'enum',
       'array',
