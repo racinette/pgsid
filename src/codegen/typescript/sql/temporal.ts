@@ -35,6 +35,8 @@ const types = [
   ['date', 'pg_catalog.date', 'date'],
   ['time', 'pg_catalog."time"', 'time'],
   ['timestamp', 'pg_catalog."timestamp"', 'timestamp'],
+  ['timestamptz', 'pg_catalog.timestamptz', 'timestamptz'],
+  ['timetz', 'pg_catalog.timetz', 'timetz'],
   ['interval', 'pg_catalog."interval"', 'interval'],
 ] as const
 
@@ -59,6 +61,7 @@ export const typescriptTemporalFunctions = {
   ),
   'function:["pg_catalog","isfinite"](pg_catalog.date)': call('dateFinite'),
   'function:["pg_catalog","isfinite"](pg_catalog."timestamp")': call('timestampFinite'),
+  'function:["pg_catalog","isfinite"](pg_catalog.timestamptz)': call('timestamptzFinite'),
   'function:["pg_catalog","isfinite"](pg_catalog."interval")': call('intervalFinite'),
   'function:["pg_catalog","make_date"](pg_catalog.int4,pg_catalog.int4,pg_catalog.int4)':
     call('makeDate'),
@@ -66,6 +69,8 @@ export const typescriptTemporalFunctions = {
     call('makeTime'),
   'function:["pg_catalog","make_timestamp"](pg_catalog.int4,pg_catalog.int4,pg_catalog.int4,pg_catalog.int4,pg_catalog.int4,pg_catalog.float8)':
     call('makeTimestamp'),
+  'function:["pg_catalog","make_timestamptz"](pg_catalog.int4,pg_catalog.int4,pg_catalog.int4,pg_catalog.int4,pg_catalog.int4,pg_catalog.float8)':
+    call('makeTimestamptz'),
   'function:["pg_catalog","make_interval"](pg_catalog.int4,pg_catalog.int4,pg_catalog.int4,pg_catalog.int4,pg_catalog.int4,pg_catalog.int4,pg_catalog.float8)':
     call('makeInterval'),
 } as FunctionBindings<typeof PG18_TEMPORAL, ts.Expression>
