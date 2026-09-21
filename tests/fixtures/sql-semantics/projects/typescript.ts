@@ -8029,6 +8029,275 @@ function timezoneIntervalTimetz(zone: SqlInterval | null, value: SqlTimeTz | nul
     const tz = -temporalIntervalZoneSeconds(zone);
     return new SqlTimeTz(temporalTimeWrap(value.usec + (BigInt(value.zone) - BigInt(tz)) * 1000000n), tz);
 }
+function bitInput(value: string | null): string | null {
+    if (value === null)
+        return null;
+    if (value.length === 0)
+        return "";
+    const lead = value[0]!;
+    if (lead === "x" || lead === "X") {
+        let out = "";
+        for (let index = 1; index < value.length; index++) {
+            const code = value.charCodeAt(index);
+            const nibble = code >= 48 && code <= 57 ? code - 48 : code >= 65 && code <= 70 ? code - 55 : code >= 97 && code <= 102 ? code - 87 : -1;
+            if (nibble < 0)
+                sqlTextError("22P02");
+            out += (nibble & 8 ? "1" : "0") + (nibble & 4 ? "1" : "0") + (nibble & 2 ? "1" : "0") + (nibble & 1 ? "1" : "0");
+        }
+        return out;
+    }
+    const body = lead === "b" || lead === "B" ? value.slice(1) : value;
+    for (const bit of body)
+        if (bit !== "0" && bit !== "1")
+            sqlTextError("22P02");
+    return body;
+}
+function bitPack(value: string): Uint8Array {
+    const out = new Uint8Array(Math.ceil(value.length / 8));
+    for (let index = 0; index < value.length; index++)
+        if (value[index] === "1")
+            out[index >> 3]! |= 128 >> (index & 7);
+    return out;
+}
+function bitCompare(left: string | null, right: string | null): bigint | null {
+    if (left === null || right === null)
+        return null;
+    const leftBytes = bitPack(left);
+    const rightBytes = bitPack(right);
+    const length = Math.min(leftBytes.length, rightBytes.length);
+    for (let index = 0; index < length; index++) {
+        const difference = leftBytes[index]! - rightBytes[index]!;
+        if (difference !== 0)
+            return BigInt(difference);
+    }
+    if (left.length === right.length)
+        return 0n;
+    return BigInt(left.length < right.length ? -1 : 1);
+}
+function bitEq(left: string | null, right: string | null): boolean | null {
+    const comparison = bitCompare(left, right);
+    return comparison === null ? null : left!.length === right!.length && comparison === 0n;
+}
+function bitGe(left: string | null, right: string | null): boolean | null {
+    const comparison = bitCompare(left, right);
+    return comparison === null ? null : comparison >= 0n;
+}
+function bitGt(left: string | null, right: string | null): boolean | null {
+    const comparison = bitCompare(left, right);
+    return comparison === null ? null : comparison > 0n;
+}
+function bitLe(left: string | null, right: string | null): boolean | null {
+    const comparison = bitCompare(left, right);
+    return comparison === null ? null : comparison <= 0n;
+}
+function bitLt(left: string | null, right: string | null): boolean | null {
+    const comparison = bitCompare(left, right);
+    return comparison === null ? null : comparison < 0n;
+}
+function bitNe(left: string | null, right: string | null): boolean | null {
+    const comparison = bitCompare(left, right);
+    return comparison === null ? null : left!.length !== right!.length || comparison !== 0n;
+}
+function bitSameWidth(left: string, right: string): void {
+    if (left.length !== right.length)
+        sqlTextError("22026");
+}
+function bitAnd(left: string | null, right: string | null): string | null {
+    if (left === null || right === null)
+        return null;
+    bitSameWidth(left, right);
+    let out = "";
+    for (let index = 0; index < left.length; index++)
+        out += left[index] === "1" && right[index] === "1" ? "1" : "0";
+    return out;
+}
+function bitOr(left: string | null, right: string | null): string | null {
+    if (left === null || right === null)
+        return null;
+    bitSameWidth(left, right);
+    let out = "";
+    for (let index = 0; index < left.length; index++)
+        out += left[index] === "1" || right[index] === "1" ? "1" : "0";
+    return out;
+}
+function bitXor(left: string | null, right: string | null): string | null {
+    if (left === null || right === null)
+        return null;
+    bitSameWidth(left, right);
+    let out = "";
+    for (let index = 0; index < left.length; index++)
+        out += left[index] === right[index] ? "0" : "1";
+    return out;
+}
+function bitNot(value: string | null): string | null {
+    if (value === null)
+        return null;
+    let out = "";
+    for (const bit of value)
+        out += bit === "1" ? "0" : "1";
+    return out;
+}
+function bitShift(value: string | null, amount: bigint | null, right: boolean): string | null {
+    if (value === null || amount === null)
+        return null;
+    let shift = Number(amount);
+    if (shift < 0) {
+        const magnitude = shift < -2147483640 ? 2147483640 : -shift;
+        return bitShift(value, BigInt(magnitude), !right);
+    }
+    if (shift >= value.length)
+        return "0".repeat(value.length);
+    return right ? "0".repeat(shift) + value.slice(0, value.length - shift) : value.slice(shift) + "0".repeat(shift);
+}
+function bitShiftLeft(value: string | null, amount: bigint | null): string | null {
+    return bitShift(value, amount, false);
+}
+function bitShiftRight(value: string | null, amount: bigint | null): string | null {
+    return bitShift(value, amount, true);
+}
+function bitCat(left: string | null, right: string | null): string | null {
+    if (left === null || right === null)
+        return null;
+    return left + right;
+}
+function bitLength(value: string | null): bigint | null {
+    return value === null ? null : BigInt(value.length);
+}
+function bitOctetLength(value: string | null): bigint | null {
+    return value === null ? null : BigInt(Math.ceil(value.length / 8));
+}
+function bitCount(value: string | null): bigint | null {
+    if (value === null)
+        return null;
+    let count = 0;
+    for (const bit of value)
+        if (bit === "1")
+            count++;
+    return BigInt(count);
+}
+function bitSubstring(value: string, start: number, length: number | null): string {
+    if (length !== null && length < 0)
+        sqlTextError("22011");
+    const first = Math.max(start, 1);
+    let end: number;
+    if (length === null)
+        end = value.length + 1;
+    else {
+        const sum = start + length;
+        end = sum > 2147483647 || sum < -2147483648 ? value.length + 1 : Math.min(sum, value.length + 1);
+    }
+    if (first > value.length || end <= first)
+        return "";
+    return value.slice(first - 1, end - 1);
+}
+function bitSubstrLength(value: string | null, start: bigint | null, length: bigint | null): string | null {
+    if (value === null || start === null || length === null)
+        return null;
+    return bitSubstring(value, Number(start), Number(length));
+}
+function bitSubstr(value: string | null, start: bigint | null): string | null {
+    if (value === null || start === null)
+        return null;
+    return bitSubstring(value, Number(start), null);
+}
+function bitOverlayLength(value: string | null, replacement: string | null, start: bigint | null, length: bigint | null): string | null {
+    if (value === null || replacement === null || start === null || length === null)
+        return null;
+    if (start <= 0n)
+        sqlTextError("22011");
+    const end = start + length;
+    if (end > 2147483647n || end < -2147483648n)
+        sqlTextError("22003");
+    return bitSubstring(value, 1, Number(start) - 1) + replacement + bitSubstring(value, Number(end), null);
+}
+function bitOverlay(value: string | null, replacement: string | null, start: bigint | null): string | null {
+    return bitOverlayLength(value, replacement, start, bitLength(replacement));
+}
+function bitPosition(value: string | null, search: string | null): bigint | null {
+    if (value === null || search === null)
+        return null;
+    if (value.length === 0 || search.length > value.length)
+        return 0n;
+    if (search.length === 0)
+        return 1n;
+    const index = value.indexOf(search);
+    return index < 0 ? 0n : BigInt(index + 1);
+}
+function bitGet(value: string | null, index: bigint | null): bigint | null {
+    if (value === null || index === null)
+        return null;
+    const position = Number(index);
+    if (position < 0 || position >= value.length)
+        sqlTextError("2202E");
+    return value[position] === "1" ? 1n : 0n;
+}
+function bitSet(value: string | null, index: bigint | null, next: bigint | null): string | null {
+    if (value === null || index === null || next === null)
+        return null;
+    const position = Number(index);
+    if (position < 0 || position >= value.length)
+        sqlTextError("2202E");
+    if (next !== 0n && next !== 1n)
+        sqlTextError("22023");
+    return value.slice(0, position) + (next === 1n ? "1" : "0") + value.slice(position + 1);
+}
+function bitTypmod(value: string | null, length: bigint | null, explicit: boolean | null): string | null {
+    if (value === null || length === null || explicit === null)
+        return null;
+    const limit = Number(length);
+    if (limit <= 0 || limit > 2147483640 || limit === value.length)
+        return value;
+    if (!explicit)
+        sqlTextError("22026");
+    return value.length > limit ? value.slice(0, limit) : value + "0".repeat(limit - value.length);
+}
+function varbitTypmod(value: string | null, length: bigint | null, explicit: boolean | null): string | null {
+    if (value === null || length === null || explicit === null)
+        return null;
+    const limit = Number(length);
+    if (limit <= 0 || limit >= value.length)
+        return value;
+    if (!explicit)
+        sqlTextError("22001");
+    return value.slice(0, limit);
+}
+function bitFromInt(value: bigint | null, width: bigint | null, sourceBits: number): string | null {
+    if (value === null || width === null)
+        return null;
+    let size = Number(width);
+    if (size <= 0 || size > 2147483640)
+        size = 1;
+    const kept = Math.min(size, sourceBits);
+    let bits = "";
+    for (let index = kept - 1; index >= 0; index--)
+        bits += (value >> BigInt(index)) & 1n ? "1" : "0";
+    if (size > kept)
+        bits = (value < 0n ? "1" : "0").repeat(size - kept) + bits;
+    return bits;
+}
+function bitFromInt4(value: bigint | null, width: bigint | null): string | null {
+    return bitFromInt(value, width, 32);
+}
+function bitFromInt8(value: bigint | null, width: bigint | null): string | null {
+    return bitFromInt(value, width, 64);
+}
+function bitToInt(value: string | null, width: number): bigint | null {
+    if (value === null)
+        return null;
+    if (value.length > width)
+        sqlTextError("22003");
+    let result = 0n;
+    for (const bit of value)
+        result = (result << 1n) | (bit === "1" ? 1n : 0n);
+    const sign = 1n << BigInt(width - 1);
+    return result >= sign ? result - (sign << 1n) : result;
+}
+function bitToInt4(value: string | null): bigint | null {
+    return bitToInt(value, 32);
+}
+function bitToInt8(value: string | null): bigint | null {
+    return bitToInt(value, 64);
+}
 export function evaluate0() {
     return int2Add(int2Input("2"), int2Input("3"));
 }
@@ -111171,4 +111440,1009 @@ export function evaluate34379() {
 }
 export function evaluate34380() {
     return timezoneIntervalTimetz(intervalInput(null), timetzInput("12:00:00+00"));
+}
+export function evaluate34381() {
+    return bitCompare(bitInput("101"), bitInput("101"));
+}
+export function evaluate34382() {
+    return bitCompare(bitInput("101"), bitInput("100"));
+}
+export function evaluate34383() {
+    return bitCompare(bitInput("1"), bitInput("10"));
+}
+export function evaluate34384() {
+    return bitCompare(bitInput("0"), bitInput("00"));
+}
+export function evaluate34385() {
+    return bitCompare(bitInput(""), bitInput("0"));
+}
+export function evaluate34386() {
+    return bitCompare(bitInput(null), bitInput("1"));
+}
+export function evaluate34387() {
+    return bitCompare(bitInput("1"), bitInput(null));
+}
+export function evaluate34388() {
+    return bitEq(bitInput("101"), bitInput("101"));
+}
+export function evaluate34389() {
+    return bitEq(bitInput("101"), bitInput("100"));
+}
+export function evaluate34390() {
+    return bitEq(bitInput("1"), bitInput("10"));
+}
+export function evaluate34391() {
+    return bitEq(bitInput("0"), bitInput("00"));
+}
+export function evaluate34392() {
+    return bitEq(bitInput(""), bitInput("0"));
+}
+export function evaluate34393() {
+    return bitEq(bitInput(null), bitInput("1"));
+}
+export function evaluate34394() {
+    return bitEq(bitInput("1"), bitInput(null));
+}
+export function evaluate34395() {
+    return bitGe(bitInput("101"), bitInput("101"));
+}
+export function evaluate34396() {
+    return bitGe(bitInput("101"), bitInput("100"));
+}
+export function evaluate34397() {
+    return bitGe(bitInput("1"), bitInput("10"));
+}
+export function evaluate34398() {
+    return bitGe(bitInput("0"), bitInput("00"));
+}
+export function evaluate34399() {
+    return bitGe(bitInput(""), bitInput("0"));
+}
+export function evaluate34400() {
+    return bitGe(bitInput(null), bitInput("1"));
+}
+export function evaluate34401() {
+    return bitGe(bitInput("1"), bitInput(null));
+}
+export function evaluate34402() {
+    return bitGt(bitInput("101"), bitInput("101"));
+}
+export function evaluate34403() {
+    return bitGt(bitInput("101"), bitInput("100"));
+}
+export function evaluate34404() {
+    return bitGt(bitInput("1"), bitInput("10"));
+}
+export function evaluate34405() {
+    return bitGt(bitInput("0"), bitInput("00"));
+}
+export function evaluate34406() {
+    return bitGt(bitInput(""), bitInput("0"));
+}
+export function evaluate34407() {
+    return bitGt(bitInput(null), bitInput("1"));
+}
+export function evaluate34408() {
+    return bitGt(bitInput("1"), bitInput(null));
+}
+export function evaluate34409() {
+    return bitLe(bitInput("101"), bitInput("101"));
+}
+export function evaluate34410() {
+    return bitLe(bitInput("101"), bitInput("100"));
+}
+export function evaluate34411() {
+    return bitLe(bitInput("1"), bitInput("10"));
+}
+export function evaluate34412() {
+    return bitLe(bitInput("0"), bitInput("00"));
+}
+export function evaluate34413() {
+    return bitLe(bitInput(""), bitInput("0"));
+}
+export function evaluate34414() {
+    return bitLe(bitInput(null), bitInput("1"));
+}
+export function evaluate34415() {
+    return bitLe(bitInput("1"), bitInput(null));
+}
+export function evaluate34416() {
+    return bitLt(bitInput("101"), bitInput("101"));
+}
+export function evaluate34417() {
+    return bitLt(bitInput("101"), bitInput("100"));
+}
+export function evaluate34418() {
+    return bitLt(bitInput("1"), bitInput("10"));
+}
+export function evaluate34419() {
+    return bitLt(bitInput("0"), bitInput("00"));
+}
+export function evaluate34420() {
+    return bitLt(bitInput(""), bitInput("0"));
+}
+export function evaluate34421() {
+    return bitLt(bitInput(null), bitInput("1"));
+}
+export function evaluate34422() {
+    return bitLt(bitInput("1"), bitInput(null));
+}
+export function evaluate34423() {
+    return bitNe(bitInput("101"), bitInput("101"));
+}
+export function evaluate34424() {
+    return bitNe(bitInput("101"), bitInput("100"));
+}
+export function evaluate34425() {
+    return bitNe(bitInput("1"), bitInput("10"));
+}
+export function evaluate34426() {
+    return bitNe(bitInput("0"), bitInput("00"));
+}
+export function evaluate34427() {
+    return bitNe(bitInput(""), bitInput("0"));
+}
+export function evaluate34428() {
+    return bitNe(bitInput(null), bitInput("1"));
+}
+export function evaluate34429() {
+    return bitNe(bitInput("1"), bitInput(null));
+}
+export function evaluate34430() {
+    return bitCompare(bitInput("101"), bitInput("101"));
+}
+export function evaluate34431() {
+    return bitCompare(bitInput("101"), bitInput("100"));
+}
+export function evaluate34432() {
+    return bitCompare(bitInput("1"), bitInput("10"));
+}
+export function evaluate34433() {
+    return bitCompare(bitInput("0"), bitInput("00"));
+}
+export function evaluate34434() {
+    return bitCompare(bitInput(""), bitInput("0"));
+}
+export function evaluate34435() {
+    return bitCompare(bitInput(null), bitInput("1"));
+}
+export function evaluate34436() {
+    return bitCompare(bitInput("1"), bitInput(null));
+}
+export function evaluate34437() {
+    return bitEq(bitInput("101"), bitInput("101"));
+}
+export function evaluate34438() {
+    return bitEq(bitInput("101"), bitInput("100"));
+}
+export function evaluate34439() {
+    return bitEq(bitInput("1"), bitInput("10"));
+}
+export function evaluate34440() {
+    return bitEq(bitInput("0"), bitInput("00"));
+}
+export function evaluate34441() {
+    return bitEq(bitInput(""), bitInput("0"));
+}
+export function evaluate34442() {
+    return bitEq(bitInput(null), bitInput("1"));
+}
+export function evaluate34443() {
+    return bitEq(bitInput("1"), bitInput(null));
+}
+export function evaluate34444() {
+    return bitGe(bitInput("101"), bitInput("101"));
+}
+export function evaluate34445() {
+    return bitGe(bitInput("101"), bitInput("100"));
+}
+export function evaluate34446() {
+    return bitGe(bitInput("1"), bitInput("10"));
+}
+export function evaluate34447() {
+    return bitGe(bitInput("0"), bitInput("00"));
+}
+export function evaluate34448() {
+    return bitGe(bitInput(""), bitInput("0"));
+}
+export function evaluate34449() {
+    return bitGe(bitInput(null), bitInput("1"));
+}
+export function evaluate34450() {
+    return bitGe(bitInput("1"), bitInput(null));
+}
+export function evaluate34451() {
+    return bitGt(bitInput("101"), bitInput("101"));
+}
+export function evaluate34452() {
+    return bitGt(bitInput("101"), bitInput("100"));
+}
+export function evaluate34453() {
+    return bitGt(bitInput("1"), bitInput("10"));
+}
+export function evaluate34454() {
+    return bitGt(bitInput("0"), bitInput("00"));
+}
+export function evaluate34455() {
+    return bitGt(bitInput(""), bitInput("0"));
+}
+export function evaluate34456() {
+    return bitGt(bitInput(null), bitInput("1"));
+}
+export function evaluate34457() {
+    return bitGt(bitInput("1"), bitInput(null));
+}
+export function evaluate34458() {
+    return bitLe(bitInput("101"), bitInput("101"));
+}
+export function evaluate34459() {
+    return bitLe(bitInput("101"), bitInput("100"));
+}
+export function evaluate34460() {
+    return bitLe(bitInput("1"), bitInput("10"));
+}
+export function evaluate34461() {
+    return bitLe(bitInput("0"), bitInput("00"));
+}
+export function evaluate34462() {
+    return bitLe(bitInput(""), bitInput("0"));
+}
+export function evaluate34463() {
+    return bitLe(bitInput(null), bitInput("1"));
+}
+export function evaluate34464() {
+    return bitLe(bitInput("1"), bitInput(null));
+}
+export function evaluate34465() {
+    return bitLt(bitInput("101"), bitInput("101"));
+}
+export function evaluate34466() {
+    return bitLt(bitInput("101"), bitInput("100"));
+}
+export function evaluate34467() {
+    return bitLt(bitInput("1"), bitInput("10"));
+}
+export function evaluate34468() {
+    return bitLt(bitInput("0"), bitInput("00"));
+}
+export function evaluate34469() {
+    return bitLt(bitInput(""), bitInput("0"));
+}
+export function evaluate34470() {
+    return bitLt(bitInput(null), bitInput("1"));
+}
+export function evaluate34471() {
+    return bitLt(bitInput("1"), bitInput(null));
+}
+export function evaluate34472() {
+    return bitNe(bitInput("101"), bitInput("101"));
+}
+export function evaluate34473() {
+    return bitNe(bitInput("101"), bitInput("100"));
+}
+export function evaluate34474() {
+    return bitNe(bitInput("1"), bitInput("10"));
+}
+export function evaluate34475() {
+    return bitNe(bitInput("0"), bitInput("00"));
+}
+export function evaluate34476() {
+    return bitNe(bitInput(""), bitInput("0"));
+}
+export function evaluate34477() {
+    return bitNe(bitInput(null), bitInput("1"));
+}
+export function evaluate34478() {
+    return bitNe(bitInput("1"), bitInput(null));
+}
+export function evaluate34479() {
+    return bitLt(bitInput("101"), bitInput("101"));
+}
+export function evaluate34480() {
+    return bitLt(bitInput("101"), bitInput("100"));
+}
+export function evaluate34481() {
+    return bitLt(bitInput("1"), bitInput("10"));
+}
+export function evaluate34482() {
+    return bitLt(bitInput("0"), bitInput("00"));
+}
+export function evaluate34483() {
+    return bitLt(bitInput(""), bitInput("0"));
+}
+export function evaluate34484() {
+    return bitLt(bitInput(null), bitInput("1"));
+}
+export function evaluate34485() {
+    return bitLt(bitInput("1"), bitInput(null));
+}
+export function evaluate34486() {
+    return bitLt(bitInput("101"), bitInput("101"));
+}
+export function evaluate34487() {
+    return bitLt(bitInput("101"), bitInput("100"));
+}
+export function evaluate34488() {
+    return bitLt(bitInput("1"), bitInput("10"));
+}
+export function evaluate34489() {
+    return bitLt(bitInput("0"), bitInput("00"));
+}
+export function evaluate34490() {
+    return bitLt(bitInput(""), bitInput("0"));
+}
+export function evaluate34491() {
+    return bitLt(bitInput(null), bitInput("1"));
+}
+export function evaluate34492() {
+    return bitLt(bitInput("1"), bitInput(null));
+}
+export function evaluate34493() {
+    return bitLe(bitInput("101"), bitInput("101"));
+}
+export function evaluate34494() {
+    return bitLe(bitInput("101"), bitInput("100"));
+}
+export function evaluate34495() {
+    return bitLe(bitInput("1"), bitInput("10"));
+}
+export function evaluate34496() {
+    return bitLe(bitInput("0"), bitInput("00"));
+}
+export function evaluate34497() {
+    return bitLe(bitInput(""), bitInput("0"));
+}
+export function evaluate34498() {
+    return bitLe(bitInput(null), bitInput("1"));
+}
+export function evaluate34499() {
+    return bitLe(bitInput("1"), bitInput(null));
+}
+export function evaluate34500() {
+    return bitLe(bitInput("101"), bitInput("101"));
+}
+export function evaluate34501() {
+    return bitLe(bitInput("101"), bitInput("100"));
+}
+export function evaluate34502() {
+    return bitLe(bitInput("1"), bitInput("10"));
+}
+export function evaluate34503() {
+    return bitLe(bitInput("0"), bitInput("00"));
+}
+export function evaluate34504() {
+    return bitLe(bitInput(""), bitInput("0"));
+}
+export function evaluate34505() {
+    return bitLe(bitInput(null), bitInput("1"));
+}
+export function evaluate34506() {
+    return bitLe(bitInput("1"), bitInput(null));
+}
+export function evaluate34507() {
+    return bitNe(bitInput("101"), bitInput("101"));
+}
+export function evaluate34508() {
+    return bitNe(bitInput("101"), bitInput("100"));
+}
+export function evaluate34509() {
+    return bitNe(bitInput("1"), bitInput("10"));
+}
+export function evaluate34510() {
+    return bitNe(bitInput("0"), bitInput("00"));
+}
+export function evaluate34511() {
+    return bitNe(bitInput(""), bitInput("0"));
+}
+export function evaluate34512() {
+    return bitNe(bitInput(null), bitInput("1"));
+}
+export function evaluate34513() {
+    return bitNe(bitInput("1"), bitInput(null));
+}
+export function evaluate34514() {
+    return bitNe(bitInput("101"), bitInput("101"));
+}
+export function evaluate34515() {
+    return bitNe(bitInput("101"), bitInput("100"));
+}
+export function evaluate34516() {
+    return bitNe(bitInput("1"), bitInput("10"));
+}
+export function evaluate34517() {
+    return bitNe(bitInput("0"), bitInput("00"));
+}
+export function evaluate34518() {
+    return bitNe(bitInput(""), bitInput("0"));
+}
+export function evaluate34519() {
+    return bitNe(bitInput(null), bitInput("1"));
+}
+export function evaluate34520() {
+    return bitNe(bitInput("1"), bitInput(null));
+}
+export function evaluate34521() {
+    return bitEq(bitInput("101"), bitInput("101"));
+}
+export function evaluate34522() {
+    return bitEq(bitInput("101"), bitInput("100"));
+}
+export function evaluate34523() {
+    return bitEq(bitInput("1"), bitInput("10"));
+}
+export function evaluate34524() {
+    return bitEq(bitInput("0"), bitInput("00"));
+}
+export function evaluate34525() {
+    return bitEq(bitInput(""), bitInput("0"));
+}
+export function evaluate34526() {
+    return bitEq(bitInput(null), bitInput("1"));
+}
+export function evaluate34527() {
+    return bitEq(bitInput("1"), bitInput(null));
+}
+export function evaluate34528() {
+    return bitEq(bitInput("101"), bitInput("101"));
+}
+export function evaluate34529() {
+    return bitEq(bitInput("101"), bitInput("100"));
+}
+export function evaluate34530() {
+    return bitEq(bitInput("1"), bitInput("10"));
+}
+export function evaluate34531() {
+    return bitEq(bitInput("0"), bitInput("00"));
+}
+export function evaluate34532() {
+    return bitEq(bitInput(""), bitInput("0"));
+}
+export function evaluate34533() {
+    return bitEq(bitInput(null), bitInput("1"));
+}
+export function evaluate34534() {
+    return bitEq(bitInput("1"), bitInput(null));
+}
+export function evaluate34535() {
+    return bitGt(bitInput("101"), bitInput("101"));
+}
+export function evaluate34536() {
+    return bitGt(bitInput("101"), bitInput("100"));
+}
+export function evaluate34537() {
+    return bitGt(bitInput("1"), bitInput("10"));
+}
+export function evaluate34538() {
+    return bitGt(bitInput("0"), bitInput("00"));
+}
+export function evaluate34539() {
+    return bitGt(bitInput(""), bitInput("0"));
+}
+export function evaluate34540() {
+    return bitGt(bitInput(null), bitInput("1"));
+}
+export function evaluate34541() {
+    return bitGt(bitInput("1"), bitInput(null));
+}
+export function evaluate34542() {
+    return bitGt(bitInput("101"), bitInput("101"));
+}
+export function evaluate34543() {
+    return bitGt(bitInput("101"), bitInput("100"));
+}
+export function evaluate34544() {
+    return bitGt(bitInput("1"), bitInput("10"));
+}
+export function evaluate34545() {
+    return bitGt(bitInput("0"), bitInput("00"));
+}
+export function evaluate34546() {
+    return bitGt(bitInput(""), bitInput("0"));
+}
+export function evaluate34547() {
+    return bitGt(bitInput(null), bitInput("1"));
+}
+export function evaluate34548() {
+    return bitGt(bitInput("1"), bitInput(null));
+}
+export function evaluate34549() {
+    return bitGe(bitInput("101"), bitInput("101"));
+}
+export function evaluate34550() {
+    return bitGe(bitInput("101"), bitInput("100"));
+}
+export function evaluate34551() {
+    return bitGe(bitInput("1"), bitInput("10"));
+}
+export function evaluate34552() {
+    return bitGe(bitInput("0"), bitInput("00"));
+}
+export function evaluate34553() {
+    return bitGe(bitInput(""), bitInput("0"));
+}
+export function evaluate34554() {
+    return bitGe(bitInput(null), bitInput("1"));
+}
+export function evaluate34555() {
+    return bitGe(bitInput("1"), bitInput(null));
+}
+export function evaluate34556() {
+    return bitGe(bitInput("101"), bitInput("101"));
+}
+export function evaluate34557() {
+    return bitGe(bitInput("101"), bitInput("100"));
+}
+export function evaluate34558() {
+    return bitGe(bitInput("1"), bitInput("10"));
+}
+export function evaluate34559() {
+    return bitGe(bitInput("0"), bitInput("00"));
+}
+export function evaluate34560() {
+    return bitGe(bitInput(""), bitInput("0"));
+}
+export function evaluate34561() {
+    return bitGe(bitInput(null), bitInput("1"));
+}
+export function evaluate34562() {
+    return bitGe(bitInput("1"), bitInput(null));
+}
+export function evaluate34563() {
+    return bitAnd(bitInput("1010"), bitInput("1100"));
+}
+export function evaluate34564() {
+    return bitAnd(bitInput("1111"), bitInput("0000"));
+}
+export function evaluate34565() {
+    return bitAnd(bitInput("101"), bitInput("10"));
+}
+export function evaluate34566() {
+    return bitAnd(bitInput(null), bitInput("1010"));
+}
+export function evaluate34567() {
+    return bitAnd(bitInput("1010"), bitInput(null));
+}
+export function evaluate34568() {
+    return bitOr(bitInput("1010"), bitInput("1100"));
+}
+export function evaluate34569() {
+    return bitOr(bitInput("1111"), bitInput("0000"));
+}
+export function evaluate34570() {
+    return bitOr(bitInput("101"), bitInput("10"));
+}
+export function evaluate34571() {
+    return bitOr(bitInput(null), bitInput("1010"));
+}
+export function evaluate34572() {
+    return bitOr(bitInput("1010"), bitInput(null));
+}
+export function evaluate34573() {
+    return bitXor(bitInput("1010"), bitInput("1100"));
+}
+export function evaluate34574() {
+    return bitXor(bitInput("1111"), bitInput("0000"));
+}
+export function evaluate34575() {
+    return bitXor(bitInput("101"), bitInput("10"));
+}
+export function evaluate34576() {
+    return bitXor(bitInput(null), bitInput("1010"));
+}
+export function evaluate34577() {
+    return bitXor(bitInput("1010"), bitInput(null));
+}
+export function evaluate34578() {
+    return bitAnd(bitInput("1010"), bitInput("1100"));
+}
+export function evaluate34579() {
+    return bitAnd(bitInput("1111"), bitInput("0000"));
+}
+export function evaluate34580() {
+    return bitAnd(bitInput("101"), bitInput("10"));
+}
+export function evaluate34581() {
+    return bitAnd(bitInput(null), bitInput("1010"));
+}
+export function evaluate34582() {
+    return bitAnd(bitInput("1010"), bitInput(null));
+}
+export function evaluate34583() {
+    return bitOr(bitInput("1010"), bitInput("1100"));
+}
+export function evaluate34584() {
+    return bitOr(bitInput("1111"), bitInput("0000"));
+}
+export function evaluate34585() {
+    return bitOr(bitInput("101"), bitInput("10"));
+}
+export function evaluate34586() {
+    return bitOr(bitInput(null), bitInput("1010"));
+}
+export function evaluate34587() {
+    return bitOr(bitInput("1010"), bitInput(null));
+}
+export function evaluate34588() {
+    return bitXor(bitInput("1010"), bitInput("1100"));
+}
+export function evaluate34589() {
+    return bitXor(bitInput("1111"), bitInput("0000"));
+}
+export function evaluate34590() {
+    return bitXor(bitInput("101"), bitInput("10"));
+}
+export function evaluate34591() {
+    return bitXor(bitInput(null), bitInput("1010"));
+}
+export function evaluate34592() {
+    return bitXor(bitInput("1010"), bitInput(null));
+}
+export function evaluate34593() {
+    return bitNot(bitInput(null));
+}
+export function evaluate34594() {
+    return bitNot(bitInput(""));
+}
+export function evaluate34595() {
+    return bitNot(bitInput("1010"));
+}
+export function evaluate34596() {
+    return bitNot(bitInput("0"));
+}
+export function evaluate34597() {
+    return bitNot(bitInput("1010"));
+}
+export function evaluate34598() {
+    return bitShiftLeft(bitInput("10110001"), int4Input(null));
+}
+export function evaluate34599() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("0"));
+}
+export function evaluate34600() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("1"));
+}
+export function evaluate34601() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("-1"));
+}
+export function evaluate34602() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("8"));
+}
+export function evaluate34603() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("-2147483648"));
+}
+export function evaluate34604() {
+    return bitShiftRight(bitInput("10110001"), int4Input(null));
+}
+export function evaluate34605() {
+    return bitShiftRight(bitInput("10110001"), int4Input("0"));
+}
+export function evaluate34606() {
+    return bitShiftRight(bitInput("10110001"), int4Input("1"));
+}
+export function evaluate34607() {
+    return bitShiftRight(bitInput("10110001"), int4Input("-1"));
+}
+export function evaluate34608() {
+    return bitShiftRight(bitInput("10110001"), int4Input("8"));
+}
+export function evaluate34609() {
+    return bitShiftRight(bitInput("10110001"), int4Input("-2147483648"));
+}
+export function evaluate34610() {
+    return bitShiftLeft(bitInput("10110001"), int4Input(null));
+}
+export function evaluate34611() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("0"));
+}
+export function evaluate34612() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("1"));
+}
+export function evaluate34613() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("-1"));
+}
+export function evaluate34614() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("8"));
+}
+export function evaluate34615() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("-2147483648"));
+}
+export function evaluate34616() {
+    return bitShiftRight(bitInput("10110001"), int4Input(null));
+}
+export function evaluate34617() {
+    return bitShiftRight(bitInput("10110001"), int4Input("0"));
+}
+export function evaluate34618() {
+    return bitShiftRight(bitInput("10110001"), int4Input("1"));
+}
+export function evaluate34619() {
+    return bitShiftRight(bitInput("10110001"), int4Input("-1"));
+}
+export function evaluate34620() {
+    return bitShiftRight(bitInput("10110001"), int4Input("8"));
+}
+export function evaluate34621() {
+    return bitShiftRight(bitInput("10110001"), int4Input("-2147483648"));
+}
+export function evaluate34622() {
+    return bitCat(bitInput("10"), bitInput("11"));
+}
+export function evaluate34623() {
+    return bitCat(bitInput(""), bitInput("1"));
+}
+export function evaluate34624() {
+    return bitCat(bitInput("1"), bitInput(""));
+}
+export function evaluate34625() {
+    return bitCat(bitInput(null), bitInput("1"));
+}
+export function evaluate34626() {
+    return bitCat(bitInput("10"), bitInput("11"));
+}
+export function evaluate34627() {
+    return bitCat(bitInput(""), bitInput("1"));
+}
+export function evaluate34628() {
+    return bitCat(bitInput("1"), bitInput(""));
+}
+export function evaluate34629() {
+    return bitCat(bitInput(null), bitInput("1"));
+}
+export function evaluate34630() {
+    return bitLength(bitInput(null));
+}
+export function evaluate34631() {
+    return bitLength(bitInput(""));
+}
+export function evaluate34632() {
+    return bitLength(bitInput("1"));
+}
+export function evaluate34633() {
+    return bitLength(bitInput("101010011"));
+}
+export function evaluate34634() {
+    return bitOctetLength(bitInput(null));
+}
+export function evaluate34635() {
+    return bitOctetLength(bitInput(""));
+}
+export function evaluate34636() {
+    return bitOctetLength(bitInput("1"));
+}
+export function evaluate34637() {
+    return bitOctetLength(bitInput("101010011"));
+}
+export function evaluate34638() {
+    return bitLength(bitInput(null));
+}
+export function evaluate34639() {
+    return bitLength(bitInput(""));
+}
+export function evaluate34640() {
+    return bitLength(bitInput("1"));
+}
+export function evaluate34641() {
+    return bitLength(bitInput("101010011"));
+}
+export function evaluate34642() {
+    return bitCount(bitInput(null));
+}
+export function evaluate34643() {
+    return bitCount(bitInput(""));
+}
+export function evaluate34644() {
+    return bitCount(bitInput("1"));
+}
+export function evaluate34645() {
+    return bitCount(bitInput("101010011"));
+}
+export function evaluate34646() {
+    return bitSubstrLength(bitInput("10110"), int4Input("1"), int4Input("2"));
+}
+export function evaluate34647() {
+    return bitSubstrLength(bitInput("10110"), int4Input("0"), int4Input("3"));
+}
+export function evaluate34648() {
+    return bitSubstrLength(bitInput("10110"), int4Input("-1"), int4Input("4"));
+}
+export function evaluate34649() {
+    return bitSubstrLength(bitInput("10110"), int4Input("2"), int4Input("-1"));
+}
+export function evaluate34650() {
+    return bitSubstr(bitInput("10110"), int4Input("2"));
+}
+export function evaluate34651() {
+    return bitSubstrLength(bitInput("10110"), int4Input("8"), int4Input("2"));
+}
+export function evaluate34652() {
+    return bitSubstrLength(bitInput("10110"), int4Input(null), int4Input("1"));
+}
+export function evaluate34653() {
+    return bitOverlay(bitInput("10110"), bitInput("11"), int4Input("2"));
+}
+export function evaluate34654() {
+    return bitOverlayLength(bitInput("10110"), bitInput("0"), int4Input("2"), int4Input("2"));
+}
+export function evaluate34655() {
+    return bitOverlayLength(bitInput("10110"), bitInput("1"), int4Input("0"), int4Input("1"));
+}
+export function evaluate34656() {
+    return bitOverlayLength(bitInput("10110"), bitInput("1"), int4Input("2"), int4Input("-1"));
+}
+export function evaluate34657() {
+    return bitPosition(bitInput("101101"), bitInput("011"));
+}
+export function evaluate34658() {
+    return bitPosition(bitInput("101101"), bitInput(""));
+}
+export function evaluate34659() {
+    return bitPosition(bitInput(""), bitInput(""));
+}
+export function evaluate34660() {
+    return bitPosition(bitInput(""), bitInput("1"));
+}
+export function evaluate34661() {
+    return bitPosition(bitInput("101"), bitInput("111"));
+}
+export function evaluate34662() {
+    return bitPosition(bitInput(null), bitInput("1"));
+}
+export function evaluate34663() {
+    return bitGet(bitInput("1011"), int4Input(null));
+}
+export function evaluate34664() {
+    return bitGet(bitInput("1011"), int4Input("0"));
+}
+export function evaluate34665() {
+    return bitGet(bitInput("1011"), int4Input("1"));
+}
+export function evaluate34666() {
+    return bitGet(bitInput("1011"), int4Input("4"));
+}
+export function evaluate34667() {
+    return bitGet(bitInput("1011"), int4Input("-1"));
+}
+export function evaluate34668() {
+    return bitSet(bitInput("1011"), int4Input("0"), int4Input("0"));
+}
+export function evaluate34669() {
+    return bitSet(bitInput("1011"), int4Input("3"), int4Input("1"));
+}
+export function evaluate34670() {
+    return bitSet(bitInput("1011"), int4Input("-1"), int4Input("1"));
+}
+export function evaluate34671() {
+    return bitSet(bitInput("1011"), int4Input("1"), int4Input("2"));
+}
+export function evaluate34672() {
+    return bitSet(bitInput("1011"), int4Input(null), int4Input("1"));
+}
+export function evaluate34673() {
+    return bitTypmod(bitInput("101"), int4Input("3"), booleanInput(true));
+}
+export function evaluate34674() {
+    return bitTypmod(bitInput("101"), int4Input("5"), booleanInput(true));
+}
+export function evaluate34675() {
+    return bitTypmod(bitInput("10110"), int4Input("3"), booleanInput(true));
+}
+export function evaluate34676() {
+    return bitTypmod(bitInput("101"), int4Input("5"), booleanInput(false));
+}
+export function evaluate34677() {
+    return bitTypmod(bitInput("101"), int4Input("0"), booleanInput(true));
+}
+export function evaluate34678() {
+    return bitTypmod(bitInput(null), int4Input("4"), booleanInput(true));
+}
+export function evaluate34679() {
+    return varbitTypmod(bitInput("101"), int4Input("5"), booleanInput(false));
+}
+export function evaluate34680() {
+    return varbitTypmod(bitInput("10110"), int4Input("3"), booleanInput(false));
+}
+export function evaluate34681() {
+    return varbitTypmod(bitInput("10110"), int4Input("3"), booleanInput(true));
+}
+export function evaluate34682() {
+    return varbitTypmod(bitInput("101"), int4Input("0"), booleanInput(true));
+}
+export function evaluate34683() {
+    return varbitTypmod(bitInput(null), int4Input("3"), booleanInput(true));
+}
+export function evaluate34684() {
+    return bitFromInt4(int4Input("5"), int4Input("4"));
+}
+export function evaluate34685() {
+    return bitFromInt4(int4Input("-1"), int4Input("4"));
+}
+export function evaluate34686() {
+    return bitFromInt4(int4Input("1"), int4Input("8"));
+}
+export function evaluate34687() {
+    return bitFromInt4(int4Input("-1"), int4Input("40"));
+}
+export function evaluate34688() {
+    return bitFromInt4(int4Input("5"), int4Input("0"));
+}
+export function evaluate34689() {
+    return bitFromInt4(int4Input(null), int4Input("4"));
+}
+export function evaluate34690() {
+    return bitFromInt4(int4Input("1"), int4Input(null));
+}
+export function evaluate34691() {
+    return bitFromInt8(int8Input("-1"), int4Input("8"));
+}
+export function evaluate34692() {
+    return bitFromInt8(int8Input("1"), int4Input("70"));
+}
+export function evaluate34693() {
+    return bitFromInt8(int8Input("9223372036854775807"), int4Input("64"));
+}
+export function evaluate34694() {
+    return bitFromInt8(int8Input("-9223372036854775808"), int4Input("64"));
+}
+export function evaluate34695() {
+    return bitToInt4(bitInput(""));
+}
+export function evaluate34696() {
+    return bitToInt4(bitInput("1"));
+}
+export function evaluate34697() {
+    return bitToInt4(bitInput("101"));
+}
+export function evaluate34698() {
+    return bitToInt4(bitInput("10000000"));
+}
+export function evaluate34699() {
+    return bitToInt4(bitInput("11111111111111111111111111111111"));
+}
+export function evaluate34700() {
+    return bitToInt4(bitInput("111111111111111111111111111111111"));
+}
+export function evaluate34701() {
+    return bitToInt4(bitInput(null));
+}
+export function evaluate34702() {
+    return bitToInt8(bitInput("1111111111111111111111111111111111111111111111111111111111111111"));
+}
+export function evaluate34703() {
+    return bitToInt8(bitInput("11111111111111111111111111111111111111111111111111111111111111111"));
+}
+export function evaluate34704() {
+    return bitToInt8(bitInput("1"));
+}
+export function evaluate34705() {
+    return bitInput("xFF");
+}
+export function evaluate34706() {
+    return bitInput("xFF");
+}
+export function evaluate34707() {
+    return bitInput("Xff");
+}
+export function evaluate34708() {
+    return bitInput("xF");
+}
+export function evaluate34709() {
+    return bitInput("xA");
+}
+export function evaluate34710() {
+    return bitInput("xab");
+}
+export function evaluate34711() {
+    return bitInput("b1010");
+}
+export function evaluate34712() {
+    return bitInput("B1010");
+}
+export function evaluate34713() {
+    return bitInput("x");
+}
+export function evaluate34714() {
+    return bitInput("b");
+}
+export function evaluate34715() {
+    return bitEq(bitInput("xA"), bitInput("1010"));
 }

@@ -35,6 +35,7 @@ export function sqlSemanticsCoverage(
       expression.kind === 'text' ||
       expression.kind === 'name' ||
       expression.kind === 'bytea' ||
+      expression.kind === 'bit' ||
       expression.kind === 'uuid' ||
       expression.kind === 'json' ||
       expression.kind === 'jsonb' ||

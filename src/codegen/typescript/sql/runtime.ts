@@ -1,4 +1,5 @@
 import { floatMathCopyright } from '../../../sql-semantics/float-math-license.js'
+import { typescriptBitHelpers } from './bit-runtime.js'
 import { typescriptTextHelpers } from './text-runtime.js'
 import { typescriptScalarHelpers } from './scalar-runtime.js'
 import { typescriptFloatMathHelpers } from './float-math-runtime.js'
@@ -162,6 +163,7 @@ for (const [name, operator] of [
 
 Object.assign(helpers, typescriptScalarHelpers)
 Object.assign(helpers, typescriptTextHelpers)
+Object.assign(helpers, typescriptBitHelpers)
 Object.assign(helpers, typescriptFloatHelpers)
 Object.assign(helpers, typescriptFloatMathHelpers)
 Object.assign(helpers, typescriptDecimalHelpers)

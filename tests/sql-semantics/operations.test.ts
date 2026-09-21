@@ -9,6 +9,7 @@ import { floatMathCopyright } from '../../src/sql-semantics/float-math-license.j
 import { numericMathCopyright } from '../../src/sql-semantics/numeric-math-license.js'
 import { scalarCases } from '../fixtures/sql-semantics/operations/scalar.js'
 import { PG18_BOOLEAN } from '../../src/postgres/builtins/boolean.generated.js'
+import { bitSignatures } from '../fixtures/sql-semantics/operations/bit-signatures.js'
 import {
   byteaAccessSignatures,
   byteaCastSignatures,
@@ -237,6 +238,8 @@ function goProject(fixtures = cases): string {
                           'pg_catalog.bpchar',
                           'pg_catalog.name',
                           'pg_catalog.bytea',
+                          'pg_catalog."bit"',
+                          'pg_catalog.varbit',
                         ].includes(result.value.type)
                       ? 'SqlText'
                       : result.value.type === 'pg_catalog.uuid'
@@ -534,6 +537,11 @@ describe('generated PostgreSQL scalar evaluation', () => {
       'bytea to int8 18',
       'bytea encode 10',
       'bytea decode 5',
+      'bit compare operator:["pg_catalog","<"](pg_catalog."bit",pg_catalog."bit") 2',
+      'bit logic operator:["pg_catalog","&"](pg_catalog."bit",pg_catalog."bit") 0',
+      'bit shift operator:["pg_catalog","<<"](pg_catalog."bit",pg_catalog.int4) 2',
+      'bit from int8 2',
+      'varbit typmod 2',
       'date input 1',
       'date operator < 0',
       'date function eq',
@@ -672,6 +680,8 @@ describe('generated PostgreSQL scalar evaluation', () => {
                                   'pg_catalog.bpchar',
                                   'pg_catalog.name',
                                   'pg_catalog.bytea',
+                                  'pg_catalog."bit"',
+                                  'pg_catalog.varbit',
                                 ].includes(emitted.value.type)
                               ? 'SqlText'
                               : emitted.value.type === 'pg_catalog.uuid'
@@ -833,6 +843,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
       ...byteaLengthSignatures,
       ...byteaAccessSignatures,
       ...byteaCastSignatures,
+      ...bitSignatures,
       ...byteaSliceSignatures,
       ...byteaOrderSignatures,
       ...Object.keys(PG18_UUID).filter(
@@ -848,7 +859,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
     expect(supported.map((row) => row.signature).sort()).toEqual(
       [...expected, ...additional].sort(),
     )
-    expect(supported).toHaveLength(815)
+    expect(supported).toHaveLength(872)
     expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
     expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
   })
@@ -1108,6 +1119,13 @@ describe('generated PostgreSQL scalar evaluation', () => {
       ...['zz', 'a', 'A G'].map(
         (value) =>
           [{ kind: 'bytea', type: 'pg_catalog.bytea', value }, 'Invalid bytea'] as [
+            SqlExpression,
+            string,
+          ],
+      ),
+      ...['102', 'xG', 'b2', '2'].map(
+        (value) =>
+          [{ kind: 'bit', type: 'pg_catalog."bit"', value }, 'Invalid bit string'] as [
             SqlExpression,
             string,
           ],

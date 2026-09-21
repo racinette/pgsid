@@ -284,6 +284,10 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
     factory.createCallExpression(identifier('byteaInput'), undefined, [
       value === null ? factory.createNull() : factory.createStringLiteral(value),
     ]),
+  bit: (value) =>
+    factory.createCallExpression(identifier('bitInput'), undefined, [
+      value === null ? factory.createNull() : factory.createStringLiteral(value),
+    ]),
   uuid: (value) =>
     factory.createCallExpression(identifier('uuidInput'), undefined, [
       value === null ? factory.createNull() : factory.createStringLiteral(value),

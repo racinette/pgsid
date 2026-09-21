@@ -288,6 +288,10 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
     value === null
       ? { kind: 'composite', type: go.ident('SqlText'), elements: [] }
       : go.call(go.ident('byteaInput'), [go.string(value)]),
+  bit: (value) =>
+    value === null
+      ? { kind: 'composite', type: go.ident('SqlText'), elements: [] }
+      : go.call(go.ident('bitInput'), [go.string(value)]),
   uuid: (value) =>
     value === null
       ? { kind: 'composite', type: go.ident('SqlUuid'), elements: [] }

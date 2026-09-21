@@ -87186,4 +87186,1260 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
   'timezone interval timetz null': {
     kind: 'null',
   },
+  'bit compare function:["pg_catalog","bitcmp"](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'bit compare function:["pg_catalog","bitcmp"](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: '32',
+  },
+  'bit compare function:["pg_catalog","bitcmp"](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'value',
+    value: '-1',
+  },
+  'bit compare function:["pg_catalog","bitcmp"](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'value',
+    value: '-1',
+  },
+  'bit compare function:["pg_catalog","bitcmp"](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'value',
+    value: '-1',
+  },
+  'bit compare function:["pg_catalog","bitcmp"](pg_catalog."bit",pg_catalog."bit") 5': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","bitcmp"](pg_catalog."bit",pg_catalog."bit") 6': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","biteq"](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","biteq"](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","biteq"](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","biteq"](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","biteq"](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","biteq"](pg_catalog."bit",pg_catalog."bit") 5': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","biteq"](pg_catalog."bit",pg_catalog."bit") 6': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","bitge"](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","bitge"](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","bitge"](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","bitge"](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","bitge"](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","bitge"](pg_catalog."bit",pg_catalog."bit") 5': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","bitge"](pg_catalog."bit",pg_catalog."bit") 6': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","bitgt"](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","bitgt"](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","bitgt"](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","bitgt"](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","bitgt"](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","bitgt"](pg_catalog."bit",pg_catalog."bit") 5': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","bitgt"](pg_catalog."bit",pg_catalog."bit") 6': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","bitle"](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","bitle"](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","bitle"](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","bitle"](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","bitle"](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","bitle"](pg_catalog."bit",pg_catalog."bit") 5': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","bitle"](pg_catalog."bit",pg_catalog."bit") 6': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","bitlt"](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","bitlt"](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","bitlt"](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","bitlt"](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","bitlt"](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","bitlt"](pg_catalog."bit",pg_catalog."bit") 5': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","bitlt"](pg_catalog."bit",pg_catalog."bit") 6': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","bitne"](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","bitne"](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","bitne"](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","bitne"](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","bitne"](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","bitne"](pg_catalog."bit",pg_catalog."bit") 5': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","bitne"](pg_catalog."bit",pg_catalog."bit") 6': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","varbitcmp"](pg_catalog.varbit,pg_catalog.varbit) 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'bit compare function:["pg_catalog","varbitcmp"](pg_catalog.varbit,pg_catalog.varbit) 1': {
+    kind: 'value',
+    value: '32',
+  },
+  'bit compare function:["pg_catalog","varbitcmp"](pg_catalog.varbit,pg_catalog.varbit) 2': {
+    kind: 'value',
+    value: '-1',
+  },
+  'bit compare function:["pg_catalog","varbitcmp"](pg_catalog.varbit,pg_catalog.varbit) 3': {
+    kind: 'value',
+    value: '-1',
+  },
+  'bit compare function:["pg_catalog","varbitcmp"](pg_catalog.varbit,pg_catalog.varbit) 4': {
+    kind: 'value',
+    value: '-1',
+  },
+  'bit compare function:["pg_catalog","varbitcmp"](pg_catalog.varbit,pg_catalog.varbit) 5': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","varbitcmp"](pg_catalog.varbit,pg_catalog.varbit) 6': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","varbiteq"](pg_catalog.varbit,pg_catalog.varbit) 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","varbiteq"](pg_catalog.varbit,pg_catalog.varbit) 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","varbiteq"](pg_catalog.varbit,pg_catalog.varbit) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","varbiteq"](pg_catalog.varbit,pg_catalog.varbit) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","varbiteq"](pg_catalog.varbit,pg_catalog.varbit) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","varbiteq"](pg_catalog.varbit,pg_catalog.varbit) 5': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","varbiteq"](pg_catalog.varbit,pg_catalog.varbit) 6': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","varbitge"](pg_catalog.varbit,pg_catalog.varbit) 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","varbitge"](pg_catalog.varbit,pg_catalog.varbit) 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","varbitge"](pg_catalog.varbit,pg_catalog.varbit) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","varbitge"](pg_catalog.varbit,pg_catalog.varbit) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","varbitge"](pg_catalog.varbit,pg_catalog.varbit) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","varbitge"](pg_catalog.varbit,pg_catalog.varbit) 5': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","varbitge"](pg_catalog.varbit,pg_catalog.varbit) 6': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","varbitgt"](pg_catalog.varbit,pg_catalog.varbit) 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","varbitgt"](pg_catalog.varbit,pg_catalog.varbit) 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","varbitgt"](pg_catalog.varbit,pg_catalog.varbit) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","varbitgt"](pg_catalog.varbit,pg_catalog.varbit) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","varbitgt"](pg_catalog.varbit,pg_catalog.varbit) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","varbitgt"](pg_catalog.varbit,pg_catalog.varbit) 5': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","varbitgt"](pg_catalog.varbit,pg_catalog.varbit) 6': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","varbitle"](pg_catalog.varbit,pg_catalog.varbit) 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","varbitle"](pg_catalog.varbit,pg_catalog.varbit) 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","varbitle"](pg_catalog.varbit,pg_catalog.varbit) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","varbitle"](pg_catalog.varbit,pg_catalog.varbit) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","varbitle"](pg_catalog.varbit,pg_catalog.varbit) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","varbitle"](pg_catalog.varbit,pg_catalog.varbit) 5': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","varbitle"](pg_catalog.varbit,pg_catalog.varbit) 6': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","varbitlt"](pg_catalog.varbit,pg_catalog.varbit) 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","varbitlt"](pg_catalog.varbit,pg_catalog.varbit) 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","varbitlt"](pg_catalog.varbit,pg_catalog.varbit) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","varbitlt"](pg_catalog.varbit,pg_catalog.varbit) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","varbitlt"](pg_catalog.varbit,pg_catalog.varbit) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","varbitlt"](pg_catalog.varbit,pg_catalog.varbit) 5': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","varbitlt"](pg_catalog.varbit,pg_catalog.varbit) 6': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","varbitne"](pg_catalog.varbit,pg_catalog.varbit) 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare function:["pg_catalog","varbitne"](pg_catalog.varbit,pg_catalog.varbit) 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","varbitne"](pg_catalog.varbit,pg_catalog.varbit) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","varbitne"](pg_catalog.varbit,pg_catalog.varbit) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","varbitne"](pg_catalog.varbit,pg_catalog.varbit) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare function:["pg_catalog","varbitne"](pg_catalog.varbit,pg_catalog.varbit) 5': {
+    kind: 'null',
+  },
+  'bit compare function:["pg_catalog","varbitne"](pg_catalog.varbit,pg_catalog.varbit) 6': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog","<"](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog","<"](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog","<"](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<"](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<"](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<"](pg_catalog."bit",pg_catalog."bit") 5': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog","<"](pg_catalog."bit",pg_catalog."bit") 6': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog","<"](pg_catalog.varbit,pg_catalog.varbit) 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog","<"](pg_catalog.varbit,pg_catalog.varbit) 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog","<"](pg_catalog.varbit,pg_catalog.varbit) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<"](pg_catalog.varbit,pg_catalog.varbit) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<"](pg_catalog.varbit,pg_catalog.varbit) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<"](pg_catalog.varbit,pg_catalog.varbit) 5': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog","<"](pg_catalog.varbit,pg_catalog.varbit) 6': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog","<="](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<="](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog","<="](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<="](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<="](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<="](pg_catalog."bit",pg_catalog."bit") 5': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog","<="](pg_catalog."bit",pg_catalog."bit") 6': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog","<="](pg_catalog.varbit,pg_catalog.varbit) 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<="](pg_catalog.varbit,pg_catalog.varbit) 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog","<="](pg_catalog.varbit,pg_catalog.varbit) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<="](pg_catalog.varbit,pg_catalog.varbit) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<="](pg_catalog.varbit,pg_catalog.varbit) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<="](pg_catalog.varbit,pg_catalog.varbit) 5': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog","<="](pg_catalog.varbit,pg_catalog.varbit) 6': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog","<>"](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog","<>"](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<>"](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<>"](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<>"](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<>"](pg_catalog."bit",pg_catalog."bit") 5': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog","<>"](pg_catalog."bit",pg_catalog."bit") 6': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog","<>"](pg_catalog.varbit,pg_catalog.varbit) 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog","<>"](pg_catalog.varbit,pg_catalog.varbit) 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<>"](pg_catalog.varbit,pg_catalog.varbit) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<>"](pg_catalog.varbit,pg_catalog.varbit) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<>"](pg_catalog.varbit,pg_catalog.varbit) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","<>"](pg_catalog.varbit,pg_catalog.varbit) 5': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog","<>"](pg_catalog.varbit,pg_catalog.varbit) 6': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog","="](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","="](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog","="](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog","="](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog","="](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog","="](pg_catalog."bit",pg_catalog."bit") 5': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog","="](pg_catalog."bit",pg_catalog."bit") 6': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog","="](pg_catalog.varbit,pg_catalog.varbit) 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog","="](pg_catalog.varbit,pg_catalog.varbit) 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog","="](pg_catalog.varbit,pg_catalog.varbit) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog","="](pg_catalog.varbit,pg_catalog.varbit) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog","="](pg_catalog.varbit,pg_catalog.varbit) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog","="](pg_catalog.varbit,pg_catalog.varbit) 5': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog","="](pg_catalog.varbit,pg_catalog.varbit) 6': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog",">"](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog",">"](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog",">"](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog",">"](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog",">"](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog",">"](pg_catalog."bit",pg_catalog."bit") 5': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog",">"](pg_catalog."bit",pg_catalog."bit") 6': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog",">"](pg_catalog.varbit,pg_catalog.varbit) 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog",">"](pg_catalog.varbit,pg_catalog.varbit) 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog",">"](pg_catalog.varbit,pg_catalog.varbit) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog",">"](pg_catalog.varbit,pg_catalog.varbit) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog",">"](pg_catalog.varbit,pg_catalog.varbit) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog",">"](pg_catalog.varbit,pg_catalog.varbit) 5': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog",">"](pg_catalog.varbit,pg_catalog.varbit) 6': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog",">="](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog",">="](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog",">="](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog",">="](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog",">="](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog",">="](pg_catalog."bit",pg_catalog."bit") 5': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog",">="](pg_catalog."bit",pg_catalog."bit") 6': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog",">="](pg_catalog.varbit,pg_catalog.varbit) 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog",">="](pg_catalog.varbit,pg_catalog.varbit) 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bit compare operator:["pg_catalog",">="](pg_catalog.varbit,pg_catalog.varbit) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog",">="](pg_catalog.varbit,pg_catalog.varbit) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog",">="](pg_catalog.varbit,pg_catalog.varbit) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bit compare operator:["pg_catalog",">="](pg_catalog.varbit,pg_catalog.varbit) 5': {
+    kind: 'null',
+  },
+  'bit compare operator:["pg_catalog",">="](pg_catalog.varbit,pg_catalog.varbit) 6': {
+    kind: 'null',
+  },
+  'bit logic function:["pg_catalog","bitand"](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: '1000',
+  },
+  'bit logic function:["pg_catalog","bitand"](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: '0000',
+  },
+  'bit logic function:["pg_catalog","bitand"](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'error',
+    code: '22026',
+  },
+  'bit logic function:["pg_catalog","bitand"](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'null',
+  },
+  'bit logic function:["pg_catalog","bitand"](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'null',
+  },
+  'bit logic function:["pg_catalog","bitor"](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: '1110',
+  },
+  'bit logic function:["pg_catalog","bitor"](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: '1111',
+  },
+  'bit logic function:["pg_catalog","bitor"](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'error',
+    code: '22026',
+  },
+  'bit logic function:["pg_catalog","bitor"](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'null',
+  },
+  'bit logic function:["pg_catalog","bitor"](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'null',
+  },
+  'bit logic function:["pg_catalog","bitxor"](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: '0110',
+  },
+  'bit logic function:["pg_catalog","bitxor"](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: '1111',
+  },
+  'bit logic function:["pg_catalog","bitxor"](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'error',
+    code: '22026',
+  },
+  'bit logic function:["pg_catalog","bitxor"](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'null',
+  },
+  'bit logic function:["pg_catalog","bitxor"](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'null',
+  },
+  'bit logic operator:["pg_catalog","&"](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: '1000',
+  },
+  'bit logic operator:["pg_catalog","&"](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: '0000',
+  },
+  'bit logic operator:["pg_catalog","&"](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'error',
+    code: '22026',
+  },
+  'bit logic operator:["pg_catalog","&"](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'null',
+  },
+  'bit logic operator:["pg_catalog","&"](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'null',
+  },
+  'bit logic operator:["pg_catalog","|"](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: '1110',
+  },
+  'bit logic operator:["pg_catalog","|"](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: '1111',
+  },
+  'bit logic operator:["pg_catalog","|"](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'error',
+    code: '22026',
+  },
+  'bit logic operator:["pg_catalog","|"](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'null',
+  },
+  'bit logic operator:["pg_catalog","|"](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'null',
+  },
+  'bit logic operator:["pg_catalog","#"](pg_catalog."bit",pg_catalog."bit") 0': {
+    kind: 'value',
+    value: '0110',
+  },
+  'bit logic operator:["pg_catalog","#"](pg_catalog."bit",pg_catalog."bit") 1': {
+    kind: 'value',
+    value: '1111',
+  },
+  'bit logic operator:["pg_catalog","#"](pg_catalog."bit",pg_catalog."bit") 2': {
+    kind: 'error',
+    code: '22026',
+  },
+  'bit logic operator:["pg_catalog","#"](pg_catalog."bit",pg_catalog."bit") 3': {
+    kind: 'null',
+  },
+  'bit logic operator:["pg_catalog","#"](pg_catalog."bit",pg_catalog."bit") 4': {
+    kind: 'null',
+  },
+  'bit not 0': {
+    kind: 'null',
+  },
+  'bit not 1': {
+    kind: 'value',
+    value: '',
+  },
+  'bit not 2': {
+    kind: 'value',
+    value: '0101',
+  },
+  'bit not 3': {
+    kind: 'value',
+    value: '1',
+  },
+  'bit not function': {
+    kind: 'value',
+    value: '0101',
+  },
+  'bit shift operator:["pg_catalog","<<"](pg_catalog."bit",pg_catalog.int4) 0': {
+    kind: 'null',
+  },
+  'bit shift operator:["pg_catalog","<<"](pg_catalog."bit",pg_catalog.int4) 1': {
+    kind: 'value',
+    value: '10110001',
+  },
+  'bit shift operator:["pg_catalog","<<"](pg_catalog."bit",pg_catalog.int4) 2': {
+    kind: 'value',
+    value: '01100010',
+  },
+  'bit shift operator:["pg_catalog","<<"](pg_catalog."bit",pg_catalog.int4) 3': {
+    kind: 'value',
+    value: '01011000',
+  },
+  'bit shift operator:["pg_catalog","<<"](pg_catalog."bit",pg_catalog.int4) 4': {
+    kind: 'value',
+    value: '00000000',
+  },
+  'bit shift operator:["pg_catalog","<<"](pg_catalog."bit",pg_catalog.int4) 5': {
+    kind: 'value',
+    value: '00000000',
+  },
+  'bit shift operator:["pg_catalog",">>"](pg_catalog."bit",pg_catalog.int4) 0': {
+    kind: 'null',
+  },
+  'bit shift operator:["pg_catalog",">>"](pg_catalog."bit",pg_catalog.int4) 1': {
+    kind: 'value',
+    value: '10110001',
+  },
+  'bit shift operator:["pg_catalog",">>"](pg_catalog."bit",pg_catalog.int4) 2': {
+    kind: 'value',
+    value: '01011000',
+  },
+  'bit shift operator:["pg_catalog",">>"](pg_catalog."bit",pg_catalog.int4) 3': {
+    kind: 'value',
+    value: '01100010',
+  },
+  'bit shift operator:["pg_catalog",">>"](pg_catalog."bit",pg_catalog.int4) 4': {
+    kind: 'value',
+    value: '00000000',
+  },
+  'bit shift operator:["pg_catalog",">>"](pg_catalog."bit",pg_catalog.int4) 5': {
+    kind: 'value',
+    value: '00000000',
+  },
+  'bit shift function:["pg_catalog","bitshiftleft"](pg_catalog."bit",pg_catalog.int4) 0': {
+    kind: 'null',
+  },
+  'bit shift function:["pg_catalog","bitshiftleft"](pg_catalog."bit",pg_catalog.int4) 1': {
+    kind: 'value',
+    value: '10110001',
+  },
+  'bit shift function:["pg_catalog","bitshiftleft"](pg_catalog."bit",pg_catalog.int4) 2': {
+    kind: 'value',
+    value: '01100010',
+  },
+  'bit shift function:["pg_catalog","bitshiftleft"](pg_catalog."bit",pg_catalog.int4) 3': {
+    kind: 'value',
+    value: '01011000',
+  },
+  'bit shift function:["pg_catalog","bitshiftleft"](pg_catalog."bit",pg_catalog.int4) 4': {
+    kind: 'value',
+    value: '00000000',
+  },
+  'bit shift function:["pg_catalog","bitshiftleft"](pg_catalog."bit",pg_catalog.int4) 5': {
+    kind: 'value',
+    value: '00000000',
+  },
+  'bit shift function:["pg_catalog","bitshiftright"](pg_catalog."bit",pg_catalog.int4) 0': {
+    kind: 'null',
+  },
+  'bit shift function:["pg_catalog","bitshiftright"](pg_catalog."bit",pg_catalog.int4) 1': {
+    kind: 'value',
+    value: '10110001',
+  },
+  'bit shift function:["pg_catalog","bitshiftright"](pg_catalog."bit",pg_catalog.int4) 2': {
+    kind: 'value',
+    value: '01011000',
+  },
+  'bit shift function:["pg_catalog","bitshiftright"](pg_catalog."bit",pg_catalog.int4) 3': {
+    kind: 'value',
+    value: '01100010',
+  },
+  'bit shift function:["pg_catalog","bitshiftright"](pg_catalog."bit",pg_catalog.int4) 4': {
+    kind: 'value',
+    value: '00000000',
+  },
+  'bit shift function:["pg_catalog","bitshiftright"](pg_catalog."bit",pg_catalog.int4) 5': {
+    kind: 'value',
+    value: '00000000',
+  },
+  'bit concat function:["pg_catalog","bitcat"](pg_catalog.varbit,pg_catalog.varbit) 0': {
+    kind: 'value',
+    value: '1011',
+  },
+  'bit concat function:["pg_catalog","bitcat"](pg_catalog.varbit,pg_catalog.varbit) 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'bit concat function:["pg_catalog","bitcat"](pg_catalog.varbit,pg_catalog.varbit) 2': {
+    kind: 'value',
+    value: '1',
+  },
+  'bit concat function:["pg_catalog","bitcat"](pg_catalog.varbit,pg_catalog.varbit) 3': {
+    kind: 'null',
+  },
+  'bit concat operator:["pg_catalog","||"](pg_catalog.varbit,pg_catalog.varbit) 0': {
+    kind: 'value',
+    value: '1011',
+  },
+  'bit concat operator:["pg_catalog","||"](pg_catalog.varbit,pg_catalog.varbit) 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'bit concat operator:["pg_catalog","||"](pg_catalog.varbit,pg_catalog.varbit) 2': {
+    kind: 'value',
+    value: '1',
+  },
+  'bit concat operator:["pg_catalog","||"](pg_catalog.varbit,pg_catalog.varbit) 3': {
+    kind: 'null',
+  },
+  'bit size function:["pg_catalog","length"](pg_catalog."bit") 0': {
+    kind: 'null',
+  },
+  'bit size function:["pg_catalog","length"](pg_catalog."bit") 1': {
+    kind: 'value',
+    value: '0',
+  },
+  'bit size function:["pg_catalog","length"](pg_catalog."bit") 2': {
+    kind: 'value',
+    value: '1',
+  },
+  'bit size function:["pg_catalog","length"](pg_catalog."bit") 3': {
+    kind: 'value',
+    value: '9',
+  },
+  'bit size function:["pg_catalog","octet_length"](pg_catalog."bit") 0': {
+    kind: 'null',
+  },
+  'bit size function:["pg_catalog","octet_length"](pg_catalog."bit") 1': {
+    kind: 'value',
+    value: '0',
+  },
+  'bit size function:["pg_catalog","octet_length"](pg_catalog."bit") 2': {
+    kind: 'value',
+    value: '1',
+  },
+  'bit size function:["pg_catalog","octet_length"](pg_catalog."bit") 3': {
+    kind: 'value',
+    value: '2',
+  },
+  'bit size function:["pg_catalog","bit_length"](pg_catalog."bit") 0': {
+    kind: 'null',
+  },
+  'bit size function:["pg_catalog","bit_length"](pg_catalog."bit") 1': {
+    kind: 'value',
+    value: '0',
+  },
+  'bit size function:["pg_catalog","bit_length"](pg_catalog."bit") 2': {
+    kind: 'value',
+    value: '1',
+  },
+  'bit size function:["pg_catalog","bit_length"](pg_catalog."bit") 3': {
+    kind: 'value',
+    value: '9',
+  },
+  'bit size function:["pg_catalog","bit_count"](pg_catalog."bit") 0': {
+    kind: 'null',
+  },
+  'bit size function:["pg_catalog","bit_count"](pg_catalog."bit") 1': {
+    kind: 'value',
+    value: '0',
+  },
+  'bit size function:["pg_catalog","bit_count"](pg_catalog."bit") 2': {
+    kind: 'value',
+    value: '1',
+  },
+  'bit size function:["pg_catalog","bit_count"](pg_catalog."bit") 3': {
+    kind: 'value',
+    value: '5',
+  },
+  'bit substring 0': {
+    kind: 'value',
+    value: '10',
+  },
+  'bit substring 1': {
+    kind: 'value',
+    value: '10',
+  },
+  'bit substring 2': {
+    kind: 'value',
+    value: '10',
+  },
+  'bit substring 3': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bit substring 4': {
+    kind: 'value',
+    value: '0110',
+  },
+  'bit substring 5': {
+    kind: 'value',
+    value: '',
+  },
+  'bit substring 6': {
+    kind: 'null',
+  },
+  'bit overlay 0': {
+    kind: 'value',
+    value: '11110',
+  },
+  'bit overlay 1': {
+    kind: 'value',
+    value: '1010',
+  },
+  'bit overlay 2': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bit overlay 3': {
+    kind: 'value',
+    value: '1110110',
+  },
+  'bit position 0': {
+    kind: 'value',
+    value: '2',
+  },
+  'bit position 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'bit position 2': {
+    kind: 'value',
+    value: '0',
+  },
+  'bit position 3': {
+    kind: 'value',
+    value: '0',
+  },
+  'bit position 4': {
+    kind: 'value',
+    value: '0',
+  },
+  'bit position 5': {
+    kind: 'null',
+  },
+  'bit get 0': {
+    kind: 'null',
+  },
+  'bit get 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'bit get 2': {
+    kind: 'value',
+    value: '0',
+  },
+  'bit get 3': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'bit get 4': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'bit set 0': {
+    kind: 'value',
+    value: '0011',
+  },
+  'bit set 1': {
+    kind: 'value',
+    value: '1011',
+  },
+  'bit set 2': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'bit set 3': {
+    kind: 'error',
+    code: '22023',
+  },
+  'bit set 4': {
+    kind: 'null',
+  },
+  'bit typmod 0': {
+    kind: 'value',
+    value: '101',
+  },
+  'bit typmod 1': {
+    kind: 'value',
+    value: '10100',
+  },
+  'bit typmod 2': {
+    kind: 'value',
+    value: '101',
+  },
+  'bit typmod 3': {
+    kind: 'error',
+    code: '22026',
+  },
+  'bit typmod 4': {
+    kind: 'value',
+    value: '101',
+  },
+  'bit typmod 5': {
+    kind: 'null',
+  },
+  'varbit typmod 0': {
+    kind: 'value',
+    value: '101',
+  },
+  'varbit typmod 1': {
+    kind: 'error',
+    code: '22001',
+  },
+  'varbit typmod 2': {
+    kind: 'value',
+    value: '101',
+  },
+  'varbit typmod 3': {
+    kind: 'value',
+    value: '101',
+  },
+  'varbit typmod 4': {
+    kind: 'null',
+  },
+  'bit from int4 0': {
+    kind: 'value',
+    value: '0101',
+  },
+  'bit from int4 1': {
+    kind: 'value',
+    value: '1111',
+  },
+  'bit from int4 2': {
+    kind: 'value',
+    value: '00000001',
+  },
+  'bit from int4 3': {
+    kind: 'value',
+    value: '1111111111111111111111111111111111111111',
+  },
+  'bit from int4 4': {
+    kind: 'value',
+    value: '1',
+  },
+  'bit from int4 5': {
+    kind: 'null',
+  },
+  'bit from int4 6': {
+    kind: 'null',
+  },
+  'bit from int8 0': {
+    kind: 'value',
+    value: '11111111',
+  },
+  'bit from int8 1': {
+    kind: 'value',
+    value: '0000000000000000000000000000000000000000000000000000000000000000000001',
+  },
+  'bit from int8 2': {
+    kind: 'value',
+    value: '0111111111111111111111111111111111111111111111111111111111111111',
+  },
+  'bit from int8 3': {
+    kind: 'value',
+    value: '1000000000000000000000000000000000000000000000000000000000000000',
+  },
+  'bit to int4 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'bit to int4 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'bit to int4 2': {
+    kind: 'value',
+    value: '5',
+  },
+  'bit to int4 3': {
+    kind: 'value',
+    value: '128',
+  },
+  'bit to int4 4': {
+    kind: 'value',
+    value: '-1',
+  },
+  'bit to int4 5': {
+    kind: 'error',
+    code: '22003',
+  },
+  'bit to int4 6': {
+    kind: 'null',
+  },
+  'bit to int8 0': {
+    kind: 'value',
+    value: '-1',
+  },
+  'bit to int8 1': {
+    kind: 'error',
+    code: '22003',
+  },
+  'bit to int8 2': {
+    kind: 'value',
+    value: '1',
+  },
+  'bit input 0': {
+    kind: 'value',
+    value: '11111111',
+  },
+  'bit input 1': {
+    kind: 'value',
+    value: '11111111',
+  },
+  'bit input 2': {
+    kind: 'value',
+    value: '11111111',
+  },
+  'bit input 3': {
+    kind: 'value',
+    value: '1111',
+  },
+  'bit input 4': {
+    kind: 'value',
+    value: '1010',
+  },
+  'bit input 5': {
+    kind: 'value',
+    value: '10101011',
+  },
+  'bit input 6': {
+    kind: 'value',
+    value: '1010',
+  },
+  'bit input 7': {
+    kind: 'value',
+    value: '1010',
+  },
+  'bit input 8': {
+    kind: 'value',
+    value: '',
+  },
+  'bit input 9': {
+    kind: 'value',
+    value: '',
+  },
+  'bit hex equals binary': {
+    kind: 'value',
+    value: 'true',
+  },
 }
