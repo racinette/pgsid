@@ -11,6 +11,7 @@ import {
   temporalArithmeticFunctions,
   temporalArithmeticOperators,
 } from '../../../sql-semantics/temporal-arithmetic-bindings.js'
+import { temporalOverlapsFunctions } from '../../../sql-semantics/temporal-overlaps-bindings.js'
 
 function call<M extends CallableMetadata>(helper: string): CallableEmitter<M, GoExpression> {
   return {
@@ -107,5 +108,8 @@ export const goTemporalFunctions = {
     call('dateTruncInterval'),
   ...Object.fromEntries(
     temporalArithmeticFunctions.map(([signature, helper]) => [signature, call(helper)]),
+  ),
+  ...Object.fromEntries(
+    temporalOverlapsFunctions.map(([signature, helper]) => [signature, call(helper)]),
   ),
 } as FunctionBindings<typeof PG18_TEMPORAL, GoExpression>

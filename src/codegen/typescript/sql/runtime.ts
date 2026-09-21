@@ -14,6 +14,7 @@ import { typescriptJsonHelpers } from './json-runtime.js'
 import { typescriptTemporalHelpers } from './temporal-runtime.js'
 import { typescriptTemporalExtractHelpers } from './temporal-extract-runtime.js'
 import { typescriptTemporalArithmeticHelpers } from './temporal-arithmetic-runtime.js'
+import { typescriptTemporalOverlapsHelpers } from './temporal-overlaps-runtime.js'
 
 const helpers: Record<string, { dependencies: readonly string[]; source: string }> = {
   sqlIntegerError: {
@@ -172,6 +173,7 @@ Object.assign(helpers, typescriptJsonHelpers)
 Object.assign(helpers, typescriptTemporalHelpers)
 Object.assign(helpers, typescriptTemporalExtractHelpers)
 Object.assign(helpers, typescriptTemporalArithmeticHelpers)
+Object.assign(helpers, typescriptTemporalOverlapsHelpers)
 
 for (const [width, bits, shiftMask] of [
   ['int2', 16, 31n],
