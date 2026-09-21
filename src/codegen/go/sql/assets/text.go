@@ -1411,3 +1411,108 @@ func byteaReverse(value SqlText) SqlText {
 	}
 	return SqlText{Value: byteaHex(out), Valid: true}
 }
+
+func byteaGetByte(value SqlText, index SqlInteger) SqlInteger {
+	if value.Error != "" {
+		return SqlInteger{Error: value.Error}
+	}
+	if index.Error != "" {
+		return SqlInteger{Error: index.Error}
+	}
+	if !value.Valid || !index.Valid {
+		return SqlInteger{}
+	}
+	decoded, err := byteaDecode(value.Value)
+	if err != "" {
+		return SqlInteger{Error: err}
+	}
+	if index.Value < 0 || index.Value >= int64(len(decoded)) {
+		return SqlInteger{Error: "2202E"}
+	}
+	return SqlInteger{Value: int64(decoded[int(index.Value)]), Valid: true}
+}
+
+func byteaGetBit(value SqlText, index SqlInteger) SqlInteger {
+	if value.Error != "" {
+		return SqlInteger{Error: value.Error}
+	}
+	if index.Error != "" {
+		return SqlInteger{Error: index.Error}
+	}
+	if !value.Valid || !index.Valid {
+		return SqlInteger{}
+	}
+	decoded, err := byteaDecode(value.Value)
+	if err != "" {
+		return SqlInteger{Error: err}
+	}
+	if index.Value < 0 || index.Value >= int64(len(decoded))*8 {
+		return SqlInteger{Error: "2202E"}
+	}
+	position := int(index.Value / 8)
+	bit := uint(index.Value % 8)
+	if decoded[position]&(1<<bit) == 0 {
+		return SqlInteger{Value: 0, Valid: true}
+	}
+	return SqlInteger{Value: 1, Valid: true}
+}
+
+func byteaSetByte(value SqlText, index, next SqlInteger) SqlText {
+	if value.Error != "" {
+		return SqlText{Error: value.Error}
+	}
+	if index.Error != "" {
+		return SqlText{Error: index.Error}
+	}
+	if next.Error != "" {
+		return SqlText{Error: next.Error}
+	}
+	if !value.Valid || !index.Valid || !next.Valid {
+		return SqlText{}
+	}
+	decoded, err := byteaDecode(value.Value)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	if index.Value < 0 || index.Value >= int64(len(decoded)) {
+		return SqlText{Error: "2202E"}
+	}
+	out := append([]byte(nil), decoded...)
+	out[int(index.Value)] = byte(next.Value)
+	return SqlText{Value: byteaHex(out), Valid: true}
+}
+
+func byteaSetBit(value SqlText, index, next SqlInteger) SqlText {
+	if value.Error != "" {
+		return SqlText{Error: value.Error}
+	}
+	if index.Error != "" {
+		return SqlText{Error: index.Error}
+	}
+	if next.Error != "" {
+		return SqlText{Error: next.Error}
+	}
+	if !value.Valid || !index.Valid || !next.Valid {
+		return SqlText{}
+	}
+	decoded, err := byteaDecode(value.Value)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	if index.Value < 0 || index.Value >= int64(len(decoded))*8 {
+		return SqlText{Error: "2202E"}
+	}
+	if next.Value != 0 && next.Value != 1 {
+		return SqlText{Error: "22023"}
+	}
+	position := int(index.Value / 8)
+	bit := uint(index.Value % 8)
+	mask := byte(1 << bit)
+	out := append([]byte(nil), decoded...)
+	if next.Value == 0 {
+		out[position] &^= mask
+	} else {
+		out[position] |= mask
+	}
+	return SqlText{Value: byteaHex(out), Valid: true}
+}

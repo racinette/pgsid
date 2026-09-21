@@ -46,6 +46,8 @@ export const goBinaryFunctions = {
   'function:["pg_catalog","bytealike"](pg_catalog.bytea,pg_catalog.bytea)': call('byteaLike'),
   'function:["pg_catalog","bytealt"](pg_catalog.bytea,pg_catalog.bytea)': call('byteaLt'),
   'function:["pg_catalog","byteane"](pg_catalog.bytea,pg_catalog.bytea)': call('byteaNe'),
+  'function:["pg_catalog","get_bit"](pg_catalog.bytea,pg_catalog.int8)': call('byteaGetBit'),
+  'function:["pg_catalog","get_byte"](pg_catalog.bytea,pg_catalog.int4)': call('byteaGetByte'),
   'function:["pg_catalog","byteanlike"](pg_catalog.bytea,pg_catalog.bytea)': call('byteaNotLike'),
   'function:["pg_catalog","btrim"](pg_catalog.bytea,pg_catalog.bytea)': call('byteaTrimBoth'),
   'function:["pg_catalog","bit_count"](pg_catalog.bytea)': call('byteaBitCount'),
@@ -61,6 +63,10 @@ export const goBinaryFunctions = {
     call('byteaOverlayLength'),
   'function:["pg_catalog","position"](pg_catalog.bytea,pg_catalog.bytea)': call('byteaPosition'),
   'function:["pg_catalog","reverse"](pg_catalog.bytea)': call('byteaReverse'),
+  'function:["pg_catalog","set_bit"](pg_catalog.bytea,pg_catalog.int8,pg_catalog.int4)':
+    call('byteaSetBit'),
+  'function:["pg_catalog","set_byte"](pg_catalog.bytea,pg_catalog.int4,pg_catalog.int4)':
+    call('byteaSetByte'),
   'function:["pg_catalog","rtrim"](pg_catalog.bytea,pg_catalog.bytea)': call('byteaTrimRight'),
   'function:["pg_catalog","substr"](pg_catalog.bytea,pg_catalog.int4)': call('byteaSubstr'),
   'function:["pg_catalog","substr"](pg_catalog.bytea,pg_catalog.int4,pg_catalog.int4)':

@@ -79262,6 +79262,172 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: '\\xff0100',
   },
+  'bytea get byte 0': {
+    kind: 'value',
+    value: '255',
+  },
+  'bytea get byte 1': {
+    kind: 'value',
+    value: '128',
+  },
+  'bytea get byte 2': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'bytea get byte 3': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'bytea get byte 4': {
+    kind: 'null',
+  },
+  'bytea get byte 5': {
+    kind: 'null',
+  },
+  'bytea get byte 6': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'bytea get byte 7': {
+    kind: 'value',
+    value: '255',
+  },
+  'bytea get bit 0': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea get bit 1': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea get bit 2': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea get bit 3': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'bytea get bit 4': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea get bit 5': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea get bit 6': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea get bit 7': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea get bit 8': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'bytea get bit 9': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'bytea get bit 10': {
+    kind: 'null',
+  },
+  'bytea get bit 11': {
+    kind: 'null',
+  },
+  'bytea set byte 0': {
+    kind: 'value',
+    value: '\\x00ff',
+  },
+  'bytea set byte 1': {
+    kind: 'value',
+    value: '\\x0000',
+  },
+  'bytea set byte 2': {
+    kind: 'value',
+    value: '\\xff00',
+  },
+  'bytea set byte 3': {
+    kind: 'value',
+    value: '\\xff00',
+  },
+  'bytea set byte 4': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'bytea set byte 5': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'bytea set byte 6': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'bytea set byte 7': {
+    kind: 'null',
+  },
+  'bytea set byte 8': {
+    kind: 'null',
+  },
+  'bytea set byte 9': {
+    kind: 'null',
+  },
+  'bytea set byte 10': {
+    kind: 'value',
+    value: '\\xffcd',
+  },
+  'bytea set bit 0': {
+    kind: 'value',
+    value: '\\x01',
+  },
+  'bytea set bit 1': {
+    kind: 'value',
+    value: '\\x80',
+  },
+  'bytea set bit 2': {
+    kind: 'value',
+    value: '\\xfe',
+  },
+  'bytea set bit 3': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'bytea set bit 4': {
+    kind: 'value',
+    value: '\\x0001',
+  },
+  'bytea set bit 5': {
+    kind: 'error',
+    code: '22023',
+  },
+  'bytea set bit 6': {
+    kind: 'error',
+    code: '2202E',
+  },
+  'bytea set bit 7': {
+    kind: 'error',
+    code: '22023',
+  },
+  'bytea set bit 8': {
+    kind: 'value',
+    value: '\\x7f',
+  },
+  'bytea set bit 9': {
+    kind: 'null',
+  },
+  'bytea set bit 10': {
+    kind: 'null',
+  },
+  'bytea set bit 11': {
+    kind: 'null',
+  },
+  'bytea set bit 12': {
+    kind: 'error',
+    code: '2202E',
+  },
   'uuid input 0': {
     kind: 'null',
   },
