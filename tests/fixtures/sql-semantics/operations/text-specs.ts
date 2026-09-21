@@ -1,6 +1,11 @@
 import type { SqlExpression, TextType } from '../../../../src/sql-semantics/expressions.js'
 import { functionMetadata, operatorMetadata } from '../../../../src/postgres/builtins/inventory.js'
-import { textSignatures } from './text-signatures.js'
+import {
+  byteaLikeSignatures,
+  byteaOrderSignatures,
+  nameLikeSignatures,
+  textSignatures,
+} from './text-signatures.js'
 import type { ExpressionSpec } from './expression-spec.js'
 
 interface Operand {
@@ -43,7 +48,7 @@ function callable(signature: string, operands: readonly Operand[]): Operand {
   return {
     sql: operator
       ? `((${operands[0]!.sql}) COLLATE "C" ${metadata.name} (${operands[1]!.sql}) COLLATE "C")`
-      : `pg_catalog."${metadata.name}"(${operands.map((o) => `(${o.sql})${['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog."varchar"'].includes(o.expression.type) ? ' COLLATE "C"' : ''}`).join(',')})`,
+      : `pg_catalog."${metadata.name}"(${operands.map((o) => `(${o.sql})${['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog."varchar"', 'pg_catalog.name'].includes(o.expression.type) ? ' COLLATE "C"' : ''}`).join(',')})`,
     expression: {
       kind: operator ? 'operator' : 'function',
       type: metadata.result,
@@ -293,4 +298,151 @@ add(
     escaped,
   ]),
 )
+const caseSamples = [null, '', 'AbC', 'hELLO-wORLD 123abc a_b', 'éÉİßi', 'İ', 'ß', 'a😀B']
+for (const signature of [
+  'function:["pg_catalog","lower"](pg_catalog.text)',
+  'function:["pg_catalog","upper"](pg_catalog.text)',
+  'function:["pg_catalog","initcap"](pg_catalog.text)',
+  'function:["pg_catalog","casefold"](pg_catalog.text)',
+] as const)
+  for (const [index, sample] of caseSamples.entries())
+    add(`text case ${signature} ${index}`, callable(signature, [text(sample)]))
+const ilikePairs: readonly (readonly [string | null, string | null])[] = [
+  ['ABC', 'abc'],
+  ['ABC', 'a%'],
+  ['ABC', 'a_c'],
+  ['É', 'é'],
+  ['I', 'i'],
+  ['İ', 'i'],
+  ['İ', 'İ'],
+  ['A', '\\a'],
+  ['A', '\\A'],
+]
+for (const [index, [value, pattern]] of ilikePairs.entries()) {
+  add(
+    `text ilike pair ${index}`,
+    callable('operator:["pg_catalog","~~*"](pg_catalog.text,pg_catalog.text)', [
+      text(value),
+      text(pattern),
+    ]),
+  )
+  add(
+    `text not ilike pair ${index}`,
+    callable('operator:["pg_catalog","!~~*"](pg_catalog.text,pg_catalog.text)', [
+      text(value),
+      text(pattern),
+    ]),
+  )
+}
+add(
+  'text ilike bpchar padding exact',
+  callable('operator:["pg_catalog","~~*"](pg_catalog.bpchar,pg_catalog.text)', [
+    coerce(text('ABC'), 'pg_catalog.bpchar', 6),
+    text('abc'),
+  ]),
+)
+add(
+  'text ilike bpchar padding percent',
+  callable('operator:["pg_catalog","~~*"](pg_catalog.bpchar,pg_catalog.text)', [
+    coerce(text('ABC'), 'pg_catalog.bpchar', 6),
+    text('abc%'),
+  ]),
+)
+const nameValue = (value: string | null): Operand => ({
+  sql: value === null ? 'NULL::name' : `'${value.replaceAll("'", "''")}'::name`,
+  expression: { kind: 'name', type: 'pg_catalog.name', value },
+})
+const namePairs: readonly (readonly [string | null, string | null])[] = [
+  ['abc', 'abc'],
+  ['abc', 'a%'],
+  ['AbC', 'abc'],
+  ['AbC', 'a%'],
+  ['ABC', 'a_c'],
+  [null, 'a%'],
+  ['abc', null],
+  ['a'.repeat(70), 'a'.repeat(63)],
+  ['a'.repeat(70), 'a'.repeat(64)],
+  ['a'.repeat(62) + 'é', 'a'.repeat(62)],
+  ['a'.repeat(62) + 'é', 'a'.repeat(62) + 'é'],
+  ['é', '_'],
+  ['😀', '_'],
+  ['😀', '__'],
+]
+for (const signature of nameLikeSignatures)
+  for (const [index, [value, pattern]] of namePairs.entries())
+    add(`name like ${signature} ${index}`, callable(signature, [nameValue(value), text(pattern)]))
+const bytea = (hex: string | null): Operand => ({
+  sql: hex === null ? 'NULL::bytea' : `'\\x${hex}'::bytea`,
+  expression: { kind: 'bytea', type: 'pg_catalog.bytea', value: hex },
+})
+function byteaCall(signature: string, operands: readonly Operand[]): Operand {
+  const operator = signature.startsWith('operator:')
+  const metadata = operator ? operatorMetadata(signature) : functionMetadata(signature)
+  return {
+    sql: operator
+      ? `((${operands[0]!.sql}) ${metadata.name} (${operands[1]!.sql}))`
+      : `pg_catalog."${metadata.name}"(${operands.map((operand) => operand.sql).join(',')})`,
+    expression: {
+      kind: operator ? 'operator' : 'function',
+      type: metadata.result,
+      signature,
+      operands: operands.map((operand) => operand.expression),
+    },
+  }
+}
+const byteaPairs: readonly (readonly [string | null, string | null])[] = [
+  ['41', '41'],
+  ['414243', '4125'],
+  ['ff', '5f'],
+  ['ffff', '5f'],
+  ['c3a9', '5f'],
+  ['c3a9', '5f5f'],
+  ['61', '41'],
+  ['', ''],
+  ['', '25'],
+  ['41', ''],
+  [null, '41'],
+  ['41', null],
+  ['5c', '5c5c'],
+  ['41', '5c'],
+]
+for (const signature of byteaLikeSignatures)
+  if (!signature.includes('like_escape'))
+    for (const [index, [value, pattern]] of byteaPairs.entries())
+      add(`bytea like ${signature} ${index}`, byteaCall(signature, [bytea(value), bytea(pattern)]))
+const byteaEscapes: readonly (readonly [string | null, string | null])[] = [
+  ['2325', '23'],
+  ['5c25', '5c'],
+  ['5c25', ''],
+  ['25', '2323'],
+  [null, '23'],
+  ['25', null],
+]
+for (const [index, [pattern, escape]] of byteaEscapes.entries())
+  add(
+    `bytea like escape ${index}`,
+    byteaCall('function:["pg_catalog","like_escape"](pg_catalog.bytea,pg_catalog.bytea)', [
+      bytea(pattern),
+      bytea(escape),
+    ]),
+  )
+const byteaOrderPairs: readonly (readonly [string | null, string | null])[] = [
+  ['41', '41'],
+  ['41', '42'],
+  ['42', '41'],
+  ['ff', '00'],
+  ['00', 'ff'],
+  ['80', '7f'],
+  ['0100', '01ff'],
+  ['41', '4142'],
+  ['4142', '41'],
+  ['', ''],
+  ['', '00'],
+  ['00', ''],
+  [null, '41'],
+  ['41', null],
+]
+for (const signature of byteaOrderSignatures)
+  for (const [index, [left, right]] of byteaOrderPairs.entries())
+    add(`bytea order ${signature} ${index}`, byteaCall(signature, [bytea(left), bytea(right)]))
 export const textSpecs: readonly ExpressionSpec[] = specs

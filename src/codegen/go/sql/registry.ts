@@ -1,6 +1,7 @@
 import { goSqlSyntax } from './syntax.js'
 import { goBooleanOperators, goBooleanFunctions } from './boolean.js'
 import { goTextOperators, goTextFunctions } from './text.js'
+import { goBinaryOperators, goBinaryFunctions } from './binary.js'
 import { goFloatOperators, goFloatFunctions } from './floating-point.js'
 import { goDecimalOperators, goDecimalFunctions } from './decimal.js'
 import { go } from '../ast.js'
@@ -15,6 +16,7 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
   bindings: [
     { domain: 'boolean', operators: goBooleanOperators, functions: goBooleanFunctions },
     { domain: 'text', operators: goTextOperators, functions: goTextFunctions },
+    { domain: 'binary', operators: goBinaryOperators, functions: goBinaryFunctions },
     { domain: 'numeric', operators: goDecimalOperators, functions: goDecimalFunctions },
     { domain: 'numeric', operators: goFloatOperators, functions: goFloatFunctions },
     { domain: 'numeric', operators: goNumericOperators, functions: goNumericFunctions },
@@ -278,6 +280,14 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
     value === null
       ? { kind: 'composite', type: go.ident('SqlText'), elements: [] }
       : go.call(go.ident('textInput'), [go.string(value)]),
+  name: (value) =>
+    value === null
+      ? { kind: 'composite', type: go.ident('SqlText'), elements: [] }
+      : go.call(go.ident('nameInput'), [go.string(value)]),
+  bytea: (value) =>
+    value === null
+      ? { kind: 'composite', type: go.ident('SqlText'), elements: [] }
+      : go.call(go.ident('byteaInput'), [go.string(value)]),
   uuid: (value) =>
     value === null
       ? { kind: 'composite', type: go.ident('SqlUuid'), elements: [] }

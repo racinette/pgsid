@@ -254,6 +254,8 @@ export type SqlExpression =
     }
   | { kind: 'boolean'; type: 'pg_catalog.bool'; value: boolean | null }
   | { kind: 'text'; type: 'pg_catalog.text'; value: string | null }
+  | { kind: 'name'; type: 'pg_catalog.name'; value: string | null }
+  | { kind: 'bytea'; type: 'pg_catalog.bytea'; value: string | null }
   | { kind: 'uuid'; type: UuidType; value: string | null }
   | { kind: 'json'; type: JsonType; value: string | null }
   | { kind: 'jsonb'; type: JsonbType; value: string | null }
@@ -302,6 +304,8 @@ export interface ExpressionBackend<Ast> {
   bindings: readonly SqlBindingGroup<Ast>[]
   boolean: (value: boolean | null) => Ast
   text: (value: string | null) => Ast
+  name: (value: string | null) => Ast
+  bytea: (value: string | null) => Ast
   uuid: (value: string | null) => Ast
   json: (value: string | null) => Ast
   jsonb: (value: string | null) => Ast
@@ -694,6 +698,25 @@ export function emitSqlExpression<Ast>(
       for (const helper of result.helpers) helpers.add(helper)
       return { type: node.type, expression: result.expression }
     }
+    if (node.kind === 'name' || node.kind === 'bytea') {
+      const invalidUtf8 = (value: string): boolean =>
+        value.includes('\0') ||
+        /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value)
+      if (node.kind === 'name') {
+        if (node.type !== 'pg_catalog.name') throw new Error('Invalid name literal')
+        if (node.value !== null && invalidUtf8(node.value))
+          throw new Error('Invalid PostgreSQL UTF8 name literal')
+        helpers.add('nameInput')
+        return { type: node.type, expression: backend.name(node.value) }
+      }
+      if (
+        node.type !== 'pg_catalog.bytea' ||
+        (node.value !== null && (node.value.length % 2 !== 0 || /[^0-9a-f]/i.test(node.value)))
+      )
+        throw new Error('Invalid bytea literal')
+      helpers.add('byteaInput')
+      return { type: node.type, expression: backend.bytea(node.value) }
+    }
     if (node.kind === 'boolean' || node.kind === 'text') {
       if (
         node.kind === 'text' &&
@@ -914,9 +937,15 @@ export function emitSqlExpression<Ast>(
     const emitter = binding as unknown as CallableEmitter<CallableMetadata, Ast>
     if (
       operands.some((operand) =>
-        ['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog."varchar"'].includes(operand.type),
+        [
+          'pg_catalog.text',
+          'pg_catalog.bpchar',
+          'pg_catalog."varchar"',
+          'pg_catalog.name',
+        ].includes(operand.type),
       ) &&
-      ((operator && ['=', '<>', '<', '<=', '>', '>=', '~~', '!~~'].includes(metadata.name)) ||
+      ((operator &&
+        ['=', '<>', '<', '<=', '>', '>=', '~~', '!~~', '~~*', '!~~*'].includes(metadata.name)) ||
         (!operator &&
           [
             'texteq',
@@ -941,6 +970,18 @@ export function emitSqlExpression<Ast>(
             'bpcharnlike',
             'like',
             'notlike',
+            'lower',
+            'upper',
+            'initcap',
+            'casefold',
+            'texticlike',
+            'texticnlike',
+            'bpchariclike',
+            'bpcharicnlike',
+            'namelike',
+            'namenlike',
+            'nameiclike',
+            'nameicnlike',
           ].includes(metadata.name))) &&
       node.kind !== 'cast' &&
       node.collation !== 'C'

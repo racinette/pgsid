@@ -1,6 +1,7 @@
 import { typescriptSqlSyntax } from './syntax.js'
 import { typescriptBooleanOperators, typescriptBooleanFunctions } from './boolean.js'
 import { typescriptTextOperators, typescriptTextFunctions } from './text.js'
+import { typescriptBinaryOperators, typescriptBinaryFunctions } from './binary.js'
 import { typescriptFloatOperators, typescriptFloatFunctions } from './floating-point.js'
 import { typescriptDecimalOperators, typescriptDecimalFunctions } from './decimal.js'
 import ts from 'typescript'
@@ -19,6 +20,11 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
       functions: typescriptBooleanFunctions,
     },
     { domain: 'text', operators: typescriptTextOperators, functions: typescriptTextFunctions },
+    {
+      domain: 'binary',
+      operators: typescriptBinaryOperators,
+      functions: typescriptBinaryFunctions,
+    },
     {
       domain: 'numeric',
       operators: typescriptDecimalOperators,
@@ -268,6 +274,14 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
     ]),
   text: (value) =>
     factory.createCallExpression(identifier('textInput'), undefined, [
+      value === null ? factory.createNull() : factory.createStringLiteral(value),
+    ]),
+  name: (value) =>
+    factory.createCallExpression(identifier('nameInput'), undefined, [
+      value === null ? factory.createNull() : factory.createStringLiteral(value),
+    ]),
+  bytea: (value) =>
+    factory.createCallExpression(identifier('byteaInput'), undefined, [
       value === null ? factory.createNull() : factory.createStringLiteral(value),
     ]),
   uuid: (value) =>

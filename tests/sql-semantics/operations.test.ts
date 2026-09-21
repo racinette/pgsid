@@ -9,7 +9,12 @@ import { floatMathCopyright } from '../../src/sql-semantics/float-math-license.j
 import { numericMathCopyright } from '../../src/sql-semantics/numeric-math-license.js'
 import { scalarCases } from '../fixtures/sql-semantics/operations/scalar.js'
 import { PG18_BOOLEAN } from '../../src/postgres/builtins/boolean.generated.js'
-import { textSignatures } from '../fixtures/sql-semantics/operations/text-signatures.js'
+import {
+  byteaLikeSignatures,
+  byteaOrderSignatures,
+  nameLikeSignatures,
+  textSignatures,
+} from '../fixtures/sql-semantics/operations/text-signatures.js'
 import { fileURLToPath } from 'node:url'
 import { numericCases, numericStressCases } from '../fixtures/sql-semantics/operations/numeric.js'
 import { observeFloat } from '../support/postgres/observe.js'
@@ -222,9 +227,13 @@ function goProject(fixtures = cases): string {
                   ? 'SqlFloat'
                   : result.value.type === 'pg_catalog."numeric"'
                     ? 'SqlDecimal'
-                    : ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(
-                          result.value.type,
-                        )
+                    : [
+                          'pg_catalog.text',
+                          'pg_catalog."varchar"',
+                          'pg_catalog.bpchar',
+                          'pg_catalog.name',
+                          'pg_catalog.bytea',
+                        ].includes(result.value.type)
                       ? 'SqlText'
                       : result.value.type === 'pg_catalog.uuid'
                         ? 'SqlUuid'
@@ -502,6 +511,9 @@ describe('generated PostgreSQL scalar evaluation', () => {
       'to json array',
       'json build array values',
       'json build object values',
+      'bytea order operator:["pg_catalog","="](pg_catalog.bytea,pg_catalog.bytea) 0',
+      'bytea order function:["pg_catalog","byteacmp"](pg_catalog.bytea,pg_catalog.bytea) 3',
+      'bytea order operator:["pg_catalog","||"](pg_catalog.bytea,pg_catalog.bytea) 0',
       'date input 1',
       'date operator < 0',
       'date function eq',
@@ -638,6 +650,8 @@ describe('generated PostgreSQL scalar evaluation', () => {
                                   'pg_catalog.text',
                                   'pg_catalog."varchar"',
                                   'pg_catalog.bpchar',
+                                  'pg_catalog.name',
+                                  'pg_catalog.bytea',
                                 ].includes(emitted.value.type)
                               ? 'SqlText'
                               : emitted.value.type === 'pg_catalog.uuid'
@@ -794,6 +808,9 @@ describe('generated PostgreSQL scalar evaluation', () => {
     const additional = [
       ...Object.keys(PG18_BOOLEAN).filter((signature) => signature.startsWith('operator:')),
       ...textSignatures,
+      ...nameLikeSignatures,
+      ...byteaLikeSignatures,
+      ...byteaOrderSignatures,
       ...Object.keys(PG18_UUID).filter(
         (signature) =>
           signature.startsWith('operator:') ||
@@ -807,7 +824,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
     expect(supported.map((row) => row.signature).sort()).toEqual(
       [...expected, ...additional].sort(),
     )
-    expect(supported).toHaveLength(746)
+    expect(supported).toHaveLength(788)
     expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
     expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
   })
@@ -1057,6 +1074,32 @@ describe('generated PostgreSQL scalar evaluation', () => {
             string,
           ],
       ),
+      ...['a\0b', '\uD800'].map(
+        (value) =>
+          [{ kind: 'name', type: 'pg_catalog.name', value }, 'Invalid PostgreSQL UTF8'] as [
+            SqlExpression,
+            string,
+          ],
+      ),
+      ...['zz', 'a', 'A G'].map(
+        (value) =>
+          [{ kind: 'bytea', type: 'pg_catalog.bytea', value }, 'Invalid bytea'] as [
+            SqlExpression,
+            string,
+          ],
+      ),
+      [
+        {
+          kind: 'function',
+          signature: 'function:["pg_catalog","namelike"](pg_catalog.name,pg_catalog.text)',
+          type: 'pg_catalog.bool',
+          operands: [
+            { kind: 'name', type: 'pg_catalog.name', value: 'abc' },
+            { kind: 'text', type: 'pg_catalog.text', value: 'a%' },
+          ],
+        },
+        'Unsupported text collation',
+      ],
       ...[undefined, 'en-US'].map(
         (collation) =>
           [
@@ -1073,7 +1116,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
     ]
     for (const signature of textSignatures) {
       const guarded =
-        /(?:"(?:bpchareq|bpcharne|bpcharlt|bpcharle|bpchargt|bpcharge|strpos|replace|split_part|starts_with|textlike|textnlike|bpcharlike|bpcharnlike|like|notlike|~~|!~~)"|^operator:.*pg_catalog.bpchar)/.test(
+        /(?:"(?:bpchareq|bpcharne|bpcharlt|bpcharle|bpchargt|bpcharge|strpos|replace|split_part|starts_with|textlike|textnlike|bpcharlike|bpcharnlike|like|notlike|lower|upper|initcap|casefold|texticlike|texticnlike|bpchariclike|bpcharicnlike|~~\*|!~~\*|~~|!~~)"|^operator:.*pg_catalog.bpchar)/.test(
           signature,
         )
       if (!guarded) continue
