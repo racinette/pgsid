@@ -10,6 +10,7 @@ import { numericMathCopyright } from '../../src/sql-semantics/numeric-math-licen
 import { scalarCases } from '../fixtures/sql-semantics/operations/scalar.js'
 import { PG18_BOOLEAN } from '../../src/postgres/builtins/boolean.generated.js'
 import {
+  byteaLengthSignatures,
   byteaLikeSignatures,
   byteaOrderSignatures,
   nameLikeSignatures,
@@ -514,6 +515,9 @@ describe('generated PostgreSQL scalar evaluation', () => {
       'bytea order operator:["pg_catalog","="](pg_catalog.bytea,pg_catalog.bytea) 0',
       'bytea order function:["pg_catalog","byteacmp"](pg_catalog.bytea,pg_catalog.bytea) 3',
       'bytea order operator:["pg_catalog","||"](pg_catalog.bytea,pg_catalog.bytea) 0',
+      'bytea length function:["pg_catalog","length"](pg_catalog.bytea) 7',
+      'bytea length function:["pg_catalog","bit_length"](pg_catalog.bytea) 3',
+      'bytea length function:["pg_catalog","bit_count"](pg_catalog.bytea) 4',
       'date input 1',
       'date operator < 0',
       'date function eq',
@@ -810,6 +814,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
       ...textSignatures,
       ...nameLikeSignatures,
       ...byteaLikeSignatures,
+      ...byteaLengthSignatures,
       ...byteaOrderSignatures,
       ...Object.keys(PG18_UUID).filter(
         (signature) =>
@@ -824,7 +829,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
     expect(supported.map((row) => row.signature).sort()).toEqual(
       [...expected, ...additional].sort(),
     )
-    expect(supported).toHaveLength(788)
+    expect(supported).toHaveLength(792)
     expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
     expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
   })

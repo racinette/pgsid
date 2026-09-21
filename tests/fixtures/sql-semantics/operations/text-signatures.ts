@@ -120,6 +120,13 @@ export const byteaOrderSignatures = [
   'operator:["pg_catalog","||"](pg_catalog.bytea,pg_catalog.bytea)',
 ] as const
 
+export const byteaLengthSignatures = [
+  'function:["pg_catalog","bit_count"](pg_catalog.bytea)',
+  'function:["pg_catalog","bit_length"](pg_catalog.bytea)',
+  'function:["pg_catalog","length"](pg_catalog.bytea)',
+  'function:["pg_catalog","octet_length"](pg_catalog.bytea)',
+] as const
+
 export const byteaLikeSignatures = [
   'function:["pg_catalog","bytealike"](pg_catalog.bytea,pg_catalog.bytea)',
   'function:["pg_catalog","byteanlike"](pg_catalog.bytea,pg_catalog.bytea)',

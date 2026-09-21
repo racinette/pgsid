@@ -847,4 +847,36 @@ export const typescriptTextHelpers: Record<
   return comparison < 0n ? left : right
 }`,
   },
+  byteaOctetLength: {
+    dependencies: ['byteaDecode'],
+    source: `function byteaOctetLength(value: string | null): bigint | null {
+  if (value === null) return null
+  return BigInt(byteaDecode(value).length)
+}`,
+  },
+  byteaBitLength: {
+    dependencies: ['byteaOctetLength', 'sqlTextError'],
+    source: `function byteaBitLength(value: string | null): bigint | null {
+  const length = byteaOctetLength(value)
+  if (length === null) return null
+  const bits = length * 8n
+  if (bits > 2147483647n) sqlTextError('22003')
+  return bits
+}`,
+  },
+  byteaBitCount: {
+    dependencies: ['byteaDecode'],
+    source: `function byteaBitCount(value: string | null): bigint | null {
+  if (value === null) return null
+  let count = 0
+  for (const byte of byteaDecode(value)) {
+    let bits = byte
+    while (bits !== 0) {
+      count += bits & 1
+      bits >>= 1
+    }
+  }
+  return BigInt(count)
+}`,
+  },
 }
