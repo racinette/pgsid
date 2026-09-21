@@ -2,6 +2,7 @@ import type { SqlExpression, TextType } from '../../../../src/sql-semantics/expr
 import { functionMetadata, operatorMetadata } from '../../../../src/postgres/builtins/inventory.js'
 import {
   byteaAccessSignatures,
+  byteaCastSignatures,
   byteaLengthSignatures,
   byteaSliceSignatures,
   byteaLikeSignatures,
@@ -655,5 +656,114 @@ for (const [index, [value, position, next]] of byteaSetBitCases.entries())
       'function:["pg_catalog","set_bit"](pg_catalog.bytea,pg_catalog.int8,pg_catalog.int4)',
       [bytea(value), int8(position), integer(next)],
     ),
+  )
+function sqlInt(
+  value: string | null,
+  type: 'pg_catalog.int2' | 'pg_catalog.int4' | 'pg_catalog.int8',
+): Operand {
+  return {
+    sql: value === null ? `NULL::${type}` : `'${value}'::${type}`,
+    expression: { kind: 'integer', type, value },
+  }
+}
+const byteaFromIntValues = {
+  'pg_catalog.int2': [null, '0', '1', '-1', '127', '128', '255', '256', '32767', '-32768'],
+  'pg_catalog.int4': [null, '0', '1', '-1', '65535', '2147483647', '-2147483648'],
+  'pg_catalog.int8': [
+    null,
+    '0',
+    '1',
+    '-1',
+    '2147483648',
+    '9223372036854775807',
+    '-9223372036854775808',
+  ],
+} as const
+for (const type of ['pg_catalog.int2', 'pg_catalog.int4', 'pg_catalog.int8'] as const)
+  for (const [index, value] of byteaFromIntValues[type].entries())
+    add(
+      `bytea from ${type} ${index}`,
+      byteaCall(`function:["pg_catalog","bytea"](${type})`, [sqlInt(value, type)]),
+    )
+const byteaToIntValues = [
+  null,
+  '',
+  '00',
+  '01',
+  '7f',
+  '80',
+  'ff',
+  '007f',
+  '0080',
+  '00ff',
+  '7fff',
+  '8000',
+  'ffff',
+  '010000',
+  'ffffffff',
+  '80000000',
+  '00000001',
+  'ffffffffffffffff',
+  '8000000000000000',
+  '010000000000000000',
+]
+for (const name of ['int2', 'int4', 'int8'] as const)
+  for (const [index, value] of byteaToIntValues.entries())
+    add(
+      `bytea to ${name} ${index}`,
+      byteaCall(`function:["pg_catalog","${name}"](pg_catalog.bytea)`, [bytea(value)]),
+    )
+const byteaEncodeCases: readonly (readonly [string | null, string | null])[] = [
+  ['', 'hex'],
+  ['ff', 'hex'],
+  ['ff', 'HEX'],
+  ['6162', 'hex'],
+  ['00ff', 'escape'],
+  ['5c', 'escape'],
+  ['61', 'escape'],
+  ['61', 'base64'],
+  ['', 'base64'],
+  ['ff', 'base64'],
+  ['61'.repeat(60), 'base64'],
+  ['ff', 'nope'],
+  [null, 'hex'],
+  ['ff', null],
+  ['00', 'Escape'],
+]
+for (const [index, [value, format]] of byteaEncodeCases.entries())
+  add(
+    `bytea encode ${index}`,
+    byteaCall('function:["pg_catalog","encode"](pg_catalog.bytea,pg_catalog.text)', [
+      bytea(value),
+      text(format),
+    ]),
+  )
+const byteaDecodeCases: readonly (readonly [string | null, string | null])[] = [
+  ['ff', 'hex'],
+  ['FF', 'hex'],
+  ['66 6\n6', 'hex'],
+  ['616', 'hex'],
+  ['gg', 'hex'],
+  ['YQ==', 'base64'],
+  ['YQ', 'base64'],
+  ['YQ==\n', 'base64'],
+  ['*', 'base64'],
+  ['a', 'escape'],
+  ['\\141', 'escape'],
+  ['\\\\', 'escape'],
+  ['\\', 'escape'],
+  ['é', 'escape'],
+  ['ff', 'nope'],
+  [null, 'hex'],
+  ['ff', null],
+  ['FF', 'Hex'],
+]
+for (const [index, [value, format]] of byteaDecodeCases.entries())
+  add(
+    `bytea decode ${index}`,
+    byteaCall('function:["pg_catalog","decode"](pg_catalog.text,pg_catalog.text)', [
+      text(value),
+      text(format),
+    ]),
   )
 export const textSpecs: readonly ExpressionSpec[] = specs

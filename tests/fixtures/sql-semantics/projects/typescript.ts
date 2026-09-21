@@ -3373,6 +3373,229 @@ function byteaSetBit(value: string | null, index: bigint | null, next: bigint | 
     out[position] = next === 0n ? out[position]! & ~mask & 255 : out[position]! | mask;
     return byteaHex(out);
 }
+function byteaFromSigned(value: bigint | null, width: number): string | null {
+    if (value === null)
+        return null;
+    const out: number[] = [];
+    let current = value;
+    for (let index = 0; index < width; index++) {
+        out.push(Number(current & 255n));
+        current >>= 8n;
+    }
+    out.reverse();
+    return byteaHex(out);
+}
+function byteaFromInt2(value: bigint | null): string | null {
+    return byteaFromSigned(value, 2);
+}
+function byteaFromInt4(value: bigint | null): string | null {
+    return byteaFromSigned(value, 4);
+}
+function byteaFromInt8(value: bigint | null): string | null {
+    return byteaFromSigned(value, 8);
+}
+function byteaToSigned(value: string | null, width: number): bigint | null {
+    if (value === null)
+        return null;
+    const bytes = byteaDecode(value);
+    if (bytes.length > width)
+        sqlTextError("22003");
+    let result = 0n;
+    for (const byte of bytes)
+        result = (result << 8n) | BigInt(byte);
+    const sign = 1n << BigInt(width * 8 - 1);
+    return result >= sign ? result - (sign << 1n) : result;
+}
+function byteaToInt2(value: string | null): bigint | null {
+    return byteaToSigned(value, 2);
+}
+function byteaToInt4(value: string | null): bigint | null {
+    return byteaToSigned(value, 4);
+}
+function byteaToInt8(value: string | null): bigint | null {
+    return byteaToSigned(value, 8);
+}
+function byteaEncodingName(format: string): string {
+    let name = "";
+    for (const character of format) {
+        const code = character.charCodeAt(0);
+        name += code >= 65 && code <= 90 ? String.fromCharCode(code + 32) : character;
+    }
+    return name;
+}
+function byteaHexText(bytes: Uint8Array): string {
+    let out = "";
+    for (const byte of bytes)
+        out += byte.toString(16).padStart(2, "0");
+    return out;
+}
+function byteaBase64Encode(bytes: Uint8Array): string {
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let out = "";
+    let line = 0;
+    let pos = 2;
+    let buf = 0;
+    for (const byte of bytes) {
+        buf |= byte << (pos << 3);
+        pos--;
+        if (pos < 0) {
+            out += alphabet[(buf >> 18) & 63]!;
+            out += alphabet[(buf >> 12) & 63]!;
+            out += alphabet[(buf >> 6) & 63]!;
+            out += alphabet[buf & 63]!;
+            line += 4;
+            pos = 2;
+            buf = 0;
+        }
+        if (line === 76) {
+            out += "\n";
+            line = 0;
+        }
+    }
+    if (pos !== 2) {
+        out += alphabet[(buf >> 18) & 63]!;
+        out += alphabet[(buf >> 12) & 63]!;
+        out += pos === 0 ? alphabet[(buf >> 6) & 63]! : "=";
+        out += "=";
+    }
+    return out;
+}
+function byteaEscapeEncode(bytes: Uint8Array): string {
+    let out = "";
+    for (const byte of bytes) {
+        if (byte === 0 || byte >= 128)
+            out += "\\" + (byte >> 6).toString() + ((byte >> 3) & 7).toString() + (byte & 7).toString();
+        else if (byte === 92)
+            out += "\\\\";
+        else
+            out += String.fromCharCode(byte);
+    }
+    return out;
+}
+function byteaEncode(value: string | null, format: string | null): string | null {
+    if (value === null || format === null)
+        return null;
+    const bytes = byteaDecode(value);
+    switch (byteaEncodingName(format)) {
+        case "hex": return byteaHexText(bytes);
+        case "base64": return byteaBase64Encode(bytes);
+        case "escape": return byteaEscapeEncode(bytes);
+        default: sqlTextError("22023");
+    }
+}
+function byteaHexValue(byte: number): number {
+    if (byte >= 48 && byte <= 57)
+        return byte - 48;
+    if (byte >= 65 && byte <= 70)
+        return byte - 55;
+    if (byte >= 97 && byte <= 102)
+        return byte - 87;
+    return -1;
+}
+function byteaHexDecodeText(bytes: Uint8Array): number[] {
+    const out: number[] = [];
+    let index = 0;
+    while (index < bytes.length) {
+        while (index < bytes.length && (bytes[index] === 32 || bytes[index] === 10 || bytes[index] === 9 || bytes[index] === 13))
+            index++;
+        if (index >= bytes.length)
+            break;
+        const high = byteaHexValue(bytes[index]!);
+        if (high < 0)
+            sqlTextError("22023");
+        index++;
+        if (index >= bytes.length)
+            sqlTextError("22023");
+        const low = byteaHexValue(bytes[index]!);
+        if (low < 0)
+            sqlTextError("22023");
+        index++;
+        out.push((high << 4) | low);
+    }
+    return out;
+}
+function byteaBase64Value(byte: number): number {
+    if (byte >= 65 && byte <= 90)
+        return byte - 65;
+    if (byte >= 97 && byte <= 122)
+        return byte - 71;
+    if (byte >= 48 && byte <= 57)
+        return byte + 4;
+    if (byte === 43)
+        return 62;
+    if (byte === 47)
+        return 63;
+    return -1;
+}
+function byteaBase64Decode(bytes: Uint8Array): number[] {
+    const out: number[] = [];
+    let buf = 0;
+    let pos = 0;
+    let end = 0;
+    for (const byte of bytes) {
+        if (byte === 32 || byte === 9 || byte === 10 || byte === 13)
+            continue;
+        let value = 0;
+        if (byte === 61) {
+            if (end === 0) {
+                if (pos === 2)
+                    end = 1;
+                else if (pos === 3)
+                    end = 2;
+                else
+                    sqlTextError("22023");
+            }
+        }
+        else {
+            value = byte > 0 && byte < 127 ? byteaBase64Value(byte) : -1;
+            if (value < 0)
+                sqlTextError("22023");
+        }
+        buf = (buf << 6) + value;
+        pos++;
+        if (pos === 4) {
+            out.push((buf >> 16) & 255);
+            if (end === 0 || end > 1)
+                out.push((buf >> 8) & 255);
+            if (end === 0 || end > 2)
+                out.push(buf & 255);
+            buf = 0;
+            pos = 0;
+        }
+    }
+    if (pos !== 0)
+        sqlTextError("22023");
+    return out;
+}
+function byteaEscapeDecode(bytes: Uint8Array): number[] {
+    const out: number[] = [];
+    for (let index = 0; index < bytes.length; index++) {
+        if (bytes[index] !== 92)
+            out.push(bytes[index]!);
+        else if (index + 3 < bytes.length && bytes[index + 1]! >= 48 && bytes[index + 1]! <= 51 && bytes[index + 2]! >= 48 && bytes[index + 2]! <= 55 && bytes[index + 3]! >= 48 && bytes[index + 3]! <= 55) {
+            out.push(((bytes[index + 1]! - 48) << 6) | ((bytes[index + 2]! - 48) << 3) | (bytes[index + 3]! - 48));
+            index += 3;
+        }
+        else if (index + 1 < bytes.length && bytes[index + 1] === 92) {
+            out.push(92);
+            index += 1;
+        }
+        else
+            sqlTextError("22P02");
+    }
+    return out;
+}
+function byteaDecodeFormat(value: string | null, format: string | null): string | null {
+    if (value === null || format === null)
+        return null;
+    const bytes = textUtf8Encode(value);
+    switch (byteaEncodingName(format)) {
+        case "hex": return byteaHex(byteaHexDecodeText(bytes));
+        case "base64": return byteaHex(byteaBase64Decode(bytes));
+        case "escape": return byteaHex(byteaEscapeDecode(bytes));
+        default: sqlTextError("22023");
+    }
+}
 class SqlUuid {
     constructor(readonly bytes: Uint8Array) { }
     toString(): string {
@@ -104869,5732 +105092,6083 @@ export function evaluate32353() {
     return byteaSetBit(byteaInput(""), int8Input("0"), int4Input("1"));
 }
 export function evaluate32354() {
-    return uuidInput(null);
+    return byteaFromInt2(int2Input(null));
 }
 export function evaluate32355() {
-    return uuidInput("00000000-0000-0000-0000-000000000000");
+    return byteaFromInt2(int2Input("0"));
 }
 export function evaluate32356() {
-    return uuidInput("FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF");
+    return byteaFromInt2(int2Input("1"));
 }
 export function evaluate32357() {
-    return uuidInput("{a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11}");
+    return byteaFromInt2(int2Input("-1"));
 }
 export function evaluate32358() {
-    return uuidInput("a0eebc999c0b4ef8bb6d6bb9bd380a11");
+    return byteaFromInt2(int2Input("127"));
 }
 export function evaluate32359() {
-    return uuidInput("a0ee-bc99-9c0b-4ef8-bb6d-6bb9-bd38-0a11");
+    return byteaFromInt2(int2Input("128"));
 }
 export function evaluate32360() {
-    return uuidInput("a0eebc99-9c0b4ef8-bb6d6bb9bd380a11");
+    return byteaFromInt2(int2Input("255"));
 }
 export function evaluate32361() {
-    return uuidInput("");
+    return byteaFromInt2(int2Input("256"));
 }
 export function evaluate32362() {
-    return uuidInput("0");
+    return byteaFromInt2(int2Input("32767"));
 }
 export function evaluate32363() {
-    return uuidInput("00000000-0000-0000-0000-00000000000");
+    return byteaFromInt2(int2Input("-32768"));
 }
 export function evaluate32364() {
-    return uuidInput("00000000-0000-0000-0000-0000000000000");
+    return byteaFromInt4(int4Input(null));
 }
 export function evaluate32365() {
-    return uuidInput("00000000-0000-0000-0000-00000000000g");
+    return byteaFromInt4(int4Input("0"));
 }
 export function evaluate32366() {
-    return uuidInput("0000000-00000-0000-0000-000000000000");
+    return byteaFromInt4(int4Input("1"));
 }
 export function evaluate32367() {
-    return uuidInput("{00000000-0000-0000-0000-000000000000");
+    return byteaFromInt4(int4Input("-1"));
 }
 export function evaluate32368() {
-    return uuidInput("00000000-0000-0000-0000-000000000000}");
+    return byteaFromInt4(int4Input("65535"));
 }
 export function evaluate32369() {
-    return uuidInput(" 00000000-0000-0000-0000-000000000000");
+    return byteaFromInt4(int4Input("2147483647"));
 }
 export function evaluate32370() {
-    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaFromInt4(int4Input("-2147483648"));
 }
 export function evaluate32371() {
-    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaFromInt8(int8Input(null));
 }
 export function evaluate32372() {
-    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaFromInt8(int8Input("0"));
 }
 export function evaluate32373() {
-    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaFromInt8(int8Input("1"));
 }
 export function evaluate32374() {
-    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaFromInt8(int8Input("-1"));
 }
 export function evaluate32375() {
-    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaFromInt8(int8Input("2147483648"));
 }
 export function evaluate32376() {
-    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaFromInt8(int8Input("9223372036854775807"));
 }
 export function evaluate32377() {
-    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaFromInt8(int8Input("-9223372036854775808"));
 }
 export function evaluate32378() {
-    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput(null));
 }
 export function evaluate32379() {
-    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput(""));
 }
 export function evaluate32380() {
-    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("00"));
 }
 export function evaluate32381() {
-    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("01"));
 }
 export function evaluate32382() {
-    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("7f"));
 }
 export function evaluate32383() {
-    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("80"));
 }
 export function evaluate32384() {
-    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("ff"));
 }
 export function evaluate32385() {
-    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("007f"));
 }
 export function evaluate32386() {
-    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("0080"));
 }
 export function evaluate32387() {
-    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("00ff"));
 }
 export function evaluate32388() {
-    return uuidEq(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("7fff"));
 }
 export function evaluate32389() {
-    return uuidNe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("8000"));
 }
 export function evaluate32390() {
-    return uuidLt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("ffff"));
 }
 export function evaluate32391() {
-    return uuidLe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("010000"));
 }
 export function evaluate32392() {
-    return uuidGt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("ffffffff"));
 }
 export function evaluate32393() {
-    return uuidGe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("80000000"));
 }
 export function evaluate32394() {
-    return uuidEq(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("00000001"));
 }
 export function evaluate32395() {
-    return uuidNe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("ffffffffffffffff"));
 }
 export function evaluate32396() {
-    return uuidLt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("8000000000000000"));
 }
 export function evaluate32397() {
-    return uuidLe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt2(byteaInput("010000000000000000"));
 }
 export function evaluate32398() {
-    return uuidGt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt4(byteaInput(null));
 }
 export function evaluate32399() {
-    return uuidGe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt4(byteaInput(""));
 }
 export function evaluate32400() {
-    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaToInt4(byteaInput("00"));
 }
 export function evaluate32401() {
-    return uuidEq(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaToInt4(byteaInput("01"));
 }
 export function evaluate32402() {
-    return uuidEq(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt4(byteaInput("7f"));
 }
 export function evaluate32403() {
-    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaToInt4(byteaInput("80"));
 }
 export function evaluate32404() {
-    return uuidNe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaToInt4(byteaInput("ff"));
 }
 export function evaluate32405() {
-    return uuidNe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt4(byteaInput("007f"));
 }
 export function evaluate32406() {
-    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaToInt4(byteaInput("0080"));
 }
 export function evaluate32407() {
-    return uuidLt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaToInt4(byteaInput("00ff"));
 }
 export function evaluate32408() {
-    return uuidLt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt4(byteaInput("7fff"));
 }
 export function evaluate32409() {
-    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaToInt4(byteaInput("8000"));
 }
 export function evaluate32410() {
-    return uuidLe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaToInt4(byteaInput("ffff"));
 }
 export function evaluate32411() {
-    return uuidLe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt4(byteaInput("010000"));
 }
 export function evaluate32412() {
-    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaToInt4(byteaInput("ffffffff"));
 }
 export function evaluate32413() {
-    return uuidGt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaToInt4(byteaInput("80000000"));
 }
 export function evaluate32414() {
-    return uuidGt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt4(byteaInput("00000001"));
 }
 export function evaluate32415() {
-    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaToInt4(byteaInput("ffffffffffffffff"));
 }
 export function evaluate32416() {
-    return uuidGe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaToInt4(byteaInput("8000000000000000"));
 }
 export function evaluate32417() {
-    return uuidGe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt4(byteaInput("010000000000000000"));
 }
 export function evaluate32418() {
-    return uuidCompare(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt8(byteaInput(null));
 }
 export function evaluate32419() {
-    return uuidCompare(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"));
+    return byteaToInt8(byteaInput(""));
 }
 export function evaluate32420() {
-    return uuidCompare(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt8(byteaInput("00"));
 }
 export function evaluate32421() {
-    return uuidCompare(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaToInt8(byteaInput("01"));
 }
 export function evaluate32422() {
-    return uuidExtractVersion(uuidInput(null));
+    return byteaToInt8(byteaInput("7f"));
 }
 export function evaluate32423() {
-    return uuidExtractVersion(uuidInput("00000000-0000-0000-8000-000000000000"));
+    return byteaToInt8(byteaInput("80"));
 }
 export function evaluate32424() {
-    return uuidExtractVersion(uuidInput("00000000-0000-4000-8000-000000000000"));
+    return byteaToInt8(byteaInput("ff"));
 }
 export function evaluate32425() {
-    return uuidExtractVersion(uuidInput("00000000-0000-7000-8000-000000000000"));
+    return byteaToInt8(byteaInput("007f"));
 }
 export function evaluate32426() {
-    return uuidExtractVersion(uuidInput("00000000-0000-f000-b000-000000000000"));
+    return byteaToInt8(byteaInput("0080"));
 }
 export function evaluate32427() {
-    return uuidExtractVersion(uuidInput("00000000-0000-4000-0000-000000000000"));
+    return byteaToInt8(byteaInput("00ff"));
 }
 export function evaluate32428() {
-    return uuidExtractVersion(uuidInput("00000000-0000-4000-c000-000000000000"));
+    return byteaToInt8(byteaInput("7fff"));
 }
 export function evaluate32429() {
-    return uuidFromText(textInput(null));
+    return byteaToInt8(byteaInput("8000"));
 }
 export function evaluate32430() {
-    return uuidFromText(textInput("A0EEBC999C0B4EF8BB6D6BB9BD380A11"));
+    return byteaToInt8(byteaInput("ffff"));
 }
 export function evaluate32431() {
-    return uuidFromText(textInput("not-a-uuid"));
+    return byteaToInt8(byteaInput("010000"));
 }
 export function evaluate32432() {
-    return uuidText(uuidInput(null));
+    return byteaToInt8(byteaInput("ffffffff"));
 }
 export function evaluate32433() {
-    return uuidText(uuidInput("a0eebc999c0b4ef8bb6d6bb9bd380a11"));
+    return byteaToInt8(byteaInput("80000000"));
 }
 export function evaluate32434() {
-    return sqlIsNull(uuidInput(null));
+    return byteaToInt8(byteaInput("00000001"));
 }
 export function evaluate32435() {
-    return sqlCase(() => uuidInput("00000000-0000-0000-0000-000000000000"), [() => booleanInput(true), () => uuidInput("00000000-0000-0000-0000-000000000001")]);
+    return byteaToInt8(byteaInput("ffffffffffffffff"));
 }
 export function evaluate32436() {
-    return sqlCoalesce(() => uuidInput(null), () => uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaToInt8(byteaInput("8000000000000000"));
 }
 export function evaluate32437() {
-    return enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaToInt8(byteaInput("010000000000000000"));
 }
 export function evaluate32438() {
-    return enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaEncode(byteaInput(""), textInput("hex"));
 }
 export function evaluate32439() {
-    return enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaEncode(byteaInput("ff"), textInput("hex"));
 }
 export function evaluate32440() {
-    return enumInput("quote's", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaEncode(byteaInput("ff"), textInput("HEX"));
 }
 export function evaluate32441() {
-    return enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaEncode(byteaInput("6162"), textInput("hex"));
 }
 export function evaluate32442() {
-    return enumInput("middle", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]);
+    return byteaEncode(byteaInput("00ff"), textInput("escape"));
 }
 export function evaluate32443() {
-    return enumInput("zebra", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]);
+    return byteaEncode(byteaInput("5c"), textInput("escape"));
 }
 export function evaluate32444() {
-    return enumInput("", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaEncode(byteaInput("61"), textInput("escape"));
 }
 export function evaluate32445() {
-    return enumInput("missing", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaEncode(byteaInput("61"), textInput("base64"));
 }
 export function evaluate32446() {
-    return enumInput("ZEBRA", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaEncode(byteaInput(""), textInput("base64"));
 }
 export function evaluate32447() {
-    return enumInput("zebra ", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaEncode(byteaInput("ff"), textInput("base64"));
 }
 export function evaluate32448() {
-    return enumEq(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaEncode(byteaInput("616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161"), textInput("base64"));
 }
 export function evaluate32449() {
-    return enumNe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaEncode(byteaInput("ff"), textInput("nope"));
 }
 export function evaluate32450() {
-    return enumLt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaEncode(byteaInput(null), textInput("hex"));
 }
 export function evaluate32451() {
-    return enumLe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaEncode(byteaInput("ff"), textInput(null));
 }
 export function evaluate32452() {
-    return enumGt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaEncode(byteaInput("00"), textInput("Escape"));
 }
 export function evaluate32453() {
-    return enumGe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput("ff"), textInput("hex"));
 }
 export function evaluate32454() {
-    return enumEq(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput("FF"), textInput("hex"));
 }
 export function evaluate32455() {
-    return enumNe(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput("66 6\n6"), textInput("hex"));
 }
 export function evaluate32456() {
-    return enumLt(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput("616"), textInput("hex"));
 }
 export function evaluate32457() {
-    return enumLe(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput("gg"), textInput("hex"));
 }
 export function evaluate32458() {
-    return enumGt(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput("YQ=="), textInput("base64"));
 }
 export function evaluate32459() {
-    return enumGe(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput("YQ"), textInput("base64"));
 }
 export function evaluate32460() {
-    return enumEq(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput("YQ==\n"), textInput("base64"));
 }
 export function evaluate32461() {
-    return enumNe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput("*"), textInput("base64"));
 }
 export function evaluate32462() {
-    return enumLt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput("a"), textInput("escape"));
 }
 export function evaluate32463() {
-    return enumLe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput("\\141"), textInput("escape"));
 }
 export function evaluate32464() {
-    return enumGt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput("\\\\"), textInput("escape"));
 }
 export function evaluate32465() {
-    return enumGe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput("\\"), textInput("escape"));
 }
 export function evaluate32466() {
-    return enumEq(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput("\u00E9"), textInput("escape"));
 }
 export function evaluate32467() {
-    return enumNe(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput("ff"), textInput("nope"));
 }
 export function evaluate32468() {
-    return enumLt(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput(null), textInput("hex"));
 }
 export function evaluate32469() {
-    return enumLe(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput("ff"), textInput(null));
 }
 export function evaluate32470() {
-    return enumGt(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaDecodeFormat(textInput("FF"), textInput("Hex"));
 }
 export function evaluate32471() {
-    return enumGe(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return uuidInput(null);
 }
 export function evaluate32472() {
-    return enumEq(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return uuidInput("00000000-0000-0000-0000-000000000000");
 }
 export function evaluate32473() {
-    return enumNe(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return uuidInput("FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF");
 }
 export function evaluate32474() {
-    return enumLt(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return uuidInput("{a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11}");
 }
 export function evaluate32475() {
-    return enumLe(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return uuidInput("a0eebc999c0b4ef8bb6d6bb9bd380a11");
 }
 export function evaluate32476() {
-    return enumGt(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return uuidInput("a0ee-bc99-9c0b-4ef8-bb6d-6bb9-bd38-0a11");
 }
 export function evaluate32477() {
-    return enumGe(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return uuidInput("a0eebc99-9c0b4ef8-bb6d6bb9bd380a11");
 }
 export function evaluate32478() {
-    return enumLt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return uuidInput("");
 }
 export function evaluate32479() {
-    return enumLt(enumInput("middle", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]), enumInput("apple", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]));
+    return uuidInput("0");
 }
 export function evaluate32480() {
-    return enumInput(textInput(null), "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return uuidInput("00000000-0000-0000-0000-00000000000");
 }
 export function evaluate32481() {
-    return enumInput(textInput("zebra"), "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return uuidInput("00000000-0000-0000-0000-0000000000000");
 }
 export function evaluate32482() {
-    return enumInput(textInput("missing"), "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return uuidInput("00000000-0000-0000-0000-00000000000g");
 }
 export function evaluate32483() {
-    return enumText(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return uuidInput("0000000-00000-0000-0000-000000000000");
 }
 export function evaluate32484() {
-    return enumText(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return uuidInput("{00000000-0000-0000-0000-000000000000");
 }
 export function evaluate32485() {
-    return enumText(enumInput("quote's", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return uuidInput("00000000-0000-0000-0000-000000000000}");
 }
 export function evaluate32486() {
-    return enumText(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return uuidInput(" 00000000-0000-0000-0000-000000000000");
 }
 export function evaluate32487() {
-    return sqlIsNull(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32488() {
-    return sqlCase(() => enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), [() => booleanInput(true), () => enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])]);
+    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32489() {
-    return sqlCoalesce(() => enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), () => enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32490() {
-    return arrayInput("pg_catalog.int4", [], [], null);
+    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32491() {
-    return arrayInput("pg_catalog.int4", [], [], []);
+    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32492() {
-    return arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]);
+    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32493() {
-    return arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]);
+    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32494() {
-    return arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]);
+    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32495() {
-    return arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]);
+    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32496() {
-    return arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]);
+    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32497() {
-    return arrayCardinality(arrayInput("pg_catalog.int4", [], [], null));
+    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32498() {
-    return arrayNdims(arrayInput("pg_catalog.int4", [], [], null));
+    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32499() {
-    return arrayDims(arrayInput("pg_catalog.int4", [], [], null));
+    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32500() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input(null));
+    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32501() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input(null));
+    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32502() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input(null));
+    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32503() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("-1"));
+    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32504() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("-1"));
+    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32505() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("-1"));
+    return uuidEq(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32506() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("0"));
+    return uuidNe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32507() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("0"));
+    return uuidLt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32508() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("0"));
+    return uuidLe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32509() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
+    return uuidGt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32510() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
+    return uuidGe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32511() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
+    return uuidEq(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32512() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("2"));
+    return uuidNe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32513() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("2"));
+    return uuidLt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32514() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("2"));
+    return uuidLe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32515() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("3"));
+    return uuidGt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32516() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("3"));
+    return uuidGe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32517() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("3"));
+    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32518() {
-    return arrayCardinality(arrayInput("pg_catalog.int4", [], [], []));
+    return uuidEq(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32519() {
-    return arrayNdims(arrayInput("pg_catalog.int4", [], [], []));
+    return uuidEq(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32520() {
-    return arrayDims(arrayInput("pg_catalog.int4", [], [], []));
+    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32521() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input(null));
+    return uuidNe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32522() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input(null));
+    return uuidNe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32523() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input(null));
+    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32524() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("-1"));
+    return uuidLt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32525() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("-1"));
+    return uuidLt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32526() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("-1"));
+    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32527() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("0"));
+    return uuidLe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32528() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("0"));
+    return uuidLe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32529() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("0"));
+    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32530() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("1"));
+    return uuidGt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32531() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("1"));
+    return uuidGt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32532() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("1"));
+    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32533() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("2"));
+    return uuidGe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32534() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("2"));
+    return uuidGe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32535() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("2"));
+    return uuidCompare(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32536() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("3"));
+    return uuidCompare(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"));
 }
 export function evaluate32537() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("3"));
+    return uuidCompare(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32538() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("3"));
+    return uuidCompare(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate32539() {
-    return arrayCardinality(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return uuidExtractVersion(uuidInput(null));
 }
 export function evaluate32540() {
-    return arrayNdims(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return uuidExtractVersion(uuidInput("00000000-0000-0000-8000-000000000000"));
 }
 export function evaluate32541() {
-    return arrayDims(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return uuidExtractVersion(uuidInput("00000000-0000-4000-8000-000000000000"));
 }
 export function evaluate32542() {
-    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input(null));
+    return uuidExtractVersion(uuidInput("00000000-0000-7000-8000-000000000000"));
 }
 export function evaluate32543() {
-    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input(null));
+    return uuidExtractVersion(uuidInput("00000000-0000-f000-b000-000000000000"));
 }
 export function evaluate32544() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input(null));
+    return uuidExtractVersion(uuidInput("00000000-0000-4000-0000-000000000000"));
 }
 export function evaluate32545() {
-    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("-1"));
+    return uuidExtractVersion(uuidInput("00000000-0000-4000-c000-000000000000"));
 }
 export function evaluate32546() {
-    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("-1"));
+    return uuidFromText(textInput(null));
 }
 export function evaluate32547() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("-1"));
+    return uuidFromText(textInput("A0EEBC999C0B4EF8BB6D6BB9BD380A11"));
 }
 export function evaluate32548() {
-    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("0"));
+    return uuidFromText(textInput("not-a-uuid"));
 }
 export function evaluate32549() {
-    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("0"));
+    return uuidText(uuidInput(null));
 }
 export function evaluate32550() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("0"));
+    return uuidText(uuidInput("a0eebc999c0b4ef8bb6d6bb9bd380a11"));
 }
 export function evaluate32551() {
-    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("1"));
+    return sqlIsNull(uuidInput(null));
 }
 export function evaluate32552() {
-    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("1"));
+    return sqlCase(() => uuidInput("00000000-0000-0000-0000-000000000000"), [() => booleanInput(true), () => uuidInput("00000000-0000-0000-0000-000000000001")]);
 }
 export function evaluate32553() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("1"));
+    return sqlCoalesce(() => uuidInput(null), () => uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate32554() {
-    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("2"));
+    return enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate32555() {
-    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("2"));
+    return enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate32556() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("2"));
+    return enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate32557() {
-    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("3"));
+    return enumInput("quote's", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate32558() {
-    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("3"));
+    return enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate32559() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("3"));
+    return enumInput("middle", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]);
 }
 export function evaluate32560() {
-    return arrayCardinality(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return enumInput("zebra", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]);
 }
 export function evaluate32561() {
-    return arrayNdims(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return enumInput("", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate32562() {
-    return arrayDims(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return enumInput("missing", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate32563() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
+    return enumInput("ZEBRA", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate32564() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
+    return enumInput("zebra ", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate32565() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
+    return enumEq(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32566() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
+    return enumNe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32567() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
+    return enumLt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32568() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
+    return enumLe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32569() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
+    return enumGt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32570() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
+    return enumGe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32571() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
+    return enumEq(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32572() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
+    return enumNe(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32573() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
+    return enumLt(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32574() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
+    return enumLe(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32575() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
+    return enumGt(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32576() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
+    return enumGe(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32577() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
+    return enumEq(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32578() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
+    return enumNe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32579() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
+    return enumLt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32580() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
+    return enumLe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32581() {
-    return arrayCardinality(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return enumGt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32582() {
-    return arrayNdims(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return enumGe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32583() {
-    return arrayDims(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return enumEq(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32584() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
+    return enumNe(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32585() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
+    return enumLt(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32586() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
+    return enumLe(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32587() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
+    return enumGt(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32588() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
+    return enumGe(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32589() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
+    return enumEq(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32590() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
+    return enumNe(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32591() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
+    return enumLt(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32592() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
+    return enumLe(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32593() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
+    return enumGt(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32594() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
+    return enumGe(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32595() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
+    return enumLt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32596() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
+    return enumLt(enumInput("middle", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]), enumInput("apple", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]));
 }
 export function evaluate32597() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
+    return enumInput(textInput(null), "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate32598() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
+    return enumInput(textInput("zebra"), "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate32599() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
+    return enumInput(textInput("missing"), "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate32600() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
+    return enumText(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32601() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
+    return enumText(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32602() {
-    return arrayEq(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return enumText(enumInput("quote's", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32603() {
-    return arrayNe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return enumText(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32604() {
-    return arrayLt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return sqlIsNull(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32605() {
-    return arrayLe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return sqlCase(() => enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), [() => booleanInput(true), () => enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])]);
 }
 export function evaluate32606() {
-    return arrayGt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return sqlCoalesce(() => enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), () => enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate32607() {
-    return arrayGe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayInput("pg_catalog.int4", [], [], null);
 }
 export function evaluate32608() {
-    return arrayEq(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayInput("pg_catalog.int4", [], [], []);
 }
 export function evaluate32609() {
-    return arrayNe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]);
 }
 export function evaluate32610() {
-    return arrayLt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]);
 }
 export function evaluate32611() {
-    return arrayLe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]);
 }
 export function evaluate32612() {
-    return arrayGt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]);
 }
 export function evaluate32613() {
-    return arrayGe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]);
 }
 export function evaluate32614() {
-    return arrayEq(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayCardinality(arrayInput("pg_catalog.int4", [], [], null));
 }
 export function evaluate32615() {
-    return arrayNe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayNdims(arrayInput("pg_catalog.int4", [], [], null));
 }
 export function evaluate32616() {
-    return arrayLt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayDims(arrayInput("pg_catalog.int4", [], [], null));
 }
 export function evaluate32617() {
-    return arrayLe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input(null));
 }
 export function evaluate32618() {
-    return arrayGt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input(null));
 }
 export function evaluate32619() {
-    return arrayGe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input(null));
 }
 export function evaluate32620() {
-    return arrayEq(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("-1"));
 }
 export function evaluate32621() {
-    return arrayNe(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("-1"));
 }
 export function evaluate32622() {
-    return arrayLt(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("-1"));
 }
 export function evaluate32623() {
-    return arrayLe(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("0"));
 }
 export function evaluate32624() {
-    return arrayGt(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("0"));
 }
 export function evaluate32625() {
-    return arrayGe(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("0"));
 }
 export function evaluate32626() {
-    return arrayEq(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
 }
 export function evaluate32627() {
-    return arrayNe(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
 }
 export function evaluate32628() {
-    return arrayLt(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
 }
 export function evaluate32629() {
-    return arrayLe(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("2"));
 }
 export function evaluate32630() {
-    return arrayGt(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("2"));
 }
 export function evaluate32631() {
-    return arrayGe(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("2"));
 }
 export function evaluate32632() {
-    return arrayEq(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("3"));
 }
 export function evaluate32633() {
-    return arrayNe(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("3"));
 }
 export function evaluate32634() {
-    return arrayLt(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("3"));
 }
 export function evaluate32635() {
-    return arrayLe(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayCardinality(arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate32636() {
-    return arrayGt(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayNdims(arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate32637() {
-    return arrayGe(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayDims(arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate32638() {
-    return arrayContains(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input(null));
 }
 export function evaluate32639() {
-    return arrayContained(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input(null));
 }
 export function evaluate32640() {
-    return arrayOverlap(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input(null));
 }
 export function evaluate32641() {
-    return arrayContains(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("1"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("-1"));
 }
 export function evaluate32642() {
-    return arrayContained(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("1"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("-1"));
 }
 export function evaluate32643() {
-    return arrayOverlap(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("1"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("-1"));
 }
 export function evaluate32644() {
-    return arrayContains(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("0"));
 }
 export function evaluate32645() {
-    return arrayContained(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("0"));
 }
 export function evaluate32646() {
-    return arrayOverlap(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("0"));
 }
 export function evaluate32647() {
-    return arrayContains(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [], [], []));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("1"));
 }
 export function evaluate32648() {
-    return arrayContained(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [], [], []));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("1"));
 }
 export function evaluate32649() {
-    return arrayOverlap(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [], [], []));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("1"));
 }
 export function evaluate32650() {
-    return arrayContains(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("2"));
 }
 export function evaluate32651() {
-    return arrayContained(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("2"));
 }
 export function evaluate32652() {
-    return arrayOverlap(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("2"));
 }
 export function evaluate32653() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("3"));
 }
 export function evaluate32654() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [], [], null));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("3"));
 }
 export function evaluate32655() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [], [], null));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("3"));
 }
 export function evaluate32656() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
+    return arrayCardinality(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32657() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [], [], []));
+    return arrayNdims(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32658() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return arrayDims(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32659() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input(null));
 }
 export function evaluate32660() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input(null));
 }
 export function evaluate32661() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input(null));
 }
 export function evaluate32662() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [1, 3], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("-1"));
 }
 export function evaluate32663() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("1"));
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("-1"));
 }
 export function evaluate32664() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("3"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("-1"));
 }
 export function evaluate32665() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("4"));
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("0"));
 }
 export function evaluate32666() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("2"));
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("0"));
 }
 export function evaluate32667() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), int4Input("0"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("0"));
 }
 export function evaluate32668() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"), int4Input("1"));
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("1"));
 }
 export function evaluate32669() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("1"));
 }
 export function evaluate32670() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"), int4Input(null));
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("1"));
 }
 export function evaluate32671() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("2"));
 }
 export function evaluate32672() {
-    return sqlIsNull(arrayInput("pg_catalog.int4", [], [], null));
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("2"));
 }
 export function evaluate32673() {
-    return sqlCase(() => arrayInput("pg_catalog.int4", [], [], []), [() => booleanInput(true), () => arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))])]);
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("2"));
 }
 export function evaluate32674() {
-    return sqlCoalesce(() => arrayInput("pg_catalog.int4", [], [], null), () => arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("3"));
 }
 export function evaluate32675() {
-    return arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]);
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("3"));
 }
 export function evaluate32676() {
-    return arrayCardinality(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("3"));
 }
 export function evaluate32677() {
-    return arrayEq(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]));
+    return arrayCardinality(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate32678() {
-    return arrayLt(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), arrayInput("pg_catalog.int2", [2], [1], [arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input("1"))]));
+    return arrayNdims(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate32679() {
-    return arrayContains(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), arrayInput("pg_catalog.int2", [1], [1], [arrayElementInput("pg_catalog.int2", int2Input("1"))]));
+    return arrayDims(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate32680() {
-    return arrayOverlap(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), arrayInput("pg_catalog.int2", [2], [1], [arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input("1"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
 }
 export function evaluate32681() {
-    return arrayConcat(arrayInput("pg_catalog.int2", [1], [1], [arrayElementInput("pg_catalog.int2", int2Input("1"))]), arrayInput("pg_catalog.int2", [2], [1], [arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input("1"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
 }
 export function evaluate32682() {
-    return arraySubscript(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), int4Input("2"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
 }
 export function evaluate32683() {
-    return arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]);
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
 }
 export function evaluate32684() {
-    return arrayCardinality(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
 }
 export function evaluate32685() {
-    return arrayEq(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
 }
 export function evaluate32686() {
-    return arrayLt(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), arrayInput("pg_catalog.int8", [2], [1], [arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input("1"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
 }
 export function evaluate32687() {
-    return arrayContains(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("1"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
 }
 export function evaluate32688() {
-    return arrayOverlap(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), arrayInput("pg_catalog.int8", [2], [1], [arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input("1"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
 }
 export function evaluate32689() {
-    return arrayConcat(arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("1"))]), arrayInput("pg_catalog.int8", [2], [1], [arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input("1"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
 }
 export function evaluate32690() {
-    return arraySubscript(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), int4Input("2"));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
 }
 export function evaluate32691() {
-    return arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]);
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
 }
 export function evaluate32692() {
-    return arrayCardinality(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
 }
 export function evaluate32693() {
-    return arrayEq(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
 }
 export function evaluate32694() {
-    return arrayLt(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), arrayInput("pg_catalog.float4", [2], [1], [arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
 }
 export function evaluate32695() {
-    return arrayContains(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
 }
 export function evaluate32696() {
-    return arrayOverlap(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), arrayInput("pg_catalog.float4", [2], [1], [arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
 }
 export function evaluate32697() {
-    return arrayConcat(arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]), arrayInput("pg_catalog.float4", [2], [1], [arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
 }
 export function evaluate32698() {
-    return arraySubscript(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), int4Input("2"));
+    return arrayCardinality(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate32699() {
-    return arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]);
+    return arrayNdims(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate32700() {
-    return arrayCardinality(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]));
+    return arrayDims(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate32701() {
-    return arrayEq(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
 }
 export function evaluate32702() {
-    return arrayLt(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), arrayInput("pg_catalog.float8", [2], [1], [arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
 }
 export function evaluate32703() {
-    return arrayContains(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), arrayInput("pg_catalog.float8", [1], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
 }
 export function evaluate32704() {
-    return arrayOverlap(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), arrayInput("pg_catalog.float8", [2], [1], [arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
 }
 export function evaluate32705() {
-    return arrayConcat(arrayInput("pg_catalog.float8", [1], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]), arrayInput("pg_catalog.float8", [2], [1], [arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
 }
 export function evaluate32706() {
-    return arraySubscript(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), int4Input("2"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
 }
 export function evaluate32707() {
-    return arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]);
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
 }
 export function evaluate32708() {
-    return arrayCardinality(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
 }
 export function evaluate32709() {
-    return arrayEq(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
 }
 export function evaluate32710() {
-    return arrayLt(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), arrayInput("pg_catalog.\"numeric\"", [2], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
 }
 export function evaluate32711() {
-    return arrayContains(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), arrayInput("pg_catalog.\"numeric\"", [1], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
 }
 export function evaluate32712() {
-    return arrayOverlap(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), arrayInput("pg_catalog.\"numeric\"", [2], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
 }
 export function evaluate32713() {
-    return arrayConcat(arrayInput("pg_catalog.\"numeric\"", [1], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]), arrayInput("pg_catalog.\"numeric\"", [2], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
 }
 export function evaluate32714() {
-    return arraySubscript(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), int4Input("2"));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
 }
 export function evaluate32715() {
-    return arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]);
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
 }
 export function evaluate32716() {
-    return arrayCardinality(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
 }
 export function evaluate32717() {
-    return arrayEq(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
 }
 export function evaluate32718() {
-    return arrayLt(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), arrayInput("pg_catalog.bool", [2], [1], [arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(false))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
 }
 export function evaluate32719() {
-    return arrayContains(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), arrayInput("pg_catalog.bool", [1], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false))]));
+    return arrayEq(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32720() {
-    return arrayOverlap(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), arrayInput("pg_catalog.bool", [2], [1], [arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(false))]));
+    return arrayNe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32721() {
-    return arrayConcat(arrayInput("pg_catalog.bool", [1], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false))]), arrayInput("pg_catalog.bool", [2], [1], [arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(false))]));
+    return arrayLt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32722() {
-    return arraySubscript(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), int4Input("2"));
+    return arrayLe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32723() {
-    return arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]);
+    return arrayGt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32724() {
-    return arrayCardinality(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]));
+    return arrayGe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32725() {
-    return arrayEq(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]));
+    return arrayEq(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32726() {
-    return arrayLt(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput("a,b"))]));
+    return arrayNe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32727() {
-    return arrayContains(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a,b"))]));
+    return arrayLt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32728() {
-    return arrayOverlap(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput("a,b"))]));
+    return arrayLe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32729() {
-    return arrayConcat(arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a,b"))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput("a,b"))]));
+    return arrayGt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32730() {
-    return arraySubscript(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), int4Input("2"));
+    return arrayGe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32731() {
-    return arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]);
+    return arrayEq(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32732() {
-    return arrayCardinality(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]));
+    return arrayNe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32733() {
-    return arrayEq(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]));
+    return arrayLt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32734() {
-    return arrayLt(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), arrayInput("pg_catalog.\"varchar\"", [2], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]));
+    return arrayLe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32735() {
-    return arrayContains(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]));
+    return arrayGt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32736() {
-    return arrayOverlap(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), arrayInput("pg_catalog.\"varchar\"", [2], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]));
+    return arrayGe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32737() {
-    return arrayConcat(arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]), arrayInput("pg_catalog.\"varchar\"", [2], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]));
+    return arrayEq(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
 }
 export function evaluate32738() {
-    return arraySubscript(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), int4Input("2"));
+    return arrayNe(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
 }
 export function evaluate32739() {
-    return arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]);
+    return arrayLt(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
 }
 export function evaluate32740() {
-    return arrayCardinality(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]));
+    return arrayLe(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
 }
 export function evaluate32741() {
-    return arrayEq(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]));
+    return arrayGt(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
 }
 export function evaluate32742() {
-    return arrayLt(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), arrayInput("pg_catalog.bpchar", [2], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput("a "))]));
+    return arrayGe(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
 }
 export function evaluate32743() {
-    return arrayContains(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), arrayInput("pg_catalog.bpchar", [1], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a "))]));
+    return arrayEq(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32744() {
-    return arrayOverlap(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), arrayInput("pg_catalog.bpchar", [2], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput("a "))]));
+    return arrayNe(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32745() {
-    return arrayConcat(arrayInput("pg_catalog.bpchar", [1], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a "))]), arrayInput("pg_catalog.bpchar", [2], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput("a "))]));
+    return arrayLt(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32746() {
-    return arraySubscript(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), int4Input("2"));
+    return arrayLe(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32747() {
-    return arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]);
+    return arrayGt(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32748() {
-    return arrayCardinality(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]));
+    return arrayGe(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32749() {
-    return arrayEq(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]));
+    return arrayEq(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32750() {
-    return arrayLt(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), arrayInput("pg_catalog.uuid", [2], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]));
+    return arrayNe(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32751() {
-    return arrayContains(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), arrayInput("pg_catalog.uuid", [1], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]));
+    return arrayLt(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32752() {
-    return arrayOverlap(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), arrayInput("pg_catalog.uuid", [2], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]));
+    return arrayLe(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32753() {
-    return arrayConcat(arrayInput("pg_catalog.uuid", [1], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]), arrayInput("pg_catalog.uuid", [2], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]));
+    return arrayGt(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32754() {
-    return arraySubscript(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), int4Input("2"));
+    return arrayGe(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32755() {
-    return arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]);
+    return arrayContains(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]));
 }
 export function evaluate32756() {
-    return arrayCardinality(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
+    return arrayContained(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]));
 }
 export function evaluate32757() {
-    return arrayEq(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
+    return arrayOverlap(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]));
 }
 export function evaluate32758() {
-    return arrayLt(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [2], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
+    return arrayContains(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("1"))]));
 }
 export function evaluate32759() {
-    return arrayContains(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [1], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
+    return arrayContained(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("1"))]));
 }
 export function evaluate32760() {
-    return arrayOverlap(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [2], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
+    return arrayOverlap(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("1"))]));
 }
 export function evaluate32761() {
-    return arrayConcat(arrayInput("enum:[\"enum_alpha\",\"state\"]", [1], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [2], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
+    return arrayContains(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]));
 }
 export function evaluate32762() {
-    return arraySubscript(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), int4Input("2"));
+    return arrayContained(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]));
 }
 export function evaluate32763() {
-    return arraySlice(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[int4Input("1"), int4Input("2")]]);
+    return arrayOverlap(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]));
 }
 export function evaluate32764() {
-    return arraySlice(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[int4Input("0"), int4Input("1")]]);
+    return arrayContains(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate32765() {
-    return arraySlice(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[null, int4Input("2")]]);
+    return arrayContained(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate32766() {
-    return arraySlice(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[int4Input("2"), null]]);
+    return arrayOverlap(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate32767() {
-    return arraySlice(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[int4Input("9"), int4Input("10")]]);
+    return arrayContains(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32768() {
-    return arraySlice(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), [[int4Input("2"), int4Input("3")], [int4Input("1"), int4Input("2")]]);
+    return arrayContained(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32769() {
-    return arraySlice(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), [[int4Input("2"), int4Input("3")]]);
+    return arrayOverlap(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32770() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("2")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arrayConcat(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32771() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("5")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arrayConcat(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [], [], null));
 }
 export function evaluate32772() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("-2")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arrayConcat(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [], [], null));
 }
 export function evaluate32773() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [], [], []), [int4Input("4")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arrayConcat(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
 }
 export function evaluate32774() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [], [], null), [int4Input("4")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arrayConcat(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate32775() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), [int4Input("2"), int4Input("1")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arrayConcat(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate32776() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return arrayConcat(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate32777() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayConcat(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate32778() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return arrayConcat(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate32779() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayConcat(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [1, 3], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32780() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [], [], []), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("1"));
 }
 export function evaluate32781() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [], [], []));
+    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("3"));
 }
 export function evaluate32782() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [], [], null), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("4"));
 }
 export function evaluate32783() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [], [], null));
+    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("2"));
 }
 export function evaluate32784() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return arraySubscript(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), int4Input("0"));
 }
 export function evaluate32785() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]));
+    return arraySubscript(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"), int4Input("1"));
 }
 export function evaluate32786() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("4")));
+    return arraySubscript(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
 }
 export function evaluate32787() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("0")), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arraySubscript(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"), int4Input(null));
 }
 export function evaluate32788() {
-    return arrayPosition(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return arraySubscript(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
 }
 export function evaluate32789() {
-    return arrayPositions(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return sqlIsNull(arrayInput("pg_catalog.int4", [], [], null));
 }
 export function evaluate32790() {
-    return arrayPosition(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
+    return sqlCase(() => arrayInput("pg_catalog.int4", [], [], []), [() => booleanInput(true), () => arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))])]);
 }
 export function evaluate32791() {
-    return arrayPositions(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
+    return sqlCoalesce(() => arrayInput("pg_catalog.int4", [], [], null), () => arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate32792() {
-    return arrayPosition(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("2")), int4Input("1"));
+    return arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]);
 }
 export function evaluate32793() {
-    return arrayPosition(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arrayCardinality(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]));
 }
 export function evaluate32794() {
-    return arrayPositions(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arrayEq(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]));
 }
 export function evaluate32795() {
-    return arrayPosition(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
+    return arrayLt(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), arrayInput("pg_catalog.int2", [2], [1], [arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input("1"))]));
 }
 export function evaluate32796() {
-    return arrayPositions(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
+    return arrayContains(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), arrayInput("pg_catalog.int2", [1], [1], [arrayElementInput("pg_catalog.int2", int2Input("1"))]));
 }
 export function evaluate32797() {
-    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return arrayOverlap(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), arrayInput("pg_catalog.int2", [2], [1], [arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input("1"))]));
 }
 export function evaluate32798() {
-    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("7")));
+    return arrayConcat(arrayInput("pg_catalog.int2", [1], [1], [arrayElementInput("pg_catalog.int2", int2Input("1"))]), arrayInput("pg_catalog.int2", [2], [1], [arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input("1"))]));
 }
 export function evaluate32799() {
-    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("1")));
+    return arraySubscript(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), int4Input("2"));
 }
 export function evaluate32800() {
-    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("7")));
+    return arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]);
 }
 export function evaluate32801() {
-    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return arrayCardinality(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]));
 }
 export function evaluate32802() {
-    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("9")), arrayElementInput("pg_catalog.int4", int4Input("7")));
+    return arrayEq(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]));
 }
 export function evaluate32803() {
-    return arrayFill(arrayElementInput("pg_catalog.int4", int4Input("5")), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayLt(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), arrayInput("pg_catalog.int8", [2], [1], [arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input("1"))]));
 }
 export function evaluate32804() {
-    return arrayFill(arrayElementInput("pg_catalog.int4", int4Input(null)), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("0")), arrayElementInput("pg_catalog.int4", int4Input("-1"))]));
+    return arrayContains(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("1"))]));
 }
 export function evaluate32805() {
-    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("0"));
+    return arrayOverlap(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), arrayInput("pg_catalog.int8", [2], [1], [arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input("1"))]));
 }
 export function evaluate32806() {
-    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("1"));
+    return arrayConcat(arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("1"))]), arrayInput("pg_catalog.int8", [2], [1], [arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input("1"))]));
 }
 export function evaluate32807() {
-    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("3"));
+    return arraySubscript(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), int4Input("2"));
 }
 export function evaluate32808() {
-    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("4"));
+    return arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]);
 }
 export function evaluate32809() {
-    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("-1"));
+    return arrayCardinality(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]));
 }
 export function evaluate32810() {
-    return arrayTrim(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("0"));
+    return arrayEq(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]));
 }
 export function evaluate32811() {
-    return arrayReverse(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return arrayLt(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), arrayInput("pg_catalog.float4", [2], [1], [arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]));
 }
 export function evaluate32812() {
-    return arrayReverse(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]));
+    return arrayContains(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]));
 }
 export function evaluate32813() {
-    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return arrayOverlap(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), arrayInput("pg_catalog.float4", [2], [1], [arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]));
 }
 export function evaluate32814() {
-    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(true));
+    return arrayConcat(arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]), arrayInput("pg_catalog.float4", [2], [1], [arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]));
 }
 export function evaluate32815() {
-    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(false), booleanInput(true));
+    return arraySubscript(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), int4Input("2"));
 }
 export function evaluate32816() {
-    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(true), booleanInput(false));
+    return arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]);
 }
 export function evaluate32817() {
-    return arraySort(arrayInput("pg_catalog.int4", [3, 2], [0, 1], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("9")), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return arrayCardinality(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]));
 }
 export function evaluate32818() {
-    return arrayConcat(arrayCoerce("pg_catalog.int4", arrayInput("pg_catalog.int2", [1], [1], [arrayElementInput("pg_catalog.int2", int2Input("1"))])), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return arrayEq(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]));
 }
 export function evaluate32819() {
-    return arrayConcat(arrayCoerce("pg_catalog.int8", arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))])), arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("2"))]));
+    return arrayLt(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), arrayInput("pg_catalog.float8", [2], [1], [arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]));
 }
 export function evaluate32820() {
-    return arrayConcat(arrayCoerce("pg_catalog.\"numeric\"", arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("1"))])), arrayInput("pg_catalog.\"numeric\"", [1], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.5"))]));
+    return arrayContains(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), arrayInput("pg_catalog.float8", [1], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]));
 }
 export function evaluate32821() {
-    return arrayConcat(arrayCoerce("pg_catalog.float4", arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))])), arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("40200000"))]));
+    return arrayOverlap(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), arrayInput("pg_catalog.float8", [2], [1], [arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]));
 }
 export function evaluate32822() {
-    return arrayConcat(arrayCoerce("pg_catalog.float8", arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("3fc00000"))])), arrayInput("pg_catalog.float8", [1], [1], [arrayElementInput("pg_catalog.float8", float8Input("4004000000000000"))]));
+    return arrayConcat(arrayInput("pg_catalog.float8", [1], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]), arrayInput("pg_catalog.float8", [2], [1], [arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]));
 }
 export function evaluate32823() {
-    return arrayConcat(arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), arrayCoerce("pg_catalog.text", arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b"))])));
+    return arraySubscript(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), int4Input("2"));
 }
 export function evaluate32824() {
-    return arrayConcat(arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]), arrayCoerce("pg_catalog.\"varchar\"", arrayInput("pg_catalog.bpchar", [1], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b "))])));
+    return arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]);
 }
 export function evaluate32825() {
-    return jsonInput(null);
+    return arrayCardinality(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]));
 }
 export function evaluate32826() {
-    return jsonbInput(null);
+    return arrayEq(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]));
 }
 export function evaluate32827() {
-    return jsonInput("null");
+    return arrayLt(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), arrayInput("pg_catalog.\"numeric\"", [2], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]));
 }
 export function evaluate32828() {
-    return jsonbInput("null");
+    return arrayContains(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), arrayInput("pg_catalog.\"numeric\"", [1], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]));
 }
 export function evaluate32829() {
-    return jsonInput("true");
+    return arrayOverlap(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), arrayInput("pg_catalog.\"numeric\"", [2], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]));
 }
 export function evaluate32830() {
-    return jsonbInput("true");
+    return arrayConcat(arrayInput("pg_catalog.\"numeric\"", [1], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]), arrayInput("pg_catalog.\"numeric\"", [2], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]));
 }
 export function evaluate32831() {
-    return jsonInput("false");
+    return arraySubscript(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), int4Input("2"));
 }
 export function evaluate32832() {
-    return jsonbInput("false");
+    return arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]);
 }
 export function evaluate32833() {
-    return jsonInput("0");
+    return arrayCardinality(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]));
 }
 export function evaluate32834() {
-    return jsonbInput("0");
+    return arrayEq(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]));
 }
 export function evaluate32835() {
-    return jsonInput("1.2300");
+    return arrayLt(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), arrayInput("pg_catalog.bool", [2], [1], [arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(false))]));
 }
 export function evaluate32836() {
-    return jsonbInput("1.2300");
+    return arrayContains(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), arrayInput("pg_catalog.bool", [1], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false))]));
 }
 export function evaluate32837() {
-    return jsonInput("1e2");
+    return arrayOverlap(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), arrayInput("pg_catalog.bool", [2], [1], [arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(false))]));
 }
 export function evaluate32838() {
-    return jsonbInput("1e2");
+    return arrayConcat(arrayInput("pg_catalog.bool", [1], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false))]), arrayInput("pg_catalog.bool", [2], [1], [arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(false))]));
 }
 export function evaluate32839() {
-    return jsonInput("\"hi\"");
+    return arraySubscript(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), int4Input("2"));
 }
 export function evaluate32840() {
-    return jsonbInput("\"hi\"");
+    return arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]);
 }
 export function evaluate32841() {
-    return jsonInput("[]");
+    return arrayCardinality(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate32842() {
-    return jsonbInput("[]");
+    return arrayEq(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate32843() {
-    return jsonInput("{}");
+    return arrayLt(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput("a,b"))]));
 }
 export function evaluate32844() {
-    return jsonbInput("{}");
+    return arrayContains(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a,b"))]));
 }
 export function evaluate32845() {
-    return jsonInput("[1, null, 3]");
+    return arrayOverlap(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput("a,b"))]));
 }
 export function evaluate32846() {
-    return jsonbInput("[1, null, 3]");
+    return arrayConcat(arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a,b"))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput("a,b"))]));
 }
 export function evaluate32847() {
-    return jsonInput("{\"b\":2,\"a\":1}");
+    return arraySubscript(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), int4Input("2"));
 }
 export function evaluate32848() {
-    return jsonbInput("{\"b\":2,\"a\":1}");
+    return arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]);
 }
 export function evaluate32849() {
-    return jsonInput("{\"a\":1,\"a\":2}");
+    return arrayCardinality(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]));
 }
 export function evaluate32850() {
-    return jsonbInput("{\"a\":1,\"a\":2}");
+    return arrayEq(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]));
 }
 export function evaluate32851() {
-    return jsonInput(" { \"a\" : 1 } ");
+    return arrayLt(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), arrayInput("pg_catalog.\"varchar\"", [2], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]));
 }
 export function evaluate32852() {
-    return jsonbInput(" { \"a\" : 1 } ");
+    return arrayContains(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]));
 }
 export function evaluate32853() {
-    return jsonInput("{\"aa\":1,\"b\":2}");
+    return arrayOverlap(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), arrayInput("pg_catalog.\"varchar\"", [2], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]));
 }
 export function evaluate32854() {
-    return jsonbInput("{\"aa\":1,\"b\":2}");
+    return arrayConcat(arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]), arrayInput("pg_catalog.\"varchar\"", [2], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]));
 }
 export function evaluate32855() {
-    return jsonInput("\"\\u0041\"");
+    return arraySubscript(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), int4Input("2"));
 }
 export function evaluate32856() {
-    return jsonbInput("\"\\u0041\"");
+    return arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]);
 }
 export function evaluate32857() {
-    return jsonInput("\"a\\/b\"");
+    return arrayCardinality(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]));
 }
 export function evaluate32858() {
-    return jsonbInput("\"a\\/b\"");
+    return arrayEq(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]));
 }
 export function evaluate32859() {
-    return jsonInput("\"\\uD83D\\uDE00\"");
+    return arrayLt(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), arrayInput("pg_catalog.bpchar", [2], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput("a "))]));
 }
 export function evaluate32860() {
-    return jsonbInput("\"\\uD83D\\uDE00\"");
+    return arrayContains(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), arrayInput("pg_catalog.bpchar", [1], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a "))]));
 }
 export function evaluate32861() {
-    return jsonInput("9007199254740993");
+    return arrayOverlap(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), arrayInput("pg_catalog.bpchar", [2], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput("a "))]));
 }
 export function evaluate32862() {
-    return jsonbInput("9007199254740993");
+    return arrayConcat(arrayInput("pg_catalog.bpchar", [1], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a "))]), arrayInput("pg_catalog.bpchar", [2], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput("a "))]));
 }
 export function evaluate32863() {
-    return jsonInput("-0");
+    return arraySubscript(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), int4Input("2"));
 }
 export function evaluate32864() {
-    return jsonbInput("-0");
+    return arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]);
 }
 export function evaluate32865() {
-    return jsonInput("");
+    return arrayCardinality(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]));
 }
 export function evaluate32866() {
-    return jsonbInput("");
+    return arrayEq(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]));
 }
 export function evaluate32867() {
-    return jsonInput("01");
+    return arrayLt(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), arrayInput("pg_catalog.uuid", [2], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]));
 }
 export function evaluate32868() {
-    return jsonbInput("01");
+    return arrayContains(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), arrayInput("pg_catalog.uuid", [1], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]));
 }
 export function evaluate32869() {
-    return jsonInput("truee");
+    return arrayOverlap(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), arrayInput("pg_catalog.uuid", [2], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]));
 }
 export function evaluate32870() {
-    return jsonbInput("truee");
+    return arrayConcat(arrayInput("pg_catalog.uuid", [1], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]), arrayInput("pg_catalog.uuid", [2], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]));
 }
 export function evaluate32871() {
-    return jsonInput("[1,]");
+    return arraySubscript(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), int4Input("2"));
 }
 export function evaluate32872() {
-    return jsonbInput("[1,]");
+    return arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]);
 }
 export function evaluate32873() {
-    return jsonInput("{a:1}");
+    return arrayCardinality(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
 }
 export function evaluate32874() {
-    return jsonbInput("{a:1}");
+    return arrayEq(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
 }
 export function evaluate32875() {
-    return jsonInput("1 2");
+    return arrayLt(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [2], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
 }
 export function evaluate32876() {
-    return jsonbInput("1 2");
+    return arrayContains(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [1], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
 }
 export function evaluate32877() {
-    return jsonInput("\"\\uD800\"");
+    return arrayOverlap(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [2], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
 }
 export function evaluate32878() {
-    return jsonbInput("\"\\uD800\"");
+    return arrayConcat(arrayInput("enum:[\"enum_alpha\",\"state\"]", [1], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [2], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
 }
 export function evaluate32879() {
-    return jsonInput("\"\\u0000\"");
+    return arraySubscript(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), int4Input("2"));
 }
 export function evaluate32880() {
-    return jsonbInput("\"\\u0000\"");
+    return arraySlice(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[int4Input("1"), int4Input("2")]]);
 }
 export function evaluate32881() {
-    return jsonInput("\"a\\u0000b\"");
+    return arraySlice(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[int4Input("0"), int4Input("1")]]);
 }
 export function evaluate32882() {
-    return jsonbInput("\"a\\u0000b\"");
+    return arraySlice(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[null, int4Input("2")]]);
 }
 export function evaluate32883() {
-    return jsonTypeof(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
+    return arraySlice(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[int4Input("2"), null]]);
 }
 export function evaluate32884() {
-    return jsonTypeof(jsonInput("[10,20,30]"));
+    return arraySlice(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[int4Input("9"), int4Input("10")]]);
 }
 export function evaluate32885() {
-    return jsonTypeof(jsonInput("1"));
+    return arraySlice(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), [[int4Input("2"), int4Input("3")], [int4Input("1"), int4Input("2")]]);
 }
 export function evaluate32886() {
-    return jsonTypeof(jsonInput("null"));
+    return arraySlice(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), [[int4Input("2"), int4Input("3")]]);
 }
 export function evaluate32887() {
-    return jsonTypeof(jsonInput(null));
+    return arrayAssign(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("2")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate32888() {
-    return jsonTypeof(jsonInput("  [1]"));
+    return arrayAssign(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("5")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate32889() {
-    return jsonbTypeof(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
+    return arrayAssign(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("-2")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate32890() {
-    return jsonbTypeof(jsonbInput("1"));
+    return arrayAssign(arrayInput("pg_catalog.int4", [], [], []), [int4Input("4")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate32891() {
-    return jsonbTypeof(jsonbInput("null"));
+    return arrayAssign(arrayInput("pg_catalog.int4", [], [], null), [int4Input("4")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate32892() {
-    return jsonbTypeof(jsonbInput(null));
+    return arrayAssign(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), [int4Input("2"), int4Input("1")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate32893() {
-    return jsonArrayLength(jsonInput("[10,20,30]"));
+    return arrayAppend(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate32894() {
-    return jsonArrayLength(jsonInput("[[1],2]"));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32895() {
-    return jsonArrayLength(jsonInput("[]"));
+    return arrayAppend(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate32896() {
-    return jsonArrayLength(jsonInput("{}"));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32897() {
-    return jsonArrayLength(jsonInput("1"));
+    return arrayAppend(arrayInput("pg_catalog.int4", [], [], []), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate32898() {
-    return jsonbArrayLength(jsonbInput("[10,20,30]"));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate32899() {
-    return jsonbArrayLength(jsonbInput("1"));
+    return arrayAppend(arrayInput("pg_catalog.int4", [], [], null), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate32900() {
-    return jsonbArrayLength(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [], [], null));
 }
 export function evaluate32901() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+    return arrayAppend(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate32902() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]));
 }
 export function evaluate32903() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+    return arrayAppend(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("4")));
 }
 export function evaluate32904() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("0")), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32905() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+    return arrayPosition(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate32906() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+    return arrayPositions(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate32907() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+    return arrayPosition(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
 }
 export function evaluate32908() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+    return arrayPositions(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
 }
 export function evaluate32909() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+    return arrayPosition(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("2")), int4Input("1"));
 }
 export function evaluate32910() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+    return arrayPosition(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate32911() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+    return arrayPositions(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate32912() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+    return arrayPosition(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
 }
 export function evaluate32913() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+    return arrayPositions(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
 }
 export function evaluate32914() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate32915() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("7")));
 }
 export function evaluate32916() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("1")));
 }
 export function evaluate32917() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("7")));
 }
 export function evaluate32918() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate32919() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("9")), arrayElementInput("pg_catalog.int4", int4Input("7")));
 }
 export function evaluate32920() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+    return arrayFill(arrayElementInput("pg_catalog.int4", int4Input("5")), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32921() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+    return arrayFill(arrayElementInput("pg_catalog.int4", int4Input(null)), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("0")), arrayElementInput("pg_catalog.int4", int4Input("-1"))]));
 }
 export function evaluate32922() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("0"));
 }
 export function evaluate32923() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("1"));
 }
 export function evaluate32924() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("3"));
 }
 export function evaluate32925() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("4"));
 }
 export function evaluate32926() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("-1"));
 }
 export function evaluate32927() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("0"));
 }
 export function evaluate32928() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+    return arrayReverse(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate32929() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+    return arrayReverse(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]));
 }
 export function evaluate32930() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate32931() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(true));
 }
 export function evaluate32932() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(false), booleanInput(true));
 }
 export function evaluate32933() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(true), booleanInput(false));
 }
 export function evaluate32934() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+    return arraySort(arrayInput("pg_catalog.int4", [3, 2], [0, 1], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("9")), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate32935() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+    return arrayConcat(arrayCoerce("pg_catalog.int4", arrayInput("pg_catalog.int2", [1], [1], [arrayElementInput("pg_catalog.int2", int2Input("1"))])), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate32936() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+    return arrayConcat(arrayCoerce("pg_catalog.int8", arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))])), arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("2"))]));
 }
 export function evaluate32937() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+    return arrayConcat(arrayCoerce("pg_catalog.\"numeric\"", arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("1"))])), arrayInput("pg_catalog.\"numeric\"", [1], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.5"))]));
 }
 export function evaluate32938() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+    return arrayConcat(arrayCoerce("pg_catalog.float4", arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))])), arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("40200000"))]));
 }
 export function evaluate32939() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+    return arrayConcat(arrayCoerce("pg_catalog.float8", arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("3fc00000"))])), arrayInput("pg_catalog.float8", [1], [1], [arrayElementInput("pg_catalog.float8", float8Input("4004000000000000"))]));
 }
 export function evaluate32940() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+    return arrayConcat(arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), arrayCoerce("pg_catalog.text", arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b"))])));
 }
 export function evaluate32941() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+    return arrayConcat(arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]), arrayCoerce("pg_catalog.\"varchar\"", arrayInput("pg_catalog.bpchar", [1], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b "))])));
 }
 export function evaluate32942() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+    return jsonInput(null);
 }
 export function evaluate32943() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+    return jsonbInput(null);
 }
 export function evaluate32944() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+    return jsonInput("null");
 }
 export function evaluate32945() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+    return jsonbInput("null");
 }
 export function evaluate32946() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+    return jsonInput("true");
 }
 export function evaluate32947() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+    return jsonbInput("true");
 }
 export function evaluate32948() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+    return jsonInput("false");
 }
 export function evaluate32949() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"a\":2}"), textInput("a"));
+    return jsonbInput("false");
 }
 export function evaluate32950() {
-    return jsonObjectField(jsonInput(" { \"a\" : 1 } "), textInput("a"));
+    return jsonInput("0");
 }
 export function evaluate32951() {
-    return jsonObjectField(jsonInput("[10,20,30]"), textInput("a"));
+    return jsonbInput("0");
 }
 export function evaluate32952() {
-    return jsonbObjectField(jsonbInput("[10,20,30]"), textInput("a"));
+    return jsonInput("1.2300");
 }
 export function evaluate32953() {
-    return jsonObjectField(jsonInput("1"), textInput("a"));
+    return jsonbInput("1.2300");
 }
 export function evaluate32954() {
-    return jsonbObjectField(jsonbInput("1"), textInput("a"));
+    return jsonInput("1e2");
 }
 export function evaluate32955() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("0"));
+    return jsonbInput("1e2");
 }
 export function evaluate32956() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("0"));
+    return jsonInput("\"hi\"");
 }
 export function evaluate32957() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("0"));
+    return jsonbInput("\"hi\"");
 }
 export function evaluate32958() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("0"));
+    return jsonInput("[]");
 }
 export function evaluate32959() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("0"));
+    return jsonbInput("[]");
 }
 export function evaluate32960() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("0"));
+    return jsonInput("{}");
 }
 export function evaluate32961() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("0"));
+    return jsonbInput("{}");
 }
 export function evaluate32962() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("0"));
+    return jsonInput("[1, null, 3]");
 }
 export function evaluate32963() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("1"));
+    return jsonbInput("[1, null, 3]");
 }
 export function evaluate32964() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("1"));
+    return jsonInput("{\"b\":2,\"a\":1}");
 }
 export function evaluate32965() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("1"));
+    return jsonbInput("{\"b\":2,\"a\":1}");
 }
 export function evaluate32966() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("1"));
+    return jsonInput("{\"a\":1,\"a\":2}");
 }
 export function evaluate32967() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("1"));
+    return jsonbInput("{\"a\":1,\"a\":2}");
 }
 export function evaluate32968() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("1"));
+    return jsonInput(" { \"a\" : 1 } ");
 }
 export function evaluate32969() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("1"));
+    return jsonbInput(" { \"a\" : 1 } ");
 }
 export function evaluate32970() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("1"));
+    return jsonInput("{\"aa\":1,\"b\":2}");
 }
 export function evaluate32971() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("2"));
+    return jsonbInput("{\"aa\":1,\"b\":2}");
 }
 export function evaluate32972() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("2"));
+    return jsonInput("\"\\u0041\"");
 }
 export function evaluate32973() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("2"));
+    return jsonbInput("\"\\u0041\"");
 }
 export function evaluate32974() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("2"));
+    return jsonInput("\"a\\/b\"");
 }
 export function evaluate32975() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("2"));
+    return jsonbInput("\"a\\/b\"");
 }
 export function evaluate32976() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("2"));
+    return jsonInput("\"\\uD83D\\uDE00\"");
 }
 export function evaluate32977() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("2"));
+    return jsonbInput("\"\\uD83D\\uDE00\"");
 }
 export function evaluate32978() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("2"));
+    return jsonInput("9007199254740993");
 }
 export function evaluate32979() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-1"));
+    return jsonbInput("9007199254740993");
 }
 export function evaluate32980() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-1"));
+    return jsonInput("-0");
 }
 export function evaluate32981() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-1"));
+    return jsonbInput("-0");
 }
 export function evaluate32982() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-1"));
+    return jsonInput("");
 }
 export function evaluate32983() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-1"));
+    return jsonbInput("");
 }
 export function evaluate32984() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-1"));
+    return jsonInput("01");
 }
 export function evaluate32985() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-1"));
+    return jsonbInput("01");
 }
 export function evaluate32986() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-1"));
+    return jsonInput("truee");
 }
 export function evaluate32987() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-4"));
+    return jsonbInput("truee");
 }
 export function evaluate32988() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-4"));
+    return jsonInput("[1,]");
 }
 export function evaluate32989() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-4"));
+    return jsonbInput("[1,]");
 }
 export function evaluate32990() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-4"));
+    return jsonInput("{a:1}");
 }
 export function evaluate32991() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-4"));
+    return jsonbInput("{a:1}");
 }
 export function evaluate32992() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-4"));
+    return jsonInput("1 2");
 }
 export function evaluate32993() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-4"));
+    return jsonbInput("1 2");
 }
 export function evaluate32994() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-4"));
+    return jsonInput("\"\\uD800\"");
 }
 export function evaluate32995() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input(null));
+    return jsonbInput("\"\\uD800\"");
 }
 export function evaluate32996() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input(null));
+    return jsonInput("\"\\u0000\"");
 }
 export function evaluate32997() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input(null));
+    return jsonbInput("\"\\u0000\"");
 }
 export function evaluate32998() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input(null));
+    return jsonInput("\"a\\u0000b\"");
 }
 export function evaluate32999() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input(null));
+    return jsonbInput("\"a\\u0000b\"");
 }
 export function evaluate33000() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input(null));
+    return jsonTypeof(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
 }
 export function evaluate33001() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input(null));
+    return jsonTypeof(jsonInput("[10,20,30]"));
 }
 export function evaluate33002() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input(null));
+    return jsonTypeof(jsonInput("1"));
 }
 export function evaluate33003() {
-    return jsonArrayElement(jsonInput("[1, null, 3]"), int4Input("1"));
+    return jsonTypeof(jsonInput("null"));
 }
 export function evaluate33004() {
-    return jsonArrayElementText(jsonInput("[1, null, 3]"), int4Input("1"));
+    return jsonTypeof(jsonInput(null));
 }
 export function evaluate33005() {
-    return jsonArrayElement(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), int4Input("0"));
+    return jsonTypeof(jsonInput("  [1]"));
 }
 export function evaluate33006() {
-    return jsonArrayElement(jsonInput("1"), int4Input("0"));
+    return jsonbTypeof(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
 }
 export function evaluate33007() {
-    return jsonbArrayElement(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), int4Input("0"));
+    return jsonbTypeof(jsonbInput("1"));
 }
 export function evaluate33008() {
-    return jsonbArrayElement(jsonbInput("1"), int4Input("0"));
+    return jsonbTypeof(jsonbInput("null"));
 }
 export function evaluate33009() {
-    return jsonbArrayElementText(jsonbInput("\"hi\""), int4Input("0"));
+    return jsonbTypeof(jsonbInput(null));
 }
 export function evaluate33010() {
-    return jsonArrayElementText(jsonInput("\"hi\""), int4Input("0"));
+    return jsonArrayLength(jsonInput("[10,20,30]"));
 }
 export function evaluate33011() {
-    return jsonbArrayElement(jsonbInput("1"), int4Input("-1"));
+    return jsonArrayLength(jsonInput("[[1],2]"));
 }
 export function evaluate33012() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonArrayLength(jsonInput("[]"));
 }
 export function evaluate33013() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonArrayLength(jsonInput("{}"));
 }
 export function evaluate33014() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonArrayLength(jsonInput("1"));
 }
 export function evaluate33015() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonbArrayLength(jsonbInput("[10,20,30]"));
 }
 export function evaluate33016() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonbArrayLength(jsonbInput("1"));
 }
 export function evaluate33017() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonbArrayLength(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
 }
 export function evaluate33018() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
 }
 export function evaluate33019() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
 }
 export function evaluate33020() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
 }
 export function evaluate33021() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
 }
 export function evaluate33022() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
 }
 export function evaluate33023() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
 }
 export function evaluate33024() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
 }
 export function evaluate33025() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
 }
 export function evaluate33026() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
 }
 export function evaluate33027() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
 }
 export function evaluate33028() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
 }
 export function evaluate33029() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
 }
 export function evaluate33030() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
 }
 export function evaluate33031() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
 }
 export function evaluate33032() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
 }
 export function evaluate33033() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
 }
 export function evaluate33034() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
 }
 export function evaluate33035() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
 }
 export function evaluate33036() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
 }
 export function evaluate33037() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
 }
 export function evaluate33038() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
 }
 export function evaluate33039() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
 }
 export function evaluate33040() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
 }
 export function evaluate33041() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
 }
 export function evaluate33042() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
 }
 export function evaluate33043() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
 }
 export function evaluate33044() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
 }
 export function evaluate33045() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
 }
 export function evaluate33046() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
 }
 export function evaluate33047() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
 }
 export function evaluate33048() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
 }
 export function evaluate33049() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
 }
 export function evaluate33050() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
 }
 export function evaluate33051() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
 }
 export function evaluate33052() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
 }
 export function evaluate33053() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
 }
 export function evaluate33054() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
 }
 export function evaluate33055() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
 }
 export function evaluate33056() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
 }
 export function evaluate33057() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
 }
 export function evaluate33058() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
 }
 export function evaluate33059() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
 }
 export function evaluate33060() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
 }
 export function evaluate33061() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
 }
 export function evaluate33062() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
 }
 export function evaluate33063() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
 }
 export function evaluate33064() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
 }
 export function evaluate33065() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
 }
 export function evaluate33066() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+    return jsonObjectField(jsonInput("{\"a\":1,\"a\":2}"), textInput("a"));
 }
 export function evaluate33067() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+    return jsonObjectField(jsonInput(" { \"a\" : 1 } "), textInput("a"));
 }
 export function evaluate33068() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return jsonObjectField(jsonInput("[10,20,30]"), textInput("a"));
 }
 export function evaluate33069() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return jsonbObjectField(jsonbInput("[10,20,30]"), textInput("a"));
 }
 export function evaluate33070() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return jsonObjectField(jsonInput("1"), textInput("a"));
 }
 export function evaluate33071() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return jsonbObjectField(jsonbInput("1"), textInput("a"));
 }
 export function evaluate33072() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("0"));
 }
 export function evaluate33073() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("0"));
 }
 export function evaluate33074() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("0"));
 }
 export function evaluate33075() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("0"));
 }
 export function evaluate33076() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("0"));
 }
 export function evaluate33077() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("0"));
 }
 export function evaluate33078() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("0"));
 }
 export function evaluate33079() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("0"));
 }
 export function evaluate33080() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33081() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33082() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33083() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33084() {
-    return jsonExtractPath(jsonInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33085() {
-    return jsonExtractPath(jsonInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33086() {
-    return jsonbExtractPath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33087() {
-    return jsonExtractPath(jsonInput("{\"1\":\"a\"}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33088() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("2"));
 }
 export function evaluate33089() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], null));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("2"));
 }
 export function evaluate33090() {
-    return jsonbExtractPath(jsonbInput("\"hi\""), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("0"))]));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("2"));
 }
 export function evaluate33091() {
-    return jsonExtractPath(jsonInput("\"hi\""), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("0"))]));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("2"));
 }
 export function evaluate33092() {
-    return jsonbEq(jsonbInput("null"), jsonbInput("\"\""));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("2"));
 }
 export function evaluate33093() {
-    return jsonbNe(jsonbInput("null"), jsonbInput("\"\""));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("2"));
 }
 export function evaluate33094() {
-    return jsonbLt(jsonbInput("null"), jsonbInput("\"\""));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("2"));
 }
 export function evaluate33095() {
-    return jsonbLe(jsonbInput("null"), jsonbInput("\"\""));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("2"));
 }
 export function evaluate33096() {
-    return jsonbGt(jsonbInput("null"), jsonbInput("\"\""));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate33097() {
-    return jsonbGe(jsonbInput("null"), jsonbInput("\"\""));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate33098() {
-    return jsonbCompare(jsonbInput("null"), jsonbInput("\"\""));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate33099() {
-    return jsonbEq(jsonbInput("\"\""), jsonbInput("0"));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate33100() {
-    return jsonbNe(jsonbInput("\"\""), jsonbInput("0"));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate33101() {
-    return jsonbLt(jsonbInput("\"\""), jsonbInput("0"));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate33102() {
-    return jsonbLe(jsonbInput("\"\""), jsonbInput("0"));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate33103() {
-    return jsonbGt(jsonbInput("\"\""), jsonbInput("0"));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate33104() {
-    return jsonbGe(jsonbInput("\"\""), jsonbInput("0"));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-4"));
 }
 export function evaluate33105() {
-    return jsonbCompare(jsonbInput("\"\""), jsonbInput("0"));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-4"));
 }
 export function evaluate33106() {
-    return jsonbEq(jsonbInput("0"), jsonbInput("false"));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-4"));
 }
 export function evaluate33107() {
-    return jsonbNe(jsonbInput("0"), jsonbInput("false"));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-4"));
 }
 export function evaluate33108() {
-    return jsonbLt(jsonbInput("0"), jsonbInput("false"));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-4"));
 }
 export function evaluate33109() {
-    return jsonbLe(jsonbInput("0"), jsonbInput("false"));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-4"));
 }
 export function evaluate33110() {
-    return jsonbGt(jsonbInput("0"), jsonbInput("false"));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-4"));
 }
 export function evaluate33111() {
-    return jsonbGe(jsonbInput("0"), jsonbInput("false"));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-4"));
 }
 export function evaluate33112() {
-    return jsonbCompare(jsonbInput("0"), jsonbInput("false"));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input(null));
 }
 export function evaluate33113() {
-    return jsonbEq(jsonbInput("false"), jsonbInput("[]"));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input(null));
 }
 export function evaluate33114() {
-    return jsonbNe(jsonbInput("false"), jsonbInput("[]"));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input(null));
 }
 export function evaluate33115() {
-    return jsonbLt(jsonbInput("false"), jsonbInput("[]"));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input(null));
 }
 export function evaluate33116() {
-    return jsonbLe(jsonbInput("false"), jsonbInput("[]"));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input(null));
 }
 export function evaluate33117() {
-    return jsonbGt(jsonbInput("false"), jsonbInput("[]"));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input(null));
 }
 export function evaluate33118() {
-    return jsonbGe(jsonbInput("false"), jsonbInput("[]"));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input(null));
 }
 export function evaluate33119() {
-    return jsonbCompare(jsonbInput("false"), jsonbInput("[]"));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input(null));
 }
 export function evaluate33120() {
-    return jsonbEq(jsonbInput("[]"), jsonbInput("null"));
+    return jsonArrayElement(jsonInput("[1, null, 3]"), int4Input("1"));
 }
 export function evaluate33121() {
-    return jsonbNe(jsonbInput("[]"), jsonbInput("null"));
+    return jsonArrayElementText(jsonInput("[1, null, 3]"), int4Input("1"));
 }
 export function evaluate33122() {
-    return jsonbLt(jsonbInput("[]"), jsonbInput("null"));
+    return jsonArrayElement(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), int4Input("0"));
 }
 export function evaluate33123() {
-    return jsonbLe(jsonbInput("[]"), jsonbInput("null"));
+    return jsonArrayElement(jsonInput("1"), int4Input("0"));
 }
 export function evaluate33124() {
-    return jsonbGt(jsonbInput("[]"), jsonbInput("null"));
+    return jsonbArrayElement(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), int4Input("0"));
 }
 export function evaluate33125() {
-    return jsonbGe(jsonbInput("[]"), jsonbInput("null"));
+    return jsonbArrayElement(jsonbInput("1"), int4Input("0"));
 }
 export function evaluate33126() {
-    return jsonbCompare(jsonbInput("[]"), jsonbInput("null"));
+    return jsonbArrayElementText(jsonbInput("\"hi\""), int4Input("0"));
 }
 export function evaluate33127() {
-    return jsonbEq(jsonbInput("[]"), jsonbInput("{}"));
+    return jsonArrayElementText(jsonInput("\"hi\""), int4Input("0"));
 }
 export function evaluate33128() {
-    return jsonbNe(jsonbInput("[]"), jsonbInput("{}"));
+    return jsonbArrayElement(jsonbInput("1"), int4Input("-1"));
 }
 export function evaluate33129() {
-    return jsonbLt(jsonbInput("[]"), jsonbInput("{}"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33130() {
-    return jsonbLe(jsonbInput("[]"), jsonbInput("{}"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33131() {
-    return jsonbGt(jsonbInput("[]"), jsonbInput("{}"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33132() {
-    return jsonbGe(jsonbInput("[]"), jsonbInput("{}"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33133() {
-    return jsonbCompare(jsonbInput("[]"), jsonbInput("{}"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33134() {
-    return jsonbEq(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33135() {
-    return jsonbNe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33136() {
-    return jsonbLt(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33137() {
-    return jsonbLe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33138() {
-    return jsonbGt(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33139() {
-    return jsonbGe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33140() {
-    return jsonbCompare(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33141() {
-    return jsonbEq(jsonbInput("[2]"), jsonbInput("[1,2]"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33142() {
-    return jsonbNe(jsonbInput("[2]"), jsonbInput("[1,2]"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33143() {
-    return jsonbLt(jsonbInput("[2]"), jsonbInput("[1,2]"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33144() {
-    return jsonbLe(jsonbInput("[2]"), jsonbInput("[1,2]"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33145() {
-    return jsonbGt(jsonbInput("[2]"), jsonbInput("[1,2]"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33146() {
-    return jsonbGe(jsonbInput("[2]"), jsonbInput("[1,2]"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33147() {
-    return jsonbCompare(jsonbInput("[2]"), jsonbInput("[1,2]"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33148() {
-    return jsonbEq(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33149() {
-    return jsonbNe(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33150() {
-    return jsonbLt(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33151() {
-    return jsonbLe(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33152() {
-    return jsonbGt(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33153() {
-    return jsonbGe(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
 }
 export function evaluate33154() {
-    return jsonbCompare(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
 }
 export function evaluate33155() {
-    return jsonbEq(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
 }
 export function evaluate33156() {
-    return jsonbNe(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
 }
 export function evaluate33157() {
-    return jsonbLt(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
 }
 export function evaluate33158() {
-    return jsonbLe(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
 }
 export function evaluate33159() {
-    return jsonbGt(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
 }
 export function evaluate33160() {
-    return jsonbGe(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
 }
 export function evaluate33161() {
-    return jsonbCompare(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33162() {
-    return jsonbEq(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33163() {
-    return jsonbNe(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33164() {
-    return jsonbLt(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33165() {
-    return jsonbLe(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33166() {
-    return jsonbGt(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33167() {
-    return jsonbGe(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33168() {
-    return jsonbCompare(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33169() {
-    return jsonbEq(jsonbInput("\"B\""), jsonbInput("\"a\""));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33170() {
-    return jsonbNe(jsonbInput("\"B\""), jsonbInput("\"a\""));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33171() {
-    return jsonbLt(jsonbInput("\"B\""), jsonbInput("\"a\""));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33172() {
-    return jsonbLe(jsonbInput("\"B\""), jsonbInput("\"a\""));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33173() {
-    return jsonbGt(jsonbInput("\"B\""), jsonbInput("\"a\""));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33174() {
-    return jsonbGe(jsonbInput("\"B\""), jsonbInput("\"a\""));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33175() {
-    return jsonbCompare(jsonbInput("\"B\""), jsonbInput("\"a\""));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33176() {
-    return jsonbEq(jsonbInput("1.0"), jsonbInput("100"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33177() {
-    return jsonbNe(jsonbInput("1.0"), jsonbInput("100"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33178() {
-    return jsonbLt(jsonbInput("1.0"), jsonbInput("100"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33179() {
-    return jsonbLe(jsonbInput("1.0"), jsonbInput("100"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33180() {
-    return jsonbGt(jsonbInput("1.0"), jsonbInput("100"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33181() {
-    return jsonbGe(jsonbInput("1.0"), jsonbInput("100"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33182() {
-    return jsonbCompare(jsonbInput("1.0"), jsonbInput("100"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33183() {
-    return jsonbEq(jsonbInput(null), jsonbInput("[1]"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33184() {
-    return jsonbNe(jsonbInput(null), jsonbInput("[1]"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33185() {
-    return jsonbLt(jsonbInput(null), jsonbInput("[1]"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33186() {
-    return jsonbLe(jsonbInput(null), jsonbInput("[1]"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33187() {
-    return jsonbGt(jsonbInput(null), jsonbInput("[1]"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33188() {
-    return jsonbGe(jsonbInput(null), jsonbInput("[1]"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33189() {
-    return jsonbCompare(jsonbInput(null), jsonbInput("[1]"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33190() {
-    return jsonbEq(jsonbInput("[1]"), jsonbInput("[1]"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33191() {
-    return jsonbNe(jsonbInput("[1]"), jsonbInput("[1]"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33192() {
-    return jsonbLt(jsonbInput("[1]"), jsonbInput("[1]"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33193() {
-    return jsonbLe(jsonbInput("[1]"), jsonbInput("[1]"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate33194() {
-    return jsonbGt(jsonbInput("[1]"), jsonbInput("[1]"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate33195() {
-    return jsonbGe(jsonbInput("[1]"), jsonbInput("[1]"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate33196() {
-    return jsonbCompare(jsonbInput("[1]"), jsonbInput("[1]"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate33197() {
-    return jsonbEq(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate33198() {
-    return jsonbNe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate33199() {
-    return jsonbLt(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate33200() {
-    return jsonbLe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate33201() {
-    return jsonbGt(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return jsonExtractPath(jsonInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33202() {
-    return jsonbGe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return jsonExtractPath(jsonInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33203() {
-    return jsonbContains(jsonbInput("1"), jsonbInput("1"));
+    return jsonbExtractPath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33204() {
-    return jsonbContained(jsonbInput("1"), jsonbInput("1"));
+    return jsonExtractPath(jsonInput("{\"1\":\"a\"}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33205() {
-    return jsonbContains(jsonbInput("1"), jsonbInput("1"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate33206() {
-    return jsonbContained(jsonbInput("1"), jsonbInput("1"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], null));
 }
 export function evaluate33207() {
-    return jsonbContains(jsonbInput("[1]"), jsonbInput("1"));
+    return jsonbExtractPath(jsonbInput("\"hi\""), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("0"))]));
 }
 export function evaluate33208() {
-    return jsonbContained(jsonbInput("1"), jsonbInput("[1]"));
+    return jsonExtractPath(jsonInput("\"hi\""), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("0"))]));
 }
 export function evaluate33209() {
-    return jsonbContains(jsonbInput("[1]"), jsonbInput("1"));
+    return jsonbEq(jsonbInput("null"), jsonbInput("\"\""));
 }
 export function evaluate33210() {
-    return jsonbContained(jsonbInput("1"), jsonbInput("[1]"));
+    return jsonbNe(jsonbInput("null"), jsonbInput("\"\""));
 }
 export function evaluate33211() {
-    return jsonbContains(jsonbInput("1"), jsonbInput("[1]"));
+    return jsonbLt(jsonbInput("null"), jsonbInput("\"\""));
 }
 export function evaluate33212() {
-    return jsonbContained(jsonbInput("[1]"), jsonbInput("1"));
+    return jsonbLe(jsonbInput("null"), jsonbInput("\"\""));
 }
 export function evaluate33213() {
-    return jsonbContains(jsonbInput("1"), jsonbInput("[1]"));
+    return jsonbGt(jsonbInput("null"), jsonbInput("\"\""));
 }
 export function evaluate33214() {
-    return jsonbContained(jsonbInput("[1]"), jsonbInput("1"));
+    return jsonbGe(jsonbInput("null"), jsonbInput("\"\""));
 }
 export function evaluate33215() {
-    return jsonbContains(jsonbInput("[1,2]"), jsonbInput("[1,1]"));
+    return jsonbCompare(jsonbInput("null"), jsonbInput("\"\""));
 }
 export function evaluate33216() {
-    return jsonbContained(jsonbInput("[1,1]"), jsonbInput("[1,2]"));
+    return jsonbEq(jsonbInput("\"\""), jsonbInput("0"));
 }
 export function evaluate33217() {
-    return jsonbContains(jsonbInput("[1,2]"), jsonbInput("[1,1]"));
+    return jsonbNe(jsonbInput("\"\""), jsonbInput("0"));
 }
 export function evaluate33218() {
-    return jsonbContained(jsonbInput("[1,1]"), jsonbInput("[1,2]"));
+    return jsonbLt(jsonbInput("\"\""), jsonbInput("0"));
 }
 export function evaluate33219() {
-    return jsonbContains(jsonbInput("{\"a\":[1,2]}"), jsonbInput("{\"a\":[1]}"));
+    return jsonbLe(jsonbInput("\"\""), jsonbInput("0"));
 }
 export function evaluate33220() {
-    return jsonbContained(jsonbInput("{\"a\":[1]}"), jsonbInput("{\"a\":[1,2]}"));
+    return jsonbGt(jsonbInput("\"\""), jsonbInput("0"));
 }
 export function evaluate33221() {
-    return jsonbContains(jsonbInput("{\"a\":[1,2]}"), jsonbInput("{\"a\":[1]}"));
+    return jsonbGe(jsonbInput("\"\""), jsonbInput("0"));
 }
 export function evaluate33222() {
-    return jsonbContained(jsonbInput("{\"a\":[1]}"), jsonbInput("{\"a\":[1,2]}"));
+    return jsonbCompare(jsonbInput("\"\""), jsonbInput("0"));
 }
 export function evaluate33223() {
-    return jsonbContains(jsonbInput("[1]"), jsonbInput("[]"));
+    return jsonbEq(jsonbInput("0"), jsonbInput("false"));
 }
 export function evaluate33224() {
-    return jsonbContained(jsonbInput("[]"), jsonbInput("[1]"));
+    return jsonbNe(jsonbInput("0"), jsonbInput("false"));
 }
 export function evaluate33225() {
-    return jsonbContains(jsonbInput("[1]"), jsonbInput("[]"));
+    return jsonbLt(jsonbInput("0"), jsonbInput("false"));
 }
 export function evaluate33226() {
-    return jsonbContained(jsonbInput("[]"), jsonbInput("[1]"));
+    return jsonbLe(jsonbInput("0"), jsonbInput("false"));
 }
 export function evaluate33227() {
-    return jsonbContains(jsonbInput("[]"), jsonbInput("[1]"));
+    return jsonbGt(jsonbInput("0"), jsonbInput("false"));
 }
 export function evaluate33228() {
-    return jsonbContained(jsonbInput("[1]"), jsonbInput("[]"));
+    return jsonbGe(jsonbInput("0"), jsonbInput("false"));
 }
 export function evaluate33229() {
-    return jsonbContains(jsonbInput("[]"), jsonbInput("[1]"));
+    return jsonbCompare(jsonbInput("0"), jsonbInput("false"));
 }
 export function evaluate33230() {
-    return jsonbContained(jsonbInput("[1]"), jsonbInput("[]"));
+    return jsonbEq(jsonbInput("false"), jsonbInput("[]"));
 }
 export function evaluate33231() {
-    return jsonbContains(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
+    return jsonbNe(jsonbInput("false"), jsonbInput("[]"));
 }
 export function evaluate33232() {
-    return jsonbContained(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
+    return jsonbLt(jsonbInput("false"), jsonbInput("[]"));
 }
 export function evaluate33233() {
-    return jsonbContains(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
+    return jsonbLe(jsonbInput("false"), jsonbInput("[]"));
 }
 export function evaluate33234() {
-    return jsonbContained(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
+    return jsonbGt(jsonbInput("false"), jsonbInput("[]"));
 }
 export function evaluate33235() {
-    return jsonbContains(jsonbInput("{}"), jsonbInput("{}"));
+    return jsonbGe(jsonbInput("false"), jsonbInput("[]"));
 }
 export function evaluate33236() {
-    return jsonbContained(jsonbInput("{}"), jsonbInput("{}"));
+    return jsonbCompare(jsonbInput("false"), jsonbInput("[]"));
 }
 export function evaluate33237() {
-    return jsonbContains(jsonbInput("{}"), jsonbInput("{}"));
+    return jsonbEq(jsonbInput("[]"), jsonbInput("null"));
 }
 export function evaluate33238() {
-    return jsonbContained(jsonbInput("{}"), jsonbInput("{}"));
+    return jsonbNe(jsonbInput("[]"), jsonbInput("null"));
 }
 export function evaluate33239() {
-    return jsonbContains(jsonbInput("[null]"), jsonbInput("null"));
+    return jsonbLt(jsonbInput("[]"), jsonbInput("null"));
 }
 export function evaluate33240() {
-    return jsonbContained(jsonbInput("null"), jsonbInput("[null]"));
+    return jsonbLe(jsonbInput("[]"), jsonbInput("null"));
 }
 export function evaluate33241() {
-    return jsonbContains(jsonbInput("[null]"), jsonbInput("null"));
+    return jsonbGt(jsonbInput("[]"), jsonbInput("null"));
 }
 export function evaluate33242() {
-    return jsonbContained(jsonbInput("null"), jsonbInput("[null]"));
+    return jsonbGe(jsonbInput("[]"), jsonbInput("null"));
 }
 export function evaluate33243() {
-    return jsonbContains(jsonbInput("null"), jsonbInput("[null]"));
+    return jsonbCompare(jsonbInput("[]"), jsonbInput("null"));
 }
 export function evaluate33244() {
-    return jsonbContained(jsonbInput("[null]"), jsonbInput("null"));
+    return jsonbEq(jsonbInput("[]"), jsonbInput("{}"));
 }
 export function evaluate33245() {
-    return jsonbContains(jsonbInput("null"), jsonbInput("[null]"));
+    return jsonbNe(jsonbInput("[]"), jsonbInput("{}"));
 }
 export function evaluate33246() {
-    return jsonbContained(jsonbInput("[null]"), jsonbInput("null"));
+    return jsonbLt(jsonbInput("[]"), jsonbInput("{}"));
 }
 export function evaluate33247() {
-    return jsonbContains(jsonbInput("false"), jsonbInput("false"));
+    return jsonbLe(jsonbInput("[]"), jsonbInput("{}"));
 }
 export function evaluate33248() {
-    return jsonbContained(jsonbInput("false"), jsonbInput("false"));
+    return jsonbGt(jsonbInput("[]"), jsonbInput("{}"));
 }
 export function evaluate33249() {
-    return jsonbContains(jsonbInput("false"), jsonbInput("false"));
+    return jsonbGe(jsonbInput("[]"), jsonbInput("{}"));
 }
 export function evaluate33250() {
-    return jsonbContained(jsonbInput("false"), jsonbInput("false"));
+    return jsonbCompare(jsonbInput("[]"), jsonbInput("{}"));
 }
 export function evaluate33251() {
-    return jsonbContains(jsonbInput("true"), jsonbInput("false"));
+    return jsonbEq(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate33252() {
-    return jsonbContained(jsonbInput("false"), jsonbInput("true"));
+    return jsonbNe(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate33253() {
-    return jsonbContains(jsonbInput("true"), jsonbInput("false"));
+    return jsonbLt(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate33254() {
-    return jsonbContained(jsonbInput("false"), jsonbInput("true"));
+    return jsonbLe(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate33255() {
-    return jsonbContains(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
+    return jsonbGt(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate33256() {
-    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
+    return jsonbGe(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate33257() {
-    return jsonbContains(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
+    return jsonbCompare(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate33258() {
-    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
+    return jsonbEq(jsonbInput("[2]"), jsonbInput("[1,2]"));
 }
 export function evaluate33259() {
-    return jsonbContains(jsonbInput("[1]"), jsonbInput("[[1]]"));
+    return jsonbNe(jsonbInput("[2]"), jsonbInput("[1,2]"));
 }
 export function evaluate33260() {
-    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[1]"));
+    return jsonbLt(jsonbInput("[2]"), jsonbInput("[1,2]"));
 }
 export function evaluate33261() {
-    return jsonbContains(jsonbInput("[1]"), jsonbInput("[[1]]"));
+    return jsonbLe(jsonbInput("[2]"), jsonbInput("[1,2]"));
 }
 export function evaluate33262() {
-    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[1]"));
+    return jsonbGt(jsonbInput("[2]"), jsonbInput("[1,2]"));
 }
 export function evaluate33263() {
-    return jsonbContains(jsonbInput(null), jsonbInput("1"));
+    return jsonbGe(jsonbInput("[2]"), jsonbInput("[1,2]"));
 }
 export function evaluate33264() {
-    return jsonbContained(jsonbInput("1"), jsonbInput(null));
+    return jsonbCompare(jsonbInput("[2]"), jsonbInput("[1,2]"));
 }
 export function evaluate33265() {
-    return jsonbContains(jsonbInput(null), jsonbInput("1"));
+    return jsonbEq(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate33266() {
-    return jsonbContained(jsonbInput("1"), jsonbInput(null));
+    return jsonbNe(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate33267() {
-    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("a"));
+    return jsonbLt(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate33268() {
-    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("a"));
+    return jsonbLe(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate33269() {
-    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("b"));
+    return jsonbGt(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate33270() {
-    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("b"));
+    return jsonbGe(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate33271() {
-    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("a"));
+    return jsonbCompare(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate33272() {
-    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("a"));
+    return jsonbEq(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate33273() {
-    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("1"));
+    return jsonbNe(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate33274() {
-    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("1"));
+    return jsonbLt(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate33275() {
-    return jsonbExists(jsonbInput("\"hello\""), textInput("hello"));
+    return jsonbLe(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate33276() {
-    return jsonbExists(jsonbInput("\"hello\""), textInput("hello"));
+    return jsonbGt(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate33277() {
-    return jsonbExists(jsonbInput("true"), textInput("true"));
+    return jsonbGe(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate33278() {
-    return jsonbExists(jsonbInput("true"), textInput("true"));
+    return jsonbCompare(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate33279() {
-    return jsonbExists(jsonbInput("{\"\":\"x\"}"), textInput(""));
+    return jsonbEq(jsonbInput("\"abc\""), jsonbInput("\"z\""));
 }
 export function evaluate33280() {
-    return jsonbExists(jsonbInput("{\"\":\"x\"}"), textInput(""));
+    return jsonbNe(jsonbInput("\"abc\""), jsonbInput("\"z\""));
 }
 export function evaluate33281() {
-    return jsonbExists(jsonbInput("[\"\"]"), textInput(""));
+    return jsonbLt(jsonbInput("\"abc\""), jsonbInput("\"z\""));
 }
 export function evaluate33282() {
-    return jsonbExists(jsonbInput("[\"\"]"), textInput(""));
+    return jsonbLe(jsonbInput("\"abc\""), jsonbInput("\"z\""));
 }
 export function evaluate33283() {
-    return jsonbExists(jsonbInput(null), textInput("a"));
+    return jsonbGt(jsonbInput("\"abc\""), jsonbInput("\"z\""));
 }
 export function evaluate33284() {
-    return jsonbExists(jsonbInput(null), textInput("a"));
+    return jsonbGe(jsonbInput("\"abc\""), jsonbInput("\"z\""));
 }
 export function evaluate33285() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonbCompare(jsonbInput("\"abc\""), jsonbInput("\"z\""));
 }
 export function evaluate33286() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonbEq(jsonbInput("\"B\""), jsonbInput("\"a\""));
 }
 export function evaluate33287() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonbNe(jsonbInput("\"B\""), jsonbInput("\"a\""));
 }
 export function evaluate33288() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonbLt(jsonbInput("\"B\""), jsonbInput("\"a\""));
 }
 export function evaluate33289() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonbLe(jsonbInput("\"B\""), jsonbInput("\"a\""));
 }
 export function evaluate33290() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonbGt(jsonbInput("\"B\""), jsonbInput("\"a\""));
 }
 export function evaluate33291() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonbGe(jsonbInput("\"B\""), jsonbInput("\"a\""));
 }
 export function evaluate33292() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonbCompare(jsonbInput("\"B\""), jsonbInput("\"a\""));
 }
 export function evaluate33293() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonbEq(jsonbInput("1.0"), jsonbInput("100"));
 }
 export function evaluate33294() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonbNe(jsonbInput("1.0"), jsonbInput("100"));
 }
 export function evaluate33295() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonbLt(jsonbInput("1.0"), jsonbInput("100"));
 }
 export function evaluate33296() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonbLe(jsonbInput("1.0"), jsonbInput("100"));
 }
 export function evaluate33297() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+    return jsonbGt(jsonbInput("1.0"), jsonbInput("100"));
 }
 export function evaluate33298() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+    return jsonbGe(jsonbInput("1.0"), jsonbInput("100"));
 }
 export function evaluate33299() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+    return jsonbCompare(jsonbInput("1.0"), jsonbInput("100"));
 }
 export function evaluate33300() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+    return jsonbEq(jsonbInput(null), jsonbInput("[1]"));
 }
 export function evaluate33301() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+    return jsonbNe(jsonbInput(null), jsonbInput("[1]"));
 }
 export function evaluate33302() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+    return jsonbLt(jsonbInput(null), jsonbInput("[1]"));
 }
 export function evaluate33303() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+    return jsonbLe(jsonbInput(null), jsonbInput("[1]"));
 }
 export function evaluate33304() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+    return jsonbGt(jsonbInput(null), jsonbInput("[1]"));
 }
 export function evaluate33305() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonbGe(jsonbInput(null), jsonbInput("[1]"));
 }
 export function evaluate33306() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonbCompare(jsonbInput(null), jsonbInput("[1]"));
 }
 export function evaluate33307() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonbEq(jsonbInput("[1]"), jsonbInput("[1]"));
 }
 export function evaluate33308() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonbNe(jsonbInput("[1]"), jsonbInput("[1]"));
 }
 export function evaluate33309() {
-    return jsonFromText(textInput(null));
+    return jsonbLt(jsonbInput("[1]"), jsonbInput("[1]"));
 }
 export function evaluate33310() {
-    return jsonbFromText(textInput(null));
+    return jsonbLe(jsonbInput("[1]"), jsonbInput("[1]"));
 }
 export function evaluate33311() {
-    return jsonFromText(textInput("1"));
+    return jsonbGt(jsonbInput("[1]"), jsonbInput("[1]"));
 }
 export function evaluate33312() {
-    return jsonbFromText(textInput("1"));
+    return jsonbGe(jsonbInput("[1]"), jsonbInput("[1]"));
 }
 export function evaluate33313() {
-    return jsonFromText(textInput("{\"b\":2,\"a\":1}"));
+    return jsonbCompare(jsonbInput("[1]"), jsonbInput("[1]"));
 }
 export function evaluate33314() {
-    return jsonbFromText(textInput("{\"b\":2,\"a\":1}"));
+    return jsonbEq(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate33315() {
-    return jsonFromText(textInput("not-json"));
+    return jsonbNe(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate33316() {
-    return jsonbFromText(textInput("not-json"));
+    return jsonbLt(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate33317() {
-    return jsonFromText(textInput("\"\\u0000\""));
+    return jsonbLe(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate33318() {
-    return jsonbFromText(textInput("\"\\u0000\""));
+    return jsonbGt(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate33319() {
-    return jsonText(jsonInput(null));
+    return jsonbGe(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate33320() {
-    return jsonbText(jsonbInput(null));
+    return jsonbContains(jsonbInput("1"), jsonbInput("1"));
 }
 export function evaluate33321() {
-    return jsonToJsonb(jsonInput(null));
+    return jsonbContained(jsonbInput("1"), jsonbInput("1"));
 }
 export function evaluate33322() {
-    return jsonbToJson(jsonbInput(null));
+    return jsonbContains(jsonbInput("1"), jsonbInput("1"));
 }
 export function evaluate33323() {
-    return jsonText(jsonInput("1"));
+    return jsonbContained(jsonbInput("1"), jsonbInput("1"));
 }
 export function evaluate33324() {
-    return jsonbText(jsonbInput("1"));
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("1"));
 }
 export function evaluate33325() {
-    return jsonToJsonb(jsonInput("1"));
+    return jsonbContained(jsonbInput("1"), jsonbInput("[1]"));
 }
 export function evaluate33326() {
-    return jsonbToJson(jsonbInput("1"));
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("1"));
 }
 export function evaluate33327() {
-    return jsonText(jsonInput(" { \"a\" : 1 } "));
+    return jsonbContained(jsonbInput("1"), jsonbInput("[1]"));
 }
 export function evaluate33328() {
-    return jsonbText(jsonbInput(" { \"a\" : 1 } "));
+    return jsonbContains(jsonbInput("1"), jsonbInput("[1]"));
 }
 export function evaluate33329() {
-    return jsonToJsonb(jsonInput(" { \"a\" : 1 } "));
+    return jsonbContained(jsonbInput("[1]"), jsonbInput("1"));
 }
 export function evaluate33330() {
-    return jsonbToJson(jsonbInput(" { \"a\" : 1 } "));
+    return jsonbContains(jsonbInput("1"), jsonbInput("[1]"));
 }
 export function evaluate33331() {
-    return jsonText(jsonInput("{\"a\":1,\"a\":2}"));
+    return jsonbContained(jsonbInput("[1]"), jsonbInput("1"));
 }
 export function evaluate33332() {
-    return jsonbText(jsonbInput("{\"a\":1,\"a\":2}"));
+    return jsonbContains(jsonbInput("[1,2]"), jsonbInput("[1,1]"));
 }
 export function evaluate33333() {
-    return jsonToJsonb(jsonInput("{\"a\":1,\"a\":2}"));
+    return jsonbContained(jsonbInput("[1,1]"), jsonbInput("[1,2]"));
 }
 export function evaluate33334() {
-    return jsonbToJson(jsonbInput("{\"a\":1,\"a\":2}"));
+    return jsonbContains(jsonbInput("[1,2]"), jsonbInput("[1,1]"));
 }
 export function evaluate33335() {
-    return sqlIsNull(jsonInput(null));
+    return jsonbContained(jsonbInput("[1,1]"), jsonbInput("[1,2]"));
 }
 export function evaluate33336() {
-    return sqlIsNotNull(jsonbInput(null));
+    return jsonbContains(jsonbInput("{\"a\":[1,2]}"), jsonbInput("{\"a\":[1]}"));
 }
 export function evaluate33337() {
-    return sqlCase(() => jsonInput("[10,20,30]"), [() => booleanInput(true), () => jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}")]);
+    return jsonbContained(jsonbInput("{\"a\":[1]}"), jsonbInput("{\"a\":[1,2]}"));
 }
 export function evaluate33338() {
-    return sqlCase(() => jsonbInput("[10,20,30]"), [() => booleanInput(false), () => jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}")]);
+    return jsonbContains(jsonbInput("{\"a\":[1,2]}"), jsonbInput("{\"a\":[1]}"));
 }
 export function evaluate33339() {
-    return sqlCoalesce(() => jsonInput(null), () => jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
+    return jsonbContained(jsonbInput("{\"a\":[1]}"), jsonbInput("{\"a\":[1,2]}"));
 }
 export function evaluate33340() {
-    return sqlCoalesce(() => jsonbInput(null), () => jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("[]"));
 }
 export function evaluate33341() {
-    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":2,\"a\":3}"));
+    return jsonbContained(jsonbInput("[]"), jsonbInput("[1]"));
 }
 export function evaluate33342() {
-    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":2,\"a\":3}"));
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("[]"));
 }
 export function evaluate33343() {
-    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
+    return jsonbContained(jsonbInput("[]"), jsonbInput("[1]"));
 }
 export function evaluate33344() {
-    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
+    return jsonbContains(jsonbInput("[]"), jsonbInput("[1]"));
 }
 export function evaluate33345() {
-    return jsonbConcat(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
+    return jsonbContained(jsonbInput("[1]"), jsonbInput("[]"));
 }
 export function evaluate33346() {
-    return jsonbConcat(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
+    return jsonbContains(jsonbInput("[]"), jsonbInput("[1]"));
 }
 export function evaluate33347() {
-    return jsonbConcat(jsonbInput("[1]"), jsonbInput("[2,3]"));
+    return jsonbContained(jsonbInput("[1]"), jsonbInput("[]"));
 }
 export function evaluate33348() {
-    return jsonbConcat(jsonbInput("[1]"), jsonbInput("[2,3]"));
+    return jsonbContains(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
 }
 export function evaluate33349() {
-    return jsonbConcat(jsonbInput("[]"), jsonbInput("[1]"));
+    return jsonbContained(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
 }
 export function evaluate33350() {
-    return jsonbConcat(jsonbInput("[]"), jsonbInput("[1]"));
+    return jsonbContains(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
 }
 export function evaluate33351() {
-    return jsonbConcat(jsonbInput("1"), jsonbInput("2"));
+    return jsonbContained(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
 }
 export function evaluate33352() {
-    return jsonbConcat(jsonbInput("1"), jsonbInput("2"));
+    return jsonbContains(jsonbInput("{}"), jsonbInput("{}"));
 }
 export function evaluate33353() {
-    return jsonbConcat(jsonbInput("1"), jsonbInput("[2]"));
+    return jsonbContained(jsonbInput("{}"), jsonbInput("{}"));
 }
 export function evaluate33354() {
-    return jsonbConcat(jsonbInput("1"), jsonbInput("[2]"));
+    return jsonbContains(jsonbInput("{}"), jsonbInput("{}"));
 }
 export function evaluate33355() {
-    return jsonbConcat(jsonbInput("[1]"), jsonbInput("2"));
+    return jsonbContained(jsonbInput("{}"), jsonbInput("{}"));
 }
 export function evaluate33356() {
-    return jsonbConcat(jsonbInput("[1]"), jsonbInput("2"));
+    return jsonbContains(jsonbInput("[null]"), jsonbInput("null"));
 }
 export function evaluate33357() {
-    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[2]"));
+    return jsonbContained(jsonbInput("null"), jsonbInput("[null]"));
 }
 export function evaluate33358() {
-    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[2]"));
+    return jsonbContains(jsonbInput("[null]"), jsonbInput("null"));
 }
 export function evaluate33359() {
-    return jsonbConcat(jsonbInput("[2]"), jsonbInput("{\"a\":1}"));
+    return jsonbContained(jsonbInput("null"), jsonbInput("[null]"));
 }
 export function evaluate33360() {
-    return jsonbConcat(jsonbInput("[2]"), jsonbInput("{\"a\":1}"));
+    return jsonbContains(jsonbInput("null"), jsonbInput("[null]"));
 }
 export function evaluate33361() {
-    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[]"));
+    return jsonbContained(jsonbInput("[null]"), jsonbInput("null"));
 }
 export function evaluate33362() {
-    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[]"));
+    return jsonbContains(jsonbInput("null"), jsonbInput("[null]"));
 }
 export function evaluate33363() {
-    return jsonbConcat(jsonbInput("null"), jsonbInput("[1]"));
+    return jsonbContained(jsonbInput("[null]"), jsonbInput("null"));
 }
 export function evaluate33364() {
-    return jsonbConcat(jsonbInput("null"), jsonbInput("[1]"));
+    return jsonbContains(jsonbInput("false"), jsonbInput("false"));
 }
 export function evaluate33365() {
-    return jsonbConcat(jsonbInput("true"), jsonbInput("{\"a\":1}"));
+    return jsonbContained(jsonbInput("false"), jsonbInput("false"));
 }
 export function evaluate33366() {
-    return jsonbConcat(jsonbInput("true"), jsonbInput("{\"a\":1}"));
+    return jsonbContains(jsonbInput("false"), jsonbInput("false"));
 }
 export function evaluate33367() {
-    return jsonbConcat(jsonbInput(null), jsonbInput("1"));
+    return jsonbContained(jsonbInput("false"), jsonbInput("false"));
 }
 export function evaluate33368() {
-    return jsonbConcat(jsonbInput(null), jsonbInput("1"));
+    return jsonbContains(jsonbInput("true"), jsonbInput("false"));
 }
 export function evaluate33369() {
-    return jsonbDeleteKey(jsonbInput("{\"a\":1,\"b\":2}"), textInput("a"));
+    return jsonbContained(jsonbInput("false"), jsonbInput("true"));
 }
 export function evaluate33370() {
-    return jsonbDeleteKey(jsonbInput("{\"a\":1}"), textInput("missing"));
+    return jsonbContains(jsonbInput("true"), jsonbInput("false"));
 }
 export function evaluate33371() {
-    return jsonbDeleteKey(jsonbInput("[\"a\",\"b\",\"a\"]"), textInput("a"));
+    return jsonbContained(jsonbInput("false"), jsonbInput("true"));
 }
 export function evaluate33372() {
-    return jsonbDeleteKey(jsonbInput("1"), textInput("a"));
+    return jsonbContains(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
 }
 export function evaluate33373() {
-    return jsonbDeleteKey(jsonbInput("{\"a\":1,\"b\":2}"), textInput("a"));
+    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
 }
 export function evaluate33374() {
-    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("1"));
+    return jsonbContains(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
 }
 export function evaluate33375() {
-    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("-1"));
+    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
 }
 export function evaluate33376() {
-    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("99"));
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("[[1]]"));
 }
 export function evaluate33377() {
-    return jsonbDeleteIndex(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), int4Input("0"));
+    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[1]"));
 }
 export function evaluate33378() {
-    return jsonbDeleteIndex(jsonbInput("1"), int4Input("0"));
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("[[1]]"));
 }
 export function evaluate33379() {
-    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("1"));
+    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[1]"));
 }
 export function evaluate33380() {
-    return jsonbDeleteKeys(jsonbInput("{\"a\":1,\"b\":2,\"c\":3}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("c"))]));
+    return jsonbContains(jsonbInput(null), jsonbInput("1"));
 }
 export function evaluate33381() {
-    return jsonbDeleteKeys(jsonbInput("[\"a\",\"b\",\"c\"]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonbContained(jsonbInput("1"), jsonbInput(null));
 }
 export function evaluate33382() {
-    return jsonbDeleteKeys(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+    return jsonbContains(jsonbInput(null), jsonbInput("1"));
 }
 export function evaluate33383() {
-    return jsonbDeleteKeys(jsonbInput("{\"a\":1,\"b\":2,\"c\":3}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("c"))]));
+    return jsonbContained(jsonbInput("1"), jsonbInput(null));
 }
 export function evaluate33384() {
-    return jsonbDeletePath(jsonbInput("{\"a\":{\"b\":1,\"c\":2}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("a"));
 }
 export function evaluate33385() {
-    return jsonbDeletePath(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("a"));
 }
 export function evaluate33386() {
-    return jsonbDeletePath(jsonbInput("1"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("b"));
 }
 export function evaluate33387() {
-    return jsonbDeletePath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("b"));
 }
 export function evaluate33388() {
-    return jsonbDeletePath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("a"));
 }
 export function evaluate33389() {
-    return jsonbDeletePath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("a"));
 }
 export function evaluate33390() {
-    return jsonbDeletePath(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("1"));
 }
 export function evaluate33391() {
-    return jsonbDeletePath(jsonbInput("{\"a\":{\"b\":1,\"c\":2}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("1"));
 }
 export function evaluate33392() {
-    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(true));
+    return jsonbExists(jsonbInput("\"hello\""), textInput("hello"));
 }
 export function evaluate33393() {
-    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(true));
+    return jsonbExists(jsonbInput("\"hello\""), textInput("hello"));
 }
 export function evaluate33394() {
-    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(false));
+    return jsonbExists(jsonbInput("true"), textInput("true"));
 }
 export function evaluate33395() {
-    return jsonbSet(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("9"), booleanInput(true));
+    return jsonbExists(jsonbInput("true"), textInput("true"));
 }
 export function evaluate33396() {
-    return jsonbSet(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("5"))]), jsonbInput("9"), booleanInput(true));
+    return jsonbExists(jsonbInput("{\"\":\"x\"}"), textInput(""));
 }
 export function evaluate33397() {
-    return jsonbSet(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("-1"))]), jsonbInput("9"), booleanInput(true));
+    return jsonbExists(jsonbInput("{\"\":\"x\"}"), textInput(""));
 }
 export function evaluate33398() {
-    return jsonbSet(jsonbInput("{\"a\":[1,2]}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("9"), booleanInput(true));
+    return jsonbExists(jsonbInput("[\"\"]"), textInput(""));
 }
 export function evaluate33399() {
-    return jsonbSet(jsonbInput("1"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(true));
+    return jsonbExists(jsonbInput("[\"\"]"), textInput(""));
 }
 export function evaluate33400() {
-    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []), jsonbInput("2"), booleanInput(true));
+    return jsonbExists(jsonbInput(null), textInput("a"));
 }
 export function evaluate33401() {
-    return jsonbSet(jsonbInput("[]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("0"))]), jsonbInput("2"), booleanInput(true));
+    return jsonbExists(jsonbInput(null), textInput("a"));
 }
 export function evaluate33402() {
-    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(true));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33403() {
-    return jsonbSet(jsonbInput("[1]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("foo"))]), jsonbInput("2"), booleanInput(true));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33404() {
-    return jsonbInsert(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(false));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33405() {
-    return jsonbInsert(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(false));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33406() {
-    return jsonbInsert(jsonbInput("[1,3]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("2"), booleanInput(false));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33407() {
-    return jsonbInsert(jsonbInput("[1,3]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("2"), booleanInput(true));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33408() {
-    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("use_json_null"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33409() {
-    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("delete_key"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33410() {
-    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("return_target"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33411() {
-    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("raise_exception"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33412() {
-    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("nope"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33413() {
-    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(true), textInput("use_json_null"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33414() {
-    return jsonStripNulls(jsonInput("{\"a\":1,\"b\":null,\"c\":{\"d\":null}}"), booleanInput(false));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33415() {
-    return jsonStripNulls(jsonInput("[1, null, 2]"), booleanInput(true));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33416() {
-    return jsonStripNulls(jsonInput("[1, null, 2]"), booleanInput(false));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33417() {
-    return jsonStripNulls(jsonInput("1e2"), booleanInput(false));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33418() {
-    return jsonbStripNulls(jsonbInput("{\"a\":1,\"b\":null,\"c\":[null,2]}"), booleanInput(false));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate33419() {
-    return jsonbStripNulls(jsonbInput("{\"a\":1,\"b\":null,\"c\":[null,2]}"), booleanInput(true));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate33420() {
-    return jsonbPretty(jsonbInput("{\"b\":[1,2],\"a\":3}"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate33421() {
-    return jsonbPretty(jsonbInput("1"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate33422() {
-    return jsonbPretty(jsonbInput("[]"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33423() {
-    return jsonbPretty(jsonbInput("{}"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33424() {
-    return jsonbToBool(jsonbInput("true"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33425() {
-    return jsonbToBool(jsonbInput("false"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33426() {
-    return jsonbToBool(jsonbInput("null"));
+    return jsonFromText(textInput(null));
 }
 export function evaluate33427() {
-    return jsonbToBool(jsonbInput("1"));
+    return jsonbFromText(textInput(null));
 }
 export function evaluate33428() {
-    return jsonbToInt4(jsonbInput("2.9"));
+    return jsonFromText(textInput("1"));
 }
 export function evaluate33429() {
-    return jsonbToInt4(jsonbInput("2.5"));
+    return jsonbFromText(textInput("1"));
 }
 export function evaluate33430() {
-    return jsonbToInt4(jsonbInput("-2.5"));
+    return jsonFromText(textInput("{\"b\":2,\"a\":1}"));
 }
 export function evaluate33431() {
-    return jsonbToInt2(jsonbInput("40000"));
+    return jsonbFromText(textInput("{\"b\":2,\"a\":1}"));
 }
 export function evaluate33432() {
-    return jsonbToNumeric(jsonbInput("1.2300"));
+    return jsonFromText(textInput("not-json"));
 }
 export function evaluate33433() {
-    return jsonbToInt8(jsonbInput("2.9"));
+    return jsonbFromText(textInput("not-json"));
 }
 export function evaluate33434() {
-    return jsonbToFloat4(jsonbInput("1e2"));
+    return jsonFromText(textInput("\"\\u0000\""));
 }
 export function evaluate33435() {
-    return jsonbToFloat8(jsonbInput("1e2"));
+    return jsonbFromText(textInput("\"\\u0000\""));
 }
 export function evaluate33436() {
-    return jsonbToInt4(jsonbInput("true"));
+    return jsonText(jsonInput(null));
 }
 export function evaluate33437() {
-    return jsonbToInt4(jsonbInput("[1]"));
+    return jsonbText(jsonbInput(null));
 }
 export function evaluate33438() {
-    return jsonObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+    return jsonToJsonb(jsonInput(null));
 }
 export function evaluate33439() {
-    return jsonObject(arrayInput("pg_catalog.text", [], [], []));
+    return jsonbToJson(jsonbInput(null));
 }
 export function evaluate33440() {
-    return jsonObject(arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonText(jsonInput("1"));
 }
 export function evaluate33441() {
-    return jsonObjectPair(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+    return jsonbText(jsonbInput("1"));
 }
 export function evaluate33442() {
-    return jsonObjectPair(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1"))]), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("x"))]));
+    return jsonToJsonb(jsonInput("1"));
 }
 export function evaluate33443() {
-    return jsonObject(arrayInput("pg_catalog.text", [2, 2], [1, 1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+    return jsonbToJson(jsonbInput("1"));
 }
 export function evaluate33444() {
-    return jsonObject(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput(null))]));
+    return jsonText(jsonInput(" { \"a\" : 1 } "));
 }
 export function evaluate33445() {
-    return jsonObject(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput(null)), arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return jsonbText(jsonbInput(" { \"a\" : 1 } "));
 }
 export function evaluate33446() {
-    return jsonObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+    return jsonToJsonb(jsonInput(" { \"a\" : 1 } "));
 }
 export function evaluate33447() {
-    return jsonbObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("2")), arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return jsonbToJson(jsonbInput(" { \"a\" : 1 } "));
 }
 export function evaluate33448() {
-    return jsonbObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+    return jsonText(jsonInput("{\"a\":1,\"a\":2}"));
 }
 export function evaluate33449() {
-    return jsonbObjectPair(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+    return jsonbText(jsonbInput("{\"a\":1,\"a\":2}"));
 }
 export function evaluate33450() {
-    return arrayToJson(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return jsonToJsonb(jsonInput("{\"a\":1,\"a\":2}"));
 }
 export function evaluate33451() {
-    return arrayToJsonPretty(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(true));
+    return jsonbToJson(jsonbInput("{\"a\":1,\"a\":2}"));
 }
 export function evaluate33452() {
-    return arrayToJsonPretty(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), booleanInput(true));
+    return sqlIsNull(jsonInput(null));
 }
 export function evaluate33453() {
-    return arrayToJson(arrayInput("pg_catalog.int4", [], [], []));
+    return sqlIsNotNull(jsonbInput(null));
 }
 export function evaluate33454() {
-    return arrayToJson(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return sqlCase(() => jsonInput("[10,20,30]"), [() => booleanInput(true), () => jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}")]);
 }
 export function evaluate33455() {
-    return toJson("pg_catalog.int4", int4Input("1"));
+    return sqlCase(() => jsonbInput("[10,20,30]"), [() => booleanInput(false), () => jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}")]);
 }
 export function evaluate33456() {
-    return toJson("pg_catalog.text", textInput("hi"));
+    return sqlCoalesce(() => jsonInput(null), () => jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
 }
 export function evaluate33457() {
-    return toJson("pg_catalog.bool", booleanInput(true));
+    return sqlCoalesce(() => jsonbInput(null), () => jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
 }
 export function evaluate33458() {
-    return toJson("pg_catalog.\"numeric\"", decimalInput("1.2300"));
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":2,\"a\":3}"));
 }
 export function evaluate33459() {
-    return toJson("pg_catalog.float8", float8Input("7ff8000000000000"));
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":2,\"a\":3}"));
 }
 export function evaluate33460() {
-    return toJson("pg_catalog.float8", float8Input("7ff0000000000000"));
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
 }
 export function evaluate33461() {
-    return toJson("pg_catalog.float8", float8Input("8000000000000000"));
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
 }
 export function evaluate33462() {
-    return toJson("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return jsonbConcat(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
 }
 export function evaluate33463() {
-    return toJson("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return jsonbConcat(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
 }
 export function evaluate33464() {
-    return toJson("pg_catalog.\"json\"", jsonInput("{\"a\":1}"));
+    return jsonbConcat(jsonbInput("[1]"), jsonbInput("[2,3]"));
 }
 export function evaluate33465() {
-    return toJson("pg_catalog.jsonb", jsonbInput("{\"b\":1,\"a\":2}"));
+    return jsonbConcat(jsonbInput("[1]"), jsonbInput("[2,3]"));
 }
 export function evaluate33466() {
-    return toJson("pg_catalog.uuid", uuidInput("550e8400-e29b-41d4-a716-446655440000"));
+    return jsonbConcat(jsonbInput("[]"), jsonbInput("[1]"));
 }
 export function evaluate33467() {
-    return toJsonb("pg_catalog.\"numeric\"", decimalInput("1.2300"));
+    return jsonbConcat(jsonbInput("[]"), jsonbInput("[1]"));
 }
 export function evaluate33468() {
-    return toJsonb("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return jsonbConcat(jsonbInput("1"), jsonbInput("2"));
 }
 export function evaluate33469() {
-    return jsonBuildArray();
+    return jsonbConcat(jsonbInput("1"), jsonbInput("2"));
 }
 export function evaluate33470() {
-    return jsonBuildObject();
+    return jsonbConcat(jsonbInput("1"), jsonbInput("[2]"));
 }
 export function evaluate33471() {
-    return jsonbBuildArray();
+    return jsonbConcat(jsonbInput("1"), jsonbInput("[2]"));
 }
 export function evaluate33472() {
-    return jsonbBuildObject();
+    return jsonbConcat(jsonbInput("[1]"), jsonbInput("2"));
 }
 export function evaluate33473() {
-    return jsonBuildArray("pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"), "pg_catalog.bool", booleanInput(true), "pg_catalog.int4", int4Input(null));
+    return jsonbConcat(jsonbInput("[1]"), jsonbInput("2"));
 }
 export function evaluate33474() {
-    return jsonBuildArray("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[2]"));
 }
 export function evaluate33475() {
-    return jsonBuildObject("pg_catalog.text", textInput("a"), "pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("b"), "pg_catalog.text", textInput(null));
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[2]"));
 }
 export function evaluate33476() {
-    return jsonBuildObject("pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"));
+    return jsonbConcat(jsonbInput("[2]"), jsonbInput("{\"a\":1}"));
 }
 export function evaluate33477() {
-    return jsonBuildObject("pg_catalog.bool", booleanInput(true), "pg_catalog.text", textInput("a"));
+    return jsonbConcat(jsonbInput("[2]"), jsonbInput("{\"a\":1}"));
 }
 export function evaluate33478() {
-    return jsonBuildObject("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]), "pg_catalog.text", textInput("a"));
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[]"));
 }
 export function evaluate33479() {
-    return jsonBuildObject("pg_catalog.text", textInput("a"));
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[]"));
 }
 export function evaluate33480() {
-    return jsonbBuildArray("pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"));
+    return jsonbConcat(jsonbInput("null"), jsonbInput("[1]"));
 }
 export function evaluate33481() {
-    return jsonbBuildObject("pg_catalog.text", textInput("b"), "pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"), "pg_catalog.int4", int4Input("2"));
+    return jsonbConcat(jsonbInput("null"), jsonbInput("[1]"));
 }
 export function evaluate33482() {
-    return toJson("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return jsonbConcat(jsonbInput("true"), jsonbInput("{\"a\":1}"));
 }
 export function evaluate33483() {
-    return dateInput(null);
+    return jsonbConcat(jsonbInput("true"), jsonbInput("{\"a\":1}"));
 }
 export function evaluate33484() {
-    return dateInput("2020-01-02");
+    return jsonbConcat(jsonbInput(null), jsonbInput("1"));
 }
 export function evaluate33485() {
-    return dateInput(" 2020-01-02");
+    return jsonbConcat(jsonbInput(null), jsonbInput("1"));
 }
 export function evaluate33486() {
-    return dateInput("2024-1-5");
+    return jsonbDeleteKey(jsonbInput("{\"a\":1,\"b\":2}"), textInput("a"));
 }
 export function evaluate33487() {
-    return dateInput("2024-02-29");
+    return jsonbDeleteKey(jsonbInput("{\"a\":1}"), textInput("missing"));
 }
 export function evaluate33488() {
-    return dateInput("0001-01-01");
+    return jsonbDeleteKey(jsonbInput("[\"a\",\"b\",\"a\"]"), textInput("a"));
 }
 export function evaluate33489() {
-    return dateInput("infinity");
+    return jsonbDeleteKey(jsonbInput("1"), textInput("a"));
 }
 export function evaluate33490() {
-    return dateInput("+infinity");
+    return jsonbDeleteKey(jsonbInput("{\"a\":1,\"b\":2}"), textInput("a"));
 }
 export function evaluate33491() {
-    return dateInput("-infinity");
+    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33492() {
-    return dateInput("");
+    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate33493() {
-    return dateInput("not-a-date");
+    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("99"));
 }
 export function evaluate33494() {
-    return dateInput("2023-02-29");
+    return jsonbDeleteIndex(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), int4Input("0"));
 }
 export function evaluate33495() {
-    return dateInput("2024-02-30");
+    return jsonbDeleteIndex(jsonbInput("1"), int4Input("0"));
 }
 export function evaluate33496() {
-    return timeInput(null);
+    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33497() {
-    return timeInput("00:00:00");
+    return jsonbDeleteKeys(jsonbInput("{\"a\":1,\"b\":2,\"c\":3}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("c"))]));
 }
 export function evaluate33498() {
-    return timeInput("12:34");
+    return jsonbDeleteKeys(jsonbInput("[\"a\",\"b\",\"c\"]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33499() {
-    return timeInput("12:34:56");
+    return jsonbDeleteKeys(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33500() {
-    return timeInput("12:34:56.1");
+    return jsonbDeleteKeys(jsonbInput("{\"a\":1,\"b\":2,\"c\":3}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("c"))]));
 }
 export function evaluate33501() {
-    return timeInput("12:34:56.123456");
+    return jsonbDeletePath(jsonbInput("{\"a\":{\"b\":1,\"c\":2}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33502() {
-    return timeInput("24:00:00");
+    return jsonbDeletePath(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33503() {
-    return timeInput("12:60:00");
+    return jsonbDeletePath(jsonbInput("1"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33504() {
-    return timeInput("24:00:01");
+    return jsonbDeletePath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33505() {
-    return timeInput("not-a-time");
+    return jsonbDeletePath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33506() {
-    return timestampInput(null);
+    return jsonbDeletePath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate33507() {
-    return timestampInput("2020-01-02");
+    return jsonbDeletePath(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate33508() {
-    return timestampInput("2020-01-02 03:04:05");
+    return jsonbDeletePath(jsonbInput("{\"a\":{\"b\":1,\"c\":2}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33509() {
-    return timestampInput("2020-01-02T03:04:05");
+    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(true));
 }
 export function evaluate33510() {
-    return timestampInput("2020-01-02 24:00:00");
+    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(true));
 }
 export function evaluate33511() {
-    return timestampInput("infinity");
+    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(false));
 }
 export function evaluate33512() {
-    return timestampInput("-infinity");
+    return jsonbSet(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("9"), booleanInput(true));
 }
 export function evaluate33513() {
-    return timestampInput("not-a-timestamp");
+    return jsonbSet(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("5"))]), jsonbInput("9"), booleanInput(true));
 }
 export function evaluate33514() {
-    return intervalInput(null);
+    return jsonbSet(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("-1"))]), jsonbInput("9"), booleanInput(true));
 }
 export function evaluate33515() {
-    return intervalInput("0");
+    return jsonbSet(jsonbInput("{\"a\":[1,2]}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("9"), booleanInput(true));
 }
 export function evaluate33516() {
-    return intervalInput("1 year");
+    return jsonbSet(jsonbInput("1"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(true));
 }
 export function evaluate33517() {
-    return intervalInput("2 months");
+    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []), jsonbInput("2"), booleanInput(true));
 }
 export function evaluate33518() {
-    return intervalInput("3 days");
+    return jsonbSet(jsonbInput("[]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("0"))]), jsonbInput("2"), booleanInput(true));
 }
 export function evaluate33519() {
-    return intervalInput("04:05:06");
+    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(true));
 }
 export function evaluate33520() {
-    return intervalInput("1 year 2 mons 3 days 04:05:06");
+    return jsonbSet(jsonbInput("[1]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("foo"))]), jsonbInput("2"), booleanInput(true));
 }
 export function evaluate33521() {
-    return intervalInput("1 week");
+    return jsonbInsert(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(false));
 }
 export function evaluate33522() {
-    return intervalInput("infinity");
+    return jsonbInsert(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(false));
 }
 export function evaluate33523() {
-    return intervalInput("-infinity");
+    return jsonbInsert(jsonbInput("[1,3]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("2"), booleanInput(false));
 }
 export function evaluate33524() {
-    return intervalInput("-05:00:00");
+    return jsonbInsert(jsonbInput("[1,3]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("2"), booleanInput(true));
 }
 export function evaluate33525() {
-    return intervalInput("+03:00:00");
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("use_json_null"));
 }
 export function evaluate33526() {
-    return intervalInput("-05:30");
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("delete_key"));
 }
 export function evaluate33527() {
-    return intervalInput("1 day -02:00:00");
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("return_target"));
 }
 export function evaluate33528() {
-    return intervalInput("not-an-interval");
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("raise_exception"));
 }
 export function evaluate33529() {
-    return dateEq(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("nope"));
 }
 export function evaluate33530() {
-    return dateNe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(true), textInput("use_json_null"));
 }
 export function evaluate33531() {
-    return dateLt(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return jsonStripNulls(jsonInput("{\"a\":1,\"b\":null,\"c\":{\"d\":null}}"), booleanInput(false));
 }
 export function evaluate33532() {
-    return dateLe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return jsonStripNulls(jsonInput("[1, null, 2]"), booleanInput(true));
 }
 export function evaluate33533() {
-    return dateGt(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return jsonStripNulls(jsonInput("[1, null, 2]"), booleanInput(false));
 }
 export function evaluate33534() {
-    return dateGe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return jsonStripNulls(jsonInput("1e2"), booleanInput(false));
 }
 export function evaluate33535() {
-    return dateEq(dateInput("2020-01-02"), dateInput("2020-01-01"));
+    return jsonbStripNulls(jsonbInput("{\"a\":1,\"b\":null,\"c\":[null,2]}"), booleanInput(false));
 }
 export function evaluate33536() {
-    return dateNe(dateInput("2020-01-02"), dateInput("2020-01-01"));
+    return jsonbStripNulls(jsonbInput("{\"a\":1,\"b\":null,\"c\":[null,2]}"), booleanInput(true));
 }
 export function evaluate33537() {
-    return dateLt(dateInput("2020-01-02"), dateInput("2020-01-01"));
+    return jsonbPretty(jsonbInput("{\"b\":[1,2],\"a\":3}"));
 }
 export function evaluate33538() {
-    return dateLe(dateInput("2020-01-02"), dateInput("2020-01-01"));
+    return jsonbPretty(jsonbInput("1"));
 }
 export function evaluate33539() {
-    return dateGt(dateInput("2020-01-02"), dateInput("2020-01-01"));
+    return jsonbPretty(jsonbInput("[]"));
 }
 export function evaluate33540() {
-    return dateGe(dateInput("2020-01-02"), dateInput("2020-01-01"));
+    return jsonbPretty(jsonbInput("{}"));
 }
 export function evaluate33541() {
-    return dateEq(dateInput("2020-01-01"), dateInput("2020-01-01"));
+    return jsonbToBool(jsonbInput("true"));
 }
 export function evaluate33542() {
-    return dateNe(dateInput("2020-01-01"), dateInput("2020-01-01"));
+    return jsonbToBool(jsonbInput("false"));
 }
 export function evaluate33543() {
-    return dateLt(dateInput("2020-01-01"), dateInput("2020-01-01"));
+    return jsonbToBool(jsonbInput("null"));
 }
 export function evaluate33544() {
-    return dateLe(dateInput("2020-01-01"), dateInput("2020-01-01"));
+    return jsonbToBool(jsonbInput("1"));
 }
 export function evaluate33545() {
-    return dateGt(dateInput("2020-01-01"), dateInput("2020-01-01"));
+    return jsonbToInt4(jsonbInput("2.9"));
 }
 export function evaluate33546() {
-    return dateGe(dateInput("2020-01-01"), dateInput("2020-01-01"));
+    return jsonbToInt4(jsonbInput("2.5"));
 }
 export function evaluate33547() {
-    return dateEq(dateInput("infinity"), dateInput("2020-01-01"));
+    return jsonbToInt4(jsonbInput("-2.5"));
 }
 export function evaluate33548() {
-    return dateNe(dateInput("infinity"), dateInput("2020-01-01"));
+    return jsonbToInt2(jsonbInput("40000"));
 }
 export function evaluate33549() {
-    return dateLt(dateInput("infinity"), dateInput("2020-01-01"));
+    return jsonbToNumeric(jsonbInput("1.2300"));
 }
 export function evaluate33550() {
-    return dateLe(dateInput("infinity"), dateInput("2020-01-01"));
+    return jsonbToInt8(jsonbInput("2.9"));
 }
 export function evaluate33551() {
-    return dateGt(dateInput("infinity"), dateInput("2020-01-01"));
+    return jsonbToFloat4(jsonbInput("1e2"));
 }
 export function evaluate33552() {
-    return dateGe(dateInput("infinity"), dateInput("2020-01-01"));
+    return jsonbToFloat8(jsonbInput("1e2"));
 }
 export function evaluate33553() {
-    return dateEq(dateInput("-infinity"), dateInput("2020-01-01"));
+    return jsonbToInt4(jsonbInput("true"));
 }
 export function evaluate33554() {
-    return dateNe(dateInput("-infinity"), dateInput("2020-01-01"));
+    return jsonbToInt4(jsonbInput("[1]"));
 }
 export function evaluate33555() {
-    return dateLt(dateInput("-infinity"), dateInput("2020-01-01"));
+    return jsonObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("2"))]));
 }
 export function evaluate33556() {
-    return dateLe(dateInput("-infinity"), dateInput("2020-01-01"));
+    return jsonObject(arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33557() {
-    return dateGt(dateInput("-infinity"), dateInput("2020-01-01"));
+    return jsonObject(arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33558() {
-    return dateGe(dateInput("-infinity"), dateInput("2020-01-01"));
+    return jsonObjectPair(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("2"))]));
 }
 export function evaluate33559() {
-    return dateEq(dateInput(null), dateInput("2020-01-01"));
+    return jsonObjectPair(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1"))]), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("x"))]));
 }
 export function evaluate33560() {
-    return dateNe(dateInput(null), dateInput("2020-01-01"));
+    return jsonObject(arrayInput("pg_catalog.text", [2, 2], [1, 1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("2"))]));
 }
 export function evaluate33561() {
-    return dateLt(dateInput(null), dateInput("2020-01-01"));
+    return jsonObject(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate33562() {
-    return dateLe(dateInput(null), dateInput("2020-01-01"));
+    return jsonObject(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput(null)), arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33563() {
-    return dateGt(dateInput(null), dateInput("2020-01-01"));
+    return jsonObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("2"))]));
 }
 export function evaluate33564() {
-    return dateGe(dateInput(null), dateInput("2020-01-01"));
+    return jsonbObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("2")), arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33565() {
-    return dateEq(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return jsonbObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("2"))]));
 }
 export function evaluate33566() {
-    return dateEq(dateInput(null), dateInput("2020-01-02"));
+    return jsonbObjectPair(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("2"))]));
 }
 export function evaluate33567() {
-    return dateEq(dateInput("infinity"), dateInput("-infinity"));
+    return arrayToJson(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate33568() {
-    return dateNe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return arrayToJsonPretty(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(true));
 }
 export function evaluate33569() {
-    return dateNe(dateInput(null), dateInput("2020-01-02"));
+    return arrayToJsonPretty(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), booleanInput(true));
 }
 export function evaluate33570() {
-    return dateNe(dateInput("infinity"), dateInput("-infinity"));
+    return arrayToJson(arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate33571() {
-    return dateLt(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return arrayToJson(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate33572() {
-    return dateLt(dateInput(null), dateInput("2020-01-02"));
+    return toJson("pg_catalog.int4", int4Input("1"));
 }
 export function evaluate33573() {
-    return dateLt(dateInput("infinity"), dateInput("-infinity"));
+    return toJson("pg_catalog.text", textInput("hi"));
 }
 export function evaluate33574() {
-    return dateLe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return toJson("pg_catalog.bool", booleanInput(true));
 }
 export function evaluate33575() {
-    return dateLe(dateInput(null), dateInput("2020-01-02"));
+    return toJson("pg_catalog.\"numeric\"", decimalInput("1.2300"));
 }
 export function evaluate33576() {
-    return dateLe(dateInput("infinity"), dateInput("-infinity"));
+    return toJson("pg_catalog.float8", float8Input("7ff8000000000000"));
 }
 export function evaluate33577() {
-    return dateGt(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return toJson("pg_catalog.float8", float8Input("7ff0000000000000"));
 }
 export function evaluate33578() {
-    return dateGt(dateInput(null), dateInput("2020-01-02"));
+    return toJson("pg_catalog.float8", float8Input("8000000000000000"));
 }
 export function evaluate33579() {
-    return dateGt(dateInput("infinity"), dateInput("-infinity"));
+    return toJson("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate33580() {
-    return dateGe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return toJson("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate33581() {
-    return dateGe(dateInput(null), dateInput("2020-01-02"));
+    return toJson("pg_catalog.\"json\"", jsonInput("{\"a\":1}"));
 }
 export function evaluate33582() {
-    return dateGe(dateInput("infinity"), dateInput("-infinity"));
+    return toJson("pg_catalog.jsonb", jsonbInput("{\"b\":1,\"a\":2}"));
 }
 export function evaluate33583() {
-    return dateCompare(dateInput("2020-01-01"), dateInput("2020-01-01"));
+    return toJson("pg_catalog.uuid", uuidInput("550e8400-e29b-41d4-a716-446655440000"));
 }
 export function evaluate33584() {
-    return dateCompare(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return toJsonb("pg_catalog.\"numeric\"", decimalInput("1.2300"));
 }
 export function evaluate33585() {
-    return dateCompare(dateInput("infinity"), dateInput("-infinity"));
+    return toJsonb("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate33586() {
-    return dateCompare(dateInput(null), dateInput("2020-01-01"));
+    return jsonBuildArray();
 }
 export function evaluate33587() {
-    return timeEq(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonBuildObject();
 }
 export function evaluate33588() {
-    return timeNe(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonbBuildArray();
 }
 export function evaluate33589() {
-    return timeLt(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonbBuildObject();
 }
 export function evaluate33590() {
-    return timeLe(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonBuildArray("pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"), "pg_catalog.bool", booleanInput(true), "pg_catalog.int4", int4Input(null));
 }
 export function evaluate33591() {
-    return timeGt(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonBuildArray("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate33592() {
-    return timeGe(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonBuildObject("pg_catalog.text", textInput("a"), "pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("b"), "pg_catalog.text", textInput(null));
 }
 export function evaluate33593() {
-    return timeEq(timeInput("18:00:00"), timeInput("12:00:00"));
+    return jsonBuildObject("pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"));
 }
 export function evaluate33594() {
-    return timeNe(timeInput("18:00:00"), timeInput("12:00:00"));
+    return jsonBuildObject("pg_catalog.bool", booleanInput(true), "pg_catalog.text", textInput("a"));
 }
 export function evaluate33595() {
-    return timeLt(timeInput("18:00:00"), timeInput("12:00:00"));
+    return jsonBuildObject("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]), "pg_catalog.text", textInput("a"));
 }
 export function evaluate33596() {
-    return timeLe(timeInput("18:00:00"), timeInput("12:00:00"));
+    return jsonBuildObject("pg_catalog.text", textInput("a"));
 }
 export function evaluate33597() {
-    return timeGt(timeInput("18:00:00"), timeInput("12:00:00"));
+    return jsonbBuildArray("pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"));
 }
 export function evaluate33598() {
-    return timeGe(timeInput("18:00:00"), timeInput("12:00:00"));
+    return jsonbBuildObject("pg_catalog.text", textInput("b"), "pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"), "pg_catalog.int4", int4Input("2"));
 }
 export function evaluate33599() {
-    return timeEq(timeInput("12:00:00"), timeInput("12:00:00"));
+    return toJson("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33600() {
-    return timeNe(timeInput("12:00:00"), timeInput("12:00:00"));
+    return dateInput(null);
 }
 export function evaluate33601() {
-    return timeLt(timeInput("12:00:00"), timeInput("12:00:00"));
+    return dateInput("2020-01-02");
 }
 export function evaluate33602() {
-    return timeLe(timeInput("12:00:00"), timeInput("12:00:00"));
+    return dateInput(" 2020-01-02");
 }
 export function evaluate33603() {
-    return timeGt(timeInput("12:00:00"), timeInput("12:00:00"));
+    return dateInput("2024-1-5");
 }
 export function evaluate33604() {
-    return timeGe(timeInput("12:00:00"), timeInput("12:00:00"));
+    return dateInput("2024-02-29");
 }
 export function evaluate33605() {
-    return timeEq(timeInput("24:00:00"), timeInput("12:00:00"));
+    return dateInput("0001-01-01");
 }
 export function evaluate33606() {
-    return timeNe(timeInput("24:00:00"), timeInput("12:00:00"));
+    return dateInput("infinity");
 }
 export function evaluate33607() {
-    return timeLt(timeInput("24:00:00"), timeInput("12:00:00"));
+    return dateInput("+infinity");
 }
 export function evaluate33608() {
-    return timeLe(timeInput("24:00:00"), timeInput("12:00:00"));
+    return dateInput("-infinity");
 }
 export function evaluate33609() {
-    return timeGt(timeInput("24:00:00"), timeInput("12:00:00"));
+    return dateInput("");
 }
 export function evaluate33610() {
-    return timeGe(timeInput("24:00:00"), timeInput("12:00:00"));
+    return dateInput("not-a-date");
 }
 export function evaluate33611() {
-    return timeEq(timeInput(null), timeInput("12:00:00"));
+    return dateInput("2023-02-29");
 }
 export function evaluate33612() {
-    return timeNe(timeInput(null), timeInput("12:00:00"));
+    return dateInput("2024-02-30");
 }
 export function evaluate33613() {
-    return timeLt(timeInput(null), timeInput("12:00:00"));
+    return timeInput(null);
 }
 export function evaluate33614() {
-    return timeLe(timeInput(null), timeInput("12:00:00"));
+    return timeInput("00:00:00");
 }
 export function evaluate33615() {
-    return timeGt(timeInput(null), timeInput("12:00:00"));
+    return timeInput("12:34");
 }
 export function evaluate33616() {
-    return timeGe(timeInput(null), timeInput("12:00:00"));
+    return timeInput("12:34:56");
 }
 export function evaluate33617() {
-    return timeEq(timeInput("12:00:00"), timeInput("18:00:00"));
+    return timeInput("12:34:56.1");
 }
 export function evaluate33618() {
-    return timeEq(timeInput(null), timeInput("18:00:00"));
+    return timeInput("12:34:56.123456");
 }
 export function evaluate33619() {
-    return timeEq(timeInput("24:00:00"), timeInput("12:00:00"));
+    return timeInput("24:00:00");
 }
 export function evaluate33620() {
-    return timeNe(timeInput("12:00:00"), timeInput("18:00:00"));
+    return timeInput("12:60:00");
 }
 export function evaluate33621() {
-    return timeNe(timeInput(null), timeInput("18:00:00"));
+    return timeInput("24:00:01");
 }
 export function evaluate33622() {
-    return timeNe(timeInput("24:00:00"), timeInput("12:00:00"));
+    return timeInput("not-a-time");
 }
 export function evaluate33623() {
-    return timeLt(timeInput("12:00:00"), timeInput("18:00:00"));
+    return timestampInput(null);
 }
 export function evaluate33624() {
-    return timeLt(timeInput(null), timeInput("18:00:00"));
+    return timestampInput("2020-01-02");
 }
 export function evaluate33625() {
-    return timeLt(timeInput("24:00:00"), timeInput("12:00:00"));
+    return timestampInput("2020-01-02 03:04:05");
 }
 export function evaluate33626() {
-    return timeLe(timeInput("12:00:00"), timeInput("18:00:00"));
+    return timestampInput("2020-01-02T03:04:05");
 }
 export function evaluate33627() {
-    return timeLe(timeInput(null), timeInput("18:00:00"));
+    return timestampInput("2020-01-02 24:00:00");
 }
 export function evaluate33628() {
-    return timeLe(timeInput("24:00:00"), timeInput("12:00:00"));
+    return timestampInput("infinity");
 }
 export function evaluate33629() {
-    return timeGt(timeInput("12:00:00"), timeInput("18:00:00"));
+    return timestampInput("-infinity");
 }
 export function evaluate33630() {
-    return timeGt(timeInput(null), timeInput("18:00:00"));
+    return timestampInput("not-a-timestamp");
 }
 export function evaluate33631() {
-    return timeGt(timeInput("24:00:00"), timeInput("12:00:00"));
+    return intervalInput(null);
 }
 export function evaluate33632() {
-    return timeGe(timeInput("12:00:00"), timeInput("18:00:00"));
+    return intervalInput("0");
 }
 export function evaluate33633() {
-    return timeGe(timeInput(null), timeInput("18:00:00"));
+    return intervalInput("1 year");
 }
 export function evaluate33634() {
-    return timeGe(timeInput("24:00:00"), timeInput("12:00:00"));
+    return intervalInput("2 months");
 }
 export function evaluate33635() {
-    return timeCompare(timeInput("12:00:00"), timeInput("12:00:00"));
+    return intervalInput("3 days");
 }
 export function evaluate33636() {
-    return timeCompare(timeInput("12:00:00"), timeInput("18:00:00"));
+    return intervalInput("04:05:06");
 }
 export function evaluate33637() {
-    return timeCompare(timeInput(null), timeInput("12:00:00"));
+    return intervalInput("1 year 2 mons 3 days 04:05:06");
 }
 export function evaluate33638() {
-    return timestampEq(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return intervalInput("1 week");
 }
 export function evaluate33639() {
-    return timestampNe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return intervalInput("infinity");
 }
 export function evaluate33640() {
-    return timestampLt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return intervalInput("-infinity");
 }
 export function evaluate33641() {
-    return timestampLe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return intervalInput("-05:00:00");
 }
 export function evaluate33642() {
-    return timestampGt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return intervalInput("+03:00:00");
 }
 export function evaluate33643() {
-    return timestampGe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return intervalInput("-05:30");
 }
 export function evaluate33644() {
-    return timestampEq(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+    return intervalInput("1 day -02:00:00");
 }
 export function evaluate33645() {
-    return timestampNe(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+    return intervalInput("not-an-interval");
 }
 export function evaluate33646() {
-    return timestampLt(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+    return dateEq(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate33647() {
-    return timestampLe(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+    return dateNe(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate33648() {
-    return timestampGt(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+    return dateLt(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate33649() {
-    return timestampGe(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+    return dateLe(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate33650() {
-    return timestampEq(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+    return dateGt(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate33651() {
-    return timestampNe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+    return dateGe(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate33652() {
-    return timestampLt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+    return dateEq(dateInput("2020-01-02"), dateInput("2020-01-01"));
 }
 export function evaluate33653() {
-    return timestampLe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+    return dateNe(dateInput("2020-01-02"), dateInput("2020-01-01"));
 }
 export function evaluate33654() {
-    return timestampGt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+    return dateLt(dateInput("2020-01-02"), dateInput("2020-01-01"));
 }
 export function evaluate33655() {
-    return timestampGe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+    return dateLe(dateInput("2020-01-02"), dateInput("2020-01-01"));
 }
 export function evaluate33656() {
-    return timestampEq(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return dateGt(dateInput("2020-01-02"), dateInput("2020-01-01"));
 }
 export function evaluate33657() {
-    return timestampNe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return dateGe(dateInput("2020-01-02"), dateInput("2020-01-01"));
 }
 export function evaluate33658() {
-    return timestampLt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return dateEq(dateInput("2020-01-01"), dateInput("2020-01-01"));
 }
 export function evaluate33659() {
-    return timestampLe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return dateNe(dateInput("2020-01-01"), dateInput("2020-01-01"));
 }
 export function evaluate33660() {
-    return timestampGt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return dateLt(dateInput("2020-01-01"), dateInput("2020-01-01"));
 }
 export function evaluate33661() {
-    return timestampGe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return dateLe(dateInput("2020-01-01"), dateInput("2020-01-01"));
 }
 export function evaluate33662() {
-    return timestampEq(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+    return dateGt(dateInput("2020-01-01"), dateInput("2020-01-01"));
 }
 export function evaluate33663() {
-    return timestampNe(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+    return dateGe(dateInput("2020-01-01"), dateInput("2020-01-01"));
 }
 export function evaluate33664() {
-    return timestampLt(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+    return dateEq(dateInput("infinity"), dateInput("2020-01-01"));
 }
 export function evaluate33665() {
-    return timestampLe(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+    return dateNe(dateInput("infinity"), dateInput("2020-01-01"));
 }
 export function evaluate33666() {
-    return timestampGt(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+    return dateLt(dateInput("infinity"), dateInput("2020-01-01"));
 }
 export function evaluate33667() {
-    return timestampGe(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+    return dateLe(dateInput("infinity"), dateInput("2020-01-01"));
 }
 export function evaluate33668() {
-    return timestampEq(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return dateGt(dateInput("infinity"), dateInput("2020-01-01"));
 }
 export function evaluate33669() {
-    return timestampEq(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+    return dateGe(dateInput("infinity"), dateInput("2020-01-01"));
 }
 export function evaluate33670() {
-    return timestampEq(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return dateEq(dateInput("-infinity"), dateInput("2020-01-01"));
 }
 export function evaluate33671() {
-    return timestampNe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return dateNe(dateInput("-infinity"), dateInput("2020-01-01"));
 }
 export function evaluate33672() {
-    return timestampNe(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+    return dateLt(dateInput("-infinity"), dateInput("2020-01-01"));
 }
 export function evaluate33673() {
-    return timestampNe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return dateLe(dateInput("-infinity"), dateInput("2020-01-01"));
 }
 export function evaluate33674() {
-    return timestampLt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return dateGt(dateInput("-infinity"), dateInput("2020-01-01"));
 }
 export function evaluate33675() {
-    return timestampLt(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+    return dateGe(dateInput("-infinity"), dateInput("2020-01-01"));
 }
 export function evaluate33676() {
-    return timestampLt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return dateEq(dateInput(null), dateInput("2020-01-01"));
 }
 export function evaluate33677() {
-    return timestampLe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return dateNe(dateInput(null), dateInput("2020-01-01"));
 }
 export function evaluate33678() {
-    return timestampLe(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+    return dateLt(dateInput(null), dateInput("2020-01-01"));
 }
 export function evaluate33679() {
-    return timestampLe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return dateLe(dateInput(null), dateInput("2020-01-01"));
 }
 export function evaluate33680() {
-    return timestampGt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return dateGt(dateInput(null), dateInput("2020-01-01"));
 }
 export function evaluate33681() {
-    return timestampGt(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+    return dateGe(dateInput(null), dateInput("2020-01-01"));
 }
 export function evaluate33682() {
-    return timestampGt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return dateEq(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate33683() {
-    return timestampGe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return dateEq(dateInput(null), dateInput("2020-01-02"));
 }
 export function evaluate33684() {
-    return timestampGe(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+    return dateEq(dateInput("infinity"), dateInput("-infinity"));
 }
 export function evaluate33685() {
-    return timestampGe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return dateNe(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate33686() {
-    return timestampCompare(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+    return dateNe(dateInput(null), dateInput("2020-01-02"));
 }
 export function evaluate33687() {
-    return timestampCompare(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return dateNe(dateInput("infinity"), dateInput("-infinity"));
 }
 export function evaluate33688() {
-    return timestampCompare(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+    return dateLt(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate33689() {
-    return intervalEq(intervalInput("1 year"), intervalInput("360 days"));
+    return dateLt(dateInput(null), dateInput("2020-01-02"));
 }
 export function evaluate33690() {
-    return intervalNe(intervalInput("1 year"), intervalInput("360 days"));
+    return dateLt(dateInput("infinity"), dateInput("-infinity"));
 }
 export function evaluate33691() {
-    return intervalLt(intervalInput("1 year"), intervalInput("360 days"));
+    return dateLe(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate33692() {
-    return intervalLe(intervalInput("1 year"), intervalInput("360 days"));
+    return dateLe(dateInput(null), dateInput("2020-01-02"));
 }
 export function evaluate33693() {
-    return intervalGt(intervalInput("1 year"), intervalInput("360 days"));
+    return dateLe(dateInput("infinity"), dateInput("-infinity"));
 }
 export function evaluate33694() {
-    return intervalGe(intervalInput("1 year"), intervalInput("360 days"));
+    return dateGt(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate33695() {
-    return intervalEq(intervalInput("1 mon"), intervalInput("30 days"));
+    return dateGt(dateInput(null), dateInput("2020-01-02"));
 }
 export function evaluate33696() {
-    return intervalNe(intervalInput("1 mon"), intervalInput("30 days"));
+    return dateGt(dateInput("infinity"), dateInput("-infinity"));
 }
 export function evaluate33697() {
-    return intervalLt(intervalInput("1 mon"), intervalInput("30 days"));
+    return dateGe(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate33698() {
-    return intervalLe(intervalInput("1 mon"), intervalInput("30 days"));
+    return dateGe(dateInput(null), dateInput("2020-01-02"));
 }
 export function evaluate33699() {
-    return intervalGt(intervalInput("1 mon"), intervalInput("30 days"));
+    return dateGe(dateInput("infinity"), dateInput("-infinity"));
 }
 export function evaluate33700() {
-    return intervalGe(intervalInput("1 mon"), intervalInput("30 days"));
+    return dateCompare(dateInput("2020-01-01"), dateInput("2020-01-01"));
 }
 export function evaluate33701() {
-    return intervalEq(intervalInput("1 year"), intervalInput("1 mon"));
+    return dateCompare(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate33702() {
-    return intervalNe(intervalInput("1 year"), intervalInput("1 mon"));
+    return dateCompare(dateInput("infinity"), dateInput("-infinity"));
 }
 export function evaluate33703() {
-    return intervalLt(intervalInput("1 year"), intervalInput("1 mon"));
+    return dateCompare(dateInput(null), dateInput("2020-01-01"));
 }
 export function evaluate33704() {
-    return intervalLe(intervalInput("1 year"), intervalInput("1 mon"));
+    return timeEq(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate33705() {
-    return intervalGt(intervalInput("1 year"), intervalInput("1 mon"));
+    return timeNe(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate33706() {
-    return intervalGe(intervalInput("1 year"), intervalInput("1 mon"));
+    return timeLt(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate33707() {
-    return intervalEq(intervalInput("infinity"), intervalInput("1 year"));
+    return timeLe(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate33708() {
-    return intervalNe(intervalInput("infinity"), intervalInput("1 year"));
+    return timeGt(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate33709() {
-    return intervalLt(intervalInput("infinity"), intervalInput("1 year"));
+    return timeGe(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate33710() {
-    return intervalLe(intervalInput("infinity"), intervalInput("1 year"));
+    return timeEq(timeInput("18:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33711() {
-    return intervalGt(intervalInput("infinity"), intervalInput("1 year"));
+    return timeNe(timeInput("18:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33712() {
-    return intervalGe(intervalInput("infinity"), intervalInput("1 year"));
+    return timeLt(timeInput("18:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33713() {
-    return intervalEq(intervalInput(null), intervalInput("1 year"));
+    return timeLe(timeInput("18:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33714() {
-    return intervalNe(intervalInput(null), intervalInput("1 year"));
+    return timeGt(timeInput("18:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33715() {
-    return intervalLt(intervalInput(null), intervalInput("1 year"));
+    return timeGe(timeInput("18:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33716() {
-    return intervalLe(intervalInput(null), intervalInput("1 year"));
+    return timeEq(timeInput("12:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33717() {
-    return intervalGt(intervalInput(null), intervalInput("1 year"));
+    return timeNe(timeInput("12:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33718() {
-    return intervalGe(intervalInput(null), intervalInput("1 year"));
+    return timeLt(timeInput("12:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33719() {
-    return intervalEq(intervalInput("1 year"), intervalInput("1 mon"));
+    return timeLe(timeInput("12:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33720() {
-    return intervalEq(intervalInput(null), intervalInput("1 mon"));
+    return timeGt(timeInput("12:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33721() {
-    return intervalEq(intervalInput("infinity"), intervalInput("1 year"));
+    return timeGe(timeInput("12:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33722() {
-    return intervalNe(intervalInput("1 year"), intervalInput("1 mon"));
+    return timeEq(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33723() {
-    return intervalNe(intervalInput(null), intervalInput("1 mon"));
+    return timeNe(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33724() {
-    return intervalNe(intervalInput("infinity"), intervalInput("1 year"));
+    return timeLt(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33725() {
-    return intervalLt(intervalInput("1 year"), intervalInput("1 mon"));
+    return timeLe(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33726() {
-    return intervalLt(intervalInput(null), intervalInput("1 mon"));
+    return timeGt(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33727() {
-    return intervalLt(intervalInput("infinity"), intervalInput("1 year"));
+    return timeGe(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33728() {
-    return intervalLe(intervalInput("1 year"), intervalInput("1 mon"));
+    return timeEq(timeInput(null), timeInput("12:00:00"));
 }
 export function evaluate33729() {
-    return intervalLe(intervalInput(null), intervalInput("1 mon"));
+    return timeNe(timeInput(null), timeInput("12:00:00"));
 }
 export function evaluate33730() {
-    return intervalLe(intervalInput("infinity"), intervalInput("1 year"));
+    return timeLt(timeInput(null), timeInput("12:00:00"));
 }
 export function evaluate33731() {
-    return intervalGt(intervalInput("1 year"), intervalInput("1 mon"));
+    return timeLe(timeInput(null), timeInput("12:00:00"));
 }
 export function evaluate33732() {
-    return intervalGt(intervalInput(null), intervalInput("1 mon"));
+    return timeGt(timeInput(null), timeInput("12:00:00"));
 }
 export function evaluate33733() {
-    return intervalGt(intervalInput("infinity"), intervalInput("1 year"));
+    return timeGe(timeInput(null), timeInput("12:00:00"));
 }
 export function evaluate33734() {
-    return intervalGe(intervalInput("1 year"), intervalInput("1 mon"));
+    return timeEq(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate33735() {
-    return intervalGe(intervalInput(null), intervalInput("1 mon"));
+    return timeEq(timeInput(null), timeInput("18:00:00"));
 }
 export function evaluate33736() {
-    return intervalGe(intervalInput("infinity"), intervalInput("1 year"));
+    return timeEq(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33737() {
-    return intervalCompare(intervalInput("1 year"), intervalInput("360 days"));
+    return timeNe(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate33738() {
-    return intervalCompare(intervalInput("1 year"), intervalInput("1 mon"));
+    return timeNe(timeInput(null), timeInput("18:00:00"));
 }
 export function evaluate33739() {
-    return intervalCompare(intervalInput(null), intervalInput("1 year"));
+    return timeNe(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33740() {
-    return dateFinite(dateInput("2020-01-01"));
+    return timeLt(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate33741() {
-    return dateFinite(dateInput("infinity"));
+    return timeLt(timeInput(null), timeInput("18:00:00"));
 }
 export function evaluate33742() {
-    return dateFinite(dateInput(null));
+    return timeLt(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33743() {
-    return timestampFinite(timestampInput("2020-01-02 03:04:05"));
+    return timeLe(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate33744() {
-    return timestampFinite(timestampInput("infinity"));
+    return timeLe(timeInput(null), timeInput("18:00:00"));
 }
 export function evaluate33745() {
-    return intervalFinite(intervalInput("1 year"));
+    return timeLe(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33746() {
-    return intervalFinite(intervalInput("infinity"));
+    return timeGt(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate33747() {
-    return makeDate(int4Input("2020"), int4Input("1"), int4Input("2"));
+    return timeGt(timeInput(null), timeInput("18:00:00"));
 }
 export function evaluate33748() {
-    return makeDate(int4Input("-1"), int4Input("1"), int4Input("1"));
+    return timeGt(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33749() {
-    return makeDate(int4Input("2023"), int4Input("2"), int4Input("29"));
+    return timeGe(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate33750() {
-    return makeTime(int4Input("12"), int4Input("34"), float8Input("404c400000000000"));
+    return timeGe(timeInput(null), timeInput("18:00:00"));
 }
 export function evaluate33751() {
-    return makeTime(int4Input("24"), int4Input("0"), float8Input("3fb999999999999a"));
+    return timeGe(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33752() {
-    return makeTimestamp(int4Input("2020"), int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4"), float8Input("4016000000000000"));
+    return timeCompare(timeInput("12:00:00"), timeInput("12:00:00"));
 }
 export function evaluate33753() {
-    return makeInterval(int4Input("1"), int4Input("2"), int4Input("0"), int4Input("3"), int4Input("4"), int4Input("5"), float8Input("401a000000000000"));
+    return timeCompare(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate33754() {
-    return sqlIsNull(dateInput(null));
+    return timeCompare(timeInput(null), timeInput("12:00:00"));
 }
 export function evaluate33755() {
-    return sqlCase(() => dateInput("2020-01-01"), [() => booleanInput(true), () => dateInput("2020-01-02")]);
+    return timestampEq(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33756() {
-    return sqlCoalesce(() => dateInput(null), () => dateInput("2020-01-02"));
+    return timestampNe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33757() {
-    return sqlCase(() => timeInput("12:00:00"), [() => booleanInput(true), () => timeInput("18:00:00")]);
+    return timestampLt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33758() {
-    return sqlCoalesce(() => timestampInput(null), () => timestampInput("2020-01-02 03:04:05"));
+    return timestampLe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33759() {
-    return sqlCase(() => intervalInput("1 mon"), [() => booleanInput(false), () => intervalInput("1 year")]);
+    return timestampGt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33760() {
-    return timestamptzInput(null);
+    return timestampGe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33761() {
-    return timestamptzInput("2020-01-02 03:04:05");
+    return timestampEq(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33762() {
-    return timestamptzInput("2020-01-02 03:04:05+00");
+    return timestampNe(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33763() {
-    return timestamptzInput("2020-01-02 03:04:05+01");
+    return timestampLt(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33764() {
-    return timestamptzInput("2020-01-02 03:04:05-05");
+    return timestampLe(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33765() {
-    return timestamptzInput("2020-01-02 03:04:05+05:30");
+    return timestampGt(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33766() {
-    return timestamptzInput("2020-01-02 03:04:05+0530");
+    return timestampGe(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33767() {
-    return timestamptzInput("2020-01-02 03:04:05Z");
+    return timestampEq(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33768() {
-    return timestamptzInput("2020-01-02 03:04:05 UTC");
+    return timestampNe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33769() {
-    return timestamptzInput("2020-01-02T03:04:05+00");
+    return timestampLt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33770() {
-    return timestamptzInput("2020-01-02 24:00:00+00");
+    return timestampLe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33771() {
-    return timestamptzInput("2020-01-02 03:04:05.123456+00");
+    return timestampGt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33772() {
-    return timestamptzInput("infinity");
+    return timestampGe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33773() {
-    return timestamptzInput("-infinity");
+    return timestampEq(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33774() {
-    return timestamptzInput("0001-01-01 00:00:00 BC");
+    return timestampNe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33775() {
-    return timestamptzInput("not-a-timestamptz");
+    return timestampLt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33776() {
-    return timestamptzInput("2020-01-02 03:04:05+16");
+    return timestampLe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33777() {
-    return timestamptzInput("2020-01-02 12:60:00+00");
+    return timestampGt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33778() {
-    return timetzInput(null);
+    return timestampGe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33779() {
-    return timetzInput("12:00:00");
+    return timestampEq(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33780() {
-    return timetzInput("12:00:00+00");
+    return timestampNe(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33781() {
-    return timetzInput("12:00:00+01");
+    return timestampLt(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33782() {
-    return timetzInput("12:00:00-05:30");
+    return timestampLe(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33783() {
-    return timetzInput("12:00:00Z");
+    return timestampGt(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33784() {
-    return timetzInput("12:00+00");
+    return timestampGe(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33785() {
-    return timetzInput("24:00:00+00");
+    return timestampEq(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33786() {
-    return timetzInput("12:00:00+00:00:01");
+    return timestampEq(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33787() {
-    return timetzInput("not-a-timetz");
+    return timestampEq(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33788() {
-    return timetzInput("12:60:00+00");
+    return timestampNe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33789() {
-    return timetzInput("12:00:00+16");
+    return timestampNe(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33790() {
-    return timetzInput("12:00:00+00:60");
+    return timestampNe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33791() {
-    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return timestampLt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33792() {
-    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return timestampLt(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33793() {
-    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return timestampLt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33794() {
-    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return timestampLe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33795() {
-    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return timestampLe(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33796() {
-    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return timestampLe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33797() {
-    return timestamptzEq(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timestampGt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33798() {
-    return timestamptzNe(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timestampGt(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33799() {
-    return timestamptzLt(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timestampGt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33800() {
-    return timestamptzLe(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timestampGe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33801() {
-    return timestamptzGt(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timestampGe(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33802() {
-    return timestamptzGe(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timestampGe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33803() {
-    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timestampCompare(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33804() {
-    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timestampCompare(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate33805() {
-    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timestampCompare(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33806() {
-    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalEq(intervalInput("1 year"), intervalInput("360 days"));
 }
 export function evaluate33807() {
-    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalNe(intervalInput("1 year"), intervalInput("360 days"));
 }
 export function evaluate33808() {
-    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalLt(intervalInput("1 year"), intervalInput("360 days"));
 }
 export function evaluate33809() {
-    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+    return intervalLe(intervalInput("1 year"), intervalInput("360 days"));
 }
 export function evaluate33810() {
-    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+    return intervalGt(intervalInput("1 year"), intervalInput("360 days"));
 }
 export function evaluate33811() {
-    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+    return intervalGe(intervalInput("1 year"), intervalInput("360 days"));
 }
 export function evaluate33812() {
-    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+    return intervalEq(intervalInput("1 mon"), intervalInput("30 days"));
 }
 export function evaluate33813() {
-    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+    return intervalNe(intervalInput("1 mon"), intervalInput("30 days"));
 }
 export function evaluate33814() {
-    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+    return intervalLt(intervalInput("1 mon"), intervalInput("30 days"));
 }
 export function evaluate33815() {
-    return timestamptzEq(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalLe(intervalInput("1 mon"), intervalInput("30 days"));
 }
 export function evaluate33816() {
-    return timestamptzNe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalGt(intervalInput("1 mon"), intervalInput("30 days"));
 }
 export function evaluate33817() {
-    return timestamptzLt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalGe(intervalInput("1 mon"), intervalInput("30 days"));
 }
 export function evaluate33818() {
-    return timestamptzLe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalEq(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate33819() {
-    return timestamptzGt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalNe(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate33820() {
-    return timestamptzGe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalLt(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate33821() {
-    return timestamptzEq(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalLe(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate33822() {
-    return timestamptzNe(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalGt(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate33823() {
-    return timestamptzLt(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalGe(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate33824() {
-    return timestamptzLe(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalEq(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate33825() {
-    return timestamptzGt(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalNe(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate33826() {
-    return timestamptzGe(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalLt(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate33827() {
-    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return intervalLe(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate33828() {
-    return timestamptzEq(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+    return intervalGt(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate33829() {
-    return timestamptzEq(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalGe(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate33830() {
-    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return intervalEq(intervalInput(null), intervalInput("1 year"));
 }
 export function evaluate33831() {
-    return timestamptzNe(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+    return intervalNe(intervalInput(null), intervalInput("1 year"));
 }
 export function evaluate33832() {
-    return timestamptzNe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalLt(intervalInput(null), intervalInput("1 year"));
 }
 export function evaluate33833() {
-    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return intervalLe(intervalInput(null), intervalInput("1 year"));
 }
 export function evaluate33834() {
-    return timestamptzLt(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+    return intervalGt(intervalInput(null), intervalInput("1 year"));
 }
 export function evaluate33835() {
-    return timestamptzLt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalGe(intervalInput(null), intervalInput("1 year"));
 }
 export function evaluate33836() {
-    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return intervalEq(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate33837() {
-    return timestamptzLe(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+    return intervalEq(intervalInput(null), intervalInput("1 mon"));
 }
 export function evaluate33838() {
-    return timestamptzLe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalEq(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate33839() {
-    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return intervalNe(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate33840() {
-    return timestamptzGt(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+    return intervalNe(intervalInput(null), intervalInput("1 mon"));
 }
 export function evaluate33841() {
-    return timestamptzGt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalNe(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate33842() {
-    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return intervalLt(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate33843() {
-    return timestamptzGe(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+    return intervalLt(intervalInput(null), intervalInput("1 mon"));
 }
 export function evaluate33844() {
-    return timestamptzGe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalLt(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate33845() {
-    return timestamptzCompare(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+    return intervalLe(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate33846() {
-    return timestamptzCompare(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return intervalLe(intervalInput(null), intervalInput("1 mon"));
 }
 export function evaluate33847() {
-    return timestamptzCompare(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+    return intervalLe(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate33848() {
-    return timetzEq(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return intervalGt(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate33849() {
-    return timetzNe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return intervalGt(intervalInput(null), intervalInput("1 mon"));
 }
 export function evaluate33850() {
-    return timetzLt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return intervalGt(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate33851() {
-    return timetzLe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return intervalGe(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate33852() {
-    return timetzGt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return intervalGe(intervalInput(null), intervalInput("1 mon"));
 }
 export function evaluate33853() {
-    return timetzGe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return intervalGe(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate33854() {
-    return timetzEq(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+    return intervalCompare(intervalInput("1 year"), intervalInput("360 days"));
 }
 export function evaluate33855() {
-    return timetzNe(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+    return intervalCompare(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate33856() {
-    return timetzLt(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+    return intervalCompare(intervalInput(null), intervalInput("1 year"));
 }
 export function evaluate33857() {
-    return timetzLe(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+    return dateFinite(dateInput("2020-01-01"));
 }
 export function evaluate33858() {
-    return timetzGt(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+    return dateFinite(dateInput("infinity"));
 }
 export function evaluate33859() {
-    return timetzGe(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+    return dateFinite(dateInput(null));
 }
 export function evaluate33860() {
-    return timetzEq(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+    return timestampFinite(timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33861() {
-    return timetzNe(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+    return timestampFinite(timestampInput("infinity"));
 }
 export function evaluate33862() {
-    return timetzLt(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+    return intervalFinite(intervalInput("1 year"));
 }
 export function evaluate33863() {
-    return timetzLe(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+    return intervalFinite(intervalInput("infinity"));
 }
 export function evaluate33864() {
-    return timetzGt(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+    return makeDate(int4Input("2020"), int4Input("1"), int4Input("2"));
 }
 export function evaluate33865() {
-    return timetzGe(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+    return makeDate(int4Input("-1"), int4Input("1"), int4Input("1"));
 }
 export function evaluate33866() {
-    return timetzEq(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return makeDate(int4Input("2023"), int4Input("2"), int4Input("29"));
 }
 export function evaluate33867() {
-    return timetzNe(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return makeTime(int4Input("12"), int4Input("34"), float8Input("404c400000000000"));
 }
 export function evaluate33868() {
-    return timetzLt(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return makeTime(int4Input("24"), int4Input("0"), float8Input("3fb999999999999a"));
 }
 export function evaluate33869() {
-    return timetzLe(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return makeTimestamp(int4Input("2020"), int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4"), float8Input("4016000000000000"));
 }
 export function evaluate33870() {
-    return timetzGt(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return makeInterval(int4Input("1"), int4Input("2"), int4Input("0"), int4Input("3"), int4Input("4"), int4Input("5"), float8Input("401a000000000000"));
 }
 export function evaluate33871() {
-    return timetzGe(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return sqlIsNull(dateInput(null));
 }
 export function evaluate33872() {
-    return timetzEq(timetzInput(null), timetzInput("12:00:00+00"));
+    return sqlCase(() => dateInput("2020-01-01"), [() => booleanInput(true), () => dateInput("2020-01-02")]);
 }
 export function evaluate33873() {
-    return timetzNe(timetzInput(null), timetzInput("12:00:00+00"));
+    return sqlCoalesce(() => dateInput(null), () => dateInput("2020-01-02"));
 }
 export function evaluate33874() {
-    return timetzLt(timetzInput(null), timetzInput("12:00:00+00"));
+    return sqlCase(() => timeInput("12:00:00"), [() => booleanInput(true), () => timeInput("18:00:00")]);
 }
 export function evaluate33875() {
-    return timetzLe(timetzInput(null), timetzInput("12:00:00+00"));
+    return sqlCoalesce(() => timestampInput(null), () => timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate33876() {
-    return timetzGt(timetzInput(null), timetzInput("12:00:00+00"));
+    return sqlCase(() => intervalInput("1 mon"), [() => booleanInput(false), () => intervalInput("1 year")]);
 }
 export function evaluate33877() {
-    return timetzGe(timetzInput(null), timetzInput("12:00:00+00"));
+    return timestamptzInput(null);
 }
 export function evaluate33878() {
-    return timetzEq(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return timestamptzInput("2020-01-02 03:04:05");
 }
 export function evaluate33879() {
-    return timetzEq(timetzInput(null), timetzInput("18:00:00+00"));
+    return timestamptzInput("2020-01-02 03:04:05+00");
 }
 export function evaluate33880() {
-    return timetzNe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return timestamptzInput("2020-01-02 03:04:05+01");
 }
 export function evaluate33881() {
-    return timetzNe(timetzInput(null), timetzInput("18:00:00+00"));
+    return timestamptzInput("2020-01-02 03:04:05-05");
 }
 export function evaluate33882() {
-    return timetzLt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return timestamptzInput("2020-01-02 03:04:05+05:30");
 }
 export function evaluate33883() {
-    return timetzLt(timetzInput(null), timetzInput("18:00:00+00"));
+    return timestamptzInput("2020-01-02 03:04:05+0530");
 }
 export function evaluate33884() {
-    return timetzLe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return timestamptzInput("2020-01-02 03:04:05Z");
 }
 export function evaluate33885() {
-    return timetzLe(timetzInput(null), timetzInput("18:00:00+00"));
+    return timestamptzInput("2020-01-02 03:04:05 UTC");
 }
 export function evaluate33886() {
-    return timetzGt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return timestamptzInput("2020-01-02T03:04:05+00");
 }
 export function evaluate33887() {
-    return timetzGt(timetzInput(null), timetzInput("18:00:00+00"));
+    return timestamptzInput("2020-01-02 24:00:00+00");
 }
 export function evaluate33888() {
-    return timetzGe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return timestamptzInput("2020-01-02 03:04:05.123456+00");
 }
 export function evaluate33889() {
-    return timetzGe(timetzInput(null), timetzInput("18:00:00+00"));
+    return timestamptzInput("infinity");
 }
 export function evaluate33890() {
-    return timetzCompare(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+    return timestamptzInput("-infinity");
 }
 export function evaluate33891() {
-    return timetzCompare(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return timestamptzInput("0001-01-01 00:00:00 BC");
 }
 export function evaluate33892() {
-    return timetzCompare(timetzInput(null), timetzInput("12:00:00+00"));
+    return timestamptzInput("not-a-timestamptz");
 }
 export function evaluate33893() {
-    return timestamptzFinite(timestamptzInput("2020-01-01 12:00:00+00"));
+    return timestamptzInput("2020-01-02 03:04:05+16");
 }
 export function evaluate33894() {
-    return timestamptzFinite(timestamptzInput("infinity"));
+    return timestamptzInput("2020-01-02 12:60:00+00");
 }
 export function evaluate33895() {
-    return timestamptzFinite(timestamptzInput(null));
+    return timetzInput(null);
 }
 export function evaluate33896() {
-    return makeTimestamptz(int4Input("2020"), int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4"), float8Input("4016000000000000"));
+    return timetzInput("12:00:00");
 }
 export function evaluate33897() {
-    return sqlCoalesce(() => timestamptzInput(null), () => timestamptzInput("2020-01-01 12:00:00+00"));
+    return timetzInput("12:00:00+00");
 }
 export function evaluate33898() {
-    return sqlCase(() => timetzInput("12:00:00+00"), [() => booleanInput(true), () => timetzInput("18:00:00+00")]);
+    return timetzInput("12:00:00+01");
 }
 export function evaluate33899() {
-    return extractTimestamp(textInput("microsecond"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzInput("12:00:00-05:30");
 }
 export function evaluate33900() {
-    return extractTimestamp(textInput("millisecond"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzInput("12:00:00Z");
 }
 export function evaluate33901() {
-    return extractTimestamp(textInput("second"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzInput("12:00+00");
 }
 export function evaluate33902() {
-    return extractTimestamp(textInput("minute"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzInput("24:00:00+00");
 }
 export function evaluate33903() {
-    return extractTimestamp(textInput("hour"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzInput("12:00:00+00:00:01");
 }
 export function evaluate33904() {
-    return extractTimestamp(textInput("day"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzInput("not-a-timetz");
 }
 export function evaluate33905() {
-    return extractTimestamp(textInput("month"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzInput("12:60:00+00");
 }
 export function evaluate33906() {
-    return extractTimestamp(textInput("quarter"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzInput("12:00:00+16");
 }
 export function evaluate33907() {
-    return extractTimestamp(textInput("week"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzInput("12:00:00+00:60");
 }
 export function evaluate33908() {
-    return extractTimestamp(textInput("year"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33909() {
-    return extractTimestamp(textInput("decade"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33910() {
-    return extractTimestamp(textInput("century"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33911() {
-    return extractTimestamp(textInput("millennium"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33912() {
-    return extractTimestamp(textInput("julian"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33913() {
-    return extractTimestamp(textInput("isoyear"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33914() {
-    return extractTimestamp(textInput("dow"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzEq(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33915() {
-    return extractTimestamp(textInput("isodow"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzNe(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33916() {
-    return extractTimestamp(textInput("doy"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzLt(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33917() {
-    return extractTimestamp(textInput("epoch"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzLe(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33918() {
-    return extractTimestamp(textInput("YEAR"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzGt(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33919() {
-    return extractTimestamp(textInput("microseconds"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzGe(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33920() {
-    return extractTimestamp(textInput("timezone"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33921() {
-    return extractTimestamp(textInput(null), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33922() {
-    return extractTimestamp(textInput("year"), timestampInput(null));
+    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33923() {
-    return extractTimestamp(textInput("year"), timestampInput("infinity"));
+    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33924() {
-    return extractTimestamp(textInput("hour"), timestampInput("infinity"));
+    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33925() {
-    return extractTimestamp(textInput("epoch"), timestampInput("-infinity"));
+    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33926() {
-    return extractTimestamp(textInput("bogus"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
 }
 export function evaluate33927() {
-    return extractTimestamp(textInput("now"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
 }
 export function evaluate33928() {
-    return datePartTimestamp(textInput("year"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
 }
 export function evaluate33929() {
-    return datePartTimestamp(textInput("second"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
 }
 export function evaluate33930() {
-    return datePartTimestamp(textInput("epoch"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
 }
 export function evaluate33931() {
-    return datePartTimestamp(textInput("hour"), timestampInput("infinity"));
+    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
 }
 export function evaluate33932() {
-    return extractDate(textInput("year"), dateInput("2020-01-02"));
+    return timestamptzEq(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33933() {
-    return extractDate(textInput("epoch"), dateInput("2020-01-02"));
+    return timestamptzNe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33934() {
-    return extractDate(textInput("dow"), dateInput("2020-01-02"));
+    return timestamptzLt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33935() {
-    return extractDate(textInput("hour"), dateInput("2020-01-02"));
+    return timestamptzLe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33936() {
-    return extractDate(textInput("year"), dateInput("infinity"));
+    return timestamptzGt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33937() {
-    return extractDate(textInput("month"), dateInput("infinity"));
+    return timestamptzGe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33938() {
-    return extractDate(textInput("julian"), dateInput("-infinity"));
+    return timestamptzEq(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33939() {
-    return extractDate(textInput("year"), dateInput(null));
+    return timestamptzNe(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33940() {
-    return datePartDate(textInput("year"), dateInput("2020-01-02"));
+    return timestamptzLt(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33941() {
-    return datePartDate(textInput("hour"), dateInput("2020-01-02"));
+    return timestamptzLe(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33942() {
-    return datePartDate(textInput("hour"), dateInput("infinity"));
+    return timestamptzGt(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33943() {
-    return extractTime(textInput("hour"), timeInput("12:34:56.123456"));
+    return timestamptzGe(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33944() {
-    return extractTime(textInput("second"), timeInput("12:34:56.123456"));
+    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33945() {
-    return extractTime(textInput("epoch"), timeInput("12:34:56.123456"));
+    return timestamptzEq(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33946() {
-    return extractTime(textInput("timezone"), timeInput("12:34:56.123456"));
+    return timestamptzEq(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33947() {
-    return extractTime(textInput("day"), timeInput("12:34:56.123456"));
+    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33948() {
-    return extractTime(textInput("hour"), timeInput(null));
+    return timestamptzNe(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33949() {
-    return datePartTime(textInput("millisecond"), timeInput("12:34:56.123456"));
+    return timestamptzNe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33950() {
-    return extractTimetz(textInput("timezone"), timetzInput("12:34:56.123456+01:30"));
+    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33951() {
-    return extractTimetz(textInput("timezone_hour"), timetzInput("12:34:56.123456+01:30"));
+    return timestamptzLt(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33952() {
-    return extractTimetz(textInput("timezone_minute"), timetzInput("12:34:56.123456+01:30"));
+    return timestamptzLt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33953() {
-    return extractTimetz(textInput("epoch"), timetzInput("12:34:56.123456+01:30"));
+    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33954() {
-    return extractTimetz(textInput("hour"), timetzInput("12:34:56.123456+01:30"));
+    return timestamptzLe(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33955() {
-    return extractTimetz(textInput("timezone"), timetzInput(null));
+    return timestamptzLe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33956() {
-    return datePartTimetz(textInput("timezone"), timetzInput("12:34:56.123456+01:30"));
+    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33957() {
-    return extractInterval(textInput("year"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return timestamptzGt(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33958() {
-    return extractInterval(textInput("month"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return timestamptzGt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33959() {
-    return extractInterval(textInput("day"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33960() {
-    return extractInterval(textInput("hour"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return timestamptzGe(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33961() {
-    return extractInterval(textInput("second"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return timestamptzGe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33962() {
-    return extractInterval(textInput("week"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return timestamptzCompare(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
 }
 export function evaluate33963() {
-    return extractInterval(textInput("quarter"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return timestamptzCompare(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate33964() {
-    return extractInterval(textInput("quarter"), intervalInput("-13 mons"));
+    return timestamptzCompare(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate33965() {
-    return extractInterval(textInput("epoch"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return timetzEq(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
 }
 export function evaluate33966() {
-    return extractInterval(textInput("hour"), intervalInput("infinity"));
+    return timetzNe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
 }
 export function evaluate33967() {
-    return extractInterval(textInput("month"), intervalInput("infinity"));
+    return timetzLt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
 }
 export function evaluate33968() {
-    return extractInterval(textInput("year"), intervalInput(null));
+    return timetzLe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
 }
 export function evaluate33969() {
-    return datePartInterval(textInput("epoch"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return timetzGt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
 }
 export function evaluate33970() {
-    return extractTimestamptz(textInput("hour"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timetzGe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
 }
 export function evaluate33971() {
-    return extractTimestamptz(textInput("timezone"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timetzEq(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
 }
 export function evaluate33972() {
-    return extractTimestamptz(textInput("epoch"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timetzNe(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
 }
 export function evaluate33973() {
-    return extractTimestamptz(textInput("hour"), timestamptzInput(null));
+    return timetzLt(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
 }
 export function evaluate33974() {
-    return datePartTimestamptz(textInput("year"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timetzLe(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
 }
 export function evaluate33975() {
-    return dateTruncTimestamp(textInput("microsecond"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzGt(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
 }
 export function evaluate33976() {
-    return dateTruncTimestamp(textInput("millisecond"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzGe(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
 }
 export function evaluate33977() {
-    return dateTruncTimestamp(textInput("second"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzEq(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
 }
 export function evaluate33978() {
-    return dateTruncTimestamp(textInput("minute"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzNe(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
 }
 export function evaluate33979() {
-    return dateTruncTimestamp(textInput("hour"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzLt(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
 }
 export function evaluate33980() {
-    return dateTruncTimestamp(textInput("day"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzLe(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
 }
 export function evaluate33981() {
-    return dateTruncTimestamp(textInput("month"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzGt(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
 }
 export function evaluate33982() {
-    return dateTruncTimestamp(textInput("quarter"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzGe(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
 }
 export function evaluate33983() {
-    return dateTruncTimestamp(textInput("week"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzEq(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
 }
 export function evaluate33984() {
-    return dateTruncTimestamp(textInput("year"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzNe(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
 }
 export function evaluate33985() {
-    return dateTruncTimestamp(textInput("decade"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzLt(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
 }
 export function evaluate33986() {
-    return dateTruncTimestamp(textInput("century"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzLe(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
 }
 export function evaluate33987() {
-    return dateTruncTimestamp(textInput("millennium"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzGt(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
 }
 export function evaluate33988() {
-    return dateTruncTimestamp(textInput("year"), timestampInput("infinity"));
+    return timetzGe(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
 }
 export function evaluate33989() {
-    return dateTruncTimestamp(textInput("week"), timestampInput("2021-01-01 15:00:00"));
+    return timetzEq(timetzInput(null), timetzInput("12:00:00+00"));
 }
 export function evaluate33990() {
-    return dateTruncTimestamp(textInput("epoch"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timetzNe(timetzInput(null), timetzInput("12:00:00+00"));
 }
 export function evaluate33991() {
-    return dateTruncTimestamp(textInput("day"), timestampInput(null));
+    return timetzLt(timetzInput(null), timetzInput("12:00:00+00"));
 }
 export function evaluate33992() {
-    return dateTruncTimestamptz(textInput("day"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timetzLe(timetzInput(null), timetzInput("12:00:00+00"));
 }
 export function evaluate33993() {
-    return dateTruncTimestamptz(textInput("hour"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timetzGt(timetzInput(null), timetzInput("12:00:00+00"));
 }
 export function evaluate33994() {
-    return dateTruncInterval(textInput("year"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return timetzGe(timetzInput(null), timetzInput("12:00:00+00"));
 }
 export function evaluate33995() {
-    return dateTruncInterval(textInput("month"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return timetzEq(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
 }
 export function evaluate33996() {
-    return dateTruncInterval(textInput("day"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return timetzEq(timetzInput(null), timetzInput("18:00:00+00"));
 }
 export function evaluate33997() {
-    return dateTruncInterval(textInput("hour"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return timetzNe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
 }
 export function evaluate33998() {
-    return dateTruncInterval(textInput("second"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return timetzNe(timetzInput(null), timetzInput("18:00:00+00"));
 }
 export function evaluate33999() {
-    return dateTruncInterval(textInput("millennium"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return timetzLt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
 }
 export function evaluate34000() {
-    return dateTruncInterval(textInput("week"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return timetzLt(timetzInput(null), timetzInput("18:00:00+00"));
 }
 export function evaluate34001() {
-    return dateTruncInterval(textInput("year"), intervalInput("infinity"));
+    return timetzLe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
 }
 export function evaluate34002() {
-    return dateTruncInterval(textInput("day"), intervalInput(null));
+    return timetzLe(timetzInput(null), timetzInput("18:00:00+00"));
 }
 export function evaluate34003() {
-    return extractDate(textInput("year"), dateInput("0001-01-01 BC"));
+    return timetzGt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
 }
 export function evaluate34004() {
-    return dateTruncTimestamp(textInput("millennium"), timestampInput("0001-01-01 BC"));
+    return timetzGt(timetzInput(null), timetzInput("18:00:00+00"));
 }
 export function evaluate34005() {
-    return datePlInt(dateInput("2020-01-02"), int4Input("3"));
+    return timetzGe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
 }
 export function evaluate34006() {
-    return datePlInt(dateInput("2020-01-02"), int4Input("3"));
+    return timetzGe(timetzInput(null), timetzInput("18:00:00+00"));
 }
 export function evaluate34007() {
-    return intPlDate(int4Input("3"), dateInput("2020-01-02"));
+    return timetzCompare(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
 }
 export function evaluate34008() {
-    return intPlDate(int4Input("3"), dateInput("2020-01-02"));
+    return timetzCompare(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
 }
 export function evaluate34009() {
-    return datePlInt(dateInput("2020-01-02"), int4Input(null));
+    return timetzCompare(timetzInput(null), timetzInput("12:00:00+00"));
 }
 export function evaluate34010() {
-    return datePlInt(dateInput("infinity"), int4Input("3"));
+    return timestamptzFinite(timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34011() {
-    return dateMiInt(dateInput("2020-01-02"), int4Input("3"));
+    return timestamptzFinite(timestamptzInput("infinity"));
 }
 export function evaluate34012() {
-    return dateMiInt(dateInput("2020-01-02"), int4Input("3"));
+    return timestamptzFinite(timestamptzInput(null));
 }
 export function evaluate34013() {
-    return dateMiDate(dateInput("2020-01-02"), dateInput("2020-01-01"));
+    return makeTimestamptz(int4Input("2020"), int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4"), float8Input("4016000000000000"));
 }
 export function evaluate34014() {
-    return dateMiDate(dateInput("2020-01-02"), dateInput("2020-01-01"));
+    return sqlCoalesce(() => timestamptzInput(null), () => timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34015() {
-    return dateMiDate(dateInput("infinity"), dateInput("2020-01-01"));
+    return sqlCase(() => timetzInput("12:00:00+00"), [() => booleanInput(true), () => timetzInput("18:00:00+00")]);
 }
 export function evaluate34016() {
-    return datePlInterval(dateInput("2020-01-31"), intervalInput("1 month"));
+    return extractTimestamp(textInput("microsecond"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34017() {
-    return datePlInterval(dateInput("2020-01-31"), intervalInput("1 month"));
+    return extractTimestamp(textInput("millisecond"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34018() {
-    return intervalPlDate(intervalInput("1 month"), dateInput("2020-01-31"));
+    return extractTimestamp(textInput("second"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34019() {
-    return dateMiInterval(dateInput("2020-02-29"), intervalInput("1 month"));
+    return extractTimestamp(textInput("minute"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34020() {
-    return intervalPlDate(intervalInput("1 month"), dateInput("2020-01-31"));
+    return extractTimestamp(textInput("hour"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34021() {
-    return dateMiInterval(dateInput("2020-02-29"), intervalInput("1 month"));
+    return extractTimestamp(textInput("day"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34022() {
-    return datePlTime(dateInput("2020-01-02"), timeInput("12:00:00"));
+    return extractTimestamp(textInput("month"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34023() {
-    return datePlTime(dateInput("2020-01-02"), timeInput("12:00:00"));
+    return extractTimestamp(textInput("quarter"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34024() {
-    return timePlDate(timeInput("12:00:00"), dateInput("2020-01-02"));
+    return extractTimestamp(textInput("week"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34025() {
-    return timePlDate(timeInput("12:00:00"), dateInput("2020-01-02"));
+    return extractTimestamp(textInput("year"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34026() {
-    return datePlTimetz(dateInput("2020-01-02"), timetzInput("12:00:00+01"));
+    return extractTimestamp(textInput("decade"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34027() {
-    return datePlTimetz(dateInput("2020-01-02"), timetzInput("12:00:00+01"));
+    return extractTimestamp(textInput("century"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34028() {
-    return timetzPlDate(timetzInput("12:00:00+01"), dateInput("2020-01-02"));
+    return extractTimestamp(textInput("millennium"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34029() {
-    return timetzPlDate(timetzInput("12:00:00+01"), dateInput("2020-01-02"));
+    return extractTimestamp(textInput("julian"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34030() {
-    return datePlInterval(dateInput("2020-01-02"), intervalInput(null));
+    return extractTimestamp(textInput("isoyear"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34031() {
-    return timestampPlInterval(timestampInput("2020-06-15 12:34:56.123456"), intervalInput("1 month"));
+    return extractTimestamp(textInput("dow"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34032() {
-    return timestampPlInterval(timestampInput("2020-06-15 12:34:56.123456"), intervalInput("1 month"));
+    return extractTimestamp(textInput("isodow"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34033() {
-    return intervalPlTimestamp(intervalInput("1 month"), timestampInput("2020-06-15 12:34:56.123456"));
+    return extractTimestamp(textInput("doy"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34034() {
-    return intervalPlTimestamp(intervalInput("1 month"), timestampInput("2020-06-15 12:34:56.123456"));
+    return extractTimestamp(textInput("epoch"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34035() {
-    return timestampMiInterval(timestampInput("2020-06-15 12:34:56.123456"), intervalInput("1 day"));
+    return extractTimestamp(textInput("YEAR"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34036() {
-    return timestampMiInterval(timestampInput("2020-06-15 12:34:56.123456"), intervalInput("1 day"));
+    return extractTimestamp(textInput("microseconds"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34037() {
-    return timestampMiTimestamp(timestampInput("2020-01-02 15:00:00"), timestampInput("2020-01-02 00:00:00"));
+    return extractTimestamp(textInput("timezone"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34038() {
-    return timestampMiTimestamp(timestampInput("2020-01-02 15:00:00"), timestampInput("2020-01-02 00:00:00"));
+    return extractTimestamp(textInput(null), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34039() {
-    return timestampPlInterval(timestampInput("infinity"), intervalInput("1 month"));
+    return extractTimestamp(textInput("year"), timestampInput(null));
 }
 export function evaluate34040() {
-    return timestampPlInterval(timestampInput("infinity"), intervalInput("infinity"));
+    return extractTimestamp(textInput("year"), timestampInput("infinity"));
 }
 export function evaluate34041() {
-    return timestampMiTimestamp(timestampInput("infinity"), timestampInput("infinity"));
+    return extractTimestamp(textInput("hour"), timestampInput("infinity"));
 }
 export function evaluate34042() {
-    return timestamptzPlInterval(timestamptzInput("2020-01-01 12:00:00+00"), intervalInput("02:00:00"));
+    return extractTimestamp(textInput("epoch"), timestampInput("-infinity"));
 }
 export function evaluate34043() {
-    return timestamptzPlInterval(timestamptzInput("2020-01-01 12:00:00+00"), intervalInput("02:00:00"));
+    return extractTimestamp(textInput("bogus"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34044() {
-    return intervalPlTimestamptz(intervalInput("02:00:00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return extractTimestamp(textInput("now"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34045() {
-    return intervalPlTimestamptz(intervalInput("02:00:00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return datePartTimestamp(textInput("year"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34046() {
-    return timestamptzMiInterval(timestamptzInput("2020-01-01 12:00:00+00"), intervalInput("02:00:00"));
+    return datePartTimestamp(textInput("second"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34047() {
-    return timestamptzMiInterval(timestamptzInput("2020-01-01 12:00:00+00"), intervalInput("02:00:00"));
+    return datePartTimestamp(textInput("epoch"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34048() {
-    return timestamptzMiTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return datePartTimestamp(textInput("hour"), timestampInput("infinity"));
 }
 export function evaluate34049() {
-    return timestamptzMiTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return extractDate(textInput("year"), dateInput("2020-01-02"));
 }
 export function evaluate34050() {
-    return timePlInterval(timeInput("23:00:00"), intervalInput("02:00:00"));
+    return extractDate(textInput("epoch"), dateInput("2020-01-02"));
 }
 export function evaluate34051() {
-    return timePlInterval(timeInput("23:00:00"), intervalInput("02:00:00"));
+    return extractDate(textInput("dow"), dateInput("2020-01-02"));
 }
 export function evaluate34052() {
-    return intervalPlTime(intervalInput("02:00:00"), timeInput("23:00:00"));
+    return extractDate(textInput("hour"), dateInput("2020-01-02"));
 }
 export function evaluate34053() {
-    return intervalPlTime(intervalInput("02:00:00"), timeInput("23:00:00"));
+    return extractDate(textInput("year"), dateInput("infinity"));
 }
 export function evaluate34054() {
-    return timeMiInterval(timeInput("12:00:00"), intervalInput("02:00:00"));
+    return extractDate(textInput("month"), dateInput("infinity"));
 }
 export function evaluate34055() {
-    return timeMiInterval(timeInput("12:00:00"), intervalInput("02:00:00"));
+    return extractDate(textInput("julian"), dateInput("-infinity"));
 }
 export function evaluate34056() {
-    return timeMiTime(timeInput("18:00:00"), timeInput("12:00:00"));
+    return extractDate(textInput("year"), dateInput(null));
 }
 export function evaluate34057() {
-    return timeMiTime(timeInput("18:00:00"), timeInput("12:00:00"));
+    return datePartDate(textInput("year"), dateInput("2020-01-02"));
 }
 export function evaluate34058() {
-    return timePlInterval(timeInput("12:00:00"), intervalInput("infinity"));
+    return datePartDate(textInput("hour"), dateInput("2020-01-02"));
 }
 export function evaluate34059() {
-    return timetzPlInterval(timetzInput("12:00:00+01"), intervalInput("02:00:00"));
+    return datePartDate(textInput("hour"), dateInput("infinity"));
 }
 export function evaluate34060() {
-    return timetzPlInterval(timetzInput("12:00:00+01"), intervalInput("02:00:00"));
+    return extractTime(textInput("hour"), timeInput("12:34:56.123456"));
 }
 export function evaluate34061() {
-    return intervalPlTimetz(intervalInput("02:00:00"), timetzInput("12:00:00+01"));
+    return extractTime(textInput("second"), timeInput("12:34:56.123456"));
 }
 export function evaluate34062() {
-    return intervalPlTimetz(intervalInput("02:00:00"), timetzInput("12:00:00+01"));
+    return extractTime(textInput("epoch"), timeInput("12:34:56.123456"));
 }
 export function evaluate34063() {
-    return timetzMiInterval(timetzInput("12:00:00+01"), intervalInput("02:00:00"));
+    return extractTime(textInput("timezone"), timeInput("12:34:56.123456"));
 }
 export function evaluate34064() {
-    return timetzMiInterval(timetzInput("12:00:00+01"), intervalInput("02:00:00"));
+    return extractTime(textInput("day"), timeInput("12:34:56.123456"));
 }
 export function evaluate34065() {
-    return intervalPl(intervalInput("1 month"), intervalInput("1 day"));
+    return extractTime(textInput("hour"), timeInput(null));
 }
 export function evaluate34066() {
-    return intervalPl(intervalInput("1 month"), intervalInput("25 hours"));
+    return datePartTime(textInput("millisecond"), timeInput("12:34:56.123456"));
 }
 export function evaluate34067() {
-    return intervalMi(intervalInput("1 year 2 mons 3 days 04:05:06.7"), intervalInput("1 month"));
+    return extractTimetz(textInput("timezone"), timetzInput("12:34:56.123456+01:30"));
 }
 export function evaluate34068() {
-    return intervalMi(intervalInput("1 year 2 mons 3 days 04:05:06.7"), intervalInput("1 month"));
+    return extractTimetz(textInput("timezone_hour"), timetzInput("12:34:56.123456+01:30"));
 }
 export function evaluate34069() {
-    return intervalUm(intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return extractTimetz(textInput("timezone_minute"), timetzInput("12:34:56.123456+01:30"));
 }
 export function evaluate34070() {
-    return intervalUm(intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return extractTimetz(textInput("epoch"), timetzInput("12:34:56.123456+01:30"));
 }
 export function evaluate34071() {
-    return intervalUm(intervalInput("infinity"));
+    return extractTimetz(textInput("hour"), timetzInput("12:34:56.123456+01:30"));
 }
 export function evaluate34072() {
-    return intervalMul(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("4004000000000000"));
+    return extractTimetz(textInput("timezone"), timetzInput(null));
 }
 export function evaluate34073() {
-    return intervalMul(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("4004000000000000"));
+    return datePartTimetz(textInput("timezone"), timetzInput("12:34:56.123456+01:30"));
 }
 export function evaluate34074() {
-    return mulDInterval(float8Input("4004000000000000"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return extractInterval(textInput("year"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34075() {
-    return mulDInterval(float8Input("4004000000000000"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return extractInterval(textInput("month"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34076() {
-    return intervalMul(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input(null));
+    return extractInterval(textInput("day"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34077() {
-    return intervalMul(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("7ff0000000000000"));
+    return extractInterval(textInput("hour"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34078() {
-    return intervalDiv(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("4004000000000000"));
+    return extractInterval(textInput("second"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34079() {
-    return intervalDiv(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("4004000000000000"));
+    return extractInterval(textInput("week"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34080() {
-    return intervalDiv(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("0000000000000000"));
+    return extractInterval(textInput("quarter"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34081() {
-    return justifyHours(intervalInput("25 hours"));
+    return extractInterval(textInput("quarter"), intervalInput("-13 mons"));
 }
 export function evaluate34082() {
-    return justifyDays(intervalInput("45 days"));
+    return extractInterval(textInput("epoch"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34083() {
-    return justifyInterval(intervalInput("1 year 15 days 30 hours"));
+    return extractInterval(textInput("hour"), intervalInput("infinity"));
 }
 export function evaluate34084() {
-    return justifyHours(intervalInput("infinity"));
+    return extractInterval(textInput("month"), intervalInput("infinity"));
 }
 export function evaluate34085() {
-    return dateFromTimestamp(timestampInput("2020-06-15 12:34:56.123456"));
+    return extractInterval(textInput("year"), intervalInput(null));
 }
 export function evaluate34086() {
-    return dateFromTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"));
+    return datePartInterval(textInput("epoch"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34087() {
-    return dateFromTimestamp(timestampInput("infinity"));
+    return extractTimestamptz(textInput("hour"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34088() {
-    return timestampFromDate(dateInput("2020-01-02"));
+    return extractTimestamptz(textInput("timezone"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34089() {
-    return timestampFromDateTime(dateInput("2020-01-02"), timeInput("12:00:00"));
+    return extractTimestamptz(textInput("epoch"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34090() {
-    return timestampFromTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"));
+    return extractTimestamptz(textInput("hour"), timestamptzInput(null));
 }
 export function evaluate34091() {
-    return timestampFromDate(dateInput("294277-01-01"));
+    return datePartTimestamptz(textInput("year"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34092() {
-    return timestamptzFromTimestamp(timestampInput("2020-06-15 12:34:56.123456"));
+    return dateTruncTimestamp(textInput("microsecond"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34093() {
-    return timestamptzFromDate(dateInput("2020-01-02"));
+    return dateTruncTimestamp(textInput("millisecond"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34094() {
-    return timestamptzFromDateTime(dateInput("2020-01-02"), timeInput("12:00:00"));
+    return dateTruncTimestamp(textInput("second"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34095() {
-    return timestamptzFromDateTimetz(dateInput("2020-01-02"), timetzInput("12:00:00+01"));
+    return dateTruncTimestamp(textInput("minute"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34096() {
-    return timeFromTimestamp(timestampInput("2020-06-15 12:34:56.123456"));
+    return dateTruncTimestamp(textInput("hour"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34097() {
-    return timeFromTimestamp(timestampInput("infinity"));
+    return dateTruncTimestamp(textInput("day"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34098() {
-    return timeFromTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"));
+    return dateTruncTimestamp(textInput("month"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34099() {
-    return timeFromTimetz(timetzInput("12:00:00+01"));
+    return dateTruncTimestamp(textInput("quarter"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34100() {
-    return timeFromInterval(intervalInput("25 hours"));
+    return dateTruncTimestamp(textInput("week"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34101() {
-    return timeFromInterval(intervalInput("infinity"));
+    return dateTruncTimestamp(textInput("year"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34102() {
-    return timetzFromTime(timeInput("12:00:00"));
+    return dateTruncTimestamp(textInput("decade"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34103() {
-    return timetzFromTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"));
+    return dateTruncTimestamp(textInput("century"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34104() {
-    return timetzFromTimestamptz(timestamptzInput("infinity"));
+    return dateTruncTimestamp(textInput("millennium"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34105() {
-    return intervalFromTime(timeInput("12:00:00"));
+    return dateTruncTimestamp(textInput("year"), timestampInput("infinity"));
 }
 export function evaluate34106() {
-    return dateTimestampEq(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return dateTruncTimestamp(textInput("week"), timestampInput("2021-01-01 15:00:00"));
 }
 export function evaluate34107() {
-    return dateTimestampNe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return dateTruncTimestamp(textInput("epoch"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34108() {
-    return dateTimestampLt(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return dateTruncTimestamp(textInput("day"), timestampInput(null));
 }
 export function evaluate34109() {
-    return dateTimestampLe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return dateTruncTimestamptz(textInput("day"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34110() {
-    return dateTimestampGt(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return dateTruncTimestamptz(textInput("hour"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34111() {
-    return dateTimestampGe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return dateTruncInterval(textInput("year"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34112() {
-    return dateTimestampEq(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return dateTruncInterval(textInput("month"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34113() {
-    return dateTimestampNe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return dateTruncInterval(textInput("day"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34114() {
-    return dateTimestampLt(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return dateTruncInterval(textInput("hour"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34115() {
-    return dateTimestampLe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return dateTruncInterval(textInput("second"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34116() {
-    return dateTimestampGt(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return dateTruncInterval(textInput("millennium"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34117() {
-    return dateTimestampGe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return dateTruncInterval(textInput("week"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34118() {
-    return dateTimestampCompare(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return dateTruncInterval(textInput("year"), intervalInput("infinity"));
 }
 export function evaluate34119() {
-    return timestampDateEq(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return dateTruncInterval(textInput("day"), intervalInput(null));
 }
 export function evaluate34120() {
-    return timestampDateNe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return extractDate(textInput("year"), dateInput("0001-01-01 BC"));
 }
 export function evaluate34121() {
-    return timestampDateLt(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return dateTruncTimestamp(textInput("millennium"), timestampInput("0001-01-01 BC"));
 }
 export function evaluate34122() {
-    return timestampDateLe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return datePlInt(dateInput("2020-01-02"), int4Input("3"));
 }
 export function evaluate34123() {
-    return timestampDateGt(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return datePlInt(dateInput("2020-01-02"), int4Input("3"));
 }
 export function evaluate34124() {
-    return timestampDateGe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return intPlDate(int4Input("3"), dateInput("2020-01-02"));
 }
 export function evaluate34125() {
-    return timestampDateEq(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return intPlDate(int4Input("3"), dateInput("2020-01-02"));
 }
 export function evaluate34126() {
-    return timestampDateNe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return datePlInt(dateInput("2020-01-02"), int4Input(null));
 }
 export function evaluate34127() {
-    return timestampDateLt(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return datePlInt(dateInput("infinity"), int4Input("3"));
 }
 export function evaluate34128() {
-    return timestampDateLe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return dateMiInt(dateInput("2020-01-02"), int4Input("3"));
 }
 export function evaluate34129() {
-    return timestampDateGt(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return dateMiInt(dateInput("2020-01-02"), int4Input("3"));
 }
 export function evaluate34130() {
-    return timestampDateGe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return dateMiDate(dateInput("2020-01-02"), dateInput("2020-01-01"));
 }
 export function evaluate34131() {
-    return timestampDateCompare(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return dateMiDate(dateInput("2020-01-02"), dateInput("2020-01-01"));
 }
 export function evaluate34132() {
-    return dateTimestamptzEq(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return dateMiDate(dateInput("infinity"), dateInput("2020-01-01"));
 }
 export function evaluate34133() {
-    return dateTimestamptzNe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return datePlInterval(dateInput("2020-01-31"), intervalInput("1 month"));
 }
 export function evaluate34134() {
-    return dateTimestamptzLt(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return datePlInterval(dateInput("2020-01-31"), intervalInput("1 month"));
 }
 export function evaluate34135() {
-    return dateTimestamptzLe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return intervalPlDate(intervalInput("1 month"), dateInput("2020-01-31"));
 }
 export function evaluate34136() {
-    return dateTimestamptzGt(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return dateMiInterval(dateInput("2020-02-29"), intervalInput("1 month"));
 }
 export function evaluate34137() {
-    return dateTimestamptzGe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return intervalPlDate(intervalInput("1 month"), dateInput("2020-01-31"));
 }
 export function evaluate34138() {
-    return dateTimestamptzEq(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return dateMiInterval(dateInput("2020-02-29"), intervalInput("1 month"));
 }
 export function evaluate34139() {
-    return dateTimestamptzNe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return datePlTime(dateInput("2020-01-02"), timeInput("12:00:00"));
 }
 export function evaluate34140() {
-    return dateTimestamptzLt(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return datePlTime(dateInput("2020-01-02"), timeInput("12:00:00"));
 }
 export function evaluate34141() {
-    return dateTimestamptzLe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return timePlDate(timeInput("12:00:00"), dateInput("2020-01-02"));
 }
 export function evaluate34142() {
-    return dateTimestamptzGt(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return timePlDate(timeInput("12:00:00"), dateInput("2020-01-02"));
 }
 export function evaluate34143() {
-    return dateTimestamptzGe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return datePlTimetz(dateInput("2020-01-02"), timetzInput("12:00:00+01"));
 }
 export function evaluate34144() {
-    return dateTimestamptzCompare(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return datePlTimetz(dateInput("2020-01-02"), timetzInput("12:00:00+01"));
 }
 export function evaluate34145() {
-    return timestamptzDateEq(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return timetzPlDate(timetzInput("12:00:00+01"), dateInput("2020-01-02"));
 }
 export function evaluate34146() {
-    return timestamptzDateNe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return timetzPlDate(timetzInput("12:00:00+01"), dateInput("2020-01-02"));
 }
 export function evaluate34147() {
-    return timestamptzDateLt(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return datePlInterval(dateInput("2020-01-02"), intervalInput(null));
 }
 export function evaluate34148() {
-    return timestamptzDateLe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return timestampPlInterval(timestampInput("2020-06-15 12:34:56.123456"), intervalInput("1 month"));
 }
 export function evaluate34149() {
-    return timestamptzDateGt(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return timestampPlInterval(timestampInput("2020-06-15 12:34:56.123456"), intervalInput("1 month"));
 }
 export function evaluate34150() {
-    return timestamptzDateGe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return intervalPlTimestamp(intervalInput("1 month"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34151() {
-    return timestamptzDateEq(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return intervalPlTimestamp(intervalInput("1 month"), timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34152() {
-    return timestamptzDateNe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return timestampMiInterval(timestampInput("2020-06-15 12:34:56.123456"), intervalInput("1 day"));
 }
 export function evaluate34153() {
-    return timestamptzDateLt(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return timestampMiInterval(timestampInput("2020-06-15 12:34:56.123456"), intervalInput("1 day"));
 }
 export function evaluate34154() {
-    return timestamptzDateLe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return timestampMiTimestamp(timestampInput("2020-01-02 15:00:00"), timestampInput("2020-01-02 00:00:00"));
 }
 export function evaluate34155() {
-    return timestamptzDateGt(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return timestampMiTimestamp(timestampInput("2020-01-02 15:00:00"), timestampInput("2020-01-02 00:00:00"));
 }
 export function evaluate34156() {
-    return timestamptzDateGe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return timestampPlInterval(timestampInput("infinity"), intervalInput("1 month"));
 }
 export function evaluate34157() {
-    return timestamptzDateCompare(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return timestampPlInterval(timestampInput("infinity"), intervalInput("infinity"));
 }
 export function evaluate34158() {
-    return timestampTimestamptzEq(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return timestampMiTimestamp(timestampInput("infinity"), timestampInput("infinity"));
 }
 export function evaluate34159() {
-    return timestampTimestamptzNe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return timestamptzPlInterval(timestamptzInput("2020-01-01 12:00:00+00"), intervalInput("02:00:00"));
 }
 export function evaluate34160() {
-    return timestampTimestamptzLt(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return timestamptzPlInterval(timestamptzInput("2020-01-01 12:00:00+00"), intervalInput("02:00:00"));
 }
 export function evaluate34161() {
-    return timestampTimestamptzLe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return intervalPlTimestamptz(intervalInput("02:00:00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34162() {
-    return timestampTimestamptzGt(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return intervalPlTimestamptz(intervalInput("02:00:00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34163() {
-    return timestampTimestamptzGe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return timestamptzMiInterval(timestamptzInput("2020-01-01 12:00:00+00"), intervalInput("02:00:00"));
 }
 export function evaluate34164() {
-    return timestampTimestamptzEq(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return timestamptzMiInterval(timestamptzInput("2020-01-01 12:00:00+00"), intervalInput("02:00:00"));
 }
 export function evaluate34165() {
-    return timestampTimestamptzNe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return timestamptzMiTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-02 00:00:00+00"));
 }
 export function evaluate34166() {
-    return timestampTimestamptzLt(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return timestamptzMiTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-02 00:00:00+00"));
 }
 export function evaluate34167() {
-    return timestampTimestamptzLe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return timePlInterval(timeInput("23:00:00"), intervalInput("02:00:00"));
 }
 export function evaluate34168() {
-    return timestampTimestamptzGt(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return timePlInterval(timeInput("23:00:00"), intervalInput("02:00:00"));
 }
 export function evaluate34169() {
-    return timestampTimestamptzGe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return intervalPlTime(intervalInput("02:00:00"), timeInput("23:00:00"));
 }
 export function evaluate34170() {
-    return timestampTimestamptzCompare(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return intervalPlTime(intervalInput("02:00:00"), timeInput("23:00:00"));
 }
 export function evaluate34171() {
-    return timestamptzTimestampEq(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return timeMiInterval(timeInput("12:00:00"), intervalInput("02:00:00"));
 }
 export function evaluate34172() {
-    return timestamptzTimestampNe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return timeMiInterval(timeInput("12:00:00"), intervalInput("02:00:00"));
 }
 export function evaluate34173() {
-    return timestamptzTimestampLt(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return timeMiTime(timeInput("18:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34174() {
-    return timestamptzTimestampLe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return timeMiTime(timeInput("18:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34175() {
-    return timestamptzTimestampGt(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return timePlInterval(timeInput("12:00:00"), intervalInput("infinity"));
 }
 export function evaluate34176() {
-    return timestamptzTimestampGe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return timetzPlInterval(timetzInput("12:00:00+01"), intervalInput("02:00:00"));
 }
 export function evaluate34177() {
-    return timestamptzTimestampEq(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return timetzPlInterval(timetzInput("12:00:00+01"), intervalInput("02:00:00"));
 }
 export function evaluate34178() {
-    return timestamptzTimestampNe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return intervalPlTimetz(intervalInput("02:00:00"), timetzInput("12:00:00+01"));
 }
 export function evaluate34179() {
-    return timestamptzTimestampLt(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return intervalPlTimetz(intervalInput("02:00:00"), timetzInput("12:00:00+01"));
 }
 export function evaluate34180() {
-    return timestamptzTimestampLe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return timetzMiInterval(timetzInput("12:00:00+01"), intervalInput("02:00:00"));
 }
 export function evaluate34181() {
-    return timestamptzTimestampGt(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return timetzMiInterval(timetzInput("12:00:00+01"), intervalInput("02:00:00"));
 }
 export function evaluate34182() {
-    return timestamptzTimestampGe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return intervalPl(intervalInput("1 month"), intervalInput("1 day"));
 }
 export function evaluate34183() {
-    return timestamptzTimestampCompare(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return intervalPl(intervalInput("1 month"), intervalInput("25 hours"));
 }
 export function evaluate34184() {
-    return dateTimestampEq(dateInput("2020-01-02"), timestampInput("2020-01-02 15:00:00"));
+    return intervalMi(intervalInput("1 year 2 mons 3 days 04:05:06.7"), intervalInput("1 month"));
 }
 export function evaluate34185() {
-    return dateTimestampLt(dateInput("294277-01-01"), timestampInput("infinity"));
+    return intervalMi(intervalInput("1 year 2 mons 3 days 04:05:06.7"), intervalInput("1 month"));
 }
 export function evaluate34186() {
-    return dateTimestampCompare(dateInput("294277-01-01"), timestampInput("2020-06-15 12:34:56.123456"));
+    return intervalUm(intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34187() {
-    return dateTimestampEq(dateInput(null), timestampInput("2020-01-02 00:00:00"));
+    return intervalUm(intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34188() {
-    return overlapsTimestamp(timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 16:00:00"));
+    return intervalUm(intervalInput("infinity"));
 }
 export function evaluate34189() {
-    return overlapsTimestamp(timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 14:00:00"));
+    return intervalMul(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("4004000000000000"));
 }
 export function evaluate34190() {
-    return overlapsTimestamp(timestampInput("2020-01-02 14:00:00"), timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 16:00:00"), timestampInput("2020-01-02 12:00:00"));
+    return intervalMul(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("4004000000000000"));
 }
 export function evaluate34191() {
-    return overlapsTimestamp(timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 14:00:00"));
+    return mulDInterval(float8Input("4004000000000000"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34192() {
-    return overlapsTimestamp(timestampInput("2020-01-02 12:00:00"), timestampInput(null), timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"));
+    return mulDInterval(float8Input("4004000000000000"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
 }
 export function evaluate34193() {
-    return overlapsTimestamp(timestampInput(null), timestampInput(null), timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"));
+    return intervalMul(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input(null));
 }
 export function evaluate34194() {
-    return overlapsTimestampIntervalInterval(timestampInput("2020-01-02 10:00:00"), intervalInput("02:00:00"), timestampInput("2020-01-02 12:00:00"), intervalInput("02:00:00"));
+    return intervalMul(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("7ff0000000000000"));
 }
 export function evaluate34195() {
-    return overlapsTimestampIntervalTimestamp(timestampInput("2020-01-02 10:00:00"), intervalInput("02:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 16:00:00"));
+    return intervalDiv(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("4004000000000000"));
 }
 export function evaluate34196() {
-    return overlapsTimestampTimestampInterval(timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"), timestampInput("2020-01-02 12:00:00"), intervalInput("02:00:00"));
+    return intervalDiv(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("4004000000000000"));
 }
 export function evaluate34197() {
-    return overlapsTimestamp(timestampInput("infinity"), timestampInput("2020-01-02 15:00:00"), timestampInput("2020-01-02 00:00:00"), timestampInput("infinity"));
+    return intervalDiv(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("0000000000000000"));
 }
 export function evaluate34198() {
-    return overlapsTimestamptz(timestamptzInput("2020-01-02 10:00:00+00"), timestamptzInput("2020-01-02 14:00:00+00"), timestamptzInput("2020-01-02 12:00:00+00"), timestamptzInput("2020-01-02 16:00:00+00"));
+    return justifyHours(intervalInput("25 hours"));
 }
 export function evaluate34199() {
-    return overlapsTimestamptzIntervalInterval(timestamptzInput("2020-01-02 10:00:00+00"), intervalInput("02:00:00"), timestamptzInput("2020-01-02 12:00:00+00"), intervalInput("02:00:00"));
+    return justifyDays(intervalInput("45 days"));
 }
 export function evaluate34200() {
-    return overlapsTimestamptzIntervalTimestamptz(timestamptzInput("2020-01-02 10:00:00+00"), intervalInput("02:00:00"), timestamptzInput("2020-01-02 12:00:00+00"), timestamptzInput("2020-01-02 16:00:00+00"));
+    return justifyInterval(intervalInput("1 year 15 days 30 hours"));
 }
 export function evaluate34201() {
-    return overlapsTimestamptzTimestamptzInterval(timestamptzInput("2020-01-02 10:00:00+00"), timestamptzInput("2020-01-02 14:00:00+00"), timestamptzInput("2020-01-02 12:00:00+00"), intervalInput("02:00:00"));
+    return justifyHours(intervalInput("infinity"));
 }
 export function evaluate34202() {
-    return overlapsTime(timeInput("12:00:00"), timeInput("18:00:00"), timeInput("15:00:00"), timeInput("23:00:00"));
+    return dateFromTimestamp(timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34203() {
-    return overlapsTimeIntervalTime(timeInput("23:00:00"), intervalInput("02:00:00"), timeInput("00:30:00"), timeInput("01:30:00"));
+    return dateFromTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34204() {
-    return overlapsTimeIntervalInterval(timeInput("12:00:00"), intervalInput("02:00:00"), timeInput("13:00:00"), intervalInput("02:00:00"));
+    return dateFromTimestamp(timestampInput("infinity"));
 }
 export function evaluate34205() {
-    return overlapsTimeIntervalTime(timeInput("12:00:00"), intervalInput("02:00:00"), timeInput("13:00:00"), timeInput("18:00:00"));
+    return timestampFromDate(dateInput("2020-01-02"));
 }
 export function evaluate34206() {
-    return overlapsTimeTimeInterval(timeInput("12:00:00"), timeInput("18:00:00"), timeInput("17:00:00"), intervalInput("02:00:00"));
+    return timestampFromDateTime(dateInput("2020-01-02"), timeInput("12:00:00"));
 }
 export function evaluate34207() {
-    return overlapsTime(timeInput(null), timeInput("18:00:00"), timeInput("12:00:00"), timeInput("23:00:00"));
+    return timestampFromTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34208() {
-    return overlapsTimetz(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"), timetzInput("13:00:00+01"), timetzInput("18:00:00+00"));
+    return timestampFromDate(dateInput("294277-01-01"));
 }
 export function evaluate34209() {
-    return overlapsTimetz(timetzInput("12:00:00+00"), timetzInput(null), timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+    return timestamptzFromTimestamp(timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34210() {
-    return ageTimestamp(timestampInput("2001-04-10"), timestampInput("1957-06-13"));
+    return timestamptzFromDate(dateInput("2020-01-02"));
 }
 export function evaluate34211() {
-    return ageTimestamp(timestampInput("1957-06-13"), timestampInput("2001-04-10"));
+    return timestamptzFromDateTime(dateInput("2020-01-02"), timeInput("12:00:00"));
 }
 export function evaluate34212() {
-    return ageTimestamp(timestampInput("2020-03-31"), timestampInput("2020-02-29"));
+    return timestamptzFromDateTimetz(dateInput("2020-01-02"), timetzInput("12:00:00+01"));
 }
 export function evaluate34213() {
-    return ageTimestamp(timestampInput("2021-03-01"), timestampInput("2020-02-29"));
+    return timeFromTimestamp(timestampInput("2020-06-15 12:34:56.123456"));
 }
 export function evaluate34214() {
-    return ageTimestamp(timestampInput("2020-01-02 03:04:05.5"), timestampInput("2020-01-02 03:04:04.25"));
+    return timeFromTimestamp(timestampInput("infinity"));
 }
 export function evaluate34215() {
-    return ageTimestamp(timestampInput("0001-01-01"), timestampInput("0001-01-01 BC"));
+    return timeFromTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34216() {
-    return ageTimestamp(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return timeFromTimetz(timetzInput("12:00:00+01"));
 }
 export function evaluate34217() {
-    return ageTimestamp(timestampInput("infinity"), timestampInput("infinity"));
+    return timeFromInterval(intervalInput("25 hours"));
 }
 export function evaluate34218() {
-    return ageTimestamp(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+    return timeFromInterval(intervalInput("infinity"));
 }
 export function evaluate34219() {
-    return ageTimestamptz(timestamptzInput("2001-04-10 00:00:00+00"), timestamptzInput("1957-06-13 00:00:00+00"));
+    return timetzFromTime(timeInput("12:00:00"));
 }
 export function evaluate34220() {
-    return ageTimestamptz(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timetzFromTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34221() {
-    return dateLarger(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return timetzFromTimestamptz(timestamptzInput("infinity"));
 }
 export function evaluate34222() {
-    return dateSmaller(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return intervalFromTime(timeInput("12:00:00"));
 }
 export function evaluate34223() {
-    return dateLarger(dateInput("infinity"), dateInput("2020-01-02"));
+    return dateTimestampEq(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
 }
 export function evaluate34224() {
-    return dateLarger(dateInput(null), dateInput("2020-01-02"));
+    return dateTimestampNe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
 }
 export function evaluate34225() {
-    return timeLarger(timeInput("12:00:00"), timeInput("18:00:00"));
+    return dateTimestampLt(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
 }
 export function evaluate34226() {
-    return timeSmaller(timeInput("12:00:00"), timeInput("18:00:00"));
+    return dateTimestampLe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
 }
 export function evaluate34227() {
-    return timestampLarger(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return dateTimestampGt(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
 }
 export function evaluate34228() {
-    return timestampSmaller(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return dateTimestampGe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
 }
 export function evaluate34229() {
-    return timestamptzLarger(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return dateTimestampEq(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
 }
 export function evaluate34230() {
-    return timestamptzSmaller(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return dateTimestampNe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
 }
 export function evaluate34231() {
-    return timetzLarger(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return dateTimestampLt(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
 }
 export function evaluate34232() {
-    return timetzSmaller(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return dateTimestampLe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
 }
 export function evaluate34233() {
-    return intervalLarger(intervalInput("1 year"), intervalInput("360 days"));
+    return dateTimestampGt(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
 }
 export function evaluate34234() {
-    return intervalSmaller(intervalInput("1 year"), intervalInput("360 days"));
+    return dateTimestampGe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
 }
 export function evaluate34235() {
-    return intervalLarger(intervalInput("1 day"), intervalInput("24 hours"));
+    return dateTimestampCompare(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
 }
 export function evaluate34236() {
-    return intervalLarger(intervalInput("infinity"), intervalInput("1 year"));
+    return timestampDateEq(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
 }
 export function evaluate34237() {
-    return timezoneIntervalTimestamp(intervalInput("03:00:00"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestampDateNe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
 }
 export function evaluate34238() {
-    return timezoneIntervalTimestamp(intervalInput("-05:00:00"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestampDateLt(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
 }
 export function evaluate34239() {
-    return timezoneIntervalTimestamp(intervalInput("03:00:00.75"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestampDateLe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
 }
 export function evaluate34240() {
-    return timezoneIntervalTimestamp(intervalInput("25 hours"), timestampInput("2020-01-02 03:04:05"));
+    return timestampDateGt(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
 }
 export function evaluate34241() {
-    return timezoneIntervalTimestamp(intervalInput("03:00:00"), timestampInput("infinity"));
+    return timestampDateGe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
 }
 export function evaluate34242() {
-    return timezoneIntervalTimestamp(intervalInput("1 mon"), timestampInput("infinity"));
+    return timestampDateEq(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
 }
 export function evaluate34243() {
-    return timezoneIntervalTimestamp(intervalInput("1 mon"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestampDateNe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
 }
 export function evaluate34244() {
-    return timezoneIntervalTimestamp(intervalInput("1 day"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestampDateLt(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
 }
 export function evaluate34245() {
-    return timezoneIntervalTimestamp(intervalInput("infinity"), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestampDateLe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
 }
 export function evaluate34246() {
-    return timezoneIntervalTimestamp(intervalInput(null), timestampInput("2020-06-15 12:34:56.123456"));
+    return timestampDateGt(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
 }
 export function evaluate34247() {
-    return timezoneIntervalTimestamp(intervalInput("03:00:00"), timestampInput(null));
+    return timestampDateGe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
 }
 export function evaluate34248() {
-    return timezoneIntervalTimestamptz(intervalInput("03:00:00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timestampDateCompare(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
 }
 export function evaluate34249() {
-    return timezoneIntervalTimestamptz(intervalInput("-05:00:00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return dateTimestamptzEq(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
 }
 export function evaluate34250() {
-    return timezoneIntervalTimestamptz(intervalInput("03:00:00.75"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return dateTimestamptzNe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
 }
 export function evaluate34251() {
-    return timezoneIntervalTimestamptz(intervalInput("03:00:00"), timestamptzInput("infinity"));
+    return dateTimestamptzLt(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
 }
 export function evaluate34252() {
-    return timezoneIntervalTimestamptz(intervalInput("1 mon"), timestamptzInput("infinity"));
+    return dateTimestamptzLe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
 }
 export function evaluate34253() {
-    return timezoneIntervalTimestamptz(intervalInput("1 mon"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return dateTimestamptzGt(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
 }
 export function evaluate34254() {
-    return timezoneIntervalTimestamptz(intervalInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return dateTimestamptzGe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
 }
 export function evaluate34255() {
-    return timezoneIntervalTimestamptz(intervalInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+    return dateTimestamptzEq(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
 }
 export function evaluate34256() {
-    return timezoneIntervalTimetz(intervalInput("03:00:00"), timetzInput("12:00:00+00"));
+    return dateTimestamptzNe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
 }
 export function evaluate34257() {
-    return timezoneIntervalTimetz(intervalInput("-05:00:00"), timetzInput("12:00:00+00"));
+    return dateTimestamptzLt(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
 }
 export function evaluate34258() {
-    return timezoneIntervalTimetz(intervalInput("03:00:00"), timetzInput("13:00:00+01"));
+    return dateTimestamptzLe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
 }
 export function evaluate34259() {
-    return timezoneIntervalTimetz(intervalInput("03:00:00"), timetzInput("23:00:00+00"));
+    return dateTimestamptzGt(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
 }
 export function evaluate34260() {
-    return timezoneIntervalTimetz(intervalInput("03:00:00.75"), timetzInput("12:00:00+00"));
+    return dateTimestamptzGe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
 }
 export function evaluate34261() {
-    return timezoneIntervalTimetz(intervalInput("1 mon"), timetzInput("12:00:00+00"));
+    return dateTimestamptzCompare(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
 }
 export function evaluate34262() {
-    return timezoneIntervalTimetz(intervalInput("infinity"), timetzInput("12:00:00+00"));
+    return timestamptzDateEq(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
 }
 export function evaluate34263() {
+    return timestamptzDateNe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate34264() {
+    return timestamptzDateLt(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate34265() {
+    return timestamptzDateLe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate34266() {
+    return timestamptzDateGt(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate34267() {
+    return timestamptzDateGe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate34268() {
+    return timestamptzDateEq(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate34269() {
+    return timestamptzDateNe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate34270() {
+    return timestamptzDateLt(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate34271() {
+    return timestamptzDateLe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate34272() {
+    return timestamptzDateGt(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate34273() {
+    return timestamptzDateGe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate34274() {
+    return timestamptzDateCompare(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate34275() {
+    return timestampTimestamptzEq(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate34276() {
+    return timestampTimestamptzNe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate34277() {
+    return timestampTimestamptzLt(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate34278() {
+    return timestampTimestamptzLe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate34279() {
+    return timestampTimestamptzGt(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate34280() {
+    return timestampTimestamptzGe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate34281() {
+    return timestampTimestamptzEq(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate34282() {
+    return timestampTimestamptzNe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate34283() {
+    return timestampTimestamptzLt(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate34284() {
+    return timestampTimestamptzLe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate34285() {
+    return timestampTimestamptzGt(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate34286() {
+    return timestampTimestamptzGe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate34287() {
+    return timestampTimestamptzCompare(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate34288() {
+    return timestamptzTimestampEq(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34289() {
+    return timestamptzTimestampNe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34290() {
+    return timestamptzTimestampLt(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34291() {
+    return timestamptzTimestampLe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34292() {
+    return timestamptzTimestampGt(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34293() {
+    return timestamptzTimestampGe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34294() {
+    return timestamptzTimestampEq(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34295() {
+    return timestamptzTimestampNe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34296() {
+    return timestamptzTimestampLt(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34297() {
+    return timestamptzTimestampLe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34298() {
+    return timestamptzTimestampGt(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34299() {
+    return timestamptzTimestampGe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34300() {
+    return timestamptzTimestampCompare(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34301() {
+    return dateTimestampEq(dateInput("2020-01-02"), timestampInput("2020-01-02 15:00:00"));
+}
+export function evaluate34302() {
+    return dateTimestampLt(dateInput("294277-01-01"), timestampInput("infinity"));
+}
+export function evaluate34303() {
+    return dateTimestampCompare(dateInput("294277-01-01"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34304() {
+    return dateTimestampEq(dateInput(null), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34305() {
+    return overlapsTimestamp(timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 16:00:00"));
+}
+export function evaluate34306() {
+    return overlapsTimestamp(timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 14:00:00"));
+}
+export function evaluate34307() {
+    return overlapsTimestamp(timestampInput("2020-01-02 14:00:00"), timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 16:00:00"), timestampInput("2020-01-02 12:00:00"));
+}
+export function evaluate34308() {
+    return overlapsTimestamp(timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 14:00:00"));
+}
+export function evaluate34309() {
+    return overlapsTimestamp(timestampInput("2020-01-02 12:00:00"), timestampInput(null), timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"));
+}
+export function evaluate34310() {
+    return overlapsTimestamp(timestampInput(null), timestampInput(null), timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"));
+}
+export function evaluate34311() {
+    return overlapsTimestampIntervalInterval(timestampInput("2020-01-02 10:00:00"), intervalInput("02:00:00"), timestampInput("2020-01-02 12:00:00"), intervalInput("02:00:00"));
+}
+export function evaluate34312() {
+    return overlapsTimestampIntervalTimestamp(timestampInput("2020-01-02 10:00:00"), intervalInput("02:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 16:00:00"));
+}
+export function evaluate34313() {
+    return overlapsTimestampTimestampInterval(timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"), timestampInput("2020-01-02 12:00:00"), intervalInput("02:00:00"));
+}
+export function evaluate34314() {
+    return overlapsTimestamp(timestampInput("infinity"), timestampInput("2020-01-02 15:00:00"), timestampInput("2020-01-02 00:00:00"), timestampInput("infinity"));
+}
+export function evaluate34315() {
+    return overlapsTimestamptz(timestamptzInput("2020-01-02 10:00:00+00"), timestamptzInput("2020-01-02 14:00:00+00"), timestamptzInput("2020-01-02 12:00:00+00"), timestamptzInput("2020-01-02 16:00:00+00"));
+}
+export function evaluate34316() {
+    return overlapsTimestamptzIntervalInterval(timestamptzInput("2020-01-02 10:00:00+00"), intervalInput("02:00:00"), timestamptzInput("2020-01-02 12:00:00+00"), intervalInput("02:00:00"));
+}
+export function evaluate34317() {
+    return overlapsTimestamptzIntervalTimestamptz(timestamptzInput("2020-01-02 10:00:00+00"), intervalInput("02:00:00"), timestamptzInput("2020-01-02 12:00:00+00"), timestamptzInput("2020-01-02 16:00:00+00"));
+}
+export function evaluate34318() {
+    return overlapsTimestamptzTimestamptzInterval(timestamptzInput("2020-01-02 10:00:00+00"), timestamptzInput("2020-01-02 14:00:00+00"), timestamptzInput("2020-01-02 12:00:00+00"), intervalInput("02:00:00"));
+}
+export function evaluate34319() {
+    return overlapsTime(timeInput("12:00:00"), timeInput("18:00:00"), timeInput("15:00:00"), timeInput("23:00:00"));
+}
+export function evaluate34320() {
+    return overlapsTimeIntervalTime(timeInput("23:00:00"), intervalInput("02:00:00"), timeInput("00:30:00"), timeInput("01:30:00"));
+}
+export function evaluate34321() {
+    return overlapsTimeIntervalInterval(timeInput("12:00:00"), intervalInput("02:00:00"), timeInput("13:00:00"), intervalInput("02:00:00"));
+}
+export function evaluate34322() {
+    return overlapsTimeIntervalTime(timeInput("12:00:00"), intervalInput("02:00:00"), timeInput("13:00:00"), timeInput("18:00:00"));
+}
+export function evaluate34323() {
+    return overlapsTimeTimeInterval(timeInput("12:00:00"), timeInput("18:00:00"), timeInput("17:00:00"), intervalInput("02:00:00"));
+}
+export function evaluate34324() {
+    return overlapsTime(timeInput(null), timeInput("18:00:00"), timeInput("12:00:00"), timeInput("23:00:00"));
+}
+export function evaluate34325() {
+    return overlapsTimetz(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"), timetzInput("13:00:00+01"), timetzInput("18:00:00+00"));
+}
+export function evaluate34326() {
+    return overlapsTimetz(timetzInput("12:00:00+00"), timetzInput(null), timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate34327() {
+    return ageTimestamp(timestampInput("2001-04-10"), timestampInput("1957-06-13"));
+}
+export function evaluate34328() {
+    return ageTimestamp(timestampInput("1957-06-13"), timestampInput("2001-04-10"));
+}
+export function evaluate34329() {
+    return ageTimestamp(timestampInput("2020-03-31"), timestampInput("2020-02-29"));
+}
+export function evaluate34330() {
+    return ageTimestamp(timestampInput("2021-03-01"), timestampInput("2020-02-29"));
+}
+export function evaluate34331() {
+    return ageTimestamp(timestampInput("2020-01-02 03:04:05.5"), timestampInput("2020-01-02 03:04:04.25"));
+}
+export function evaluate34332() {
+    return ageTimestamp(timestampInput("0001-01-01"), timestampInput("0001-01-01 BC"));
+}
+export function evaluate34333() {
+    return ageTimestamp(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate34334() {
+    return ageTimestamp(timestampInput("infinity"), timestampInput("infinity"));
+}
+export function evaluate34335() {
+    return ageTimestamp(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate34336() {
+    return ageTimestamptz(timestamptzInput("2001-04-10 00:00:00+00"), timestamptzInput("1957-06-13 00:00:00+00"));
+}
+export function evaluate34337() {
+    return ageTimestamptz(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34338() {
+    return dateLarger(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate34339() {
+    return dateSmaller(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate34340() {
+    return dateLarger(dateInput("infinity"), dateInput("2020-01-02"));
+}
+export function evaluate34341() {
+    return dateLarger(dateInput(null), dateInput("2020-01-02"));
+}
+export function evaluate34342() {
+    return timeLarger(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate34343() {
+    return timeSmaller(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate34344() {
+    return timestampLarger(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate34345() {
+    return timestampSmaller(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate34346() {
+    return timestamptzLarger(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate34347() {
+    return timestamptzSmaller(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate34348() {
+    return timetzLarger(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate34349() {
+    return timetzSmaller(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate34350() {
+    return intervalLarger(intervalInput("1 year"), intervalInput("360 days"));
+}
+export function evaluate34351() {
+    return intervalSmaller(intervalInput("1 year"), intervalInput("360 days"));
+}
+export function evaluate34352() {
+    return intervalLarger(intervalInput("1 day"), intervalInput("24 hours"));
+}
+export function evaluate34353() {
+    return intervalLarger(intervalInput("infinity"), intervalInput("1 year"));
+}
+export function evaluate34354() {
+    return timezoneIntervalTimestamp(intervalInput("03:00:00"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34355() {
+    return timezoneIntervalTimestamp(intervalInput("-05:00:00"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34356() {
+    return timezoneIntervalTimestamp(intervalInput("03:00:00.75"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34357() {
+    return timezoneIntervalTimestamp(intervalInput("25 hours"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate34358() {
+    return timezoneIntervalTimestamp(intervalInput("03:00:00"), timestampInput("infinity"));
+}
+export function evaluate34359() {
+    return timezoneIntervalTimestamp(intervalInput("1 mon"), timestampInput("infinity"));
+}
+export function evaluate34360() {
+    return timezoneIntervalTimestamp(intervalInput("1 mon"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34361() {
+    return timezoneIntervalTimestamp(intervalInput("1 day"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34362() {
+    return timezoneIntervalTimestamp(intervalInput("infinity"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34363() {
+    return timezoneIntervalTimestamp(intervalInput(null), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34364() {
+    return timezoneIntervalTimestamp(intervalInput("03:00:00"), timestampInput(null));
+}
+export function evaluate34365() {
+    return timezoneIntervalTimestamptz(intervalInput("03:00:00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34366() {
+    return timezoneIntervalTimestamptz(intervalInput("-05:00:00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34367() {
+    return timezoneIntervalTimestamptz(intervalInput("03:00:00.75"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34368() {
+    return timezoneIntervalTimestamptz(intervalInput("03:00:00"), timestamptzInput("infinity"));
+}
+export function evaluate34369() {
+    return timezoneIntervalTimestamptz(intervalInput("1 mon"), timestamptzInput("infinity"));
+}
+export function evaluate34370() {
+    return timezoneIntervalTimestamptz(intervalInput("1 mon"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34371() {
+    return timezoneIntervalTimestamptz(intervalInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34372() {
+    return timezoneIntervalTimestamptz(intervalInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34373() {
+    return timezoneIntervalTimetz(intervalInput("03:00:00"), timetzInput("12:00:00+00"));
+}
+export function evaluate34374() {
+    return timezoneIntervalTimetz(intervalInput("-05:00:00"), timetzInput("12:00:00+00"));
+}
+export function evaluate34375() {
+    return timezoneIntervalTimetz(intervalInput("03:00:00"), timetzInput("13:00:00+01"));
+}
+export function evaluate34376() {
+    return timezoneIntervalTimetz(intervalInput("03:00:00"), timetzInput("23:00:00+00"));
+}
+export function evaluate34377() {
+    return timezoneIntervalTimetz(intervalInput("03:00:00.75"), timetzInput("12:00:00+00"));
+}
+export function evaluate34378() {
+    return timezoneIntervalTimetz(intervalInput("1 mon"), timetzInput("12:00:00+00"));
+}
+export function evaluate34379() {
+    return timezoneIntervalTimetz(intervalInput("infinity"), timetzInput("12:00:00+00"));
+}
+export function evaluate34380() {
     return timezoneIntervalTimetz(intervalInput(null), timetzInput("12:00:00+00"));
 }

@@ -120,6 +120,17 @@ export const byteaOrderSignatures = [
   'operator:["pg_catalog","||"](pg_catalog.bytea,pg_catalog.bytea)',
 ] as const
 
+export const byteaCastSignatures = [
+  'function:["pg_catalog","bytea"](pg_catalog.int2)',
+  'function:["pg_catalog","bytea"](pg_catalog.int4)',
+  'function:["pg_catalog","bytea"](pg_catalog.int8)',
+  'function:["pg_catalog","decode"](pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","encode"](pg_catalog.bytea,pg_catalog.text)',
+  'function:["pg_catalog","int2"](pg_catalog.bytea)',
+  'function:["pg_catalog","int4"](pg_catalog.bytea)',
+  'function:["pg_catalog","int8"](pg_catalog.bytea)',
+] as const
+
 export const byteaAccessSignatures = [
   'function:["pg_catalog","get_bit"](pg_catalog.bytea,pg_catalog.int8)',
   'function:["pg_catalog","get_byte"](pg_catalog.bytea,pg_catalog.int4)',

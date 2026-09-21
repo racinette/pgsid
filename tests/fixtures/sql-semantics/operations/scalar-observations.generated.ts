@@ -79428,6 +79428,464 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'error',
     code: '2202E',
   },
+  'bytea from pg_catalog.int2 0': {
+    kind: 'null',
+  },
+  'bytea from pg_catalog.int2 1': {
+    kind: 'value',
+    value: '\\x0000',
+  },
+  'bytea from pg_catalog.int2 2': {
+    kind: 'value',
+    value: '\\x0001',
+  },
+  'bytea from pg_catalog.int2 3': {
+    kind: 'value',
+    value: '\\xffff',
+  },
+  'bytea from pg_catalog.int2 4': {
+    kind: 'value',
+    value: '\\x007f',
+  },
+  'bytea from pg_catalog.int2 5': {
+    kind: 'value',
+    value: '\\x0080',
+  },
+  'bytea from pg_catalog.int2 6': {
+    kind: 'value',
+    value: '\\x00ff',
+  },
+  'bytea from pg_catalog.int2 7': {
+    kind: 'value',
+    value: '\\x0100',
+  },
+  'bytea from pg_catalog.int2 8': {
+    kind: 'value',
+    value: '\\x7fff',
+  },
+  'bytea from pg_catalog.int2 9': {
+    kind: 'value',
+    value: '\\x8000',
+  },
+  'bytea from pg_catalog.int4 0': {
+    kind: 'null',
+  },
+  'bytea from pg_catalog.int4 1': {
+    kind: 'value',
+    value: '\\x00000000',
+  },
+  'bytea from pg_catalog.int4 2': {
+    kind: 'value',
+    value: '\\x00000001',
+  },
+  'bytea from pg_catalog.int4 3': {
+    kind: 'value',
+    value: '\\xffffffff',
+  },
+  'bytea from pg_catalog.int4 4': {
+    kind: 'value',
+    value: '\\x0000ffff',
+  },
+  'bytea from pg_catalog.int4 5': {
+    kind: 'value',
+    value: '\\x7fffffff',
+  },
+  'bytea from pg_catalog.int4 6': {
+    kind: 'value',
+    value: '\\x80000000',
+  },
+  'bytea from pg_catalog.int8 0': {
+    kind: 'null',
+  },
+  'bytea from pg_catalog.int8 1': {
+    kind: 'value',
+    value: '\\x0000000000000000',
+  },
+  'bytea from pg_catalog.int8 2': {
+    kind: 'value',
+    value: '\\x0000000000000001',
+  },
+  'bytea from pg_catalog.int8 3': {
+    kind: 'value',
+    value: '\\xffffffffffffffff',
+  },
+  'bytea from pg_catalog.int8 4': {
+    kind: 'value',
+    value: '\\x0000000080000000',
+  },
+  'bytea from pg_catalog.int8 5': {
+    kind: 'value',
+    value: '\\x7fffffffffffffff',
+  },
+  'bytea from pg_catalog.int8 6': {
+    kind: 'value',
+    value: '\\x8000000000000000',
+  },
+  'bytea to int2 0': {
+    kind: 'null',
+  },
+  'bytea to int2 1': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea to int2 2': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea to int2 3': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea to int2 4': {
+    kind: 'value',
+    value: '127',
+  },
+  'bytea to int2 5': {
+    kind: 'value',
+    value: '128',
+  },
+  'bytea to int2 6': {
+    kind: 'value',
+    value: '255',
+  },
+  'bytea to int2 7': {
+    kind: 'value',
+    value: '127',
+  },
+  'bytea to int2 8': {
+    kind: 'value',
+    value: '128',
+  },
+  'bytea to int2 9': {
+    kind: 'value',
+    value: '255',
+  },
+  'bytea to int2 10': {
+    kind: 'value',
+    value: '32767',
+  },
+  'bytea to int2 11': {
+    kind: 'value',
+    value: '-32768',
+  },
+  'bytea to int2 12': {
+    kind: 'value',
+    value: '-1',
+  },
+  'bytea to int2 13': {
+    kind: 'error',
+    code: '22003',
+  },
+  'bytea to int2 14': {
+    kind: 'error',
+    code: '22003',
+  },
+  'bytea to int2 15': {
+    kind: 'error',
+    code: '22003',
+  },
+  'bytea to int2 16': {
+    kind: 'error',
+    code: '22003',
+  },
+  'bytea to int2 17': {
+    kind: 'error',
+    code: '22003',
+  },
+  'bytea to int2 18': {
+    kind: 'error',
+    code: '22003',
+  },
+  'bytea to int2 19': {
+    kind: 'error',
+    code: '22003',
+  },
+  'bytea to int4 0': {
+    kind: 'null',
+  },
+  'bytea to int4 1': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea to int4 2': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea to int4 3': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea to int4 4': {
+    kind: 'value',
+    value: '127',
+  },
+  'bytea to int4 5': {
+    kind: 'value',
+    value: '128',
+  },
+  'bytea to int4 6': {
+    kind: 'value',
+    value: '255',
+  },
+  'bytea to int4 7': {
+    kind: 'value',
+    value: '127',
+  },
+  'bytea to int4 8': {
+    kind: 'value',
+    value: '128',
+  },
+  'bytea to int4 9': {
+    kind: 'value',
+    value: '255',
+  },
+  'bytea to int4 10': {
+    kind: 'value',
+    value: '32767',
+  },
+  'bytea to int4 11': {
+    kind: 'value',
+    value: '32768',
+  },
+  'bytea to int4 12': {
+    kind: 'value',
+    value: '65535',
+  },
+  'bytea to int4 13': {
+    kind: 'value',
+    value: '65536',
+  },
+  'bytea to int4 14': {
+    kind: 'value',
+    value: '-1',
+  },
+  'bytea to int4 15': {
+    kind: 'value',
+    value: '-2147483648',
+  },
+  'bytea to int4 16': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea to int4 17': {
+    kind: 'error',
+    code: '22003',
+  },
+  'bytea to int4 18': {
+    kind: 'error',
+    code: '22003',
+  },
+  'bytea to int4 19': {
+    kind: 'error',
+    code: '22003',
+  },
+  'bytea to int8 0': {
+    kind: 'null',
+  },
+  'bytea to int8 1': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea to int8 2': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea to int8 3': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea to int8 4': {
+    kind: 'value',
+    value: '127',
+  },
+  'bytea to int8 5': {
+    kind: 'value',
+    value: '128',
+  },
+  'bytea to int8 6': {
+    kind: 'value',
+    value: '255',
+  },
+  'bytea to int8 7': {
+    kind: 'value',
+    value: '127',
+  },
+  'bytea to int8 8': {
+    kind: 'value',
+    value: '128',
+  },
+  'bytea to int8 9': {
+    kind: 'value',
+    value: '255',
+  },
+  'bytea to int8 10': {
+    kind: 'value',
+    value: '32767',
+  },
+  'bytea to int8 11': {
+    kind: 'value',
+    value: '32768',
+  },
+  'bytea to int8 12': {
+    kind: 'value',
+    value: '65535',
+  },
+  'bytea to int8 13': {
+    kind: 'value',
+    value: '65536',
+  },
+  'bytea to int8 14': {
+    kind: 'value',
+    value: '4294967295',
+  },
+  'bytea to int8 15': {
+    kind: 'value',
+    value: '2147483648',
+  },
+  'bytea to int8 16': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea to int8 17': {
+    kind: 'value',
+    value: '-1',
+  },
+  'bytea to int8 18': {
+    kind: 'value',
+    value: '-9223372036854775808',
+  },
+  'bytea to int8 19': {
+    kind: 'error',
+    code: '22003',
+  },
+  'bytea encode 0': {
+    kind: 'value',
+    value: '',
+  },
+  'bytea encode 1': {
+    kind: 'value',
+    value: 'ff',
+  },
+  'bytea encode 2': {
+    kind: 'value',
+    value: 'ff',
+  },
+  'bytea encode 3': {
+    kind: 'value',
+    value: '6162',
+  },
+  'bytea encode 4': {
+    kind: 'value',
+    value: '\\000\\377',
+  },
+  'bytea encode 5': {
+    kind: 'value',
+    value: '\\\\',
+  },
+  'bytea encode 6': {
+    kind: 'value',
+    value: 'a',
+  },
+  'bytea encode 7': {
+    kind: 'value',
+    value: 'YQ==',
+  },
+  'bytea encode 8': {
+    kind: 'value',
+    value: '',
+  },
+  'bytea encode 9': {
+    kind: 'value',
+    value: '/w==',
+  },
+  'bytea encode 10': {
+    kind: 'value',
+    value: 'YWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFh\nYWFh',
+  },
+  'bytea encode 11': {
+    kind: 'error',
+    code: '22023',
+  },
+  'bytea encode 12': {
+    kind: 'null',
+  },
+  'bytea encode 13': {
+    kind: 'null',
+  },
+  'bytea encode 14': {
+    kind: 'value',
+    value: '\\000',
+  },
+  'bytea decode 0': {
+    kind: 'value',
+    value: '\\xff',
+  },
+  'bytea decode 1': {
+    kind: 'value',
+    value: '\\xff',
+  },
+  'bytea decode 2': {
+    kind: 'error',
+    code: '22023',
+  },
+  'bytea decode 3': {
+    kind: 'error',
+    code: '22023',
+  },
+  'bytea decode 4': {
+    kind: 'error',
+    code: '22023',
+  },
+  'bytea decode 5': {
+    kind: 'value',
+    value: '\\x61',
+  },
+  'bytea decode 6': {
+    kind: 'error',
+    code: '22023',
+  },
+  'bytea decode 7': {
+    kind: 'value',
+    value: '\\x61',
+  },
+  'bytea decode 8': {
+    kind: 'error',
+    code: '22023',
+  },
+  'bytea decode 9': {
+    kind: 'value',
+    value: '\\x61',
+  },
+  'bytea decode 10': {
+    kind: 'value',
+    value: '\\x61',
+  },
+  'bytea decode 11': {
+    kind: 'value',
+    value: '\\x5c',
+  },
+  'bytea decode 12': {
+    kind: 'error',
+    code: '22P02',
+  },
+  'bytea decode 13': {
+    kind: 'value',
+    value: '\\xc3a9',
+  },
+  'bytea decode 14': {
+    kind: 'error',
+    code: '22023',
+  },
+  'bytea decode 15': {
+    kind: 'null',
+  },
+  'bytea decode 16': {
+    kind: 'null',
+  },
+  'bytea decode 17': {
+    kind: 'value',
+    value: '\\xff',
+  },
   'uuid input 0': {
     kind: 'null',
   },
