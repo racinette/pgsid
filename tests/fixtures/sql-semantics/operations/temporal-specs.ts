@@ -64,11 +64,13 @@ function callable(
   operands: Operand[],
   operator = false,
 ): Operand {
-  const signature = `${operator ? 'operator' : 'function'}:["pg_catalog","${callableName}"](${operands.map((operand) => operand.expression.type).join(',')})`
+  const signature = `${operator ? 'operator' : 'function'}:["pg_catalog","${callableName}"](${operator && operands.length === 1 ? ',' : ''}${operands.map((operand) => operand.expression.type).join(',')})`
   const metadata = operator ? operatorMetadata(signature) : functionMetadata(signature)
   return add(name, {
     sql: operator
-      ? `((${operands[0]!.sql}) ${callableName} (${operands[1]!.sql}))`
+      ? operands.length === 1
+        ? `(${callableName} (${operands[0]!.sql}))`
+        : `((${operands[0]!.sql}) ${callableName} (${operands[1]!.sql}))`
       : `pg_catalog.${callableName}(${operands.map((operand) => `(${operand.sql})`).join(',')})`,
     expression: {
       kind: operator ? 'operator' : 'function',
@@ -656,5 +658,148 @@ callable('date_trunc timestamp bc millennium', 'date_trunc', [
   field('millennium'),
   timestamp('0001-01-01 BC'),
 ])
+
+const jan31 = date('2020-01-31')
+const leapFeb = date('2020-02-29')
+const days3 = integer('3')
+const daysNil = integer(null)
+const month1 = interval('1 month')
+const day1 = interval('1 day')
+const hours25 = interval('25 hours')
+const hours2 = interval('02:00:00')
+const spanHalf = interval('1 year 15 days 30 hours')
+const factor = float(2.5)
+const factorNil = float(null)
+const factorZero = float(0)
+const factorInf = float(Infinity)
+const stampMidnight = timestamp('2020-01-02 00:00:00')
+const stampAfternoon = timestamp('2020-01-02 15:00:00')
+const instantMidnight = timestamptz('2020-01-02 00:00:00+00')
+const lateEvening = time('23:00:00')
+const offsetWall = timetz('12:00:00+01')
+const largeDate = date('294277-01-01')
+
+callable('date plus int', '+', [late, days3], true)
+callable('date plus int fn', 'date_pli', [late, days3])
+callable('int plus date', '+', [days3, late], true)
+callable('int plus date fn', 'integer_pl_date', [days3, late])
+callable('date plus int null', '+', [late, daysNil], true)
+callable('date plus int infinity', '+', [dateInf, days3], true)
+callable('date minus int', '-', [late, days3], true)
+callable('date minus int fn', 'date_mii', [late, days3])
+callable('date minus date', '-', [late, early], true)
+callable('date minus date fn', 'date_mi', [late, early])
+callable('date minus date infinity', '-', [dateInf, early], true)
+callable('date plus interval month', '+', [jan31, month1], true)
+callable('date plus interval fn', 'date_pl_interval', [jan31, month1])
+callable('interval plus date', '+', [month1, jan31], true)
+callable('date minus interval', '-', [leapFeb, month1], true)
+callable('interval plus date fn', 'interval_pl_date', [month1, jan31])
+callable('date minus interval fn', 'date_mi_interval', [leapFeb, month1])
+callable('date plus time', '+', [late, noon], true)
+callable('date plus time fn', 'datetime_pl', [late, noon])
+callable('time plus date', '+', [noon, late], true)
+callable('time plus date fn', 'timedate_pl', [noon, late])
+callable('date plus timetz', '+', [late, offsetWall], true)
+callable('date plus timetz fn', 'datetimetz_pl', [late, offsetWall])
+callable('timetz plus date', '+', [offsetWall, late], true)
+callable('timetz plus date fn', 'timetzdate_pl', [offsetWall, late])
+callable('date plus interval null', '+', [late, intervalNil], true)
+callable('timestamp plus interval month', '+', [stamp, month1], true)
+callable('timestamp plus interval fn', 'timestamp_pl_interval', [stamp, month1])
+callable('interval plus timestamp', '+', [month1, stamp], true)
+callable('interval plus timestamp fn', 'interval_pl_timestamp', [month1, stamp])
+callable('timestamp minus interval', '-', [stamp, day1], true)
+callable('timestamp minus interval fn', 'timestamp_mi_interval', [stamp, day1])
+callable('timestamp minus timestamp', '-', [stampAfternoon, stampMidnight], true)
+callable('timestamp minus timestamp fn', 'timestamp_mi', [stampAfternoon, stampMidnight])
+callable('timestamp plus interval infinity', '+', [timestampInf, month1], true)
+callable('timestamp plus interval inf inf', '+', [timestampInf, intervalInf], true)
+callable('timestamp minus timestamp inf', '-', [timestampInf, timestampInf], true)
+callable('timestamptz plus interval', '+', [instant, hours2], true)
+callable('timestamptz plus interval fn', 'timestamptz_pl_interval', [instant, hours2])
+callable('interval plus timestamptz', '+', [hours2, instant], true)
+callable('interval plus timestamptz fn', 'interval_pl_timestamptz', [hours2, instant])
+callable('timestamptz minus interval', '-', [instant, hours2], true)
+callable('timestamptz minus interval fn', 'timestamptz_mi_interval', [instant, hours2])
+callable('timestamptz minus timestamptz', '-', [instant, instantMidnight], true)
+callable('timestamptz minus timestamptz fn', 'timestamptz_mi', [instant, instantMidnight])
+callable('time plus interval wrap', '+', [lateEvening, hours2], true)
+callable('time plus interval fn', 'time_pl_interval', [lateEvening, hours2])
+callable('interval plus time', '+', [hours2, lateEvening], true)
+callable('interval plus time fn', 'interval_pl_time', [hours2, lateEvening])
+callable('time minus interval', '-', [noon, hours2], true)
+callable('time minus interval fn', 'time_mi_interval', [noon, hours2])
+callable('time minus time', '-', [evening, noon], true)
+callable('time minus time fn', 'time_mi_time', [evening, noon])
+callable('time plus interval inf', '+', [noon, intervalInf], true)
+callable('timetz plus interval', '+', [offsetWall, hours2], true)
+callable('timetz plus interval fn', 'timetz_pl_interval', [offsetWall, hours2])
+callable('interval plus timetz', '+', [hours2, offsetWall], true)
+callable('interval plus timetz fn', 'interval_pl_timetz', [hours2, offsetWall])
+callable('timetz minus interval', '-', [offsetWall, hours2], true)
+callable('timetz minus interval fn', 'timetz_mi_interval', [offsetWall, hours2])
+callable('interval plus interval', '+', [month1, day1], true)
+callable('interval plus interval fn', 'interval_pl', [month1, hours25])
+callable('interval minus interval', '-', [span, month1], true)
+callable('interval minus interval fn', 'interval_mi', [span, month1])
+callable('interval unary minus', '-', [span], true)
+callable('interval unary minus fn', 'interval_um', [span])
+callable('interval unary minus inf', '-', [intervalInf], true)
+callable('interval mul', '*', [span, factor], true)
+callable('interval mul fn', 'interval_mul', [span, factor])
+callable('float mul interval', '*', [factor, span], true)
+callable('float mul interval fn', 'mul_d_interval', [factor, span])
+callable('interval mul null', '*', [span, factorNil], true)
+callable('interval mul inf factor', '*', [span, factorInf], true)
+callable('interval div', '/', [span, factor], true)
+callable('interval div fn', 'interval_div', [span, factor])
+callable('interval div zero', '/', [span, factorZero], true)
+callable('justify hours', 'justify_hours', [hours25])
+callable('justify days', 'justify_days', [interval('45 days')])
+callable('justify interval', 'justify_interval', [spanHalf])
+callable('justify hours inf', 'justify_hours', [intervalInf])
+callable('date from timestamp', 'date', [stamp])
+callable('date from timestamptz', 'date', [instant])
+callable('date from timestamp inf', 'date', [timestampInf])
+callable('timestamp from date', 'timestamp', [late])
+callable('timestamp from date time', 'timestamp', [late, noon])
+callable('timestamp from timestamptz', 'timestamp', [instant])
+callable('timestamp from date overflow', 'timestamp', [largeDate])
+callable('timestamptz from timestamp', 'timestamptz', [stamp])
+callable('timestamptz from date', 'timestamptz', [late])
+callable('timestamptz from date time', 'timestamptz', [late, noon])
+callable('timestamptz from date timetz', 'timestamptz', [late, offsetWall])
+callable('time from timestamp', 'time', [stamp])
+callable('time from timestamp inf', 'time', [timestampInf])
+callable('time from timestamptz', 'time', [instant])
+callable('time from timetz', 'time', [offsetWall])
+callable('time from interval', 'time', [hours25])
+callable('time from interval inf', 'time', [intervalInf])
+callable('timetz from time', 'timetz', [noon])
+callable('timetz from timestamptz', 'timetz', [instant])
+callable('timetz from timestamptz inf', 'timetz', [timestamptz('infinity')])
+callable('interval from time', 'interval', [noon])
+
+for (const [leftName, rightName, left, right] of [
+  ['date', 'timestamp', late, stampMidnight],
+  ['timestamp', 'date', stampMidnight, late],
+  ['date', 'timestamptz', late, instantMidnight],
+  ['timestamptz', 'date', instantMidnight, late],
+  ['timestamp', 'timestamptz', stampMidnight, instantMidnight],
+  ['timestamptz', 'timestamp', instantMidnight, stampMidnight],
+] as const) {
+  for (const operation of ['=', '<>', '<', '<=', '>', '>='])
+    callable(`${leftName} ${rightName} operator ${operation}`, operation, [left, right], true)
+  for (const kind of ['eq', 'ne', 'lt', 'le', 'gt', 'ge', 'cmp'])
+    callable(`${leftName} ${rightName} function ${kind}`, `${leftName}_${kind}_${rightName}`, [
+      left,
+      right,
+    ])
+}
+callable('date timestamp afternoon', '=', [late, stampAfternoon], true)
+callable('date timestamp overflow', '<', [largeDate, timestampInf], true)
+callable('date timestamp compare overflow', 'date_cmp_timestamp', [largeDate, stamp])
+callable('date timestamp null', '=', [dateNil, stampMidnight], true)
 
 export const temporalSpecs: readonly ExpressionSpec[] = specs

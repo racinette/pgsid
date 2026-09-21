@@ -7,6 +7,10 @@ import type {
   OperatorBindings,
 } from '../../../sql-semantics/signatures.js'
 import { PG18_TEMPORAL } from '../../../postgres/builtins/temporal.generated.js'
+import {
+  temporalArithmeticFunctions,
+  temporalArithmeticOperators,
+} from '../../../sql-semantics/temporal-arithmetic-bindings.js'
 
 function call<M extends CallableMetadata>(helper: string): CallableEmitter<M, ts.Expression> {
   return {
@@ -40,14 +44,19 @@ const types = [
   ['interval', 'pg_catalog."interval"', 'interval'],
 ] as const
 
-export const typescriptTemporalOperators = Object.fromEntries(
-  types.flatMap(([prefix, type]) =>
-    comparisons.map(([operator, name]) => [
-      `operator:["pg_catalog","${operator}"](${type},${type})`,
-      call(`${prefix}${name}`),
-    ]),
+export const typescriptTemporalOperators = {
+  ...Object.fromEntries(
+    types.flatMap(([prefix, type]) =>
+      comparisons.map(([operator, name]) => [
+        `operator:["pg_catalog","${operator}"](${type},${type})`,
+        call(`${prefix}${name}`),
+      ]),
+    ),
   ),
-) as OperatorBindings<typeof PG18_TEMPORAL, ts.Expression>
+  ...Object.fromEntries(
+    temporalArithmeticOperators.map(([signature, helper]) => [signature, call(helper)]),
+  ),
+} as OperatorBindings<typeof PG18_TEMPORAL, ts.Expression>
 
 export const typescriptTemporalFunctions = {
   ...Object.fromEntries(
@@ -97,4 +106,7 @@ export const typescriptTemporalFunctions = {
     call('dateTruncTimestamptz'),
   'function:["pg_catalog","date_trunc"](pg_catalog.text,pg_catalog."interval")':
     call('dateTruncInterval'),
+  ...Object.fromEntries(
+    temporalArithmeticFunctions.map(([signature, helper]) => [signature, call(helper)]),
+  ),
 } as FunctionBindings<typeof PG18_TEMPORAL, ts.Expression>

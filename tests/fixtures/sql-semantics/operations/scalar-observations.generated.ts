@@ -72837,4 +72837,730 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: '1000-01-01 00:00:00 BC',
   },
+  'date plus int': {
+    kind: 'value',
+    value: '2020-01-05',
+  },
+  'date plus int fn': {
+    kind: 'value',
+    value: '2020-01-05',
+  },
+  'int plus date': {
+    kind: 'value',
+    value: '2020-01-05',
+  },
+  'int plus date fn': {
+    kind: 'value',
+    value: '2020-01-05',
+  },
+  'date plus int null': {
+    kind: 'null',
+  },
+  'date plus int infinity': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'date minus int': {
+    kind: 'value',
+    value: '2019-12-30',
+  },
+  'date minus int fn': {
+    kind: 'value',
+    value: '2019-12-30',
+  },
+  'date minus date': {
+    kind: 'value',
+    value: '1',
+  },
+  'date minus date fn': {
+    kind: 'value',
+    value: '1',
+  },
+  'date minus date infinity': {
+    kind: 'error',
+    code: '22008',
+  },
+  'date plus interval month': {
+    kind: 'value',
+    value: '2020-02-29 00:00:00',
+  },
+  'date plus interval fn': {
+    kind: 'value',
+    value: '2020-02-29 00:00:00',
+  },
+  'interval plus date': {
+    kind: 'value',
+    value: '2020-02-29 00:00:00',
+  },
+  'date minus interval': {
+    kind: 'value',
+    value: '2020-01-29 00:00:00',
+  },
+  'interval plus date fn': {
+    kind: 'value',
+    value: '2020-02-29 00:00:00',
+  },
+  'date minus interval fn': {
+    kind: 'value',
+    value: '2020-01-29 00:00:00',
+  },
+  'date plus time': {
+    kind: 'value',
+    value: '2020-01-02 12:00:00',
+  },
+  'date plus time fn': {
+    kind: 'value',
+    value: '2020-01-02 12:00:00',
+  },
+  'time plus date': {
+    kind: 'value',
+    value: '2020-01-02 12:00:00',
+  },
+  'time plus date fn': {
+    kind: 'value',
+    value: '2020-01-02 12:00:00',
+  },
+  'date plus timetz': {
+    kind: 'value',
+    value: '2020-01-02 11:00:00+00',
+  },
+  'date plus timetz fn': {
+    kind: 'value',
+    value: '2020-01-02 11:00:00+00',
+  },
+  'timetz plus date': {
+    kind: 'value',
+    value: '2020-01-02 11:00:00+00',
+  },
+  'timetz plus date fn': {
+    kind: 'value',
+    value: '2020-01-02 11:00:00+00',
+  },
+  'date plus interval null': {
+    kind: 'null',
+  },
+  'timestamp plus interval month': {
+    kind: 'value',
+    value: '2020-07-15 12:34:56.123456',
+  },
+  'timestamp plus interval fn': {
+    kind: 'value',
+    value: '2020-07-15 12:34:56.123456',
+  },
+  'interval plus timestamp': {
+    kind: 'value',
+    value: '2020-07-15 12:34:56.123456',
+  },
+  'interval plus timestamp fn': {
+    kind: 'value',
+    value: '2020-07-15 12:34:56.123456',
+  },
+  'timestamp minus interval': {
+    kind: 'value',
+    value: '2020-06-14 12:34:56.123456',
+  },
+  'timestamp minus interval fn': {
+    kind: 'value',
+    value: '2020-06-14 12:34:56.123456',
+  },
+  'timestamp minus timestamp': {
+    kind: 'value',
+    value: '15:00:00',
+  },
+  'timestamp minus timestamp fn': {
+    kind: 'value',
+    value: '15:00:00',
+  },
+  'timestamp plus interval infinity': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'timestamp plus interval inf inf': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'timestamp minus timestamp inf': {
+    kind: 'error',
+    code: '22008',
+  },
+  'timestamptz plus interval': {
+    kind: 'value',
+    value: '2020-01-01 14:00:00+00',
+  },
+  'timestamptz plus interval fn': {
+    kind: 'value',
+    value: '2020-01-01 14:00:00+00',
+  },
+  'interval plus timestamptz': {
+    kind: 'value',
+    value: '2020-01-01 14:00:00+00',
+  },
+  'interval plus timestamptz fn': {
+    kind: 'value',
+    value: '2020-01-01 14:00:00+00',
+  },
+  'timestamptz minus interval': {
+    kind: 'value',
+    value: '2020-01-01 10:00:00+00',
+  },
+  'timestamptz minus interval fn': {
+    kind: 'value',
+    value: '2020-01-01 10:00:00+00',
+  },
+  'timestamptz minus timestamptz': {
+    kind: 'value',
+    value: '-12:00:00',
+  },
+  'timestamptz minus timestamptz fn': {
+    kind: 'value',
+    value: '-12:00:00',
+  },
+  'time plus interval wrap': {
+    kind: 'value',
+    value: '01:00:00',
+  },
+  'time plus interval fn': {
+    kind: 'value',
+    value: '01:00:00',
+  },
+  'interval plus time': {
+    kind: 'value',
+    value: '01:00:00',
+  },
+  'interval plus time fn': {
+    kind: 'value',
+    value: '01:00:00',
+  },
+  'time minus interval': {
+    kind: 'value',
+    value: '10:00:00',
+  },
+  'time minus interval fn': {
+    kind: 'value',
+    value: '10:00:00',
+  },
+  'time minus time': {
+    kind: 'value',
+    value: '06:00:00',
+  },
+  'time minus time fn': {
+    kind: 'value',
+    value: '06:00:00',
+  },
+  'time plus interval inf': {
+    kind: 'error',
+    code: '22008',
+  },
+  'timetz plus interval': {
+    kind: 'value',
+    value: '14:00:00+01',
+  },
+  'timetz plus interval fn': {
+    kind: 'value',
+    value: '14:00:00+01',
+  },
+  'interval plus timetz': {
+    kind: 'value',
+    value: '14:00:00+01',
+  },
+  'interval plus timetz fn': {
+    kind: 'value',
+    value: '14:00:00+01',
+  },
+  'timetz minus interval': {
+    kind: 'value',
+    value: '10:00:00+01',
+  },
+  'timetz minus interval fn': {
+    kind: 'value',
+    value: '10:00:00+01',
+  },
+  'interval plus interval': {
+    kind: 'value',
+    value: '1 mon 1 day',
+  },
+  'interval plus interval fn': {
+    kind: 'value',
+    value: '1 mon 25:00:00',
+  },
+  'interval minus interval': {
+    kind: 'value',
+    value: '1 year 1 mon 3 days 04:05:06.7',
+  },
+  'interval minus interval fn': {
+    kind: 'value',
+    value: '1 year 1 mon 3 days 04:05:06.7',
+  },
+  'interval unary minus': {
+    kind: 'value',
+    value: '-1 years -2 mons -3 days -04:05:06.7',
+  },
+  'interval unary minus fn': {
+    kind: 'value',
+    value: '-1 years -2 mons -3 days -04:05:06.7',
+  },
+  'interval unary minus inf': {
+    kind: 'value',
+    value: '-infinity',
+  },
+  'interval mul': {
+    kind: 'value',
+    value: '2 years 11 mons 7 days 22:12:46.75',
+  },
+  'interval mul fn': {
+    kind: 'value',
+    value: '2 years 11 mons 7 days 22:12:46.75',
+  },
+  'float mul interval': {
+    kind: 'value',
+    value: '2 years 11 mons 7 days 22:12:46.75',
+  },
+  'float mul interval fn': {
+    kind: 'value',
+    value: '2 years 11 mons 7 days 22:12:46.75',
+  },
+  'interval mul null': {
+    kind: 'null',
+  },
+  'interval mul inf factor': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'interval div': {
+    kind: 'value',
+    value: '5 mons 19 days 06:26:02.68',
+  },
+  'interval div fn': {
+    kind: 'value',
+    value: '5 mons 19 days 06:26:02.68',
+  },
+  'interval div zero': {
+    kind: 'error',
+    code: '22012',
+  },
+  'justify hours': {
+    kind: 'value',
+    value: '1 day 01:00:00',
+  },
+  'justify days': {
+    kind: 'value',
+    value: '1 mon 15 days',
+  },
+  'justify interval': {
+    kind: 'value',
+    value: '1 year 16 days 06:00:00',
+  },
+  'justify hours inf': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'date from timestamp': {
+    kind: 'value',
+    value: '2020-06-15',
+  },
+  'date from timestamptz': {
+    kind: 'value',
+    value: '2020-01-01',
+  },
+  'date from timestamp inf': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'timestamp from date': {
+    kind: 'value',
+    value: '2020-01-02 00:00:00',
+  },
+  'timestamp from date time': {
+    kind: 'value',
+    value: '2020-01-02 12:00:00',
+  },
+  'timestamp from timestamptz': {
+    kind: 'value',
+    value: '2020-01-01 12:00:00',
+  },
+  'timestamp from date overflow': {
+    kind: 'error',
+    code: '22008',
+  },
+  'timestamptz from timestamp': {
+    kind: 'value',
+    value: '2020-06-15 12:34:56.123456+00',
+  },
+  'timestamptz from date': {
+    kind: 'value',
+    value: '2020-01-02 00:00:00+00',
+  },
+  'timestamptz from date time': {
+    kind: 'value',
+    value: '2020-01-02 12:00:00+00',
+  },
+  'timestamptz from date timetz': {
+    kind: 'value',
+    value: '2020-01-02 11:00:00+00',
+  },
+  'time from timestamp': {
+    kind: 'value',
+    value: '12:34:56.123456',
+  },
+  'time from timestamp inf': {
+    kind: 'null',
+  },
+  'time from timestamptz': {
+    kind: 'value',
+    value: '12:00:00',
+  },
+  'time from timetz': {
+    kind: 'value',
+    value: '12:00:00',
+  },
+  'time from interval': {
+    kind: 'value',
+    value: '01:00:00',
+  },
+  'time from interval inf': {
+    kind: 'error',
+    code: '22008',
+  },
+  'timetz from time': {
+    kind: 'value',
+    value: '12:00:00+00',
+  },
+  'timetz from timestamptz': {
+    kind: 'value',
+    value: '12:00:00+00',
+  },
+  'timetz from timestamptz inf': {
+    kind: 'null',
+  },
+  'interval from time': {
+    kind: 'value',
+    value: '12:00:00',
+  },
+  'date timestamp operator =': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date timestamp operator <>': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date timestamp operator <': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date timestamp operator <=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date timestamp operator >': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date timestamp operator >=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date timestamp function eq': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date timestamp function ne': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date timestamp function lt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date timestamp function le': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date timestamp function gt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date timestamp function ge': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date timestamp function cmp': {
+    kind: 'value',
+    value: '0',
+  },
+  'timestamp date operator =': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp date operator <>': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp date operator <': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp date operator <=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp date operator >': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp date operator >=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp date function eq': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp date function ne': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp date function lt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp date function le': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp date function gt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp date function ge': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp date function cmp': {
+    kind: 'value',
+    value: '0',
+  },
+  'date timestamptz operator =': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date timestamptz operator <>': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date timestamptz operator <': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date timestamptz operator <=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date timestamptz operator >': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date timestamptz operator >=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date timestamptz function eq': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date timestamptz function ne': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date timestamptz function lt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date timestamptz function le': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date timestamptz function gt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date timestamptz function ge': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date timestamptz function cmp': {
+    kind: 'value',
+    value: '0',
+  },
+  'timestamptz date operator =': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz date operator <>': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz date operator <': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz date operator <=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz date operator >': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz date operator >=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz date function eq': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz date function ne': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz date function lt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz date function le': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz date function gt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz date function ge': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz date function cmp': {
+    kind: 'value',
+    value: '0',
+  },
+  'timestamp timestamptz operator =': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp timestamptz operator <>': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp timestamptz operator <': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp timestamptz operator <=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp timestamptz operator >': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp timestamptz operator >=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp timestamptz function eq': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp timestamptz function ne': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp timestamptz function lt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp timestamptz function le': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp timestamptz function gt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamp timestamptz function ge': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamp timestamptz function cmp': {
+    kind: 'value',
+    value: '0',
+  },
+  'timestamptz timestamp operator =': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz timestamp operator <>': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz timestamp operator <': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz timestamp operator <=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz timestamp operator >': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz timestamp operator >=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz timestamp function eq': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz timestamp function ne': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz timestamp function lt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz timestamp function le': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz timestamp function gt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz timestamp function ge': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz timestamp function cmp': {
+    kind: 'value',
+    value: '0',
+  },
+  'date timestamp afternoon': {
+    kind: 'value',
+    value: 'false',
+  },
+  'date timestamp overflow': {
+    kind: 'value',
+    value: 'true',
+  },
+  'date timestamp compare overflow': {
+    kind: 'value',
+    value: '1',
+  },
+  'date timestamp null': {
+    kind: 'null',
+  },
 }
