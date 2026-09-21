@@ -807,7 +807,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
     expect(supported.map((row) => row.signature).sort()).toEqual(
       [...expected, ...additional].sort(),
     )
-    expect(supported).toHaveLength(735)
+    expect(supported).toHaveLength(746)
     expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
     expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
   })
@@ -1073,7 +1073,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
     ]
     for (const signature of textSignatures) {
       const guarded =
-        /(?:"(?:bpchareq|bpcharne|bpcharlt|bpcharle|bpchargt|bpcharge|strpos|replace|split_part|starts_with)"|^operator:.*pg_catalog.bpchar)/.test(
+        /(?:"(?:bpchareq|bpcharne|bpcharlt|bpcharle|bpchargt|bpcharge|strpos|replace|split_part|starts_with|textlike|textnlike|bpcharlike|bpcharnlike|like|notlike|~~|!~~)"|^operator:.*pg_catalog.bpchar)/.test(
           signature,
         )
       if (!guarded) continue

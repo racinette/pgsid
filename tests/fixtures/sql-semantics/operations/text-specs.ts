@@ -176,4 +176,121 @@ add(
     boolean(true),
   ]),
 )
+const likePairs: readonly (readonly [string | null, string | null])[] = [
+  ['abc', 'abc'],
+  ['abc', 'a%'],
+  ['abc', '%c'],
+  ['abc', '%b%'],
+  ['abc', 'a_c'],
+  ['abc', '_b_'],
+  ['abc', '%'],
+  ['abc', '%%'],
+  ['abc', ''],
+  ['', ''],
+  ['', '%'],
+  ['', '_'],
+  ['a', '_'],
+  ['ab', '_'],
+  ['abc', 'ABC'],
+  ['ABC', 'abc'],
+  ['%', '\\%'],
+  ['_', '\\_'],
+  ['a%c', 'a\\%c'],
+  ['a_c', 'a\\_c'],
+  ['a\\c', 'a\\\\c'],
+  ['abc', 'a\\'],
+  ['', '\\'],
+  ['é', '_'],
+  ['😀', '_'],
+  ['😀', '__'],
+  ['e\u0301', '_'],
+  ['e\u0301', '__'],
+  ['a😀b', 'a_b'],
+  ['a😀b', 'a__b'],
+  ['abc', '%_'],
+  ['ab', '%_'],
+  ['a', '%_'],
+  ['', '%_'],
+  ['xz', 'x%z'],
+  ['xaz', 'x%z'],
+  ['xaaz', 'x%z'],
+  ['abc', 'a%b%c'],
+  ['aabbcc', 'a%b%c'],
+  ['abc', '%\\'],
+]
+for (const [index, [value, pattern]] of likePairs.entries()) {
+  add(
+    `text like pair ${index}`,
+    callable('operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text)', [
+      text(value),
+      text(pattern),
+    ]),
+  )
+  add(
+    `text not like pair ${index}`,
+    callable('operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text)', [
+      text(value),
+      text(pattern),
+    ]),
+  )
+}
+add(
+  'text like bpchar padding exact',
+  callable('operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text)', [
+    coerce(text('abc'), 'pg_catalog.bpchar', 6),
+    text('abc'),
+  ]),
+)
+add(
+  'text like bpchar padding percent',
+  callable('operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text)', [
+    coerce(text('abc'), 'pg_catalog.bpchar', 6),
+    text('abc%'),
+  ]),
+)
+add(
+  'text like bpchar padding spaces',
+  callable('operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text)', [
+    coerce(text('abc'), 'pg_catalog.bpchar', 6),
+    text('abc   '),
+  ]),
+)
+const likeEscapes: readonly (readonly [string | null, string | null])[] = [
+  ['a#%c', '#'],
+  ['a\\%c', ''],
+  ['a\\%c', '\\'],
+  ['%', 'xy'],
+  ['a%c', 'é'],
+  ['#%', '#'],
+  [null, '#'],
+  ['a', null],
+  ['é%c', 'é'],
+]
+for (const [index, [pattern, escape]] of likeEscapes.entries()) {
+  add(
+    `text like escape ${index}`,
+    callable('function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text)', [
+      text(pattern),
+      text(escape),
+    ]),
+  )
+}
+const escaped = callable('function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text)', [
+  text('a#%c'),
+  text('#'),
+])
+add(
+  'text like after custom escape',
+  callable('function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text)', [
+    text('a%c'),
+    escaped,
+  ]),
+)
+add(
+  'text like after custom escape miss',
+  callable('function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text)', [
+    text('axc'),
+    escaped,
+  ]),
+)
 export const textSpecs: readonly ExpressionSpec[] = specs

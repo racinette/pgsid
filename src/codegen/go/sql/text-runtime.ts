@@ -36,4 +36,10 @@ export const goTextDependencies: Record<string, readonly string[]> = {
   textPadRightSpace: ['SqlText', 'SqlInteger', 'textPadRight'],
   textOverlayLength: ['SqlText', 'SqlInteger', 'sqlTextSubstring'],
   textOverlay: ['SqlText', 'SqlInteger', 'textOverlayLength', 'textLength'],
+  textLikeNextChar: [],
+  textLikeCharLen: [],
+  textLikeMatch: ['textLikeNextChar'],
+  textLike: ['SqlBoolean', 'SqlText', 'textLikeMatch'],
+  textNotLike: ['SqlBoolean', 'SqlText', 'textLikeMatch'],
+  textLikeEscape: ['SqlText', 'textLikeCharLen'],
 }

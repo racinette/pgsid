@@ -916,7 +916,7 @@ export function emitSqlExpression<Ast>(
       operands.some((operand) =>
         ['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog."varchar"'].includes(operand.type),
       ) &&
-      ((operator && ['=', '<>', '<', '<=', '>', '>='].includes(metadata.name)) ||
+      ((operator && ['=', '<>', '<', '<=', '>', '>=', '~~', '!~~'].includes(metadata.name)) ||
         (!operator &&
           [
             'texteq',
@@ -935,6 +935,12 @@ export function emitSqlExpression<Ast>(
             'replace',
             'split_part',
             'starts_with',
+            'textlike',
+            'textnlike',
+            'bpcharlike',
+            'bpcharnlike',
+            'like',
+            'notlike',
           ].includes(metadata.name))) &&
       node.kind !== 'cast' &&
       node.collation !== 'C'
