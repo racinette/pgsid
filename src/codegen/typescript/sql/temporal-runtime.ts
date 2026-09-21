@@ -77,14 +77,16 @@ export const typescriptTemporalHelpers: Record<
 }`,
   },
   timestampFormat: {
-    dependencies: ['dateFormat', 'timeFormat'],
+    dependencies: ['temporalJ2date', 'temporalPad', 'timeFormat'],
     source: `function timestampFormat(usec: bigint): string {
   if (usec === -9223372036854775808n) return '-infinity'
   if (usec === 9223372036854775807n) return 'infinity'
   let days = usec / 86400000000n
   let time = usec % 86400000000n
   if (time < 0n) { time += 86400000000n; days -= 1n }
-  return dateFormat(Number(days)) + ' ' + timeFormat(time)
+  const { year, month, day } = temporalJ2date(Number(days) + 2451545)
+  const display = year > 0 ? year : -(year - 1)
+  return temporalPad(display, 4) + '-' + temporalPad(month, 2) + '-' + temporalPad(day, 2) + ' ' + timeFormat(time) + (year <= 0 ? ' BC' : '')
 }`,
   },
   intervalFormat: {

@@ -31,6 +31,10 @@ const integer = (value: string | null): Operand => ({
   sql: `${value === null ? 'NULL' : value}::int4`,
   expression: { kind: 'integer', type: 'pg_catalog.int4', value },
 })
+const text = (value: string | null): Operand => ({
+  sql: value === null ? 'NULL::text' : `${quote(value)}::text`,
+  expression: { kind: 'text', type: 'pg_catalog.text', value },
+})
 const float = (value: number | null): Operand => {
   const view = new DataView(new ArrayBuffer(8))
   if (value !== null) view.setFloat64(0, value)
@@ -523,5 +527,134 @@ add('timetz case', {
     otherwise: utcNoon.expression,
   },
 })
+
+const stamp = timestamp('2020-06-15 12:34:56.123456')
+const stampNinf = timestamp('-infinity')
+const wall = time('12:34:56.123456')
+const zoneWall = timetz('12:34:56.123456+01:30')
+const span = interval('1 year 2 mons 3 days 04:05:06.7')
+const spanNeg = interval('-13 mons')
+const field = (value: string | null): Operand => text(value)
+
+for (const unit of [
+  'microsecond',
+  'millisecond',
+  'second',
+  'minute',
+  'hour',
+  'day',
+  'month',
+  'quarter',
+  'week',
+  'year',
+  'decade',
+  'century',
+  'millennium',
+  'julian',
+  'isoyear',
+  'dow',
+  'isodow',
+  'doy',
+  'epoch',
+  'YEAR',
+  'microseconds',
+])
+  callable(`extract timestamp ${unit}`, 'extract', [field(unit), stamp])
+callable('extract timestamp timezone', 'extract', [field('timezone'), stamp])
+callable('extract timestamp null field', 'extract', [field(null), stamp])
+callable('extract timestamp null value', 'extract', [field('year'), timestampNil])
+callable('extract timestamp infinity year', 'extract', [field('year'), timestampInf])
+callable('extract timestamp infinity hour', 'extract', [field('hour'), timestampInf])
+callable('extract timestamp ninfinity epoch', 'extract', [field('epoch'), stampNinf])
+callable('extract timestamp bogus', 'extract', [field('bogus'), stamp])
+callable('extract timestamp now', 'extract', [field('now'), stamp])
+callable('date_part timestamp year', 'date_part', [field('year'), stamp])
+callable('date_part timestamp second', 'date_part', [field('second'), stamp])
+callable('date_part timestamp epoch', 'date_part', [field('epoch'), stamp])
+callable('date_part timestamp infinity hour', 'date_part', [field('hour'), timestampInf])
+
+callable('extract date year', 'extract', [field('year'), late])
+callable('extract date epoch', 'extract', [field('epoch'), late])
+callable('extract date dow', 'extract', [field('dow'), late])
+callable('extract date hour', 'extract', [field('hour'), late])
+callable('extract date infinity year', 'extract', [field('year'), dateInf])
+callable('extract date infinity month', 'extract', [field('month'), dateInf])
+callable('extract date ninfinity julian', 'extract', [field('julian'), dateNinf])
+callable('extract date null', 'extract', [field('year'), dateNil])
+callable('date_part date year', 'date_part', [field('year'), late])
+callable('date_part date hour', 'date_part', [field('hour'), late])
+callable('date_part date infinity hour', 'date_part', [field('hour'), dateInf])
+
+callable('extract time hour', 'extract', [field('hour'), wall])
+callable('extract time second', 'extract', [field('second'), wall])
+callable('extract time epoch', 'extract', [field('epoch'), wall])
+callable('extract time timezone', 'extract', [field('timezone'), wall])
+callable('extract time day', 'extract', [field('day'), wall])
+callable('extract time null', 'extract', [field('hour'), timeNil])
+callable('date_part time millisecond', 'date_part', [field('millisecond'), wall])
+
+callable('extract timetz timezone', 'extract', [field('timezone'), zoneWall])
+callable('extract timetz timezone_hour', 'extract', [field('timezone_hour'), zoneWall])
+callable('extract timetz timezone_minute', 'extract', [field('timezone_minute'), zoneWall])
+callable('extract timetz epoch', 'extract', [field('epoch'), zoneWall])
+callable('extract timetz hour', 'extract', [field('hour'), zoneWall])
+callable('extract timetz null', 'extract', [field('timezone'), timetzNil])
+callable('date_part timetz timezone', 'date_part', [field('timezone'), zoneWall])
+
+callable('extract interval year', 'extract', [field('year'), span])
+callable('extract interval month', 'extract', [field('month'), span])
+callable('extract interval day', 'extract', [field('day'), span])
+callable('extract interval hour', 'extract', [field('hour'), span])
+callable('extract interval second', 'extract', [field('second'), span])
+callable('extract interval week', 'extract', [field('week'), span])
+callable('extract interval quarter', 'extract', [field('quarter'), span])
+callable('extract interval quarter neg', 'extract', [field('quarter'), spanNeg])
+callable('extract interval epoch', 'extract', [field('epoch'), span])
+callable('extract interval infinity hour', 'extract', [field('hour'), intervalInf])
+callable('extract interval infinity month', 'extract', [field('month'), intervalInf])
+callable('extract interval null', 'extract', [field('year'), intervalNil])
+callable('date_part interval epoch', 'date_part', [field('epoch'), span])
+
+callable('extract timestamptz hour', 'extract', [field('hour'), instant])
+callable('extract timestamptz timezone', 'extract', [field('timezone'), instant])
+callable('extract timestamptz epoch', 'extract', [field('epoch'), instant])
+callable('extract timestamptz null', 'extract', [field('hour'), timestamptzNil])
+callable('date_part timestamptz year', 'date_part', [field('year'), instant])
+
+for (const unit of [
+  'microsecond',
+  'millisecond',
+  'second',
+  'minute',
+  'hour',
+  'day',
+  'month',
+  'quarter',
+  'week',
+  'year',
+  'decade',
+  'century',
+  'millennium',
+])
+  callable(`date_trunc timestamp ${unit}`, 'date_trunc', [field(unit), stamp])
+callable('date_trunc timestamp infinity year', 'date_trunc', [field('year'), timestampInf])
+callable('date_trunc timestamp week boundary', 'date_trunc', [
+  field('week'),
+  timestamp('2021-01-01 15:00:00'),
+])
+callable('date_trunc timestamp epoch', 'date_trunc', [field('epoch'), stamp])
+callable('date_trunc timestamp null', 'date_trunc', [field('day'), timestampNil])
+callable('date_trunc timestamptz day', 'date_trunc', [field('day'), instant])
+callable('date_trunc timestamptz hour', 'date_trunc', [field('hour'), instant])
+for (const unit of ['year', 'month', 'day', 'hour', 'second', 'millennium'])
+  callable(`date_trunc interval ${unit}`, 'date_trunc', [field(unit), span])
+callable('date_trunc interval week', 'date_trunc', [field('week'), span])
+callable('date_trunc interval infinity year', 'date_trunc', [field('year'), intervalInf])
+callable('date_trunc interval null', 'date_trunc', [field('day'), intervalNil])
+callable('extract date bc year', 'extract', [field('year'), date('0001-01-01 BC')])
+callable('date_trunc timestamp bc millennium', 'date_trunc', [
+  field('millennium'),
+  timestamp('0001-01-01 BC'),
+])
 
 export const temporalSpecs: readonly ExpressionSpec[] = specs

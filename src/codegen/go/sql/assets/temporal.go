@@ -174,7 +174,16 @@ func timestampFormat(usec int64) string {
 		time += 86400000000
 		days--
 	}
-	return dateFormat(int32(days)) + " " + timeFormat(time)
+	year, month, day := temporalJ2date(int(days) + 2451545)
+	display := year
+	if year <= 0 {
+		display = -(year - 1)
+	}
+	text := temporalPad(display, 4) + "-" + temporalPad(month, 2) + "-" + temporalPad(day, 2) + " " + timeFormat(time)
+	if year <= 0 {
+		text += " BC"
+	}
+	return text
 }
 
 func intervalFormat(month, day int32, time int64) string {

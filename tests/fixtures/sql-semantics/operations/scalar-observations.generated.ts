@@ -72418,4 +72418,423 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: '18:00:00+00',
   },
+  'extract timestamp microsecond': {
+    kind: 'value',
+    value: '56123456',
+  },
+  'extract timestamp millisecond': {
+    kind: 'value',
+    value: '56123.456',
+  },
+  'extract timestamp second': {
+    kind: 'value',
+    value: '56.123456',
+  },
+  'extract timestamp minute': {
+    kind: 'value',
+    value: '34',
+  },
+  'extract timestamp hour': {
+    kind: 'value',
+    value: '12',
+  },
+  'extract timestamp day': {
+    kind: 'value',
+    value: '15',
+  },
+  'extract timestamp month': {
+    kind: 'value',
+    value: '6',
+  },
+  'extract timestamp quarter': {
+    kind: 'value',
+    value: '2',
+  },
+  'extract timestamp week': {
+    kind: 'value',
+    value: '25',
+  },
+  'extract timestamp year': {
+    kind: 'value',
+    value: '2020',
+  },
+  'extract timestamp decade': {
+    kind: 'value',
+    value: '202',
+  },
+  'extract timestamp century': {
+    kind: 'value',
+    value: '21',
+  },
+  'extract timestamp millennium': {
+    kind: 'value',
+    value: '3',
+  },
+  'extract timestamp julian': {
+    kind: 'value',
+    value: '2459016.52426068814814814815',
+  },
+  'extract timestamp isoyear': {
+    kind: 'value',
+    value: '2020',
+  },
+  'extract timestamp dow': {
+    kind: 'value',
+    value: '1',
+  },
+  'extract timestamp isodow': {
+    kind: 'value',
+    value: '1',
+  },
+  'extract timestamp doy': {
+    kind: 'value',
+    value: '167',
+  },
+  'extract timestamp epoch': {
+    kind: 'value',
+    value: '1592224496.123456',
+  },
+  'extract timestamp YEAR': {
+    kind: 'value',
+    value: '2020',
+  },
+  'extract timestamp microseconds': {
+    kind: 'value',
+    value: '56123456',
+  },
+  'extract timestamp timezone': {
+    kind: 'error',
+    code: '0A000',
+  },
+  'extract timestamp null field': {
+    kind: 'null',
+  },
+  'extract timestamp null value': {
+    kind: 'null',
+  },
+  'extract timestamp infinity year': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'extract timestamp infinity hour': {
+    kind: 'null',
+  },
+  'extract timestamp ninfinity epoch': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'extract timestamp bogus': {
+    kind: 'error',
+    code: '22023',
+  },
+  'extract timestamp now': {
+    kind: 'error',
+    code: '0A000',
+  },
+  'date_part timestamp year': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '409f900000000000',
+  },
+  'date_part timestamp second': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '404c0fcd67fd3f5b',
+  },
+  'date_part timestamp epoch': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '41d7b9dabc07e6b4',
+  },
+  'date_part timestamp infinity hour': {
+    kind: 'null',
+  },
+  'extract date year': {
+    kind: 'value',
+    value: '2020',
+  },
+  'extract date epoch': {
+    kind: 'value',
+    value: '1577923200',
+  },
+  'extract date dow': {
+    kind: 'value',
+    value: '4',
+  },
+  'extract date hour': {
+    kind: 'error',
+    code: '0A000',
+  },
+  'extract date infinity year': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'extract date infinity month': {
+    kind: 'null',
+  },
+  'extract date ninfinity julian': {
+    kind: 'value',
+    value: '-Infinity',
+  },
+  'extract date null': {
+    kind: 'null',
+  },
+  'date_part date year': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '409f900000000000',
+  },
+  'date_part date hour': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '0000000000000000',
+  },
+  'date_part date infinity hour': {
+    kind: 'null',
+  },
+  'extract time hour': {
+    kind: 'value',
+    value: '12',
+  },
+  'extract time second': {
+    kind: 'value',
+    value: '56.123456',
+  },
+  'extract time epoch': {
+    kind: 'value',
+    value: '45296.123456',
+  },
+  'extract time timezone': {
+    kind: 'error',
+    code: '0A000',
+  },
+  'extract time day': {
+    kind: 'error',
+    code: '0A000',
+  },
+  'extract time null': {
+    kind: 'null',
+  },
+  'date_part time millisecond': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40eb676e978d4fdf',
+  },
+  'extract timetz timezone': {
+    kind: 'value',
+    value: '5400',
+  },
+  'extract timetz timezone_hour': {
+    kind: 'value',
+    value: '1',
+  },
+  'extract timetz timezone_minute': {
+    kind: 'value',
+    value: '30',
+  },
+  'extract timetz epoch': {
+    kind: 'value',
+    value: '39896.123456',
+  },
+  'extract timetz hour': {
+    kind: 'value',
+    value: '12',
+  },
+  'extract timetz null': {
+    kind: 'null',
+  },
+  'date_part timetz timezone': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '40b5180000000000',
+  },
+  'extract interval year': {
+    kind: 'value',
+    value: '1',
+  },
+  'extract interval month': {
+    kind: 'value',
+    value: '2',
+  },
+  'extract interval day': {
+    kind: 'value',
+    value: '3',
+  },
+  'extract interval hour': {
+    kind: 'value',
+    value: '4',
+  },
+  'extract interval second': {
+    kind: 'value',
+    value: '6.700000',
+  },
+  'extract interval week': {
+    kind: 'value',
+    value: '0',
+  },
+  'extract interval quarter': {
+    kind: 'value',
+    value: '1',
+  },
+  'extract interval quarter neg': {
+    kind: 'value',
+    value: '-1',
+  },
+  'extract interval epoch': {
+    kind: 'value',
+    value: '37015506.700000',
+  },
+  'extract interval infinity hour': {
+    kind: 'value',
+    value: 'Infinity',
+  },
+  'extract interval infinity month': {
+    kind: 'null',
+  },
+  'extract interval null': {
+    kind: 'null',
+  },
+  'date_part interval epoch': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '4181a67e9599999a',
+  },
+  'extract timestamptz hour': {
+    kind: 'value',
+    value: '12',
+  },
+  'extract timestamptz timezone': {
+    kind: 'value',
+    value: '0',
+  },
+  'extract timestamptz epoch': {
+    kind: 'value',
+    value: '1577880000.000000',
+  },
+  'extract timestamptz null': {
+    kind: 'null',
+  },
+  'date_part timestamptz year': {
+    kind: 'float',
+    type: 'pg_catalog.float8',
+    value: '409f900000000000',
+  },
+  'date_trunc timestamp microsecond': {
+    kind: 'value',
+    value: '2020-06-15 12:34:56.123456',
+  },
+  'date_trunc timestamp millisecond': {
+    kind: 'value',
+    value: '2020-06-15 12:34:56.123',
+  },
+  'date_trunc timestamp second': {
+    kind: 'value',
+    value: '2020-06-15 12:34:56',
+  },
+  'date_trunc timestamp minute': {
+    kind: 'value',
+    value: '2020-06-15 12:34:00',
+  },
+  'date_trunc timestamp hour': {
+    kind: 'value',
+    value: '2020-06-15 12:00:00',
+  },
+  'date_trunc timestamp day': {
+    kind: 'value',
+    value: '2020-06-15 00:00:00',
+  },
+  'date_trunc timestamp month': {
+    kind: 'value',
+    value: '2020-06-01 00:00:00',
+  },
+  'date_trunc timestamp quarter': {
+    kind: 'value',
+    value: '2020-04-01 00:00:00',
+  },
+  'date_trunc timestamp week': {
+    kind: 'value',
+    value: '2020-06-15 00:00:00',
+  },
+  'date_trunc timestamp year': {
+    kind: 'value',
+    value: '2020-01-01 00:00:00',
+  },
+  'date_trunc timestamp decade': {
+    kind: 'value',
+    value: '2020-01-01 00:00:00',
+  },
+  'date_trunc timestamp century': {
+    kind: 'value',
+    value: '2001-01-01 00:00:00',
+  },
+  'date_trunc timestamp millennium': {
+    kind: 'value',
+    value: '2001-01-01 00:00:00',
+  },
+  'date_trunc timestamp infinity year': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'date_trunc timestamp week boundary': {
+    kind: 'value',
+    value: '2020-12-28 00:00:00',
+  },
+  'date_trunc timestamp epoch': {
+    kind: 'error',
+    code: '22023',
+  },
+  'date_trunc timestamp null': {
+    kind: 'null',
+  },
+  'date_trunc timestamptz day': {
+    kind: 'value',
+    value: '2020-01-01 00:00:00+00',
+  },
+  'date_trunc timestamptz hour': {
+    kind: 'value',
+    value: '2020-01-01 12:00:00+00',
+  },
+  'date_trunc interval year': {
+    kind: 'value',
+    value: '1 year',
+  },
+  'date_trunc interval month': {
+    kind: 'value',
+    value: '1 year 2 mons',
+  },
+  'date_trunc interval day': {
+    kind: 'value',
+    value: '1 year 2 mons 3 days',
+  },
+  'date_trunc interval hour': {
+    kind: 'value',
+    value: '1 year 2 mons 3 days 04:00:00',
+  },
+  'date_trunc interval second': {
+    kind: 'value',
+    value: '1 year 2 mons 3 days 04:05:06',
+  },
+  'date_trunc interval millennium': {
+    kind: 'value',
+    value: '00:00:00',
+  },
+  'date_trunc interval week': {
+    kind: 'error',
+    code: '0A000',
+  },
+  'date_trunc interval infinity year': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'date_trunc interval null': {
+    kind: 'null',
+  },
+  'extract date bc year': {
+    kind: 'value',
+    value: '-1',
+  },
+  'date_trunc timestamp bc millennium': {
+    kind: 'value',
+    value: '1000-01-01 00:00:00 BC',
+  },
 }

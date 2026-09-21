@@ -73,4 +73,28 @@ export const typescriptTemporalFunctions = {
     call('makeTimestamptz'),
   'function:["pg_catalog","make_interval"](pg_catalog.int4,pg_catalog.int4,pg_catalog.int4,pg_catalog.int4,pg_catalog.int4,pg_catalog.int4,pg_catalog.float8)':
     call('makeInterval'),
+  'function:["pg_catalog","extract"](pg_catalog.text,pg_catalog."timestamp")':
+    call('extractTimestamp'),
+  'function:["pg_catalog","extract"](pg_catalog.text,pg_catalog.timestamptz)':
+    call('extractTimestamptz'),
+  'function:["pg_catalog","extract"](pg_catalog.text,pg_catalog.date)': call('extractDate'),
+  'function:["pg_catalog","extract"](pg_catalog.text,pg_catalog."time")': call('extractTime'),
+  'function:["pg_catalog","extract"](pg_catalog.text,pg_catalog.timetz)': call('extractTimetz'),
+  'function:["pg_catalog","extract"](pg_catalog.text,pg_catalog."interval")':
+    call('extractInterval'),
+  'function:["pg_catalog","date_part"](pg_catalog.text,pg_catalog."timestamp")':
+    call('datePartTimestamp'),
+  'function:["pg_catalog","date_part"](pg_catalog.text,pg_catalog.timestamptz)':
+    call('datePartTimestamptz'),
+  'function:["pg_catalog","date_part"](pg_catalog.text,pg_catalog.date)': call('datePartDate'),
+  'function:["pg_catalog","date_part"](pg_catalog.text,pg_catalog."time")': call('datePartTime'),
+  'function:["pg_catalog","date_part"](pg_catalog.text,pg_catalog.timetz)': call('datePartTimetz'),
+  'function:["pg_catalog","date_part"](pg_catalog.text,pg_catalog."interval")':
+    call('datePartInterval'),
+  'function:["pg_catalog","date_trunc"](pg_catalog.text,pg_catalog."timestamp")':
+    call('dateTruncTimestamp'),
+  'function:["pg_catalog","date_trunc"](pg_catalog.text,pg_catalog.timestamptz)':
+    call('dateTruncTimestamptz'),
+  'function:["pg_catalog","date_trunc"](pg_catalog.text,pg_catalog."interval")':
+    call('dateTruncInterval'),
 } as FunctionBindings<typeof PG18_TEMPORAL, ts.Expression>
