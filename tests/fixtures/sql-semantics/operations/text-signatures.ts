@@ -120,6 +120,20 @@ export const byteaOrderSignatures = [
   'operator:["pg_catalog","||"](pg_catalog.bytea,pg_catalog.bytea)',
 ] as const
 
+export const byteaSliceSignatures = [
+  'function:["pg_catalog","btrim"](pg_catalog.bytea,pg_catalog.bytea)',
+  'function:["pg_catalog","ltrim"](pg_catalog.bytea,pg_catalog.bytea)',
+  'function:["pg_catalog","overlay"](pg_catalog.bytea,pg_catalog.bytea,pg_catalog.int4)',
+  'function:["pg_catalog","overlay"](pg_catalog.bytea,pg_catalog.bytea,pg_catalog.int4,pg_catalog.int4)',
+  'function:["pg_catalog","position"](pg_catalog.bytea,pg_catalog.bytea)',
+  'function:["pg_catalog","reverse"](pg_catalog.bytea)',
+  'function:["pg_catalog","rtrim"](pg_catalog.bytea,pg_catalog.bytea)',
+  'function:["pg_catalog","substr"](pg_catalog.bytea,pg_catalog.int4)',
+  'function:["pg_catalog","substr"](pg_catalog.bytea,pg_catalog.int4,pg_catalog.int4)',
+  'function:["pg_catalog","substring"](pg_catalog.bytea,pg_catalog.int4)',
+  'function:["pg_catalog","substring"](pg_catalog.bytea,pg_catalog.int4,pg_catalog.int4)',
+] as const
+
 export const byteaLengthSignatures = [
   'function:["pg_catalog","bit_count"](pg_catalog.bytea)',
   'function:["pg_catalog","bit_length"](pg_catalog.bytea)',

@@ -2,6 +2,7 @@ import type { SqlExpression, TextType } from '../../../../src/sql-semantics/expr
 import { functionMetadata, operatorMetadata } from '../../../../src/postgres/builtins/inventory.js'
 import {
   byteaLengthSignatures,
+  byteaSliceSignatures,
   byteaLikeSignatures,
   byteaOrderSignatures,
   nameLikeSignatures,
@@ -461,4 +462,105 @@ const byteaLengths: readonly (string | null)[] = [
 for (const signature of byteaLengthSignatures)
   for (const [index, value] of byteaLengths.entries())
     add(`bytea length ${signature} ${index}`, byteaCall(signature, [bytea(value)]))
+const byteaSliceValues = [null, '', '010203ff']
+const byteaSliceStarts = [null, -2147483648, -5, 0, 1, 2, 5, 2147483647]
+const byteaSliceLengths = [-1, 0, 1, 2, 2147483647]
+for (const name of ['substr', 'substring'] as const) {
+  const withLength = `function:["pg_catalog","${name}"](pg_catalog.bytea,pg_catalog.int4,pg_catalog.int4)`
+  const toEnd = `function:["pg_catalog","${name}"](pg_catalog.bytea,pg_catalog.int4)`
+  for (const [valueIndex, value] of byteaSliceValues.entries())
+    for (const [startIndex, start] of byteaSliceStarts.entries()) {
+      add(
+        `bytea slice ${name} ${valueIndex}/${startIndex}`,
+        byteaCall(toEnd, [bytea(value), integer(start)]),
+      )
+      for (const [lengthIndex, length] of byteaSliceLengths.entries())
+        add(
+          `bytea slice ${name} ${valueIndex}/${startIndex}/${lengthIndex}`,
+          byteaCall(withLength, [bytea(value), integer(start), integer(length)]),
+        )
+    }
+}
+const byteaPositionPairs: readonly (readonly [string | null, string | null])[] = [
+  ['010203', '02'],
+  ['010203', '03'],
+  ['010203', '04'],
+  ['010203', ''],
+  ['', ''],
+  ['', '01'],
+  ['ff00', 'ff'],
+  ['00ff', 'ff'],
+  ['010201', '01'],
+  ['0102', '010203'],
+  [null, '01'],
+  ['01', null],
+]
+for (const [index, [value, search]] of byteaPositionPairs.entries())
+  add(
+    `bytea position ${index}`,
+    byteaCall('function:["pg_catalog","position"](pg_catalog.bytea,pg_catalog.bytea)', [
+      bytea(value),
+      bytea(search),
+    ]),
+  )
+const byteaOverlayCases: readonly (readonly [
+  string | null,
+  string | null,
+  number | null,
+  number | null,
+])[] = [
+  ['01020304', 'ff', 1, null],
+  ['01020304', 'ff', 2, null],
+  ['01020304', 'ff', 2, 1],
+  ['01020304', 'ff', 2, 2],
+  ['01020304', 'ff', 2, 0],
+  ['01020304', '', 2, 2],
+  ['01020304', 'ffff', 5, null],
+  ['01020304', 'ff', 0, 1],
+  ['01020304', 'ff', -1, 1],
+  ['01020304', 'ff', 2, -1],
+  ['01020304', 'ff', 2147483647, 1],
+  ['01020304', 'ff', 2, 2147483647],
+  [null, 'ff', 1, 1],
+  ['01020304', null, 1, 1],
+  ['01020304', 'ff', null, 1],
+  ['', 'ff', 1, null],
+]
+for (const [index, [value, replacement, start, length]] of byteaOverlayCases.entries()) {
+  const operands = [bytea(value), bytea(replacement), integer(start)]
+  add(
+    `bytea overlay ${index}`,
+    byteaCall(
+      length === null
+        ? 'function:["pg_catalog","overlay"](pg_catalog.bytea,pg_catalog.bytea,pg_catalog.int4)'
+        : 'function:["pg_catalog","overlay"](pg_catalog.bytea,pg_catalog.bytea,pg_catalog.int4,pg_catalog.int4)',
+      length === null ? operands : [...operands, integer(length)],
+    ),
+  )
+}
+const byteaTrimPairs: readonly (readonly [string | null, string | null])[] = [
+  ['0001020000', '00'],
+  ['010203', '01'],
+  ['010203', ''],
+  ['', '01'],
+  ['ffff', 'ff'],
+  ['00ff00', '0001'],
+  ['010201', '02'],
+  [null, '00'],
+  ['00', null],
+]
+for (const name of ['btrim', 'ltrim', 'rtrim'] as const)
+  for (const [index, [value, set]] of byteaTrimPairs.entries())
+    add(
+      `bytea trim ${name} ${index}`,
+      byteaCall(`function:["pg_catalog","${name}"](pg_catalog.bytea,pg_catalog.bytea)`, [
+        bytea(value),
+        bytea(set),
+      ]),
+    )
+for (const [index, value] of [null, '', '01', '0102', 'ff00', '0001ff'].entries())
+  add(
+    `bytea reverse ${index}`,
+    byteaCall('function:["pg_catalog","reverse"](pg_catalog.bytea)', [bytea(value)]),
+  )
 export const textSpecs: readonly ExpressionSpec[] = specs

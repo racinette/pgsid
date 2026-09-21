@@ -879,4 +879,143 @@ export const typescriptTextHelpers: Record<
   return BigInt(count)
 }`,
   },
+  byteaSlice: {
+    dependencies: ['sqlTextError'],
+    source: `function byteaSlice(bytes: Uint8Array, start: number, length: number | null): number[] {
+  if (length !== null && length < 0) sqlTextError('22011')
+  const first = Math.max(start, 1)
+  let count = -1
+  if (length !== null) {
+    const end = start + length
+    if (end > 2147483647 || end < -2147483648) count = -1
+    else if (end < 1) return []
+    else count = end - first
+  }
+  const offset = first - 1
+  if (offset >= bytes.length || count === 0) return []
+  const limit = count < 0 ? bytes.length : Math.min(bytes.length, offset + count)
+  const out: number[] = []
+  for (let index = offset; index < limit; index++) out.push(bytes[index]!)
+  return out
+}`,
+  },
+  byteaSubstr: {
+    dependencies: ['byteaDecode', 'byteaHex', 'byteaSlice'],
+    source: `function byteaSubstr(value: string | null, start: bigint | null): string | null {
+  if (value === null || start === null) return null
+  return byteaHex(byteaSlice(byteaDecode(value), Number(start), null))
+}`,
+  },
+  byteaSubstrLength: {
+    dependencies: ['byteaDecode', 'byteaHex', 'byteaSlice'],
+    source: `function byteaSubstrLength(
+  value: string | null,
+  start: bigint | null,
+  length: bigint | null,
+): string | null {
+  if (value === null || start === null || length === null) return null
+  return byteaHex(byteaSlice(byteaDecode(value), Number(start), Number(length)))
+}`,
+  },
+  byteaPosition: {
+    dependencies: ['byteaDecode'],
+    source: `function byteaPosition(value: string | null, search: string | null): bigint | null {
+  if (value === null || search === null) return null
+  const haystack = byteaDecode(value)
+  const needle = byteaDecode(search)
+  if (needle.length === 0) return 1n
+  const last = haystack.length - needle.length
+  for (let index = 0; index <= last; index++) {
+    let matched = true
+    for (let offset = 0; offset < needle.length; offset++) {
+      if (haystack[index + offset] !== needle[offset]) {
+        matched = false
+        break
+      }
+    }
+    if (matched) return BigInt(index + 1)
+  }
+  return 0n
+}`,
+  },
+  byteaOverlayLength: {
+    dependencies: ['byteaDecode', 'byteaHex', 'byteaSlice', 'sqlTextError'],
+    source: `function byteaOverlayLength(
+  value: string | null,
+  replacement: string | null,
+  start: bigint | null,
+  length: bigint | null,
+): string | null {
+  if (value === null || replacement === null || start === null || length === null) return null
+  if (start <= 0n) sqlTextError('22011')
+  const end = start + length
+  if (end > 2147483647n || end < -2147483648n) sqlTextError('22003')
+  const bytes = byteaDecode(value)
+  return byteaHex([
+    ...byteaSlice(bytes, 1, Number(start) - 1),
+    ...byteaDecode(replacement),
+    ...byteaSlice(bytes, Number(end), null),
+  ])
+}`,
+  },
+  byteaOverlay: {
+    dependencies: ['byteaOverlayLength', 'byteaOctetLength'],
+    source: `function byteaOverlay(
+  value: string | null,
+  replacement: string | null,
+  start: bigint | null,
+): string | null {
+  return byteaOverlayLength(value, replacement, start, byteaOctetLength(replacement))
+}`,
+  },
+  byteaTrim: {
+    dependencies: ['byteaDecode', 'byteaHex'],
+    source: `function byteaTrim(
+  value: string | null,
+  set: string | null,
+  left: boolean,
+  right: boolean,
+): string | null {
+  if (value === null || set === null) return null
+  const bytes = byteaDecode(value)
+  const marks = byteaDecode(set)
+  if (bytes.length === 0 || marks.length === 0) return value
+  const trim = new Set(marks)
+  let first = 0
+  let last = bytes.length
+  if (left) while (first < last && trim.has(bytes[first]!)) first++
+  if (right) while (last > first && trim.has(bytes[last - 1]!)) last--
+  const out: number[] = []
+  for (let index = first; index < last; index++) out.push(bytes[index]!)
+  return byteaHex(out)
+}`,
+  },
+  byteaTrimBoth: {
+    dependencies: ['byteaTrim'],
+    source: `function byteaTrimBoth(value: string | null, set: string | null): string | null {
+  return byteaTrim(value, set, true, true)
+}`,
+  },
+  byteaTrimLeft: {
+    dependencies: ['byteaTrim'],
+    source: `function byteaTrimLeft(value: string | null, set: string | null): string | null {
+  return byteaTrim(value, set, true, false)
+}`,
+  },
+  byteaTrimRight: {
+    dependencies: ['byteaTrim'],
+    source: `function byteaTrimRight(value: string | null, set: string | null): string | null {
+  return byteaTrim(value, set, false, true)
+}`,
+  },
+  byteaReverse: {
+    dependencies: ['byteaDecode', 'byteaHex'],
+    source: `function byteaReverse(value: string | null): string | null {
+  if (value === null) return null
+  const bytes = byteaDecode(value)
+  const out: number[] = []
+  for (let index = bytes.length - 1; index >= 0; index--) out.push(bytes[index]!)
+  return byteaHex(out)
+}`,
+  },
 }

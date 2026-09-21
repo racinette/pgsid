@@ -48,10 +48,25 @@ export const typescriptBinaryFunctions = {
   'function:["pg_catalog","bytealt"](pg_catalog.bytea,pg_catalog.bytea)': call('byteaLt'),
   'function:["pg_catalog","byteane"](pg_catalog.bytea,pg_catalog.bytea)': call('byteaNe'),
   'function:["pg_catalog","byteanlike"](pg_catalog.bytea,pg_catalog.bytea)': call('byteaNotLike'),
+  'function:["pg_catalog","btrim"](pg_catalog.bytea,pg_catalog.bytea)': call('byteaTrimBoth'),
   'function:["pg_catalog","bit_count"](pg_catalog.bytea)': call('byteaBitCount'),
   'function:["pg_catalog","bit_length"](pg_catalog.bytea)': call('byteaBitLength'),
   'function:["pg_catalog","length"](pg_catalog.bytea)': call('byteaOctetLength'),
   'function:["pg_catalog","like_escape"](pg_catalog.bytea,pg_catalog.bytea)':
     call('byteaLikeEscape'),
+  'function:["pg_catalog","ltrim"](pg_catalog.bytea,pg_catalog.bytea)': call('byteaTrimLeft'),
   'function:["pg_catalog","octet_length"](pg_catalog.bytea)': call('byteaOctetLength'),
+  'function:["pg_catalog","overlay"](pg_catalog.bytea,pg_catalog.bytea,pg_catalog.int4)':
+    call('byteaOverlay'),
+  'function:["pg_catalog","overlay"](pg_catalog.bytea,pg_catalog.bytea,pg_catalog.int4,pg_catalog.int4)':
+    call('byteaOverlayLength'),
+  'function:["pg_catalog","position"](pg_catalog.bytea,pg_catalog.bytea)': call('byteaPosition'),
+  'function:["pg_catalog","reverse"](pg_catalog.bytea)': call('byteaReverse'),
+  'function:["pg_catalog","rtrim"](pg_catalog.bytea,pg_catalog.bytea)': call('byteaTrimRight'),
+  'function:["pg_catalog","substr"](pg_catalog.bytea,pg_catalog.int4)': call('byteaSubstr'),
+  'function:["pg_catalog","substr"](pg_catalog.bytea,pg_catalog.int4,pg_catalog.int4)':
+    call('byteaSubstrLength'),
+  'function:["pg_catalog","substring"](pg_catalog.bytea,pg_catalog.int4)': call('byteaSubstr'),
+  'function:["pg_catalog","substring"](pg_catalog.bytea,pg_catalog.int4,pg_catalog.int4)':
+    call('byteaSubstrLength'),
 } satisfies FunctionBindings<typeof PG18_BINARY, ts.Expression>
