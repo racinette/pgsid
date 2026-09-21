@@ -580,4 +580,271 @@ export const typescriptTextHelpers: Record<
   return textUtf8Decode(Uint8Array.from(output))
 }`,
   },
+  textAsciiCase: {
+    dependencies: ['textUtf8Encode', 'textUtf8Decode'],
+    source: `function textAsciiCase(value: string | null, mode: number): string | null {
+  if (value === null) return null
+  const bytes = textUtf8Encode(value)
+  const out = new Uint8Array(bytes.length)
+  let wasalnum = false
+  for (let index = 0; index < bytes.length; index++) {
+    let byte = bytes[index]!
+    if (mode === 0 || (mode === 2 && wasalnum)) {
+      if (byte >= 65 && byte <= 90) byte += 32
+    } else if (byte >= 97 && byte <= 122) byte -= 32
+    out[index] = byte
+    if (mode === 2)
+      wasalnum =
+        (byte >= 65 && byte <= 90) || (byte >= 97 && byte <= 122) || (byte >= 48 && byte <= 57)
+  }
+  return textUtf8Decode(out)
+}`,
+  },
+  textAsciiLower: {
+    dependencies: ['textAsciiCase'],
+    source: `function textAsciiLower(value: string | null): string | null {
+  return textAsciiCase(value, 0)
+}`,
+  },
+  textAsciiUpper: {
+    dependencies: ['textAsciiCase'],
+    source: `function textAsciiUpper(value: string | null): string | null {
+  return textAsciiCase(value, 1)
+}`,
+  },
+  textAsciiInitcap: {
+    dependencies: ['textAsciiCase'],
+    source: `function textAsciiInitcap(value: string | null): string | null {
+  return textAsciiCase(value, 2)
+}`,
+  },
+  textILike: {
+    dependencies: ['textLike', 'textAsciiLower'],
+    source: `function textILike(value: string | null, pattern: string | null): boolean | null {
+  return textLike(textAsciiLower(value), textAsciiLower(pattern))
+}`,
+  },
+  textNotILike: {
+    dependencies: ['textNotLike', 'textAsciiLower'],
+    source: `function textNotILike(value: string | null, pattern: string | null): boolean | null {
+  return textNotLike(textAsciiLower(value), textAsciiLower(pattern))
+}`,
+  },
+  nameInput: {
+    dependencies: ['textUtf8Encode', 'textUtf8Decode', 'textLikeCharLen'],
+    source: `function nameInput(value: string | null): string | null {
+  if (value === null) return null
+  const bytes = textUtf8Encode(value)
+  let length = 0
+  while (length < bytes.length && length < 63) {
+    const width = textLikeCharLen(bytes.subarray(length))
+    if (length + width > 63) break
+    length += width
+  }
+  return textUtf8Decode(bytes.subarray(0, length))
+}`,
+  },
+  byteaInput: {
+    dependencies: ['sqlTextError'],
+    source: `function byteaInput(value: string | null): string | null {
+  if (value === null) return null
+  if (value.length % 2 !== 0 || /[^0-9a-f]/i.test(value)) sqlTextError('22023')
+  return '\\\\x' + value.toLowerCase()
+}`,
+  },
+  byteaDecode: {
+    dependencies: [],
+    source: `function byteaDecode(value: string): Uint8Array {
+  const hex = value.slice(2)
+  const out = new Uint8Array(hex.length / 2)
+  for (let index = 0; index < out.length; index++)
+    out[index] = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16)
+  return out
+}`,
+  },
+  byteaHex: {
+    dependencies: [],
+    source: `function byteaHex(bytes: number[]): string {
+  let hex = ''
+  for (const byte of bytes) hex += byte.toString(16).padStart(2, '0')
+  return '\\\\x' + hex
+}`,
+  },
+  byteaLikeMatch: {
+    dependencies: ['sqlTextError'],
+    source: `function byteaLikeMatch(text: Uint8Array, pattern: Uint8Array): number {
+  if (pattern.length === 1 && pattern[0] === 0x25) return 1
+  while (text.length > 0 && pattern.length > 0) {
+    if (pattern[0] === 0x5c) {
+      pattern = pattern.subarray(1)
+      if (pattern.length === 0) sqlTextError('22025')
+      if (pattern[0] !== text[0]) return 0
+    } else if (pattern[0] === 0x25) {
+      pattern = pattern.subarray(1)
+      while (pattern.length > 0) {
+        if (pattern[0] === 0x25) pattern = pattern.subarray(1)
+        else if (pattern[0] === 0x5f) {
+          if (text.length === 0) return -1
+          text = text.subarray(1)
+          pattern = pattern.subarray(1)
+        } else break
+      }
+      if (pattern.length === 0) return 1
+      const first =
+        pattern[0] === 0x5c
+          ? (pattern.length < 2 ? sqlTextError('22025') : pattern[1]!)
+          : pattern[0]!
+      while (text.length > 0) {
+        if (text[0] === first) {
+          const matched = byteaLikeMatch(text, pattern)
+          if (matched !== 0) return matched
+        }
+        text = text.subarray(1)
+      }
+      return -1
+    } else if (pattern[0] === 0x5f) {
+      text = text.subarray(1)
+      pattern = pattern.subarray(1)
+      continue
+    } else if (pattern[0] !== text[0]) return 0
+    text = text.subarray(1)
+    pattern = pattern.subarray(1)
+  }
+  if (text.length > 0) return 0
+  while (pattern.length > 0 && pattern[0] === 0x25) pattern = pattern.subarray(1)
+  return pattern.length <= 0 ? 1 : -1
+}`,
+  },
+  byteaLike: {
+    dependencies: ['byteaLikeMatch', 'byteaDecode'],
+    source: `function byteaLike(value: string | null, pattern: string | null): boolean | null {
+  if (value === null || pattern === null) return null
+  return byteaLikeMatch(byteaDecode(value), byteaDecode(pattern)) === 1
+}`,
+  },
+  byteaNotLike: {
+    dependencies: ['byteaLikeMatch', 'byteaDecode'],
+    source: `function byteaNotLike(value: string | null, pattern: string | null): boolean | null {
+  if (value === null || pattern === null) return null
+  return byteaLikeMatch(byteaDecode(value), byteaDecode(pattern)) !== 1
+}`,
+  },
+  byteaLikeEscape: {
+    dependencies: ['sqlTextError', 'byteaDecode', 'byteaHex'],
+    source: `function byteaLikeEscape(pattern: string | null, escape: string | null): string | null {
+  if (pattern === null || escape === null) return null
+  const bytes = byteaDecode(pattern)
+  const mark = byteaDecode(escape)
+  const output: number[] = []
+  if (mark.length === 0) {
+    for (const byte of bytes) {
+      if (byte === 0x5c) output.push(0x5c)
+      output.push(byte)
+    }
+  } else if (mark.length !== 1) sqlTextError('22025')
+  else if (mark[0] === 0x5c) return pattern
+  else {
+    let afterEscape = false
+    for (const byte of bytes) {
+      if (byte === mark[0] && !afterEscape) {
+        output.push(0x5c)
+        afterEscape = true
+      } else if (byte === 0x5c) {
+        output.push(0x5c)
+        if (!afterEscape) output.push(0x5c)
+        afterEscape = false
+      } else {
+        output.push(byte)
+        afterEscape = false
+      }
+    }
+  }
+  return byteaHex(output)
+}`,
+  },
+  byteaCompare: {
+    dependencies: ['byteaDecode'],
+    source: `function byteaCompare(left: string | null, right: string | null): bigint | null {
+  if (left === null || right === null) return null
+  const leftBytes = byteaDecode(left)
+  const rightBytes = byteaDecode(right)
+  const length = leftBytes.length < rightBytes.length ? leftBytes.length : rightBytes.length
+  for (let index = 0; index < length; index++) {
+    const difference = leftBytes[index]! - rightBytes[index]!
+    if (difference !== 0) return BigInt(difference)
+  }
+  if (leftBytes.length === rightBytes.length) return 0n
+  return BigInt(leftBytes.length < rightBytes.length ? -1 : 1)
+}`,
+  },
+  byteaEq: {
+    dependencies: ['byteaCompare'],
+    source: `function byteaEq(left: string | null, right: string | null): boolean | null {
+  const comparison = byteaCompare(left, right)
+  return comparison === null ? null : comparison === 0n
+}`,
+  },
+  byteaNe: {
+    dependencies: ['byteaCompare'],
+    source: `function byteaNe(left: string | null, right: string | null): boolean | null {
+  const comparison = byteaCompare(left, right)
+  return comparison === null ? null : comparison !== 0n
+}`,
+  },
+  byteaLt: {
+    dependencies: ['byteaCompare'],
+    source: `function byteaLt(left: string | null, right: string | null): boolean | null {
+  const comparison = byteaCompare(left, right)
+  return comparison === null ? null : comparison < 0n
+}`,
+  },
+  byteaLe: {
+    dependencies: ['byteaCompare'],
+    source: `function byteaLe(left: string | null, right: string | null): boolean | null {
+  const comparison = byteaCompare(left, right)
+  return comparison === null ? null : comparison <= 0n
+}`,
+  },
+  byteaGt: {
+    dependencies: ['byteaCompare'],
+    source: `function byteaGt(left: string | null, right: string | null): boolean | null {
+  const comparison = byteaCompare(left, right)
+  return comparison === null ? null : comparison > 0n
+}`,
+  },
+  byteaGe: {
+    dependencies: ['byteaCompare'],
+    source: `function byteaGe(left: string | null, right: string | null): boolean | null {
+  const comparison = byteaCompare(left, right)
+  return comparison === null ? null : comparison >= 0n
+}`,
+  },
+  byteaCat: {
+    dependencies: ['byteaDecode', 'byteaHex'],
+    source: `function byteaCat(left: string | null, right: string | null): string | null {
+  if (left === null || right === null) return null
+  const leftBytes = byteaDecode(left)
+  const rightBytes = byteaDecode(right)
+  const out: number[] = []
+  for (const byte of leftBytes) out.push(byte)
+  for (const byte of rightBytes) out.push(byte)
+  return byteaHex(out)
+}`,
+  },
+  byteaLarger: {
+    dependencies: ['byteaCompare'],
+    source: `function byteaLarger(left: string | null, right: string | null): string | null {
+  const comparison = byteaCompare(left, right)
+  if (comparison === null) return null
+  return comparison > 0n ? left : right
+}`,
+  },
+  byteaSmaller: {
+    dependencies: ['byteaCompare'],
+    source: `function byteaSmaller(left: string | null, right: string | null): string | null {
+  const comparison = byteaCompare(left, right)
+  if (comparison === null) return null
+  return comparison < 0n ? left : right
+}`,
+  },
 }

@@ -736,3 +736,414 @@ func textLikeEscape(pattern, escape SqlText) SqlText {
 	}
 	return SqlText{Value: string(output), Valid: true}
 }
+
+func textAsciiCase(value SqlText, mode int) SqlText {
+	if value.Error != "" {
+		return SqlText{Error: value.Error}
+	}
+	if !value.Valid {
+		return SqlText{}
+	}
+	bytes := []byte(value.Value)
+	out := make([]byte, len(bytes))
+	wasalnum := false
+	for index, item := range bytes {
+		if mode == 0 || (mode == 2 && wasalnum) {
+			if item >= 'A' && item <= 'Z' {
+				item += 'a' - 'A'
+			}
+		} else if item >= 'a' && item <= 'z' {
+			item -= 'a' - 'A'
+		}
+		out[index] = item
+		if mode == 2 {
+			wasalnum = (item >= 'A' && item <= 'Z') || (item >= 'a' && item <= 'z') || (item >= '0' && item <= '9')
+		}
+	}
+	return SqlText{Value: string(out), Valid: true}
+}
+
+func textAsciiLower(value SqlText) SqlText {
+	return textAsciiCase(value, 0)
+}
+
+func textAsciiUpper(value SqlText) SqlText {
+	return textAsciiCase(value, 1)
+}
+
+func textAsciiInitcap(value SqlText) SqlText {
+	return textAsciiCase(value, 2)
+}
+
+func textILike(value, pattern SqlText) SqlBoolean {
+	return textLike(textAsciiLower(value), textAsciiLower(pattern))
+}
+
+func textNotILike(value, pattern SqlText) SqlBoolean {
+	return textNotLike(textAsciiLower(value), textAsciiLower(pattern))
+}
+
+func nameInput(value string) SqlText {
+	bytes := []byte(value)
+	length := 0
+	for length < len(bytes) && length < 63 {
+		width := textLikeCharLen(bytes[length:])
+		if length+width > 63 {
+			break
+		}
+		length += width
+	}
+	return SqlText{Value: string(bytes[:length]), Valid: true}
+}
+
+func byteaFromHex(digit byte) (byte, bool) {
+	switch {
+	case digit >= '0' && digit <= '9':
+		return digit - '0', true
+	case digit >= 'a' && digit <= 'f':
+		return digit - 'a' + 10, true
+	case digit >= 'A' && digit <= 'F':
+		return digit - 'A' + 10, true
+	default:
+		return 0, false
+	}
+}
+
+func byteaInput(value string) SqlText {
+	if len(value)%2 != 0 {
+		return SqlText{Error: "22023"}
+	}
+	lower := strings.ToLower(value)
+	for index := 0; index < len(lower); index++ {
+		if _, ok := byteaFromHex(lower[index]); !ok {
+			return SqlText{Error: "22023"}
+		}
+	}
+	return SqlText{Value: "\\x" + lower, Valid: true}
+}
+
+func byteaDecode(value string) ([]byte, string) {
+	if len(value) < 2 || value[0] != '\\' || value[1] != 'x' || (len(value)-2)%2 != 0 {
+		return nil, "22023"
+	}
+	hex := value[2:]
+	out := make([]byte, len(hex)/2)
+	for index := 0; index < len(out); index++ {
+		hi, ok1 := byteaFromHex(hex[index*2])
+		lo, ok2 := byteaFromHex(hex[index*2+1])
+		if !ok1 || !ok2 {
+			return nil, "22023"
+		}
+		out[index] = hi<<4 | lo
+	}
+	return out, ""
+}
+
+func byteaHex(bytes []byte) string {
+	const digits = "0123456789abcdef"
+	out := make([]byte, 2+len(bytes)*2)
+	out[0] = '\\'
+	out[1] = 'x'
+	for index, item := range bytes {
+		out[2+index*2] = digits[item>>4]
+		out[3+index*2] = digits[item&0x0f]
+	}
+	return string(out)
+}
+
+func byteaLikeMatch(text, pattern []byte) (int, string) {
+	if len(pattern) == 1 && pattern[0] == '%' {
+		return 1, ""
+	}
+	for len(text) > 0 && len(pattern) > 0 {
+		if pattern[0] == '\\' {
+			pattern = pattern[1:]
+			if len(pattern) == 0 {
+				return 0, "22025"
+			}
+			if pattern[0] != text[0] {
+				return 0, ""
+			}
+		} else if pattern[0] == '%' {
+			pattern = pattern[1:]
+			for len(pattern) > 0 {
+				if pattern[0] == '%' {
+					pattern = pattern[1:]
+				} else if pattern[0] == '_' {
+					if len(text) == 0 {
+						return -1, ""
+					}
+					text = text[1:]
+					pattern = pattern[1:]
+				} else {
+					break
+				}
+			}
+			if len(pattern) == 0 {
+				return 1, ""
+			}
+			var first byte
+			if pattern[0] == '\\' {
+				if len(pattern) < 2 {
+					return 0, "22025"
+				}
+				first = pattern[1]
+			} else {
+				first = pattern[0]
+			}
+			for len(text) > 0 {
+				if text[0] == first {
+					matched, err := byteaLikeMatch(text, pattern)
+					if err != "" {
+						return 0, err
+					}
+					if matched != 0 {
+						return matched, ""
+					}
+				}
+				text = text[1:]
+			}
+			return -1, ""
+		} else if pattern[0] == '_' {
+			text = text[1:]
+			pattern = pattern[1:]
+			continue
+		} else if pattern[0] != text[0] {
+			return 0, ""
+		}
+		text = text[1:]
+		pattern = pattern[1:]
+	}
+	if len(text) > 0 {
+		return 0, ""
+	}
+	for len(pattern) > 0 && pattern[0] == '%' {
+		pattern = pattern[1:]
+	}
+	if len(pattern) <= 0 {
+		return 1, ""
+	}
+	return -1, ""
+}
+
+func byteaLike(value, pattern SqlText) SqlBoolean {
+	if value.Error != "" {
+		return SqlBoolean{Error: value.Error}
+	}
+	if pattern.Error != "" {
+		return SqlBoolean{Error: pattern.Error}
+	}
+	if !value.Valid || !pattern.Valid {
+		return SqlBoolean{}
+	}
+	text, err := byteaDecode(value.Value)
+	if err != "" {
+		return SqlBoolean{Error: err}
+	}
+	pat, err := byteaDecode(pattern.Value)
+	if err != "" {
+		return SqlBoolean{Error: err}
+	}
+	matched, err := byteaLikeMatch(text, pat)
+	if err != "" {
+		return SqlBoolean{Error: err}
+	}
+	return SqlBoolean{Value: matched == 1, Valid: true}
+}
+
+func byteaNotLike(value, pattern SqlText) SqlBoolean {
+	if value.Error != "" {
+		return SqlBoolean{Error: value.Error}
+	}
+	if pattern.Error != "" {
+		return SqlBoolean{Error: pattern.Error}
+	}
+	if !value.Valid || !pattern.Valid {
+		return SqlBoolean{}
+	}
+	text, err := byteaDecode(value.Value)
+	if err != "" {
+		return SqlBoolean{Error: err}
+	}
+	pat, err := byteaDecode(pattern.Value)
+	if err != "" {
+		return SqlBoolean{Error: err}
+	}
+	matched, err := byteaLikeMatch(text, pat)
+	if err != "" {
+		return SqlBoolean{Error: err}
+	}
+	return SqlBoolean{Value: matched != 1, Valid: true}
+}
+
+func byteaLikeEscape(pattern, escape SqlText) SqlText {
+	if pattern.Error != "" {
+		return SqlText{Error: pattern.Error}
+	}
+	if escape.Error != "" {
+		return SqlText{Error: escape.Error}
+	}
+	if !pattern.Valid || !escape.Valid {
+		return SqlText{}
+	}
+	bytes, err := byteaDecode(pattern.Value)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	mark, err := byteaDecode(escape.Value)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	output := make([]byte, 0, len(bytes)*2)
+	if len(mark) == 0 {
+		for _, item := range bytes {
+			if item == '\\' {
+				output = append(output, '\\')
+			}
+			output = append(output, item)
+		}
+	} else if len(mark) != 1 {
+		return SqlText{Error: "22025"}
+	} else if mark[0] == '\\' {
+		return pattern
+	} else {
+		afterEscape := false
+		for _, item := range bytes {
+			if item == mark[0] && !afterEscape {
+				output = append(output, '\\')
+				afterEscape = true
+			} else if item == '\\' {
+				output = append(output, '\\')
+				if !afterEscape {
+					output = append(output, '\\')
+				}
+				afterEscape = false
+			} else {
+				output = append(output, item)
+				afterEscape = false
+			}
+		}
+	}
+	return SqlText{Value: byteaHex(output), Valid: true}
+}
+
+func byteaCompare(left, right SqlText) SqlInteger {
+	if left.Error != "" {
+		return SqlInteger{Error: left.Error}
+	}
+	if right.Error != "" {
+		return SqlInteger{Error: right.Error}
+	}
+	if !left.Valid || !right.Valid {
+		return SqlInteger{}
+	}
+	leftBytes, err := byteaDecode(left.Value)
+	if err != "" {
+		return SqlInteger{Error: err}
+	}
+	rightBytes, err := byteaDecode(right.Value)
+	if err != "" {
+		return SqlInteger{Error: err}
+	}
+	length := len(leftBytes)
+	if len(rightBytes) < length {
+		length = len(rightBytes)
+	}
+	for index := 0; index < length; index++ {
+		if leftBytes[index] != rightBytes[index] {
+			return SqlInteger{Value: int64(leftBytes[index]) - int64(rightBytes[index]), Valid: true}
+		}
+	}
+	if len(leftBytes) == len(rightBytes) {
+		return SqlInteger{Value: 0, Valid: true}
+	}
+	if len(leftBytes) < len(rightBytes) {
+		return SqlInteger{Value: -1, Valid: true}
+	}
+	return SqlInteger{Value: 1, Valid: true}
+}
+
+func byteaComparison(left, right SqlText, operation string) SqlBoolean {
+	comparison := byteaCompare(left, right)
+	if comparison.Error != "" {
+		return SqlBoolean{Error: comparison.Error}
+	}
+	if !comparison.Valid {
+		return SqlBoolean{}
+	}
+	var result bool
+	switch operation {
+	case "eq":
+		result = comparison.Value == 0
+	case "ne":
+		result = comparison.Value != 0
+	case "lt":
+		result = comparison.Value < 0
+	case "le":
+		result = comparison.Value <= 0
+	case "gt":
+		result = comparison.Value > 0
+	case "ge":
+		result = comparison.Value >= 0
+	}
+	return SqlBoolean{Value: result, Valid: true}
+}
+
+func byteaEq(left, right SqlText) SqlBoolean { return byteaComparison(left, right, "eq") }
+func byteaNe(left, right SqlText) SqlBoolean { return byteaComparison(left, right, "ne") }
+func byteaLt(left, right SqlText) SqlBoolean { return byteaComparison(left, right, "lt") }
+func byteaLe(left, right SqlText) SqlBoolean { return byteaComparison(left, right, "le") }
+func byteaGt(left, right SqlText) SqlBoolean { return byteaComparison(left, right, "gt") }
+func byteaGe(left, right SqlText) SqlBoolean { return byteaComparison(left, right, "ge") }
+
+func byteaCat(left, right SqlText) SqlText {
+	if left.Error != "" {
+		return SqlText{Error: left.Error}
+	}
+	if right.Error != "" {
+		return SqlText{Error: right.Error}
+	}
+	if !left.Valid || !right.Valid {
+		return SqlText{}
+	}
+	leftBytes, err := byteaDecode(left.Value)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	rightBytes, err := byteaDecode(right.Value)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	out := make([]byte, 0, len(leftBytes)+len(rightBytes))
+	out = append(out, leftBytes...)
+	out = append(out, rightBytes...)
+	return SqlText{Value: byteaHex(out), Valid: true}
+}
+
+func byteaLarger(left, right SqlText) SqlText {
+	comparison := byteaCompare(left, right)
+	if comparison.Error != "" {
+		return SqlText{Error: comparison.Error}
+	}
+	if !comparison.Valid {
+		return SqlText{}
+	}
+	if comparison.Value > 0 {
+		return left
+	}
+	return right
+}
+
+func byteaSmaller(left, right SqlText) SqlText {
+	comparison := byteaCompare(left, right)
+	if comparison.Error != "" {
+		return SqlText{Error: comparison.Error}
+	}
+	if !comparison.Valid {
+		return SqlText{}
+	}
+	if comparison.Value < 0 {
+		return left
+	}
+	return right
+}
