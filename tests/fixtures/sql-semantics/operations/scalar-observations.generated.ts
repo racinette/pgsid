@@ -12328,6 +12328,469 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: 'true',
   },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 2': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 3': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 4': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 5': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 6': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 7': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 8': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 9': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 10': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 11': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 14': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 15': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 16': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 17': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 18': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 19': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 20': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 21': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 22': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 23': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 24': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 25': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 26': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 27': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 28': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 29': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 30': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 31': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 32': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 33': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 34': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 35': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 36': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 37': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 38': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 39': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 40': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 41': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 42': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 43': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 44': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 45': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 46': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 47': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 48': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 49': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 50': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 51': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 52': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 53': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 54': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 55': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 56': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 57': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 58': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 59': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 60': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 61': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 62': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 63': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 64': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 65': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 66': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 67': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 68': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 69': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 70': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 71': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 72': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 73': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 74': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 75': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 76': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 77': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 78': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 79': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 80': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 81': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 82': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 83': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 84': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 85': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 86': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 87': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 88': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 89': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 90': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 91': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 92': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 93': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 94': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 95': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 96': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 97': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 98': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 99': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 100': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 101': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 102': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 103': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 104': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 105': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 106': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 107': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 108': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 109': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 110': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 111': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 112': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 113': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 114': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 115': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 116': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 117': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 118': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 119': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","bpcharlike"](pg_catalog.bpchar,pg_catalog.text) 120': {
+    kind: 'value',
+    value: 'false',
+  },
   'text utility function:["pg_catalog","bpcharge"](pg_catalog.bpchar,pg_catalog.bpchar) 0': {
     kind: 'null',
   },
@@ -14643,6 +15106,469 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: 'false',
   },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 2': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 3': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 4': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 5': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 6': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 7': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 8': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 9': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 10': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 11': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 14': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 15': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 16': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 17': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 18': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 19': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 20': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 21': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 22': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 23': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 24': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 25': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 26': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 27': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 28': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 29': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 30': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 31': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 32': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 33': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 34': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 35': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 36': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 37': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 38': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 39': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 40': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 41': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 42': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 43': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 44': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 45': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 46': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 47': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 48': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 49': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 50': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 51': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 52': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 53': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 54': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 55': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 56': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 57': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 58': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 59': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 60': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 61': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 62': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 63': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 64': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 65': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 66': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 67': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 68': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 69': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 70': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 71': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 72': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 73': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 74': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 75': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 76': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 77': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 78': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 79': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 80': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 81': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 82': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 83': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 84': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 85': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 86': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 87': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 88': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 89': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 90': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 91': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 92': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 93': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 94': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 95': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 96': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 97': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 98': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 99': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 100': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 101': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 102': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 103': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 104': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 105': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 106': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 107': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 108': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 109': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 110': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 111': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 112': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 113': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 114': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 115': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 116': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 117': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 118': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 119': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","bpcharnlike"](pg_catalog.bpchar,pg_catalog.text) 120': {
+    kind: 'value',
+    value: 'true',
+  },
   'text utility function:["pg_catalog","btrim"](pg_catalog.text) 0': {
     kind: 'null',
   },
@@ -15740,6 +16666,932 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
   'text utility function:["pg_catalog","left"](pg_catalog.text,pg_catalog.int4) 109': {
     kind: 'value',
     value: '𐀀',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 2': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 3': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 4': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 5': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 6': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 7': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 8': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 9': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 10': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 11': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 14': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 15': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 16': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 17': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 18': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 19': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 20': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 21': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 22': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 23': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 24': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 25': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 26': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 27': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 28': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 29': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 30': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 31': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 32': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 33': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 34': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 35': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 36': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 37': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 38': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 39': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 40': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 41': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 42': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 43': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 44': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 45': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 46': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 47': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 48': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 49': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 50': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 51': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 52': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 53': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 54': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 55': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 56': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 57': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 58': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 59': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 60': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 61': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 62': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 63': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 64': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 65': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 66': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 67': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 68': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 69': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 70': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 71': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 72': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 73': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 74': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 75': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 76': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 77': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 78': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 79': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 80': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 81': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 82': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 83': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 84': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 85': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 86': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 87': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 88': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 89': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 90': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 91': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 92': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 93': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 94': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 95': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 96': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 97': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 98': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 99': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 100': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 101': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 102': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 103': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 104': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 105': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 106': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 107': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 108': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 109': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 110': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 111': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 112': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 113': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 114': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 115': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 116': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 117': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 118': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 119': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","like"](pg_catalog.text,pg_catalog.text) 120': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 2': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 3': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 4': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 5': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 6': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 7': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 8': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 9': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 10': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 11': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 12': {
+    kind: 'value',
+    value: '',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 13': {
+    kind: 'value',
+    value: '',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 14': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 15': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 16': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 17': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 18': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 19': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 20': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 21': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 22': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 23': {
+    kind: 'value',
+    value: ' ',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 24': {
+    kind: 'value',
+    value: '\\',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 25': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 26': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 27': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 28': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 29': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 30': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 31': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 32': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 33': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 34': {
+    kind: 'value',
+    value: '  abc  ',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 35': {
+    kind: 'value',
+    value: '\\ abc\\ ',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 36': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 37': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 38': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 39': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 40': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 41': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 42': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 43': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 44': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 45': {
+    kind: 'value',
+    value: 'a😀é中b',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 46': {
+    kind: 'value',
+    value: 'a😀é中b',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 47': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 48': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 49': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 50': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 51': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 52': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 53': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 54': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 55': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 56': {
+    kind: 'value',
+    value: 'é',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 57': {
+    kind: 'value',
+    value: 'é',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 58': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 59': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 60': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 61': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 62': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 63': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 64': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 65': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 66': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 67': {
+    kind: 'value',
+    value: '\n\t',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 68': {
+    kind: 'value',
+    value: '\n\t',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 69': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 70': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 71': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 72': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 73': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 74': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 75': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 76': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 77': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 78': {
+    kind: 'value',
+    value: 'abababa',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 79': {
+    kind: 'value',
+    value: 'abababa',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 80': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 81': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 82': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 83': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 84': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 85': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 86': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 87': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 88': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 89': {
+    kind: 'value',
+    value: "a'b\\\\c",
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 90': {
+    kind: 'value',
+    value: "a'b\\\\c",
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 91': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 92': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 93': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 94': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 95': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 96': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 97': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 98': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 99': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 100': {
+    kind: 'value',
+    value: ' a ',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 101': {
+    kind: 'value',
+    value: ' a ',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 102': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 103': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 104': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 105': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 106': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 107': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 108': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 109': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 110': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 111': {
+    kind: 'value',
+    value: '𐀀',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 112': {
+    kind: 'value',
+    value: '𐀀',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 113': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 114': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 115': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 116': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 117': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 118': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 119': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text utility function:["pg_catalog","like_escape"](pg_catalog.text,pg_catalog.text) 120': {
+    kind: 'error',
+    code: '22025',
   },
   'text utility function:["pg_catalog","length"](pg_catalog.bpchar) 0': {
     kind: 'null',
@@ -18702,6 +20554,469 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
   'text utility function:["pg_catalog","ltrim"](pg_catalog.text,pg_catalog.text) 120': {
     kind: 'value',
     value: '',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 2': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 3': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 4': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 5': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 6': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 7': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 8': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 9': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 10': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 11': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 14': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 15': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 16': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 17': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 18': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 19': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 20': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 21': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 22': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 23': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 24': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 25': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 26': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 27': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 28': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 29': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 30': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 31': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 32': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 33': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 34': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 35': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 36': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 37': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 38': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 39': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 40': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 41': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 42': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 43': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 44': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 45': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 46': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 47': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 48': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 49': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 50': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 51': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 52': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 53': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 54': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 55': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 56': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 57': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 58': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 59': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 60': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 61': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 62': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 63': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 64': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 65': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 66': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 67': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 68': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 69': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 70': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 71': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 72': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 73': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 74': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 75': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 76': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 77': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 78': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 79': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 80': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 81': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 82': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 83': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 84': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 85': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 86': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 87': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 88': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 89': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 90': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 91': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 92': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 93': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 94': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 95': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 96': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 97': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 98': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 99': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 100': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 101': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 102': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 103': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 104': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 105': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 106': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 107': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 108': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 109': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 110': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 111': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 112': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 113': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 114': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 115': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 116': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 117': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 118': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 119': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","notlike"](pg_catalog.text,pg_catalog.text) 120': {
+    kind: 'value',
+    value: 'false',
   },
   'text utility function:["pg_catalog","octet_length"](pg_catalog.bpchar) 0': {
     kind: 'null',
@@ -57203,6 +59518,469 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: 'true',
   },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 2': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 3': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 4': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 5': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 6': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 7': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 8': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 9': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 10': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 11': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 14': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 15': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 16': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 17': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 18': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 19': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 20': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 21': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 22': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 23': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 24': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 25': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 26': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 27': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 28': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 29': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 30': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 31': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 32': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 33': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 34': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 35': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 36': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 37': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 38': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 39': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 40': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 41': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 42': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 43': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 44': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 45': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 46': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 47': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 48': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 49': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 50': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 51': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 52': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 53': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 54': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 55': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 56': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 57': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 58': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 59': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 60': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 61': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 62': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 63': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 64': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 65': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 66': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 67': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 68': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 69': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 70': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 71': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 72': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 73': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 74': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 75': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 76': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 77': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 78': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 79': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 80': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 81': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 82': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 83': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 84': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 85': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 86': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 87': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 88': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 89': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 90': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 91': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 92': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 93': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 94': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 95': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 96': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 97': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 98': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 99': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 100': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 101': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 102': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 103': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 104': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 105': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 106': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 107': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 108': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 109': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 110': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 111': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 112': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 113': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 114': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 115': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 116': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 117': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 118': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 119': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textlike"](pg_catalog.text,pg_catalog.text) 120': {
+    kind: 'value',
+    value: 'true',
+  },
   'text utility function:["pg_catalog","textne"](pg_catalog.text,pg_catalog.text) 0': {
     kind: 'null',
   },
@@ -57663,6 +60441,469 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     value: 'true',
   },
   'text utility function:["pg_catalog","textne"](pg_catalog.text,pg_catalog.text) 120': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 2': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 3': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 4': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 5': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 6': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 7': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 8': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 9': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 10': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 11': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 14': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 15': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 16': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 17': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 18': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 19': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 20': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 21': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 22': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 23': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 24': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 25': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 26': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 27': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 28': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 29': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 30': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 31': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 32': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 33': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 34': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 35': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 36': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 37': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 38': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 39': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 40': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 41': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 42': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 43': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 44': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 45': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 46': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 47': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 48': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 49': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 50': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 51': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 52': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 53': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 54': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 55': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 56': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 57': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 58': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 59': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 60': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 61': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 62': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 63': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 64': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 65': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 66': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 67': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 68': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 69': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 70': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 71': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 72': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 73': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 74': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 75': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 76': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 77': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 78': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 79': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 80': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 81': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 82': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 83': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 84': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 85': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 86': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 87': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 88': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 89': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 90': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 91': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 92': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 93': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 94': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 95': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 96': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 97': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 98': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 99': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 100': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 101': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 102': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 103': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 104': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 105': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 106': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 107': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 108': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 109': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 110': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 111': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 112': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 113': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 114': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 115': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 116': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 117': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 118': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 119': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility function:["pg_catalog","textnlike"](pg_catalog.text,pg_catalog.text) 120': {
     kind: 'value',
     value: 'false',
   },
@@ -66389,6 +69630,1858 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: '𐀀𐀀',
   },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 2': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 3': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 4': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 5': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 6': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 7': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 8': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 9': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 10': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 11': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 14': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 15': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 16': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 17': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 18': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 19': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 20': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 21': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 22': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 23': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 24': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 25': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 26': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 27': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 28': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 29': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 30': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 31': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 32': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 33': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 34': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 35': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 36': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 37': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 38': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 39': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 40': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 41': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 42': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 43': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 44': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 45': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 46': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 47': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 48': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 49': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 50': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 51': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 52': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 53': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 54': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 55': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 56': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 57': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 58': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 59': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 60': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 61': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 62': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 63': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 64': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 65': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 66': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 67': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 68': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 69': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 70': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 71': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 72': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 73': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 74': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 75': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 76': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 77': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 78': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 79': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 80': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 81': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 82': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 83': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 84': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 85': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 86': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 87': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 88': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 89': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 90': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 91': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 92': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 93': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 94': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 95': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 96': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 97': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 98': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 99': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 100': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 101': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 102': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 103': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 104': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 105': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 106': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 107': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 108': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 109': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 110': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 111': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 112': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 113': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 114': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 115': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 116': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 117': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 118': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 119': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.bpchar,pg_catalog.text) 120': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 2': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 3': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 4': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 5': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 6': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 7': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 8': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 9': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 10': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 11': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 14': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 15': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 16': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 17': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 18': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 19': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 20': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 21': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 22': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 23': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 24': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 25': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 26': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 27': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 28': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 29': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 30': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 31': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 32': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 33': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 34': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 35': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 36': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 37': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 38': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 39': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 40': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 41': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 42': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 43': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 44': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 45': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 46': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 47': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 48': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 49': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 50': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 51': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 52': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 53': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 54': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 55': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 56': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 57': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 58': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 59': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 60': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 61': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 62': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 63': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 64': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 65': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 66': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 67': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 68': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 69': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 70': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 71': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 72': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 73': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 74': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 75': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 76': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 77': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 78': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 79': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 80': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 81': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 82': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 83': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 84': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 85': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 86': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 87': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 88': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 89': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 90': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 91': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 92': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 93': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 94': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 95': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 96': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 97': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 98': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 99': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 100': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 101': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 102': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 103': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 104': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 105': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 106': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 107': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 108': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 109': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 110': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 111': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 112': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 113': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 114': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 115': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 116': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 117': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 118': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 119': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","!~~"](pg_catalog.text,pg_catalog.text) 120': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 2': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 3': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 4': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 5': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 6': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 7': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 8': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 9': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 10': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 11': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 14': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 15': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 16': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 17': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 18': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 19': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 20': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 21': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 22': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 23': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 24': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 25': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 26': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 27': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 28': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 29': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 30': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 31': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 32': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 33': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 34': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 35': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 36': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 37': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 38': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 39': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 40': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 41': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 42': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 43': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 44': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 45': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 46': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 47': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 48': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 49': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 50': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 51': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 52': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 53': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 54': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 55': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 56': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 57': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 58': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 59': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 60': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 61': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 62': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 63': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 64': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 65': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 66': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 67': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 68': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 69': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 70': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 71': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 72': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 73': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 74': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 75': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 76': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 77': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 78': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 79': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 80': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 81': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 82': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 83': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 84': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 85': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 86': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 87': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 88': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 89': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 90': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 91': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 92': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 93': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 94': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 95': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 96': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 97': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 98': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 99': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 100': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 101': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 102': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 103': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 104': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 105': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 106': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 107': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 108': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 109': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 110': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 111': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 112': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 113': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 114': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 115': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 116': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 117': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 118': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 119': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.bpchar,pg_catalog.text) 120': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 2': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 3': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 4': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 5': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 6': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 7': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 8': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 9': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 10': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 11': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 14': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 15': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 16': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 17': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 18': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 19': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 20': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 21': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 22': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 23': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 24': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 25': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 26': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 27': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 28': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 29': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 30': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 31': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 32': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 33': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 34': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 35': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 36': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 37': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 38': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 39': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 40': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 41': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 42': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 43': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 44': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 45': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 46': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 47': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 48': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 49': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 50': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 51': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 52': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 53': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 54': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 55': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 56': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 57': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 58': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 59': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 60': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 61': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 62': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 63': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 64': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 65': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 66': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 67': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 68': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 69': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 70': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 71': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 72': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 73': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 74': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 75': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 76': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 77': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 78': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 79': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 80': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 81': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 82': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 83': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 84': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 85': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 86': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 87': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 88': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 89': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 90': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 91': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 92': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 93': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 94': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 95': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 96': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 97': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 98': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 99': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 100': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 101': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 102': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 103': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 104': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 105': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 106': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 107': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 108': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 109': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 110': {
+    kind: 'null',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 111': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 112': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 113': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 114': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 115': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 116': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 117': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 118': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 119': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text utility operator:["pg_catalog","~~"](pg_catalog.text,pg_catalog.text) 120': {
+    kind: 'value',
+    value: 'true',
+  },
   'text truncation pg_catalog."varchar"/"a  "/false': {
     kind: 'value',
     value: 'a',
@@ -66574,6 +71667,380 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
   'text char padding allocation overflow': {
     kind: 'error',
     code: 'XX000',
+  },
+  'text like pair 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text not like pair 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text like pair 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text not like pair 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text like pair 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text not like pair 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text like pair 14': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text not like pair 14': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text like pair 15': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text not like pair 15': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text like pair 16': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 16': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 17': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 17': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 18': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 18': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 19': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 19': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 20': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 20': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 21': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text not like pair 21': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text like pair 22': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text not like pair 22': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text like pair 23': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 23': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 24': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 24': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 25': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text not like pair 25': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text like pair 26': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text not like pair 26': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text like pair 27': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 27': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 28': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 28': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 29': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text not like pair 29': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text like pair 30': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 30': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 31': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 31': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 32': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 32': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 33': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text not like pair 33': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text like pair 34': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 34': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 35': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 35': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 36': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 36': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 37': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 37': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 38': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text not like pair 38': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like pair 39': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text not like pair 39': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text like bpchar padding exact': {
+    kind: 'value',
+    value: 'false',
+  },
+  'text like bpchar padding percent': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text like bpchar padding spaces': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text like escape 0': {
+    kind: 'value',
+    value: 'a\\%c',
+  },
+  'text like escape 1': {
+    kind: 'value',
+    value: 'a\\\\%c',
+  },
+  'text like escape 2': {
+    kind: 'value',
+    value: 'a\\%c',
+  },
+  'text like escape 3': {
+    kind: 'error',
+    code: '22025',
+  },
+  'text like escape 4': {
+    kind: 'value',
+    value: 'a%c',
+  },
+  'text like escape 5': {
+    kind: 'value',
+    value: '\\%',
+  },
+  'text like escape 6': {
+    kind: 'null',
+  },
+  'text like escape 7': {
+    kind: 'null',
+  },
+  'text like escape 8': {
+    kind: 'value',
+    value: '\\%c',
+  },
+  'text like after custom escape': {
+    kind: 'value',
+    value: 'true',
+  },
+  'text like after custom escape miss': {
+    kind: 'value',
+    value: 'false',
   },
   'uuid input 0': {
     kind: 'null',

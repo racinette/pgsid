@@ -533,3 +533,206 @@ func textOverlayLength(value SqlText, replacement SqlText, start SqlInteger, len
 func textOverlay(value, replacement SqlText, start SqlInteger) SqlText {
 	return textOverlayLength(value, replacement, start, textLength(replacement))
 }
+
+func textLikeNextChar(bytes []byte) []byte {
+	if len(bytes) == 0 {
+		return bytes
+	}
+	bytes = bytes[1:]
+	for len(bytes) > 0 && bytes[0]&0xC0 == 0x80 {
+		bytes = bytes[1:]
+	}
+	return bytes
+}
+
+func textLikeCharLen(bytes []byte) int {
+	if len(bytes) == 0 {
+		return 0
+	}
+	lead := bytes[0]
+	width := 1
+	if lead&0x80 == 0 {
+		width = 1
+	} else if lead&0xE0 == 0xC0 {
+		width = 2
+	} else if lead&0xF0 == 0xE0 {
+		width = 3
+	} else if lead&0xF8 == 0xF0 {
+		width = 4
+	}
+	if width > len(bytes) {
+		return len(bytes)
+	}
+	return width
+}
+
+func textLikeMatch(text, pattern []byte) (int, string) {
+	if len(pattern) == 1 && pattern[0] == '%' {
+		return 1, ""
+	}
+	for len(text) > 0 && len(pattern) > 0 {
+		if pattern[0] == '\\' {
+			pattern = pattern[1:]
+			if len(pattern) == 0 {
+				return 0, "22025"
+			}
+			if pattern[0] != text[0] {
+				return 0, ""
+			}
+		} else if pattern[0] == '%' {
+			pattern = pattern[1:]
+			for len(pattern) > 0 {
+				if pattern[0] == '%' {
+					pattern = pattern[1:]
+				} else if pattern[0] == '_' {
+					if len(text) == 0 {
+						return -1, ""
+					}
+					text = textLikeNextChar(text)
+					pattern = pattern[1:]
+				} else {
+					break
+				}
+			}
+			if len(pattern) == 0 {
+				return 1, ""
+			}
+			var first byte
+			if pattern[0] == '\\' {
+				if len(pattern) < 2 {
+					return 0, "22025"
+				}
+				first = pattern[1]
+			} else {
+				first = pattern[0]
+			}
+			for len(text) > 0 {
+				if text[0] == first {
+					matched, err := textLikeMatch(text, pattern)
+					if err != "" {
+						return 0, err
+					}
+					if matched != 0 {
+						return matched, ""
+					}
+				}
+				text = textLikeNextChar(text)
+			}
+			return -1, ""
+		} else if pattern[0] == '_' {
+			text = textLikeNextChar(text)
+			pattern = pattern[1:]
+			continue
+		} else if pattern[0] != text[0] {
+			return 0, ""
+		}
+		text = text[1:]
+		pattern = pattern[1:]
+	}
+	if len(text) > 0 {
+		return 0, ""
+	}
+	for len(pattern) > 0 && pattern[0] == '%' {
+		pattern = pattern[1:]
+	}
+	if len(pattern) <= 0 {
+		return 1, ""
+	}
+	return -1, ""
+}
+
+func textLike(value, pattern SqlText) SqlBoolean {
+	if value.Error != "" {
+		return SqlBoolean{Error: value.Error}
+	}
+	if pattern.Error != "" {
+		return SqlBoolean{Error: pattern.Error}
+	}
+	if !value.Valid || !pattern.Valid {
+		return SqlBoolean{}
+	}
+	matched, err := textLikeMatch([]byte(value.Value), []byte(pattern.Value))
+	if err != "" {
+		return SqlBoolean{Error: err}
+	}
+	return SqlBoolean{Value: matched == 1, Valid: true}
+}
+
+func textNotLike(value, pattern SqlText) SqlBoolean {
+	if value.Error != "" {
+		return SqlBoolean{Error: value.Error}
+	}
+	if pattern.Error != "" {
+		return SqlBoolean{Error: pattern.Error}
+	}
+	if !value.Valid || !pattern.Valid {
+		return SqlBoolean{}
+	}
+	matched, err := textLikeMatch([]byte(value.Value), []byte(pattern.Value))
+	if err != "" {
+		return SqlBoolean{Error: err}
+	}
+	return SqlBoolean{Value: matched != 1, Valid: true}
+}
+
+func textLikeEscape(pattern, escape SqlText) SqlText {
+	if pattern.Error != "" {
+		return SqlText{Error: pattern.Error}
+	}
+	if escape.Error != "" {
+		return SqlText{Error: escape.Error}
+	}
+	if !pattern.Valid || !escape.Valid {
+		return SqlText{}
+	}
+	bytes := []byte(pattern.Value)
+	mark := []byte(escape.Value)
+	output := make([]byte, 0, len(bytes)*2)
+	if len(mark) == 0 {
+		for len(bytes) > 0 {
+			if bytes[0] == '\\' {
+				output = append(output, '\\')
+			}
+			width := textLikeCharLen(bytes)
+			output = append(output, bytes[:width]...)
+			bytes = bytes[width:]
+		}
+	} else {
+		if textLikeCharLen(mark) != len(mark) {
+			return SqlText{Error: "22025"}
+		}
+		if mark[0] == '\\' {
+			return pattern
+		}
+		afterEscape := false
+		for len(bytes) > 0 {
+			same := textLikeCharLen(bytes) == len(mark)
+			if same {
+				for index := range mark {
+					if bytes[index] != mark[index] {
+						same = false
+						break
+					}
+				}
+			}
+			if same && !afterEscape {
+				output = append(output, '\\')
+				bytes = bytes[len(mark):]
+				afterEscape = true
+			} else if bytes[0] == '\\' {
+				output = append(output, '\\')
+				if !afterEscape {
+					output = append(output, '\\')
+				}
+				bytes = bytes[textLikeCharLen(bytes):]
+				afterEscape = false
+			} else {
+				width := textLikeCharLen(bytes)
+				output = append(output, bytes[:width]...)
+				bytes = bytes[width:]
+				afterEscape = false
+			}
+		}
+	}
+	return SqlText{Value: string(output), Valid: true}
+}
