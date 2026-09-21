@@ -257,6 +257,18 @@ export const temporalArithmeticFunctions: ReadonlyArray<readonly [string, string
   ['function:["pg_catalog","timetz"](pg_catalog.timestamptz)', 'timetzFromTimestamptz'],
   ['function:["pg_catalog","interval"](pg_catalog."time")', 'intervalFromTime'],
   [
+    'function:["pg_catalog","timezone"](pg_catalog."interval",pg_catalog."timestamp")',
+    'timezoneIntervalTimestamp',
+  ],
+  [
+    'function:["pg_catalog","timezone"](pg_catalog."interval",pg_catalog.timestamptz)',
+    'timezoneIntervalTimestamptz',
+  ],
+  [
+    'function:["pg_catalog","timezone"](pg_catalog."interval",pg_catalog.timetz)',
+    'timezoneIntervalTimetz',
+  ],
+  [
     'function:["pg_catalog","date_eq_timestamp"](pg_catalog.date,pg_catalog."timestamp")',
     'dateTimestampEq',
   ],

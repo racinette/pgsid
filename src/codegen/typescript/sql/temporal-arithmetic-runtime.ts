@@ -149,6 +149,16 @@ function temporalTimeWrap(usec: bigint): bigint {
   if (usec < 0n) usec += 86400000000n
   return usec
 }
+function temporalIntervalZoneSeconds(span: SqlInterval): number {
+  if (temporalIntervalIsInf(span) !== 0) temporalError('22023')
+  if (span.month !== 0 || span.day !== 0) temporalError('22023')
+  return Number(BigInt.asIntN(32, span.time / 1000000n))
+}
+function temporalDt2local(usec: bigint, tz: number): bigint {
+  const result = usec - BigInt(tz) * 1000000n
+  if (!temporalValidTimestamp(result)) temporalError('22008')
+  return result
+}
 function temporalIntervalNeg(span: SqlInterval): SqlInterval {
   const inf = temporalIntervalIsInf(span)
   if (inf !== 0) return temporalIntervalSentinel(-inf)
@@ -703,6 +713,27 @@ wrap(
   'SqlInterval | null',
   'return value === null ? null : new SqlInterval(0, 0, value.usec)',
   ['SqlTime', 'SqlInterval'],
+)
+wrap(
+  'timezoneIntervalTimestamp',
+  'zone: SqlInterval | null, value: SqlTimestamp | null',
+  'SqlTimestamptz | null',
+  'if (zone === null || value === null) return null\n  if (temporalTimestampIsInf(value.usec) !== 0) return new SqlTimestamptz(value.usec)\n  return new SqlTimestamptz(temporalDt2local(value.usec, temporalIntervalZoneSeconds(zone)))',
+  ['SqlInterval', 'SqlTimestamp', 'SqlTimestamptz'],
+)
+wrap(
+  'timezoneIntervalTimestamptz',
+  'zone: SqlInterval | null, value: SqlTimestamptz | null',
+  'SqlTimestamp | null',
+  'if (zone === null || value === null) return null\n  if (temporalTimestampIsInf(value.usec) !== 0) return new SqlTimestamp(value.usec)\n  return new SqlTimestamp(temporalDt2local(value.usec, -temporalIntervalZoneSeconds(zone)))',
+  ['SqlInterval', 'SqlTimestamptz', 'SqlTimestamp'],
+)
+wrap(
+  'timezoneIntervalTimetz',
+  'zone: SqlInterval | null, value: SqlTimeTz | null',
+  'SqlTimeTz | null',
+  'if (zone === null || value === null) return null\n  const tz = -temporalIntervalZoneSeconds(zone)\n  return new SqlTimeTz(temporalTimeWrap(value.usec + (BigInt(value.zone) - BigInt(tz)) * 1000000n), tz)',
+  ['SqlInterval', 'SqlTimeTz'],
 )
 wrap(
   'dateTimestampCompare',

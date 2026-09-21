@@ -212,6 +212,24 @@ func temporalTimeWrap(usec int64) int64 {
 	return usec
 }
 
+func temporalIntervalZoneSeconds(span SqlInterval) (int32, string) {
+	if temporalIntervalIsInf(span) != 0 {
+		return 0, "22023"
+	}
+	if span.Month != 0 || span.Day != 0 {
+		return 0, "22023"
+	}
+	return int32(span.Time / 1000000), ""
+}
+
+func temporalDt2local(usec int64, tz int32) (int64, string) {
+	result := usec - int64(tz)*1000000
+	if !temporalValidTimestamp(result) {
+		return 0, "22008"
+	}
+	return result, ""
+}
+
 func temporalNegInt32(value int32) (int32, string) {
 	if value == math.MinInt32 {
 		return 0, "22008"
@@ -1086,6 +1104,58 @@ func intervalFromTime(value SqlTime) SqlInterval {
 		return SqlInterval{Error: err}
 	}
 	return SqlInterval{Time: value.Usec, Valid: true}
+}
+
+func timezoneIntervalTimestamp(zone SqlInterval, value SqlTimestamp) SqlTimestamptz {
+	if stop, err := temporalCheck2(zone.Error, value.Error, zone.Valid, value.Valid); stop {
+		return SqlTimestamptz{Error: err}
+	}
+	if temporalTimestampIsInf(value.Usec) != 0 {
+		return SqlTimestamptz{Usec: value.Usec, Valid: true}
+	}
+	tz, err := temporalIntervalZoneSeconds(zone)
+	if err != "" {
+		return SqlTimestamptz{Error: err}
+	}
+	result, err := temporalDt2local(value.Usec, tz)
+	if err != "" {
+		return SqlTimestamptz{Error: err}
+	}
+	return SqlTimestamptz{Usec: result, Valid: true}
+}
+
+func timezoneIntervalTimestamptz(zone SqlInterval, value SqlTimestamptz) SqlTimestamp {
+	if stop, err := temporalCheck2(zone.Error, value.Error, zone.Valid, value.Valid); stop {
+		return SqlTimestamp{Error: err}
+	}
+	if temporalTimestampIsInf(value.Usec) != 0 {
+		return SqlTimestamp{Usec: value.Usec, Valid: true}
+	}
+	tz, err := temporalIntervalZoneSeconds(zone)
+	if err != "" {
+		return SqlTimestamp{Error: err}
+	}
+	result, err := temporalDt2local(value.Usec, -tz)
+	if err != "" {
+		return SqlTimestamp{Error: err}
+	}
+	return SqlTimestamp{Usec: result, Valid: true}
+}
+
+func timezoneIntervalTimetz(zone SqlInterval, value SqlTimeTz) SqlTimeTz {
+	if stop, err := temporalCheck2(zone.Error, value.Error, zone.Valid, value.Valid); stop {
+		return SqlTimeTz{Error: err}
+	}
+	seconds, err := temporalIntervalZoneSeconds(zone)
+	if err != "" {
+		return SqlTimeTz{Error: err}
+	}
+	tz := -seconds
+	return SqlTimeTz{
+		Usec:  temporalTimeWrap(value.Usec + (int64(value.Zone)-int64(tz))*1000000),
+		Zone:  tz,
+		Valid: true,
+	}
 }
 
 func dateTimestampCompare(left SqlDate, right SqlTimestamp) SqlInteger {

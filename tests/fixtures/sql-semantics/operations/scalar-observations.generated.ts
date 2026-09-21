@@ -71016,6 +71016,22 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: '-infinity',
   },
+  'interval input 10': {
+    kind: 'value',
+    value: '-05:00:00',
+  },
+  'interval input 11': {
+    kind: 'value',
+    value: '03:00:00',
+  },
+  'interval input 12': {
+    kind: 'value',
+    value: '-05:30:00',
+  },
+  'interval input 13': {
+    kind: 'value',
+    value: '1 day -02:00:00',
+  },
   'interval invalid': {
     kind: 'error',
     code: '22007',
@@ -73754,5 +73770,109 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
   'interval larger inf': {
     kind: 'value',
     value: 'infinity',
+  },
+  'timezone interval timestamp': {
+    kind: 'value',
+    value: '2020-06-15 09:34:56.123456+00',
+  },
+  'timezone interval timestamp west': {
+    kind: 'value',
+    value: '2020-06-15 17:34:56.123456+00',
+  },
+  'timezone interval timestamp fraction': {
+    kind: 'value',
+    value: '2020-06-15 09:34:56.123456+00',
+  },
+  'timezone interval timestamp hours': {
+    kind: 'value',
+    value: '2020-01-01 02:04:05+00',
+  },
+  'timezone interval timestamp inf': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'timezone interval timestamp inf month': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'timezone interval timestamp month': {
+    kind: 'error',
+    code: '22023',
+  },
+  'timezone interval timestamp day': {
+    kind: 'error',
+    code: '22023',
+  },
+  'timezone interval timestamp inf zone': {
+    kind: 'error',
+    code: '22023',
+  },
+  'timezone interval timestamp null': {
+    kind: 'null',
+  },
+  'timezone interval timestamp null stamp': {
+    kind: 'null',
+  },
+  'timezone interval timestamptz': {
+    kind: 'value',
+    value: '2020-01-01 15:00:00',
+  },
+  'timezone interval timestamptz west': {
+    kind: 'value',
+    value: '2020-01-01 07:00:00',
+  },
+  'timezone interval timestamptz fraction': {
+    kind: 'value',
+    value: '2020-01-01 15:00:00',
+  },
+  'timezone interval timestamptz inf': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'timezone interval timestamptz inf month': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'timezone interval timestamptz month': {
+    kind: 'error',
+    code: '22023',
+  },
+  'timezone interval timestamptz inf zone': {
+    kind: 'error',
+    code: '22023',
+  },
+  'timezone interval timestamptz null': {
+    kind: 'null',
+  },
+  'timezone interval timetz': {
+    kind: 'value',
+    value: '15:00:00+03',
+  },
+  'timezone interval timetz west': {
+    kind: 'value',
+    value: '07:00:00-05',
+  },
+  'timezone interval timetz offset': {
+    kind: 'value',
+    value: '15:00:00+03',
+  },
+  'timezone interval timetz wrap': {
+    kind: 'value',
+    value: '02:00:00+03',
+  },
+  'timezone interval timetz fraction': {
+    kind: 'value',
+    value: '15:00:00+03',
+  },
+  'timezone interval timetz month': {
+    kind: 'error',
+    code: '22023',
+  },
+  'timezone interval timetz inf zone': {
+    kind: 'error',
+    code: '22023',
+  },
+  'timezone interval timetz null': {
+    kind: 'null',
   },
 }

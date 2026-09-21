@@ -440,12 +440,20 @@ func intervalInput(value string) SqlInterval {
 		}
 		for index := 0; index < len(tokens); {
 			token := tokens[index]
-			if strings.Count(token, ":") >= 1 {
-				_, usec, err := temporalParseTime(token, false)
+			sign := int64(1)
+			clock := token
+			if len(token) > 1 && (token[0] == '+' || token[0] == '-') && strings.Contains(token[1:], ":") {
+				if token[0] == '-' {
+					sign = -1
+				}
+				clock = token[1:]
+			}
+			if strings.Count(clock, ":") >= 1 {
+				_, usec, err := temporalParseTime(clock, false)
 				if err != "" {
 					return SqlInterval{Error: err}
 				}
-				time += usec
+				time += sign * usec
 				index++
 				continue
 			}
