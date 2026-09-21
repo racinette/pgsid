@@ -1198,3 +1198,216 @@ func byteaBitCount(value SqlText) SqlInteger {
 	}
 	return SqlInteger{Value: count, Valid: true}
 }
+
+func byteaSlice(bytes []byte, start int64, length int64, hasLength bool) ([]byte, string) {
+	if hasLength && length < 0 {
+		return nil, "22011"
+	}
+	first := start
+	if first < 1 {
+		first = 1
+	}
+	count := int64(-1)
+	if hasLength {
+		end := start + length
+		if end > 2147483647 || end < -2147483648 {
+			count = -1
+		} else if end < 1 {
+			return []byte{}, ""
+		} else {
+			count = end - first
+		}
+	}
+	offset := first - 1
+	if offset >= int64(len(bytes)) || count == 0 {
+		return []byte{}, ""
+	}
+	limit := int64(len(bytes))
+	if count >= 0 && offset+count < limit {
+		limit = offset + count
+	}
+	return append([]byte(nil), bytes[int(offset):int(limit)]...), ""
+}
+
+func byteaSubstr(value SqlText, start SqlInteger) SqlText {
+	if value.Error != "" {
+		return SqlText{Error: value.Error}
+	}
+	if start.Error != "" {
+		return SqlText{Error: start.Error}
+	}
+	if !value.Valid || !start.Valid {
+		return SqlText{}
+	}
+	bytes, err := byteaDecode(value.Value)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	sliced, err := byteaSlice(bytes, start.Value, 0, false)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	return SqlText{Value: byteaHex(sliced), Valid: true}
+}
+
+func byteaSubstrLength(value SqlText, start SqlInteger, length SqlInteger) SqlText {
+	if value.Error != "" {
+		return SqlText{Error: value.Error}
+	}
+	if start.Error != "" {
+		return SqlText{Error: start.Error}
+	}
+	if length.Error != "" {
+		return SqlText{Error: length.Error}
+	}
+	if !value.Valid || !start.Valid || !length.Valid {
+		return SqlText{}
+	}
+	bytes, err := byteaDecode(value.Value)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	sliced, err := byteaSlice(bytes, start.Value, length.Value, true)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	return SqlText{Value: byteaHex(sliced), Valid: true}
+}
+
+func byteaPosition(value, search SqlText) SqlInteger {
+	if value.Error != "" {
+		return SqlInteger{Error: value.Error}
+	}
+	if search.Error != "" {
+		return SqlInteger{Error: search.Error}
+	}
+	if !value.Valid || !search.Valid {
+		return SqlInteger{}
+	}
+	haystack, err := byteaDecode(value.Value)
+	if err != "" {
+		return SqlInteger{Error: err}
+	}
+	needle, err := byteaDecode(search.Value)
+	if err != "" {
+		return SqlInteger{Error: err}
+	}
+	if len(needle) == 0 {
+		return SqlInteger{Value: 1, Valid: true}
+	}
+	last := len(haystack) - len(needle)
+	for index := 0; index <= last; index++ {
+		if haystack[index] == needle[0] && bytes.Equal(haystack[index:index+len(needle)], needle) {
+			return SqlInteger{Value: int64(index + 1), Valid: true}
+		}
+	}
+	return SqlInteger{Value: 0, Valid: true}
+}
+
+func byteaOverlayLength(value, replacement SqlText, start, length SqlInteger) SqlText {
+	if value.Error != "" {
+		return SqlText{Error: value.Error}
+	}
+	if replacement.Error != "" {
+		return SqlText{Error: replacement.Error}
+	}
+	if start.Error != "" {
+		return SqlText{Error: start.Error}
+	}
+	if length.Error != "" {
+		return SqlText{Error: length.Error}
+	}
+	if !value.Valid || !replacement.Valid || !start.Valid || !length.Valid {
+		return SqlText{}
+	}
+	if start.Value <= 0 {
+		return SqlText{Error: "22011"}
+	}
+	end := start.Value + length.Value
+	if end > 2147483647 || end < -2147483648 {
+		return SqlText{Error: "22003"}
+	}
+	bytes, err := byteaDecode(value.Value)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	middle, err := byteaDecode(replacement.Value)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	prefix, err := byteaSlice(bytes, 1, start.Value-1, true)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	suffix, err := byteaSlice(bytes, end, 0, false)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	out := make([]byte, 0, len(prefix)+len(middle)+len(suffix))
+	out = append(out, prefix...)
+	out = append(out, middle...)
+	out = append(out, suffix...)
+	return SqlText{Value: byteaHex(out), Valid: true}
+}
+
+func byteaOverlay(value, replacement SqlText, start SqlInteger) SqlText {
+	return byteaOverlayLength(value, replacement, start, byteaOctetLength(replacement))
+}
+
+func byteaTrim(value, set SqlText, left, right bool) SqlText {
+	if value.Error != "" {
+		return SqlText{Error: value.Error}
+	}
+	if set.Error != "" {
+		return SqlText{Error: set.Error}
+	}
+	if !value.Valid || !set.Valid {
+		return SqlText{}
+	}
+	input, err := byteaDecode(value.Value)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	marks, err := byteaDecode(set.Value)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	if len(input) == 0 || len(marks) == 0 {
+		return value
+	}
+	first := 0
+	last := len(input)
+	if left {
+		for first < last && bytes.Contains(marks, input[first:first+1]) {
+			first++
+		}
+	}
+	if right {
+		for last > first && bytes.Contains(marks, input[last-1:last]) {
+			last--
+		}
+	}
+	return SqlText{Value: byteaHex(input[first:last]), Valid: true}
+}
+
+func byteaTrimBoth(value, set SqlText) SqlText  { return byteaTrim(value, set, true, true) }
+func byteaTrimLeft(value, set SqlText) SqlText  { return byteaTrim(value, set, true, false) }
+func byteaTrimRight(value, set SqlText) SqlText { return byteaTrim(value, set, false, true) }
+
+func byteaReverse(value SqlText) SqlText {
+	if value.Error != "" {
+		return SqlText{Error: value.Error}
+	}
+	if !value.Valid {
+		return SqlText{}
+	}
+	bytes, err := byteaDecode(value.Value)
+	if err != "" {
+		return SqlText{Error: err}
+	}
+	out := make([]byte, len(bytes))
+	for index, item := range bytes {
+		out[len(bytes)-1-index] = item
+	}
+	return SqlText{Value: byteaHex(out), Valid: true}
+}

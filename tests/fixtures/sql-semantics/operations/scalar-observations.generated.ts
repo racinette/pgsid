@@ -77998,6 +77998,1270 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: '3',
   },
+  'bytea slice substr 0/0': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/0/0': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/0/1': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/0/2': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/0/3': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/0/4': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/1': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/1/0': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/1/1': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/1/2': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/1/3': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/1/4': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/2': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/2/0': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/2/1': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/2/2': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/2/3': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/2/4': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/3': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/3/0': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/3/1': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/3/2': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/3/3': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/3/4': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/4': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/4/0': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/4/1': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/4/2': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/4/3': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/4/4': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/5': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/5/0': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/5/1': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/5/2': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/5/3': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/5/4': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/6': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/6/0': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/6/1': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/6/2': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/6/3': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/6/4': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/7': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/7/0': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/7/1': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/7/2': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/7/3': {
+    kind: 'null',
+  },
+  'bytea slice substr 0/7/4': {
+    kind: 'null',
+  },
+  'bytea slice substr 1/0': {
+    kind: 'null',
+  },
+  'bytea slice substr 1/0/0': {
+    kind: 'null',
+  },
+  'bytea slice substr 1/0/1': {
+    kind: 'null',
+  },
+  'bytea slice substr 1/0/2': {
+    kind: 'null',
+  },
+  'bytea slice substr 1/0/3': {
+    kind: 'null',
+  },
+  'bytea slice substr 1/0/4': {
+    kind: 'null',
+  },
+  'bytea slice substr 1/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/1/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substr 1/1/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/1/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/1/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/1/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/2/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substr 1/2/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/2/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/2/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/2/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/3/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substr 1/3/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/3/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/3/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/3/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/4/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substr 1/4/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/4/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/4/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/4/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/5': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/5/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substr 1/5/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/5/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/5/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/5/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/6': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/6/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substr 1/6/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/6/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/6/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/6/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/7': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/7/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substr 1/7/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/7/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/7/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 1/7/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/0': {
+    kind: 'null',
+  },
+  'bytea slice substr 2/0/0': {
+    kind: 'null',
+  },
+  'bytea slice substr 2/0/1': {
+    kind: 'null',
+  },
+  'bytea slice substr 2/0/2': {
+    kind: 'null',
+  },
+  'bytea slice substr 2/0/3': {
+    kind: 'null',
+  },
+  'bytea slice substr 2/0/4': {
+    kind: 'null',
+  },
+  'bytea slice substr 2/1': {
+    kind: 'value',
+    value: '\\x010203ff',
+  },
+  'bytea slice substr 2/1/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substr 2/1/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/1/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/1/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/1/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/2': {
+    kind: 'value',
+    value: '\\x010203ff',
+  },
+  'bytea slice substr 2/2/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substr 2/2/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/2/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/2/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/2/4': {
+    kind: 'value',
+    value: '\\x010203ff',
+  },
+  'bytea slice substr 2/3': {
+    kind: 'value',
+    value: '\\x010203ff',
+  },
+  'bytea slice substr 2/3/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substr 2/3/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/3/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/3/3': {
+    kind: 'value',
+    value: '\\x01',
+  },
+  'bytea slice substr 2/3/4': {
+    kind: 'value',
+    value: '\\x010203ff',
+  },
+  'bytea slice substr 2/4': {
+    kind: 'value',
+    value: '\\x010203ff',
+  },
+  'bytea slice substr 2/4/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substr 2/4/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/4/2': {
+    kind: 'value',
+    value: '\\x01',
+  },
+  'bytea slice substr 2/4/3': {
+    kind: 'value',
+    value: '\\x0102',
+  },
+  'bytea slice substr 2/4/4': {
+    kind: 'value',
+    value: '\\x010203ff',
+  },
+  'bytea slice substr 2/5': {
+    kind: 'value',
+    value: '\\x0203ff',
+  },
+  'bytea slice substr 2/5/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substr 2/5/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/5/2': {
+    kind: 'value',
+    value: '\\x02',
+  },
+  'bytea slice substr 2/5/3': {
+    kind: 'value',
+    value: '\\x0203',
+  },
+  'bytea slice substr 2/5/4': {
+    kind: 'value',
+    value: '\\x0203ff',
+  },
+  'bytea slice substr 2/6': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/6/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substr 2/6/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/6/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/6/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/6/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/7': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/7/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substr 2/7/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/7/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/7/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substr 2/7/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 0/0': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/0/0': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/0/1': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/0/2': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/0/3': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/0/4': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/1': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/1/0': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/1/1': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/1/2': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/1/3': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/1/4': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/2': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/2/0': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/2/1': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/2/2': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/2/3': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/2/4': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/3': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/3/0': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/3/1': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/3/2': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/3/3': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/3/4': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/4': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/4/0': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/4/1': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/4/2': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/4/3': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/4/4': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/5': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/5/0': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/5/1': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/5/2': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/5/3': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/5/4': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/6': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/6/0': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/6/1': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/6/2': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/6/3': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/6/4': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/7': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/7/0': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/7/1': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/7/2': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/7/3': {
+    kind: 'null',
+  },
+  'bytea slice substring 0/7/4': {
+    kind: 'null',
+  },
+  'bytea slice substring 1/0': {
+    kind: 'null',
+  },
+  'bytea slice substring 1/0/0': {
+    kind: 'null',
+  },
+  'bytea slice substring 1/0/1': {
+    kind: 'null',
+  },
+  'bytea slice substring 1/0/2': {
+    kind: 'null',
+  },
+  'bytea slice substring 1/0/3': {
+    kind: 'null',
+  },
+  'bytea slice substring 1/0/4': {
+    kind: 'null',
+  },
+  'bytea slice substring 1/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/1/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substring 1/1/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/1/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/1/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/1/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/2/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substring 1/2/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/2/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/2/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/2/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/3/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substring 1/3/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/3/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/3/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/3/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/4/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substring 1/4/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/4/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/4/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/4/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/5': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/5/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substring 1/5/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/5/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/5/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/5/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/6': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/6/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substring 1/6/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/6/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/6/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/6/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/7': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/7/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substring 1/7/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/7/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/7/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 1/7/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/0': {
+    kind: 'null',
+  },
+  'bytea slice substring 2/0/0': {
+    kind: 'null',
+  },
+  'bytea slice substring 2/0/1': {
+    kind: 'null',
+  },
+  'bytea slice substring 2/0/2': {
+    kind: 'null',
+  },
+  'bytea slice substring 2/0/3': {
+    kind: 'null',
+  },
+  'bytea slice substring 2/0/4': {
+    kind: 'null',
+  },
+  'bytea slice substring 2/1': {
+    kind: 'value',
+    value: '\\x010203ff',
+  },
+  'bytea slice substring 2/1/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substring 2/1/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/1/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/1/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/1/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/2': {
+    kind: 'value',
+    value: '\\x010203ff',
+  },
+  'bytea slice substring 2/2/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substring 2/2/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/2/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/2/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/2/4': {
+    kind: 'value',
+    value: '\\x010203ff',
+  },
+  'bytea slice substring 2/3': {
+    kind: 'value',
+    value: '\\x010203ff',
+  },
+  'bytea slice substring 2/3/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substring 2/3/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/3/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/3/3': {
+    kind: 'value',
+    value: '\\x01',
+  },
+  'bytea slice substring 2/3/4': {
+    kind: 'value',
+    value: '\\x010203ff',
+  },
+  'bytea slice substring 2/4': {
+    kind: 'value',
+    value: '\\x010203ff',
+  },
+  'bytea slice substring 2/4/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substring 2/4/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/4/2': {
+    kind: 'value',
+    value: '\\x01',
+  },
+  'bytea slice substring 2/4/3': {
+    kind: 'value',
+    value: '\\x0102',
+  },
+  'bytea slice substring 2/4/4': {
+    kind: 'value',
+    value: '\\x010203ff',
+  },
+  'bytea slice substring 2/5': {
+    kind: 'value',
+    value: '\\x0203ff',
+  },
+  'bytea slice substring 2/5/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substring 2/5/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/5/2': {
+    kind: 'value',
+    value: '\\x02',
+  },
+  'bytea slice substring 2/5/3': {
+    kind: 'value',
+    value: '\\x0203',
+  },
+  'bytea slice substring 2/5/4': {
+    kind: 'value',
+    value: '\\x0203ff',
+  },
+  'bytea slice substring 2/6': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/6/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substring 2/6/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/6/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/6/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/6/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/7': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/7/0': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea slice substring 2/7/1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/7/2': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/7/3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea slice substring 2/7/4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea position 0': {
+    kind: 'value',
+    value: '2',
+  },
+  'bytea position 1': {
+    kind: 'value',
+    value: '3',
+  },
+  'bytea position 2': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea position 3': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea position 4': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea position 5': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea position 6': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea position 7': {
+    kind: 'value',
+    value: '2',
+  },
+  'bytea position 8': {
+    kind: 'value',
+    value: '1',
+  },
+  'bytea position 9': {
+    kind: 'value',
+    value: '0',
+  },
+  'bytea position 10': {
+    kind: 'null',
+  },
+  'bytea position 11': {
+    kind: 'null',
+  },
+  'bytea overlay 0': {
+    kind: 'value',
+    value: '\\xff020304',
+  },
+  'bytea overlay 1': {
+    kind: 'value',
+    value: '\\x01ff0304',
+  },
+  'bytea overlay 2': {
+    kind: 'value',
+    value: '\\x01ff0304',
+  },
+  'bytea overlay 3': {
+    kind: 'value',
+    value: '\\x01ff04',
+  },
+  'bytea overlay 4': {
+    kind: 'value',
+    value: '\\x01ff020304',
+  },
+  'bytea overlay 5': {
+    kind: 'value',
+    value: '\\x0104',
+  },
+  'bytea overlay 6': {
+    kind: 'value',
+    value: '\\x01020304ffff',
+  },
+  'bytea overlay 7': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea overlay 8': {
+    kind: 'error',
+    code: '22011',
+  },
+  'bytea overlay 9': {
+    kind: 'value',
+    value: '\\x01ff01020304',
+  },
+  'bytea overlay 10': {
+    kind: 'error',
+    code: '22003',
+  },
+  'bytea overlay 11': {
+    kind: 'error',
+    code: '22003',
+  },
+  'bytea overlay 12': {
+    kind: 'null',
+  },
+  'bytea overlay 13': {
+    kind: 'null',
+  },
+  'bytea overlay 14': {
+    kind: 'null',
+  },
+  'bytea overlay 15': {
+    kind: 'value',
+    value: '\\xff',
+  },
+  'bytea trim btrim 0': {
+    kind: 'value',
+    value: '\\x0102',
+  },
+  'bytea trim btrim 1': {
+    kind: 'value',
+    value: '\\x0203',
+  },
+  'bytea trim btrim 2': {
+    kind: 'value',
+    value: '\\x010203',
+  },
+  'bytea trim btrim 3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea trim btrim 4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea trim btrim 5': {
+    kind: 'value',
+    value: '\\xff',
+  },
+  'bytea trim btrim 6': {
+    kind: 'value',
+    value: '\\x010201',
+  },
+  'bytea trim btrim 7': {
+    kind: 'null',
+  },
+  'bytea trim btrim 8': {
+    kind: 'null',
+  },
+  'bytea trim ltrim 0': {
+    kind: 'value',
+    value: '\\x01020000',
+  },
+  'bytea trim ltrim 1': {
+    kind: 'value',
+    value: '\\x0203',
+  },
+  'bytea trim ltrim 2': {
+    kind: 'value',
+    value: '\\x010203',
+  },
+  'bytea trim ltrim 3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea trim ltrim 4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea trim ltrim 5': {
+    kind: 'value',
+    value: '\\xff00',
+  },
+  'bytea trim ltrim 6': {
+    kind: 'value',
+    value: '\\x010201',
+  },
+  'bytea trim ltrim 7': {
+    kind: 'null',
+  },
+  'bytea trim ltrim 8': {
+    kind: 'null',
+  },
+  'bytea trim rtrim 0': {
+    kind: 'value',
+    value: '\\x000102',
+  },
+  'bytea trim rtrim 1': {
+    kind: 'value',
+    value: '\\x010203',
+  },
+  'bytea trim rtrim 2': {
+    kind: 'value',
+    value: '\\x010203',
+  },
+  'bytea trim rtrim 3': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea trim rtrim 4': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea trim rtrim 5': {
+    kind: 'value',
+    value: '\\x00ff',
+  },
+  'bytea trim rtrim 6': {
+    kind: 'value',
+    value: '\\x010201',
+  },
+  'bytea trim rtrim 7': {
+    kind: 'null',
+  },
+  'bytea trim rtrim 8': {
+    kind: 'null',
+  },
+  'bytea reverse 0': {
+    kind: 'null',
+  },
+  'bytea reverse 1': {
+    kind: 'value',
+    value: '\\x',
+  },
+  'bytea reverse 2': {
+    kind: 'value',
+    value: '\\x01',
+  },
+  'bytea reverse 3': {
+    kind: 'value',
+    value: '\\x0201',
+  },
+  'bytea reverse 4': {
+    kind: 'value',
+    value: '\\x00ff',
+  },
+  'bytea reverse 5': {
+    kind: 'value',
+    value: '\\xff0100',
+  },
   'uuid input 0': {
     kind: 'null',
   },

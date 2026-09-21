@@ -11,6 +11,7 @@ import { scalarCases } from '../fixtures/sql-semantics/operations/scalar.js'
 import { PG18_BOOLEAN } from '../../src/postgres/builtins/boolean.generated.js'
 import {
   byteaLengthSignatures,
+  byteaSliceSignatures,
   byteaLikeSignatures,
   byteaOrderSignatures,
   nameLikeSignatures,
@@ -518,6 +519,11 @@ describe('generated PostgreSQL scalar evaluation', () => {
       'bytea length function:["pg_catalog","length"](pg_catalog.bytea) 7',
       'bytea length function:["pg_catalog","bit_length"](pg_catalog.bytea) 3',
       'bytea length function:["pg_catalog","bit_count"](pg_catalog.bytea) 4',
+      'bytea slice substring 2/4/2',
+      'bytea position 0',
+      'bytea overlay 2',
+      'bytea trim btrim 0',
+      'bytea reverse 3',
       'date input 1',
       'date operator < 0',
       'date function eq',
@@ -815,6 +821,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
       ...nameLikeSignatures,
       ...byteaLikeSignatures,
       ...byteaLengthSignatures,
+      ...byteaSliceSignatures,
       ...byteaOrderSignatures,
       ...Object.keys(PG18_UUID).filter(
         (signature) =>
@@ -829,7 +836,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
     expect(supported.map((row) => row.signature).sort()).toEqual(
       [...expected, ...additional].sort(),
     )
-    expect(supported).toHaveLength(792)
+    expect(supported).toHaveLength(803)
     expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
     expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
   })
