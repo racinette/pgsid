@@ -63,6 +63,7 @@ const setupSql = [...new Set(cases.flatMap((fixture) => fixture.setupSql ?? []))
 let pg: PGlite
 
 async function initializePostgres(): Promise<void> {
+  await pg.exec(`SET timezone = 'UTC'`)
   for (const sql of setupSql) await pg.exec(sql)
 }
 
@@ -106,6 +107,8 @@ function goProject(fixtures = cases): string {
           'timeText',
           'timestampText',
           'intervalText',
+          'timestamptzText',
+          'timetzText',
         ],
         'main',
       ) +
@@ -192,6 +195,14 @@ function goProject(fixtures = cases): string {
             if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
             } else if !value.Valid { result["kind"] = "null"
             } else { result["kind"] = "value"; result["value"] = intervalText(value).Value }
+          case SqlTimestamptz:
+            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
+            } else if !value.Valid { result["kind"] = "null"
+            } else { result["kind"] = "value"; result["value"] = timestamptzText(value).Value }
+          case SqlTimeTz:
+            if value.Error != "" { result["kind"] = "error"; result["code"] = value.Error
+            } else if !value.Valid { result["kind"] = "null"
+            } else { result["kind"] = "value"; result["value"] = timetzText(value).Value }
           default: panic("unexpected SQL value type")
           }
           results = append(results, result)
@@ -229,11 +240,15 @@ function goProject(fixtures = cases): string {
                                   ? 'SqlTimestamp'
                                   : result.value.type === 'pg_catalog."interval"'
                                     ? 'SqlInterval'
-                                    : result.value.type.startsWith('enum:')
-                                      ? 'SqlEnum'
-                                      : result.value.type.startsWith('array:')
-                                        ? 'SqlArray'
-                                        : 'SqlInteger',
+                                    : result.value.type === 'pg_catalog.timestamptz'
+                                      ? 'SqlTimestamptz'
+                                      : result.value.type === 'pg_catalog.timetz'
+                                        ? 'SqlTimeTz'
+                                        : result.value.type.startsWith('enum:')
+                                          ? 'SqlEnum'
+                                          : result.value.type.startsWith('array:')
+                                            ? 'SqlArray'
+                                            : 'SqlInteger',
             ),
           },
         ],
@@ -639,11 +654,15 @@ describe('generated PostgreSQL scalar evaluation', () => {
                                           ? 'SqlTimestamp'
                                           : emitted.value.type === 'pg_catalog."interval"'
                                             ? 'SqlInterval'
-                                            : emitted.value.type.startsWith('enum:')
-                                              ? 'SqlEnum'
-                                              : emitted.value.type.startsWith('array:')
-                                                ? 'SqlArray'
-                                                : 'SqlInteger',
+                                            : emitted.value.type === 'pg_catalog.timestamptz'
+                                              ? 'SqlTimestamptz'
+                                              : emitted.value.type === 'pg_catalog.timetz'
+                                                ? 'SqlTimeTz'
+                                                : emitted.value.type.startsWith('enum:')
+                                                  ? 'SqlEnum'
+                                                  : emitted.value.type.startsWith('array:')
+                                                    ? 'SqlArray'
+                                                    : 'SqlInteger',
                     ),
                   },
                 ],
@@ -788,7 +807,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
     expect(supported.map((row) => row.signature).sort()).toEqual(
       [...expected, ...additional].sort(),
     )
-    expect(supported).toHaveLength(501)
+    expect(supported).toHaveLength(529)
     expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
     expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
   })

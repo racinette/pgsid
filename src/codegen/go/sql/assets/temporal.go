@@ -33,6 +33,19 @@ type SqlInterval struct {
 	Error string
 }
 
+type SqlTimestamptz struct {
+	Usec  int64
+	Valid bool
+	Error string
+}
+
+type SqlTimeTz struct {
+	Usec  int64
+	Zone  int32
+	Valid bool
+	Error string
+}
+
 func temporalDate2j(year, month, day int) int {
 	if month > 2 {
 		month += 1
@@ -1023,4 +1036,434 @@ func sqlCoalesceInterval(operands ...func() SqlInterval) SqlInterval {
 		}
 	}
 	return SqlInterval{}
+}
+
+func temporalFormatZone(west int32) string {
+	sign := "+"
+	sec := int(west)
+	if sec > 0 {
+		sign = "-"
+	} else {
+		sec = -sec
+	}
+	min := sec / 60
+	sec -= min * 60
+	hour := min / 60
+	min -= hour * 60
+	if sec != 0 {
+		return sign + temporalPad(hour, 2) + ":" + temporalPad(min, 2) + ":" + temporalPad(sec, 2)
+	}
+	if min != 0 {
+		return sign + temporalPad(hour, 2) + ":" + temporalPad(min, 2)
+	}
+	return sign + temporalPad(hour, 2)
+}
+
+func temporalParseOffset(value, format string) (int32, string) {
+	text := strings.TrimSpace(value)
+	if text == "" || strings.EqualFold(text, "Z") || strings.EqualFold(text, "UTC") ||
+		strings.EqualFold(text, "GMT") || strings.EqualFold(text, "UT") {
+		return 0, ""
+	}
+	if !strings.HasPrefix(text, "+") && !strings.HasPrefix(text, "-") {
+		return 0, format
+	}
+	negative := strings.HasPrefix(text, "-")
+	digits := text[1:]
+	hour, min, sec := 0, 0, 0
+	if strings.Contains(digits, ":") {
+		parts := strings.Split(digits, ":")
+		if len(parts) < 1 || len(parts) > 3 {
+			return 0, format
+		}
+		var err error
+		hour, err = strconv.Atoi(parts[0])
+		if err != nil {
+			return 0, format
+		}
+		if len(parts) > 1 {
+			min, err = strconv.Atoi(parts[1])
+			if err != nil {
+				return 0, format
+			}
+		}
+		if len(parts) > 2 {
+			sec, err = strconv.Atoi(parts[2])
+			if err != nil {
+				return 0, format
+			}
+		}
+	} else {
+		packed, err := strconv.Atoi(digits)
+		if err != nil {
+			return 0, format
+		}
+		if len(digits) > 2 {
+			min = packed % 100
+			hour = packed / 100
+		} else {
+			hour = packed
+		}
+	}
+	if hour < 0 || hour > 15 || min < 0 || min >= 60 || sec < 0 || sec >= 60 {
+		return 0, "22009"
+	}
+	seconds := hour*3600 + min*60 + sec
+	if !negative {
+		seconds = -seconds
+	}
+	return int32(seconds), ""
+}
+
+func temporalSplitTimeAndZone(value string) (string, string, bool) {
+	text := strings.TrimSpace(value)
+	upper := strings.ToUpper(text)
+	for _, name := range []string{"UTC", "GMT", "UT", "Z"} {
+		if strings.HasSuffix(upper, name) {
+			rest := strings.TrimSpace(text[:len(text)-len(name)])
+			if rest != "" {
+				return rest, name, true
+			}
+		}
+	}
+	plus := strings.LastIndex(text, "+")
+	minus := strings.LastIndex(text, "-")
+	index := plus
+	if minus > index {
+		index = minus
+	}
+	if index > 0 {
+		return strings.TrimSpace(text[:index]), text[index:], true
+	}
+	return text, "", false
+}
+
+func timestamptzFormat(usec int64) string {
+	if usec == math.MinInt64 {
+		return "-infinity"
+	}
+	if usec == math.MaxInt64 {
+		return "infinity"
+	}
+	days := usec / 86400000000
+	time := usec % 86400000000
+	if time < 0 {
+		time += 86400000000
+		days--
+	}
+	year, month, day := temporalJ2date(int(days) + 2451545)
+	display := year
+	suffix := ""
+	if year <= 0 {
+		display = -(year - 1)
+		suffix = " BC"
+	}
+	return temporalPad(display, 4) + "-" + temporalPad(month, 2) + "-" + temporalPad(day, 2) + " " + timeFormat(time) + temporalFormatZone(0) + suffix
+}
+
+func timetzFormat(usec int64, zone int32) string {
+	return timeFormat(usec) + temporalFormatZone(zone)
+}
+
+func timestamptzInput(value string) SqlTimestamptz {
+	if special := temporalSpecial(value); special == 1 {
+		return SqlTimestamptz{Usec: math.MaxInt64, Valid: true}
+	} else if special == -1 {
+		return SqlTimestamptz{Usec: math.MinInt64, Valid: true}
+	}
+	text := strings.TrimSpace(value)
+	bc := strings.HasSuffix(strings.ToUpper(text), " BC")
+	if bc {
+		text = strings.TrimSpace(text[:len(text)-3])
+	}
+	separator := strings.IndexAny(text, "T ")
+	var dateText, timeText string
+	if separator == -1 {
+		dateText = text
+	} else {
+		dateText = text[:separator]
+		timeText = strings.TrimSpace(text[separator+1:])
+	}
+	if bc {
+		dateText += " BC"
+	}
+	days, err := temporalParseDate(dateText)
+	if err != "" {
+		return SqlTimestamptz{Error: err}
+	}
+	extra := 0
+	usec := int64(0)
+	west := int32(0)
+	if timeText != "" {
+		timePart, zone, hasZone := temporalSplitTimeAndZone(timeText)
+		extra, usec, err = temporalParseTime(timePart, true)
+		if err != "" {
+			return SqlTimestamptz{Error: err}
+		}
+		if hasZone {
+			west, err = temporalParseOffset(zone, "22007")
+			if err != "" {
+				return SqlTimestamptz{Error: err}
+			}
+		}
+	}
+	total := int64(int(days)+extra)*86400000000 + usec + int64(west)*1000000
+	if total < -211813488000000000 || total >= 9223371331200000000 {
+		return SqlTimestamptz{Error: "22008"}
+	}
+	return SqlTimestamptz{Usec: total, Valid: true}
+}
+
+func timetzInput(value string) SqlTimeTz {
+	timePart, zone, hasZone := temporalSplitTimeAndZone(value)
+	_, usec, err := temporalParseTime(timePart, false)
+	if err != "" {
+		return SqlTimeTz{Error: err}
+	}
+	west := int32(0)
+	if hasZone {
+		west, err = temporalParseOffset(zone, "22023")
+		if err != "" {
+			return SqlTimeTz{Error: err}
+		}
+	}
+	return SqlTimeTz{Usec: usec, Zone: west, Valid: true}
+}
+
+func timestamptzText(value SqlTimestamptz) SqlText {
+	if value.Error != "" {
+		return SqlText{Error: value.Error}
+	}
+	if !value.Valid {
+		return SqlText{}
+	}
+	return SqlText{Value: timestamptzFormat(value.Usec), Valid: true}
+}
+
+func timetzText(value SqlTimeTz) SqlText {
+	if value.Error != "" {
+		return SqlText{Error: value.Error}
+	}
+	if !value.Valid {
+		return SqlText{}
+	}
+	return SqlText{Value: timetzFormat(value.Usec, value.Zone), Valid: true}
+}
+
+func timestamptzCompare(left, right SqlTimestamptz) SqlInteger {
+	if left.Error != "" {
+		return SqlInteger{Error: left.Error}
+	}
+	if right.Error != "" {
+		return SqlInteger{Error: right.Error}
+	}
+	if !left.Valid || !right.Valid {
+		return SqlInteger{}
+	}
+	switch {
+	case left.Usec < right.Usec:
+		return SqlInteger{Value: -1, Valid: true}
+	case left.Usec > right.Usec:
+		return SqlInteger{Value: 1, Valid: true}
+	default:
+		return SqlInteger{Value: 0, Valid: true}
+	}
+}
+
+func timetzCompare(left, right SqlTimeTz) SqlInteger {
+	if left.Error != "" {
+		return SqlInteger{Error: left.Error}
+	}
+	if right.Error != "" {
+		return SqlInteger{Error: right.Error}
+	}
+	if !left.Valid || !right.Valid {
+		return SqlInteger{}
+	}
+	leftGmt := left.Usec + int64(left.Zone)*1000000
+	rightGmt := right.Usec + int64(right.Zone)*1000000
+	switch {
+	case leftGmt < rightGmt:
+		return SqlInteger{Value: -1, Valid: true}
+	case leftGmt > rightGmt:
+		return SqlInteger{Value: 1, Valid: true}
+	case left.Zone < right.Zone:
+		return SqlInteger{Value: -1, Valid: true}
+	case left.Zone > right.Zone:
+		return SqlInteger{Value: 1, Valid: true}
+	default:
+		return SqlInteger{Value: 0, Valid: true}
+	}
+}
+
+func timestamptzComparison(left, right SqlTimestamptz, operation string) SqlBoolean {
+	comparison := timestamptzCompare(left, right)
+	if comparison.Error != "" {
+		return SqlBoolean{Error: comparison.Error}
+	}
+	if !comparison.Valid {
+		return SqlBoolean{}
+	}
+	result := false
+	switch operation {
+	case "eq":
+		result = comparison.Value == 0
+	case "ne":
+		result = comparison.Value != 0
+	case "lt":
+		result = comparison.Value < 0
+	case "le":
+		result = comparison.Value <= 0
+	case "gt":
+		result = comparison.Value > 0
+	case "ge":
+		result = comparison.Value >= 0
+	}
+	return SqlBoolean{Value: result, Valid: true}
+}
+
+func timetzComparison(left, right SqlTimeTz, operation string) SqlBoolean {
+	comparison := timetzCompare(left, right)
+	if comparison.Error != "" {
+		return SqlBoolean{Error: comparison.Error}
+	}
+	if !comparison.Valid {
+		return SqlBoolean{}
+	}
+	result := false
+	switch operation {
+	case "eq":
+		result = comparison.Value == 0
+	case "ne":
+		result = comparison.Value != 0
+	case "lt":
+		result = comparison.Value < 0
+	case "le":
+		result = comparison.Value <= 0
+	case "gt":
+		result = comparison.Value > 0
+	case "ge":
+		result = comparison.Value >= 0
+	}
+	return SqlBoolean{Value: result, Valid: true}
+}
+
+func timestamptzEq(left, right SqlTimestamptz) SqlBoolean {
+	return timestamptzComparison(left, right, "eq")
+}
+func timestamptzNe(left, right SqlTimestamptz) SqlBoolean {
+	return timestamptzComparison(left, right, "ne")
+}
+func timestamptzLt(left, right SqlTimestamptz) SqlBoolean {
+	return timestamptzComparison(left, right, "lt")
+}
+func timestamptzLe(left, right SqlTimestamptz) SqlBoolean {
+	return timestamptzComparison(left, right, "le")
+}
+func timestamptzGt(left, right SqlTimestamptz) SqlBoolean {
+	return timestamptzComparison(left, right, "gt")
+}
+func timestamptzGe(left, right SqlTimestamptz) SqlBoolean {
+	return timestamptzComparison(left, right, "ge")
+}
+func timetzEq(left, right SqlTimeTz) SqlBoolean { return timetzComparison(left, right, "eq") }
+func timetzNe(left, right SqlTimeTz) SqlBoolean { return timetzComparison(left, right, "ne") }
+func timetzLt(left, right SqlTimeTz) SqlBoolean { return timetzComparison(left, right, "lt") }
+func timetzLe(left, right SqlTimeTz) SqlBoolean { return timetzComparison(left, right, "le") }
+func timetzGt(left, right SqlTimeTz) SqlBoolean { return timetzComparison(left, right, "gt") }
+func timetzGe(left, right SqlTimeTz) SqlBoolean { return timetzComparison(left, right, "ge") }
+
+func timestamptzFinite(value SqlTimestamptz) SqlBoolean {
+	if value.Error != "" {
+		return SqlBoolean{Error: value.Error}
+	}
+	if !value.Valid {
+		return SqlBoolean{}
+	}
+	return SqlBoolean{Value: value.Usec != math.MinInt64 && value.Usec != math.MaxInt64, Valid: true}
+}
+
+func makeTimestamptz(year, month, day, hour, minute SqlInteger, second SqlFloat) SqlTimestamptz {
+	timestamp := makeTimestamp(year, month, day, hour, minute, second)
+	if timestamp.Error != "" {
+		return SqlTimestamptz{Error: timestamp.Error}
+	}
+	if !timestamp.Valid {
+		return SqlTimestamptz{}
+	}
+	return SqlTimestamptz{Usec: timestamp.Usec, Valid: true}
+}
+
+func sqlIsNullTimestamptz(value SqlTimestamptz) SqlBoolean {
+	if value.Error != "" {
+		return SqlBoolean{Error: value.Error}
+	}
+	return SqlBoolean{Value: !value.Valid, Valid: true}
+}
+
+func sqlIsNotNullTimestamptz(value SqlTimestamptz) SqlBoolean {
+	if value.Error != "" {
+		return SqlBoolean{Error: value.Error}
+	}
+	return SqlBoolean{Value: value.Valid, Valid: true}
+}
+
+func sqlCaseTimestamptz(otherwise func() SqlTimestamptz, conditions []func() SqlBoolean, branches []func() SqlTimestamptz) SqlTimestamptz {
+	for index, when := range conditions {
+		condition := when()
+		if condition.Error != "" {
+			return SqlTimestamptz{Error: condition.Error}
+		}
+		if condition.Valid && condition.Value {
+			return branches[index]()
+		}
+	}
+	return otherwise()
+}
+
+func sqlCoalesceTimestamptz(operands ...func() SqlTimestamptz) SqlTimestamptz {
+	for _, operand := range operands {
+		value := operand()
+		if value.Error != "" || value.Valid {
+			return value
+		}
+	}
+	return SqlTimestamptz{}
+}
+
+func sqlIsNullTimeTz(value SqlTimeTz) SqlBoolean {
+	if value.Error != "" {
+		return SqlBoolean{Error: value.Error}
+	}
+	return SqlBoolean{Value: !value.Valid, Valid: true}
+}
+
+func sqlIsNotNullTimeTz(value SqlTimeTz) SqlBoolean {
+	if value.Error != "" {
+		return SqlBoolean{Error: value.Error}
+	}
+	return SqlBoolean{Value: value.Valid, Valid: true}
+}
+
+func sqlCaseTimeTz(otherwise func() SqlTimeTz, conditions []func() SqlBoolean, branches []func() SqlTimeTz) SqlTimeTz {
+	for index, when := range conditions {
+		condition := when()
+		if condition.Error != "" {
+			return SqlTimeTz{Error: condition.Error}
+		}
+		if condition.Valid && condition.Value {
+			return branches[index]()
+		}
+	}
+	return otherwise()
+}
+
+func sqlCoalesceTimeTz(operands ...func() SqlTimeTz) SqlTimeTz {
+	for _, operand := range operands {
+		value := operand()
+		if value.Error != "" || value.Valid {
+			return value
+		}
+	}
+	return SqlTimeTz{}
 }

@@ -298,7 +298,11 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
           ? 'timeInput'
           : type === 'pg_catalog."timestamp"'
             ? 'timestampInput'
-            : 'intervalInput'
+            : type === 'pg_catalog.timestamptz'
+              ? 'timestamptzInput'
+              : type === 'pg_catalog.timetz'
+                ? 'timetzInput'
+                : 'intervalInput'
     const result =
       type === 'pg_catalog.date'
         ? 'SqlDate'
@@ -306,7 +310,11 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
           ? 'SqlTime'
           : type === 'pg_catalog."timestamp"'
             ? 'SqlTimestamp'
-            : 'SqlInterval'
+            : type === 'pg_catalog.timestamptz'
+              ? 'SqlTimestamptz'
+              : type === 'pg_catalog.timetz'
+                ? 'SqlTimeTz'
+                : 'SqlInterval'
     return value === null
       ? go.composite(go.ident(result))
       : go.call(go.ident(helper), [go.string(value)])

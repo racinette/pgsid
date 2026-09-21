@@ -149,6 +149,20 @@ export const typescriptTemporalHelpers: Record<
   toString(): string { return intervalFormat(this.month, this.day, this.time) }
 }`,
   },
+  SqlTimestamptz: {
+    dependencies: ['timestamptzFormat'],
+    source: `class SqlTimestamptz {
+  constructor(readonly usec: bigint) {}
+  toString(): string { return timestamptzFormat(this.usec) }
+}`,
+  },
+  SqlTimeTz: {
+    dependencies: ['timetzFormat'],
+    source: `class SqlTimeTz {
+  constructor(readonly usec: bigint, readonly zone: number) {}
+  toString(): string { return timetzFormat(this.usec, this.zone) }
+}`,
+  },
   temporalError: {
     dependencies: [],
     source: `function temporalError(code: string): never {
@@ -299,6 +313,128 @@ export const typescriptTemporalHelpers: Record<
   return new SqlInterval(month, day, time)
 }`,
   },
+  temporalFormatZone: {
+    dependencies: ['temporalPad'],
+    source: `function temporalFormatZone(west: number): string {
+  const sign = west <= 0 ? '+' : '-'
+  let sec = Math.abs(west)
+  let min = Math.trunc(sec / 60)
+  sec -= min * 60
+  const hour = Math.trunc(min / 60)
+  min -= hour * 60
+  if (sec !== 0) return sign + temporalPad(hour, 2) + ':' + temporalPad(min, 2) + ':' + temporalPad(sec, 2)
+  if (min !== 0) return sign + temporalPad(hour, 2) + ':' + temporalPad(min, 2)
+  return sign + temporalPad(hour, 2)
+}`,
+  },
+  temporalParseOffset: {
+    dependencies: ['temporalError'],
+    source: `function temporalParseOffset(value: string, format: string): number {
+  const text = value.trim()
+  if (text.length === 0 || /^(Z|UTC|GMT|UT)$/i.test(text)) return 0
+  if (text[0] !== '+' && text[0] !== '-') temporalError(format)
+  const negative = text[0] === '-'
+  const digits = text.slice(1)
+  let hour = 0, min = 0, sec = 0
+  if (digits.includes(':')) {
+    const parts = digits.split(':')
+    if (parts.length < 1 || parts.length > 3) temporalError(format)
+    hour = Number(parts[0])
+    min = Number(parts[1] ?? '0')
+    sec = Number(parts[2] ?? '0')
+    if (![hour, min, sec].every((part) => Number.isInteger(part))) temporalError(format)
+  } else {
+    if (!/^\\d+$/.test(digits)) temporalError(format)
+    const packed = Number(digits)
+    if (digits.length > 2) {
+      min = packed % 100
+      hour = Math.trunc(packed / 100)
+    } else hour = packed
+  }
+  if (hour < 0 || hour > 15 || min < 0 || min >= 60 || sec < 0 || sec >= 60) temporalError('22009')
+  const seconds = hour * 3600 + min * 60 + sec
+  return negative ? seconds : -seconds
+}`,
+  },
+  temporalSplitTimeAndZone: {
+    dependencies: [],
+    source: `function temporalSplitTimeAndZone(value: string): { time: string; zone: string | null } {
+  const text = value.trim()
+  const match = /^(.*?)\\s*(Z|[+-](?:\\d{1,2}(?::\\d{2}(?::\\d{2})?)?|\\d{3,4})|UTC|GMT|UT)\\s*$/i.exec(text)
+  if (!match || match[1]!.trim().length === 0) return { time: text, zone: null }
+  return { time: match[1]!.trim(), zone: match[2]! }
+}`,
+  },
+  timestamptzFormat: {
+    dependencies: ['temporalJ2date', 'temporalPad', 'timeFormat', 'temporalFormatZone'],
+    source: `function timestamptzFormat(usec: bigint): string {
+  if (usec === -9223372036854775808n) return '-infinity'
+  if (usec === 9223372036854775807n) return 'infinity'
+  let days = usec / 86400000000n
+  let time = usec % 86400000000n
+  if (time < 0n) { time += 86400000000n; days -= 1n }
+  const { year, month, day } = temporalJ2date(Number(days) + 2451545)
+  const display = year > 0 ? year : -(year - 1)
+  return temporalPad(display, 4) + '-' + temporalPad(month, 2) + '-' + temporalPad(day, 2) + ' ' + timeFormat(time) + temporalFormatZone(0) + (year <= 0 ? ' BC' : '')
+}`,
+  },
+  timetzFormat: {
+    dependencies: ['timeFormat', 'temporalFormatZone'],
+    source: `function timetzFormat(usec: bigint, zone: number): string {
+  return timeFormat(usec) + temporalFormatZone(zone)
+}`,
+  },
+  timestamptzInput: {
+    dependencies: [
+      'SqlTimestamptz',
+      'temporalSpecial',
+      'temporalParseDate',
+      'temporalParseTime',
+      'temporalSplitTimeAndZone',
+      'temporalParseOffset',
+      'temporalError',
+    ],
+    source: `function timestamptzInput(value: string | null): SqlTimestamptz | null {
+  if (value === null) return null
+  const special = temporalSpecial(value)
+  if (special === 1) return new SqlTimestamptz(9223372036854775807n)
+  if (special === -1) return new SqlTimestamptz(-9223372036854775808n)
+  let text = value.trim()
+  const bc = /\\s+BC\\s*$/i.test(text)
+  if (bc) text = text.replace(/\\s+BC\\s*$/i, '').trim()
+  const match = /^(\\d{1,7}-\\d{1,2}-\\d{1,2})(?:[ T](.+))?$/i.exec(text)
+  if (!match) temporalError('22007')
+  const days = temporalParseDate(match[1]! + (bc ? ' BC' : ''))
+  let extra = 0
+  let usec = 0n
+  let west = 0
+  if (match[2]) {
+    const split = temporalSplitTimeAndZone(match[2])
+    const parsed = temporalParseTime(split.time, true)
+    extra = parsed.days
+    usec = parsed.usec
+    if (split.zone !== null) west = temporalParseOffset(split.zone, '22007')
+  }
+  const utc = BigInt(days + extra) * 86400000000n + usec + BigInt(west) * 1000000n
+  if (utc < -211813488000000000n || utc >= 9223371331200000000n) temporalError('22008')
+  return new SqlTimestamptz(utc)
+}`,
+  },
+  timetzInput: {
+    dependencies: [
+      'SqlTimeTz',
+      'temporalParseTime',
+      'temporalSplitTimeAndZone',
+      'temporalParseOffset',
+    ],
+    source: `function timetzInput(value: string | null): SqlTimeTz | null {
+  if (value === null) return null
+  const split = temporalSplitTimeAndZone(value)
+  const parsed = temporalParseTime(split.time, false)
+  const west = split.zone === null ? 0 : temporalParseOffset(split.zone, '22023')
+  return new SqlTimeTz(parsed.usec, west)
+}`,
+  },
   dateCompare: {
     dependencies: ['SqlDate'],
     source: `function dateCompare(left: SqlDate | null, right: SqlDate | null): bigint | null {
@@ -329,6 +465,25 @@ export const typescriptTemporalHelpers: Record<
   return difference === 0n ? 0n : difference < 0n ? -1n : 1n
 }`,
   },
+  timestamptzCompare: {
+    dependencies: ['SqlTimestamptz'],
+    source: `function timestamptzCompare(left: SqlTimestamptz | null, right: SqlTimestamptz | null): bigint | null {
+  if (left === null || right === null) return null
+  return left.usec === right.usec ? 0n : left.usec < right.usec ? -1n : 1n
+}`,
+  },
+  timetzCompare: {
+    dependencies: ['SqlTimeTz'],
+    source: `function timetzCompare(left: SqlTimeTz | null, right: SqlTimeTz | null): bigint | null {
+  if (left === null || right === null) return null
+  const gmt = (value: SqlTimeTz): bigint => value.usec + BigInt(value.zone) * 1000000n
+  const leftGmt = gmt(left)
+  const rightGmt = gmt(right)
+  if (leftGmt !== rightGmt) return leftGmt < rightGmt ? -1n : 1n
+  if (left.zone !== right.zone) return left.zone < right.zone ? -1n : 1n
+  return 0n
+}`,
+  },
   dateFinite: {
     dependencies: ['SqlDate'],
     source: `function dateFinite(value: SqlDate | null): boolean | null {
@@ -338,6 +493,12 @@ export const typescriptTemporalHelpers: Record<
   timestampFinite: {
     dependencies: ['SqlTimestamp'],
     source: `function timestampFinite(value: SqlTimestamp | null): boolean | null {
+  return value === null ? null : value.usec !== -9223372036854775808n && value.usec !== 9223372036854775807n
+}`,
+  },
+  timestamptzFinite: {
+    dependencies: ['SqlTimestamptz'],
+    source: `function timestamptzFinite(value: SqlTimestamptz | null): boolean | null {
   return value === null ? null : value.usec !== -9223372036854775808n && value.usec !== 9223372036854775807n
 }`,
   },
@@ -404,13 +565,31 @@ export const typescriptTemporalHelpers: Record<
   return new SqlInterval(month, day, time)
 }`,
   },
+  makeTimestamptz: {
+    dependencies: ['SqlTimestamptz', 'makeTimestamp'],
+    source: `function makeTimestamptz(year: bigint | null, month: bigint | null, day: bigint | null, hour: bigint | null, minute: bigint | null, second: number | null): SqlTimestamptz | null {
+  const timestamp = makeTimestamp(year, month, day, hour, minute, second)
+  return timestamp === null ? null : new SqlTimestamptz(timestamp.usec)
+}`,
+  },
 }
+
+const temporalSqlTypes = {
+  date: 'SqlDate',
+  time: 'SqlTime',
+  timestamp: 'SqlTimestamp',
+  interval: 'SqlInterval',
+  timestamptz: 'SqlTimestamptz',
+  timetz: 'SqlTimeTz',
+} as const
 
 for (const [kind, helper] of [
   ['date', 'dateCompare'],
   ['time', 'timeCompare'],
   ['timestamp', 'timestampCompare'],
   ['interval', 'intervalCompare'],
+  ['timestamptz', 'timestamptzCompare'],
+  ['timetz', 'timetzCompare'],
 ] as const) {
   for (const [name, operator] of [
     ['Eq', '==='],
@@ -422,7 +601,7 @@ for (const [kind, helper] of [
   ] as const) {
     typescriptTemporalHelpers[`${kind}${name}`] = {
       dependencies: [helper],
-      source: `function ${kind}${name}(left: ${kind === 'date' ? 'SqlDate' : kind === 'time' ? 'SqlTime' : kind === 'timestamp' ? 'SqlTimestamp' : 'SqlInterval'} | null, right: ${kind === 'date' ? 'SqlDate' : kind === 'time' ? 'SqlTime' : kind === 'timestamp' ? 'SqlTimestamp' : 'SqlInterval'} | null): boolean | null {
+      source: `function ${kind}${name}(left: ${temporalSqlTypes[kind]} | null, right: ${temporalSqlTypes[kind]} | null): boolean | null {
   const comparison = ${helper}(left, right)
   return comparison === null ? null : comparison ${operator} 0n
 }`,

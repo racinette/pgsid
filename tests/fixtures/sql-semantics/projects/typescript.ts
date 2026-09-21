@@ -5128,6 +5128,202 @@ function makeInterval(years: bigint | null, months: bigint | null, weeks: bigint
         temporalError("22008");
     return new SqlInterval(month, day, time);
 }
+function temporalFormatZone(west: number): string {
+    const sign = west <= 0 ? "+" : "-";
+    let sec = Math.abs(west);
+    let min = Math.trunc(sec / 60);
+    sec -= min * 60;
+    const hour = Math.trunc(min / 60);
+    min -= hour * 60;
+    if (sec !== 0)
+        return sign + temporalPad(hour, 2) + ":" + temporalPad(min, 2) + ":" + temporalPad(sec, 2);
+    if (min !== 0)
+        return sign + temporalPad(hour, 2) + ":" + temporalPad(min, 2);
+    return sign + temporalPad(hour, 2);
+}
+function timestamptzFormat(usec: bigint): string {
+    if (usec === -9223372036854775808n)
+        return "-infinity";
+    if (usec === 9223372036854775807n)
+        return "infinity";
+    let days = usec / 86400000000n;
+    let time = usec % 86400000000n;
+    if (time < 0n) {
+        time += 86400000000n;
+        days -= 1n;
+    }
+    const { year, month, day } = temporalJ2date(Number(days) + 2451545);
+    const display = year > 0 ? year : -(year - 1);
+    return temporalPad(display, 4) + "-" + temporalPad(month, 2) + "-" + temporalPad(day, 2) + " " + timeFormat(time) + temporalFormatZone(0) + (year <= 0 ? " BC" : "");
+}
+class SqlTimestamptz {
+    constructor(readonly usec: bigint) { }
+    toString(): string { return timestamptzFormat(this.usec); }
+}
+function temporalSplitTimeAndZone(value: string): {
+    time: string;
+    zone: string | null;
+} {
+    const text = value.trim();
+    const match = /^(.*?)\s*(Z|[+-](?:\d{1,2}(?::\d{2}(?::\d{2})?)?|\d{3,4})|UTC|GMT|UT)\s*$/i.exec(text);
+    if (!match || match[1]!.trim().length === 0)
+        return { time: text, zone: null };
+    return { time: match[1]!.trim(), zone: match[2]! };
+}
+function temporalParseOffset(value: string, format: string): number {
+    const text = value.trim();
+    if (text.length === 0 || /^(Z|UTC|GMT|UT)$/i.test(text))
+        return 0;
+    if (text[0] !== "+" && text[0] !== "-")
+        temporalError(format);
+    const negative = text[0] === "-";
+    const digits = text.slice(1);
+    let hour = 0, min = 0, sec = 0;
+    if (digits.includes(":")) {
+        const parts = digits.split(":");
+        if (parts.length < 1 || parts.length > 3)
+            temporalError(format);
+        hour = Number(parts[0]);
+        min = Number(parts[1] ?? "0");
+        sec = Number(parts[2] ?? "0");
+        if (![hour, min, sec].every(part => Number.isInteger(part)))
+            temporalError(format);
+    }
+    else {
+        if (!/^\d+$/.test(digits))
+            temporalError(format);
+        const packed = Number(digits);
+        if (digits.length > 2) {
+            min = packed % 100;
+            hour = Math.trunc(packed / 100);
+        }
+        else
+            hour = packed;
+    }
+    if (hour < 0 || hour > 15 || min < 0 || min >= 60 || sec < 0 || sec >= 60)
+        temporalError("22009");
+    const seconds = hour * 3600 + min * 60 + sec;
+    return negative ? seconds : -seconds;
+}
+function timestamptzInput(value: string | null): SqlTimestamptz | null {
+    if (value === null)
+        return null;
+    const special = temporalSpecial(value);
+    if (special === 1)
+        return new SqlTimestamptz(9223372036854775807n);
+    if (special === -1)
+        return new SqlTimestamptz(-9223372036854775808n);
+    let text = value.trim();
+    const bc = /\s+BC\s*$/i.test(text);
+    if (bc)
+        text = text.replace(/\s+BC\s*$/i, "").trim();
+    const match = /^(\d{1,7}-\d{1,2}-\d{1,2})(?:[ T](.+))?$/i.exec(text);
+    if (!match)
+        temporalError("22007");
+    const days = temporalParseDate(match[1]! + (bc ? " BC" : ""));
+    let extra = 0;
+    let usec = 0n;
+    let west = 0;
+    if (match[2]) {
+        const split = temporalSplitTimeAndZone(match[2]);
+        const parsed = temporalParseTime(split.time, true);
+        extra = parsed.days;
+        usec = parsed.usec;
+        if (split.zone !== null)
+            west = temporalParseOffset(split.zone, "22007");
+    }
+    const utc = BigInt(days + extra) * 86400000000n + usec + BigInt(west) * 1000000n;
+    if (utc < -211813488000000000n || utc >= 9223371331200000000n)
+        temporalError("22008");
+    return new SqlTimestamptz(utc);
+}
+function timetzFormat(usec: bigint, zone: number): string {
+    return timeFormat(usec) + temporalFormatZone(zone);
+}
+class SqlTimeTz {
+    constructor(readonly usec: bigint, readonly zone: number) { }
+    toString(): string { return timetzFormat(this.usec, this.zone); }
+}
+function timetzInput(value: string | null): SqlTimeTz | null {
+    if (value === null)
+        return null;
+    const split = temporalSplitTimeAndZone(value);
+    const parsed = temporalParseTime(split.time, false);
+    const west = split.zone === null ? 0 : temporalParseOffset(split.zone, "22023");
+    return new SqlTimeTz(parsed.usec, west);
+}
+function timestamptzCompare(left: SqlTimestamptz | null, right: SqlTimestamptz | null): bigint | null {
+    if (left === null || right === null)
+        return null;
+    return left.usec === right.usec ? 0n : left.usec < right.usec ? -1n : 1n;
+}
+function timestamptzEq(left: SqlTimestamptz | null, right: SqlTimestamptz | null): boolean | null {
+    const comparison = timestamptzCompare(left, right);
+    return comparison === null ? null : comparison === 0n;
+}
+function timestamptzNe(left: SqlTimestamptz | null, right: SqlTimestamptz | null): boolean | null {
+    const comparison = timestamptzCompare(left, right);
+    return comparison === null ? null : comparison !== 0n;
+}
+function timestamptzLt(left: SqlTimestamptz | null, right: SqlTimestamptz | null): boolean | null {
+    const comparison = timestamptzCompare(left, right);
+    return comparison === null ? null : comparison < 0n;
+}
+function timestamptzLe(left: SqlTimestamptz | null, right: SqlTimestamptz | null): boolean | null {
+    const comparison = timestamptzCompare(left, right);
+    return comparison === null ? null : comparison <= 0n;
+}
+function timestamptzGt(left: SqlTimestamptz | null, right: SqlTimestamptz | null): boolean | null {
+    const comparison = timestamptzCompare(left, right);
+    return comparison === null ? null : comparison > 0n;
+}
+function timestamptzGe(left: SqlTimestamptz | null, right: SqlTimestamptz | null): boolean | null {
+    const comparison = timestamptzCompare(left, right);
+    return comparison === null ? null : comparison >= 0n;
+}
+function timetzCompare(left: SqlTimeTz | null, right: SqlTimeTz | null): bigint | null {
+    if (left === null || right === null)
+        return null;
+    const gmt = (value: SqlTimeTz): bigint => value.usec + BigInt(value.zone) * 1000000n;
+    const leftGmt = gmt(left);
+    const rightGmt = gmt(right);
+    if (leftGmt !== rightGmt)
+        return leftGmt < rightGmt ? -1n : 1n;
+    if (left.zone !== right.zone)
+        return left.zone < right.zone ? -1n : 1n;
+    return 0n;
+}
+function timetzEq(left: SqlTimeTz | null, right: SqlTimeTz | null): boolean | null {
+    const comparison = timetzCompare(left, right);
+    return comparison === null ? null : comparison === 0n;
+}
+function timetzNe(left: SqlTimeTz | null, right: SqlTimeTz | null): boolean | null {
+    const comparison = timetzCompare(left, right);
+    return comparison === null ? null : comparison !== 0n;
+}
+function timetzLt(left: SqlTimeTz | null, right: SqlTimeTz | null): boolean | null {
+    const comparison = timetzCompare(left, right);
+    return comparison === null ? null : comparison < 0n;
+}
+function timetzLe(left: SqlTimeTz | null, right: SqlTimeTz | null): boolean | null {
+    const comparison = timetzCompare(left, right);
+    return comparison === null ? null : comparison <= 0n;
+}
+function timetzGt(left: SqlTimeTz | null, right: SqlTimeTz | null): boolean | null {
+    const comparison = timetzCompare(left, right);
+    return comparison === null ? null : comparison > 0n;
+}
+function timetzGe(left: SqlTimeTz | null, right: SqlTimeTz | null): boolean | null {
+    const comparison = timetzCompare(left, right);
+    return comparison === null ? null : comparison >= 0n;
+}
+function timestamptzFinite(value: SqlTimestamptz | null): boolean | null {
+    return value === null ? null : value.usec !== -9223372036854775808n && value.usec !== 9223372036854775807n;
+}
+function makeTimestamptz(year: bigint | null, month: bigint | null, day: bigint | null, hour: bigint | null, minute: bigint | null, second: number | null): SqlTimestamptz | null {
+    const timestamp = makeTimestamp(year, month, day, hour, minute, second);
+    return timestamp === null ? null : new SqlTimestamptz(timestamp.usec);
+}
 export function evaluate0() {
     return int2Add(int2Input("2"), int2Input("3"));
 }
@@ -96393,4 +96589,421 @@ export function evaluate30420() {
 }
 export function evaluate30421() {
     return sqlCase(() => intervalInput("1 mon"), [() => booleanInput(false), () => intervalInput("1 year")]);
+}
+export function evaluate30422() {
+    return timestamptzInput(null);
+}
+export function evaluate30423() {
+    return timestamptzInput("2020-01-02 03:04:05");
+}
+export function evaluate30424() {
+    return timestamptzInput("2020-01-02 03:04:05+00");
+}
+export function evaluate30425() {
+    return timestamptzInput("2020-01-02 03:04:05+01");
+}
+export function evaluate30426() {
+    return timestamptzInput("2020-01-02 03:04:05-05");
+}
+export function evaluate30427() {
+    return timestamptzInput("2020-01-02 03:04:05+05:30");
+}
+export function evaluate30428() {
+    return timestamptzInput("2020-01-02 03:04:05+0530");
+}
+export function evaluate30429() {
+    return timestamptzInput("2020-01-02 03:04:05Z");
+}
+export function evaluate30430() {
+    return timestamptzInput("2020-01-02 03:04:05 UTC");
+}
+export function evaluate30431() {
+    return timestamptzInput("2020-01-02T03:04:05+00");
+}
+export function evaluate30432() {
+    return timestamptzInput("2020-01-02 24:00:00+00");
+}
+export function evaluate30433() {
+    return timestamptzInput("2020-01-02 03:04:05.123456+00");
+}
+export function evaluate30434() {
+    return timestamptzInput("infinity");
+}
+export function evaluate30435() {
+    return timestamptzInput("-infinity");
+}
+export function evaluate30436() {
+    return timestamptzInput("0001-01-01 00:00:00 BC");
+}
+export function evaluate30437() {
+    return timestamptzInput("not-a-timestamptz");
+}
+export function evaluate30438() {
+    return timestamptzInput("2020-01-02 03:04:05+16");
+}
+export function evaluate30439() {
+    return timestamptzInput("2020-01-02 12:60:00+00");
+}
+export function evaluate30440() {
+    return timetzInput(null);
+}
+export function evaluate30441() {
+    return timetzInput("12:00:00");
+}
+export function evaluate30442() {
+    return timetzInput("12:00:00+00");
+}
+export function evaluate30443() {
+    return timetzInput("12:00:00+01");
+}
+export function evaluate30444() {
+    return timetzInput("12:00:00-05:30");
+}
+export function evaluate30445() {
+    return timetzInput("12:00:00Z");
+}
+export function evaluate30446() {
+    return timetzInput("12:00+00");
+}
+export function evaluate30447() {
+    return timetzInput("24:00:00+00");
+}
+export function evaluate30448() {
+    return timetzInput("12:00:00+00:00:01");
+}
+export function evaluate30449() {
+    return timetzInput("not-a-timetz");
+}
+export function evaluate30450() {
+    return timetzInput("12:60:00+00");
+}
+export function evaluate30451() {
+    return timetzInput("12:00:00+16");
+}
+export function evaluate30452() {
+    return timetzInput("12:00:00+00:60");
+}
+export function evaluate30453() {
+    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30454() {
+    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30455() {
+    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30456() {
+    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30457() {
+    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30458() {
+    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30459() {
+    return timestamptzEq(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30460() {
+    return timestamptzNe(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30461() {
+    return timestamptzLt(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30462() {
+    return timestamptzLe(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30463() {
+    return timestamptzGt(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30464() {
+    return timestamptzGe(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30465() {
+    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30466() {
+    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30467() {
+    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30468() {
+    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30469() {
+    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30470() {
+    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30471() {
+    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+}
+export function evaluate30472() {
+    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+}
+export function evaluate30473() {
+    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+}
+export function evaluate30474() {
+    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+}
+export function evaluate30475() {
+    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+}
+export function evaluate30476() {
+    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+}
+export function evaluate30477() {
+    return timestamptzEq(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30478() {
+    return timestamptzNe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30479() {
+    return timestamptzLt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30480() {
+    return timestamptzLe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30481() {
+    return timestamptzGt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30482() {
+    return timestamptzGe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30483() {
+    return timestamptzEq(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30484() {
+    return timestamptzNe(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30485() {
+    return timestamptzLt(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30486() {
+    return timestamptzLe(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30487() {
+    return timestamptzGt(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30488() {
+    return timestamptzGe(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30489() {
+    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30490() {
+    return timestamptzEq(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30491() {
+    return timestamptzEq(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30492() {
+    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30493() {
+    return timestamptzNe(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30494() {
+    return timestamptzNe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30495() {
+    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30496() {
+    return timestamptzLt(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30497() {
+    return timestamptzLt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30498() {
+    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30499() {
+    return timestamptzLe(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30500() {
+    return timestamptzLe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30501() {
+    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30502() {
+    return timestamptzGt(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30503() {
+    return timestamptzGt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30504() {
+    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30505() {
+    return timestamptzGe(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30506() {
+    return timestamptzGe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30507() {
+    return timestamptzCompare(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+}
+export function evaluate30508() {
+    return timestamptzCompare(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate30509() {
+    return timestamptzCompare(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30510() {
+    return timetzEq(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate30511() {
+    return timetzNe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate30512() {
+    return timetzLt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate30513() {
+    return timetzLe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate30514() {
+    return timetzGt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate30515() {
+    return timetzGe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate30516() {
+    return timetzEq(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate30517() {
+    return timetzNe(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate30518() {
+    return timetzLt(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate30519() {
+    return timetzLe(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate30520() {
+    return timetzGt(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate30521() {
+    return timetzGe(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate30522() {
+    return timetzEq(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate30523() {
+    return timetzNe(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate30524() {
+    return timetzLt(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate30525() {
+    return timetzLe(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate30526() {
+    return timetzGt(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate30527() {
+    return timetzGe(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate30528() {
+    return timetzEq(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate30529() {
+    return timetzNe(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate30530() {
+    return timetzLt(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate30531() {
+    return timetzLe(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate30532() {
+    return timetzGt(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate30533() {
+    return timetzGe(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate30534() {
+    return timetzEq(timetzInput(null), timetzInput("12:00:00+00"));
+}
+export function evaluate30535() {
+    return timetzNe(timetzInput(null), timetzInput("12:00:00+00"));
+}
+export function evaluate30536() {
+    return timetzLt(timetzInput(null), timetzInput("12:00:00+00"));
+}
+export function evaluate30537() {
+    return timetzLe(timetzInput(null), timetzInput("12:00:00+00"));
+}
+export function evaluate30538() {
+    return timetzGt(timetzInput(null), timetzInput("12:00:00+00"));
+}
+export function evaluate30539() {
+    return timetzGe(timetzInput(null), timetzInput("12:00:00+00"));
+}
+export function evaluate30540() {
+    return timetzEq(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate30541() {
+    return timetzEq(timetzInput(null), timetzInput("18:00:00+00"));
+}
+export function evaluate30542() {
+    return timetzNe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate30543() {
+    return timetzNe(timetzInput(null), timetzInput("18:00:00+00"));
+}
+export function evaluate30544() {
+    return timetzLt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate30545() {
+    return timetzLt(timetzInput(null), timetzInput("18:00:00+00"));
+}
+export function evaluate30546() {
+    return timetzLe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate30547() {
+    return timetzLe(timetzInput(null), timetzInput("18:00:00+00"));
+}
+export function evaluate30548() {
+    return timetzGt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate30549() {
+    return timetzGt(timetzInput(null), timetzInput("18:00:00+00"));
+}
+export function evaluate30550() {
+    return timetzGe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate30551() {
+    return timetzGe(timetzInput(null), timetzInput("18:00:00+00"));
+}
+export function evaluate30552() {
+    return timetzCompare(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate30553() {
+    return timetzCompare(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate30554() {
+    return timetzCompare(timetzInput(null), timetzInput("12:00:00+00"));
+}
+export function evaluate30555() {
+    return timestamptzFinite(timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30556() {
+    return timestamptzFinite(timestamptzInput("infinity"));
+}
+export function evaluate30557() {
+    return timestamptzFinite(timestamptzInput(null));
+}
+export function evaluate30558() {
+    return makeTimestamptz(int4Input("2020"), int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4"), float8Input("4016000000000000"));
+}
+export function evaluate30559() {
+    return sqlCoalesce(() => timestamptzInput(null), () => timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate30560() {
+    return sqlCase(() => timetzInput("12:00:00+00"), [() => booleanInput(true), () => timetzInput("18:00:00+00")]);
 }

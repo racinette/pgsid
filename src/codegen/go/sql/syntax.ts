@@ -15,6 +15,8 @@ function suffix(type: string): string {
   if (type === 'pg_catalog.date') return 'Date'
   if (type === 'pg_catalog."time"') return 'Time'
   if (type === 'pg_catalog."timestamp"') return 'Timestamp'
+  if (type === 'pg_catalog.timestamptz') return 'Timestamptz'
+  if (type === 'pg_catalog.timetz') return 'TimeTz'
   if (type === 'pg_catalog."interval"') return 'Interval'
   if (type.startsWith('enum:')) return 'Enum'
   if (type.startsWith('array:')) return 'Array'

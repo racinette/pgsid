@@ -291,7 +291,11 @@ export const typescriptSqlBackend: ExpressionBackend<ts.Expression> = {
             ? 'timeInput'
             : type === 'pg_catalog."timestamp"'
               ? 'timestampInput'
-              : 'intervalInput',
+              : type === 'pg_catalog.timestamptz'
+                ? 'timestamptzInput'
+                : type === 'pg_catalog.timetz'
+                  ? 'timetzInput'
+                  : 'intervalInput',
       ),
       undefined,
       [value === null ? factory.createNull() : factory.createStringLiteral(value)],

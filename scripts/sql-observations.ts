@@ -12,6 +12,7 @@ export async function generateSqlObservations(
   let pg = await PGlite.create()
   const setup = [...new Set(specs.flatMap((spec) => spec.setupSql ?? []))]
   const initialize = async (): Promise<void> => {
+    await pg.exec(`SET timezone = 'UTC'`)
     for (const sql of setup) await pg.exec(sql)
   }
   try {

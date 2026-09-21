@@ -14,7 +14,12 @@ export type UuidType = 'pg_catalog.uuid'
 export type JsonType = 'pg_catalog."json"'
 export type JsonbType = 'pg_catalog.jsonb'
 export type TemporalType =
-  'pg_catalog.date' | 'pg_catalog."time"' | 'pg_catalog."timestamp"' | 'pg_catalog."interval"'
+  | 'pg_catalog.date'
+  | 'pg_catalog."time"'
+  | 'pg_catalog."timestamp"'
+  | 'pg_catalog.timestamptz'
+  | 'pg_catalog.timetz'
+  | 'pg_catalog."interval"'
 export type EnumType = `enum:${string}`
 export const BUILTIN_ARRAY_ELEMENT_TYPES = [
   'pg_catalog.int2',
@@ -739,7 +744,11 @@ export function emitSqlExpression<Ast>(
             ? 'timeInput'
             : node.type === 'pg_catalog."timestamp"'
               ? 'timestampInput'
-              : 'intervalInput'
+              : node.type === 'pg_catalog.timestamptz'
+                ? 'timestamptzInput'
+                : node.type === 'pg_catalog.timetz'
+                  ? 'timetzInput'
+                  : 'intervalInput'
       helpers.add(helper)
       return { type: node.type, expression: backend.temporal(node.type, node.value) }
     }

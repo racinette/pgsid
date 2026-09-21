@@ -71891,4 +71891,531 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: '1 mon',
   },
+  'timestamptz input 0': {
+    kind: 'null',
+  },
+  'timestamptz input 1': {
+    kind: 'value',
+    value: '2020-01-02 03:04:05+00',
+  },
+  'timestamptz input 2': {
+    kind: 'value',
+    value: '2020-01-02 03:04:05+00',
+  },
+  'timestamptz input 3': {
+    kind: 'value',
+    value: '2020-01-02 02:04:05+00',
+  },
+  'timestamptz input 4': {
+    kind: 'value',
+    value: '2020-01-02 08:04:05+00',
+  },
+  'timestamptz input 5': {
+    kind: 'value',
+    value: '2020-01-01 21:34:05+00',
+  },
+  'timestamptz input 6': {
+    kind: 'value',
+    value: '2020-01-01 21:34:05+00',
+  },
+  'timestamptz input 7': {
+    kind: 'value',
+    value: '2020-01-02 03:04:05+00',
+  },
+  'timestamptz input 8': {
+    kind: 'value',
+    value: '2020-01-02 03:04:05+00',
+  },
+  'timestamptz input 9': {
+    kind: 'value',
+    value: '2020-01-02 03:04:05+00',
+  },
+  'timestamptz input 10': {
+    kind: 'value',
+    value: '2020-01-03 00:00:00+00',
+  },
+  'timestamptz input 11': {
+    kind: 'value',
+    value: '2020-01-02 03:04:05.123456+00',
+  },
+  'timestamptz input 12': {
+    kind: 'value',
+    value: 'infinity',
+  },
+  'timestamptz input 13': {
+    kind: 'value',
+    value: '-infinity',
+  },
+  'timestamptz input 14': {
+    kind: 'value',
+    value: '0001-01-01 00:00:00+00 BC',
+  },
+  'timestamptz invalid 0': {
+    kind: 'error',
+    code: '22007',
+  },
+  'timestamptz invalid 1': {
+    kind: 'error',
+    code: '22009',
+  },
+  'timestamptz invalid 2': {
+    kind: 'error',
+    code: '22008',
+  },
+  'timetz input 0': {
+    kind: 'null',
+  },
+  'timetz input 1': {
+    kind: 'value',
+    value: '12:00:00+00',
+  },
+  'timetz input 2': {
+    kind: 'value',
+    value: '12:00:00+00',
+  },
+  'timetz input 3': {
+    kind: 'value',
+    value: '12:00:00+01',
+  },
+  'timetz input 4': {
+    kind: 'value',
+    value: '12:00:00-05:30',
+  },
+  'timetz input 5': {
+    kind: 'value',
+    value: '12:00:00+00',
+  },
+  'timetz input 6': {
+    kind: 'value',
+    value: '12:00:00+00',
+  },
+  'timetz input 7': {
+    kind: 'value',
+    value: '24:00:00+00',
+  },
+  'timetz input 8': {
+    kind: 'value',
+    value: '12:00:00+00:00:01',
+  },
+  'timetz invalid 0': {
+    kind: 'error',
+    code: '22023',
+  },
+  'timetz invalid 1': {
+    kind: 'error',
+    code: '22008',
+  },
+  'timetz invalid 2': {
+    kind: 'error',
+    code: '22009',
+  },
+  'timetz invalid 3': {
+    kind: 'error',
+    code: '22009',
+  },
+  'timestamptz operator = 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz operator <> 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz operator < 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz operator <= 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz operator > 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz operator >= 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz operator = 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz operator <> 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz operator < 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz operator <= 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz operator > 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz operator >= 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz operator = 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz operator <> 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz operator < 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz operator <= 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz operator > 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz operator >= 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz operator = 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz operator <> 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz operator < 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz operator <= 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz operator > 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz operator >= 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz operator = 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz operator <> 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz operator < 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz operator <= 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz operator > 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz operator >= 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz operator = 5': {
+    kind: 'null',
+  },
+  'timestamptz operator <> 5': {
+    kind: 'null',
+  },
+  'timestamptz operator < 5': {
+    kind: 'null',
+  },
+  'timestamptz operator <= 5': {
+    kind: 'null',
+  },
+  'timestamptz operator > 5': {
+    kind: 'null',
+  },
+  'timestamptz operator >= 5': {
+    kind: 'null',
+  },
+  'timestamptz function eq': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz function eq null': {
+    kind: 'null',
+  },
+  'timestamptz operator boundary =': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz function ne': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz function ne null': {
+    kind: 'null',
+  },
+  'timestamptz operator boundary <>': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz function lt': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz function lt null': {
+    kind: 'null',
+  },
+  'timestamptz operator boundary <': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz function le': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz function le null': {
+    kind: 'null',
+  },
+  'timestamptz operator boundary <=': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz function gt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz function gt null': {
+    kind: 'null',
+  },
+  'timestamptz operator boundary >': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz function ge': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz function ge null': {
+    kind: 'null',
+  },
+  'timestamptz operator boundary >=': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz cmp 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'timestamptz cmp 1': {
+    kind: 'value',
+    value: '-1',
+  },
+  'timestamptz cmp 2': {
+    kind: 'null',
+  },
+  'timetz operator = 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timetz operator <> 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timetz operator < 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timetz operator <= 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timetz operator > 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timetz operator >= 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timetz operator = 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timetz operator <> 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timetz operator < 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timetz operator <= 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timetz operator > 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timetz operator >= 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timetz operator = 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timetz operator <> 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timetz operator < 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timetz operator <= 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timetz operator > 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timetz operator >= 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timetz operator = 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timetz operator <> 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timetz operator < 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timetz operator <= 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timetz operator > 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timetz operator >= 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timetz operator = 4': {
+    kind: 'null',
+  },
+  'timetz operator <> 4': {
+    kind: 'null',
+  },
+  'timetz operator < 4': {
+    kind: 'null',
+  },
+  'timetz operator <= 4': {
+    kind: 'null',
+  },
+  'timetz operator > 4': {
+    kind: 'null',
+  },
+  'timetz operator >= 4': {
+    kind: 'null',
+  },
+  'timetz function eq': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timetz function eq null': {
+    kind: 'null',
+  },
+  'timetz function ne': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timetz function ne null': {
+    kind: 'null',
+  },
+  'timetz function lt': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timetz function lt null': {
+    kind: 'null',
+  },
+  'timetz function le': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timetz function le null': {
+    kind: 'null',
+  },
+  'timetz function gt': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timetz function gt null': {
+    kind: 'null',
+  },
+  'timetz function ge': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timetz function ge null': {
+    kind: 'null',
+  },
+  'timetz cmp 0': {
+    kind: 'value',
+    value: '0',
+  },
+  'timetz cmp 1': {
+    kind: 'value',
+    value: '1',
+  },
+  'timetz cmp 2': {
+    kind: 'null',
+  },
+  'timestamptz finite': {
+    kind: 'value',
+    value: 'true',
+  },
+  'timestamptz finite infinity': {
+    kind: 'value',
+    value: 'false',
+  },
+  'timestamptz finite null': {
+    kind: 'null',
+  },
+  'make timestamptz': {
+    kind: 'value',
+    value: '2020-01-02 03:04:05.5+00',
+  },
+  'timestamptz coalesce': {
+    kind: 'value',
+    value: '2020-01-01 12:00:00+00',
+  },
+  'timetz case': {
+    kind: 'value',
+    value: '18:00:00+00',
+  },
 }

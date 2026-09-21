@@ -22,6 +22,9 @@ const date = (value: string | null): Operand => temporal('pg_catalog.date', 'dat
 const time = (value: string | null): Operand => temporal('pg_catalog."time"', 'time', value)
 const timestamp = (value: string | null): Operand =>
   temporal('pg_catalog."timestamp"', 'timestamp', value)
+const timestamptz = (value: string | null): Operand =>
+  temporal('pg_catalog.timestamptz', 'timestamptz', value)
+const timetz = (value: string | null): Operand => temporal('pg_catalog.timetz', 'timetz', value)
 const interval = (value: string | null): Operand =>
   temporal('pg_catalog."interval"', 'interval', value)
 const integer = (value: string | null): Operand => ({
@@ -367,6 +370,157 @@ add('interval case', {
       { when: { kind: 'boolean', type: 'pg_catalog.bool', value: false }, then: year.expression },
     ],
     otherwise: month.expression,
+  },
+})
+
+for (const [index, value] of [
+  null,
+  '2020-01-02 03:04:05',
+  '2020-01-02 03:04:05+00',
+  '2020-01-02 03:04:05+01',
+  '2020-01-02 03:04:05-05',
+  '2020-01-02 03:04:05+05:30',
+  '2020-01-02 03:04:05+0530',
+  '2020-01-02 03:04:05Z',
+  '2020-01-02 03:04:05 UTC',
+  '2020-01-02T03:04:05+00',
+  '2020-01-02 24:00:00+00',
+  '2020-01-02 03:04:05.123456+00',
+  'infinity',
+  '-infinity',
+  '0001-01-01 00:00:00 BC',
+].entries())
+  add(`timestamptz input ${index}`, timestamptz(value))
+for (const [index, value] of [
+  'not-a-timestamptz',
+  '2020-01-02 03:04:05+16',
+  '2020-01-02 12:60:00+00',
+].entries())
+  add(`timestamptz invalid ${index}`, timestamptz(value))
+
+for (const [index, value] of [
+  null,
+  '12:00:00',
+  '12:00:00+00',
+  '12:00:00+01',
+  '12:00:00-05:30',
+  '12:00:00Z',
+  '12:00+00',
+  '24:00:00+00',
+  '12:00:00+00:00:01',
+].entries())
+  add(`timetz input ${index}`, timetz(value))
+for (const [index, value] of [
+  'not-a-timetz',
+  '12:60:00+00',
+  '12:00:00+16',
+  '12:00:00+00:60',
+].entries())
+  add(`timetz invalid ${index}`, timetz(value))
+
+const instant = timestamptz('2020-01-01 12:00:00+00')
+const shifted = timestamptz('2020-01-01 13:00:00+01')
+const laterInstant = timestamptz('2020-01-01 13:00:00+00')
+const timestamptzNil = timestamptz(null)
+const timestamptzInf = timestamptz('infinity')
+for (const [index, [left, right]] of (
+  [
+    [instant, laterInstant],
+    [laterInstant, instant],
+    [instant, instant],
+    [instant, shifted],
+    [timestamptzInf, instant],
+    [timestamptzNil, instant],
+  ] satisfies readonly (readonly [Operand, Operand])[]
+).entries()) {
+  for (const operation of ['=', '<>', '<', '<=', '>', '>='])
+    callable(`timestamptz operator ${operation} ${index}`, operation, [left, right], true)
+}
+for (const [operation, name] of [
+  ['eq', '='],
+  ['ne', '<>'],
+  ['lt', '<'],
+  ['le', '<='],
+  ['gt', '>'],
+  ['ge', '>='],
+] as const) {
+  callable(`timestamptz function ${operation}`, `timestamptz_${operation}`, [instant, laterInstant])
+  callable(`timestamptz function ${operation} null`, `timestamptz_${operation}`, [
+    timestamptzNil,
+    laterInstant,
+  ])
+  callable(`timestamptz operator boundary ${name}`, name, [timestamptzInf, instant], true)
+}
+for (const [index, [left, right]] of (
+  [
+    [instant, shifted],
+    [instant, laterInstant],
+    [timestamptzNil, instant],
+  ] satisfies readonly (readonly [Operand, Operand])[]
+).entries())
+  callable(`timestamptz cmp ${index}`, 'timestamptz_cmp', [left, right])
+
+const utcNoon = timetz('12:00:00+00')
+const offsetNoon = timetz('13:00:00+01')
+const utcEvening = timetz('18:00:00+00')
+const timetzNil = timetz(null)
+for (const [index, [left, right]] of (
+  [
+    [utcNoon, utcEvening],
+    [utcEvening, utcNoon],
+    [utcNoon, utcNoon],
+    [utcNoon, offsetNoon],
+    [timetzNil, utcNoon],
+  ] satisfies readonly (readonly [Operand, Operand])[]
+).entries()) {
+  for (const operation of ['=', '<>', '<', '<=', '>', '>='])
+    callable(`timetz operator ${operation} ${index}`, operation, [left, right], true)
+}
+for (const [operation] of [['eq'], ['ne'], ['lt'], ['le'], ['gt'], ['ge']] as const) {
+  callable(`timetz function ${operation}`, `timetz_${operation}`, [utcNoon, utcEvening])
+  callable(`timetz function ${operation} null`, `timetz_${operation}`, [timetzNil, utcEvening])
+}
+for (const [index, [left, right]] of (
+  [
+    [utcNoon, utcNoon],
+    [utcNoon, offsetNoon],
+    [timetzNil, utcNoon],
+  ] satisfies readonly (readonly [Operand, Operand])[]
+).entries())
+  callable(`timetz cmp ${index}`, 'timetz_cmp', [left, right])
+
+callable('timestamptz finite', 'isfinite', [instant])
+callable('timestamptz finite infinity', 'isfinite', [timestamptzInf])
+callable('timestamptz finite null', 'isfinite', [timestamptzNil])
+callable('make timestamptz', 'make_timestamptz', [
+  integer('2020'),
+  integer('1'),
+  integer('2'),
+  integer('3'),
+  integer('4'),
+  float(5.5),
+])
+
+add('timestamptz coalesce', {
+  sql: `COALESCE((${timestamptzNil.sql}), (${instant.sql}))`,
+  expression: {
+    kind: 'coalesce',
+    type: 'pg_catalog.timestamptz',
+    operands: [timestamptzNil.expression, instant.expression],
+  },
+})
+add('timetz case', {
+  sql: `CASE WHEN true THEN (${utcEvening.sql}) ELSE (${utcNoon.sql}) END`,
+  expression: {
+    kind: 'case',
+    type: 'pg_catalog.timetz',
+    branches: [
+      {
+        when: { kind: 'boolean', type: 'pg_catalog.bool', value: true },
+        then: utcEvening.expression,
+      },
+    ],
+    otherwise: utcNoon.expression,
   },
 })
 
