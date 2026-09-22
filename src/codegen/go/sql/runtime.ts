@@ -12,6 +12,7 @@ import { goEnumDependencies } from './enum-runtime.js'
 import { goArrayDependencies } from './array-runtime.js'
 import { goJsonDependencies } from './json-runtime.js'
 import { goTemporalDependencies } from './temporal-runtime.js'
+import { goCheckDependencies } from './check-runtime.js'
 
 const dependencies: Record<string, readonly string[]> = {
   float8WidthBucket: ['SqlFloat', 'sqlIntegerRange'],
@@ -85,6 +86,7 @@ Object.assign(dependencies, goEnumDependencies)
 Object.assign(dependencies, goArrayDependencies)
 Object.assign(dependencies, goJsonDependencies)
 Object.assign(dependencies, goTemporalDependencies)
+Object.assign(dependencies, goCheckDependencies)
 
 export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsql'): string {
   const declarations = new Map(
@@ -105,6 +107,7 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
       'temporal-extract',
       'temporal-arithmetic',
       'temporal-overlaps',
+      'check',
     ]
       .flatMap((asset) =>
         readFileSync(new URL(`./assets/${asset}.go`, import.meta.url), 'utf8')
