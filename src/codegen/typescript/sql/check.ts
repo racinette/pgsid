@@ -1,6 +1,8 @@
 import ts from 'typescript'
 import { factory, identifier } from '../ast.js'
 import type { EvalBoolBackend } from '../../../sql-semantics/check-expressions.js'
+import { compilePostgresRegex } from '../../../sql-semantics/regex/compiler.js'
+import { REGEX_ENGINE_PROFILES } from '../../../sql-semantics/regex/profiles.generated.js'
 
 const thunk = (expression: ts.Expression): ts.ArrowFunction =>
   factory.createArrowFunction(
@@ -53,4 +55,32 @@ export const typescriptEvalBoolBackend: EvalBoolBackend<ts.Expression> = {
     ]),
     helpers: ['evalBoolCompare'],
   }),
+  regex: (subject, pattern, options, negated) => {
+    const compiled = compilePostgresRegex(pattern, REGEX_ENGINE_PROFILES.ecmascript, options)
+    if (compiled.kind === 'invalid')
+      return {
+        expression: factory.createCallExpression(identifier('evalBoolRegexInvalid'), undefined, [
+          subject.expression,
+        ]),
+        helpers: ['evalBoolRegexInvalid'],
+      }
+    if (compiled.kind === 'unsupported')
+      return {
+        expression: factory.createCallExpression(
+          identifier('evalBoolRegexUnsupported'),
+          undefined,
+          [subject.expression],
+        ),
+        helpers: ['evalBoolRegexUnsupported'],
+      }
+    return {
+      expression: factory.createCallExpression(identifier('evalBoolRegex'), undefined, [
+        subject.expression,
+        factory.createStringLiteral(compiled.source),
+        factory.createStringLiteral(compiled.flags.join('')),
+        negated ? factory.createTrue() : factory.createFalse(),
+      ]),
+      helpers: ['evalBoolRegex'],
+    }
+  },
 }

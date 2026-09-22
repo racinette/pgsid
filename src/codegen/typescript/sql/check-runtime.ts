@@ -85,4 +85,37 @@ export const typescriptCheckHelpers: Record<
   return evalBoolCertain(result)
 }`,
   },
+  evalBoolRegex: {
+    dependencies: ['EvalBool', 'evalBoolCertain'],
+    source: `function evalBoolRegex(
+  value: string | null,
+  source: string,
+  flags: string,
+  negated: boolean,
+): EvalBool {
+  if (value === null) return evalBoolCertain(null)
+  const matched = new RegExp(source, flags).test(value)
+  return evalBoolCertain(negated ? !matched : matched)
+}`,
+  },
+  evalBoolRegexUnsupported: {
+    dependencies: ['EvalBool', 'evalBoolCertain', 'evalBoolUncertain'],
+    source: `function evalBoolRegexUnsupported(value: string | null): EvalBool {
+  return value === null ? evalBoolCertain(null) : evalBoolUncertain()
+}`,
+  },
+  SqlInvalidRegexError: {
+    dependencies: [],
+    source: `class SqlInvalidRegexError extends Error {
+  readonly code = '2201B'
+  constructor() { super('invalid regular expression') }
+}`,
+  },
+  evalBoolRegexInvalid: {
+    dependencies: ['EvalBool', 'evalBoolCertain', 'SqlInvalidRegexError'],
+    source: `function evalBoolRegexInvalid(value: string | null): EvalBool {
+  if (value === null) return evalBoolCertain(null)
+  throw new SqlInvalidRegexError()
+}`,
+  },
 }

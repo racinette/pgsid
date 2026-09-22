@@ -1,4 +1,5 @@
 import { emitSqlExpression, type ExpressionBackend, type SqlExpression } from './expressions.js'
+import type { PostgresRegexOptions } from './regex/ast.js'
 import type { TypedSqlExpression } from './signatures.js'
 
 export type EvalBoolExpression =
@@ -25,6 +26,14 @@ export type EvalBoolExpression =
       operation: '=' | '<>' | '<' | '<=' | '>' | '>='
       operands: readonly [EvalBoolExpression, EvalBoolExpression]
     }
+  | {
+      kind: 'eval-regex'
+      subject: SqlExpression
+      pattern: string
+      options?: PostgresRegexOptions
+      negated: boolean
+      collation: 'C'
+    }
 
 export interface EvalBoolBackend<Ast> {
   certain: (value: TypedSqlExpression<Ast, 'pg_catalog.bool'>) => Ast
@@ -45,6 +54,12 @@ export interface EvalBoolBackend<Ast> {
   compare: (
     operation: '=' | '<>' | '<' | '<=' | '>' | '>=',
     operands: readonly [Ast, Ast],
+  ) => { expression: Ast; helpers: readonly string[] }
+  regex: (
+    subject: TypedSqlExpression<Ast>,
+    pattern: string,
+    options: PostgresRegexOptions,
+    negated: boolean,
   ) => { expression: Ast; helpers: readonly string[] }
 }
 
@@ -88,6 +103,23 @@ export function emitEvalBoolExpression<Ast>(
     }
     if (node.kind === 'eval-test') {
       const result = backend.test(node.test, node.negated, emit(node.operand))
+      include(result.helpers)
+      return result.expression
+    }
+    if (node.kind === 'eval-regex') {
+      if (
+        ![
+          'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
+          'pg_catalog.name',
+        ].includes(node.subject.type) ||
+        node.collation !== 'C'
+      )
+        throw new Error('A regex CHECK atom requires a C-collated text subject')
+      const emitted = emitSqlExpression(node.subject, scalarBackend)
+      include(emitted.helpers)
+      const result = backend.regex(emitted.value, node.pattern, node.options ?? {}, node.negated)
       include(result.helpers)
       return result.expression
     }

@@ -107,3 +107,34 @@ func evalBoolCompare(left, right EvalBool, operation string) EvalBool {
 		operation == ">" && a > b || operation == ">=" && a >= b
 	return evalBoolCertain(SqlBoolean{Value: result, Valid: true})
 }
+
+func evalBoolRegex(value SqlText, source string, negated bool) EvalBool {
+	if value.Error != "" {
+		return evalBoolCertain(SqlBoolean{Error: value.Error})
+	}
+	if !value.Valid {
+		return evalBoolCertain(SqlBoolean{})
+	}
+	matched := regexp.MustCompile(source).MatchString(value.Value)
+	return evalBoolCertain(SqlBoolean{Value: matched != negated, Valid: true})
+}
+
+func evalBoolRegexUnsupported(value SqlText) EvalBool {
+	if value.Error != "" {
+		return evalBoolCertain(SqlBoolean{Error: value.Error})
+	}
+	if !value.Valid {
+		return evalBoolCertain(SqlBoolean{})
+	}
+	return evalBoolUncertain()
+}
+
+func evalBoolRegexInvalid(value SqlText) EvalBool {
+	if value.Error != "" {
+		return evalBoolCertain(SqlBoolean{Error: value.Error})
+	}
+	if !value.Valid {
+		return evalBoolCertain(SqlBoolean{})
+	}
+	return evalBoolCertain(SqlBoolean{Error: "2201B"})
+}

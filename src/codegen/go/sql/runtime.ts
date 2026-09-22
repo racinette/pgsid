@@ -136,6 +136,7 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
     'bytes',
     'math',
     'math/big',
+    'regexp',
     'sort',
     'strconv',
     'strings',
