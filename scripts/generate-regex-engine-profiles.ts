@@ -1,6 +1,7 @@
 import { readFile, readdir, writeFile } from 'node:fs/promises'
 import { format } from 'prettier'
 import { parseRegexEngineProfile } from '../src/sql-semantics/regex/profile.js'
+import { REGEX_LOWERING_STRATEGY_NAMES } from '../src/sql-semantics/regex/strategies.js'
 
 const check = process.argv.includes('--check')
 const directory = new URL('../src/sql-semantics/regex/profiles/', import.meta.url)
@@ -9,7 +10,12 @@ const names = (await readdir(directory)).filter((name) => name.endsWith('.yaml')
 const profiles = []
 for (const name of names) {
   const path = new URL(name, directory)
-  profiles.push(parseRegexEngineProfile(await readFile(path, 'utf8'), { path: path.pathname }))
+  profiles.push(
+    parseRegexEngineProfile(await readFile(path, 'utf8'), {
+      path: path.pathname,
+      strategies: REGEX_LOWERING_STRATEGY_NAMES,
+    }),
+  )
 }
 
 const engines = profiles.map((profile) => profile.engine)
