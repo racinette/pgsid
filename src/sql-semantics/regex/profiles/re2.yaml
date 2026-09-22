@@ -3,10 +3,10 @@ engine: re2
 baseline: re2-syntax
 
 features:
-  empty-expression: unsupported
+  empty-expression: re2.emit-empty
   impossible-expression: unsupported
-  literal: unsupported
-  concatenation: unsupported
+  literal: re2.escape-literal
+  concatenation: re2.concatenate
   alternation: unsupported
   capturing-group: unsupported
   noncapturing-group: unsupported
@@ -24,8 +24,8 @@ features:
   bounded-quantifier: unsupported
   greedy-preference: unsupported
   nongreedy-preference: unsupported
-  beginning-of-string: unsupported
-  end-of-string: unsupported
+  beginning-of-string: re2.emit-beginning-of-string
+  end-of-string: re2.emit-end-of-string
   beginning-of-line: unsupported
   end-of-line: unsupported
   beginning-of-word: unsupported
@@ -37,7 +37,7 @@ features:
   positive-lookbehind: unsupported
   negative-lookbehind: unsupported
   backreference: unsupported
-  case-sensitive: unsupported
+  case-sensitive: re2.no-op
   case-insensitive: unsupported
-  unicode-code-points: unsupported
-  substring-search: unsupported
+  unicode-code-points: re2.no-op
+  substring-search: re2.no-op

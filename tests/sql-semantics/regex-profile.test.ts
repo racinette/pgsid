@@ -8,12 +8,36 @@ import {
   type RegexLoweringStrategy,
 } from '../../src/sql-semantics/regex/profile.js'
 import { REGEX_ENGINE_PROFILES } from '../../src/sql-semantics/regex/profiles.generated.js'
+import { REGEX_LOWERING_STRATEGY_NAMES } from '../../src/sql-semantics/regex/strategies.js'
 import {
   regexEngineProfileForTarget,
   REGEX_TARGET_ENGINE_BINDINGS,
 } from '../../src/sql-semantics/regex/target-bindings.js'
 
 const profiles = new URL('../../src/sql-semantics/regex/profiles/', import.meta.url)
+
+const supportedFeatures = {
+  ecmascript: {
+    'empty-expression': 'ecmascript.emit-empty',
+    literal: 'ecmascript.escape-literal',
+    concatenation: 'ecmascript.concatenate',
+    'beginning-of-string': 'ecmascript.emit-beginning-of-string',
+    'end-of-string': 'ecmascript.emit-end-of-string',
+    'case-sensitive': 'ecmascript.no-op',
+    'unicode-code-points': 'ecmascript.unicode',
+    'substring-search': 'ecmascript.no-op',
+  },
+  re2: {
+    'empty-expression': 're2.emit-empty',
+    literal: 're2.escape-literal',
+    concatenation: 're2.concatenate',
+    'beginning-of-string': 're2.emit-beginning-of-string',
+    'end-of-string': 're2.emit-end-of-string',
+    'case-sensitive': 're2.no-op',
+    'unicode-code-points': 're2.no-op',
+    'substring-search': 're2.no-op',
+  },
+} as const
 
 const completeProfile = (overrides = ''): string => `
 schema: ${REGEX_ENGINE_PROFILE_SCHEMA}
@@ -27,18 +51,22 @@ describe('regex engine profiles', () => {
   it.each([
     ['ecmascript', 'es2022'],
     ['re2', 're2-syntax'],
-  ])('loads the shipped %s profile', async (engine, baseline) => {
+  ] as const)('loads the shipped %s profile', async (engine, baseline) => {
     const raw = await readFile(new URL(`${engine}.yaml`, profiles), 'utf8')
-    const profile = parseRegexEngineProfile(raw, { path: `${engine}.yaml` })
+    const profile = parseRegexEngineProfile(raw, {
+      path: `${engine}.yaml`,
+      strategies: REGEX_LOWERING_STRATEGY_NAMES,
+    })
     expect(profile).toEqual({
       schema: REGEX_ENGINE_PROFILE_SCHEMA,
       engine,
       baseline,
-      features: Object.fromEntries(
-        REGEX_SEMANTIC_FEATURES.map((feature) => [feature, 'unsupported']),
-      ),
+      features: {
+        ...Object.fromEntries(REGEX_SEMANTIC_FEATURES.map((feature) => [feature, 'unsupported'])),
+        ...supportedFeatures[engine],
+      },
     })
-    expect(REGEX_ENGINE_PROFILES[engine as keyof typeof REGEX_ENGINE_PROFILES]).toEqual(profile)
+    expect(REGEX_ENGINE_PROFILES[engine]).toEqual(profile)
   })
 
   it('keeps target bindings separate from engine profiles', () => {
