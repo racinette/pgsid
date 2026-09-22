@@ -1,5 +1,7 @@
 import { go, type GoExpression } from '../ast.js'
 import type { EvalBoolBackend } from '../../../sql-semantics/check-expressions.js'
+import { compilePostgresRegex } from '../../../sql-semantics/regex/compiler.js'
+import { REGEX_ENGINE_PROFILES } from '../../../sql-semantics/regex/profiles.generated.js'
 
 const thunk = (expression: GoExpression): GoExpression => ({
   kind: 'function-literal',
@@ -52,4 +54,26 @@ export const goEvalBoolBackend: EvalBoolBackend<GoExpression> = {
     ]),
     helpers: ['evalBoolCompare'],
   }),
+  regex: (subject, pattern, options, negated) => {
+    const compiled = compilePostgresRegex(pattern, REGEX_ENGINE_PROFILES.re2, options)
+    if (compiled.kind === 'invalid')
+      return {
+        expression: go.call(go.ident('evalBoolRegexInvalid'), [subject.expression]),
+        helpers: ['evalBoolRegexInvalid'],
+      }
+    if (compiled.kind === 'unsupported')
+      return {
+        expression: go.call(go.ident('evalBoolRegexUnsupported'), [subject.expression]),
+        helpers: ['evalBoolRegexUnsupported'],
+      }
+    if (compiled.flags.length > 0) throw new Error('RE2 lowering emitted unsupported runtime flags')
+    return {
+      expression: go.call(go.ident('evalBoolRegex'), [
+        subject.expression,
+        go.string(compiled.source),
+        go.ident(negated ? 'true' : 'false'),
+      ]),
+      helpers: ['evalBoolRegex'],
+    }
+  },
 }

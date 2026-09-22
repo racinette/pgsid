@@ -36,6 +36,20 @@ const certain = (input: boolean | null): EvalBoolExpression => ({
 
 const uncertain: EvalBoolExpression = { kind: 'uncertain' }
 
+const regex = (
+  subject: string | null,
+  pattern: string,
+  options: { caseSensitive?: boolean } = {},
+  negated = false,
+): Extract<EvalBoolExpression, { kind: 'eval-regex' }> => ({
+  kind: 'eval-regex',
+  subject: { kind: 'text', type: 'pg_catalog.text', value: subject },
+  pattern,
+  options,
+  negated,
+  collation: 'C',
+})
+
 const integer = (value: string): SqlExpression => ({
   kind: 'integer',
   type: 'pg_catalog.int4',
@@ -290,7 +304,80 @@ const compositionCases: CheckCase[] = [
   },
 ]
 
-const allCases = [...logicCases, ...notCases, ...testCases, ...comparisonCases, ...compositionCases]
+const regexCases: CheckCase[] = [
+  {
+    name: 'supported regex matches',
+    expression: regex('before😀after', '^before😀after$'),
+    expected: { certain: true, value: true },
+  },
+  {
+    name: 'supported regex does not match',
+    expression: regex('abc\n', '^abc$'),
+    expected: { certain: true, value: false },
+  },
+  {
+    name: 'supported negated regex inverts its result',
+    expression: regex('abc', '^abc$', {}, true),
+    expected: { certain: true, value: false },
+  },
+  {
+    name: 'supported regex preserves SQL NULL',
+    expression: regex(null, '^abc$'),
+    expected: { certain: true, value: null },
+  },
+  {
+    name: 'unsupported regex is uncertain',
+    expression: regex('a', 'a|b'),
+    expected: { certain: false },
+  },
+  {
+    name: 'unsupported case folding is uncertain',
+    expression: regex('A', 'a', { caseSensitive: false }),
+    expected: { certain: false },
+  },
+  {
+    name: 'unsupported regex preserves SQL NULL',
+    expression: regex(null, 'a|b'),
+    expected: { certain: true, value: null },
+  },
+  {
+    name: 'invalid regex raises the PostgreSQL SQLSTATE',
+    expression: regex('anything', '('),
+    expected: { certain: true, value: null, error: '2201B' },
+  },
+  {
+    name: 'invalid regex preserves SQL NULL',
+    expression: regex(null, '('),
+    expected: { certain: true, value: null },
+  },
+  {
+    name: 'false AND does not evaluate an invalid regex',
+    expression: {
+      kind: 'eval-boolean-logic',
+      operation: 'and',
+      operands: [certain(false), regex('anything', '(')],
+    },
+    expected: { certain: true, value: false },
+  },
+  {
+    name: 'true AND evaluates an invalid regex',
+    expression: {
+      kind: 'eval-boolean-logic',
+      operation: 'and',
+      operands: [certain(true), regex('anything', '(')],
+    },
+    expected: { certain: true, value: null, error: '2201B' },
+  },
+]
+
+const allCases = [
+  ...logicCases,
+  ...notCases,
+  ...testCases,
+  ...comparisonCases,
+  ...compositionCases,
+  ...regexCases,
+]
 
 function typescriptProject(): string {
   const emitted = allCases.map((fixture) =>
@@ -424,6 +511,39 @@ return [${allCases.map((_, index) => `evaluate${index}`).join(',')}].map((evalua
     expect(goSource).not.toContain('func evalBoolAnd')
   })
 
+  it('embeds only the selected target engine translation for a constant pattern', () => {
+    const expression = regex('abc', 'abc$')
+    const typescript = emitEvalBoolExpression(
+      expression,
+      typescriptSqlBackend,
+      typescriptEvalBoolBackend,
+    )
+    const typescriptSource = printFile([
+      ...typescriptSqlRuntime(typescript.helpers),
+      factory.createExpressionStatement(typescript.value.expression),
+    ])
+    expect(typescriptSource).toContain(String.raw`(?![\\s\\S])`)
+    expect(typescriptSource).not.toContain(String.raw`\\z`)
+
+    const goResult = emitEvalBoolExpression(expression, goSqlBackend, goEvalBoolBackend)
+    const goSource =
+      goSqlRuntime(goResult.helpers, 'main') +
+      printGoFile({
+        package: 'main',
+        imports: [],
+        declarations: [
+          go.function(
+            'evaluate',
+            [],
+            [{ type: go.ident('EvalBool') }],
+            [{ kind: 'return', expressions: [goResult.value.expression] }],
+          ),
+        ],
+      })
+    expect(goSource).toContain(String.raw`\\z`)
+    expect(goSource).not.toContain(String.raw`(?![\\s\\S])`)
+  })
+
   it('rejects malformed incomplete expressions', () => {
     expect(() =>
       emitEvalBoolExpression(
@@ -456,5 +576,28 @@ return [${allCases.map((_, index) => `evaluate${index}`).join(',')}].map((evalua
         goEvalBoolBackend,
       ),
     ).toThrow('Invalid EvalBool CASE expression')
+    expect(() =>
+      emitEvalBoolExpression(
+        {
+          kind: 'eval-regex',
+          subject: { kind: 'boolean', type: 'pg_catalog.bool', value: true },
+          pattern: 'true',
+          negated: false,
+          collation: 'C',
+        },
+        typescriptSqlBackend,
+        typescriptEvalBoolBackend,
+      ),
+    ).toThrow('A regex CHECK atom requires a C-collated text subject')
+    expect(() =>
+      emitEvalBoolExpression(
+        {
+          ...regex('value', 'value'),
+          collation: 'en_US' as 'C',
+        },
+        goSqlBackend,
+        goEvalBoolBackend,
+      ),
+    ).toThrow('A regex CHECK atom requires a C-collated text subject')
   })
 })

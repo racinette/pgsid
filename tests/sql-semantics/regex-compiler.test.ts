@@ -164,4 +164,14 @@ describe('PostgreSQL regex compatibility compiler', () => {
       flags: [],
     })
   })
+
+  it('preserves PostgreSQL strictness and lazy invalid-pattern errors', async () => {
+    expect((await pg.query("SELECT NULL::text ~ '(' AS value")).rows).toEqual([{ value: null }])
+    expect((await pg.query("SELECT false AND ('value'::text ~ '(') AS value")).rows).toEqual([
+      { value: false },
+    ])
+    await expect(pg.query("SELECT true AND ('value'::text ~ '(') AS value")).rejects.toMatchObject({
+      code: '2201B',
+    })
+  })
 })
