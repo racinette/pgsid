@@ -34,6 +34,7 @@ export function sqlSemanticsCoverage(
       expression.kind === 'boolean' ||
       expression.kind === 'text' ||
       expression.kind === 'name' ||
+      expression.kind === 'internal-char' ||
       expression.kind === 'bytea' ||
       expression.kind === 'bit' ||
       expression.kind === 'uuid' ||

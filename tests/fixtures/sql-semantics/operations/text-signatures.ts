@@ -90,14 +90,70 @@ export const textSignatures = [
 ] as const
 
 export const nameLikeSignatures = [
+  'function:["pg_catalog","like"](pg_catalog.name,pg_catalog.text)',
   'function:["pg_catalog","nameiclike"](pg_catalog.name,pg_catalog.text)',
   'function:["pg_catalog","nameicnlike"](pg_catalog.name,pg_catalog.text)',
   'function:["pg_catalog","namelike"](pg_catalog.name,pg_catalog.text)',
   'function:["pg_catalog","namenlike"](pg_catalog.name,pg_catalog.text)',
+  'function:["pg_catalog","notlike"](pg_catalog.name,pg_catalog.text)',
   'operator:["pg_catalog","!~~"](pg_catalog.name,pg_catalog.text)',
   'operator:["pg_catalog","!~~*"](pg_catalog.name,pg_catalog.text)',
   'operator:["pg_catalog","~~"](pg_catalog.name,pg_catalog.text)',
   'operator:["pg_catalog","~~*"](pg_catalog.name,pg_catalog.text)',
+] as const
+
+export const nameComparisonSignatures = [
+  'function:["pg_catalog","nameeq"](pg_catalog.name,pg_catalog.name)',
+  'function:["pg_catalog","nameeqtext"](pg_catalog.name,pg_catalog.text)',
+  'function:["pg_catalog","namege"](pg_catalog.name,pg_catalog.name)',
+  'function:["pg_catalog","namegetext"](pg_catalog.name,pg_catalog.text)',
+  'function:["pg_catalog","namegt"](pg_catalog.name,pg_catalog.name)',
+  'function:["pg_catalog","namegttext"](pg_catalog.name,pg_catalog.text)',
+  'function:["pg_catalog","namele"](pg_catalog.name,pg_catalog.name)',
+  'function:["pg_catalog","nameletext"](pg_catalog.name,pg_catalog.text)',
+  'function:["pg_catalog","namelt"](pg_catalog.name,pg_catalog.name)',
+  'function:["pg_catalog","namelttext"](pg_catalog.name,pg_catalog.text)',
+  'function:["pg_catalog","namene"](pg_catalog.name,pg_catalog.name)',
+  'function:["pg_catalog","namenetext"](pg_catalog.name,pg_catalog.text)',
+  'function:["pg_catalog","texteqname"](pg_catalog.text,pg_catalog.name)',
+  'function:["pg_catalog","textgename"](pg_catalog.text,pg_catalog.name)',
+  'function:["pg_catalog","textgtname"](pg_catalog.text,pg_catalog.name)',
+  'function:["pg_catalog","textlename"](pg_catalog.text,pg_catalog.name)',
+  'function:["pg_catalog","textltname"](pg_catalog.text,pg_catalog.name)',
+  'function:["pg_catalog","textnename"](pg_catalog.text,pg_catalog.name)',
+  'operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.name)',
+  'operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.text)',
+  'operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.name)',
+  'operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.name)',
+  'operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.text)',
+  'operator:["pg_catalog","<="](pg_catalog.text,pg_catalog.name)',
+  'operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.name)',
+  'operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.text)',
+  'operator:["pg_catalog","<>"](pg_catalog.text,pg_catalog.name)',
+  'operator:["pg_catalog","="](pg_catalog.name,pg_catalog.name)',
+  'operator:["pg_catalog","="](pg_catalog.name,pg_catalog.text)',
+  'operator:["pg_catalog","="](pg_catalog.text,pg_catalog.name)',
+  'operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.name)',
+  'operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.text)',
+  'operator:["pg_catalog",">"](pg_catalog.text,pg_catalog.name)',
+  'operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.name)',
+  'operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.text)',
+  'operator:["pg_catalog",">="](pg_catalog.text,pg_catalog.name)',
+] as const
+
+export const internalCharComparisonSignatures = [
+  'function:["pg_catalog","chareq"](pg_catalog."char",pg_catalog."char")',
+  'function:["pg_catalog","charge"](pg_catalog."char",pg_catalog."char")',
+  'function:["pg_catalog","chargt"](pg_catalog."char",pg_catalog."char")',
+  'function:["pg_catalog","charle"](pg_catalog."char",pg_catalog."char")',
+  'function:["pg_catalog","charlt"](pg_catalog."char",pg_catalog."char")',
+  'function:["pg_catalog","charne"](pg_catalog."char",pg_catalog."char")',
+  'operator:["pg_catalog","<"](pg_catalog."char",pg_catalog."char")',
+  'operator:["pg_catalog","<="](pg_catalog."char",pg_catalog."char")',
+  'operator:["pg_catalog","<>"](pg_catalog."char",pg_catalog."char")',
+  'operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char")',
+  'operator:["pg_catalog",">"](pg_catalog."char",pg_catalog."char")',
+  'operator:["pg_catalog",">="](pg_catalog."char",pg_catalog."char")',
 ] as const
 
 export const byteaOrderSignatures = [
@@ -162,7 +218,9 @@ export const byteaLengthSignatures = [
 export const byteaLikeSignatures = [
   'function:["pg_catalog","bytealike"](pg_catalog.bytea,pg_catalog.bytea)',
   'function:["pg_catalog","byteanlike"](pg_catalog.bytea,pg_catalog.bytea)',
+  'function:["pg_catalog","like"](pg_catalog.bytea,pg_catalog.bytea)',
   'function:["pg_catalog","like_escape"](pg_catalog.bytea,pg_catalog.bytea)',
+  'function:["pg_catalog","notlike"](pg_catalog.bytea,pg_catalog.bytea)',
   'operator:["pg_catalog","!~~"](pg_catalog.bytea,pg_catalog.bytea)',
   'operator:["pg_catalog","~~"](pg_catalog.bytea,pg_catalog.bytea)',
 ] as const

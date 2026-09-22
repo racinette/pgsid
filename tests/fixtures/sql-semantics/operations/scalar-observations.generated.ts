@@ -76254,6 +76254,60 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: 'true',
   },
+  'name like function:["pg_catalog","like"](pg_catalog.name,pg_catalog.text) 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name like function:["pg_catalog","like"](pg_catalog.name,pg_catalog.text) 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name like function:["pg_catalog","like"](pg_catalog.name,pg_catalog.text) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name like function:["pg_catalog","like"](pg_catalog.name,pg_catalog.text) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name like function:["pg_catalog","like"](pg_catalog.name,pg_catalog.text) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name like function:["pg_catalog","like"](pg_catalog.name,pg_catalog.text) 5': {
+    kind: 'null',
+  },
+  'name like function:["pg_catalog","like"](pg_catalog.name,pg_catalog.text) 6': {
+    kind: 'null',
+  },
+  'name like function:["pg_catalog","like"](pg_catalog.name,pg_catalog.text) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name like function:["pg_catalog","like"](pg_catalog.name,pg_catalog.text) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name like function:["pg_catalog","like"](pg_catalog.name,pg_catalog.text) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name like function:["pg_catalog","like"](pg_catalog.name,pg_catalog.text) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name like function:["pg_catalog","like"](pg_catalog.name,pg_catalog.text) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name like function:["pg_catalog","like"](pg_catalog.name,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name like function:["pg_catalog","like"](pg_catalog.name,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'false',
+  },
   'name like function:["pg_catalog","nameiclike"](pg_catalog.name,pg_catalog.text) 0': {
     kind: 'value',
     value: 'true',
@@ -76467,6 +76521,60 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     value: 'false',
   },
   'name like function:["pg_catalog","namenlike"](pg_catalog.name,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name like function:["pg_catalog","notlike"](pg_catalog.name,pg_catalog.text) 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name like function:["pg_catalog","notlike"](pg_catalog.name,pg_catalog.text) 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name like function:["pg_catalog","notlike"](pg_catalog.name,pg_catalog.text) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name like function:["pg_catalog","notlike"](pg_catalog.name,pg_catalog.text) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name like function:["pg_catalog","notlike"](pg_catalog.name,pg_catalog.text) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name like function:["pg_catalog","notlike"](pg_catalog.name,pg_catalog.text) 5': {
+    kind: 'null',
+  },
+  'name like function:["pg_catalog","notlike"](pg_catalog.name,pg_catalog.text) 6': {
+    kind: 'null',
+  },
+  'name like function:["pg_catalog","notlike"](pg_catalog.name,pg_catalog.text) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name like function:["pg_catalog","notlike"](pg_catalog.name,pg_catalog.text) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name like function:["pg_catalog","notlike"](pg_catalog.name,pg_catalog.text) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name like function:["pg_catalog","notlike"](pg_catalog.name,pg_catalog.text) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name like function:["pg_catalog","notlike"](pg_catalog.name,pg_catalog.text) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name like function:["pg_catalog","notlike"](pg_catalog.name,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name like function:["pg_catalog","notlike"](pg_catalog.name,pg_catalog.text) 13': {
     kind: 'value',
     value: 'true',
   },
@@ -76686,6 +76794,2886 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: 'false',
   },
+  'name comparison function:["pg_catalog","nameeq"](pg_catalog.name,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","nameeq"](pg_catalog.name,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","nameeq"](pg_catalog.name,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","nameeq"](pg_catalog.name,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","nameeq"](pg_catalog.name,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameeq"](pg_catalog.name,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameeq"](pg_catalog.name,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameeq"](pg_catalog.name,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameeq"](pg_catalog.name,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameeq"](pg_catalog.name,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameeq"](pg_catalog.name,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameeq"](pg_catalog.name,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","nameeq"](pg_catalog.name,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","nameeq"](pg_catalog.name,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","nameeqtext"](pg_catalog.name,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","nameeqtext"](pg_catalog.name,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","nameeqtext"](pg_catalog.name,pg_catalog.text) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","nameeqtext"](pg_catalog.name,pg_catalog.text) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","nameeqtext"](pg_catalog.name,pg_catalog.text) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameeqtext"](pg_catalog.name,pg_catalog.text) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameeqtext"](pg_catalog.name,pg_catalog.text) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameeqtext"](pg_catalog.name,pg_catalog.text) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameeqtext"](pg_catalog.name,pg_catalog.text) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameeqtext"](pg_catalog.name,pg_catalog.text) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameeqtext"](pg_catalog.name,pg_catalog.text) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameeqtext"](pg_catalog.name,pg_catalog.text) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameeqtext"](pg_catalog.name,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","nameeqtext"](pg_catalog.name,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namege"](pg_catalog.name,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namege"](pg_catalog.name,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namege"](pg_catalog.name,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namege"](pg_catalog.name,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namege"](pg_catalog.name,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namege"](pg_catalog.name,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namege"](pg_catalog.name,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namege"](pg_catalog.name,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namege"](pg_catalog.name,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namege"](pg_catalog.name,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namege"](pg_catalog.name,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namege"](pg_catalog.name,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namege"](pg_catalog.name,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namege"](pg_catalog.name,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namegetext"](pg_catalog.name,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namegetext"](pg_catalog.name,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namegetext"](pg_catalog.name,pg_catalog.text) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namegetext"](pg_catalog.name,pg_catalog.text) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namegetext"](pg_catalog.name,pg_catalog.text) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegetext"](pg_catalog.name,pg_catalog.text) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namegetext"](pg_catalog.name,pg_catalog.text) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegetext"](pg_catalog.name,pg_catalog.text) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namegetext"](pg_catalog.name,pg_catalog.text) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegetext"](pg_catalog.name,pg_catalog.text) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegetext"](pg_catalog.name,pg_catalog.text) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namegetext"](pg_catalog.name,pg_catalog.text) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegetext"](pg_catalog.name,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namegetext"](pg_catalog.name,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namegt"](pg_catalog.name,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namegt"](pg_catalog.name,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namegt"](pg_catalog.name,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegt"](pg_catalog.name,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegt"](pg_catalog.name,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegt"](pg_catalog.name,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namegt"](pg_catalog.name,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegt"](pg_catalog.name,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namegt"](pg_catalog.name,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegt"](pg_catalog.name,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegt"](pg_catalog.name,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namegt"](pg_catalog.name,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegt"](pg_catalog.name,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegt"](pg_catalog.name,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegttext"](pg_catalog.name,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namegttext"](pg_catalog.name,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namegttext"](pg_catalog.name,pg_catalog.text) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegttext"](pg_catalog.name,pg_catalog.text) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegttext"](pg_catalog.name,pg_catalog.text) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegttext"](pg_catalog.name,pg_catalog.text) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namegttext"](pg_catalog.name,pg_catalog.text) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegttext"](pg_catalog.name,pg_catalog.text) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namegttext"](pg_catalog.name,pg_catalog.text) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegttext"](pg_catalog.name,pg_catalog.text) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegttext"](pg_catalog.name,pg_catalog.text) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namegttext"](pg_catalog.name,pg_catalog.text) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegttext"](pg_catalog.name,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namegttext"](pg_catalog.name,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namele"](pg_catalog.name,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namele"](pg_catalog.name,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namele"](pg_catalog.name,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namele"](pg_catalog.name,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namele"](pg_catalog.name,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namele"](pg_catalog.name,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namele"](pg_catalog.name,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namele"](pg_catalog.name,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namele"](pg_catalog.name,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namele"](pg_catalog.name,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namele"](pg_catalog.name,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namele"](pg_catalog.name,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namele"](pg_catalog.name,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namele"](pg_catalog.name,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","nameletext"](pg_catalog.name,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","nameletext"](pg_catalog.name,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","nameletext"](pg_catalog.name,pg_catalog.text) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","nameletext"](pg_catalog.name,pg_catalog.text) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","nameletext"](pg_catalog.name,pg_catalog.text) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","nameletext"](pg_catalog.name,pg_catalog.text) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameletext"](pg_catalog.name,pg_catalog.text) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","nameletext"](pg_catalog.name,pg_catalog.text) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameletext"](pg_catalog.name,pg_catalog.text) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","nameletext"](pg_catalog.name,pg_catalog.text) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","nameletext"](pg_catalog.name,pg_catalog.text) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","nameletext"](pg_catalog.name,pg_catalog.text) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","nameletext"](pg_catalog.name,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","nameletext"](pg_catalog.name,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namelt"](pg_catalog.name,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namelt"](pg_catalog.name,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namelt"](pg_catalog.name,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namelt"](pg_catalog.name,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namelt"](pg_catalog.name,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namelt"](pg_catalog.name,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namelt"](pg_catalog.name,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namelt"](pg_catalog.name,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namelt"](pg_catalog.name,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namelt"](pg_catalog.name,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namelt"](pg_catalog.name,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namelt"](pg_catalog.name,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namelt"](pg_catalog.name,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namelt"](pg_catalog.name,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namelttext"](pg_catalog.name,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namelttext"](pg_catalog.name,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namelttext"](pg_catalog.name,pg_catalog.text) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namelttext"](pg_catalog.name,pg_catalog.text) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namelttext"](pg_catalog.name,pg_catalog.text) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namelttext"](pg_catalog.name,pg_catalog.text) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namelttext"](pg_catalog.name,pg_catalog.text) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namelttext"](pg_catalog.name,pg_catalog.text) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namelttext"](pg_catalog.name,pg_catalog.text) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namelttext"](pg_catalog.name,pg_catalog.text) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namelttext"](pg_catalog.name,pg_catalog.text) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namelttext"](pg_catalog.name,pg_catalog.text) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namelttext"](pg_catalog.name,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namelttext"](pg_catalog.name,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namene"](pg_catalog.name,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namene"](pg_catalog.name,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namene"](pg_catalog.name,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namene"](pg_catalog.name,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namene"](pg_catalog.name,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namene"](pg_catalog.name,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namene"](pg_catalog.name,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namene"](pg_catalog.name,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namene"](pg_catalog.name,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namene"](pg_catalog.name,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namene"](pg_catalog.name,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namene"](pg_catalog.name,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namene"](pg_catalog.name,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namene"](pg_catalog.name,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namenetext"](pg_catalog.name,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namenetext"](pg_catalog.name,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","namenetext"](pg_catalog.name,pg_catalog.text) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namenetext"](pg_catalog.name,pg_catalog.text) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namenetext"](pg_catalog.name,pg_catalog.text) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namenetext"](pg_catalog.name,pg_catalog.text) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namenetext"](pg_catalog.name,pg_catalog.text) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namenetext"](pg_catalog.name,pg_catalog.text) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namenetext"](pg_catalog.name,pg_catalog.text) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namenetext"](pg_catalog.name,pg_catalog.text) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namenetext"](pg_catalog.name,pg_catalog.text) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namenetext"](pg_catalog.name,pg_catalog.text) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","namenetext"](pg_catalog.name,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","namenetext"](pg_catalog.name,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","texteqname"](pg_catalog.text,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","texteqname"](pg_catalog.text,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","texteqname"](pg_catalog.text,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","texteqname"](pg_catalog.text,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","texteqname"](pg_catalog.text,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","texteqname"](pg_catalog.text,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","texteqname"](pg_catalog.text,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","texteqname"](pg_catalog.text,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","texteqname"](pg_catalog.text,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","texteqname"](pg_catalog.text,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","texteqname"](pg_catalog.text,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","texteqname"](pg_catalog.text,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","texteqname"](pg_catalog.text,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","texteqname"](pg_catalog.text,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textgename"](pg_catalog.text,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","textgename"](pg_catalog.text,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","textgename"](pg_catalog.text,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textgename"](pg_catalog.text,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textgename"](pg_catalog.text,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textgename"](pg_catalog.text,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textgename"](pg_catalog.text,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textgename"](pg_catalog.text,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textgename"](pg_catalog.text,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textgename"](pg_catalog.text,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textgename"](pg_catalog.text,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textgename"](pg_catalog.text,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textgename"](pg_catalog.text,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textgename"](pg_catalog.text,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textgtname"](pg_catalog.text,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","textgtname"](pg_catalog.text,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","textgtname"](pg_catalog.text,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textgtname"](pg_catalog.text,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textgtname"](pg_catalog.text,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textgtname"](pg_catalog.text,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textgtname"](pg_catalog.text,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textgtname"](pg_catalog.text,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textgtname"](pg_catalog.text,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textgtname"](pg_catalog.text,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textgtname"](pg_catalog.text,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textgtname"](pg_catalog.text,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textgtname"](pg_catalog.text,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textgtname"](pg_catalog.text,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textlename"](pg_catalog.text,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","textlename"](pg_catalog.text,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","textlename"](pg_catalog.text,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textlename"](pg_catalog.text,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textlename"](pg_catalog.text,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textlename"](pg_catalog.text,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textlename"](pg_catalog.text,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textlename"](pg_catalog.text,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textlename"](pg_catalog.text,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textlename"](pg_catalog.text,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textlename"](pg_catalog.text,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textlename"](pg_catalog.text,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textlename"](pg_catalog.text,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textlename"](pg_catalog.text,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textltname"](pg_catalog.text,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","textltname"](pg_catalog.text,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","textltname"](pg_catalog.text,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textltname"](pg_catalog.text,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textltname"](pg_catalog.text,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textltname"](pg_catalog.text,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textltname"](pg_catalog.text,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textltname"](pg_catalog.text,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textltname"](pg_catalog.text,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textltname"](pg_catalog.text,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textltname"](pg_catalog.text,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textltname"](pg_catalog.text,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textltname"](pg_catalog.text,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textltname"](pg_catalog.text,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textnename"](pg_catalog.text,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","textnename"](pg_catalog.text,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison function:["pg_catalog","textnename"](pg_catalog.text,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textnename"](pg_catalog.text,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textnename"](pg_catalog.text,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textnename"](pg_catalog.text,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textnename"](pg_catalog.text,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textnename"](pg_catalog.text,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textnename"](pg_catalog.text,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textnename"](pg_catalog.text,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textnename"](pg_catalog.text,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textnename"](pg_catalog.text,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison function:["pg_catalog","textnename"](pg_catalog.text,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison function:["pg_catalog","textnename"](pg_catalog.text,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.text) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.text) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.text) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.text) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.text) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.text) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.text) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.text) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.text) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.text) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.name,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<"](pg_catalog.text,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.text) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.text) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.text) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.text) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.text) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.text) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.text) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.text) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.text) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.text) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.name,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.text,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.text,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.text,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.text,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.text,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.text,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.text,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.text,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.text,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.text,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.text,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.text,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.text,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<="](pg_catalog.text,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.text) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.text) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.text) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.text) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.text) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.text) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.text) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.text) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.text) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.text) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.name,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.text,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.text,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.text,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.text,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.text,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.text,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.text,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.text,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.text,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.text,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.text,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.text,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.text,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","<>"](pg_catalog.text,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.text) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.text) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.text) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.text) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.text) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.text) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.text) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.text) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.text) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.text) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.name,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.text,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.text,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.text,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.text,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.text,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.text,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.text,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.text,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.text,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.text,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.text,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.text,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.text,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog","="](pg_catalog.text,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.text) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.text) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.text) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.text) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.text) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.text) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.text) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.text) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.text) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.text) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.name,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.text,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.text,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.text,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.text,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.text,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.text,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.text,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.text,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.text,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.text,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.text,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.text,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.text,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">"](pg_catalog.text,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.text) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.text) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.text) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.text) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.text) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.text) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.text) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.text) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.text) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.text) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.text) 11': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.text) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.name,pg_catalog.text) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.text,pg_catalog.name) 0': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.text,pg_catalog.name) 1': {
+    kind: 'null',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.text,pg_catalog.name) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.text,pg_catalog.name) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.text,pg_catalog.name) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.text,pg_catalog.name) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.text,pg_catalog.name) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.text,pg_catalog.name) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.text,pg_catalog.name) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.text,pg_catalog.name) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.text,pg_catalog.name) 10': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.text,pg_catalog.name) 11': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.text,pg_catalog.name) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'name comparison operator:["pg_catalog",">="](pg_catalog.text,pg_catalog.name) 13': {
+    kind: 'value',
+    value: 'true',
+  },
+  'internal char comparison function:["pg_catalog","chareq"](pg_catalog."char",pg_catalog."char") 0':
+    {
+      kind: 'null',
+    },
+  'internal char comparison function:["pg_catalog","chareq"](pg_catalog."char",pg_catalog."char") 1':
+    {
+      kind: 'null',
+    },
+  'internal char comparison function:["pg_catalog","chareq"](pg_catalog."char",pg_catalog."char") 2':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","chareq"](pg_catalog."char",pg_catalog."char") 3':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","chareq"](pg_catalog."char",pg_catalog."char") 4':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","chareq"](pg_catalog."char",pg_catalog."char") 5':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","chareq"](pg_catalog."char",pg_catalog."char") 6':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","chareq"](pg_catalog."char",pg_catalog."char") 7':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","chareq"](pg_catalog."char",pg_catalog."char") 8':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","chareq"](pg_catalog."char",pg_catalog."char") 9':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","chareq"](pg_catalog."char",pg_catalog."char") 10':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","chareq"](pg_catalog."char",pg_catalog."char") 11':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","chareq"](pg_catalog."char",pg_catalog."char") 12':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","chareq"](pg_catalog."char",pg_catalog."char") 13':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","chareq"](pg_catalog."char",pg_catalog."char") 14':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","chareq"](pg_catalog."char",pg_catalog."char") 15':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charge"](pg_catalog."char",pg_catalog."char") 0':
+    {
+      kind: 'null',
+    },
+  'internal char comparison function:["pg_catalog","charge"](pg_catalog."char",pg_catalog."char") 1':
+    {
+      kind: 'null',
+    },
+  'internal char comparison function:["pg_catalog","charge"](pg_catalog."char",pg_catalog."char") 2':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charge"](pg_catalog."char",pg_catalog."char") 3':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charge"](pg_catalog."char",pg_catalog."char") 4':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charge"](pg_catalog."char",pg_catalog."char") 5':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charge"](pg_catalog."char",pg_catalog."char") 6':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charge"](pg_catalog."char",pg_catalog."char") 7':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charge"](pg_catalog."char",pg_catalog."char") 8':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charge"](pg_catalog."char",pg_catalog."char") 9':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charge"](pg_catalog."char",pg_catalog."char") 10':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charge"](pg_catalog."char",pg_catalog."char") 11':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charge"](pg_catalog."char",pg_catalog."char") 12':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charge"](pg_catalog."char",pg_catalog."char") 13':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charge"](pg_catalog."char",pg_catalog."char") 14':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charge"](pg_catalog."char",pg_catalog."char") 15':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","chargt"](pg_catalog."char",pg_catalog."char") 0':
+    {
+      kind: 'null',
+    },
+  'internal char comparison function:["pg_catalog","chargt"](pg_catalog."char",pg_catalog."char") 1':
+    {
+      kind: 'null',
+    },
+  'internal char comparison function:["pg_catalog","chargt"](pg_catalog."char",pg_catalog."char") 2':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","chargt"](pg_catalog."char",pg_catalog."char") 3':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","chargt"](pg_catalog."char",pg_catalog."char") 4':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","chargt"](pg_catalog."char",pg_catalog."char") 5':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","chargt"](pg_catalog."char",pg_catalog."char") 6':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","chargt"](pg_catalog."char",pg_catalog."char") 7':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","chargt"](pg_catalog."char",pg_catalog."char") 8':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","chargt"](pg_catalog."char",pg_catalog."char") 9':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","chargt"](pg_catalog."char",pg_catalog."char") 10':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","chargt"](pg_catalog."char",pg_catalog."char") 11':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","chargt"](pg_catalog."char",pg_catalog."char") 12':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","chargt"](pg_catalog."char",pg_catalog."char") 13':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","chargt"](pg_catalog."char",pg_catalog."char") 14':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","chargt"](pg_catalog."char",pg_catalog."char") 15':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charle"](pg_catalog."char",pg_catalog."char") 0':
+    {
+      kind: 'null',
+    },
+  'internal char comparison function:["pg_catalog","charle"](pg_catalog."char",pg_catalog."char") 1':
+    {
+      kind: 'null',
+    },
+  'internal char comparison function:["pg_catalog","charle"](pg_catalog."char",pg_catalog."char") 2':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charle"](pg_catalog."char",pg_catalog."char") 3':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charle"](pg_catalog."char",pg_catalog."char") 4':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charle"](pg_catalog."char",pg_catalog."char") 5':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charle"](pg_catalog."char",pg_catalog."char") 6':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charle"](pg_catalog."char",pg_catalog."char") 7':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charle"](pg_catalog."char",pg_catalog."char") 8':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charle"](pg_catalog."char",pg_catalog."char") 9':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charle"](pg_catalog."char",pg_catalog."char") 10':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charle"](pg_catalog."char",pg_catalog."char") 11':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charle"](pg_catalog."char",pg_catalog."char") 12':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charle"](pg_catalog."char",pg_catalog."char") 13':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charle"](pg_catalog."char",pg_catalog."char") 14':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charle"](pg_catalog."char",pg_catalog."char") 15':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charlt"](pg_catalog."char",pg_catalog."char") 0':
+    {
+      kind: 'null',
+    },
+  'internal char comparison function:["pg_catalog","charlt"](pg_catalog."char",pg_catalog."char") 1':
+    {
+      kind: 'null',
+    },
+  'internal char comparison function:["pg_catalog","charlt"](pg_catalog."char",pg_catalog."char") 2':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charlt"](pg_catalog."char",pg_catalog."char") 3':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charlt"](pg_catalog."char",pg_catalog."char") 4':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charlt"](pg_catalog."char",pg_catalog."char") 5':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charlt"](pg_catalog."char",pg_catalog."char") 6':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charlt"](pg_catalog."char",pg_catalog."char") 7':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charlt"](pg_catalog."char",pg_catalog."char") 8':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charlt"](pg_catalog."char",pg_catalog."char") 9':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charlt"](pg_catalog."char",pg_catalog."char") 10':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charlt"](pg_catalog."char",pg_catalog."char") 11':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charlt"](pg_catalog."char",pg_catalog."char") 12':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charlt"](pg_catalog."char",pg_catalog."char") 13':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charlt"](pg_catalog."char",pg_catalog."char") 14':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charlt"](pg_catalog."char",pg_catalog."char") 15':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charne"](pg_catalog."char",pg_catalog."char") 0':
+    {
+      kind: 'null',
+    },
+  'internal char comparison function:["pg_catalog","charne"](pg_catalog."char",pg_catalog."char") 1':
+    {
+      kind: 'null',
+    },
+  'internal char comparison function:["pg_catalog","charne"](pg_catalog."char",pg_catalog."char") 2':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charne"](pg_catalog."char",pg_catalog."char") 3':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charne"](pg_catalog."char",pg_catalog."char") 4':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charne"](pg_catalog."char",pg_catalog."char") 5':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charne"](pg_catalog."char",pg_catalog."char") 6':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charne"](pg_catalog."char",pg_catalog."char") 7':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charne"](pg_catalog."char",pg_catalog."char") 8':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charne"](pg_catalog."char",pg_catalog."char") 9':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison function:["pg_catalog","charne"](pg_catalog."char",pg_catalog."char") 10':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charne"](pg_catalog."char",pg_catalog."char") 11':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charne"](pg_catalog."char",pg_catalog."char") 12':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charne"](pg_catalog."char",pg_catalog."char") 13':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charne"](pg_catalog."char",pg_catalog."char") 14':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison function:["pg_catalog","charne"](pg_catalog."char",pg_catalog."char") 15':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<"](pg_catalog."char",pg_catalog."char") 0':
+    {
+      kind: 'null',
+    },
+  'internal char comparison operator:["pg_catalog","<"](pg_catalog."char",pg_catalog."char") 1':
+    {
+      kind: 'null',
+    },
+  'internal char comparison operator:["pg_catalog","<"](pg_catalog."char",pg_catalog."char") 2':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<"](pg_catalog."char",pg_catalog."char") 3':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<"](pg_catalog."char",pg_catalog."char") 4':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<"](pg_catalog."char",pg_catalog."char") 5':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<"](pg_catalog."char",pg_catalog."char") 6':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<"](pg_catalog."char",pg_catalog."char") 7':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<"](pg_catalog."char",pg_catalog."char") 8':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<"](pg_catalog."char",pg_catalog."char") 9':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<"](pg_catalog."char",pg_catalog."char") 10':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<"](pg_catalog."char",pg_catalog."char") 11':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<"](pg_catalog."char",pg_catalog."char") 12':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<"](pg_catalog."char",pg_catalog."char") 13':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<"](pg_catalog."char",pg_catalog."char") 14':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<"](pg_catalog."char",pg_catalog."char") 15':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<="](pg_catalog."char",pg_catalog."char") 0':
+    {
+      kind: 'null',
+    },
+  'internal char comparison operator:["pg_catalog","<="](pg_catalog."char",pg_catalog."char") 1':
+    {
+      kind: 'null',
+    },
+  'internal char comparison operator:["pg_catalog","<="](pg_catalog."char",pg_catalog."char") 2':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<="](pg_catalog."char",pg_catalog."char") 3':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<="](pg_catalog."char",pg_catalog."char") 4':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<="](pg_catalog."char",pg_catalog."char") 5':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<="](pg_catalog."char",pg_catalog."char") 6':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<="](pg_catalog."char",pg_catalog."char") 7':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<="](pg_catalog."char",pg_catalog."char") 8':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<="](pg_catalog."char",pg_catalog."char") 9':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<="](pg_catalog."char",pg_catalog."char") 10':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<="](pg_catalog."char",pg_catalog."char") 11':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<="](pg_catalog."char",pg_catalog."char") 12':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<="](pg_catalog."char",pg_catalog."char") 13':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<="](pg_catalog."char",pg_catalog."char") 14':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<="](pg_catalog."char",pg_catalog."char") 15':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<>"](pg_catalog."char",pg_catalog."char") 0':
+    {
+      kind: 'null',
+    },
+  'internal char comparison operator:["pg_catalog","<>"](pg_catalog."char",pg_catalog."char") 1':
+    {
+      kind: 'null',
+    },
+  'internal char comparison operator:["pg_catalog","<>"](pg_catalog."char",pg_catalog."char") 2':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<>"](pg_catalog."char",pg_catalog."char") 3':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<>"](pg_catalog."char",pg_catalog."char") 4':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<>"](pg_catalog."char",pg_catalog."char") 5':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<>"](pg_catalog."char",pg_catalog."char") 6':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<>"](pg_catalog."char",pg_catalog."char") 7':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<>"](pg_catalog."char",pg_catalog."char") 8':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<>"](pg_catalog."char",pg_catalog."char") 9':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","<>"](pg_catalog."char",pg_catalog."char") 10':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<>"](pg_catalog."char",pg_catalog."char") 11':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<>"](pg_catalog."char",pg_catalog."char") 12':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<>"](pg_catalog."char",pg_catalog."char") 13':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<>"](pg_catalog."char",pg_catalog."char") 14':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","<>"](pg_catalog."char",pg_catalog."char") 15':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char") 0':
+    {
+      kind: 'null',
+    },
+  'internal char comparison operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char") 1':
+    {
+      kind: 'null',
+    },
+  'internal char comparison operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char") 2':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char") 3':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char") 4':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char") 5':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char") 6':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char") 7':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char") 8':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char") 9':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char") 10':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char") 11':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char") 12':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char") 13':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char") 14':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog","="](pg_catalog."char",pg_catalog."char") 15':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog",">"](pg_catalog."char",pg_catalog."char") 0':
+    {
+      kind: 'null',
+    },
+  'internal char comparison operator:["pg_catalog",">"](pg_catalog."char",pg_catalog."char") 1':
+    {
+      kind: 'null',
+    },
+  'internal char comparison operator:["pg_catalog",">"](pg_catalog."char",pg_catalog."char") 2':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog",">"](pg_catalog."char",pg_catalog."char") 3':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog",">"](pg_catalog."char",pg_catalog."char") 4':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog",">"](pg_catalog."char",pg_catalog."char") 5':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog",">"](pg_catalog."char",pg_catalog."char") 6':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog",">"](pg_catalog."char",pg_catalog."char") 7':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog",">"](pg_catalog."char",pg_catalog."char") 8':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog",">"](pg_catalog."char",pg_catalog."char") 9':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog",">"](pg_catalog."char",pg_catalog."char") 10':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog",">"](pg_catalog."char",pg_catalog."char") 11':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog",">"](pg_catalog."char",pg_catalog."char") 12':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog",">"](pg_catalog."char",pg_catalog."char") 13':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog",">"](pg_catalog."char",pg_catalog."char") 14':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog",">"](pg_catalog."char",pg_catalog."char") 15':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog",">="](pg_catalog."char",pg_catalog."char") 0':
+    {
+      kind: 'null',
+    },
+  'internal char comparison operator:["pg_catalog",">="](pg_catalog."char",pg_catalog."char") 1':
+    {
+      kind: 'null',
+    },
+  'internal char comparison operator:["pg_catalog",">="](pg_catalog."char",pg_catalog."char") 2':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog",">="](pg_catalog."char",pg_catalog."char") 3':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog",">="](pg_catalog."char",pg_catalog."char") 4':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog",">="](pg_catalog."char",pg_catalog."char") 5':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog",">="](pg_catalog."char",pg_catalog."char") 6':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog",">="](pg_catalog."char",pg_catalog."char") 7':
+    {
+      kind: 'value',
+      value: 'false',
+    },
+  'internal char comparison operator:["pg_catalog",">="](pg_catalog."char",pg_catalog."char") 8':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog",">="](pg_catalog."char",pg_catalog."char") 9':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog",">="](pg_catalog."char",pg_catalog."char") 10':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog",">="](pg_catalog."char",pg_catalog."char") 11':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog",">="](pg_catalog."char",pg_catalog."char") 12':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog",">="](pg_catalog."char",pg_catalog."char") 13':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog",">="](pg_catalog."char",pg_catalog."char") 14':
+    {
+      kind: 'value',
+      value: 'true',
+    },
+  'internal char comparison operator:["pg_catalog",">="](pg_catalog."char",pg_catalog."char") 15':
+    {
+      kind: 'value',
+      value: 'true',
+    },
   'bytea like function:["pg_catalog","bytealike"](pg_catalog.bytea,pg_catalog.bytea) 0': {
     kind: 'value',
     value: 'true',
@@ -76791,6 +79779,114 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     value: 'false',
   },
   'bytea like function:["pg_catalog","byteanlike"](pg_catalog.bytea,pg_catalog.bytea) 13': {
+    kind: 'error',
+    code: '22025',
+  },
+  'bytea like function:["pg_catalog","like"](pg_catalog.bytea,pg_catalog.bytea) 0': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bytea like function:["pg_catalog","like"](pg_catalog.bytea,pg_catalog.bytea) 1': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bytea like function:["pg_catalog","like"](pg_catalog.bytea,pg_catalog.bytea) 2': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bytea like function:["pg_catalog","like"](pg_catalog.bytea,pg_catalog.bytea) 3': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bytea like function:["pg_catalog","like"](pg_catalog.bytea,pg_catalog.bytea) 4': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bytea like function:["pg_catalog","like"](pg_catalog.bytea,pg_catalog.bytea) 5': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bytea like function:["pg_catalog","like"](pg_catalog.bytea,pg_catalog.bytea) 6': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bytea like function:["pg_catalog","like"](pg_catalog.bytea,pg_catalog.bytea) 7': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bytea like function:["pg_catalog","like"](pg_catalog.bytea,pg_catalog.bytea) 8': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bytea like function:["pg_catalog","like"](pg_catalog.bytea,pg_catalog.bytea) 9': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bytea like function:["pg_catalog","like"](pg_catalog.bytea,pg_catalog.bytea) 10': {
+    kind: 'null',
+  },
+  'bytea like function:["pg_catalog","like"](pg_catalog.bytea,pg_catalog.bytea) 11': {
+    kind: 'null',
+  },
+  'bytea like function:["pg_catalog","like"](pg_catalog.bytea,pg_catalog.bytea) 12': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bytea like function:["pg_catalog","like"](pg_catalog.bytea,pg_catalog.bytea) 13': {
+    kind: 'error',
+    code: '22025',
+  },
+  'bytea like function:["pg_catalog","notlike"](pg_catalog.bytea,pg_catalog.bytea) 0': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bytea like function:["pg_catalog","notlike"](pg_catalog.bytea,pg_catalog.bytea) 1': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bytea like function:["pg_catalog","notlike"](pg_catalog.bytea,pg_catalog.bytea) 2': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bytea like function:["pg_catalog","notlike"](pg_catalog.bytea,pg_catalog.bytea) 3': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bytea like function:["pg_catalog","notlike"](pg_catalog.bytea,pg_catalog.bytea) 4': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bytea like function:["pg_catalog","notlike"](pg_catalog.bytea,pg_catalog.bytea) 5': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bytea like function:["pg_catalog","notlike"](pg_catalog.bytea,pg_catalog.bytea) 6': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bytea like function:["pg_catalog","notlike"](pg_catalog.bytea,pg_catalog.bytea) 7': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bytea like function:["pg_catalog","notlike"](pg_catalog.bytea,pg_catalog.bytea) 8': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bytea like function:["pg_catalog","notlike"](pg_catalog.bytea,pg_catalog.bytea) 9': {
+    kind: 'value',
+    value: 'true',
+  },
+  'bytea like function:["pg_catalog","notlike"](pg_catalog.bytea,pg_catalog.bytea) 10': {
+    kind: 'null',
+  },
+  'bytea like function:["pg_catalog","notlike"](pg_catalog.bytea,pg_catalog.bytea) 11': {
+    kind: 'null',
+  },
+  'bytea like function:["pg_catalog","notlike"](pg_catalog.bytea,pg_catalog.bytea) 12': {
+    kind: 'value',
+    value: 'false',
+  },
+  'bytea like function:["pg_catalog","notlike"](pg_catalog.bytea,pg_catalog.bytea) 13': {
     kind: 'error',
     code: '22025',
   },

@@ -284,6 +284,10 @@ export const goSqlBackend: ExpressionBackend<GoExpression> = {
     value === null
       ? { kind: 'composite', type: go.ident('SqlText'), elements: [] }
       : go.call(go.ident('nameInput'), [go.string(value)]),
+  internalChar: (value) =>
+    value === null
+      ? { kind: 'composite', type: go.ident('SqlInteger'), elements: [] }
+      : go.call(go.ident('charInput'), [go.string(value)]),
   bytea: (value) =>
     value === null
       ? { kind: 'composite', type: go.ident('SqlText'), elements: [] }

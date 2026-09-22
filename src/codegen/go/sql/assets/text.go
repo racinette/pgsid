@@ -796,6 +796,21 @@ func nameInput(value string) SqlText {
 	return SqlText{Value: string(bytes[:length]), Valid: true}
 }
 
+func charInput(value string) SqlInteger {
+	bytes := []byte(value)
+	if len(bytes) == 4 && bytes[0] == '\\' &&
+		bytes[1] >= '0' && bytes[1] <= '7' &&
+		bytes[2] >= '0' && bytes[2] <= '7' &&
+		bytes[3] >= '0' && bytes[3] <= '7' {
+		value := (int(bytes[1]-'0')*64 + int(bytes[2]-'0')*8 + int(bytes[3]-'0')) & 255
+		return SqlInteger{Value: int64(value), Valid: true}
+	}
+	if len(bytes) == 0 {
+		return SqlInteger{Value: 0, Valid: true}
+	}
+	return SqlInteger{Value: int64(bytes[0]), Valid: true}
+}
+
 func byteaFromHex(digit byte) (byte, bool) {
 	switch {
 	case digit >= '0' && digit <= '9':
