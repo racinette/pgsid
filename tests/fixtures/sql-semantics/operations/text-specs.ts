@@ -1,12 +1,11 @@
 import type { SqlExpression, TextType } from '../../../../src/sql-semantics/expressions.js'
 import { functionMetadata, operatorMetadata } from '../../../../src/postgres/builtins/inventory.js'
 import {
-  byteaAccessSignatures,
-  byteaCastSignatures,
   byteaLengthSignatures,
-  byteaSliceSignatures,
   byteaLikeSignatures,
   byteaOrderSignatures,
+  internalCharComparisonSignatures,
+  nameComparisonSignatures,
   nameLikeSignatures,
   textSignatures,
 } from './text-signatures.js'
@@ -57,10 +56,12 @@ function add(name: string, operand: Operand): void {
 function callable(signature: string, operands: readonly Operand[]): Operand {
   const operator = signature.startsWith('operator:')
   const metadata = operator ? operatorMetadata(signature) : functionMetadata(signature)
+  const collated = (operand: Operand): string =>
+    `(${operand.sql})${['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog."varchar"', 'pg_catalog.name'].includes(operand.expression.type) ? ' COLLATE "C"' : ''}`
   return {
     sql: operator
-      ? `((${operands[0]!.sql}) COLLATE "C" ${metadata.name} (${operands[1]!.sql}) COLLATE "C")`
-      : `pg_catalog."${metadata.name}"(${operands.map((o) => `(${o.sql})${['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog."varchar"', 'pg_catalog.name'].includes(o.expression.type) ? ' COLLATE "C"' : ''}`).join(',')})`,
+      ? `(${collated(operands[0]!)} ${metadata.name} ${collated(operands[1]!)})`
+      : `pg_catalog."${metadata.name}"(${operands.map(collated).join(',')})`,
     expression: {
       kind: operator ? 'operator' : 'function',
       type: metadata.result,
@@ -383,6 +384,65 @@ const namePairs: readonly (readonly [string | null, string | null])[] = [
 for (const signature of nameLikeSignatures)
   for (const [index, [value, pattern]] of namePairs.entries())
     add(`name like ${signature} ${index}`, callable(signature, [nameValue(value), text(pattern)]))
+const nameComparisonPairs: readonly (readonly [string | null, string | null])[] = [
+  [null, 'a'],
+  ['a', null],
+  ['', ''],
+  ['a', 'a'],
+  ['a', 'b'],
+  ['b', 'a'],
+  ['a', 'aa'],
+  ['aa', 'a'],
+  ['A', 'a'],
+  ['é', '中'],
+  ['\u{10000}', '\ue000'],
+  ['a'.repeat(63), 'a'.repeat(64)],
+  ['a'.repeat(63) + 'b', 'a'.repeat(63)],
+  ['a'.repeat(62) + 'é', 'a'.repeat(62)],
+]
+for (const signature of nameComparisonSignatures) {
+  const metadata = signature.startsWith('operator:')
+    ? operatorMetadata(signature)
+    : functionMetadata(signature)
+  for (const [index, values] of nameComparisonPairs.entries())
+    add(
+      `name comparison ${signature} ${index}`,
+      callable(
+        signature,
+        metadata.args.map((type, argument) =>
+          type === 'pg_catalog.name' ? nameValue(values[argument]!) : text(values[argument]!),
+        ),
+      ),
+    )
+}
+const internalChar = (value: string | null): Operand => ({
+  sql: value === null ? 'NULL::"char"' : `'${value.replaceAll("'", "''")}'::"char"`,
+  expression: { kind: 'internal-char', type: 'pg_catalog."char"', value },
+})
+const internalCharPairs: readonly (readonly [string | null, string | null])[] = [
+  [null, 'A'],
+  ['A', null],
+  ['', ''],
+  ['', '\\000'],
+  ['A', 'A'],
+  ['A', 'B'],
+  ['B', 'A'],
+  ['\u007f', '\\200'],
+  ['\\200', '\u007f'],
+  ['\\377', '\\200'],
+  ['\\777', '\\377'],
+  ['\\400', ''],
+  ['é', '\\303'],
+  ['😀', '\\360'],
+  ['AB', 'A'],
+  ['\\77', '\\'],
+]
+for (const signature of internalCharComparisonSignatures)
+  for (const [index, [left, right]] of internalCharPairs.entries())
+    add(
+      `internal char comparison ${signature} ${index}`,
+      callable(signature, [internalChar(left), internalChar(right)]),
+    )
 const bytea = (hex: string | null): Operand => ({
   sql: hex === null ? 'NULL::bytea' : `'\\x${hex}'::bytea`,
   expression: { kind: 'bytea', type: 'pg_catalog.bytea', value: hex },

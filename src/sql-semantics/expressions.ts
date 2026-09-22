@@ -255,6 +255,7 @@ export type SqlExpression =
   | { kind: 'boolean'; type: 'pg_catalog.bool'; value: boolean | null }
   | { kind: 'text'; type: 'pg_catalog.text'; value: string | null }
   | { kind: 'name'; type: 'pg_catalog.name'; value: string | null }
+  | { kind: 'internal-char'; type: 'pg_catalog."char"'; value: string | null }
   | { kind: 'bytea'; type: 'pg_catalog.bytea'; value: string | null }
   | { kind: 'bit'; type: 'pg_catalog."bit"' | 'pg_catalog.varbit'; value: string | null }
   | { kind: 'uuid'; type: UuidType; value: string | null }
@@ -306,6 +307,7 @@ export interface ExpressionBackend<Ast> {
   boolean: (value: boolean | null) => Ast
   text: (value: string | null) => Ast
   name: (value: string | null) => Ast
+  internalChar: (value: string | null) => Ast
   bytea: (value: string | null) => Ast
   bit: (value: string | null) => Ast
   uuid: (value: string | null) => Ast
@@ -700,7 +702,7 @@ export function emitSqlExpression<Ast>(
       for (const helper of result.helpers) helpers.add(helper)
       return { type: node.type, expression: result.expression }
     }
-    if (node.kind === 'name' || node.kind === 'bytea') {
+    if (node.kind === 'name' || node.kind === 'internal-char' || node.kind === 'bytea') {
       const invalidUtf8 = (value: string): boolean =>
         value.includes('\0') ||
         /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/u.test(value)
@@ -710,6 +712,13 @@ export function emitSqlExpression<Ast>(
           throw new Error('Invalid PostgreSQL UTF8 name literal')
         helpers.add('nameInput')
         return { type: node.type, expression: backend.name(node.value) }
+      }
+      if (node.kind === 'internal-char') {
+        if (node.type !== 'pg_catalog."char"') throw new Error('Invalid internal char literal')
+        if (node.value !== null && invalidUtf8(node.value))
+          throw new Error('Invalid PostgreSQL UTF8 internal char literal')
+        helpers.add('charInput')
+        return { type: node.type, expression: backend.internalChar(node.value) }
       }
       if (
         node.type !== 'pg_catalog.bytea' ||
@@ -1000,6 +1009,24 @@ export function emitSqlExpression<Ast>(
             'namenlike',
             'nameiclike',
             'nameicnlike',
+            'nameeq',
+            'namene',
+            'namelt',
+            'namele',
+            'namegt',
+            'namege',
+            'nameeqtext',
+            'namenetext',
+            'namelttext',
+            'nameletext',
+            'namegttext',
+            'namegetext',
+            'texteqname',
+            'textnename',
+            'textltname',
+            'textlename',
+            'textgtname',
+            'textgename',
           ].includes(metadata.name))) &&
       node.kind !== 'cast' &&
       node.collation !== 'C'

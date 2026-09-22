@@ -49,6 +49,7 @@ export const goTextDependencies: Record<string, readonly string[]> = {
   textILike: ['SqlBoolean', 'SqlText', 'textLike', 'textAsciiLower'],
   textNotILike: ['SqlBoolean', 'SqlText', 'textNotLike', 'textAsciiLower'],
   nameInput: ['SqlText', 'textLikeCharLen'],
+  charInput: ['SqlInteger'],
   byteaFromHex: [],
   byteaInput: ['SqlText', 'byteaFromHex'],
   byteaDecode: ['byteaFromHex'],

@@ -3001,6 +3001,14 @@ function nameInput(value: string | null): string | null {
     }
     return textUtf8Decode(bytes.subarray(0, length));
 }
+function charInput(value: string | null): bigint | null {
+    if (value === null)
+        return null;
+    const bytes = textUtf8Encode(value);
+    if (bytes.length === 4 && bytes[0] === 92 && bytes[1]! >= 48 && bytes[1]! <= 55 && bytes[2]! >= 48 && bytes[2]! <= 55 && bytes[3]! >= 48 && bytes[3]! <= 55)
+        return BigInt(((bytes[1]! - 48) * 64 + (bytes[2]! - 48) * 8 + bytes[3]! - 48) & 255);
+    return BigInt(bytes[0] ?? 0);
+}
 function byteaInput(value: string | null): string | null {
     if (value === null)
         return null;
@@ -102826,172 +102834,172 @@ export function evaluate31508() {
     return textILike(bpcharCoerce(textInput("ABC"), 10n, true), textInput("abc%"));
 }
 export function evaluate31509() {
-    return textILike(nameInput("abc"), textInput("abc"));
-}
-export function evaluate31510() {
-    return textILike(nameInput("abc"), textInput("a%"));
-}
-export function evaluate31511() {
-    return textILike(nameInput("AbC"), textInput("abc"));
-}
-export function evaluate31512() {
-    return textILike(nameInput("AbC"), textInput("a%"));
-}
-export function evaluate31513() {
-    return textILike(nameInput("ABC"), textInput("a_c"));
-}
-export function evaluate31514() {
-    return textILike(nameInput(null), textInput("a%"));
-}
-export function evaluate31515() {
-    return textILike(nameInput("abc"), textInput(null));
-}
-export function evaluate31516() {
-    return textILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
-}
-export function evaluate31517() {
-    return textILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
-}
-export function evaluate31518() {
-    return textILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
-}
-export function evaluate31519() {
-    return textILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"));
-}
-export function evaluate31520() {
-    return textILike(nameInput("\u00E9"), textInput("_"));
-}
-export function evaluate31521() {
-    return textILike(nameInput("\uD83D\uDE00"), textInput("_"));
-}
-export function evaluate31522() {
-    return textILike(nameInput("\uD83D\uDE00"), textInput("__"));
-}
-export function evaluate31523() {
-    return textNotILike(nameInput("abc"), textInput("abc"));
-}
-export function evaluate31524() {
-    return textNotILike(nameInput("abc"), textInput("a%"));
-}
-export function evaluate31525() {
-    return textNotILike(nameInput("AbC"), textInput("abc"));
-}
-export function evaluate31526() {
-    return textNotILike(nameInput("AbC"), textInput("a%"));
-}
-export function evaluate31527() {
-    return textNotILike(nameInput("ABC"), textInput("a_c"));
-}
-export function evaluate31528() {
-    return textNotILike(nameInput(null), textInput("a%"));
-}
-export function evaluate31529() {
-    return textNotILike(nameInput("abc"), textInput(null));
-}
-export function evaluate31530() {
-    return textNotILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
-}
-export function evaluate31531() {
-    return textNotILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
-}
-export function evaluate31532() {
-    return textNotILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
-}
-export function evaluate31533() {
-    return textNotILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"));
-}
-export function evaluate31534() {
-    return textNotILike(nameInput("\u00E9"), textInput("_"));
-}
-export function evaluate31535() {
-    return textNotILike(nameInput("\uD83D\uDE00"), textInput("_"));
-}
-export function evaluate31536() {
-    return textNotILike(nameInput("\uD83D\uDE00"), textInput("__"));
-}
-export function evaluate31537() {
     return textLike(nameInput("abc"), textInput("abc"));
 }
-export function evaluate31538() {
+export function evaluate31510() {
     return textLike(nameInput("abc"), textInput("a%"));
 }
-export function evaluate31539() {
+export function evaluate31511() {
     return textLike(nameInput("AbC"), textInput("abc"));
 }
-export function evaluate31540() {
+export function evaluate31512() {
     return textLike(nameInput("AbC"), textInput("a%"));
 }
-export function evaluate31541() {
+export function evaluate31513() {
     return textLike(nameInput("ABC"), textInput("a_c"));
 }
-export function evaluate31542() {
+export function evaluate31514() {
     return textLike(nameInput(null), textInput("a%"));
 }
-export function evaluate31543() {
+export function evaluate31515() {
     return textLike(nameInput("abc"), textInput(null));
 }
-export function evaluate31544() {
+export function evaluate31516() {
     return textLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
-export function evaluate31545() {
+export function evaluate31517() {
     return textLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
-export function evaluate31546() {
+export function evaluate31518() {
     return textLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
-export function evaluate31547() {
+export function evaluate31519() {
     return textLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"));
 }
-export function evaluate31548() {
+export function evaluate31520() {
     return textLike(nameInput("\u00E9"), textInput("_"));
 }
-export function evaluate31549() {
+export function evaluate31521() {
     return textLike(nameInput("\uD83D\uDE00"), textInput("_"));
 }
-export function evaluate31550() {
+export function evaluate31522() {
     return textLike(nameInput("\uD83D\uDE00"), textInput("__"));
 }
+export function evaluate31523() {
+    return textILike(nameInput("abc"), textInput("abc"));
+}
+export function evaluate31524() {
+    return textILike(nameInput("abc"), textInput("a%"));
+}
+export function evaluate31525() {
+    return textILike(nameInput("AbC"), textInput("abc"));
+}
+export function evaluate31526() {
+    return textILike(nameInput("AbC"), textInput("a%"));
+}
+export function evaluate31527() {
+    return textILike(nameInput("ABC"), textInput("a_c"));
+}
+export function evaluate31528() {
+    return textILike(nameInput(null), textInput("a%"));
+}
+export function evaluate31529() {
+    return textILike(nameInput("abc"), textInput(null));
+}
+export function evaluate31530() {
+    return textILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+}
+export function evaluate31531() {
+    return textILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+}
+export function evaluate31532() {
+    return textILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+}
+export function evaluate31533() {
+    return textILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"));
+}
+export function evaluate31534() {
+    return textILike(nameInput("\u00E9"), textInput("_"));
+}
+export function evaluate31535() {
+    return textILike(nameInput("\uD83D\uDE00"), textInput("_"));
+}
+export function evaluate31536() {
+    return textILike(nameInput("\uD83D\uDE00"), textInput("__"));
+}
+export function evaluate31537() {
+    return textNotILike(nameInput("abc"), textInput("abc"));
+}
+export function evaluate31538() {
+    return textNotILike(nameInput("abc"), textInput("a%"));
+}
+export function evaluate31539() {
+    return textNotILike(nameInput("AbC"), textInput("abc"));
+}
+export function evaluate31540() {
+    return textNotILike(nameInput("AbC"), textInput("a%"));
+}
+export function evaluate31541() {
+    return textNotILike(nameInput("ABC"), textInput("a_c"));
+}
+export function evaluate31542() {
+    return textNotILike(nameInput(null), textInput("a%"));
+}
+export function evaluate31543() {
+    return textNotILike(nameInput("abc"), textInput(null));
+}
+export function evaluate31544() {
+    return textNotILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+}
+export function evaluate31545() {
+    return textNotILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+}
+export function evaluate31546() {
+    return textNotILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+}
+export function evaluate31547() {
+    return textNotILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"));
+}
+export function evaluate31548() {
+    return textNotILike(nameInput("\u00E9"), textInput("_"));
+}
+export function evaluate31549() {
+    return textNotILike(nameInput("\uD83D\uDE00"), textInput("_"));
+}
+export function evaluate31550() {
+    return textNotILike(nameInput("\uD83D\uDE00"), textInput("__"));
+}
 export function evaluate31551() {
-    return textNotLike(nameInput("abc"), textInput("abc"));
+    return textLike(nameInput("abc"), textInput("abc"));
 }
 export function evaluate31552() {
-    return textNotLike(nameInput("abc"), textInput("a%"));
+    return textLike(nameInput("abc"), textInput("a%"));
 }
 export function evaluate31553() {
-    return textNotLike(nameInput("AbC"), textInput("abc"));
+    return textLike(nameInput("AbC"), textInput("abc"));
 }
 export function evaluate31554() {
-    return textNotLike(nameInput("AbC"), textInput("a%"));
+    return textLike(nameInput("AbC"), textInput("a%"));
 }
 export function evaluate31555() {
-    return textNotLike(nameInput("ABC"), textInput("a_c"));
+    return textLike(nameInput("ABC"), textInput("a_c"));
 }
 export function evaluate31556() {
-    return textNotLike(nameInput(null), textInput("a%"));
+    return textLike(nameInput(null), textInput("a%"));
 }
 export function evaluate31557() {
-    return textNotLike(nameInput("abc"), textInput(null));
+    return textLike(nameInput("abc"), textInput(null));
 }
 export function evaluate31558() {
-    return textNotLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+    return textLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31559() {
-    return textNotLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+    return textLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31560() {
-    return textNotLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+    return textLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31561() {
-    return textNotLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"));
+    return textLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"));
 }
 export function evaluate31562() {
-    return textNotLike(nameInput("\u00E9"), textInput("_"));
+    return textLike(nameInput("\u00E9"), textInput("_"));
 }
 export function evaluate31563() {
-    return textNotLike(nameInput("\uD83D\uDE00"), textInput("_"));
+    return textLike(nameInput("\uD83D\uDE00"), textInput("_"));
 }
 export function evaluate31564() {
-    return textNotLike(nameInput("\uD83D\uDE00"), textInput("__"));
+    return textLike(nameInput("\uD83D\uDE00"), textInput("__"));
 }
 export function evaluate31565() {
     return textNotLike(nameInput("abc"), textInput("abc"));
@@ -103036,9413 +103044,11669 @@ export function evaluate31578() {
     return textNotLike(nameInput("\uD83D\uDE00"), textInput("__"));
 }
 export function evaluate31579() {
-    return textNotILike(nameInput("abc"), textInput("abc"));
+    return textNotLike(nameInput("abc"), textInput("abc"));
 }
 export function evaluate31580() {
-    return textNotILike(nameInput("abc"), textInput("a%"));
+    return textNotLike(nameInput("abc"), textInput("a%"));
 }
 export function evaluate31581() {
-    return textNotILike(nameInput("AbC"), textInput("abc"));
+    return textNotLike(nameInput("AbC"), textInput("abc"));
 }
 export function evaluate31582() {
-    return textNotILike(nameInput("AbC"), textInput("a%"));
+    return textNotLike(nameInput("AbC"), textInput("a%"));
 }
 export function evaluate31583() {
-    return textNotILike(nameInput("ABC"), textInput("a_c"));
+    return textNotLike(nameInput("ABC"), textInput("a_c"));
 }
 export function evaluate31584() {
-    return textNotILike(nameInput(null), textInput("a%"));
+    return textNotLike(nameInput(null), textInput("a%"));
 }
 export function evaluate31585() {
-    return textNotILike(nameInput("abc"), textInput(null));
+    return textNotLike(nameInput("abc"), textInput(null));
 }
 export function evaluate31586() {
-    return textNotILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+    return textNotLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31587() {
-    return textNotILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+    return textNotLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31588() {
-    return textNotILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+    return textNotLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31589() {
-    return textNotILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"));
+    return textNotLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"));
 }
 export function evaluate31590() {
-    return textNotILike(nameInput("\u00E9"), textInput("_"));
+    return textNotLike(nameInput("\u00E9"), textInput("_"));
 }
 export function evaluate31591() {
-    return textNotILike(nameInput("\uD83D\uDE00"), textInput("_"));
+    return textNotLike(nameInput("\uD83D\uDE00"), textInput("_"));
 }
 export function evaluate31592() {
-    return textNotILike(nameInput("\uD83D\uDE00"), textInput("__"));
+    return textNotLike(nameInput("\uD83D\uDE00"), textInput("__"));
 }
 export function evaluate31593() {
-    return textLike(nameInput("abc"), textInput("abc"));
+    return textNotLike(nameInput("abc"), textInput("abc"));
 }
 export function evaluate31594() {
-    return textLike(nameInput("abc"), textInput("a%"));
+    return textNotLike(nameInput("abc"), textInput("a%"));
 }
 export function evaluate31595() {
-    return textLike(nameInput("AbC"), textInput("abc"));
+    return textNotLike(nameInput("AbC"), textInput("abc"));
 }
 export function evaluate31596() {
-    return textLike(nameInput("AbC"), textInput("a%"));
+    return textNotLike(nameInput("AbC"), textInput("a%"));
 }
 export function evaluate31597() {
-    return textLike(nameInput("ABC"), textInput("a_c"));
+    return textNotLike(nameInput("ABC"), textInput("a_c"));
 }
 export function evaluate31598() {
-    return textLike(nameInput(null), textInput("a%"));
+    return textNotLike(nameInput(null), textInput("a%"));
 }
 export function evaluate31599() {
-    return textLike(nameInput("abc"), textInput(null));
+    return textNotLike(nameInput("abc"), textInput(null));
 }
 export function evaluate31600() {
-    return textLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+    return textNotLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31601() {
-    return textLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+    return textNotLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31602() {
-    return textLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+    return textNotLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31603() {
-    return textLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"));
+    return textNotLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"));
 }
 export function evaluate31604() {
-    return textLike(nameInput("\u00E9"), textInput("_"));
+    return textNotLike(nameInput("\u00E9"), textInput("_"));
 }
 export function evaluate31605() {
-    return textLike(nameInput("\uD83D\uDE00"), textInput("_"));
+    return textNotLike(nameInput("\uD83D\uDE00"), textInput("_"));
 }
 export function evaluate31606() {
-    return textLike(nameInput("\uD83D\uDE00"), textInput("__"));
+    return textNotLike(nameInput("\uD83D\uDE00"), textInput("__"));
 }
 export function evaluate31607() {
-    return textILike(nameInput("abc"), textInput("abc"));
+    return textNotILike(nameInput("abc"), textInput("abc"));
 }
 export function evaluate31608() {
-    return textILike(nameInput("abc"), textInput("a%"));
+    return textNotILike(nameInput("abc"), textInput("a%"));
 }
 export function evaluate31609() {
-    return textILike(nameInput("AbC"), textInput("abc"));
+    return textNotILike(nameInput("AbC"), textInput("abc"));
 }
 export function evaluate31610() {
-    return textILike(nameInput("AbC"), textInput("a%"));
+    return textNotILike(nameInput("AbC"), textInput("a%"));
 }
 export function evaluate31611() {
-    return textILike(nameInput("ABC"), textInput("a_c"));
+    return textNotILike(nameInput("ABC"), textInput("a_c"));
 }
 export function evaluate31612() {
-    return textILike(nameInput(null), textInput("a%"));
+    return textNotILike(nameInput(null), textInput("a%"));
 }
 export function evaluate31613() {
-    return textILike(nameInput("abc"), textInput(null));
+    return textNotILike(nameInput("abc"), textInput(null));
 }
 export function evaluate31614() {
-    return textILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+    return textNotILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31615() {
-    return textILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+    return textNotILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31616() {
-    return textILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
+    return textNotILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31617() {
-    return textILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"));
+    return textNotILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"));
 }
 export function evaluate31618() {
-    return textILike(nameInput("\u00E9"), textInput("_"));
+    return textNotILike(nameInput("\u00E9"), textInput("_"));
 }
 export function evaluate31619() {
-    return textILike(nameInput("\uD83D\uDE00"), textInput("_"));
+    return textNotILike(nameInput("\uD83D\uDE00"), textInput("_"));
 }
 export function evaluate31620() {
-    return textILike(nameInput("\uD83D\uDE00"), textInput("__"));
+    return textNotILike(nameInput("\uD83D\uDE00"), textInput("__"));
 }
 export function evaluate31621() {
-    return byteaLike(byteaInput("41"), byteaInput("41"));
+    return textLike(nameInput("abc"), textInput("abc"));
 }
 export function evaluate31622() {
-    return byteaLike(byteaInput("414243"), byteaInput("4125"));
+    return textLike(nameInput("abc"), textInput("a%"));
 }
 export function evaluate31623() {
-    return byteaLike(byteaInput("ff"), byteaInput("5f"));
+    return textLike(nameInput("AbC"), textInput("abc"));
 }
 export function evaluate31624() {
-    return byteaLike(byteaInput("ffff"), byteaInput("5f"));
+    return textLike(nameInput("AbC"), textInput("a%"));
 }
 export function evaluate31625() {
-    return byteaLike(byteaInput("c3a9"), byteaInput("5f"));
+    return textLike(nameInput("ABC"), textInput("a_c"));
 }
 export function evaluate31626() {
-    return byteaLike(byteaInput("c3a9"), byteaInput("5f5f"));
+    return textLike(nameInput(null), textInput("a%"));
 }
 export function evaluate31627() {
-    return byteaLike(byteaInput("61"), byteaInput("41"));
+    return textLike(nameInput("abc"), textInput(null));
 }
 export function evaluate31628() {
-    return byteaLike(byteaInput(""), byteaInput(""));
+    return textLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31629() {
-    return byteaLike(byteaInput(""), byteaInput("25"));
+    return textLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31630() {
-    return byteaLike(byteaInput("41"), byteaInput(""));
+    return textLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31631() {
-    return byteaLike(byteaInput(null), byteaInput("41"));
+    return textLike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"));
 }
 export function evaluate31632() {
-    return byteaLike(byteaInput("41"), byteaInput(null));
+    return textLike(nameInput("\u00E9"), textInput("_"));
 }
 export function evaluate31633() {
-    return byteaLike(byteaInput("5c"), byteaInput("5c5c"));
+    return textLike(nameInput("\uD83D\uDE00"), textInput("_"));
 }
 export function evaluate31634() {
-    return byteaLike(byteaInput("41"), byteaInput("5c"));
+    return textLike(nameInput("\uD83D\uDE00"), textInput("__"));
 }
 export function evaluate31635() {
-    return byteaNotLike(byteaInput("41"), byteaInput("41"));
+    return textILike(nameInput("abc"), textInput("abc"));
 }
 export function evaluate31636() {
-    return byteaNotLike(byteaInput("414243"), byteaInput("4125"));
+    return textILike(nameInput("abc"), textInput("a%"));
 }
 export function evaluate31637() {
-    return byteaNotLike(byteaInput("ff"), byteaInput("5f"));
+    return textILike(nameInput("AbC"), textInput("abc"));
 }
 export function evaluate31638() {
-    return byteaNotLike(byteaInput("ffff"), byteaInput("5f"));
+    return textILike(nameInput("AbC"), textInput("a%"));
 }
 export function evaluate31639() {
-    return byteaNotLike(byteaInput("c3a9"), byteaInput("5f"));
+    return textILike(nameInput("ABC"), textInput("a_c"));
 }
 export function evaluate31640() {
-    return byteaNotLike(byteaInput("c3a9"), byteaInput("5f5f"));
+    return textILike(nameInput(null), textInput("a%"));
 }
 export function evaluate31641() {
-    return byteaNotLike(byteaInput("61"), byteaInput("41"));
+    return textILike(nameInput("abc"), textInput(null));
 }
 export function evaluate31642() {
-    return byteaNotLike(byteaInput(""), byteaInput(""));
+    return textILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31643() {
-    return byteaNotLike(byteaInput(""), byteaInput("25"));
+    return textILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31644() {
-    return byteaNotLike(byteaInput("41"), byteaInput(""));
+    return textILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31645() {
-    return byteaNotLike(byteaInput(null), byteaInput("41"));
+    return textILike(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"));
 }
 export function evaluate31646() {
-    return byteaNotLike(byteaInput("41"), byteaInput(null));
+    return textILike(nameInput("\u00E9"), textInput("_"));
 }
 export function evaluate31647() {
-    return byteaNotLike(byteaInput("5c"), byteaInput("5c5c"));
+    return textILike(nameInput("\uD83D\uDE00"), textInput("_"));
 }
 export function evaluate31648() {
-    return byteaNotLike(byteaInput("41"), byteaInput("5c"));
+    return textILike(nameInput("\uD83D\uDE00"), textInput("__"));
 }
 export function evaluate31649() {
-    return byteaNotLike(byteaInput("41"), byteaInput("41"));
+    return textEq(nameInput(null), nameInput("a"));
 }
 export function evaluate31650() {
-    return byteaNotLike(byteaInput("414243"), byteaInput("4125"));
+    return textEq(nameInput("a"), nameInput(null));
 }
 export function evaluate31651() {
-    return byteaNotLike(byteaInput("ff"), byteaInput("5f"));
+    return textEq(nameInput(""), nameInput(""));
 }
 export function evaluate31652() {
-    return byteaNotLike(byteaInput("ffff"), byteaInput("5f"));
+    return textEq(nameInput("a"), nameInput("a"));
 }
 export function evaluate31653() {
-    return byteaNotLike(byteaInput("c3a9"), byteaInput("5f"));
+    return textEq(nameInput("a"), nameInput("b"));
 }
 export function evaluate31654() {
-    return byteaNotLike(byteaInput("c3a9"), byteaInput("5f5f"));
+    return textEq(nameInput("b"), nameInput("a"));
 }
 export function evaluate31655() {
-    return byteaNotLike(byteaInput("61"), byteaInput("41"));
+    return textEq(nameInput("a"), nameInput("aa"));
 }
 export function evaluate31656() {
-    return byteaNotLike(byteaInput(""), byteaInput(""));
+    return textEq(nameInput("aa"), nameInput("a"));
 }
 export function evaluate31657() {
-    return byteaNotLike(byteaInput(""), byteaInput("25"));
+    return textEq(nameInput("A"), nameInput("a"));
 }
 export function evaluate31658() {
-    return byteaNotLike(byteaInput("41"), byteaInput(""));
+    return textEq(nameInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate31659() {
-    return byteaNotLike(byteaInput(null), byteaInput("41"));
+    return textEq(nameInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate31660() {
-    return byteaNotLike(byteaInput("41"), byteaInput(null));
+    return textEq(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31661() {
-    return byteaNotLike(byteaInput("5c"), byteaInput("5c5c"));
+    return textEq(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31662() {
-    return byteaNotLike(byteaInput("41"), byteaInput("5c"));
+    return textEq(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31663() {
-    return byteaLike(byteaInput("41"), byteaInput("41"));
+    return textEq(nameInput(null), textInput("a"));
 }
 export function evaluate31664() {
-    return byteaLike(byteaInput("414243"), byteaInput("4125"));
+    return textEq(nameInput("a"), textInput(null));
 }
 export function evaluate31665() {
-    return byteaLike(byteaInput("ff"), byteaInput("5f"));
+    return textEq(nameInput(""), textInput(""));
 }
 export function evaluate31666() {
-    return byteaLike(byteaInput("ffff"), byteaInput("5f"));
+    return textEq(nameInput("a"), textInput("a"));
 }
 export function evaluate31667() {
-    return byteaLike(byteaInput("c3a9"), byteaInput("5f"));
+    return textEq(nameInput("a"), textInput("b"));
 }
 export function evaluate31668() {
-    return byteaLike(byteaInput("c3a9"), byteaInput("5f5f"));
+    return textEq(nameInput("b"), textInput("a"));
 }
 export function evaluate31669() {
-    return byteaLike(byteaInput("61"), byteaInput("41"));
+    return textEq(nameInput("a"), textInput("aa"));
 }
 export function evaluate31670() {
-    return byteaLike(byteaInput(""), byteaInput(""));
+    return textEq(nameInput("aa"), textInput("a"));
 }
 export function evaluate31671() {
-    return byteaLike(byteaInput(""), byteaInput("25"));
+    return textEq(nameInput("A"), textInput("a"));
 }
 export function evaluate31672() {
-    return byteaLike(byteaInput("41"), byteaInput(""));
+    return textEq(nameInput("\u00E9"), textInput("\u4E2D"));
 }
 export function evaluate31673() {
-    return byteaLike(byteaInput(null), byteaInput("41"));
+    return textEq(nameInput("\uD800\uDC00"), textInput("\uE000"));
 }
 export function evaluate31674() {
-    return byteaLike(byteaInput("41"), byteaInput(null));
+    return textEq(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31675() {
-    return byteaLike(byteaInput("5c"), byteaInput("5c5c"));
+    return textEq(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31676() {
-    return byteaLike(byteaInput("41"), byteaInput("5c"));
+    return textEq(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31677() {
-    return byteaLikeEscape(byteaInput("2325"), byteaInput("23"));
+    return textGe(nameInput(null), nameInput("a"));
 }
 export function evaluate31678() {
-    return byteaLikeEscape(byteaInput("5c25"), byteaInput("5c"));
+    return textGe(nameInput("a"), nameInput(null));
 }
 export function evaluate31679() {
-    return byteaLikeEscape(byteaInput("5c25"), byteaInput(""));
+    return textGe(nameInput(""), nameInput(""));
 }
 export function evaluate31680() {
-    return byteaLikeEscape(byteaInput("25"), byteaInput("2323"));
+    return textGe(nameInput("a"), nameInput("a"));
 }
 export function evaluate31681() {
-    return byteaLikeEscape(byteaInput(null), byteaInput("23"));
+    return textGe(nameInput("a"), nameInput("b"));
 }
 export function evaluate31682() {
-    return byteaLikeEscape(byteaInput("25"), byteaInput(null));
+    return textGe(nameInput("b"), nameInput("a"));
 }
 export function evaluate31683() {
-    return byteaLarger(byteaInput("41"), byteaInput("41"));
+    return textGe(nameInput("a"), nameInput("aa"));
 }
 export function evaluate31684() {
-    return byteaLarger(byteaInput("41"), byteaInput("42"));
+    return textGe(nameInput("aa"), nameInput("a"));
 }
 export function evaluate31685() {
-    return byteaLarger(byteaInput("42"), byteaInput("41"));
+    return textGe(nameInput("A"), nameInput("a"));
 }
 export function evaluate31686() {
-    return byteaLarger(byteaInput("ff"), byteaInput("00"));
+    return textGe(nameInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate31687() {
-    return byteaLarger(byteaInput("00"), byteaInput("ff"));
+    return textGe(nameInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate31688() {
-    return byteaLarger(byteaInput("80"), byteaInput("7f"));
+    return textGe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31689() {
-    return byteaLarger(byteaInput("0100"), byteaInput("01ff"));
+    return textGe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31690() {
-    return byteaLarger(byteaInput("41"), byteaInput("4142"));
+    return textGe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31691() {
-    return byteaLarger(byteaInput("4142"), byteaInput("41"));
+    return textGe(nameInput(null), textInput("a"));
 }
 export function evaluate31692() {
-    return byteaLarger(byteaInput(""), byteaInput(""));
+    return textGe(nameInput("a"), textInput(null));
 }
 export function evaluate31693() {
-    return byteaLarger(byteaInput(""), byteaInput("00"));
+    return textGe(nameInput(""), textInput(""));
 }
 export function evaluate31694() {
-    return byteaLarger(byteaInput("00"), byteaInput(""));
+    return textGe(nameInput("a"), textInput("a"));
 }
 export function evaluate31695() {
-    return byteaLarger(byteaInput(null), byteaInput("41"));
+    return textGe(nameInput("a"), textInput("b"));
 }
 export function evaluate31696() {
-    return byteaLarger(byteaInput("41"), byteaInput(null));
+    return textGe(nameInput("b"), textInput("a"));
 }
 export function evaluate31697() {
-    return byteaSmaller(byteaInput("41"), byteaInput("41"));
+    return textGe(nameInput("a"), textInput("aa"));
 }
 export function evaluate31698() {
-    return byteaSmaller(byteaInput("41"), byteaInput("42"));
+    return textGe(nameInput("aa"), textInput("a"));
 }
 export function evaluate31699() {
-    return byteaSmaller(byteaInput("42"), byteaInput("41"));
+    return textGe(nameInput("A"), textInput("a"));
 }
 export function evaluate31700() {
-    return byteaSmaller(byteaInput("ff"), byteaInput("00"));
+    return textGe(nameInput("\u00E9"), textInput("\u4E2D"));
 }
 export function evaluate31701() {
-    return byteaSmaller(byteaInput("00"), byteaInput("ff"));
+    return textGe(nameInput("\uD800\uDC00"), textInput("\uE000"));
 }
 export function evaluate31702() {
-    return byteaSmaller(byteaInput("80"), byteaInput("7f"));
+    return textGe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31703() {
-    return byteaSmaller(byteaInput("0100"), byteaInput("01ff"));
+    return textGe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31704() {
-    return byteaSmaller(byteaInput("41"), byteaInput("4142"));
+    return textGe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31705() {
-    return byteaSmaller(byteaInput("4142"), byteaInput("41"));
+    return textGt(nameInput(null), nameInput("a"));
 }
 export function evaluate31706() {
-    return byteaSmaller(byteaInput(""), byteaInput(""));
+    return textGt(nameInput("a"), nameInput(null));
 }
 export function evaluate31707() {
-    return byteaSmaller(byteaInput(""), byteaInput("00"));
+    return textGt(nameInput(""), nameInput(""));
 }
 export function evaluate31708() {
-    return byteaSmaller(byteaInput("00"), byteaInput(""));
+    return textGt(nameInput("a"), nameInput("a"));
 }
 export function evaluate31709() {
-    return byteaSmaller(byteaInput(null), byteaInput("41"));
+    return textGt(nameInput("a"), nameInput("b"));
 }
 export function evaluate31710() {
-    return byteaSmaller(byteaInput("41"), byteaInput(null));
+    return textGt(nameInput("b"), nameInput("a"));
 }
 export function evaluate31711() {
-    return byteaCat(byteaInput("41"), byteaInput("41"));
+    return textGt(nameInput("a"), nameInput("aa"));
 }
 export function evaluate31712() {
-    return byteaCat(byteaInput("41"), byteaInput("42"));
+    return textGt(nameInput("aa"), nameInput("a"));
 }
 export function evaluate31713() {
-    return byteaCat(byteaInput("42"), byteaInput("41"));
+    return textGt(nameInput("A"), nameInput("a"));
 }
 export function evaluate31714() {
-    return byteaCat(byteaInput("ff"), byteaInput("00"));
+    return textGt(nameInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate31715() {
-    return byteaCat(byteaInput("00"), byteaInput("ff"));
+    return textGt(nameInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate31716() {
-    return byteaCat(byteaInput("80"), byteaInput("7f"));
+    return textGt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31717() {
-    return byteaCat(byteaInput("0100"), byteaInput("01ff"));
+    return textGt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31718() {
-    return byteaCat(byteaInput("41"), byteaInput("4142"));
+    return textGt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31719() {
-    return byteaCat(byteaInput("4142"), byteaInput("41"));
+    return textGt(nameInput(null), textInput("a"));
 }
 export function evaluate31720() {
-    return byteaCat(byteaInput(""), byteaInput(""));
+    return textGt(nameInput("a"), textInput(null));
 }
 export function evaluate31721() {
-    return byteaCat(byteaInput(""), byteaInput("00"));
+    return textGt(nameInput(""), textInput(""));
 }
 export function evaluate31722() {
-    return byteaCat(byteaInput("00"), byteaInput(""));
+    return textGt(nameInput("a"), textInput("a"));
 }
 export function evaluate31723() {
-    return byteaCat(byteaInput(null), byteaInput("41"));
+    return textGt(nameInput("a"), textInput("b"));
 }
 export function evaluate31724() {
-    return byteaCat(byteaInput("41"), byteaInput(null));
+    return textGt(nameInput("b"), textInput("a"));
 }
 export function evaluate31725() {
-    return byteaCompare(byteaInput("41"), byteaInput("41"));
+    return textGt(nameInput("a"), textInput("aa"));
 }
 export function evaluate31726() {
-    return byteaCompare(byteaInput("41"), byteaInput("42"));
+    return textGt(nameInput("aa"), textInput("a"));
 }
 export function evaluate31727() {
-    return byteaCompare(byteaInput("42"), byteaInput("41"));
+    return textGt(nameInput("A"), textInput("a"));
 }
 export function evaluate31728() {
-    return byteaCompare(byteaInput("ff"), byteaInput("00"));
+    return textGt(nameInput("\u00E9"), textInput("\u4E2D"));
 }
 export function evaluate31729() {
-    return byteaCompare(byteaInput("00"), byteaInput("ff"));
+    return textGt(nameInput("\uD800\uDC00"), textInput("\uE000"));
 }
 export function evaluate31730() {
-    return byteaCompare(byteaInput("80"), byteaInput("7f"));
+    return textGt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31731() {
-    return byteaCompare(byteaInput("0100"), byteaInput("01ff"));
+    return textGt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31732() {
-    return byteaCompare(byteaInput("41"), byteaInput("4142"));
+    return textGt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31733() {
-    return byteaCompare(byteaInput("4142"), byteaInput("41"));
+    return textLe(nameInput(null), nameInput("a"));
 }
 export function evaluate31734() {
-    return byteaCompare(byteaInput(""), byteaInput(""));
+    return textLe(nameInput("a"), nameInput(null));
 }
 export function evaluate31735() {
-    return byteaCompare(byteaInput(""), byteaInput("00"));
+    return textLe(nameInput(""), nameInput(""));
 }
 export function evaluate31736() {
-    return byteaCompare(byteaInput("00"), byteaInput(""));
+    return textLe(nameInput("a"), nameInput("a"));
 }
 export function evaluate31737() {
-    return byteaCompare(byteaInput(null), byteaInput("41"));
+    return textLe(nameInput("a"), nameInput("b"));
 }
 export function evaluate31738() {
-    return byteaCompare(byteaInput("41"), byteaInput(null));
+    return textLe(nameInput("b"), nameInput("a"));
 }
 export function evaluate31739() {
-    return byteaEq(byteaInput("41"), byteaInput("41"));
+    return textLe(nameInput("a"), nameInput("aa"));
 }
 export function evaluate31740() {
-    return byteaEq(byteaInput("41"), byteaInput("42"));
+    return textLe(nameInput("aa"), nameInput("a"));
 }
 export function evaluate31741() {
-    return byteaEq(byteaInput("42"), byteaInput("41"));
+    return textLe(nameInput("A"), nameInput("a"));
 }
 export function evaluate31742() {
-    return byteaEq(byteaInput("ff"), byteaInput("00"));
+    return textLe(nameInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate31743() {
-    return byteaEq(byteaInput("00"), byteaInput("ff"));
+    return textLe(nameInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate31744() {
-    return byteaEq(byteaInput("80"), byteaInput("7f"));
+    return textLe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31745() {
-    return byteaEq(byteaInput("0100"), byteaInput("01ff"));
+    return textLe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31746() {
-    return byteaEq(byteaInput("41"), byteaInput("4142"));
+    return textLe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31747() {
-    return byteaEq(byteaInput("4142"), byteaInput("41"));
+    return textLe(nameInput(null), textInput("a"));
 }
 export function evaluate31748() {
-    return byteaEq(byteaInput(""), byteaInput(""));
+    return textLe(nameInput("a"), textInput(null));
 }
 export function evaluate31749() {
-    return byteaEq(byteaInput(""), byteaInput("00"));
+    return textLe(nameInput(""), textInput(""));
 }
 export function evaluate31750() {
-    return byteaEq(byteaInput("00"), byteaInput(""));
+    return textLe(nameInput("a"), textInput("a"));
 }
 export function evaluate31751() {
-    return byteaEq(byteaInput(null), byteaInput("41"));
+    return textLe(nameInput("a"), textInput("b"));
 }
 export function evaluate31752() {
-    return byteaEq(byteaInput("41"), byteaInput(null));
+    return textLe(nameInput("b"), textInput("a"));
 }
 export function evaluate31753() {
-    return byteaGe(byteaInput("41"), byteaInput("41"));
+    return textLe(nameInput("a"), textInput("aa"));
 }
 export function evaluate31754() {
-    return byteaGe(byteaInput("41"), byteaInput("42"));
+    return textLe(nameInput("aa"), textInput("a"));
 }
 export function evaluate31755() {
-    return byteaGe(byteaInput("42"), byteaInput("41"));
+    return textLe(nameInput("A"), textInput("a"));
 }
 export function evaluate31756() {
-    return byteaGe(byteaInput("ff"), byteaInput("00"));
+    return textLe(nameInput("\u00E9"), textInput("\u4E2D"));
 }
 export function evaluate31757() {
-    return byteaGe(byteaInput("00"), byteaInput("ff"));
+    return textLe(nameInput("\uD800\uDC00"), textInput("\uE000"));
 }
 export function evaluate31758() {
-    return byteaGe(byteaInput("80"), byteaInput("7f"));
+    return textLe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31759() {
-    return byteaGe(byteaInput("0100"), byteaInput("01ff"));
+    return textLe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31760() {
-    return byteaGe(byteaInput("41"), byteaInput("4142"));
+    return textLe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31761() {
-    return byteaGe(byteaInput("4142"), byteaInput("41"));
+    return textLt(nameInput(null), nameInput("a"));
 }
 export function evaluate31762() {
-    return byteaGe(byteaInput(""), byteaInput(""));
+    return textLt(nameInput("a"), nameInput(null));
 }
 export function evaluate31763() {
-    return byteaGe(byteaInput(""), byteaInput("00"));
+    return textLt(nameInput(""), nameInput(""));
 }
 export function evaluate31764() {
-    return byteaGe(byteaInput("00"), byteaInput(""));
+    return textLt(nameInput("a"), nameInput("a"));
 }
 export function evaluate31765() {
-    return byteaGe(byteaInput(null), byteaInput("41"));
+    return textLt(nameInput("a"), nameInput("b"));
 }
 export function evaluate31766() {
-    return byteaGe(byteaInput("41"), byteaInput(null));
+    return textLt(nameInput("b"), nameInput("a"));
 }
 export function evaluate31767() {
-    return byteaGt(byteaInput("41"), byteaInput("41"));
+    return textLt(nameInput("a"), nameInput("aa"));
 }
 export function evaluate31768() {
-    return byteaGt(byteaInput("41"), byteaInput("42"));
+    return textLt(nameInput("aa"), nameInput("a"));
 }
 export function evaluate31769() {
-    return byteaGt(byteaInput("42"), byteaInput("41"));
+    return textLt(nameInput("A"), nameInput("a"));
 }
 export function evaluate31770() {
-    return byteaGt(byteaInput("ff"), byteaInput("00"));
+    return textLt(nameInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate31771() {
-    return byteaGt(byteaInput("00"), byteaInput("ff"));
+    return textLt(nameInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate31772() {
-    return byteaGt(byteaInput("80"), byteaInput("7f"));
+    return textLt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31773() {
-    return byteaGt(byteaInput("0100"), byteaInput("01ff"));
+    return textLt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31774() {
-    return byteaGt(byteaInput("41"), byteaInput("4142"));
+    return textLt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31775() {
-    return byteaGt(byteaInput("4142"), byteaInput("41"));
+    return textLt(nameInput(null), textInput("a"));
 }
 export function evaluate31776() {
-    return byteaGt(byteaInput(""), byteaInput(""));
+    return textLt(nameInput("a"), textInput(null));
 }
 export function evaluate31777() {
-    return byteaGt(byteaInput(""), byteaInput("00"));
+    return textLt(nameInput(""), textInput(""));
 }
 export function evaluate31778() {
-    return byteaGt(byteaInput("00"), byteaInput(""));
+    return textLt(nameInput("a"), textInput("a"));
 }
 export function evaluate31779() {
-    return byteaGt(byteaInput(null), byteaInput("41"));
+    return textLt(nameInput("a"), textInput("b"));
 }
 export function evaluate31780() {
-    return byteaGt(byteaInput("41"), byteaInput(null));
+    return textLt(nameInput("b"), textInput("a"));
 }
 export function evaluate31781() {
-    return byteaLe(byteaInput("41"), byteaInput("41"));
+    return textLt(nameInput("a"), textInput("aa"));
 }
 export function evaluate31782() {
-    return byteaLe(byteaInput("41"), byteaInput("42"));
+    return textLt(nameInput("aa"), textInput("a"));
 }
 export function evaluate31783() {
-    return byteaLe(byteaInput("42"), byteaInput("41"));
+    return textLt(nameInput("A"), textInput("a"));
 }
 export function evaluate31784() {
-    return byteaLe(byteaInput("ff"), byteaInput("00"));
+    return textLt(nameInput("\u00E9"), textInput("\u4E2D"));
 }
 export function evaluate31785() {
-    return byteaLe(byteaInput("00"), byteaInput("ff"));
+    return textLt(nameInput("\uD800\uDC00"), textInput("\uE000"));
 }
 export function evaluate31786() {
-    return byteaLe(byteaInput("80"), byteaInput("7f"));
+    return textLt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31787() {
-    return byteaLe(byteaInput("0100"), byteaInput("01ff"));
+    return textLt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31788() {
-    return byteaLe(byteaInput("41"), byteaInput("4142"));
+    return textLt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31789() {
-    return byteaLe(byteaInput("4142"), byteaInput("41"));
+    return textNe(nameInput(null), nameInput("a"));
 }
 export function evaluate31790() {
-    return byteaLe(byteaInput(""), byteaInput(""));
+    return textNe(nameInput("a"), nameInput(null));
 }
 export function evaluate31791() {
-    return byteaLe(byteaInput(""), byteaInput("00"));
+    return textNe(nameInput(""), nameInput(""));
 }
 export function evaluate31792() {
-    return byteaLe(byteaInput("00"), byteaInput(""));
+    return textNe(nameInput("a"), nameInput("a"));
 }
 export function evaluate31793() {
-    return byteaLe(byteaInput(null), byteaInput("41"));
+    return textNe(nameInput("a"), nameInput("b"));
 }
 export function evaluate31794() {
-    return byteaLe(byteaInput("41"), byteaInput(null));
+    return textNe(nameInput("b"), nameInput("a"));
 }
 export function evaluate31795() {
-    return byteaLt(byteaInput("41"), byteaInput("41"));
+    return textNe(nameInput("a"), nameInput("aa"));
 }
 export function evaluate31796() {
-    return byteaLt(byteaInput("41"), byteaInput("42"));
+    return textNe(nameInput("aa"), nameInput("a"));
 }
 export function evaluate31797() {
-    return byteaLt(byteaInput("42"), byteaInput("41"));
+    return textNe(nameInput("A"), nameInput("a"));
 }
 export function evaluate31798() {
-    return byteaLt(byteaInput("ff"), byteaInput("00"));
+    return textNe(nameInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate31799() {
-    return byteaLt(byteaInput("00"), byteaInput("ff"));
+    return textNe(nameInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate31800() {
-    return byteaLt(byteaInput("80"), byteaInput("7f"));
+    return textNe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31801() {
-    return byteaLt(byteaInput("0100"), byteaInput("01ff"));
+    return textNe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31802() {
-    return byteaLt(byteaInput("41"), byteaInput("4142"));
+    return textNe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31803() {
-    return byteaLt(byteaInput("4142"), byteaInput("41"));
+    return textNe(nameInput(null), textInput("a"));
 }
 export function evaluate31804() {
-    return byteaLt(byteaInput(""), byteaInput(""));
+    return textNe(nameInput("a"), textInput(null));
 }
 export function evaluate31805() {
-    return byteaLt(byteaInput(""), byteaInput("00"));
+    return textNe(nameInput(""), textInput(""));
 }
 export function evaluate31806() {
-    return byteaLt(byteaInput("00"), byteaInput(""));
+    return textNe(nameInput("a"), textInput("a"));
 }
 export function evaluate31807() {
-    return byteaLt(byteaInput(null), byteaInput("41"));
+    return textNe(nameInput("a"), textInput("b"));
 }
 export function evaluate31808() {
-    return byteaLt(byteaInput("41"), byteaInput(null));
+    return textNe(nameInput("b"), textInput("a"));
 }
 export function evaluate31809() {
-    return byteaNe(byteaInput("41"), byteaInput("41"));
+    return textNe(nameInput("a"), textInput("aa"));
 }
 export function evaluate31810() {
-    return byteaNe(byteaInput("41"), byteaInput("42"));
+    return textNe(nameInput("aa"), textInput("a"));
 }
 export function evaluate31811() {
-    return byteaNe(byteaInput("42"), byteaInput("41"));
+    return textNe(nameInput("A"), textInput("a"));
 }
 export function evaluate31812() {
-    return byteaNe(byteaInput("ff"), byteaInput("00"));
+    return textNe(nameInput("\u00E9"), textInput("\u4E2D"));
 }
 export function evaluate31813() {
-    return byteaNe(byteaInput("00"), byteaInput("ff"));
+    return textNe(nameInput("\uD800\uDC00"), textInput("\uE000"));
 }
 export function evaluate31814() {
-    return byteaNe(byteaInput("80"), byteaInput("7f"));
+    return textNe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31815() {
-    return byteaNe(byteaInput("0100"), byteaInput("01ff"));
+    return textNe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31816() {
-    return byteaNe(byteaInput("41"), byteaInput("4142"));
+    return textNe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31817() {
-    return byteaNe(byteaInput("4142"), byteaInput("41"));
+    return textEq(textInput(null), nameInput("a"));
 }
 export function evaluate31818() {
-    return byteaNe(byteaInput(""), byteaInput(""));
+    return textEq(textInput("a"), nameInput(null));
 }
 export function evaluate31819() {
-    return byteaNe(byteaInput(""), byteaInput("00"));
+    return textEq(textInput(""), nameInput(""));
 }
 export function evaluate31820() {
-    return byteaNe(byteaInput("00"), byteaInput(""));
+    return textEq(textInput("a"), nameInput("a"));
 }
 export function evaluate31821() {
-    return byteaNe(byteaInput(null), byteaInput("41"));
+    return textEq(textInput("a"), nameInput("b"));
 }
 export function evaluate31822() {
-    return byteaNe(byteaInput("41"), byteaInput(null));
+    return textEq(textInput("b"), nameInput("a"));
 }
 export function evaluate31823() {
-    return byteaLt(byteaInput("41"), byteaInput("41"));
+    return textEq(textInput("a"), nameInput("aa"));
 }
 export function evaluate31824() {
-    return byteaLt(byteaInput("41"), byteaInput("42"));
+    return textEq(textInput("aa"), nameInput("a"));
 }
 export function evaluate31825() {
-    return byteaLt(byteaInput("42"), byteaInput("41"));
+    return textEq(textInput("A"), nameInput("a"));
 }
 export function evaluate31826() {
-    return byteaLt(byteaInput("ff"), byteaInput("00"));
+    return textEq(textInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate31827() {
-    return byteaLt(byteaInput("00"), byteaInput("ff"));
+    return textEq(textInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate31828() {
-    return byteaLt(byteaInput("80"), byteaInput("7f"));
+    return textEq(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31829() {
-    return byteaLt(byteaInput("0100"), byteaInput("01ff"));
+    return textEq(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31830() {
-    return byteaLt(byteaInput("41"), byteaInput("4142"));
+    return textEq(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31831() {
-    return byteaLt(byteaInput("4142"), byteaInput("41"));
+    return textGe(textInput(null), nameInput("a"));
 }
 export function evaluate31832() {
-    return byteaLt(byteaInput(""), byteaInput(""));
+    return textGe(textInput("a"), nameInput(null));
 }
 export function evaluate31833() {
-    return byteaLt(byteaInput(""), byteaInput("00"));
+    return textGe(textInput(""), nameInput(""));
 }
 export function evaluate31834() {
-    return byteaLt(byteaInput("00"), byteaInput(""));
+    return textGe(textInput("a"), nameInput("a"));
 }
 export function evaluate31835() {
-    return byteaLt(byteaInput(null), byteaInput("41"));
+    return textGe(textInput("a"), nameInput("b"));
 }
 export function evaluate31836() {
-    return byteaLt(byteaInput("41"), byteaInput(null));
+    return textGe(textInput("b"), nameInput("a"));
 }
 export function evaluate31837() {
-    return byteaLe(byteaInput("41"), byteaInput("41"));
+    return textGe(textInput("a"), nameInput("aa"));
 }
 export function evaluate31838() {
-    return byteaLe(byteaInput("41"), byteaInput("42"));
+    return textGe(textInput("aa"), nameInput("a"));
 }
 export function evaluate31839() {
-    return byteaLe(byteaInput("42"), byteaInput("41"));
+    return textGe(textInput("A"), nameInput("a"));
 }
 export function evaluate31840() {
-    return byteaLe(byteaInput("ff"), byteaInput("00"));
+    return textGe(textInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate31841() {
-    return byteaLe(byteaInput("00"), byteaInput("ff"));
+    return textGe(textInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate31842() {
-    return byteaLe(byteaInput("80"), byteaInput("7f"));
+    return textGe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31843() {
-    return byteaLe(byteaInput("0100"), byteaInput("01ff"));
+    return textGe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31844() {
-    return byteaLe(byteaInput("41"), byteaInput("4142"));
+    return textGe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31845() {
-    return byteaLe(byteaInput("4142"), byteaInput("41"));
+    return textGt(textInput(null), nameInput("a"));
 }
 export function evaluate31846() {
-    return byteaLe(byteaInput(""), byteaInput(""));
+    return textGt(textInput("a"), nameInput(null));
 }
 export function evaluate31847() {
-    return byteaLe(byteaInput(""), byteaInput("00"));
+    return textGt(textInput(""), nameInput(""));
 }
 export function evaluate31848() {
-    return byteaLe(byteaInput("00"), byteaInput(""));
+    return textGt(textInput("a"), nameInput("a"));
 }
 export function evaluate31849() {
-    return byteaLe(byteaInput(null), byteaInput("41"));
+    return textGt(textInput("a"), nameInput("b"));
 }
 export function evaluate31850() {
-    return byteaLe(byteaInput("41"), byteaInput(null));
+    return textGt(textInput("b"), nameInput("a"));
 }
 export function evaluate31851() {
-    return byteaNe(byteaInput("41"), byteaInput("41"));
+    return textGt(textInput("a"), nameInput("aa"));
 }
 export function evaluate31852() {
-    return byteaNe(byteaInput("41"), byteaInput("42"));
+    return textGt(textInput("aa"), nameInput("a"));
 }
 export function evaluate31853() {
-    return byteaNe(byteaInput("42"), byteaInput("41"));
+    return textGt(textInput("A"), nameInput("a"));
 }
 export function evaluate31854() {
-    return byteaNe(byteaInput("ff"), byteaInput("00"));
+    return textGt(textInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate31855() {
-    return byteaNe(byteaInput("00"), byteaInput("ff"));
+    return textGt(textInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate31856() {
-    return byteaNe(byteaInput("80"), byteaInput("7f"));
+    return textGt(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31857() {
-    return byteaNe(byteaInput("0100"), byteaInput("01ff"));
+    return textGt(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31858() {
-    return byteaNe(byteaInput("41"), byteaInput("4142"));
+    return textGt(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31859() {
-    return byteaNe(byteaInput("4142"), byteaInput("41"));
+    return textLe(textInput(null), nameInput("a"));
 }
 export function evaluate31860() {
-    return byteaNe(byteaInput(""), byteaInput(""));
+    return textLe(textInput("a"), nameInput(null));
 }
 export function evaluate31861() {
-    return byteaNe(byteaInput(""), byteaInput("00"));
+    return textLe(textInput(""), nameInput(""));
 }
 export function evaluate31862() {
-    return byteaNe(byteaInput("00"), byteaInput(""));
+    return textLe(textInput("a"), nameInput("a"));
 }
 export function evaluate31863() {
-    return byteaNe(byteaInput(null), byteaInput("41"));
+    return textLe(textInput("a"), nameInput("b"));
 }
 export function evaluate31864() {
-    return byteaNe(byteaInput("41"), byteaInput(null));
+    return textLe(textInput("b"), nameInput("a"));
 }
 export function evaluate31865() {
-    return byteaEq(byteaInput("41"), byteaInput("41"));
+    return textLe(textInput("a"), nameInput("aa"));
 }
 export function evaluate31866() {
-    return byteaEq(byteaInput("41"), byteaInput("42"));
+    return textLe(textInput("aa"), nameInput("a"));
 }
 export function evaluate31867() {
-    return byteaEq(byteaInput("42"), byteaInput("41"));
+    return textLe(textInput("A"), nameInput("a"));
 }
 export function evaluate31868() {
-    return byteaEq(byteaInput("ff"), byteaInput("00"));
+    return textLe(textInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate31869() {
-    return byteaEq(byteaInput("00"), byteaInput("ff"));
+    return textLe(textInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate31870() {
-    return byteaEq(byteaInput("80"), byteaInput("7f"));
+    return textLe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31871() {
-    return byteaEq(byteaInput("0100"), byteaInput("01ff"));
+    return textLe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31872() {
-    return byteaEq(byteaInput("41"), byteaInput("4142"));
+    return textLe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31873() {
-    return byteaEq(byteaInput("4142"), byteaInput("41"));
+    return textLt(textInput(null), nameInput("a"));
 }
 export function evaluate31874() {
-    return byteaEq(byteaInput(""), byteaInput(""));
+    return textLt(textInput("a"), nameInput(null));
 }
 export function evaluate31875() {
-    return byteaEq(byteaInput(""), byteaInput("00"));
+    return textLt(textInput(""), nameInput(""));
 }
 export function evaluate31876() {
-    return byteaEq(byteaInput("00"), byteaInput(""));
+    return textLt(textInput("a"), nameInput("a"));
 }
 export function evaluate31877() {
-    return byteaEq(byteaInput(null), byteaInput("41"));
+    return textLt(textInput("a"), nameInput("b"));
 }
 export function evaluate31878() {
-    return byteaEq(byteaInput("41"), byteaInput(null));
+    return textLt(textInput("b"), nameInput("a"));
 }
 export function evaluate31879() {
-    return byteaGt(byteaInput("41"), byteaInput("41"));
+    return textLt(textInput("a"), nameInput("aa"));
 }
 export function evaluate31880() {
-    return byteaGt(byteaInput("41"), byteaInput("42"));
+    return textLt(textInput("aa"), nameInput("a"));
 }
 export function evaluate31881() {
-    return byteaGt(byteaInput("42"), byteaInput("41"));
+    return textLt(textInput("A"), nameInput("a"));
 }
 export function evaluate31882() {
-    return byteaGt(byteaInput("ff"), byteaInput("00"));
+    return textLt(textInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate31883() {
-    return byteaGt(byteaInput("00"), byteaInput("ff"));
+    return textLt(textInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate31884() {
-    return byteaGt(byteaInput("80"), byteaInput("7f"));
+    return textLt(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31885() {
-    return byteaGt(byteaInput("0100"), byteaInput("01ff"));
+    return textLt(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31886() {
-    return byteaGt(byteaInput("41"), byteaInput("4142"));
+    return textLt(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31887() {
-    return byteaGt(byteaInput("4142"), byteaInput("41"));
+    return textNe(textInput(null), nameInput("a"));
 }
 export function evaluate31888() {
-    return byteaGt(byteaInput(""), byteaInput(""));
+    return textNe(textInput("a"), nameInput(null));
 }
 export function evaluate31889() {
-    return byteaGt(byteaInput(""), byteaInput("00"));
+    return textNe(textInput(""), nameInput(""));
 }
 export function evaluate31890() {
-    return byteaGt(byteaInput("00"), byteaInput(""));
+    return textNe(textInput("a"), nameInput("a"));
 }
 export function evaluate31891() {
-    return byteaGt(byteaInput(null), byteaInput("41"));
+    return textNe(textInput("a"), nameInput("b"));
 }
 export function evaluate31892() {
-    return byteaGt(byteaInput("41"), byteaInput(null));
+    return textNe(textInput("b"), nameInput("a"));
 }
 export function evaluate31893() {
-    return byteaGe(byteaInput("41"), byteaInput("41"));
+    return textNe(textInput("a"), nameInput("aa"));
 }
 export function evaluate31894() {
-    return byteaGe(byteaInput("41"), byteaInput("42"));
+    return textNe(textInput("aa"), nameInput("a"));
 }
 export function evaluate31895() {
-    return byteaGe(byteaInput("42"), byteaInput("41"));
+    return textNe(textInput("A"), nameInput("a"));
 }
 export function evaluate31896() {
-    return byteaGe(byteaInput("ff"), byteaInput("00"));
+    return textNe(textInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate31897() {
-    return byteaGe(byteaInput("00"), byteaInput("ff"));
+    return textNe(textInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate31898() {
-    return byteaGe(byteaInput("80"), byteaInput("7f"));
+    return textNe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31899() {
-    return byteaGe(byteaInput("0100"), byteaInput("01ff"));
+    return textNe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31900() {
-    return byteaGe(byteaInput("41"), byteaInput("4142"));
+    return textNe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31901() {
-    return byteaGe(byteaInput("4142"), byteaInput("41"));
+    return textLt(nameInput(null), nameInput("a"));
 }
 export function evaluate31902() {
-    return byteaGe(byteaInput(""), byteaInput(""));
+    return textLt(nameInput("a"), nameInput(null));
 }
 export function evaluate31903() {
-    return byteaGe(byteaInput(""), byteaInput("00"));
+    return textLt(nameInput(""), nameInput(""));
 }
 export function evaluate31904() {
-    return byteaGe(byteaInput("00"), byteaInput(""));
+    return textLt(nameInput("a"), nameInput("a"));
 }
 export function evaluate31905() {
-    return byteaGe(byteaInput(null), byteaInput("41"));
+    return textLt(nameInput("a"), nameInput("b"));
 }
 export function evaluate31906() {
-    return byteaGe(byteaInput("41"), byteaInput(null));
+    return textLt(nameInput("b"), nameInput("a"));
 }
 export function evaluate31907() {
-    return byteaCat(byteaInput("41"), byteaInput("41"));
+    return textLt(nameInput("a"), nameInput("aa"));
 }
 export function evaluate31908() {
-    return byteaCat(byteaInput("41"), byteaInput("42"));
+    return textLt(nameInput("aa"), nameInput("a"));
 }
 export function evaluate31909() {
-    return byteaCat(byteaInput("42"), byteaInput("41"));
+    return textLt(nameInput("A"), nameInput("a"));
 }
 export function evaluate31910() {
-    return byteaCat(byteaInput("ff"), byteaInput("00"));
+    return textLt(nameInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate31911() {
-    return byteaCat(byteaInput("00"), byteaInput("ff"));
+    return textLt(nameInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate31912() {
-    return byteaCat(byteaInput("80"), byteaInput("7f"));
+    return textLt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31913() {
-    return byteaCat(byteaInput("0100"), byteaInput("01ff"));
+    return textLt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31914() {
-    return byteaCat(byteaInput("41"), byteaInput("4142"));
+    return textLt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31915() {
-    return byteaCat(byteaInput("4142"), byteaInput("41"));
+    return textLt(nameInput(null), textInput("a"));
 }
 export function evaluate31916() {
-    return byteaCat(byteaInput(""), byteaInput(""));
+    return textLt(nameInput("a"), textInput(null));
 }
 export function evaluate31917() {
-    return byteaCat(byteaInput(""), byteaInput("00"));
+    return textLt(nameInput(""), textInput(""));
 }
 export function evaluate31918() {
-    return byteaCat(byteaInput("00"), byteaInput(""));
+    return textLt(nameInput("a"), textInput("a"));
 }
 export function evaluate31919() {
-    return byteaCat(byteaInput(null), byteaInput("41"));
+    return textLt(nameInput("a"), textInput("b"));
 }
 export function evaluate31920() {
-    return byteaCat(byteaInput("41"), byteaInput(null));
+    return textLt(nameInput("b"), textInput("a"));
 }
 export function evaluate31921() {
-    return byteaBitCount(byteaInput(null));
+    return textLt(nameInput("a"), textInput("aa"));
 }
 export function evaluate31922() {
-    return byteaBitCount(byteaInput(""));
+    return textLt(nameInput("aa"), textInput("a"));
 }
 export function evaluate31923() {
-    return byteaBitCount(byteaInput("00"));
+    return textLt(nameInput("A"), textInput("a"));
 }
 export function evaluate31924() {
-    return byteaBitCount(byteaInput("ff"));
+    return textLt(nameInput("\u00E9"), textInput("\u4E2D"));
 }
 export function evaluate31925() {
-    return byteaBitCount(byteaInput("80"));
+    return textLt(nameInput("\uD800\uDC00"), textInput("\uE000"));
 }
 export function evaluate31926() {
-    return byteaBitCount(byteaInput("0f"));
+    return textLt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31927() {
-    return byteaBitCount(byteaInput("01"));
+    return textLt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31928() {
-    return byteaBitCount(byteaInput("4142"));
+    return textLt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31929() {
-    return byteaBitCount(byteaInput("ffff"));
+    return textLt(textInput(null), nameInput("a"));
 }
 export function evaluate31930() {
-    return byteaBitCount(byteaInput("0001ff"));
+    return textLt(textInput("a"), nameInput(null));
 }
 export function evaluate31931() {
-    return byteaBitLength(byteaInput(null));
+    return textLt(textInput(""), nameInput(""));
 }
 export function evaluate31932() {
-    return byteaBitLength(byteaInput(""));
+    return textLt(textInput("a"), nameInput("a"));
 }
 export function evaluate31933() {
-    return byteaBitLength(byteaInput("00"));
+    return textLt(textInput("a"), nameInput("b"));
 }
 export function evaluate31934() {
-    return byteaBitLength(byteaInput("ff"));
+    return textLt(textInput("b"), nameInput("a"));
 }
 export function evaluate31935() {
-    return byteaBitLength(byteaInput("80"));
+    return textLt(textInput("a"), nameInput("aa"));
 }
 export function evaluate31936() {
-    return byteaBitLength(byteaInput("0f"));
+    return textLt(textInput("aa"), nameInput("a"));
 }
 export function evaluate31937() {
-    return byteaBitLength(byteaInput("01"));
+    return textLt(textInput("A"), nameInput("a"));
 }
 export function evaluate31938() {
-    return byteaBitLength(byteaInput("4142"));
+    return textLt(textInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate31939() {
-    return byteaBitLength(byteaInput("ffff"));
+    return textLt(textInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate31940() {
-    return byteaBitLength(byteaInput("0001ff"));
+    return textLt(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31941() {
-    return byteaOctetLength(byteaInput(null));
+    return textLt(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31942() {
-    return byteaOctetLength(byteaInput(""));
+    return textLt(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31943() {
-    return byteaOctetLength(byteaInput("00"));
+    return textLe(nameInput(null), nameInput("a"));
 }
 export function evaluate31944() {
-    return byteaOctetLength(byteaInput("ff"));
+    return textLe(nameInput("a"), nameInput(null));
 }
 export function evaluate31945() {
-    return byteaOctetLength(byteaInput("80"));
+    return textLe(nameInput(""), nameInput(""));
 }
 export function evaluate31946() {
-    return byteaOctetLength(byteaInput("0f"));
+    return textLe(nameInput("a"), nameInput("a"));
 }
 export function evaluate31947() {
-    return byteaOctetLength(byteaInput("01"));
+    return textLe(nameInput("a"), nameInput("b"));
 }
 export function evaluate31948() {
-    return byteaOctetLength(byteaInput("4142"));
+    return textLe(nameInput("b"), nameInput("a"));
 }
 export function evaluate31949() {
-    return byteaOctetLength(byteaInput("ffff"));
+    return textLe(nameInput("a"), nameInput("aa"));
 }
 export function evaluate31950() {
-    return byteaOctetLength(byteaInput("0001ff"));
+    return textLe(nameInput("aa"), nameInput("a"));
 }
 export function evaluate31951() {
-    return byteaOctetLength(byteaInput(null));
+    return textLe(nameInput("A"), nameInput("a"));
 }
 export function evaluate31952() {
-    return byteaOctetLength(byteaInput(""));
+    return textLe(nameInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate31953() {
-    return byteaOctetLength(byteaInput("00"));
+    return textLe(nameInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate31954() {
-    return byteaOctetLength(byteaInput("ff"));
+    return textLe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31955() {
-    return byteaOctetLength(byteaInput("80"));
+    return textLe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31956() {
-    return byteaOctetLength(byteaInput("0f"));
+    return textLe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31957() {
-    return byteaOctetLength(byteaInput("01"));
+    return textLe(nameInput(null), textInput("a"));
 }
 export function evaluate31958() {
-    return byteaOctetLength(byteaInput("4142"));
+    return textLe(nameInput("a"), textInput(null));
 }
 export function evaluate31959() {
-    return byteaOctetLength(byteaInput("ffff"));
+    return textLe(nameInput(""), textInput(""));
 }
 export function evaluate31960() {
-    return byteaOctetLength(byteaInput("0001ff"));
+    return textLe(nameInput("a"), textInput("a"));
 }
 export function evaluate31961() {
-    return byteaSubstr(byteaInput(null), int4Input(null));
+    return textLe(nameInput("a"), textInput("b"));
 }
 export function evaluate31962() {
-    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("-1"));
+    return textLe(nameInput("b"), textInput("a"));
 }
 export function evaluate31963() {
-    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("0"));
+    return textLe(nameInput("a"), textInput("aa"));
 }
 export function evaluate31964() {
-    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("1"));
+    return textLe(nameInput("aa"), textInput("a"));
 }
 export function evaluate31965() {
-    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("2"));
+    return textLe(nameInput("A"), textInput("a"));
 }
 export function evaluate31966() {
-    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("2147483647"));
+    return textLe(nameInput("\u00E9"), textInput("\u4E2D"));
 }
 export function evaluate31967() {
-    return byteaSubstr(byteaInput(null), int4Input("-2147483648"));
+    return textLe(nameInput("\uD800\uDC00"), textInput("\uE000"));
 }
 export function evaluate31968() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("-1"));
+    return textLe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31969() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("0"));
+    return textLe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31970() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("1"));
+    return textLe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31971() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("2"));
+    return textLe(textInput(null), nameInput("a"));
 }
 export function evaluate31972() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("2147483647"));
+    return textLe(textInput("a"), nameInput(null));
 }
 export function evaluate31973() {
-    return byteaSubstr(byteaInput(null), int4Input("-5"));
+    return textLe(textInput(""), nameInput(""));
 }
 export function evaluate31974() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("-1"));
+    return textLe(textInput("a"), nameInput("a"));
 }
 export function evaluate31975() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("0"));
+    return textLe(textInput("a"), nameInput("b"));
 }
 export function evaluate31976() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("1"));
+    return textLe(textInput("b"), nameInput("a"));
 }
 export function evaluate31977() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("2"));
+    return textLe(textInput("a"), nameInput("aa"));
 }
 export function evaluate31978() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("2147483647"));
+    return textLe(textInput("aa"), nameInput("a"));
 }
 export function evaluate31979() {
-    return byteaSubstr(byteaInput(null), int4Input("0"));
+    return textLe(textInput("A"), nameInput("a"));
 }
 export function evaluate31980() {
-    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("-1"));
+    return textLe(textInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate31981() {
-    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("0"));
+    return textLe(textInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate31982() {
-    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("1"));
+    return textLe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31983() {
-    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("2"));
+    return textLe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31984() {
-    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("2147483647"));
+    return textLe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31985() {
-    return byteaSubstr(byteaInput(null), int4Input("1"));
+    return textNe(nameInput(null), nameInput("a"));
 }
 export function evaluate31986() {
-    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("-1"));
+    return textNe(nameInput("a"), nameInput(null));
 }
 export function evaluate31987() {
-    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("0"));
+    return textNe(nameInput(""), nameInput(""));
 }
 export function evaluate31988() {
-    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("1"));
+    return textNe(nameInput("a"), nameInput("a"));
 }
 export function evaluate31989() {
-    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("2"));
+    return textNe(nameInput("a"), nameInput("b"));
 }
 export function evaluate31990() {
-    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("2147483647"));
+    return textNe(nameInput("b"), nameInput("a"));
 }
 export function evaluate31991() {
-    return byteaSubstr(byteaInput(null), int4Input("2"));
+    return textNe(nameInput("a"), nameInput("aa"));
 }
 export function evaluate31992() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("-1"));
+    return textNe(nameInput("aa"), nameInput("a"));
 }
 export function evaluate31993() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("0"));
+    return textNe(nameInput("A"), nameInput("a"));
 }
 export function evaluate31994() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("1"));
+    return textNe(nameInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate31995() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("2"));
+    return textNe(nameInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate31996() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("2147483647"));
+    return textNe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31997() {
-    return byteaSubstr(byteaInput(null), int4Input("5"));
+    return textNe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31998() {
-    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("-1"));
+    return textNe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate31999() {
-    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("0"));
+    return textNe(nameInput(null), textInput("a"));
 }
 export function evaluate32000() {
-    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("1"));
+    return textNe(nameInput("a"), textInput(null));
 }
 export function evaluate32001() {
-    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("2"));
+    return textNe(nameInput(""), textInput(""));
 }
 export function evaluate32002() {
-    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("2147483647"));
+    return textNe(nameInput("a"), textInput("a"));
 }
 export function evaluate32003() {
-    return byteaSubstr(byteaInput(null), int4Input("2147483647"));
+    return textNe(nameInput("a"), textInput("b"));
 }
 export function evaluate32004() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("-1"));
+    return textNe(nameInput("b"), textInput("a"));
 }
 export function evaluate32005() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("0"));
+    return textNe(nameInput("a"), textInput("aa"));
 }
 export function evaluate32006() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("1"));
+    return textNe(nameInput("aa"), textInput("a"));
 }
 export function evaluate32007() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("2"));
+    return textNe(nameInput("A"), textInput("a"));
 }
 export function evaluate32008() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("2147483647"));
+    return textNe(nameInput("\u00E9"), textInput("\u4E2D"));
 }
 export function evaluate32009() {
-    return byteaSubstr(byteaInput(""), int4Input(null));
+    return textNe(nameInput("\uD800\uDC00"), textInput("\uE000"));
 }
 export function evaluate32010() {
-    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("-1"));
+    return textNe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32011() {
-    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("0"));
+    return textNe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32012() {
-    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("1"));
+    return textNe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32013() {
-    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("2"));
+    return textNe(textInput(null), nameInput("a"));
 }
 export function evaluate32014() {
-    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("2147483647"));
+    return textNe(textInput("a"), nameInput(null));
 }
 export function evaluate32015() {
-    return byteaSubstr(byteaInput(""), int4Input("-2147483648"));
+    return textNe(textInput(""), nameInput(""));
 }
 export function evaluate32016() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("-1"));
+    return textNe(textInput("a"), nameInput("a"));
 }
 export function evaluate32017() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("0"));
+    return textNe(textInput("a"), nameInput("b"));
 }
 export function evaluate32018() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("1"));
+    return textNe(textInput("b"), nameInput("a"));
 }
 export function evaluate32019() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("2"));
+    return textNe(textInput("a"), nameInput("aa"));
 }
 export function evaluate32020() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("2147483647"));
+    return textNe(textInput("aa"), nameInput("a"));
 }
 export function evaluate32021() {
-    return byteaSubstr(byteaInput(""), int4Input("-5"));
+    return textNe(textInput("A"), nameInput("a"));
 }
 export function evaluate32022() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("-1"));
+    return textNe(textInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate32023() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("0"));
+    return textNe(textInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate32024() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("1"));
+    return textNe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32025() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("2"));
+    return textNe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32026() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("2147483647"));
+    return textNe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32027() {
-    return byteaSubstr(byteaInput(""), int4Input("0"));
+    return textEq(nameInput(null), nameInput("a"));
 }
 export function evaluate32028() {
-    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("-1"));
+    return textEq(nameInput("a"), nameInput(null));
 }
 export function evaluate32029() {
-    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("0"));
+    return textEq(nameInput(""), nameInput(""));
 }
 export function evaluate32030() {
-    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("1"));
+    return textEq(nameInput("a"), nameInput("a"));
 }
 export function evaluate32031() {
-    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("2"));
+    return textEq(nameInput("a"), nameInput("b"));
 }
 export function evaluate32032() {
-    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("2147483647"));
+    return textEq(nameInput("b"), nameInput("a"));
 }
 export function evaluate32033() {
-    return byteaSubstr(byteaInput(""), int4Input("1"));
+    return textEq(nameInput("a"), nameInput("aa"));
 }
 export function evaluate32034() {
-    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("-1"));
+    return textEq(nameInput("aa"), nameInput("a"));
 }
 export function evaluate32035() {
-    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("0"));
+    return textEq(nameInput("A"), nameInput("a"));
 }
 export function evaluate32036() {
-    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("1"));
+    return textEq(nameInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate32037() {
-    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("2"));
+    return textEq(nameInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate32038() {
-    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("2147483647"));
+    return textEq(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32039() {
-    return byteaSubstr(byteaInput(""), int4Input("2"));
+    return textEq(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32040() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("-1"));
+    return textEq(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32041() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("0"));
+    return textEq(nameInput(null), textInput("a"));
 }
 export function evaluate32042() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("1"));
+    return textEq(nameInput("a"), textInput(null));
 }
 export function evaluate32043() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("2"));
+    return textEq(nameInput(""), textInput(""));
 }
 export function evaluate32044() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("2147483647"));
+    return textEq(nameInput("a"), textInput("a"));
 }
 export function evaluate32045() {
-    return byteaSubstr(byteaInput(""), int4Input("5"));
+    return textEq(nameInput("a"), textInput("b"));
 }
 export function evaluate32046() {
-    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("-1"));
+    return textEq(nameInput("b"), textInput("a"));
 }
 export function evaluate32047() {
-    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("0"));
+    return textEq(nameInput("a"), textInput("aa"));
 }
 export function evaluate32048() {
-    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("1"));
+    return textEq(nameInput("aa"), textInput("a"));
 }
 export function evaluate32049() {
-    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("2"));
+    return textEq(nameInput("A"), textInput("a"));
 }
 export function evaluate32050() {
-    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("2147483647"));
+    return textEq(nameInput("\u00E9"), textInput("\u4E2D"));
 }
 export function evaluate32051() {
-    return byteaSubstr(byteaInput(""), int4Input("2147483647"));
+    return textEq(nameInput("\uD800\uDC00"), textInput("\uE000"));
 }
 export function evaluate32052() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("-1"));
+    return textEq(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32053() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("0"));
+    return textEq(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32054() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("1"));
+    return textEq(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32055() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("2"));
+    return textEq(textInput(null), nameInput("a"));
 }
 export function evaluate32056() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("2147483647"));
+    return textEq(textInput("a"), nameInput(null));
 }
 export function evaluate32057() {
-    return byteaSubstr(byteaInput("010203ff"), int4Input(null));
+    return textEq(textInput(""), nameInput(""));
 }
 export function evaluate32058() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("-1"));
+    return textEq(textInput("a"), nameInput("a"));
 }
 export function evaluate32059() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("0"));
+    return textEq(textInput("a"), nameInput("b"));
 }
 export function evaluate32060() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("1"));
+    return textEq(textInput("b"), nameInput("a"));
 }
 export function evaluate32061() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("2"));
+    return textEq(textInput("a"), nameInput("aa"));
 }
 export function evaluate32062() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("2147483647"));
+    return textEq(textInput("aa"), nameInput("a"));
 }
 export function evaluate32063() {
-    return byteaSubstr(byteaInput("010203ff"), int4Input("-2147483648"));
+    return textEq(textInput("A"), nameInput("a"));
 }
 export function evaluate32064() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("-1"));
+    return textEq(textInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate32065() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("0"));
+    return textEq(textInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate32066() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("1"));
+    return textEq(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32067() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("2"));
+    return textEq(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32068() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("2147483647"));
+    return textEq(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32069() {
-    return byteaSubstr(byteaInput("010203ff"), int4Input("-5"));
+    return textGt(nameInput(null), nameInput("a"));
 }
 export function evaluate32070() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("-1"));
+    return textGt(nameInput("a"), nameInput(null));
 }
 export function evaluate32071() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("0"));
+    return textGt(nameInput(""), nameInput(""));
 }
 export function evaluate32072() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("1"));
+    return textGt(nameInput("a"), nameInput("a"));
 }
 export function evaluate32073() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("2"));
+    return textGt(nameInput("a"), nameInput("b"));
 }
 export function evaluate32074() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("2147483647"));
+    return textGt(nameInput("b"), nameInput("a"));
 }
 export function evaluate32075() {
-    return byteaSubstr(byteaInput("010203ff"), int4Input("0"));
+    return textGt(nameInput("a"), nameInput("aa"));
 }
 export function evaluate32076() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("-1"));
+    return textGt(nameInput("aa"), nameInput("a"));
 }
 export function evaluate32077() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("0"));
+    return textGt(nameInput("A"), nameInput("a"));
 }
 export function evaluate32078() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("1"));
+    return textGt(nameInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate32079() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("2"));
+    return textGt(nameInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate32080() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("2147483647"));
+    return textGt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32081() {
-    return byteaSubstr(byteaInput("010203ff"), int4Input("1"));
+    return textGt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32082() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("-1"));
+    return textGt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32083() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("0"));
+    return textGt(nameInput(null), textInput("a"));
 }
 export function evaluate32084() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("1"));
+    return textGt(nameInput("a"), textInput(null));
 }
 export function evaluate32085() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("2"));
+    return textGt(nameInput(""), textInput(""));
 }
 export function evaluate32086() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("2147483647"));
+    return textGt(nameInput("a"), textInput("a"));
 }
 export function evaluate32087() {
-    return byteaSubstr(byteaInput("010203ff"), int4Input("2"));
+    return textGt(nameInput("a"), textInput("b"));
 }
 export function evaluate32088() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("-1"));
+    return textGt(nameInput("b"), textInput("a"));
 }
 export function evaluate32089() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("0"));
+    return textGt(nameInput("a"), textInput("aa"));
 }
 export function evaluate32090() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("1"));
+    return textGt(nameInput("aa"), textInput("a"));
 }
 export function evaluate32091() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("2"));
+    return textGt(nameInput("A"), textInput("a"));
 }
 export function evaluate32092() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("2147483647"));
+    return textGt(nameInput("\u00E9"), textInput("\u4E2D"));
 }
 export function evaluate32093() {
-    return byteaSubstr(byteaInput("010203ff"), int4Input("5"));
+    return textGt(nameInput("\uD800\uDC00"), textInput("\uE000"));
 }
 export function evaluate32094() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("-1"));
+    return textGt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32095() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("0"));
+    return textGt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32096() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("1"));
+    return textGt(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32097() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("2"));
+    return textGt(textInput(null), nameInput("a"));
 }
 export function evaluate32098() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("2147483647"));
+    return textGt(textInput("a"), nameInput(null));
 }
 export function evaluate32099() {
-    return byteaSubstr(byteaInput("010203ff"), int4Input("2147483647"));
+    return textGt(textInput(""), nameInput(""));
 }
 export function evaluate32100() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("-1"));
+    return textGt(textInput("a"), nameInput("a"));
 }
 export function evaluate32101() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("0"));
+    return textGt(textInput("a"), nameInput("b"));
 }
 export function evaluate32102() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("1"));
+    return textGt(textInput("b"), nameInput("a"));
 }
 export function evaluate32103() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("2"));
+    return textGt(textInput("a"), nameInput("aa"));
 }
 export function evaluate32104() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("2147483647"));
+    return textGt(textInput("aa"), nameInput("a"));
 }
 export function evaluate32105() {
-    return byteaSubstr(byteaInput(null), int4Input(null));
+    return textGt(textInput("A"), nameInput("a"));
 }
 export function evaluate32106() {
-    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("-1"));
+    return textGt(textInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate32107() {
-    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("0"));
+    return textGt(textInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate32108() {
-    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("1"));
+    return textGt(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32109() {
-    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("2"));
+    return textGt(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32110() {
-    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("2147483647"));
+    return textGt(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32111() {
-    return byteaSubstr(byteaInput(null), int4Input("-2147483648"));
+    return textGe(nameInput(null), nameInput("a"));
 }
 export function evaluate32112() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("-1"));
+    return textGe(nameInput("a"), nameInput(null));
 }
 export function evaluate32113() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("0"));
+    return textGe(nameInput(""), nameInput(""));
 }
 export function evaluate32114() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("1"));
+    return textGe(nameInput("a"), nameInput("a"));
 }
 export function evaluate32115() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("2"));
+    return textGe(nameInput("a"), nameInput("b"));
 }
 export function evaluate32116() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("2147483647"));
+    return textGe(nameInput("b"), nameInput("a"));
 }
 export function evaluate32117() {
-    return byteaSubstr(byteaInput(null), int4Input("-5"));
+    return textGe(nameInput("a"), nameInput("aa"));
 }
 export function evaluate32118() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("-1"));
+    return textGe(nameInput("aa"), nameInput("a"));
 }
 export function evaluate32119() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("0"));
+    return textGe(nameInput("A"), nameInput("a"));
 }
 export function evaluate32120() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("1"));
+    return textGe(nameInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate32121() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("2"));
+    return textGe(nameInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate32122() {
-    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("2147483647"));
+    return textGe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32123() {
-    return byteaSubstr(byteaInput(null), int4Input("0"));
+    return textGe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32124() {
-    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("-1"));
+    return textGe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32125() {
-    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("0"));
+    return textGe(nameInput(null), textInput("a"));
 }
 export function evaluate32126() {
-    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("1"));
+    return textGe(nameInput("a"), textInput(null));
 }
 export function evaluate32127() {
-    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("2"));
+    return textGe(nameInput(""), textInput(""));
 }
 export function evaluate32128() {
-    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("2147483647"));
+    return textGe(nameInput("a"), textInput("a"));
 }
 export function evaluate32129() {
-    return byteaSubstr(byteaInput(null), int4Input("1"));
+    return textGe(nameInput("a"), textInput("b"));
 }
 export function evaluate32130() {
-    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("-1"));
+    return textGe(nameInput("b"), textInput("a"));
 }
 export function evaluate32131() {
-    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("0"));
+    return textGe(nameInput("a"), textInput("aa"));
 }
 export function evaluate32132() {
-    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("1"));
+    return textGe(nameInput("aa"), textInput("a"));
 }
 export function evaluate32133() {
-    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("2"));
+    return textGe(nameInput("A"), textInput("a"));
 }
 export function evaluate32134() {
-    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("2147483647"));
+    return textGe(nameInput("\u00E9"), textInput("\u4E2D"));
 }
 export function evaluate32135() {
-    return byteaSubstr(byteaInput(null), int4Input("2"));
+    return textGe(nameInput("\uD800\uDC00"), textInput("\uE000"));
 }
 export function evaluate32136() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("-1"));
+    return textGe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32137() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("0"));
+    return textGe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32138() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("1"));
+    return textGe(nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32139() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("2"));
+    return textGe(textInput(null), nameInput("a"));
 }
 export function evaluate32140() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("2147483647"));
+    return textGe(textInput("a"), nameInput(null));
 }
 export function evaluate32141() {
-    return byteaSubstr(byteaInput(null), int4Input("5"));
+    return textGe(textInput(""), nameInput(""));
 }
 export function evaluate32142() {
-    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("-1"));
+    return textGe(textInput("a"), nameInput("a"));
 }
 export function evaluate32143() {
-    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("0"));
+    return textGe(textInput("a"), nameInput("b"));
 }
 export function evaluate32144() {
-    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("1"));
+    return textGe(textInput("b"), nameInput("a"));
 }
 export function evaluate32145() {
-    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("2"));
+    return textGe(textInput("a"), nameInput("aa"));
 }
 export function evaluate32146() {
-    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("2147483647"));
+    return textGe(textInput("aa"), nameInput("a"));
 }
 export function evaluate32147() {
-    return byteaSubstr(byteaInput(null), int4Input("2147483647"));
+    return textGe(textInput("A"), nameInput("a"));
 }
 export function evaluate32148() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("-1"));
+    return textGe(textInput("\u00E9"), nameInput("\u4E2D"));
 }
 export function evaluate32149() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("0"));
+    return textGe(textInput("\uD800\uDC00"), nameInput("\uE000"));
 }
 export function evaluate32150() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("1"));
+    return textGe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32151() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("2"));
+    return textGe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaab"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32152() {
-    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("2147483647"));
+    return textGe(textInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\u00E9"), nameInput("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
 }
 export function evaluate32153() {
-    return byteaSubstr(byteaInput(""), int4Input(null));
+    return integerEq(charInput(null), charInput("A"));
 }
 export function evaluate32154() {
-    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("-1"));
+    return integerEq(charInput("A"), charInput(null));
 }
 export function evaluate32155() {
-    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("0"));
+    return integerEq(charInput(""), charInput(""));
 }
 export function evaluate32156() {
-    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("1"));
+    return integerEq(charInput(""), charInput("\\000"));
 }
 export function evaluate32157() {
-    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("2"));
+    return integerEq(charInput("A"), charInput("A"));
 }
 export function evaluate32158() {
-    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("2147483647"));
+    return integerEq(charInput("A"), charInput("B"));
 }
 export function evaluate32159() {
-    return byteaSubstr(byteaInput(""), int4Input("-2147483648"));
+    return integerEq(charInput("B"), charInput("A"));
 }
 export function evaluate32160() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("-1"));
+    return integerEq(charInput(""), charInput("\\200"));
 }
 export function evaluate32161() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("0"));
+    return integerEq(charInput("\\200"), charInput(""));
 }
 export function evaluate32162() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("1"));
+    return integerEq(charInput("\\377"), charInput("\\200"));
 }
 export function evaluate32163() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("2"));
+    return integerEq(charInput("\\777"), charInput("\\377"));
 }
 export function evaluate32164() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("2147483647"));
+    return integerEq(charInput("\\400"), charInput(""));
 }
 export function evaluate32165() {
-    return byteaSubstr(byteaInput(""), int4Input("-5"));
+    return integerEq(charInput("\u00E9"), charInput("\\303"));
 }
 export function evaluate32166() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("-1"));
+    return integerEq(charInput("\uD83D\uDE00"), charInput("\\360"));
 }
 export function evaluate32167() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("0"));
+    return integerEq(charInput("AB"), charInput("A"));
 }
 export function evaluate32168() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("1"));
+    return integerEq(charInput("\\77"), charInput("\\"));
 }
 export function evaluate32169() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("2"));
+    return integerGe(charInput(null), charInput("A"));
 }
 export function evaluate32170() {
-    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("2147483647"));
+    return integerGe(charInput("A"), charInput(null));
 }
 export function evaluate32171() {
-    return byteaSubstr(byteaInput(""), int4Input("0"));
+    return integerGe(charInput(""), charInput(""));
 }
 export function evaluate32172() {
-    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("-1"));
+    return integerGe(charInput(""), charInput("\\000"));
 }
 export function evaluate32173() {
-    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("0"));
+    return integerGe(charInput("A"), charInput("A"));
 }
 export function evaluate32174() {
-    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("1"));
+    return integerGe(charInput("A"), charInput("B"));
 }
 export function evaluate32175() {
-    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("2"));
+    return integerGe(charInput("B"), charInput("A"));
 }
 export function evaluate32176() {
-    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("2147483647"));
+    return integerGe(charInput(""), charInput("\\200"));
 }
 export function evaluate32177() {
-    return byteaSubstr(byteaInput(""), int4Input("1"));
+    return integerGe(charInput("\\200"), charInput(""));
 }
 export function evaluate32178() {
-    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("-1"));
+    return integerGe(charInput("\\377"), charInput("\\200"));
 }
 export function evaluate32179() {
-    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("0"));
+    return integerGe(charInput("\\777"), charInput("\\377"));
 }
 export function evaluate32180() {
-    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("1"));
+    return integerGe(charInput("\\400"), charInput(""));
 }
 export function evaluate32181() {
-    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("2"));
+    return integerGe(charInput("\u00E9"), charInput("\\303"));
 }
 export function evaluate32182() {
-    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("2147483647"));
+    return integerGe(charInput("\uD83D\uDE00"), charInput("\\360"));
 }
 export function evaluate32183() {
-    return byteaSubstr(byteaInput(""), int4Input("2"));
+    return integerGe(charInput("AB"), charInput("A"));
 }
 export function evaluate32184() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("-1"));
+    return integerGe(charInput("\\77"), charInput("\\"));
 }
 export function evaluate32185() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("0"));
+    return integerGt(charInput(null), charInput("A"));
 }
 export function evaluate32186() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("1"));
+    return integerGt(charInput("A"), charInput(null));
 }
 export function evaluate32187() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("2"));
+    return integerGt(charInput(""), charInput(""));
 }
 export function evaluate32188() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("2147483647"));
+    return integerGt(charInput(""), charInput("\\000"));
 }
 export function evaluate32189() {
-    return byteaSubstr(byteaInput(""), int4Input("5"));
+    return integerGt(charInput("A"), charInput("A"));
 }
 export function evaluate32190() {
-    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("-1"));
+    return integerGt(charInput("A"), charInput("B"));
 }
 export function evaluate32191() {
-    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("0"));
+    return integerGt(charInput("B"), charInput("A"));
 }
 export function evaluate32192() {
-    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("1"));
+    return integerGt(charInput(""), charInput("\\200"));
 }
 export function evaluate32193() {
-    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("2"));
+    return integerGt(charInput("\\200"), charInput(""));
 }
 export function evaluate32194() {
-    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("2147483647"));
+    return integerGt(charInput("\\377"), charInput("\\200"));
 }
 export function evaluate32195() {
-    return byteaSubstr(byteaInput(""), int4Input("2147483647"));
+    return integerGt(charInput("\\777"), charInput("\\377"));
 }
 export function evaluate32196() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("-1"));
+    return integerGt(charInput("\\400"), charInput(""));
 }
 export function evaluate32197() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("0"));
+    return integerGt(charInput("\u00E9"), charInput("\\303"));
 }
 export function evaluate32198() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("1"));
+    return integerGt(charInput("\uD83D\uDE00"), charInput("\\360"));
 }
 export function evaluate32199() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("2"));
+    return integerGt(charInput("AB"), charInput("A"));
 }
 export function evaluate32200() {
-    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("2147483647"));
+    return integerGt(charInput("\\77"), charInput("\\"));
 }
 export function evaluate32201() {
-    return byteaSubstr(byteaInput("010203ff"), int4Input(null));
+    return integerLe(charInput(null), charInput("A"));
 }
 export function evaluate32202() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("-1"));
+    return integerLe(charInput("A"), charInput(null));
 }
 export function evaluate32203() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("0"));
+    return integerLe(charInput(""), charInput(""));
 }
 export function evaluate32204() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("1"));
+    return integerLe(charInput(""), charInput("\\000"));
 }
 export function evaluate32205() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("2"));
+    return integerLe(charInput("A"), charInput("A"));
 }
 export function evaluate32206() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("2147483647"));
+    return integerLe(charInput("A"), charInput("B"));
 }
 export function evaluate32207() {
-    return byteaSubstr(byteaInput("010203ff"), int4Input("-2147483648"));
+    return integerLe(charInput("B"), charInput("A"));
 }
 export function evaluate32208() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("-1"));
+    return integerLe(charInput(""), charInput("\\200"));
 }
 export function evaluate32209() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("0"));
+    return integerLe(charInput("\\200"), charInput(""));
 }
 export function evaluate32210() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("1"));
+    return integerLe(charInput("\\377"), charInput("\\200"));
 }
 export function evaluate32211() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("2"));
+    return integerLe(charInput("\\777"), charInput("\\377"));
 }
 export function evaluate32212() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("2147483647"));
+    return integerLe(charInput("\\400"), charInput(""));
 }
 export function evaluate32213() {
-    return byteaSubstr(byteaInput("010203ff"), int4Input("-5"));
+    return integerLe(charInput("\u00E9"), charInput("\\303"));
 }
 export function evaluate32214() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("-1"));
+    return integerLe(charInput("\uD83D\uDE00"), charInput("\\360"));
 }
 export function evaluate32215() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("0"));
+    return integerLe(charInput("AB"), charInput("A"));
 }
 export function evaluate32216() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("1"));
+    return integerLe(charInput("\\77"), charInput("\\"));
 }
 export function evaluate32217() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("2"));
+    return integerLt(charInput(null), charInput("A"));
 }
 export function evaluate32218() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("2147483647"));
+    return integerLt(charInput("A"), charInput(null));
 }
 export function evaluate32219() {
-    return byteaSubstr(byteaInput("010203ff"), int4Input("0"));
+    return integerLt(charInput(""), charInput(""));
 }
 export function evaluate32220() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("-1"));
+    return integerLt(charInput(""), charInput("\\000"));
 }
 export function evaluate32221() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("0"));
+    return integerLt(charInput("A"), charInput("A"));
 }
 export function evaluate32222() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("1"));
+    return integerLt(charInput("A"), charInput("B"));
 }
 export function evaluate32223() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("2"));
+    return integerLt(charInput("B"), charInput("A"));
 }
 export function evaluate32224() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("2147483647"));
+    return integerLt(charInput(""), charInput("\\200"));
 }
 export function evaluate32225() {
-    return byteaSubstr(byteaInput("010203ff"), int4Input("1"));
+    return integerLt(charInput("\\200"), charInput(""));
 }
 export function evaluate32226() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("-1"));
+    return integerLt(charInput("\\377"), charInput("\\200"));
 }
 export function evaluate32227() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("0"));
+    return integerLt(charInput("\\777"), charInput("\\377"));
 }
 export function evaluate32228() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("1"));
+    return integerLt(charInput("\\400"), charInput(""));
 }
 export function evaluate32229() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("2"));
+    return integerLt(charInput("\u00E9"), charInput("\\303"));
 }
 export function evaluate32230() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("2147483647"));
+    return integerLt(charInput("\uD83D\uDE00"), charInput("\\360"));
 }
 export function evaluate32231() {
-    return byteaSubstr(byteaInput("010203ff"), int4Input("2"));
+    return integerLt(charInput("AB"), charInput("A"));
 }
 export function evaluate32232() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("-1"));
+    return integerLt(charInput("\\77"), charInput("\\"));
 }
 export function evaluate32233() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("0"));
+    return integerNe(charInput(null), charInput("A"));
 }
 export function evaluate32234() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("1"));
+    return integerNe(charInput("A"), charInput(null));
 }
 export function evaluate32235() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("2"));
+    return integerNe(charInput(""), charInput(""));
 }
 export function evaluate32236() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("2147483647"));
+    return integerNe(charInput(""), charInput("\\000"));
 }
 export function evaluate32237() {
-    return byteaSubstr(byteaInput("010203ff"), int4Input("5"));
+    return integerNe(charInput("A"), charInput("A"));
 }
 export function evaluate32238() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("-1"));
+    return integerNe(charInput("A"), charInput("B"));
 }
 export function evaluate32239() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("0"));
+    return integerNe(charInput("B"), charInput("A"));
 }
 export function evaluate32240() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("1"));
+    return integerNe(charInput(""), charInput("\\200"));
 }
 export function evaluate32241() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("2"));
+    return integerNe(charInput("\\200"), charInput(""));
 }
 export function evaluate32242() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("2147483647"));
+    return integerNe(charInput("\\377"), charInput("\\200"));
 }
 export function evaluate32243() {
-    return byteaSubstr(byteaInput("010203ff"), int4Input("2147483647"));
+    return integerNe(charInput("\\777"), charInput("\\377"));
 }
 export function evaluate32244() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("-1"));
+    return integerNe(charInput("\\400"), charInput(""));
 }
 export function evaluate32245() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("0"));
+    return integerNe(charInput("\u00E9"), charInput("\\303"));
 }
 export function evaluate32246() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("1"));
+    return integerNe(charInput("\uD83D\uDE00"), charInput("\\360"));
 }
 export function evaluate32247() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("2"));
+    return integerNe(charInput("AB"), charInput("A"));
 }
 export function evaluate32248() {
-    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("2147483647"));
+    return integerNe(charInput("\\77"), charInput("\\"));
 }
 export function evaluate32249() {
-    return byteaPosition(byteaInput("010203"), byteaInput("02"));
+    return integerLt(charInput(null), charInput("A"));
 }
 export function evaluate32250() {
-    return byteaPosition(byteaInput("010203"), byteaInput("03"));
+    return integerLt(charInput("A"), charInput(null));
 }
 export function evaluate32251() {
-    return byteaPosition(byteaInput("010203"), byteaInput("04"));
+    return integerLt(charInput(""), charInput(""));
 }
 export function evaluate32252() {
-    return byteaPosition(byteaInput("010203"), byteaInput(""));
+    return integerLt(charInput(""), charInput("\\000"));
 }
 export function evaluate32253() {
-    return byteaPosition(byteaInput(""), byteaInput(""));
+    return integerLt(charInput("A"), charInput("A"));
 }
 export function evaluate32254() {
-    return byteaPosition(byteaInput(""), byteaInput("01"));
+    return integerLt(charInput("A"), charInput("B"));
 }
 export function evaluate32255() {
-    return byteaPosition(byteaInput("ff00"), byteaInput("ff"));
+    return integerLt(charInput("B"), charInput("A"));
 }
 export function evaluate32256() {
-    return byteaPosition(byteaInput("00ff"), byteaInput("ff"));
+    return integerLt(charInput(""), charInput("\\200"));
 }
 export function evaluate32257() {
-    return byteaPosition(byteaInput("010201"), byteaInput("01"));
+    return integerLt(charInput("\\200"), charInput(""));
 }
 export function evaluate32258() {
-    return byteaPosition(byteaInput("0102"), byteaInput("010203"));
+    return integerLt(charInput("\\377"), charInput("\\200"));
 }
 export function evaluate32259() {
-    return byteaPosition(byteaInput(null), byteaInput("01"));
+    return integerLt(charInput("\\777"), charInput("\\377"));
 }
 export function evaluate32260() {
-    return byteaPosition(byteaInput("01"), byteaInput(null));
+    return integerLt(charInput("\\400"), charInput(""));
 }
 export function evaluate32261() {
-    return byteaOverlay(byteaInput("01020304"), byteaInput("ff"), int4Input("1"));
+    return integerLt(charInput("\u00E9"), charInput("\\303"));
 }
 export function evaluate32262() {
-    return byteaOverlay(byteaInput("01020304"), byteaInput("ff"), int4Input("2"));
+    return integerLt(charInput("\uD83D\uDE00"), charInput("\\360"));
 }
 export function evaluate32263() {
-    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input("2"), int4Input("1"));
+    return integerLt(charInput("AB"), charInput("A"));
 }
 export function evaluate32264() {
-    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input("2"), int4Input("2"));
+    return integerLt(charInput("\\77"), charInput("\\"));
 }
 export function evaluate32265() {
-    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input("2"), int4Input("0"));
+    return integerLe(charInput(null), charInput("A"));
 }
 export function evaluate32266() {
-    return byteaOverlayLength(byteaInput("01020304"), byteaInput(""), int4Input("2"), int4Input("2"));
+    return integerLe(charInput("A"), charInput(null));
 }
 export function evaluate32267() {
-    return byteaOverlay(byteaInput("01020304"), byteaInput("ffff"), int4Input("5"));
+    return integerLe(charInput(""), charInput(""));
 }
 export function evaluate32268() {
-    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input("0"), int4Input("1"));
+    return integerLe(charInput(""), charInput("\\000"));
 }
 export function evaluate32269() {
-    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input("-1"), int4Input("1"));
+    return integerLe(charInput("A"), charInput("A"));
 }
 export function evaluate32270() {
-    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input("2"), int4Input("-1"));
+    return integerLe(charInput("A"), charInput("B"));
 }
 export function evaluate32271() {
-    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input("2147483647"), int4Input("1"));
+    return integerLe(charInput("B"), charInput("A"));
 }
 export function evaluate32272() {
-    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input("2"), int4Input("2147483647"));
+    return integerLe(charInput(""), charInput("\\200"));
 }
 export function evaluate32273() {
-    return byteaOverlayLength(byteaInput(null), byteaInput("ff"), int4Input("1"), int4Input("1"));
+    return integerLe(charInput("\\200"), charInput(""));
 }
 export function evaluate32274() {
-    return byteaOverlayLength(byteaInput("01020304"), byteaInput(null), int4Input("1"), int4Input("1"));
+    return integerLe(charInput("\\377"), charInput("\\200"));
 }
 export function evaluate32275() {
-    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input(null), int4Input("1"));
+    return integerLe(charInput("\\777"), charInput("\\377"));
 }
 export function evaluate32276() {
-    return byteaOverlay(byteaInput(""), byteaInput("ff"), int4Input("1"));
+    return integerLe(charInput("\\400"), charInput(""));
 }
 export function evaluate32277() {
-    return byteaTrimBoth(byteaInput("0001020000"), byteaInput("00"));
+    return integerLe(charInput("\u00E9"), charInput("\\303"));
 }
 export function evaluate32278() {
-    return byteaTrimBoth(byteaInput("010203"), byteaInput("01"));
+    return integerLe(charInput("\uD83D\uDE00"), charInput("\\360"));
 }
 export function evaluate32279() {
-    return byteaTrimBoth(byteaInput("010203"), byteaInput(""));
+    return integerLe(charInput("AB"), charInput("A"));
 }
 export function evaluate32280() {
-    return byteaTrimBoth(byteaInput(""), byteaInput("01"));
+    return integerLe(charInput("\\77"), charInput("\\"));
 }
 export function evaluate32281() {
-    return byteaTrimBoth(byteaInput("ffff"), byteaInput("ff"));
+    return integerNe(charInput(null), charInput("A"));
 }
 export function evaluate32282() {
-    return byteaTrimBoth(byteaInput("00ff00"), byteaInput("0001"));
+    return integerNe(charInput("A"), charInput(null));
 }
 export function evaluate32283() {
-    return byteaTrimBoth(byteaInput("010201"), byteaInput("02"));
+    return integerNe(charInput(""), charInput(""));
 }
 export function evaluate32284() {
-    return byteaTrimBoth(byteaInput(null), byteaInput("00"));
+    return integerNe(charInput(""), charInput("\\000"));
 }
 export function evaluate32285() {
-    return byteaTrimBoth(byteaInput("00"), byteaInput(null));
+    return integerNe(charInput("A"), charInput("A"));
 }
 export function evaluate32286() {
-    return byteaTrimLeft(byteaInput("0001020000"), byteaInput("00"));
+    return integerNe(charInput("A"), charInput("B"));
 }
 export function evaluate32287() {
-    return byteaTrimLeft(byteaInput("010203"), byteaInput("01"));
+    return integerNe(charInput("B"), charInput("A"));
 }
 export function evaluate32288() {
-    return byteaTrimLeft(byteaInput("010203"), byteaInput(""));
+    return integerNe(charInput(""), charInput("\\200"));
 }
 export function evaluate32289() {
-    return byteaTrimLeft(byteaInput(""), byteaInput("01"));
+    return integerNe(charInput("\\200"), charInput(""));
 }
 export function evaluate32290() {
-    return byteaTrimLeft(byteaInput("ffff"), byteaInput("ff"));
+    return integerNe(charInput("\\377"), charInput("\\200"));
 }
 export function evaluate32291() {
-    return byteaTrimLeft(byteaInput("00ff00"), byteaInput("0001"));
+    return integerNe(charInput("\\777"), charInput("\\377"));
 }
 export function evaluate32292() {
-    return byteaTrimLeft(byteaInput("010201"), byteaInput("02"));
+    return integerNe(charInput("\\400"), charInput(""));
 }
 export function evaluate32293() {
-    return byteaTrimLeft(byteaInput(null), byteaInput("00"));
+    return integerNe(charInput("\u00E9"), charInput("\\303"));
 }
 export function evaluate32294() {
-    return byteaTrimLeft(byteaInput("00"), byteaInput(null));
+    return integerNe(charInput("\uD83D\uDE00"), charInput("\\360"));
 }
 export function evaluate32295() {
-    return byteaTrimRight(byteaInput("0001020000"), byteaInput("00"));
+    return integerNe(charInput("AB"), charInput("A"));
 }
 export function evaluate32296() {
-    return byteaTrimRight(byteaInput("010203"), byteaInput("01"));
+    return integerNe(charInput("\\77"), charInput("\\"));
 }
 export function evaluate32297() {
-    return byteaTrimRight(byteaInput("010203"), byteaInput(""));
+    return integerEq(charInput(null), charInput("A"));
 }
 export function evaluate32298() {
-    return byteaTrimRight(byteaInput(""), byteaInput("01"));
+    return integerEq(charInput("A"), charInput(null));
 }
 export function evaluate32299() {
-    return byteaTrimRight(byteaInput("ffff"), byteaInput("ff"));
+    return integerEq(charInput(""), charInput(""));
 }
 export function evaluate32300() {
-    return byteaTrimRight(byteaInput("00ff00"), byteaInput("0001"));
+    return integerEq(charInput(""), charInput("\\000"));
 }
 export function evaluate32301() {
-    return byteaTrimRight(byteaInput("010201"), byteaInput("02"));
+    return integerEq(charInput("A"), charInput("A"));
 }
 export function evaluate32302() {
-    return byteaTrimRight(byteaInput(null), byteaInput("00"));
+    return integerEq(charInput("A"), charInput("B"));
 }
 export function evaluate32303() {
-    return byteaTrimRight(byteaInput("00"), byteaInput(null));
+    return integerEq(charInput("B"), charInput("A"));
 }
 export function evaluate32304() {
-    return byteaReverse(byteaInput(null));
+    return integerEq(charInput(""), charInput("\\200"));
 }
 export function evaluate32305() {
-    return byteaReverse(byteaInput(""));
+    return integerEq(charInput("\\200"), charInput(""));
 }
 export function evaluate32306() {
-    return byteaReverse(byteaInput("01"));
+    return integerEq(charInput("\\377"), charInput("\\200"));
 }
 export function evaluate32307() {
-    return byteaReverse(byteaInput("0102"));
+    return integerEq(charInput("\\777"), charInput("\\377"));
 }
 export function evaluate32308() {
-    return byteaReverse(byteaInput("ff00"));
+    return integerEq(charInput("\\400"), charInput(""));
 }
 export function evaluate32309() {
-    return byteaReverse(byteaInput("0001ff"));
+    return integerEq(charInput("\u00E9"), charInput("\\303"));
 }
 export function evaluate32310() {
-    return byteaGetByte(byteaInput("ff80"), int4Input("0"));
+    return integerEq(charInput("\uD83D\uDE00"), charInput("\\360"));
 }
 export function evaluate32311() {
-    return byteaGetByte(byteaInput("ff80"), int4Input("1"));
+    return integerEq(charInput("AB"), charInput("A"));
 }
 export function evaluate32312() {
-    return byteaGetByte(byteaInput("ff80"), int4Input("-1"));
+    return integerEq(charInput("\\77"), charInput("\\"));
 }
 export function evaluate32313() {
-    return byteaGetByte(byteaInput("ff80"), int4Input("2"));
+    return integerGt(charInput(null), charInput("A"));
 }
 export function evaluate32314() {
-    return byteaGetByte(byteaInput("ff80"), int4Input(null));
+    return integerGt(charInput("A"), charInput(null));
 }
 export function evaluate32315() {
-    return byteaGetByte(byteaInput(null), int4Input("0"));
+    return integerGt(charInput(""), charInput(""));
 }
 export function evaluate32316() {
-    return byteaGetByte(byteaInput(""), int4Input("0"));
+    return integerGt(charInput(""), charInput("\\000"));
 }
 export function evaluate32317() {
-    return byteaGetByte(byteaInput("00ff"), int4Input("1"));
+    return integerGt(charInput("A"), charInput("A"));
 }
 export function evaluate32318() {
-    return byteaGetBit(byteaInput("01"), int8Input("0"));
+    return integerGt(charInput("A"), charInput("B"));
 }
 export function evaluate32319() {
-    return byteaGetBit(byteaInput("01"), int8Input("1"));
+    return integerGt(charInput("B"), charInput("A"));
 }
 export function evaluate32320() {
-    return byteaGetBit(byteaInput("01"), int8Input("7"));
+    return integerGt(charInput(""), charInput("\\200"));
 }
 export function evaluate32321() {
-    return byteaGetBit(byteaInput("01"), int8Input("8"));
+    return integerGt(charInput("\\200"), charInput(""));
 }
 export function evaluate32322() {
-    return byteaGetBit(byteaInput("80"), int8Input("7"));
+    return integerGt(charInput("\\377"), charInput("\\200"));
 }
 export function evaluate32323() {
-    return byteaGetBit(byteaInput("80"), int8Input("0"));
+    return integerGt(charInput("\\777"), charInput("\\377"));
 }
 export function evaluate32324() {
-    return byteaGetBit(byteaInput("0001"), int8Input("8"));
+    return integerGt(charInput("\\400"), charInput(""));
 }
 export function evaluate32325() {
-    return byteaGetBit(byteaInput("0001"), int8Input("0"));
+    return integerGt(charInput("\u00E9"), charInput("\\303"));
 }
 export function evaluate32326() {
-    return byteaGetBit(byteaInput("01"), int8Input("-1"));
+    return integerGt(charInput("\uD83D\uDE00"), charInput("\\360"));
 }
 export function evaluate32327() {
-    return byteaGetBit(byteaInput(""), int8Input("0"));
+    return integerGt(charInput("AB"), charInput("A"));
 }
 export function evaluate32328() {
-    return byteaGetBit(byteaInput(null), int8Input("0"));
+    return integerGt(charInput("\\77"), charInput("\\"));
 }
 export function evaluate32329() {
-    return byteaGetBit(byteaInput("01"), int8Input(null));
+    return integerGe(charInput(null), charInput("A"));
 }
 export function evaluate32330() {
-    return byteaSetByte(byteaInput("0000"), int4Input("1"), int4Input("255"));
+    return integerGe(charInput("A"), charInput(null));
 }
 export function evaluate32331() {
-    return byteaSetByte(byteaInput("0000"), int4Input("0"), int4Input("256"));
+    return integerGe(charInput(""), charInput(""));
 }
 export function evaluate32332() {
-    return byteaSetByte(byteaInput("0000"), int4Input("0"), int4Input("-1"));
+    return integerGe(charInput(""), charInput("\\000"));
 }
 export function evaluate32333() {
-    return byteaSetByte(byteaInput("ffff"), int4Input("1"), int4Input("0"));
+    return integerGe(charInput("A"), charInput("A"));
 }
 export function evaluate32334() {
-    return byteaSetByte(byteaInput("00"), int4Input("-1"), int4Input("1"));
+    return integerGe(charInput("A"), charInput("B"));
 }
 export function evaluate32335() {
-    return byteaSetByte(byteaInput("00"), int4Input("1"), int4Input("1"));
+    return integerGe(charInput("B"), charInput("A"));
 }
 export function evaluate32336() {
-    return byteaSetByte(byteaInput(""), int4Input("0"), int4Input("1"));
+    return integerGe(charInput(""), charInput("\\200"));
 }
 export function evaluate32337() {
-    return byteaSetByte(byteaInput(null), int4Input("0"), int4Input("1"));
+    return integerGe(charInput("\\200"), charInput(""));
 }
 export function evaluate32338() {
-    return byteaSetByte(byteaInput("00"), int4Input(null), int4Input("1"));
+    return integerGe(charInput("\\377"), charInput("\\200"));
 }
 export function evaluate32339() {
-    return byteaSetByte(byteaInput("00"), int4Input("0"), int4Input(null));
+    return integerGe(charInput("\\777"), charInput("\\377"));
 }
 export function evaluate32340() {
-    return byteaSetByte(byteaInput("abcd"), int4Input("0"), int4Input("2147483647"));
+    return integerGe(charInput("\\400"), charInput(""));
 }
 export function evaluate32341() {
-    return byteaSetBit(byteaInput("00"), int8Input("0"), int4Input("1"));
+    return integerGe(charInput("\u00E9"), charInput("\\303"));
 }
 export function evaluate32342() {
-    return byteaSetBit(byteaInput("00"), int8Input("7"), int4Input("1"));
+    return integerGe(charInput("\uD83D\uDE00"), charInput("\\360"));
 }
 export function evaluate32343() {
-    return byteaSetBit(byteaInput("ff"), int8Input("0"), int4Input("0"));
+    return integerGe(charInput("AB"), charInput("A"));
 }
 export function evaluate32344() {
-    return byteaSetBit(byteaInput("00"), int8Input("8"), int4Input("1"));
+    return integerGe(charInput("\\77"), charInput("\\"));
 }
 export function evaluate32345() {
-    return byteaSetBit(byteaInput("0000"), int8Input("8"), int4Input("1"));
+    return byteaLike(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32346() {
-    return byteaSetBit(byteaInput("00"), int8Input("0"), int4Input("2"));
+    return byteaLike(byteaInput("414243"), byteaInput("4125"));
 }
 export function evaluate32347() {
-    return byteaSetBit(byteaInput("00"), int8Input("-1"), int4Input("2"));
+    return byteaLike(byteaInput("ff"), byteaInput("5f"));
 }
 export function evaluate32348() {
-    return byteaSetBit(byteaInput("00"), int8Input("0"), int4Input("-1"));
+    return byteaLike(byteaInput("ffff"), byteaInput("5f"));
 }
 export function evaluate32349() {
-    return byteaSetBit(byteaInput("ff"), int8Input("7"), int4Input("0"));
+    return byteaLike(byteaInput("c3a9"), byteaInput("5f"));
 }
 export function evaluate32350() {
-    return byteaSetBit(byteaInput(null), int8Input("0"), int4Input("1"));
+    return byteaLike(byteaInput("c3a9"), byteaInput("5f5f"));
 }
 export function evaluate32351() {
-    return byteaSetBit(byteaInput("00"), int8Input(null), int4Input("1"));
+    return byteaLike(byteaInput("61"), byteaInput("41"));
 }
 export function evaluate32352() {
-    return byteaSetBit(byteaInput("00"), int8Input("0"), int4Input(null));
+    return byteaLike(byteaInput(""), byteaInput(""));
 }
 export function evaluate32353() {
-    return byteaSetBit(byteaInput(""), int8Input("0"), int4Input("1"));
+    return byteaLike(byteaInput(""), byteaInput("25"));
 }
 export function evaluate32354() {
-    return byteaFromInt2(int2Input(null));
+    return byteaLike(byteaInput("41"), byteaInput(""));
 }
 export function evaluate32355() {
-    return byteaFromInt2(int2Input("0"));
+    return byteaLike(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32356() {
-    return byteaFromInt2(int2Input("1"));
+    return byteaLike(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32357() {
-    return byteaFromInt2(int2Input("-1"));
+    return byteaLike(byteaInput("5c"), byteaInput("5c5c"));
 }
 export function evaluate32358() {
-    return byteaFromInt2(int2Input("127"));
+    return byteaLike(byteaInput("41"), byteaInput("5c"));
 }
 export function evaluate32359() {
-    return byteaFromInt2(int2Input("128"));
+    return byteaNotLike(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32360() {
-    return byteaFromInt2(int2Input("255"));
+    return byteaNotLike(byteaInput("414243"), byteaInput("4125"));
 }
 export function evaluate32361() {
-    return byteaFromInt2(int2Input("256"));
+    return byteaNotLike(byteaInput("ff"), byteaInput("5f"));
 }
 export function evaluate32362() {
-    return byteaFromInt2(int2Input("32767"));
+    return byteaNotLike(byteaInput("ffff"), byteaInput("5f"));
 }
 export function evaluate32363() {
-    return byteaFromInt2(int2Input("-32768"));
+    return byteaNotLike(byteaInput("c3a9"), byteaInput("5f"));
 }
 export function evaluate32364() {
-    return byteaFromInt4(int4Input(null));
+    return byteaNotLike(byteaInput("c3a9"), byteaInput("5f5f"));
 }
 export function evaluate32365() {
-    return byteaFromInt4(int4Input("0"));
+    return byteaNotLike(byteaInput("61"), byteaInput("41"));
 }
 export function evaluate32366() {
-    return byteaFromInt4(int4Input("1"));
+    return byteaNotLike(byteaInput(""), byteaInput(""));
 }
 export function evaluate32367() {
-    return byteaFromInt4(int4Input("-1"));
+    return byteaNotLike(byteaInput(""), byteaInput("25"));
 }
 export function evaluate32368() {
-    return byteaFromInt4(int4Input("65535"));
+    return byteaNotLike(byteaInput("41"), byteaInput(""));
 }
 export function evaluate32369() {
-    return byteaFromInt4(int4Input("2147483647"));
+    return byteaNotLike(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32370() {
-    return byteaFromInt4(int4Input("-2147483648"));
+    return byteaNotLike(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32371() {
-    return byteaFromInt8(int8Input(null));
+    return byteaNotLike(byteaInput("5c"), byteaInput("5c5c"));
 }
 export function evaluate32372() {
-    return byteaFromInt8(int8Input("0"));
+    return byteaNotLike(byteaInput("41"), byteaInput("5c"));
 }
 export function evaluate32373() {
-    return byteaFromInt8(int8Input("1"));
+    return byteaLike(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32374() {
-    return byteaFromInt8(int8Input("-1"));
+    return byteaLike(byteaInput("414243"), byteaInput("4125"));
 }
 export function evaluate32375() {
-    return byteaFromInt8(int8Input("2147483648"));
+    return byteaLike(byteaInput("ff"), byteaInput("5f"));
 }
 export function evaluate32376() {
-    return byteaFromInt8(int8Input("9223372036854775807"));
+    return byteaLike(byteaInput("ffff"), byteaInput("5f"));
 }
 export function evaluate32377() {
-    return byteaFromInt8(int8Input("-9223372036854775808"));
+    return byteaLike(byteaInput("c3a9"), byteaInput("5f"));
 }
 export function evaluate32378() {
-    return byteaToInt2(byteaInput(null));
+    return byteaLike(byteaInput("c3a9"), byteaInput("5f5f"));
 }
 export function evaluate32379() {
-    return byteaToInt2(byteaInput(""));
+    return byteaLike(byteaInput("61"), byteaInput("41"));
 }
 export function evaluate32380() {
-    return byteaToInt2(byteaInput("00"));
+    return byteaLike(byteaInput(""), byteaInput(""));
 }
 export function evaluate32381() {
-    return byteaToInt2(byteaInput("01"));
+    return byteaLike(byteaInput(""), byteaInput("25"));
 }
 export function evaluate32382() {
-    return byteaToInt2(byteaInput("7f"));
+    return byteaLike(byteaInput("41"), byteaInput(""));
 }
 export function evaluate32383() {
-    return byteaToInt2(byteaInput("80"));
+    return byteaLike(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32384() {
-    return byteaToInt2(byteaInput("ff"));
+    return byteaLike(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32385() {
-    return byteaToInt2(byteaInput("007f"));
+    return byteaLike(byteaInput("5c"), byteaInput("5c5c"));
 }
 export function evaluate32386() {
-    return byteaToInt2(byteaInput("0080"));
+    return byteaLike(byteaInput("41"), byteaInput("5c"));
 }
 export function evaluate32387() {
-    return byteaToInt2(byteaInput("00ff"));
+    return byteaNotLike(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32388() {
-    return byteaToInt2(byteaInput("7fff"));
+    return byteaNotLike(byteaInput("414243"), byteaInput("4125"));
 }
 export function evaluate32389() {
-    return byteaToInt2(byteaInput("8000"));
+    return byteaNotLike(byteaInput("ff"), byteaInput("5f"));
 }
 export function evaluate32390() {
-    return byteaToInt2(byteaInput("ffff"));
+    return byteaNotLike(byteaInput("ffff"), byteaInput("5f"));
 }
 export function evaluate32391() {
-    return byteaToInt2(byteaInput("010000"));
+    return byteaNotLike(byteaInput("c3a9"), byteaInput("5f"));
 }
 export function evaluate32392() {
-    return byteaToInt2(byteaInput("ffffffff"));
+    return byteaNotLike(byteaInput("c3a9"), byteaInput("5f5f"));
 }
 export function evaluate32393() {
-    return byteaToInt2(byteaInput("80000000"));
+    return byteaNotLike(byteaInput("61"), byteaInput("41"));
 }
 export function evaluate32394() {
-    return byteaToInt2(byteaInput("00000001"));
+    return byteaNotLike(byteaInput(""), byteaInput(""));
 }
 export function evaluate32395() {
-    return byteaToInt2(byteaInput("ffffffffffffffff"));
+    return byteaNotLike(byteaInput(""), byteaInput("25"));
 }
 export function evaluate32396() {
-    return byteaToInt2(byteaInput("8000000000000000"));
+    return byteaNotLike(byteaInput("41"), byteaInput(""));
 }
 export function evaluate32397() {
-    return byteaToInt2(byteaInput("010000000000000000"));
+    return byteaNotLike(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32398() {
-    return byteaToInt4(byteaInput(null));
+    return byteaNotLike(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32399() {
-    return byteaToInt4(byteaInput(""));
+    return byteaNotLike(byteaInput("5c"), byteaInput("5c5c"));
 }
 export function evaluate32400() {
-    return byteaToInt4(byteaInput("00"));
+    return byteaNotLike(byteaInput("41"), byteaInput("5c"));
 }
 export function evaluate32401() {
-    return byteaToInt4(byteaInput("01"));
+    return byteaNotLike(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32402() {
-    return byteaToInt4(byteaInput("7f"));
+    return byteaNotLike(byteaInput("414243"), byteaInput("4125"));
 }
 export function evaluate32403() {
-    return byteaToInt4(byteaInput("80"));
+    return byteaNotLike(byteaInput("ff"), byteaInput("5f"));
 }
 export function evaluate32404() {
-    return byteaToInt4(byteaInput("ff"));
+    return byteaNotLike(byteaInput("ffff"), byteaInput("5f"));
 }
 export function evaluate32405() {
-    return byteaToInt4(byteaInput("007f"));
+    return byteaNotLike(byteaInput("c3a9"), byteaInput("5f"));
 }
 export function evaluate32406() {
-    return byteaToInt4(byteaInput("0080"));
+    return byteaNotLike(byteaInput("c3a9"), byteaInput("5f5f"));
 }
 export function evaluate32407() {
-    return byteaToInt4(byteaInput("00ff"));
+    return byteaNotLike(byteaInput("61"), byteaInput("41"));
 }
 export function evaluate32408() {
-    return byteaToInt4(byteaInput("7fff"));
+    return byteaNotLike(byteaInput(""), byteaInput(""));
 }
 export function evaluate32409() {
-    return byteaToInt4(byteaInput("8000"));
+    return byteaNotLike(byteaInput(""), byteaInput("25"));
 }
 export function evaluate32410() {
-    return byteaToInt4(byteaInput("ffff"));
+    return byteaNotLike(byteaInput("41"), byteaInput(""));
 }
 export function evaluate32411() {
-    return byteaToInt4(byteaInput("010000"));
+    return byteaNotLike(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32412() {
-    return byteaToInt4(byteaInput("ffffffff"));
+    return byteaNotLike(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32413() {
-    return byteaToInt4(byteaInput("80000000"));
+    return byteaNotLike(byteaInput("5c"), byteaInput("5c5c"));
 }
 export function evaluate32414() {
-    return byteaToInt4(byteaInput("00000001"));
+    return byteaNotLike(byteaInput("41"), byteaInput("5c"));
 }
 export function evaluate32415() {
-    return byteaToInt4(byteaInput("ffffffffffffffff"));
+    return byteaLike(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32416() {
-    return byteaToInt4(byteaInput("8000000000000000"));
+    return byteaLike(byteaInput("414243"), byteaInput("4125"));
 }
 export function evaluate32417() {
-    return byteaToInt4(byteaInput("010000000000000000"));
+    return byteaLike(byteaInput("ff"), byteaInput("5f"));
 }
 export function evaluate32418() {
-    return byteaToInt8(byteaInput(null));
+    return byteaLike(byteaInput("ffff"), byteaInput("5f"));
 }
 export function evaluate32419() {
-    return byteaToInt8(byteaInput(""));
+    return byteaLike(byteaInput("c3a9"), byteaInput("5f"));
 }
 export function evaluate32420() {
-    return byteaToInt8(byteaInput("00"));
+    return byteaLike(byteaInput("c3a9"), byteaInput("5f5f"));
 }
 export function evaluate32421() {
-    return byteaToInt8(byteaInput("01"));
+    return byteaLike(byteaInput("61"), byteaInput("41"));
 }
 export function evaluate32422() {
-    return byteaToInt8(byteaInput("7f"));
+    return byteaLike(byteaInput(""), byteaInput(""));
 }
 export function evaluate32423() {
-    return byteaToInt8(byteaInput("80"));
+    return byteaLike(byteaInput(""), byteaInput("25"));
 }
 export function evaluate32424() {
-    return byteaToInt8(byteaInput("ff"));
+    return byteaLike(byteaInput("41"), byteaInput(""));
 }
 export function evaluate32425() {
-    return byteaToInt8(byteaInput("007f"));
+    return byteaLike(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32426() {
-    return byteaToInt8(byteaInput("0080"));
+    return byteaLike(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32427() {
-    return byteaToInt8(byteaInput("00ff"));
+    return byteaLike(byteaInput("5c"), byteaInput("5c5c"));
 }
 export function evaluate32428() {
-    return byteaToInt8(byteaInput("7fff"));
+    return byteaLike(byteaInput("41"), byteaInput("5c"));
 }
 export function evaluate32429() {
-    return byteaToInt8(byteaInput("8000"));
+    return byteaLikeEscape(byteaInput("2325"), byteaInput("23"));
 }
 export function evaluate32430() {
-    return byteaToInt8(byteaInput("ffff"));
+    return byteaLikeEscape(byteaInput("5c25"), byteaInput("5c"));
 }
 export function evaluate32431() {
-    return byteaToInt8(byteaInput("010000"));
+    return byteaLikeEscape(byteaInput("5c25"), byteaInput(""));
 }
 export function evaluate32432() {
-    return byteaToInt8(byteaInput("ffffffff"));
+    return byteaLikeEscape(byteaInput("25"), byteaInput("2323"));
 }
 export function evaluate32433() {
-    return byteaToInt8(byteaInput("80000000"));
+    return byteaLikeEscape(byteaInput(null), byteaInput("23"));
 }
 export function evaluate32434() {
-    return byteaToInt8(byteaInput("00000001"));
+    return byteaLikeEscape(byteaInput("25"), byteaInput(null));
 }
 export function evaluate32435() {
-    return byteaToInt8(byteaInput("ffffffffffffffff"));
+    return byteaLarger(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32436() {
-    return byteaToInt8(byteaInput("8000000000000000"));
+    return byteaLarger(byteaInput("41"), byteaInput("42"));
 }
 export function evaluate32437() {
-    return byteaToInt8(byteaInput("010000000000000000"));
+    return byteaLarger(byteaInput("42"), byteaInput("41"));
 }
 export function evaluate32438() {
-    return byteaEncode(byteaInput(""), textInput("hex"));
+    return byteaLarger(byteaInput("ff"), byteaInput("00"));
 }
 export function evaluate32439() {
-    return byteaEncode(byteaInput("ff"), textInput("hex"));
+    return byteaLarger(byteaInput("00"), byteaInput("ff"));
 }
 export function evaluate32440() {
-    return byteaEncode(byteaInput("ff"), textInput("HEX"));
+    return byteaLarger(byteaInput("80"), byteaInput("7f"));
 }
 export function evaluate32441() {
-    return byteaEncode(byteaInput("6162"), textInput("hex"));
+    return byteaLarger(byteaInput("0100"), byteaInput("01ff"));
 }
 export function evaluate32442() {
-    return byteaEncode(byteaInput("00ff"), textInput("escape"));
+    return byteaLarger(byteaInput("41"), byteaInput("4142"));
 }
 export function evaluate32443() {
-    return byteaEncode(byteaInput("5c"), textInput("escape"));
+    return byteaLarger(byteaInput("4142"), byteaInput("41"));
 }
 export function evaluate32444() {
-    return byteaEncode(byteaInput("61"), textInput("escape"));
+    return byteaLarger(byteaInput(""), byteaInput(""));
 }
 export function evaluate32445() {
-    return byteaEncode(byteaInput("61"), textInput("base64"));
+    return byteaLarger(byteaInput(""), byteaInput("00"));
 }
 export function evaluate32446() {
-    return byteaEncode(byteaInput(""), textInput("base64"));
+    return byteaLarger(byteaInput("00"), byteaInput(""));
 }
 export function evaluate32447() {
-    return byteaEncode(byteaInput("ff"), textInput("base64"));
+    return byteaLarger(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32448() {
-    return byteaEncode(byteaInput("616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161"), textInput("base64"));
+    return byteaLarger(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32449() {
-    return byteaEncode(byteaInput("ff"), textInput("nope"));
+    return byteaSmaller(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32450() {
-    return byteaEncode(byteaInput(null), textInput("hex"));
+    return byteaSmaller(byteaInput("41"), byteaInput("42"));
 }
 export function evaluate32451() {
-    return byteaEncode(byteaInput("ff"), textInput(null));
+    return byteaSmaller(byteaInput("42"), byteaInput("41"));
 }
 export function evaluate32452() {
-    return byteaEncode(byteaInput("00"), textInput("Escape"));
+    return byteaSmaller(byteaInput("ff"), byteaInput("00"));
 }
 export function evaluate32453() {
-    return byteaDecodeFormat(textInput("ff"), textInput("hex"));
+    return byteaSmaller(byteaInput("00"), byteaInput("ff"));
 }
 export function evaluate32454() {
-    return byteaDecodeFormat(textInput("FF"), textInput("hex"));
+    return byteaSmaller(byteaInput("80"), byteaInput("7f"));
 }
 export function evaluate32455() {
-    return byteaDecodeFormat(textInput("66 6\n6"), textInput("hex"));
+    return byteaSmaller(byteaInput("0100"), byteaInput("01ff"));
 }
 export function evaluate32456() {
-    return byteaDecodeFormat(textInput("616"), textInput("hex"));
+    return byteaSmaller(byteaInput("41"), byteaInput("4142"));
 }
 export function evaluate32457() {
-    return byteaDecodeFormat(textInput("gg"), textInput("hex"));
+    return byteaSmaller(byteaInput("4142"), byteaInput("41"));
 }
 export function evaluate32458() {
-    return byteaDecodeFormat(textInput("YQ=="), textInput("base64"));
+    return byteaSmaller(byteaInput(""), byteaInput(""));
 }
 export function evaluate32459() {
-    return byteaDecodeFormat(textInput("YQ"), textInput("base64"));
+    return byteaSmaller(byteaInput(""), byteaInput("00"));
 }
 export function evaluate32460() {
-    return byteaDecodeFormat(textInput("YQ==\n"), textInput("base64"));
+    return byteaSmaller(byteaInput("00"), byteaInput(""));
 }
 export function evaluate32461() {
-    return byteaDecodeFormat(textInput("*"), textInput("base64"));
+    return byteaSmaller(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32462() {
-    return byteaDecodeFormat(textInput("a"), textInput("escape"));
+    return byteaSmaller(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32463() {
-    return byteaDecodeFormat(textInput("\\141"), textInput("escape"));
+    return byteaCat(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32464() {
-    return byteaDecodeFormat(textInput("\\\\"), textInput("escape"));
+    return byteaCat(byteaInput("41"), byteaInput("42"));
 }
 export function evaluate32465() {
-    return byteaDecodeFormat(textInput("\\"), textInput("escape"));
+    return byteaCat(byteaInput("42"), byteaInput("41"));
 }
 export function evaluate32466() {
-    return byteaDecodeFormat(textInput("\u00E9"), textInput("escape"));
+    return byteaCat(byteaInput("ff"), byteaInput("00"));
 }
 export function evaluate32467() {
-    return byteaDecodeFormat(textInput("ff"), textInput("nope"));
+    return byteaCat(byteaInput("00"), byteaInput("ff"));
 }
 export function evaluate32468() {
-    return byteaDecodeFormat(textInput(null), textInput("hex"));
+    return byteaCat(byteaInput("80"), byteaInput("7f"));
 }
 export function evaluate32469() {
-    return byteaDecodeFormat(textInput("ff"), textInput(null));
+    return byteaCat(byteaInput("0100"), byteaInput("01ff"));
 }
 export function evaluate32470() {
-    return byteaDecodeFormat(textInput("FF"), textInput("Hex"));
+    return byteaCat(byteaInput("41"), byteaInput("4142"));
 }
 export function evaluate32471() {
-    return uuidInput(null);
+    return byteaCat(byteaInput("4142"), byteaInput("41"));
 }
 export function evaluate32472() {
-    return uuidInput("00000000-0000-0000-0000-000000000000");
+    return byteaCat(byteaInput(""), byteaInput(""));
 }
 export function evaluate32473() {
-    return uuidInput("FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF");
+    return byteaCat(byteaInput(""), byteaInput("00"));
 }
 export function evaluate32474() {
-    return uuidInput("{a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11}");
+    return byteaCat(byteaInput("00"), byteaInput(""));
 }
 export function evaluate32475() {
-    return uuidInput("a0eebc999c0b4ef8bb6d6bb9bd380a11");
+    return byteaCat(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32476() {
-    return uuidInput("a0ee-bc99-9c0b-4ef8-bb6d-6bb9-bd38-0a11");
+    return byteaCat(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32477() {
-    return uuidInput("a0eebc99-9c0b4ef8-bb6d6bb9bd380a11");
+    return byteaCompare(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32478() {
-    return uuidInput("");
+    return byteaCompare(byteaInput("41"), byteaInput("42"));
 }
 export function evaluate32479() {
-    return uuidInput("0");
+    return byteaCompare(byteaInput("42"), byteaInput("41"));
 }
 export function evaluate32480() {
-    return uuidInput("00000000-0000-0000-0000-00000000000");
+    return byteaCompare(byteaInput("ff"), byteaInput("00"));
 }
 export function evaluate32481() {
-    return uuidInput("00000000-0000-0000-0000-0000000000000");
+    return byteaCompare(byteaInput("00"), byteaInput("ff"));
 }
 export function evaluate32482() {
-    return uuidInput("00000000-0000-0000-0000-00000000000g");
+    return byteaCompare(byteaInput("80"), byteaInput("7f"));
 }
 export function evaluate32483() {
-    return uuidInput("0000000-00000-0000-0000-000000000000");
+    return byteaCompare(byteaInput("0100"), byteaInput("01ff"));
 }
 export function evaluate32484() {
-    return uuidInput("{00000000-0000-0000-0000-000000000000");
+    return byteaCompare(byteaInput("41"), byteaInput("4142"));
 }
 export function evaluate32485() {
-    return uuidInput("00000000-0000-0000-0000-000000000000}");
+    return byteaCompare(byteaInput("4142"), byteaInput("41"));
 }
 export function evaluate32486() {
-    return uuidInput(" 00000000-0000-0000-0000-000000000000");
+    return byteaCompare(byteaInput(""), byteaInput(""));
 }
 export function evaluate32487() {
-    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaCompare(byteaInput(""), byteaInput("00"));
 }
 export function evaluate32488() {
-    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaCompare(byteaInput("00"), byteaInput(""));
 }
 export function evaluate32489() {
-    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaCompare(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32490() {
-    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaCompare(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32491() {
-    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaEq(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32492() {
-    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaEq(byteaInput("41"), byteaInput("42"));
 }
 export function evaluate32493() {
-    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaEq(byteaInput("42"), byteaInput("41"));
 }
 export function evaluate32494() {
-    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaEq(byteaInput("ff"), byteaInput("00"));
 }
 export function evaluate32495() {
-    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaEq(byteaInput("00"), byteaInput("ff"));
 }
 export function evaluate32496() {
-    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaEq(byteaInput("80"), byteaInput("7f"));
 }
 export function evaluate32497() {
-    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaEq(byteaInput("0100"), byteaInput("01ff"));
 }
 export function evaluate32498() {
-    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaEq(byteaInput("41"), byteaInput("4142"));
 }
 export function evaluate32499() {
-    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaEq(byteaInput("4142"), byteaInput("41"));
 }
 export function evaluate32500() {
-    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaEq(byteaInput(""), byteaInput(""));
 }
 export function evaluate32501() {
-    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaEq(byteaInput(""), byteaInput("00"));
 }
 export function evaluate32502() {
-    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaEq(byteaInput("00"), byteaInput(""));
 }
 export function evaluate32503() {
-    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaEq(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32504() {
-    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaEq(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32505() {
-    return uuidEq(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaGe(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32506() {
-    return uuidNe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaGe(byteaInput("41"), byteaInput("42"));
 }
 export function evaluate32507() {
-    return uuidLt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaGe(byteaInput("42"), byteaInput("41"));
 }
 export function evaluate32508() {
-    return uuidLe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaGe(byteaInput("ff"), byteaInput("00"));
 }
 export function evaluate32509() {
-    return uuidGt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaGe(byteaInput("00"), byteaInput("ff"));
 }
 export function evaluate32510() {
-    return uuidGe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaGe(byteaInput("80"), byteaInput("7f"));
 }
 export function evaluate32511() {
-    return uuidEq(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaGe(byteaInput("0100"), byteaInput("01ff"));
 }
 export function evaluate32512() {
-    return uuidNe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaGe(byteaInput("41"), byteaInput("4142"));
 }
 export function evaluate32513() {
-    return uuidLt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaGe(byteaInput("4142"), byteaInput("41"));
 }
 export function evaluate32514() {
-    return uuidLe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaGe(byteaInput(""), byteaInput(""));
 }
 export function evaluate32515() {
-    return uuidGt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaGe(byteaInput(""), byteaInput("00"));
 }
 export function evaluate32516() {
-    return uuidGe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaGe(byteaInput("00"), byteaInput(""));
 }
 export function evaluate32517() {
-    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaGe(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32518() {
-    return uuidEq(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaGe(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32519() {
-    return uuidEq(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaGt(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32520() {
-    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaGt(byteaInput("41"), byteaInput("42"));
 }
 export function evaluate32521() {
-    return uuidNe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaGt(byteaInput("42"), byteaInput("41"));
 }
 export function evaluate32522() {
-    return uuidNe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaGt(byteaInput("ff"), byteaInput("00"));
 }
 export function evaluate32523() {
-    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaGt(byteaInput("00"), byteaInput("ff"));
 }
 export function evaluate32524() {
-    return uuidLt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaGt(byteaInput("80"), byteaInput("7f"));
 }
 export function evaluate32525() {
-    return uuidLt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaGt(byteaInput("0100"), byteaInput("01ff"));
 }
 export function evaluate32526() {
-    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaGt(byteaInput("41"), byteaInput("4142"));
 }
 export function evaluate32527() {
-    return uuidLe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaGt(byteaInput("4142"), byteaInput("41"));
 }
 export function evaluate32528() {
-    return uuidLe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaGt(byteaInput(""), byteaInput(""));
 }
 export function evaluate32529() {
-    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaGt(byteaInput(""), byteaInput("00"));
 }
 export function evaluate32530() {
-    return uuidGt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaGt(byteaInput("00"), byteaInput(""));
 }
 export function evaluate32531() {
-    return uuidGt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaGt(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32532() {
-    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaGt(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32533() {
-    return uuidGe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaLe(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32534() {
-    return uuidGe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaLe(byteaInput("41"), byteaInput("42"));
 }
 export function evaluate32535() {
-    return uuidCompare(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaLe(byteaInput("42"), byteaInput("41"));
 }
 export function evaluate32536() {
-    return uuidCompare(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"));
+    return byteaLe(byteaInput("ff"), byteaInput("00"));
 }
 export function evaluate32537() {
-    return uuidCompare(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaLe(byteaInput("00"), byteaInput("ff"));
 }
 export function evaluate32538() {
-    return uuidCompare(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
+    return byteaLe(byteaInput("80"), byteaInput("7f"));
 }
 export function evaluate32539() {
-    return uuidExtractVersion(uuidInput(null));
+    return byteaLe(byteaInput("0100"), byteaInput("01ff"));
 }
 export function evaluate32540() {
-    return uuidExtractVersion(uuidInput("00000000-0000-0000-8000-000000000000"));
+    return byteaLe(byteaInput("41"), byteaInput("4142"));
 }
 export function evaluate32541() {
-    return uuidExtractVersion(uuidInput("00000000-0000-4000-8000-000000000000"));
+    return byteaLe(byteaInput("4142"), byteaInput("41"));
 }
 export function evaluate32542() {
-    return uuidExtractVersion(uuidInput("00000000-0000-7000-8000-000000000000"));
+    return byteaLe(byteaInput(""), byteaInput(""));
 }
 export function evaluate32543() {
-    return uuidExtractVersion(uuidInput("00000000-0000-f000-b000-000000000000"));
+    return byteaLe(byteaInput(""), byteaInput("00"));
 }
 export function evaluate32544() {
-    return uuidExtractVersion(uuidInput("00000000-0000-4000-0000-000000000000"));
+    return byteaLe(byteaInput("00"), byteaInput(""));
 }
 export function evaluate32545() {
-    return uuidExtractVersion(uuidInput("00000000-0000-4000-c000-000000000000"));
+    return byteaLe(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32546() {
-    return uuidFromText(textInput(null));
+    return byteaLe(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32547() {
-    return uuidFromText(textInput("A0EEBC999C0B4EF8BB6D6BB9BD380A11"));
+    return byteaLt(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32548() {
-    return uuidFromText(textInput("not-a-uuid"));
+    return byteaLt(byteaInput("41"), byteaInput("42"));
 }
 export function evaluate32549() {
-    return uuidText(uuidInput(null));
+    return byteaLt(byteaInput("42"), byteaInput("41"));
 }
 export function evaluate32550() {
-    return uuidText(uuidInput("a0eebc999c0b4ef8bb6d6bb9bd380a11"));
+    return byteaLt(byteaInput("ff"), byteaInput("00"));
 }
 export function evaluate32551() {
-    return sqlIsNull(uuidInput(null));
+    return byteaLt(byteaInput("00"), byteaInput("ff"));
 }
 export function evaluate32552() {
-    return sqlCase(() => uuidInput("00000000-0000-0000-0000-000000000000"), [() => booleanInput(true), () => uuidInput("00000000-0000-0000-0000-000000000001")]);
+    return byteaLt(byteaInput("80"), byteaInput("7f"));
 }
 export function evaluate32553() {
-    return sqlCoalesce(() => uuidInput(null), () => uuidInput("00000000-0000-0000-0000-000000000001"));
+    return byteaLt(byteaInput("0100"), byteaInput("01ff"));
 }
 export function evaluate32554() {
-    return enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaLt(byteaInput("41"), byteaInput("4142"));
 }
 export function evaluate32555() {
-    return enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaLt(byteaInput("4142"), byteaInput("41"));
 }
 export function evaluate32556() {
-    return enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaLt(byteaInput(""), byteaInput(""));
 }
 export function evaluate32557() {
-    return enumInput("quote's", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaLt(byteaInput(""), byteaInput("00"));
 }
 export function evaluate32558() {
-    return enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaLt(byteaInput("00"), byteaInput(""));
 }
 export function evaluate32559() {
-    return enumInput("middle", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]);
+    return byteaLt(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32560() {
-    return enumInput("zebra", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]);
+    return byteaLt(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32561() {
-    return enumInput("", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaNe(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32562() {
-    return enumInput("missing", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaNe(byteaInput("41"), byteaInput("42"));
 }
 export function evaluate32563() {
-    return enumInput("ZEBRA", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaNe(byteaInput("42"), byteaInput("41"));
 }
 export function evaluate32564() {
-    return enumInput("zebra ", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaNe(byteaInput("ff"), byteaInput("00"));
 }
 export function evaluate32565() {
-    return enumEq(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaNe(byteaInput("00"), byteaInput("ff"));
 }
 export function evaluate32566() {
-    return enumNe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaNe(byteaInput("80"), byteaInput("7f"));
 }
 export function evaluate32567() {
-    return enumLt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaNe(byteaInput("0100"), byteaInput("01ff"));
 }
 export function evaluate32568() {
-    return enumLe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaNe(byteaInput("41"), byteaInput("4142"));
 }
 export function evaluate32569() {
-    return enumGt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaNe(byteaInput("4142"), byteaInput("41"));
 }
 export function evaluate32570() {
-    return enumGe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaNe(byteaInput(""), byteaInput(""));
 }
 export function evaluate32571() {
-    return enumEq(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaNe(byteaInput(""), byteaInput("00"));
 }
 export function evaluate32572() {
-    return enumNe(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaNe(byteaInput("00"), byteaInput(""));
 }
 export function evaluate32573() {
-    return enumLt(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaNe(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32574() {
-    return enumLe(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaNe(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32575() {
-    return enumGt(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLt(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32576() {
-    return enumGe(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLt(byteaInput("41"), byteaInput("42"));
 }
 export function evaluate32577() {
-    return enumEq(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLt(byteaInput("42"), byteaInput("41"));
 }
 export function evaluate32578() {
-    return enumNe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLt(byteaInput("ff"), byteaInput("00"));
 }
 export function evaluate32579() {
-    return enumLt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLt(byteaInput("00"), byteaInput("ff"));
 }
 export function evaluate32580() {
-    return enumLe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLt(byteaInput("80"), byteaInput("7f"));
 }
 export function evaluate32581() {
-    return enumGt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLt(byteaInput("0100"), byteaInput("01ff"));
 }
 export function evaluate32582() {
-    return enumGe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLt(byteaInput("41"), byteaInput("4142"));
 }
 export function evaluate32583() {
-    return enumEq(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLt(byteaInput("4142"), byteaInput("41"));
 }
 export function evaluate32584() {
-    return enumNe(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLt(byteaInput(""), byteaInput(""));
 }
 export function evaluate32585() {
-    return enumLt(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLt(byteaInput(""), byteaInput("00"));
 }
 export function evaluate32586() {
-    return enumLe(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLt(byteaInput("00"), byteaInput(""));
 }
 export function evaluate32587() {
-    return enumGt(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLt(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32588() {
-    return enumGe(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLt(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32589() {
-    return enumEq(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLe(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32590() {
-    return enumNe(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLe(byteaInput("41"), byteaInput("42"));
 }
 export function evaluate32591() {
-    return enumLt(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLe(byteaInput("42"), byteaInput("41"));
 }
 export function evaluate32592() {
-    return enumLe(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLe(byteaInput("ff"), byteaInput("00"));
 }
 export function evaluate32593() {
-    return enumGt(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLe(byteaInput("00"), byteaInput("ff"));
 }
 export function evaluate32594() {
-    return enumGe(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLe(byteaInput("80"), byteaInput("7f"));
 }
 export function evaluate32595() {
-    return enumLt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLe(byteaInput("0100"), byteaInput("01ff"));
 }
 export function evaluate32596() {
-    return enumLt(enumInput("middle", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]), enumInput("apple", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]));
+    return byteaLe(byteaInput("41"), byteaInput("4142"));
 }
 export function evaluate32597() {
-    return enumInput(textInput(null), "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaLe(byteaInput("4142"), byteaInput("41"));
 }
 export function evaluate32598() {
-    return enumInput(textInput("zebra"), "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaLe(byteaInput(""), byteaInput(""));
 }
 export function evaluate32599() {
-    return enumInput(textInput("missing"), "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
+    return byteaLe(byteaInput(""), byteaInput("00"));
 }
 export function evaluate32600() {
-    return enumText(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLe(byteaInput("00"), byteaInput(""));
 }
 export function evaluate32601() {
-    return enumText(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLe(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32602() {
-    return enumText(enumInput("quote's", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaLe(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32603() {
-    return enumText(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaNe(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32604() {
-    return sqlIsNull(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaNe(byteaInput("41"), byteaInput("42"));
 }
 export function evaluate32605() {
-    return sqlCase(() => enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), [() => booleanInput(true), () => enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])]);
+    return byteaNe(byteaInput("42"), byteaInput("41"));
 }
 export function evaluate32606() {
-    return sqlCoalesce(() => enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), () => enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return byteaNe(byteaInput("ff"), byteaInput("00"));
 }
 export function evaluate32607() {
-    return arrayInput("pg_catalog.int4", [], [], null);
+    return byteaNe(byteaInput("00"), byteaInput("ff"));
 }
 export function evaluate32608() {
-    return arrayInput("pg_catalog.int4", [], [], []);
+    return byteaNe(byteaInput("80"), byteaInput("7f"));
 }
 export function evaluate32609() {
-    return arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]);
+    return byteaNe(byteaInput("0100"), byteaInput("01ff"));
 }
 export function evaluate32610() {
-    return arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]);
+    return byteaNe(byteaInput("41"), byteaInput("4142"));
 }
 export function evaluate32611() {
-    return arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]);
+    return byteaNe(byteaInput("4142"), byteaInput("41"));
 }
 export function evaluate32612() {
-    return arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]);
+    return byteaNe(byteaInput(""), byteaInput(""));
 }
 export function evaluate32613() {
-    return arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]);
+    return byteaNe(byteaInput(""), byteaInput("00"));
 }
 export function evaluate32614() {
-    return arrayCardinality(arrayInput("pg_catalog.int4", [], [], null));
+    return byteaNe(byteaInput("00"), byteaInput(""));
 }
 export function evaluate32615() {
-    return arrayNdims(arrayInput("pg_catalog.int4", [], [], null));
+    return byteaNe(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32616() {
-    return arrayDims(arrayInput("pg_catalog.int4", [], [], null));
+    return byteaNe(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32617() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input(null));
+    return byteaEq(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32618() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input(null));
+    return byteaEq(byteaInput("41"), byteaInput("42"));
 }
 export function evaluate32619() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input(null));
+    return byteaEq(byteaInput("42"), byteaInput("41"));
 }
 export function evaluate32620() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("-1"));
+    return byteaEq(byteaInput("ff"), byteaInput("00"));
 }
 export function evaluate32621() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("-1"));
+    return byteaEq(byteaInput("00"), byteaInput("ff"));
 }
 export function evaluate32622() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("-1"));
+    return byteaEq(byteaInput("80"), byteaInput("7f"));
 }
 export function evaluate32623() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("0"));
+    return byteaEq(byteaInput("0100"), byteaInput("01ff"));
 }
 export function evaluate32624() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("0"));
+    return byteaEq(byteaInput("41"), byteaInput("4142"));
 }
 export function evaluate32625() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("0"));
+    return byteaEq(byteaInput("4142"), byteaInput("41"));
 }
 export function evaluate32626() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
+    return byteaEq(byteaInput(""), byteaInput(""));
 }
 export function evaluate32627() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
+    return byteaEq(byteaInput(""), byteaInput("00"));
 }
 export function evaluate32628() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
+    return byteaEq(byteaInput("00"), byteaInput(""));
 }
 export function evaluate32629() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("2"));
+    return byteaEq(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32630() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("2"));
+    return byteaEq(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32631() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("2"));
+    return byteaGt(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32632() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("3"));
+    return byteaGt(byteaInput("41"), byteaInput("42"));
 }
 export function evaluate32633() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("3"));
+    return byteaGt(byteaInput("42"), byteaInput("41"));
 }
 export function evaluate32634() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("3"));
+    return byteaGt(byteaInput("ff"), byteaInput("00"));
 }
 export function evaluate32635() {
-    return arrayCardinality(arrayInput("pg_catalog.int4", [], [], []));
+    return byteaGt(byteaInput("00"), byteaInput("ff"));
 }
 export function evaluate32636() {
-    return arrayNdims(arrayInput("pg_catalog.int4", [], [], []));
+    return byteaGt(byteaInput("80"), byteaInput("7f"));
 }
 export function evaluate32637() {
-    return arrayDims(arrayInput("pg_catalog.int4", [], [], []));
+    return byteaGt(byteaInput("0100"), byteaInput("01ff"));
 }
 export function evaluate32638() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input(null));
+    return byteaGt(byteaInput("41"), byteaInput("4142"));
 }
 export function evaluate32639() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input(null));
+    return byteaGt(byteaInput("4142"), byteaInput("41"));
 }
 export function evaluate32640() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input(null));
+    return byteaGt(byteaInput(""), byteaInput(""));
 }
 export function evaluate32641() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("-1"));
+    return byteaGt(byteaInput(""), byteaInput("00"));
 }
 export function evaluate32642() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("-1"));
+    return byteaGt(byteaInput("00"), byteaInput(""));
 }
 export function evaluate32643() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("-1"));
+    return byteaGt(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32644() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("0"));
+    return byteaGt(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32645() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("0"));
+    return byteaGe(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32646() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("0"));
+    return byteaGe(byteaInput("41"), byteaInput("42"));
 }
 export function evaluate32647() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("1"));
+    return byteaGe(byteaInput("42"), byteaInput("41"));
 }
 export function evaluate32648() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("1"));
+    return byteaGe(byteaInput("ff"), byteaInput("00"));
 }
 export function evaluate32649() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("1"));
+    return byteaGe(byteaInput("00"), byteaInput("ff"));
 }
 export function evaluate32650() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("2"));
+    return byteaGe(byteaInput("80"), byteaInput("7f"));
 }
 export function evaluate32651() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("2"));
+    return byteaGe(byteaInput("0100"), byteaInput("01ff"));
 }
 export function evaluate32652() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("2"));
+    return byteaGe(byteaInput("41"), byteaInput("4142"));
 }
 export function evaluate32653() {
-    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("3"));
+    return byteaGe(byteaInput("4142"), byteaInput("41"));
 }
 export function evaluate32654() {
-    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("3"));
+    return byteaGe(byteaInput(""), byteaInput(""));
 }
 export function evaluate32655() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("3"));
+    return byteaGe(byteaInput(""), byteaInput("00"));
 }
 export function evaluate32656() {
-    return arrayCardinality(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaGe(byteaInput("00"), byteaInput(""));
 }
 export function evaluate32657() {
-    return arrayNdims(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaGe(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32658() {
-    return arrayDims(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaGe(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32659() {
-    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input(null));
+    return byteaCat(byteaInput("41"), byteaInput("41"));
 }
 export function evaluate32660() {
-    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input(null));
+    return byteaCat(byteaInput("41"), byteaInput("42"));
 }
 export function evaluate32661() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input(null));
+    return byteaCat(byteaInput("42"), byteaInput("41"));
 }
 export function evaluate32662() {
-    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("-1"));
+    return byteaCat(byteaInput("ff"), byteaInput("00"));
 }
 export function evaluate32663() {
-    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("-1"));
+    return byteaCat(byteaInput("00"), byteaInput("ff"));
 }
 export function evaluate32664() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("-1"));
+    return byteaCat(byteaInput("80"), byteaInput("7f"));
 }
 export function evaluate32665() {
-    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("0"));
+    return byteaCat(byteaInput("0100"), byteaInput("01ff"));
 }
 export function evaluate32666() {
-    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("0"));
+    return byteaCat(byteaInput("41"), byteaInput("4142"));
 }
 export function evaluate32667() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("0"));
+    return byteaCat(byteaInput("4142"), byteaInput("41"));
 }
 export function evaluate32668() {
-    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("1"));
+    return byteaCat(byteaInput(""), byteaInput(""));
 }
 export function evaluate32669() {
-    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("1"));
+    return byteaCat(byteaInput(""), byteaInput("00"));
 }
 export function evaluate32670() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("1"));
+    return byteaCat(byteaInput("00"), byteaInput(""));
 }
 export function evaluate32671() {
-    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("2"));
+    return byteaCat(byteaInput(null), byteaInput("41"));
 }
 export function evaluate32672() {
-    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("2"));
+    return byteaCat(byteaInput("41"), byteaInput(null));
 }
 export function evaluate32673() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("2"));
+    return byteaBitCount(byteaInput(null));
 }
 export function evaluate32674() {
-    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("3"));
+    return byteaBitCount(byteaInput(""));
 }
 export function evaluate32675() {
-    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("3"));
+    return byteaBitCount(byteaInput("00"));
 }
 export function evaluate32676() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("3"));
+    return byteaBitCount(byteaInput("ff"));
 }
 export function evaluate32677() {
-    return arrayCardinality(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return byteaBitCount(byteaInput("80"));
 }
 export function evaluate32678() {
-    return arrayNdims(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return byteaBitCount(byteaInput("0f"));
 }
 export function evaluate32679() {
-    return arrayDims(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return byteaBitCount(byteaInput("01"));
 }
 export function evaluate32680() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
+    return byteaBitCount(byteaInput("4142"));
 }
 export function evaluate32681() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
+    return byteaBitCount(byteaInput("ffff"));
 }
 export function evaluate32682() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
+    return byteaBitCount(byteaInput("0001ff"));
 }
 export function evaluate32683() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
+    return byteaBitLength(byteaInput(null));
 }
 export function evaluate32684() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
+    return byteaBitLength(byteaInput(""));
 }
 export function evaluate32685() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
+    return byteaBitLength(byteaInput("00"));
 }
 export function evaluate32686() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
+    return byteaBitLength(byteaInput("ff"));
 }
 export function evaluate32687() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
+    return byteaBitLength(byteaInput("80"));
 }
 export function evaluate32688() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
+    return byteaBitLength(byteaInput("0f"));
 }
 export function evaluate32689() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
+    return byteaBitLength(byteaInput("01"));
 }
 export function evaluate32690() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
+    return byteaBitLength(byteaInput("4142"));
 }
 export function evaluate32691() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
+    return byteaBitLength(byteaInput("ffff"));
 }
 export function evaluate32692() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
+    return byteaBitLength(byteaInput("0001ff"));
 }
 export function evaluate32693() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
+    return byteaOctetLength(byteaInput(null));
 }
 export function evaluate32694() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
+    return byteaOctetLength(byteaInput(""));
 }
 export function evaluate32695() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
+    return byteaOctetLength(byteaInput("00"));
 }
 export function evaluate32696() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
+    return byteaOctetLength(byteaInput("ff"));
 }
 export function evaluate32697() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
+    return byteaOctetLength(byteaInput("80"));
 }
 export function evaluate32698() {
-    return arrayCardinality(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return byteaOctetLength(byteaInput("0f"));
 }
 export function evaluate32699() {
-    return arrayNdims(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return byteaOctetLength(byteaInput("01"));
 }
 export function evaluate32700() {
-    return arrayDims(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return byteaOctetLength(byteaInput("4142"));
 }
 export function evaluate32701() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
+    return byteaOctetLength(byteaInput("ffff"));
 }
 export function evaluate32702() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
+    return byteaOctetLength(byteaInput("0001ff"));
 }
 export function evaluate32703() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
+    return byteaOctetLength(byteaInput(null));
 }
 export function evaluate32704() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
+    return byteaOctetLength(byteaInput(""));
 }
 export function evaluate32705() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
+    return byteaOctetLength(byteaInput("00"));
 }
 export function evaluate32706() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
+    return byteaOctetLength(byteaInput("ff"));
 }
 export function evaluate32707() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
+    return byteaOctetLength(byteaInput("80"));
 }
 export function evaluate32708() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
+    return byteaOctetLength(byteaInput("0f"));
 }
 export function evaluate32709() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
+    return byteaOctetLength(byteaInput("01"));
 }
 export function evaluate32710() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
+    return byteaOctetLength(byteaInput("4142"));
 }
 export function evaluate32711() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
+    return byteaOctetLength(byteaInput("ffff"));
 }
 export function evaluate32712() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
+    return byteaOctetLength(byteaInput("0001ff"));
 }
 export function evaluate32713() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
+    return byteaSubstr(byteaInput(null), int4Input(null));
 }
 export function evaluate32714() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
+    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("-1"));
 }
 export function evaluate32715() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
+    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("0"));
 }
 export function evaluate32716() {
-    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
+    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("1"));
 }
 export function evaluate32717() {
-    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
+    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("2"));
 }
 export function evaluate32718() {
-    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
+    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("2147483647"));
 }
 export function evaluate32719() {
-    return arrayEq(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstr(byteaInput(null), int4Input("-2147483648"));
 }
 export function evaluate32720() {
-    return arrayNe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("-1"));
 }
 export function evaluate32721() {
-    return arrayLt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("0"));
 }
 export function evaluate32722() {
-    return arrayLe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("1"));
 }
 export function evaluate32723() {
-    return arrayGt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("2"));
 }
 export function evaluate32724() {
-    return arrayGe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("2147483647"));
 }
 export function evaluate32725() {
-    return arrayEq(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstr(byteaInput(null), int4Input("-5"));
 }
 export function evaluate32726() {
-    return arrayNe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("-1"));
 }
 export function evaluate32727() {
-    return arrayLt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("0"));
 }
 export function evaluate32728() {
-    return arrayLe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("1"));
 }
 export function evaluate32729() {
-    return arrayGt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("2"));
 }
 export function evaluate32730() {
-    return arrayGe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("2147483647"));
 }
 export function evaluate32731() {
-    return arrayEq(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstr(byteaInput(null), int4Input("0"));
 }
 export function evaluate32732() {
-    return arrayNe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("-1"));
 }
 export function evaluate32733() {
-    return arrayLt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("0"));
 }
 export function evaluate32734() {
-    return arrayLe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("1"));
 }
 export function evaluate32735() {
-    return arrayGt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("2"));
 }
 export function evaluate32736() {
-    return arrayGe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("2147483647"));
 }
 export function evaluate32737() {
-    return arrayEq(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
+    return byteaSubstr(byteaInput(null), int4Input("1"));
 }
 export function evaluate32738() {
-    return arrayNe(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("-1"));
 }
 export function evaluate32739() {
-    return arrayLt(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("0"));
 }
 export function evaluate32740() {
-    return arrayLe(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("1"));
 }
 export function evaluate32741() {
-    return arrayGt(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("2"));
 }
 export function evaluate32742() {
-    return arrayGe(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("2147483647"));
 }
 export function evaluate32743() {
-    return arrayEq(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstr(byteaInput(null), int4Input("2"));
 }
 export function evaluate32744() {
-    return arrayNe(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("-1"));
 }
 export function evaluate32745() {
-    return arrayLt(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("0"));
 }
 export function evaluate32746() {
-    return arrayLe(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("1"));
 }
 export function evaluate32747() {
-    return arrayGt(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("2"));
 }
 export function evaluate32748() {
-    return arrayGe(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("2147483647"));
 }
 export function evaluate32749() {
-    return arrayEq(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstr(byteaInput(null), int4Input("5"));
 }
 export function evaluate32750() {
-    return arrayNe(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("-1"));
 }
 export function evaluate32751() {
-    return arrayLt(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("0"));
 }
 export function evaluate32752() {
-    return arrayLe(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("1"));
 }
 export function evaluate32753() {
-    return arrayGt(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("2"));
 }
 export function evaluate32754() {
-    return arrayGe(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("2147483647"));
 }
 export function evaluate32755() {
-    return arrayContains(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]));
+    return byteaSubstr(byteaInput(null), int4Input("2147483647"));
 }
 export function evaluate32756() {
-    return arrayContained(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("-1"));
 }
 export function evaluate32757() {
-    return arrayOverlap(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("0"));
 }
 export function evaluate32758() {
-    return arrayContains(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("1"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("1"));
 }
 export function evaluate32759() {
-    return arrayContained(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("1"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("2"));
 }
 export function evaluate32760() {
-    return arrayOverlap(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("1"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("2147483647"));
 }
 export function evaluate32761() {
-    return arrayContains(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]));
+    return byteaSubstr(byteaInput(""), int4Input(null));
 }
 export function evaluate32762() {
-    return arrayContained(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]));
+    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("-1"));
 }
 export function evaluate32763() {
-    return arrayOverlap(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]));
+    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("0"));
 }
 export function evaluate32764() {
-    return arrayContains(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [], [], []));
+    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("1"));
 }
 export function evaluate32765() {
-    return arrayContained(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [], [], []));
+    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("2"));
 }
 export function evaluate32766() {
-    return arrayOverlap(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [], [], []));
+    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("2147483647"));
 }
 export function evaluate32767() {
-    return arrayContains(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstr(byteaInput(""), int4Input("-2147483648"));
 }
 export function evaluate32768() {
-    return arrayContained(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("-1"));
 }
 export function evaluate32769() {
-    return arrayOverlap(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("0"));
 }
 export function evaluate32770() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("1"));
 }
 export function evaluate32771() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [], [], null));
+    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("2"));
 }
 export function evaluate32772() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [], [], null));
+    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("2147483647"));
 }
 export function evaluate32773() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
+    return byteaSubstr(byteaInput(""), int4Input("-5"));
 }
 export function evaluate32774() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [], [], []));
+    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("-1"));
 }
 export function evaluate32775() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("0"));
 }
 export function evaluate32776() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("1"));
 }
 export function evaluate32777() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("2"));
 }
 export function evaluate32778() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("2147483647"));
 }
 export function evaluate32779() {
-    return arrayConcat(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [1, 3], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstr(byteaInput(""), int4Input("0"));
 }
 export function evaluate32780() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("1"));
+    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("-1"));
 }
 export function evaluate32781() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("3"));
+    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("0"));
 }
 export function evaluate32782() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("4"));
+    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("1"));
 }
 export function evaluate32783() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("2"));
+    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("2"));
 }
 export function evaluate32784() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), int4Input("0"));
+    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("2147483647"));
 }
 export function evaluate32785() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"), int4Input("1"));
+    return byteaSubstr(byteaInput(""), int4Input("1"));
 }
 export function evaluate32786() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
+    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("-1"));
 }
 export function evaluate32787() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"), int4Input(null));
+    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("0"));
 }
 export function evaluate32788() {
-    return arraySubscript(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
+    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("1"));
 }
 export function evaluate32789() {
-    return sqlIsNull(arrayInput("pg_catalog.int4", [], [], null));
+    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("2"));
 }
 export function evaluate32790() {
-    return sqlCase(() => arrayInput("pg_catalog.int4", [], [], []), [() => booleanInput(true), () => arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))])]);
+    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("2147483647"));
 }
 export function evaluate32791() {
-    return sqlCoalesce(() => arrayInput("pg_catalog.int4", [], [], null), () => arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
+    return byteaSubstr(byteaInput(""), int4Input("2"));
 }
 export function evaluate32792() {
-    return arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]);
+    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("-1"));
 }
 export function evaluate32793() {
-    return arrayCardinality(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("0"));
 }
 export function evaluate32794() {
-    return arrayEq(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("1"));
 }
 export function evaluate32795() {
-    return arrayLt(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), arrayInput("pg_catalog.int2", [2], [1], [arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input("1"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("2"));
 }
 export function evaluate32796() {
-    return arrayContains(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), arrayInput("pg_catalog.int2", [1], [1], [arrayElementInput("pg_catalog.int2", int2Input("1"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("2147483647"));
 }
 export function evaluate32797() {
-    return arrayOverlap(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), arrayInput("pg_catalog.int2", [2], [1], [arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input("1"))]));
+    return byteaSubstr(byteaInput(""), int4Input("5"));
 }
 export function evaluate32798() {
-    return arrayConcat(arrayInput("pg_catalog.int2", [1], [1], [arrayElementInput("pg_catalog.int2", int2Input("1"))]), arrayInput("pg_catalog.int2", [2], [1], [arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input("1"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("-1"));
 }
 export function evaluate32799() {
-    return arraySubscript(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), int4Input("2"));
+    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("0"));
 }
 export function evaluate32800() {
-    return arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]);
+    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("1"));
 }
 export function evaluate32801() {
-    return arrayCardinality(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("2"));
 }
 export function evaluate32802() {
-    return arrayEq(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("2147483647"));
 }
 export function evaluate32803() {
-    return arrayLt(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), arrayInput("pg_catalog.int8", [2], [1], [arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input("1"))]));
+    return byteaSubstr(byteaInput(""), int4Input("2147483647"));
 }
 export function evaluate32804() {
-    return arrayContains(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("1"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("-1"));
 }
 export function evaluate32805() {
-    return arrayOverlap(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), arrayInput("pg_catalog.int8", [2], [1], [arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input("1"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("0"));
 }
 export function evaluate32806() {
-    return arrayConcat(arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("1"))]), arrayInput("pg_catalog.int8", [2], [1], [arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input("1"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("1"));
 }
 export function evaluate32807() {
-    return arraySubscript(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), int4Input("2"));
+    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("2"));
 }
 export function evaluate32808() {
-    return arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]);
+    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("2147483647"));
 }
 export function evaluate32809() {
-    return arrayCardinality(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]));
+    return byteaSubstr(byteaInput("010203ff"), int4Input(null));
 }
 export function evaluate32810() {
-    return arrayEq(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("-1"));
 }
 export function evaluate32811() {
-    return arrayLt(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), arrayInput("pg_catalog.float4", [2], [1], [arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("0"));
 }
 export function evaluate32812() {
-    return arrayContains(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("1"));
 }
 export function evaluate32813() {
-    return arrayOverlap(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), arrayInput("pg_catalog.float4", [2], [1], [arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("2"));
 }
 export function evaluate32814() {
-    return arrayConcat(arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]), arrayInput("pg_catalog.float4", [2], [1], [arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("2147483647"));
 }
 export function evaluate32815() {
-    return arraySubscript(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), int4Input("2"));
+    return byteaSubstr(byteaInput("010203ff"), int4Input("-2147483648"));
 }
 export function evaluate32816() {
-    return arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]);
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("-1"));
 }
 export function evaluate32817() {
-    return arrayCardinality(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("0"));
 }
 export function evaluate32818() {
-    return arrayEq(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("1"));
 }
 export function evaluate32819() {
-    return arrayLt(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), arrayInput("pg_catalog.float8", [2], [1], [arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("2"));
 }
 export function evaluate32820() {
-    return arrayContains(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), arrayInput("pg_catalog.float8", [1], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("2147483647"));
 }
 export function evaluate32821() {
-    return arrayOverlap(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), arrayInput("pg_catalog.float8", [2], [1], [arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]));
+    return byteaSubstr(byteaInput("010203ff"), int4Input("-5"));
 }
 export function evaluate32822() {
-    return arrayConcat(arrayInput("pg_catalog.float8", [1], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]), arrayInput("pg_catalog.float8", [2], [1], [arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("-1"));
 }
 export function evaluate32823() {
-    return arraySubscript(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), int4Input("2"));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("0"));
 }
 export function evaluate32824() {
-    return arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]);
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("1"));
 }
 export function evaluate32825() {
-    return arrayCardinality(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("2"));
 }
 export function evaluate32826() {
-    return arrayEq(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("2147483647"));
 }
 export function evaluate32827() {
-    return arrayLt(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), arrayInput("pg_catalog.\"numeric\"", [2], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]));
+    return byteaSubstr(byteaInput("010203ff"), int4Input("0"));
 }
 export function evaluate32828() {
-    return arrayContains(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), arrayInput("pg_catalog.\"numeric\"", [1], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("-1"));
 }
 export function evaluate32829() {
-    return arrayOverlap(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), arrayInput("pg_catalog.\"numeric\"", [2], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("0"));
 }
 export function evaluate32830() {
-    return arrayConcat(arrayInput("pg_catalog.\"numeric\"", [1], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]), arrayInput("pg_catalog.\"numeric\"", [2], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("1"));
 }
 export function evaluate32831() {
-    return arraySubscript(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), int4Input("2"));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("2"));
 }
 export function evaluate32832() {
-    return arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]);
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("2147483647"));
 }
 export function evaluate32833() {
-    return arrayCardinality(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]));
+    return byteaSubstr(byteaInput("010203ff"), int4Input("1"));
 }
 export function evaluate32834() {
-    return arrayEq(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("-1"));
 }
 export function evaluate32835() {
-    return arrayLt(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), arrayInput("pg_catalog.bool", [2], [1], [arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(false))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("0"));
 }
 export function evaluate32836() {
-    return arrayContains(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), arrayInput("pg_catalog.bool", [1], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("1"));
 }
 export function evaluate32837() {
-    return arrayOverlap(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), arrayInput("pg_catalog.bool", [2], [1], [arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(false))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("2"));
 }
 export function evaluate32838() {
-    return arrayConcat(arrayInput("pg_catalog.bool", [1], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false))]), arrayInput("pg_catalog.bool", [2], [1], [arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(false))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("2147483647"));
 }
 export function evaluate32839() {
-    return arraySubscript(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), int4Input("2"));
+    return byteaSubstr(byteaInput("010203ff"), int4Input("2"));
 }
 export function evaluate32840() {
-    return arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]);
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("-1"));
 }
 export function evaluate32841() {
-    return arrayCardinality(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("0"));
 }
 export function evaluate32842() {
-    return arrayEq(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("1"));
 }
 export function evaluate32843() {
-    return arrayLt(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput("a,b"))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("2"));
 }
 export function evaluate32844() {
-    return arrayContains(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a,b"))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("2147483647"));
 }
 export function evaluate32845() {
-    return arrayOverlap(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput("a,b"))]));
+    return byteaSubstr(byteaInput("010203ff"), int4Input("5"));
 }
 export function evaluate32846() {
-    return arrayConcat(arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a,b"))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput("a,b"))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("-1"));
 }
 export function evaluate32847() {
-    return arraySubscript(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), int4Input("2"));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("0"));
 }
 export function evaluate32848() {
-    return arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]);
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("1"));
 }
 export function evaluate32849() {
-    return arrayCardinality(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("2"));
 }
 export function evaluate32850() {
-    return arrayEq(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("2147483647"));
 }
 export function evaluate32851() {
-    return arrayLt(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), arrayInput("pg_catalog.\"varchar\"", [2], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]));
+    return byteaSubstr(byteaInput("010203ff"), int4Input("2147483647"));
 }
 export function evaluate32852() {
-    return arrayContains(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("-1"));
 }
 export function evaluate32853() {
-    return arrayOverlap(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), arrayInput("pg_catalog.\"varchar\"", [2], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("0"));
 }
 export function evaluate32854() {
-    return arrayConcat(arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]), arrayInput("pg_catalog.\"varchar\"", [2], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("1"));
 }
 export function evaluate32855() {
-    return arraySubscript(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), int4Input("2"));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("2"));
 }
 export function evaluate32856() {
-    return arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]);
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("2147483647"));
 }
 export function evaluate32857() {
-    return arrayCardinality(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]));
+    return byteaSubstr(byteaInput(null), int4Input(null));
 }
 export function evaluate32858() {
-    return arrayEq(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]));
+    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("-1"));
 }
 export function evaluate32859() {
-    return arrayLt(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), arrayInput("pg_catalog.bpchar", [2], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput("a "))]));
+    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("0"));
 }
 export function evaluate32860() {
-    return arrayContains(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), arrayInput("pg_catalog.bpchar", [1], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a "))]));
+    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("1"));
 }
 export function evaluate32861() {
-    return arrayOverlap(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), arrayInput("pg_catalog.bpchar", [2], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput("a "))]));
+    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("2"));
 }
 export function evaluate32862() {
-    return arrayConcat(arrayInput("pg_catalog.bpchar", [1], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a "))]), arrayInput("pg_catalog.bpchar", [2], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput("a "))]));
+    return byteaSubstrLength(byteaInput(null), int4Input(null), int4Input("2147483647"));
 }
 export function evaluate32863() {
-    return arraySubscript(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), int4Input("2"));
+    return byteaSubstr(byteaInput(null), int4Input("-2147483648"));
 }
 export function evaluate32864() {
-    return arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]);
+    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("-1"));
 }
 export function evaluate32865() {
-    return arrayCardinality(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("0"));
 }
 export function evaluate32866() {
-    return arrayEq(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("1"));
 }
 export function evaluate32867() {
-    return arrayLt(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), arrayInput("pg_catalog.uuid", [2], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("2"));
 }
 export function evaluate32868() {
-    return arrayContains(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), arrayInput("pg_catalog.uuid", [1], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("-2147483648"), int4Input("2147483647"));
 }
 export function evaluate32869() {
-    return arrayOverlap(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), arrayInput("pg_catalog.uuid", [2], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]));
+    return byteaSubstr(byteaInput(null), int4Input("-5"));
 }
 export function evaluate32870() {
-    return arrayConcat(arrayInput("pg_catalog.uuid", [1], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]), arrayInput("pg_catalog.uuid", [2], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("-1"));
 }
 export function evaluate32871() {
-    return arraySubscript(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), int4Input("2"));
+    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("0"));
 }
 export function evaluate32872() {
-    return arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]);
+    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("1"));
 }
 export function evaluate32873() {
-    return arrayCardinality(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("2"));
 }
 export function evaluate32874() {
-    return arrayEq(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("-5"), int4Input("2147483647"));
 }
 export function evaluate32875() {
-    return arrayLt(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [2], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
+    return byteaSubstr(byteaInput(null), int4Input("0"));
 }
 export function evaluate32876() {
-    return arrayContains(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [1], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("-1"));
 }
 export function evaluate32877() {
-    return arrayOverlap(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [2], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("0"));
 }
 export function evaluate32878() {
-    return arrayConcat(arrayInput("enum:[\"enum_alpha\",\"state\"]", [1], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [2], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("1"));
 }
 export function evaluate32879() {
-    return arraySubscript(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), int4Input("2"));
+    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("2"));
 }
 export function evaluate32880() {
-    return arraySlice(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[int4Input("1"), int4Input("2")]]);
+    return byteaSubstrLength(byteaInput(null), int4Input("0"), int4Input("2147483647"));
 }
 export function evaluate32881() {
-    return arraySlice(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[int4Input("0"), int4Input("1")]]);
+    return byteaSubstr(byteaInput(null), int4Input("1"));
 }
 export function evaluate32882() {
-    return arraySlice(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[null, int4Input("2")]]);
+    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("-1"));
 }
 export function evaluate32883() {
-    return arraySlice(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[int4Input("2"), null]]);
+    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("0"));
 }
 export function evaluate32884() {
-    return arraySlice(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[int4Input("9"), int4Input("10")]]);
+    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("1"));
 }
 export function evaluate32885() {
-    return arraySlice(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), [[int4Input("2"), int4Input("3")], [int4Input("1"), int4Input("2")]]);
+    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("2"));
 }
 export function evaluate32886() {
-    return arraySlice(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), [[int4Input("2"), int4Input("3")]]);
+    return byteaSubstrLength(byteaInput(null), int4Input("1"), int4Input("2147483647"));
 }
 export function evaluate32887() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("2")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return byteaSubstr(byteaInput(null), int4Input("2"));
 }
 export function evaluate32888() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("5")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("-1"));
 }
 export function evaluate32889() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("-2")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("0"));
 }
 export function evaluate32890() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [], [], []), [int4Input("4")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("1"));
 }
 export function evaluate32891() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [], [], null), [int4Input("4")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("2"));
 }
 export function evaluate32892() {
-    return arrayAssign(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), [int4Input("2"), int4Input("1")], arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return byteaSubstrLength(byteaInput(null), int4Input("2"), int4Input("2147483647"));
 }
 export function evaluate32893() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return byteaSubstr(byteaInput(null), int4Input("5"));
 }
 export function evaluate32894() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("-1"));
 }
 export function evaluate32895() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("0"));
 }
 export function evaluate32896() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("1"));
 }
 export function evaluate32897() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [], [], []), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("2"));
 }
 export function evaluate32898() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [], [], []));
+    return byteaSubstrLength(byteaInput(null), int4Input("5"), int4Input("2147483647"));
 }
 export function evaluate32899() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [], [], null), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return byteaSubstr(byteaInput(null), int4Input("2147483647"));
 }
 export function evaluate32900() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [], [], null));
+    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("-1"));
 }
 export function evaluate32901() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("0"));
 }
 export function evaluate32902() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("1"));
 }
 export function evaluate32903() {
-    return arrayAppend(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("4")));
+    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("2"));
 }
 export function evaluate32904() {
-    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("0")), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(null), int4Input("2147483647"), int4Input("2147483647"));
 }
 export function evaluate32905() {
-    return arrayPosition(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return byteaSubstr(byteaInput(""), int4Input(null));
 }
 export function evaluate32906() {
-    return arrayPositions(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("-1"));
 }
 export function evaluate32907() {
-    return arrayPosition(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
+    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("0"));
 }
 export function evaluate32908() {
-    return arrayPositions(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
+    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("1"));
 }
 export function evaluate32909() {
-    return arrayPosition(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("2")), int4Input("1"));
+    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("2"));
 }
 export function evaluate32910() {
-    return arrayPosition(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return byteaSubstrLength(byteaInput(""), int4Input(null), int4Input("2147483647"));
 }
 export function evaluate32911() {
-    return arrayPositions(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return byteaSubstr(byteaInput(""), int4Input("-2147483648"));
 }
 export function evaluate32912() {
-    return arrayPosition(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
+    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("-1"));
 }
 export function evaluate32913() {
-    return arrayPositions(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
+    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("0"));
 }
 export function evaluate32914() {
-    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
+    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("1"));
 }
 export function evaluate32915() {
-    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("7")));
+    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("2"));
 }
 export function evaluate32916() {
-    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("1")));
+    return byteaSubstrLength(byteaInput(""), int4Input("-2147483648"), int4Input("2147483647"));
 }
 export function evaluate32917() {
-    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("7")));
+    return byteaSubstr(byteaInput(""), int4Input("-5"));
 }
 export function evaluate32918() {
-    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
+    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("-1"));
 }
 export function evaluate32919() {
-    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("9")), arrayElementInput("pg_catalog.int4", int4Input("7")));
+    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("0"));
 }
 export function evaluate32920() {
-    return arrayFill(arrayElementInput("pg_catalog.int4", int4Input("5")), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("1"));
 }
 export function evaluate32921() {
-    return arrayFill(arrayElementInput("pg_catalog.int4", int4Input(null)), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("0")), arrayElementInput("pg_catalog.int4", int4Input("-1"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("2"));
 }
 export function evaluate32922() {
-    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("0"));
+    return byteaSubstrLength(byteaInput(""), int4Input("-5"), int4Input("2147483647"));
 }
 export function evaluate32923() {
-    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("1"));
+    return byteaSubstr(byteaInput(""), int4Input("0"));
 }
 export function evaluate32924() {
-    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("3"));
+    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("-1"));
 }
 export function evaluate32925() {
-    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("4"));
+    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("0"));
 }
 export function evaluate32926() {
-    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("-1"));
+    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("1"));
 }
 export function evaluate32927() {
-    return arrayTrim(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("0"));
+    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("2"));
 }
 export function evaluate32928() {
-    return arrayReverse(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("0"), int4Input("2147483647"));
 }
 export function evaluate32929() {
-    return arrayReverse(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]));
+    return byteaSubstr(byteaInput(""), int4Input("1"));
 }
 export function evaluate32930() {
-    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("-1"));
 }
 export function evaluate32931() {
-    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(true));
+    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("0"));
 }
 export function evaluate32932() {
-    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(false), booleanInput(true));
+    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("1"));
 }
 export function evaluate32933() {
-    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(true), booleanInput(false));
+    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("2"));
 }
 export function evaluate32934() {
-    return arraySort(arrayInput("pg_catalog.int4", [3, 2], [0, 1], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("9")), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("1"), int4Input("2147483647"));
 }
 export function evaluate32935() {
-    return arrayConcat(arrayCoerce("pg_catalog.int4", arrayInput("pg_catalog.int2", [1], [1], [arrayElementInput("pg_catalog.int2", int2Input("1"))])), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return byteaSubstr(byteaInput(""), int4Input("2"));
 }
 export function evaluate32936() {
-    return arrayConcat(arrayCoerce("pg_catalog.int8", arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))])), arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("2"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("-1"));
 }
 export function evaluate32937() {
-    return arrayConcat(arrayCoerce("pg_catalog.\"numeric\"", arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("1"))])), arrayInput("pg_catalog.\"numeric\"", [1], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.5"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("0"));
 }
 export function evaluate32938() {
-    return arrayConcat(arrayCoerce("pg_catalog.float4", arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))])), arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("40200000"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("1"));
 }
 export function evaluate32939() {
-    return arrayConcat(arrayCoerce("pg_catalog.float8", arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("3fc00000"))])), arrayInput("pg_catalog.float8", [1], [1], [arrayElementInput("pg_catalog.float8", float8Input("4004000000000000"))]));
+    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("2"));
 }
 export function evaluate32940() {
-    return arrayConcat(arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), arrayCoerce("pg_catalog.text", arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b"))])));
+    return byteaSubstrLength(byteaInput(""), int4Input("2"), int4Input("2147483647"));
 }
 export function evaluate32941() {
-    return arrayConcat(arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]), arrayCoerce("pg_catalog.\"varchar\"", arrayInput("pg_catalog.bpchar", [1], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b "))])));
+    return byteaSubstr(byteaInput(""), int4Input("5"));
 }
 export function evaluate32942() {
-    return jsonInput(null);
+    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("-1"));
 }
 export function evaluate32943() {
-    return jsonbInput(null);
+    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("0"));
 }
 export function evaluate32944() {
-    return jsonInput("null");
+    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("1"));
 }
 export function evaluate32945() {
-    return jsonbInput("null");
+    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("2"));
 }
 export function evaluate32946() {
-    return jsonInput("true");
+    return byteaSubstrLength(byteaInput(""), int4Input("5"), int4Input("2147483647"));
 }
 export function evaluate32947() {
-    return jsonbInput("true");
+    return byteaSubstr(byteaInput(""), int4Input("2147483647"));
 }
 export function evaluate32948() {
-    return jsonInput("false");
+    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("-1"));
 }
 export function evaluate32949() {
-    return jsonbInput("false");
+    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("0"));
 }
 export function evaluate32950() {
-    return jsonInput("0");
+    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("1"));
 }
 export function evaluate32951() {
-    return jsonbInput("0");
+    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("2"));
 }
 export function evaluate32952() {
-    return jsonInput("1.2300");
+    return byteaSubstrLength(byteaInput(""), int4Input("2147483647"), int4Input("2147483647"));
 }
 export function evaluate32953() {
-    return jsonbInput("1.2300");
+    return byteaSubstr(byteaInput("010203ff"), int4Input(null));
 }
 export function evaluate32954() {
-    return jsonInput("1e2");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("-1"));
 }
 export function evaluate32955() {
-    return jsonbInput("1e2");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("0"));
 }
 export function evaluate32956() {
-    return jsonInput("\"hi\"");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("1"));
 }
 export function evaluate32957() {
-    return jsonbInput("\"hi\"");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("2"));
 }
 export function evaluate32958() {
-    return jsonInput("[]");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input(null), int4Input("2147483647"));
 }
 export function evaluate32959() {
-    return jsonbInput("[]");
+    return byteaSubstr(byteaInput("010203ff"), int4Input("-2147483648"));
 }
 export function evaluate32960() {
-    return jsonInput("{}");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("-1"));
 }
 export function evaluate32961() {
-    return jsonbInput("{}");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("0"));
 }
 export function evaluate32962() {
-    return jsonInput("[1, null, 3]");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("1"));
 }
 export function evaluate32963() {
-    return jsonbInput("[1, null, 3]");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("2"));
 }
 export function evaluate32964() {
-    return jsonInput("{\"b\":2,\"a\":1}");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-2147483648"), int4Input("2147483647"));
 }
 export function evaluate32965() {
-    return jsonbInput("{\"b\":2,\"a\":1}");
+    return byteaSubstr(byteaInput("010203ff"), int4Input("-5"));
 }
 export function evaluate32966() {
-    return jsonInput("{\"a\":1,\"a\":2}");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("-1"));
 }
 export function evaluate32967() {
-    return jsonbInput("{\"a\":1,\"a\":2}");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("0"));
 }
 export function evaluate32968() {
-    return jsonInput(" { \"a\" : 1 } ");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("1"));
 }
 export function evaluate32969() {
-    return jsonbInput(" { \"a\" : 1 } ");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("2"));
 }
 export function evaluate32970() {
-    return jsonInput("{\"aa\":1,\"b\":2}");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("-5"), int4Input("2147483647"));
 }
 export function evaluate32971() {
-    return jsonbInput("{\"aa\":1,\"b\":2}");
+    return byteaSubstr(byteaInput("010203ff"), int4Input("0"));
 }
 export function evaluate32972() {
-    return jsonInput("\"\\u0041\"");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("-1"));
 }
 export function evaluate32973() {
-    return jsonbInput("\"\\u0041\"");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("0"));
 }
 export function evaluate32974() {
-    return jsonInput("\"a\\/b\"");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("1"));
 }
 export function evaluate32975() {
-    return jsonbInput("\"a\\/b\"");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("2"));
 }
 export function evaluate32976() {
-    return jsonInput("\"\\uD83D\\uDE00\"");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("0"), int4Input("2147483647"));
 }
 export function evaluate32977() {
-    return jsonbInput("\"\\uD83D\\uDE00\"");
+    return byteaSubstr(byteaInput("010203ff"), int4Input("1"));
 }
 export function evaluate32978() {
-    return jsonInput("9007199254740993");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("-1"));
 }
 export function evaluate32979() {
-    return jsonbInput("9007199254740993");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("0"));
 }
 export function evaluate32980() {
-    return jsonInput("-0");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("1"));
 }
 export function evaluate32981() {
-    return jsonbInput("-0");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("2"));
 }
 export function evaluate32982() {
-    return jsonInput("");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("1"), int4Input("2147483647"));
 }
 export function evaluate32983() {
-    return jsonbInput("");
+    return byteaSubstr(byteaInput("010203ff"), int4Input("2"));
 }
 export function evaluate32984() {
-    return jsonInput("01");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("-1"));
 }
 export function evaluate32985() {
-    return jsonbInput("01");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("0"));
 }
 export function evaluate32986() {
-    return jsonInput("truee");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("1"));
 }
 export function evaluate32987() {
-    return jsonbInput("truee");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("2"));
 }
 export function evaluate32988() {
-    return jsonInput("[1,]");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2"), int4Input("2147483647"));
 }
 export function evaluate32989() {
-    return jsonbInput("[1,]");
+    return byteaSubstr(byteaInput("010203ff"), int4Input("5"));
 }
 export function evaluate32990() {
-    return jsonInput("{a:1}");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("-1"));
 }
 export function evaluate32991() {
-    return jsonbInput("{a:1}");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("0"));
 }
 export function evaluate32992() {
-    return jsonInput("1 2");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("1"));
 }
 export function evaluate32993() {
-    return jsonbInput("1 2");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("2"));
 }
 export function evaluate32994() {
-    return jsonInput("\"\\uD800\"");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("5"), int4Input("2147483647"));
 }
 export function evaluate32995() {
-    return jsonbInput("\"\\uD800\"");
+    return byteaSubstr(byteaInput("010203ff"), int4Input("2147483647"));
 }
 export function evaluate32996() {
-    return jsonInput("\"\\u0000\"");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("-1"));
 }
 export function evaluate32997() {
-    return jsonbInput("\"\\u0000\"");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("0"));
 }
 export function evaluate32998() {
-    return jsonInput("\"a\\u0000b\"");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("1"));
 }
 export function evaluate32999() {
-    return jsonbInput("\"a\\u0000b\"");
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("2"));
 }
 export function evaluate33000() {
-    return jsonTypeof(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
+    return byteaSubstrLength(byteaInput("010203ff"), int4Input("2147483647"), int4Input("2147483647"));
 }
 export function evaluate33001() {
-    return jsonTypeof(jsonInput("[10,20,30]"));
+    return byteaPosition(byteaInput("010203"), byteaInput("02"));
 }
 export function evaluate33002() {
-    return jsonTypeof(jsonInput("1"));
+    return byteaPosition(byteaInput("010203"), byteaInput("03"));
 }
 export function evaluate33003() {
-    return jsonTypeof(jsonInput("null"));
+    return byteaPosition(byteaInput("010203"), byteaInput("04"));
 }
 export function evaluate33004() {
-    return jsonTypeof(jsonInput(null));
+    return byteaPosition(byteaInput("010203"), byteaInput(""));
 }
 export function evaluate33005() {
-    return jsonTypeof(jsonInput("  [1]"));
+    return byteaPosition(byteaInput(""), byteaInput(""));
 }
 export function evaluate33006() {
-    return jsonbTypeof(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
+    return byteaPosition(byteaInput(""), byteaInput("01"));
 }
 export function evaluate33007() {
-    return jsonbTypeof(jsonbInput("1"));
+    return byteaPosition(byteaInput("ff00"), byteaInput("ff"));
 }
 export function evaluate33008() {
-    return jsonbTypeof(jsonbInput("null"));
+    return byteaPosition(byteaInput("00ff"), byteaInput("ff"));
 }
 export function evaluate33009() {
-    return jsonbTypeof(jsonbInput(null));
+    return byteaPosition(byteaInput("010201"), byteaInput("01"));
 }
 export function evaluate33010() {
-    return jsonArrayLength(jsonInput("[10,20,30]"));
+    return byteaPosition(byteaInput("0102"), byteaInput("010203"));
 }
 export function evaluate33011() {
-    return jsonArrayLength(jsonInput("[[1],2]"));
+    return byteaPosition(byteaInput(null), byteaInput("01"));
 }
 export function evaluate33012() {
-    return jsonArrayLength(jsonInput("[]"));
+    return byteaPosition(byteaInput("01"), byteaInput(null));
 }
 export function evaluate33013() {
-    return jsonArrayLength(jsonInput("{}"));
+    return byteaOverlay(byteaInput("01020304"), byteaInput("ff"), int4Input("1"));
 }
 export function evaluate33014() {
-    return jsonArrayLength(jsonInput("1"));
+    return byteaOverlay(byteaInput("01020304"), byteaInput("ff"), int4Input("2"));
 }
 export function evaluate33015() {
-    return jsonbArrayLength(jsonbInput("[10,20,30]"));
+    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input("2"), int4Input("1"));
 }
 export function evaluate33016() {
-    return jsonbArrayLength(jsonbInput("1"));
+    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input("2"), int4Input("2"));
 }
 export function evaluate33017() {
-    return jsonbArrayLength(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
+    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input("2"), int4Input("0"));
 }
 export function evaluate33018() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+    return byteaOverlayLength(byteaInput("01020304"), byteaInput(""), int4Input("2"), int4Input("2"));
 }
 export function evaluate33019() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+    return byteaOverlay(byteaInput("01020304"), byteaInput("ffff"), int4Input("5"));
 }
 export function evaluate33020() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input("0"), int4Input("1"));
 }
 export function evaluate33021() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input("-1"), int4Input("1"));
 }
 export function evaluate33022() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input("2"), int4Input("-1"));
 }
 export function evaluate33023() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input("2147483647"), int4Input("1"));
 }
 export function evaluate33024() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input("2"), int4Input("2147483647"));
 }
 export function evaluate33025() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
+    return byteaOverlayLength(byteaInput(null), byteaInput("ff"), int4Input("1"), int4Input("1"));
 }
 export function evaluate33026() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+    return byteaOverlayLength(byteaInput("01020304"), byteaInput(null), int4Input("1"), int4Input("1"));
 }
 export function evaluate33027() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+    return byteaOverlayLength(byteaInput("01020304"), byteaInput("ff"), int4Input(null), int4Input("1"));
 }
 export function evaluate33028() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+    return byteaOverlay(byteaInput(""), byteaInput("ff"), int4Input("1"));
 }
 export function evaluate33029() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+    return byteaTrimBoth(byteaInput("0001020000"), byteaInput("00"));
 }
 export function evaluate33030() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+    return byteaTrimBoth(byteaInput("010203"), byteaInput("01"));
 }
 export function evaluate33031() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+    return byteaTrimBoth(byteaInput("010203"), byteaInput(""));
 }
 export function evaluate33032() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+    return byteaTrimBoth(byteaInput(""), byteaInput("01"));
 }
 export function evaluate33033() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
+    return byteaTrimBoth(byteaInput("ffff"), byteaInput("ff"));
 }
 export function evaluate33034() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+    return byteaTrimBoth(byteaInput("00ff00"), byteaInput("0001"));
 }
 export function evaluate33035() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+    return byteaTrimBoth(byteaInput("010201"), byteaInput("02"));
 }
 export function evaluate33036() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+    return byteaTrimBoth(byteaInput(null), byteaInput("00"));
 }
 export function evaluate33037() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+    return byteaTrimBoth(byteaInput("00"), byteaInput(null));
 }
 export function evaluate33038() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+    return byteaTrimLeft(byteaInput("0001020000"), byteaInput("00"));
 }
 export function evaluate33039() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+    return byteaTrimLeft(byteaInput("010203"), byteaInput("01"));
 }
 export function evaluate33040() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+    return byteaTrimLeft(byteaInput("010203"), byteaInput(""));
 }
 export function evaluate33041() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
+    return byteaTrimLeft(byteaInput(""), byteaInput("01"));
 }
 export function evaluate33042() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+    return byteaTrimLeft(byteaInput("ffff"), byteaInput("ff"));
 }
 export function evaluate33043() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+    return byteaTrimLeft(byteaInput("00ff00"), byteaInput("0001"));
 }
 export function evaluate33044() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+    return byteaTrimLeft(byteaInput("010201"), byteaInput("02"));
 }
 export function evaluate33045() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+    return byteaTrimLeft(byteaInput(null), byteaInput("00"));
 }
 export function evaluate33046() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+    return byteaTrimLeft(byteaInput("00"), byteaInput(null));
 }
 export function evaluate33047() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+    return byteaTrimRight(byteaInput("0001020000"), byteaInput("00"));
 }
 export function evaluate33048() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+    return byteaTrimRight(byteaInput("010203"), byteaInput("01"));
 }
 export function evaluate33049() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
+    return byteaTrimRight(byteaInput("010203"), byteaInput(""));
 }
 export function evaluate33050() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+    return byteaTrimRight(byteaInput(""), byteaInput("01"));
 }
 export function evaluate33051() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+    return byteaTrimRight(byteaInput("ffff"), byteaInput("ff"));
 }
 export function evaluate33052() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+    return byteaTrimRight(byteaInput("00ff00"), byteaInput("0001"));
 }
 export function evaluate33053() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+    return byteaTrimRight(byteaInput("010201"), byteaInput("02"));
 }
 export function evaluate33054() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+    return byteaTrimRight(byteaInput(null), byteaInput("00"));
 }
 export function evaluate33055() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+    return byteaTrimRight(byteaInput("00"), byteaInput(null));
 }
 export function evaluate33056() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+    return byteaReverse(byteaInput(null));
 }
 export function evaluate33057() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
+    return byteaReverse(byteaInput(""));
 }
 export function evaluate33058() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+    return byteaReverse(byteaInput("01"));
 }
 export function evaluate33059() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+    return byteaReverse(byteaInput("0102"));
 }
 export function evaluate33060() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+    return byteaReverse(byteaInput("ff00"));
 }
 export function evaluate33061() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+    return byteaReverse(byteaInput("0001ff"));
 }
 export function evaluate33062() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+    return byteaGetByte(byteaInput("ff80"), int4Input("0"));
 }
 export function evaluate33063() {
-    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+    return byteaGetByte(byteaInput("ff80"), int4Input("1"));
 }
 export function evaluate33064() {
-    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+    return byteaGetByte(byteaInput("ff80"), int4Input("-1"));
 }
 export function evaluate33065() {
-    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
+    return byteaGetByte(byteaInput("ff80"), int4Input("2"));
 }
 export function evaluate33066() {
-    return jsonObjectField(jsonInput("{\"a\":1,\"a\":2}"), textInput("a"));
+    return byteaGetByte(byteaInput("ff80"), int4Input(null));
 }
 export function evaluate33067() {
-    return jsonObjectField(jsonInput(" { \"a\" : 1 } "), textInput("a"));
+    return byteaGetByte(byteaInput(null), int4Input("0"));
 }
 export function evaluate33068() {
-    return jsonObjectField(jsonInput("[10,20,30]"), textInput("a"));
+    return byteaGetByte(byteaInput(""), int4Input("0"));
 }
 export function evaluate33069() {
-    return jsonbObjectField(jsonbInput("[10,20,30]"), textInput("a"));
+    return byteaGetByte(byteaInput("00ff"), int4Input("1"));
 }
 export function evaluate33070() {
-    return jsonObjectField(jsonInput("1"), textInput("a"));
+    return byteaGetBit(byteaInput("01"), int8Input("0"));
 }
 export function evaluate33071() {
-    return jsonbObjectField(jsonbInput("1"), textInput("a"));
+    return byteaGetBit(byteaInput("01"), int8Input("1"));
 }
 export function evaluate33072() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("0"));
+    return byteaGetBit(byteaInput("01"), int8Input("7"));
 }
 export function evaluate33073() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("0"));
+    return byteaGetBit(byteaInput("01"), int8Input("8"));
 }
 export function evaluate33074() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("0"));
+    return byteaGetBit(byteaInput("80"), int8Input("7"));
 }
 export function evaluate33075() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("0"));
+    return byteaGetBit(byteaInput("80"), int8Input("0"));
 }
 export function evaluate33076() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("0"));
+    return byteaGetBit(byteaInput("0001"), int8Input("8"));
 }
 export function evaluate33077() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("0"));
+    return byteaGetBit(byteaInput("0001"), int8Input("0"));
 }
 export function evaluate33078() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("0"));
+    return byteaGetBit(byteaInput("01"), int8Input("-1"));
 }
 export function evaluate33079() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("0"));
+    return byteaGetBit(byteaInput(""), int8Input("0"));
 }
 export function evaluate33080() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("1"));
+    return byteaGetBit(byteaInput(null), int8Input("0"));
 }
 export function evaluate33081() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("1"));
+    return byteaGetBit(byteaInput("01"), int8Input(null));
 }
 export function evaluate33082() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("1"));
+    return byteaSetByte(byteaInput("0000"), int4Input("1"), int4Input("255"));
 }
 export function evaluate33083() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("1"));
+    return byteaSetByte(byteaInput("0000"), int4Input("0"), int4Input("256"));
 }
 export function evaluate33084() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("1"));
+    return byteaSetByte(byteaInput("0000"), int4Input("0"), int4Input("-1"));
 }
 export function evaluate33085() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("1"));
+    return byteaSetByte(byteaInput("ffff"), int4Input("1"), int4Input("0"));
 }
 export function evaluate33086() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("1"));
+    return byteaSetByte(byteaInput("00"), int4Input("-1"), int4Input("1"));
 }
 export function evaluate33087() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("1"));
+    return byteaSetByte(byteaInput("00"), int4Input("1"), int4Input("1"));
 }
 export function evaluate33088() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("2"));
+    return byteaSetByte(byteaInput(""), int4Input("0"), int4Input("1"));
 }
 export function evaluate33089() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("2"));
+    return byteaSetByte(byteaInput(null), int4Input("0"), int4Input("1"));
 }
 export function evaluate33090() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("2"));
+    return byteaSetByte(byteaInput("00"), int4Input(null), int4Input("1"));
 }
 export function evaluate33091() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("2"));
+    return byteaSetByte(byteaInput("00"), int4Input("0"), int4Input(null));
 }
 export function evaluate33092() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("2"));
+    return byteaSetByte(byteaInput("abcd"), int4Input("0"), int4Input("2147483647"));
 }
 export function evaluate33093() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("2"));
+    return byteaSetBit(byteaInput("00"), int8Input("0"), int4Input("1"));
 }
 export function evaluate33094() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("2"));
+    return byteaSetBit(byteaInput("00"), int8Input("7"), int4Input("1"));
 }
 export function evaluate33095() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("2"));
+    return byteaSetBit(byteaInput("ff"), int8Input("0"), int4Input("0"));
 }
 export function evaluate33096() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-1"));
+    return byteaSetBit(byteaInput("00"), int8Input("8"), int4Input("1"));
 }
 export function evaluate33097() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-1"));
+    return byteaSetBit(byteaInput("0000"), int8Input("8"), int4Input("1"));
 }
 export function evaluate33098() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-1"));
+    return byteaSetBit(byteaInput("00"), int8Input("0"), int4Input("2"));
 }
 export function evaluate33099() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-1"));
+    return byteaSetBit(byteaInput("00"), int8Input("-1"), int4Input("2"));
 }
 export function evaluate33100() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-1"));
+    return byteaSetBit(byteaInput("00"), int8Input("0"), int4Input("-1"));
 }
 export function evaluate33101() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-1"));
+    return byteaSetBit(byteaInput("ff"), int8Input("7"), int4Input("0"));
 }
 export function evaluate33102() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-1"));
+    return byteaSetBit(byteaInput(null), int8Input("0"), int4Input("1"));
 }
 export function evaluate33103() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-1"));
+    return byteaSetBit(byteaInput("00"), int8Input(null), int4Input("1"));
 }
 export function evaluate33104() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-4"));
+    return byteaSetBit(byteaInput("00"), int8Input("0"), int4Input(null));
 }
 export function evaluate33105() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-4"));
+    return byteaSetBit(byteaInput(""), int8Input("0"), int4Input("1"));
 }
 export function evaluate33106() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-4"));
+    return byteaFromInt2(int2Input(null));
 }
 export function evaluate33107() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-4"));
+    return byteaFromInt2(int2Input("0"));
 }
 export function evaluate33108() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-4"));
+    return byteaFromInt2(int2Input("1"));
 }
 export function evaluate33109() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-4"));
+    return byteaFromInt2(int2Input("-1"));
 }
 export function evaluate33110() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-4"));
+    return byteaFromInt2(int2Input("127"));
 }
 export function evaluate33111() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-4"));
+    return byteaFromInt2(int2Input("128"));
 }
 export function evaluate33112() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input(null));
+    return byteaFromInt2(int2Input("255"));
 }
 export function evaluate33113() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input(null));
+    return byteaFromInt2(int2Input("256"));
 }
 export function evaluate33114() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input(null));
+    return byteaFromInt2(int2Input("32767"));
 }
 export function evaluate33115() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input(null));
+    return byteaFromInt2(int2Input("-32768"));
 }
 export function evaluate33116() {
-    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input(null));
+    return byteaFromInt4(int4Input(null));
 }
 export function evaluate33117() {
-    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input(null));
+    return byteaFromInt4(int4Input("0"));
 }
 export function evaluate33118() {
-    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input(null));
+    return byteaFromInt4(int4Input("1"));
 }
 export function evaluate33119() {
-    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input(null));
+    return byteaFromInt4(int4Input("-1"));
 }
 export function evaluate33120() {
-    return jsonArrayElement(jsonInput("[1, null, 3]"), int4Input("1"));
+    return byteaFromInt4(int4Input("65535"));
 }
 export function evaluate33121() {
-    return jsonArrayElementText(jsonInput("[1, null, 3]"), int4Input("1"));
+    return byteaFromInt4(int4Input("2147483647"));
 }
 export function evaluate33122() {
-    return jsonArrayElement(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), int4Input("0"));
+    return byteaFromInt4(int4Input("-2147483648"));
 }
 export function evaluate33123() {
-    return jsonArrayElement(jsonInput("1"), int4Input("0"));
+    return byteaFromInt8(int8Input(null));
 }
 export function evaluate33124() {
-    return jsonbArrayElement(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), int4Input("0"));
+    return byteaFromInt8(int8Input("0"));
 }
 export function evaluate33125() {
-    return jsonbArrayElement(jsonbInput("1"), int4Input("0"));
+    return byteaFromInt8(int8Input("1"));
 }
 export function evaluate33126() {
-    return jsonbArrayElementText(jsonbInput("\"hi\""), int4Input("0"));
+    return byteaFromInt8(int8Input("-1"));
 }
 export function evaluate33127() {
-    return jsonArrayElementText(jsonInput("\"hi\""), int4Input("0"));
+    return byteaFromInt8(int8Input("2147483648"));
 }
 export function evaluate33128() {
-    return jsonbArrayElement(jsonbInput("1"), int4Input("-1"));
+    return byteaFromInt8(int8Input("9223372036854775807"));
 }
 export function evaluate33129() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return byteaFromInt8(int8Input("-9223372036854775808"));
 }
 export function evaluate33130() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return byteaToInt2(byteaInput(null));
 }
 export function evaluate33131() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return byteaToInt2(byteaInput(""));
 }
 export function evaluate33132() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return byteaToInt2(byteaInput("00"));
 }
 export function evaluate33133() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return byteaToInt2(byteaInput("01"));
 }
 export function evaluate33134() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return byteaToInt2(byteaInput("7f"));
 }
 export function evaluate33135() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return byteaToInt2(byteaInput("80"));
 }
 export function evaluate33136() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return byteaToInt2(byteaInput("ff"));
 }
 export function evaluate33137() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return byteaToInt2(byteaInput("007f"));
 }
 export function evaluate33138() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return byteaToInt2(byteaInput("0080"));
 }
 export function evaluate33139() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return byteaToInt2(byteaInput("00ff"));
 }
 export function evaluate33140() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return byteaToInt2(byteaInput("7fff"));
 }
 export function evaluate33141() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return byteaToInt2(byteaInput("8000"));
 }
 export function evaluate33142() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return byteaToInt2(byteaInput("ffff"));
 }
 export function evaluate33143() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return byteaToInt2(byteaInput("010000"));
 }
 export function evaluate33144() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return byteaToInt2(byteaInput("ffffffff"));
 }
 export function evaluate33145() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return byteaToInt2(byteaInput("80000000"));
 }
 export function evaluate33146() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return byteaToInt2(byteaInput("00000001"));
 }
 export function evaluate33147() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return byteaToInt2(byteaInput("ffffffffffffffff"));
 }
 export function evaluate33148() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return byteaToInt2(byteaInput("8000000000000000"));
 }
 export function evaluate33149() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return byteaToInt2(byteaInput("010000000000000000"));
 }
 export function evaluate33150() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return byteaToInt4(byteaInput(null));
 }
 export function evaluate33151() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return byteaToInt4(byteaInput(""));
 }
 export function evaluate33152() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return byteaToInt4(byteaInput("00"));
 }
 export function evaluate33153() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+    return byteaToInt4(byteaInput("01"));
 }
 export function evaluate33154() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+    return byteaToInt4(byteaInput("7f"));
 }
 export function evaluate33155() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+    return byteaToInt4(byteaInput("80"));
 }
 export function evaluate33156() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+    return byteaToInt4(byteaInput("ff"));
 }
 export function evaluate33157() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+    return byteaToInt4(byteaInput("007f"));
 }
 export function evaluate33158() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+    return byteaToInt4(byteaInput("0080"));
 }
 export function evaluate33159() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+    return byteaToInt4(byteaInput("00ff"));
 }
 export function evaluate33160() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
+    return byteaToInt4(byteaInput("7fff"));
 }
 export function evaluate33161() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return byteaToInt4(byteaInput("8000"));
 }
 export function evaluate33162() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return byteaToInt4(byteaInput("ffff"));
 }
 export function evaluate33163() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return byteaToInt4(byteaInput("010000"));
 }
 export function evaluate33164() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return byteaToInt4(byteaInput("ffffffff"));
 }
 export function evaluate33165() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return byteaToInt4(byteaInput("80000000"));
 }
 export function evaluate33166() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return byteaToInt4(byteaInput("00000001"));
 }
 export function evaluate33167() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return byteaToInt4(byteaInput("ffffffffffffffff"));
 }
 export function evaluate33168() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return byteaToInt4(byteaInput("8000000000000000"));
 }
 export function evaluate33169() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return byteaToInt4(byteaInput("010000000000000000"));
 }
 export function evaluate33170() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return byteaToInt8(byteaInput(null));
 }
 export function evaluate33171() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return byteaToInt8(byteaInput(""));
 }
 export function evaluate33172() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return byteaToInt8(byteaInput("00"));
 }
 export function evaluate33173() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return byteaToInt8(byteaInput("01"));
 }
 export function evaluate33174() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return byteaToInt8(byteaInput("7f"));
 }
 export function evaluate33175() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return byteaToInt8(byteaInput("80"));
 }
 export function evaluate33176() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
+    return byteaToInt8(byteaInput("ff"));
 }
 export function evaluate33177() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+    return byteaToInt8(byteaInput("007f"));
 }
 export function evaluate33178() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+    return byteaToInt8(byteaInput("0080"));
 }
 export function evaluate33179() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+    return byteaToInt8(byteaInput("00ff"));
 }
 export function evaluate33180() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+    return byteaToInt8(byteaInput("7fff"));
 }
 export function evaluate33181() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+    return byteaToInt8(byteaInput("8000"));
 }
 export function evaluate33182() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+    return byteaToInt8(byteaInput("ffff"));
 }
 export function evaluate33183() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+    return byteaToInt8(byteaInput("010000"));
 }
 export function evaluate33184() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
+    return byteaToInt8(byteaInput("ffffffff"));
 }
 export function evaluate33185() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return byteaToInt8(byteaInput("80000000"));
 }
 export function evaluate33186() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return byteaToInt8(byteaInput("00000001"));
 }
 export function evaluate33187() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return byteaToInt8(byteaInput("ffffffffffffffff"));
 }
 export function evaluate33188() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return byteaToInt8(byteaInput("8000000000000000"));
 }
 export function evaluate33189() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return byteaToInt8(byteaInput("010000000000000000"));
 }
 export function evaluate33190() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return byteaEncode(byteaInput(""), textInput("hex"));
 }
 export function evaluate33191() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return byteaEncode(byteaInput("ff"), textInput("hex"));
 }
 export function evaluate33192() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return byteaEncode(byteaInput("ff"), textInput("HEX"));
 }
 export function evaluate33193() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return byteaEncode(byteaInput("6162"), textInput("hex"));
 }
 export function evaluate33194() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return byteaEncode(byteaInput("00ff"), textInput("escape"));
 }
 export function evaluate33195() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return byteaEncode(byteaInput("5c"), textInput("escape"));
 }
 export function evaluate33196() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return byteaEncode(byteaInput("61"), textInput("escape"));
 }
 export function evaluate33197() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return byteaEncode(byteaInput("61"), textInput("base64"));
 }
 export function evaluate33198() {
-    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return byteaEncode(byteaInput(""), textInput("base64"));
 }
 export function evaluate33199() {
-    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return byteaEncode(byteaInput("ff"), textInput("base64"));
 }
 export function evaluate33200() {
-    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return byteaEncode(byteaInput("616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161"), textInput("base64"));
 }
 export function evaluate33201() {
-    return jsonExtractPath(jsonInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return byteaEncode(byteaInput("ff"), textInput("nope"));
 }
 export function evaluate33202() {
-    return jsonExtractPath(jsonInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return byteaEncode(byteaInput(null), textInput("hex"));
 }
 export function evaluate33203() {
-    return jsonbExtractPath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return byteaEncode(byteaInput("ff"), textInput(null));
 }
 export function evaluate33204() {
-    return jsonExtractPath(jsonInput("{\"1\":\"a\"}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return byteaEncode(byteaInput("00"), textInput("Escape"));
 }
 export function evaluate33205() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+    return byteaDecodeFormat(textInput("ff"), textInput("hex"));
 }
 export function evaluate33206() {
-    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], null));
+    return byteaDecodeFormat(textInput("FF"), textInput("hex"));
 }
 export function evaluate33207() {
-    return jsonbExtractPath(jsonbInput("\"hi\""), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("0"))]));
+    return byteaDecodeFormat(textInput("66 6\n6"), textInput("hex"));
 }
 export function evaluate33208() {
-    return jsonExtractPath(jsonInput("\"hi\""), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("0"))]));
+    return byteaDecodeFormat(textInput("616"), textInput("hex"));
 }
 export function evaluate33209() {
-    return jsonbEq(jsonbInput("null"), jsonbInput("\"\""));
+    return byteaDecodeFormat(textInput("gg"), textInput("hex"));
 }
 export function evaluate33210() {
-    return jsonbNe(jsonbInput("null"), jsonbInput("\"\""));
+    return byteaDecodeFormat(textInput("YQ=="), textInput("base64"));
 }
 export function evaluate33211() {
-    return jsonbLt(jsonbInput("null"), jsonbInput("\"\""));
+    return byteaDecodeFormat(textInput("YQ"), textInput("base64"));
 }
 export function evaluate33212() {
-    return jsonbLe(jsonbInput("null"), jsonbInput("\"\""));
+    return byteaDecodeFormat(textInput("YQ==\n"), textInput("base64"));
 }
 export function evaluate33213() {
-    return jsonbGt(jsonbInput("null"), jsonbInput("\"\""));
+    return byteaDecodeFormat(textInput("*"), textInput("base64"));
 }
 export function evaluate33214() {
-    return jsonbGe(jsonbInput("null"), jsonbInput("\"\""));
+    return byteaDecodeFormat(textInput("a"), textInput("escape"));
 }
 export function evaluate33215() {
-    return jsonbCompare(jsonbInput("null"), jsonbInput("\"\""));
+    return byteaDecodeFormat(textInput("\\141"), textInput("escape"));
 }
 export function evaluate33216() {
-    return jsonbEq(jsonbInput("\"\""), jsonbInput("0"));
+    return byteaDecodeFormat(textInput("\\\\"), textInput("escape"));
 }
 export function evaluate33217() {
-    return jsonbNe(jsonbInput("\"\""), jsonbInput("0"));
+    return byteaDecodeFormat(textInput("\\"), textInput("escape"));
 }
 export function evaluate33218() {
-    return jsonbLt(jsonbInput("\"\""), jsonbInput("0"));
+    return byteaDecodeFormat(textInput("\u00E9"), textInput("escape"));
 }
 export function evaluate33219() {
-    return jsonbLe(jsonbInput("\"\""), jsonbInput("0"));
+    return byteaDecodeFormat(textInput("ff"), textInput("nope"));
 }
 export function evaluate33220() {
-    return jsonbGt(jsonbInput("\"\""), jsonbInput("0"));
+    return byteaDecodeFormat(textInput(null), textInput("hex"));
 }
 export function evaluate33221() {
-    return jsonbGe(jsonbInput("\"\""), jsonbInput("0"));
+    return byteaDecodeFormat(textInput("ff"), textInput(null));
 }
 export function evaluate33222() {
-    return jsonbCompare(jsonbInput("\"\""), jsonbInput("0"));
+    return byteaDecodeFormat(textInput("FF"), textInput("Hex"));
 }
 export function evaluate33223() {
-    return jsonbEq(jsonbInput("0"), jsonbInput("false"));
+    return uuidInput(null);
 }
 export function evaluate33224() {
-    return jsonbNe(jsonbInput("0"), jsonbInput("false"));
+    return uuidInput("00000000-0000-0000-0000-000000000000");
 }
 export function evaluate33225() {
-    return jsonbLt(jsonbInput("0"), jsonbInput("false"));
+    return uuidInput("FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF");
 }
 export function evaluate33226() {
-    return jsonbLe(jsonbInput("0"), jsonbInput("false"));
+    return uuidInput("{a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11}");
 }
 export function evaluate33227() {
-    return jsonbGt(jsonbInput("0"), jsonbInput("false"));
+    return uuidInput("a0eebc999c0b4ef8bb6d6bb9bd380a11");
 }
 export function evaluate33228() {
-    return jsonbGe(jsonbInput("0"), jsonbInput("false"));
+    return uuidInput("a0ee-bc99-9c0b-4ef8-bb6d-6bb9-bd38-0a11");
 }
 export function evaluate33229() {
-    return jsonbCompare(jsonbInput("0"), jsonbInput("false"));
+    return uuidInput("a0eebc99-9c0b4ef8-bb6d6bb9bd380a11");
 }
 export function evaluate33230() {
-    return jsonbEq(jsonbInput("false"), jsonbInput("[]"));
+    return uuidInput("");
 }
 export function evaluate33231() {
-    return jsonbNe(jsonbInput("false"), jsonbInput("[]"));
+    return uuidInput("0");
 }
 export function evaluate33232() {
-    return jsonbLt(jsonbInput("false"), jsonbInput("[]"));
+    return uuidInput("00000000-0000-0000-0000-00000000000");
 }
 export function evaluate33233() {
-    return jsonbLe(jsonbInput("false"), jsonbInput("[]"));
+    return uuidInput("00000000-0000-0000-0000-0000000000000");
 }
 export function evaluate33234() {
-    return jsonbGt(jsonbInput("false"), jsonbInput("[]"));
+    return uuidInput("00000000-0000-0000-0000-00000000000g");
 }
 export function evaluate33235() {
-    return jsonbGe(jsonbInput("false"), jsonbInput("[]"));
+    return uuidInput("0000000-00000-0000-0000-000000000000");
 }
 export function evaluate33236() {
-    return jsonbCompare(jsonbInput("false"), jsonbInput("[]"));
+    return uuidInput("{00000000-0000-0000-0000-000000000000");
 }
 export function evaluate33237() {
-    return jsonbEq(jsonbInput("[]"), jsonbInput("null"));
+    return uuidInput("00000000-0000-0000-0000-000000000000}");
 }
 export function evaluate33238() {
-    return jsonbNe(jsonbInput("[]"), jsonbInput("null"));
+    return uuidInput(" 00000000-0000-0000-0000-000000000000");
 }
 export function evaluate33239() {
-    return jsonbLt(jsonbInput("[]"), jsonbInput("null"));
+    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33240() {
-    return jsonbLe(jsonbInput("[]"), jsonbInput("null"));
+    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33241() {
-    return jsonbGt(jsonbInput("[]"), jsonbInput("null"));
+    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33242() {
-    return jsonbGe(jsonbInput("[]"), jsonbInput("null"));
+    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33243() {
-    return jsonbCompare(jsonbInput("[]"), jsonbInput("null"));
+    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33244() {
-    return jsonbEq(jsonbInput("[]"), jsonbInput("{}"));
+    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33245() {
-    return jsonbNe(jsonbInput("[]"), jsonbInput("{}"));
+    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33246() {
-    return jsonbLt(jsonbInput("[]"), jsonbInput("{}"));
+    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33247() {
-    return jsonbLe(jsonbInput("[]"), jsonbInput("{}"));
+    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33248() {
-    return jsonbGt(jsonbInput("[]"), jsonbInput("{}"));
+    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33249() {
-    return jsonbGe(jsonbInput("[]"), jsonbInput("{}"));
+    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33250() {
-    return jsonbCompare(jsonbInput("[]"), jsonbInput("{}"));
+    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000001"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33251() {
-    return jsonbEq(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33252() {
-    return jsonbNe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33253() {
-    return jsonbLt(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33254() {
-    return jsonbLe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33255() {
-    return jsonbGt(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33256() {
-    return jsonbGe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33257() {
-    return jsonbCompare(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return uuidEq(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33258() {
-    return jsonbEq(jsonbInput("[2]"), jsonbInput("[1,2]"));
+    return uuidNe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33259() {
-    return jsonbNe(jsonbInput("[2]"), jsonbInput("[1,2]"));
+    return uuidLt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33260() {
-    return jsonbLt(jsonbInput("[2]"), jsonbInput("[1,2]"));
+    return uuidLe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33261() {
-    return jsonbLe(jsonbInput("[2]"), jsonbInput("[1,2]"));
+    return uuidGt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33262() {
-    return jsonbGt(jsonbInput("[2]"), jsonbInput("[1,2]"));
+    return uuidGe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33263() {
-    return jsonbGe(jsonbInput("[2]"), jsonbInput("[1,2]"));
+    return uuidEq(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33264() {
-    return jsonbCompare(jsonbInput("[2]"), jsonbInput("[1,2]"));
+    return uuidNe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33265() {
-    return jsonbEq(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+    return uuidLt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33266() {
-    return jsonbNe(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+    return uuidLe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33267() {
-    return jsonbLt(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+    return uuidGt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33268() {
-    return jsonbLe(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+    return uuidGe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33269() {
-    return jsonbGt(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+    return uuidEq(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33270() {
-    return jsonbGe(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+    return uuidEq(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33271() {
-    return jsonbCompare(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
+    return uuidEq(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33272() {
-    return jsonbEq(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+    return uuidNe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33273() {
-    return jsonbNe(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+    return uuidNe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33274() {
-    return jsonbLt(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+    return uuidNe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33275() {
-    return jsonbLe(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+    return uuidLt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33276() {
-    return jsonbGt(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+    return uuidLt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33277() {
-    return jsonbGe(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+    return uuidLt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33278() {
-    return jsonbCompare(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
+    return uuidLe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33279() {
-    return jsonbEq(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+    return uuidLe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33280() {
-    return jsonbNe(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+    return uuidLe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33281() {
-    return jsonbLt(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+    return uuidGt(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33282() {
-    return jsonbLe(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+    return uuidGt(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33283() {
-    return jsonbGt(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+    return uuidGt(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33284() {
-    return jsonbGe(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+    return uuidGe(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33285() {
-    return jsonbCompare(jsonbInput("\"abc\""), jsonbInput("\"z\""));
+    return uuidGe(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33286() {
-    return jsonbEq(jsonbInput("\"B\""), jsonbInput("\"a\""));
+    return uuidGe(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33287() {
-    return jsonbNe(jsonbInput("\"B\""), jsonbInput("\"a\""));
+    return uuidCompare(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33288() {
-    return jsonbLt(jsonbInput("\"B\""), jsonbInput("\"a\""));
+    return uuidCompare(uuidInput("00000000-0000-0000-0000-000000000000"), uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"));
 }
 export function evaluate33289() {
-    return jsonbLe(jsonbInput("\"B\""), jsonbInput("\"a\""));
+    return uuidCompare(uuidInput("ffffffff-ffff-ffff-ffff-ffffffffffff"), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33290() {
-    return jsonbGt(jsonbInput("\"B\""), jsonbInput("\"a\""));
+    return uuidCompare(uuidInput(null), uuidInput("00000000-0000-0000-0000-000000000000"));
 }
 export function evaluate33291() {
-    return jsonbGe(jsonbInput("\"B\""), jsonbInput("\"a\""));
+    return uuidExtractVersion(uuidInput(null));
 }
 export function evaluate33292() {
-    return jsonbCompare(jsonbInput("\"B\""), jsonbInput("\"a\""));
+    return uuidExtractVersion(uuidInput("00000000-0000-0000-8000-000000000000"));
 }
 export function evaluate33293() {
-    return jsonbEq(jsonbInput("1.0"), jsonbInput("100"));
+    return uuidExtractVersion(uuidInput("00000000-0000-4000-8000-000000000000"));
 }
 export function evaluate33294() {
-    return jsonbNe(jsonbInput("1.0"), jsonbInput("100"));
+    return uuidExtractVersion(uuidInput("00000000-0000-7000-8000-000000000000"));
 }
 export function evaluate33295() {
-    return jsonbLt(jsonbInput("1.0"), jsonbInput("100"));
+    return uuidExtractVersion(uuidInput("00000000-0000-f000-b000-000000000000"));
 }
 export function evaluate33296() {
-    return jsonbLe(jsonbInput("1.0"), jsonbInput("100"));
+    return uuidExtractVersion(uuidInput("00000000-0000-4000-0000-000000000000"));
 }
 export function evaluate33297() {
-    return jsonbGt(jsonbInput("1.0"), jsonbInput("100"));
+    return uuidExtractVersion(uuidInput("00000000-0000-4000-c000-000000000000"));
 }
 export function evaluate33298() {
-    return jsonbGe(jsonbInput("1.0"), jsonbInput("100"));
+    return uuidFromText(textInput(null));
 }
 export function evaluate33299() {
-    return jsonbCompare(jsonbInput("1.0"), jsonbInput("100"));
+    return uuidFromText(textInput("A0EEBC999C0B4EF8BB6D6BB9BD380A11"));
 }
 export function evaluate33300() {
-    return jsonbEq(jsonbInput(null), jsonbInput("[1]"));
+    return uuidFromText(textInput("not-a-uuid"));
 }
 export function evaluate33301() {
-    return jsonbNe(jsonbInput(null), jsonbInput("[1]"));
+    return uuidText(uuidInput(null));
 }
 export function evaluate33302() {
-    return jsonbLt(jsonbInput(null), jsonbInput("[1]"));
+    return uuidText(uuidInput("a0eebc999c0b4ef8bb6d6bb9bd380a11"));
 }
 export function evaluate33303() {
-    return jsonbLe(jsonbInput(null), jsonbInput("[1]"));
+    return sqlIsNull(uuidInput(null));
 }
 export function evaluate33304() {
-    return jsonbGt(jsonbInput(null), jsonbInput("[1]"));
+    return sqlCase(() => uuidInput("00000000-0000-0000-0000-000000000000"), [() => booleanInput(true), () => uuidInput("00000000-0000-0000-0000-000000000001")]);
 }
 export function evaluate33305() {
-    return jsonbGe(jsonbInput(null), jsonbInput("[1]"));
+    return sqlCoalesce(() => uuidInput(null), () => uuidInput("00000000-0000-0000-0000-000000000001"));
 }
 export function evaluate33306() {
-    return jsonbCompare(jsonbInput(null), jsonbInput("[1]"));
+    return enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate33307() {
-    return jsonbEq(jsonbInput("[1]"), jsonbInput("[1]"));
+    return enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate33308() {
-    return jsonbNe(jsonbInput("[1]"), jsonbInput("[1]"));
+    return enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate33309() {
-    return jsonbLt(jsonbInput("[1]"), jsonbInput("[1]"));
+    return enumInput("quote's", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate33310() {
-    return jsonbLe(jsonbInput("[1]"), jsonbInput("[1]"));
+    return enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate33311() {
-    return jsonbGt(jsonbInput("[1]"), jsonbInput("[1]"));
+    return enumInput("middle", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]);
 }
 export function evaluate33312() {
-    return jsonbGe(jsonbInput("[1]"), jsonbInput("[1]"));
+    return enumInput("zebra", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]);
 }
 export function evaluate33313() {
-    return jsonbCompare(jsonbInput("[1]"), jsonbInput("[1]"));
+    return enumInput("", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate33314() {
-    return jsonbEq(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return enumInput("missing", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate33315() {
-    return jsonbNe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return enumInput("ZEBRA", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate33316() {
-    return jsonbLt(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return enumInput("zebra ", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate33317() {
-    return jsonbLe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return enumEq(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33318() {
-    return jsonbGt(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return enumNe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33319() {
-    return jsonbGe(jsonbInput("[1]"), jsonbInput("[1,2]"));
+    return enumLt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33320() {
-    return jsonbContains(jsonbInput("1"), jsonbInput("1"));
+    return enumLe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33321() {
-    return jsonbContained(jsonbInput("1"), jsonbInput("1"));
+    return enumGt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33322() {
-    return jsonbContains(jsonbInput("1"), jsonbInput("1"));
+    return enumGe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33323() {
-    return jsonbContained(jsonbInput("1"), jsonbInput("1"));
+    return enumEq(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33324() {
-    return jsonbContains(jsonbInput("[1]"), jsonbInput("1"));
+    return enumNe(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33325() {
-    return jsonbContained(jsonbInput("1"), jsonbInput("[1]"));
+    return enumLt(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33326() {
-    return jsonbContains(jsonbInput("[1]"), jsonbInput("1"));
+    return enumLe(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33327() {
-    return jsonbContained(jsonbInput("1"), jsonbInput("[1]"));
+    return enumGt(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33328() {
-    return jsonbContains(jsonbInput("1"), jsonbInput("[1]"));
+    return enumGe(enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33329() {
-    return jsonbContained(jsonbInput("[1]"), jsonbInput("1"));
+    return enumEq(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33330() {
-    return jsonbContains(jsonbInput("1"), jsonbInput("[1]"));
+    return enumNe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33331() {
-    return jsonbContained(jsonbInput("[1]"), jsonbInput("1"));
+    return enumLt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33332() {
-    return jsonbContains(jsonbInput("[1,2]"), jsonbInput("[1,1]"));
+    return enumLe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33333() {
-    return jsonbContained(jsonbInput("[1,1]"), jsonbInput("[1,2]"));
+    return enumGt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33334() {
-    return jsonbContains(jsonbInput("[1,2]"), jsonbInput("[1,1]"));
+    return enumGe(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33335() {
-    return jsonbContained(jsonbInput("[1,1]"), jsonbInput("[1,2]"));
+    return enumEq(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33336() {
-    return jsonbContains(jsonbInput("{\"a\":[1,2]}"), jsonbInput("{\"a\":[1]}"));
+    return enumNe(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33337() {
-    return jsonbContained(jsonbInput("{\"a\":[1]}"), jsonbInput("{\"a\":[1,2]}"));
+    return enumLt(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33338() {
-    return jsonbContains(jsonbInput("{\"a\":[1,2]}"), jsonbInput("{\"a\":[1]}"));
+    return enumLe(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33339() {
-    return jsonbContained(jsonbInput("{\"a\":[1]}"), jsonbInput("{\"a\":[1,2]}"));
+    return enumGt(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33340() {
-    return jsonbContains(jsonbInput("[1]"), jsonbInput("[]"));
+    return enumGe(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33341() {
-    return jsonbContained(jsonbInput("[]"), jsonbInput("[1]"));
+    return enumEq(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33342() {
-    return jsonbContains(jsonbInput("[1]"), jsonbInput("[]"));
+    return enumNe(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33343() {
-    return jsonbContained(jsonbInput("[]"), jsonbInput("[1]"));
+    return enumLt(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33344() {
-    return jsonbContains(jsonbInput("[]"), jsonbInput("[1]"));
+    return enumLe(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33345() {
-    return jsonbContained(jsonbInput("[1]"), jsonbInput("[]"));
+    return enumGt(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33346() {
-    return jsonbContains(jsonbInput("[]"), jsonbInput("[1]"));
+    return enumGe(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33347() {
-    return jsonbContained(jsonbInput("[1]"), jsonbInput("[]"));
+    return enumLt(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33348() {
-    return jsonbContains(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
+    return enumLt(enumInput("middle", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]), enumInput("apple", "enum:[\"enum_beta\",\"state\"]", ["middle", "apple", "zebra"]));
 }
 export function evaluate33349() {
-    return jsonbContained(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
+    return enumInput(textInput(null), "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate33350() {
-    return jsonbContains(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
+    return enumInput(textInput("zebra"), "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate33351() {
-    return jsonbContained(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
+    return enumInput(textInput("missing"), "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]);
 }
 export function evaluate33352() {
-    return jsonbContains(jsonbInput("{}"), jsonbInput("{}"));
+    return enumText(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33353() {
-    return jsonbContained(jsonbInput("{}"), jsonbInput("{}"));
+    return enumText(enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33354() {
-    return jsonbContains(jsonbInput("{}"), jsonbInput("{}"));
+    return enumText(enumInput("quote's", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33355() {
-    return jsonbContained(jsonbInput("{}"), jsonbInput("{}"));
+    return enumText(enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33356() {
-    return jsonbContains(jsonbInput("[null]"), jsonbInput("null"));
+    return sqlIsNull(enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33357() {
-    return jsonbContained(jsonbInput("null"), jsonbInput("[null]"));
+    return sqlCase(() => enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), [() => booleanInput(true), () => enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])]);
 }
 export function evaluate33358() {
-    return jsonbContains(jsonbInput("[null]"), jsonbInput("null"));
+    return sqlCoalesce(() => enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]), () => enumInput("\u00E9", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate33359() {
-    return jsonbContained(jsonbInput("null"), jsonbInput("[null]"));
+    return arrayInput("pg_catalog.int4", [], [], null);
 }
 export function evaluate33360() {
-    return jsonbContains(jsonbInput("null"), jsonbInput("[null]"));
+    return arrayInput("pg_catalog.int4", [], [], []);
 }
 export function evaluate33361() {
-    return jsonbContained(jsonbInput("[null]"), jsonbInput("null"));
+    return arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]);
 }
 export function evaluate33362() {
-    return jsonbContains(jsonbInput("null"), jsonbInput("[null]"));
+    return arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]);
 }
 export function evaluate33363() {
-    return jsonbContained(jsonbInput("[null]"), jsonbInput("null"));
+    return arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]);
 }
 export function evaluate33364() {
-    return jsonbContains(jsonbInput("false"), jsonbInput("false"));
+    return arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]);
 }
 export function evaluate33365() {
-    return jsonbContained(jsonbInput("false"), jsonbInput("false"));
+    return arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]);
 }
 export function evaluate33366() {
-    return jsonbContains(jsonbInput("false"), jsonbInput("false"));
+    return arrayCardinality(arrayInput("pg_catalog.int4", [], [], null));
 }
 export function evaluate33367() {
-    return jsonbContained(jsonbInput("false"), jsonbInput("false"));
+    return arrayNdims(arrayInput("pg_catalog.int4", [], [], null));
 }
 export function evaluate33368() {
-    return jsonbContains(jsonbInput("true"), jsonbInput("false"));
+    return arrayDims(arrayInput("pg_catalog.int4", [], [], null));
 }
 export function evaluate33369() {
-    return jsonbContained(jsonbInput("false"), jsonbInput("true"));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input(null));
 }
 export function evaluate33370() {
-    return jsonbContains(jsonbInput("true"), jsonbInput("false"));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input(null));
 }
 export function evaluate33371() {
-    return jsonbContained(jsonbInput("false"), jsonbInput("true"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input(null));
 }
 export function evaluate33372() {
-    return jsonbContains(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("-1"));
 }
 export function evaluate33373() {
-    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("-1"));
 }
 export function evaluate33374() {
-    return jsonbContains(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("-1"));
 }
 export function evaluate33375() {
-    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("0"));
 }
 export function evaluate33376() {
-    return jsonbContains(jsonbInput("[1]"), jsonbInput("[[1]]"));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("0"));
 }
 export function evaluate33377() {
-    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[1]"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("0"));
 }
 export function evaluate33378() {
-    return jsonbContains(jsonbInput("[1]"), jsonbInput("[[1]]"));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
 }
 export function evaluate33379() {
-    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[1]"));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
 }
 export function evaluate33380() {
-    return jsonbContains(jsonbInput(null), jsonbInput("1"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
 }
 export function evaluate33381() {
-    return jsonbContained(jsonbInput("1"), jsonbInput(null));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("2"));
 }
 export function evaluate33382() {
-    return jsonbContains(jsonbInput(null), jsonbInput("1"));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("2"));
 }
 export function evaluate33383() {
-    return jsonbContained(jsonbInput("1"), jsonbInput(null));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("2"));
 }
 export function evaluate33384() {
-    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("a"));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], null), int4Input("3"));
 }
 export function evaluate33385() {
-    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("a"));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], null), int4Input("3"));
 }
 export function evaluate33386() {
-    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("b"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], null), int4Input("3"));
 }
 export function evaluate33387() {
-    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("b"));
+    return arrayCardinality(arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate33388() {
-    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("a"));
+    return arrayNdims(arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate33389() {
-    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("a"));
+    return arrayDims(arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate33390() {
-    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("1"));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input(null));
 }
 export function evaluate33391() {
-    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("1"));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input(null));
 }
 export function evaluate33392() {
-    return jsonbExists(jsonbInput("\"hello\""), textInput("hello"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input(null));
 }
 export function evaluate33393() {
-    return jsonbExists(jsonbInput("\"hello\""), textInput("hello"));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("-1"));
 }
 export function evaluate33394() {
-    return jsonbExists(jsonbInput("true"), textInput("true"));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("-1"));
 }
 export function evaluate33395() {
-    return jsonbExists(jsonbInput("true"), textInput("true"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("-1"));
 }
 export function evaluate33396() {
-    return jsonbExists(jsonbInput("{\"\":\"x\"}"), textInput(""));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("0"));
 }
 export function evaluate33397() {
-    return jsonbExists(jsonbInput("{\"\":\"x\"}"), textInput(""));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("0"));
 }
 export function evaluate33398() {
-    return jsonbExists(jsonbInput("[\"\"]"), textInput(""));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("0"));
 }
 export function evaluate33399() {
-    return jsonbExists(jsonbInput("[\"\"]"), textInput(""));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("1"));
 }
 export function evaluate33400() {
-    return jsonbExists(jsonbInput(null), textInput("a"));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("1"));
 }
 export function evaluate33401() {
-    return jsonbExists(jsonbInput(null), textInput("a"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("1"));
 }
 export function evaluate33402() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("2"));
 }
 export function evaluate33403() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("2"));
 }
 export function evaluate33404() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("2"));
 }
 export function evaluate33405() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [], [], []), int4Input("3"));
 }
 export function evaluate33406() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [], [], []), int4Input("3"));
 }
 export function evaluate33407() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [], [], []), int4Input("3"));
 }
 export function evaluate33408() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return arrayCardinality(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33409() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return arrayNdims(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33410() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return arrayDims(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33411() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input(null));
 }
 export function evaluate33412() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input(null));
 }
 export function evaluate33413() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input(null));
 }
 export function evaluate33414() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("-1"));
 }
 export function evaluate33415() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("-1"));
 }
 export function evaluate33416() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("-1"));
 }
 export function evaluate33417() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("0"));
 }
 export function evaluate33418() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("0"));
 }
 export function evaluate33419() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("0"));
 }
 export function evaluate33420() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("1"));
 }
 export function evaluate33421() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("1"));
 }
 export function evaluate33422() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("1"));
 }
 export function evaluate33423() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("2"));
 }
 export function evaluate33424() {
-    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("2"));
 }
 export function evaluate33425() {
-    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("2"));
 }
 export function evaluate33426() {
-    return jsonFromText(textInput(null));
+    return arrayLength(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("3"));
 }
 export function evaluate33427() {
-    return jsonbFromText(textInput(null));
+    return arrayLower(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("3"));
 }
 export function evaluate33428() {
-    return jsonFromText(textInput("1"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("3"));
 }
 export function evaluate33429() {
-    return jsonbFromText(textInput("1"));
+    return arrayCardinality(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate33430() {
-    return jsonFromText(textInput("{\"b\":2,\"a\":1}"));
+    return arrayNdims(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate33431() {
-    return jsonbFromText(textInput("{\"b\":2,\"a\":1}"));
+    return arrayDims(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate33432() {
-    return jsonFromText(textInput("not-json"));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
 }
 export function evaluate33433() {
-    return jsonbFromText(textInput("not-json"));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
 }
 export function evaluate33434() {
-    return jsonFromText(textInput("\"\\u0000\""));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
 }
 export function evaluate33435() {
-    return jsonbFromText(textInput("\"\\u0000\""));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
 }
 export function evaluate33436() {
-    return jsonText(jsonInput(null));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
 }
 export function evaluate33437() {
-    return jsonbText(jsonbInput(null));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
 }
 export function evaluate33438() {
-    return jsonToJsonb(jsonInput(null));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
 }
 export function evaluate33439() {
-    return jsonbToJson(jsonbInput(null));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
 }
 export function evaluate33440() {
-    return jsonText(jsonInput("1"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
 }
 export function evaluate33441() {
-    return jsonbText(jsonbInput("1"));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
 }
 export function evaluate33442() {
-    return jsonToJsonb(jsonInput("1"));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
 }
 export function evaluate33443() {
-    return jsonbToJson(jsonbInput("1"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
 }
 export function evaluate33444() {
-    return jsonText(jsonInput(" { \"a\" : 1 } "));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
 }
 export function evaluate33445() {
-    return jsonbText(jsonbInput(" { \"a\" : 1 } "));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
 }
 export function evaluate33446() {
-    return jsonToJsonb(jsonInput(" { \"a\" : 1 } "));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
 }
 export function evaluate33447() {
-    return jsonbToJson(jsonbInput(" { \"a\" : 1 } "));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
 }
 export function evaluate33448() {
-    return jsonText(jsonInput("{\"a\":1,\"a\":2}"));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
 }
 export function evaluate33449() {
-    return jsonbText(jsonbInput("{\"a\":1,\"a\":2}"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
 }
 export function evaluate33450() {
-    return jsonToJsonb(jsonInput("{\"a\":1,\"a\":2}"));
+    return arrayCardinality(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate33451() {
-    return jsonbToJson(jsonbInput("{\"a\":1,\"a\":2}"));
+    return arrayNdims(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate33452() {
-    return sqlIsNull(jsonInput(null));
+    return arrayDims(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate33453() {
-    return sqlIsNotNull(jsonbInput(null));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
 }
 export function evaluate33454() {
-    return sqlCase(() => jsonInput("[10,20,30]"), [() => booleanInput(true), () => jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}")]);
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
 }
 export function evaluate33455() {
-    return sqlCase(() => jsonbInput("[10,20,30]"), [() => booleanInput(false), () => jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}")]);
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input(null));
 }
 export function evaluate33456() {
-    return sqlCoalesce(() => jsonInput(null), () => jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
 }
 export function evaluate33457() {
-    return sqlCoalesce(() => jsonbInput(null), () => jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
 }
 export function evaluate33458() {
-    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":2,\"a\":3}"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("-1"));
 }
 export function evaluate33459() {
-    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":2,\"a\":3}"));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
 }
 export function evaluate33460() {
-    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
 }
 export function evaluate33461() {
-    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("0"));
 }
 export function evaluate33462() {
-    return jsonbConcat(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
 }
 export function evaluate33463() {
-    return jsonbConcat(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
 }
 export function evaluate33464() {
-    return jsonbConcat(jsonbInput("[1]"), jsonbInput("[2,3]"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"));
 }
 export function evaluate33465() {
-    return jsonbConcat(jsonbInput("[1]"), jsonbInput("[2,3]"));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
 }
 export function evaluate33466() {
-    return jsonbConcat(jsonbInput("[]"), jsonbInput("[1]"));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
 }
 export function evaluate33467() {
-    return jsonbConcat(jsonbInput("[]"), jsonbInput("[1]"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
 }
 export function evaluate33468() {
-    return jsonbConcat(jsonbInput("1"), jsonbInput("2"));
+    return arrayLength(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
 }
 export function evaluate33469() {
-    return jsonbConcat(jsonbInput("1"), jsonbInput("2"));
+    return arrayLower(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
 }
 export function evaluate33470() {
-    return jsonbConcat(jsonbInput("1"), jsonbInput("[2]"));
+    return arrayUpper(arrayInput("pg_catalog.int4", [2, 2], [0, 3], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("3"));
 }
 export function evaluate33471() {
-    return jsonbConcat(jsonbInput("1"), jsonbInput("[2]"));
+    return arrayEq(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33472() {
-    return jsonbConcat(jsonbInput("[1]"), jsonbInput("2"));
+    return arrayNe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33473() {
-    return jsonbConcat(jsonbInput("[1]"), jsonbInput("2"));
+    return arrayLt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33474() {
-    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[2]"));
+    return arrayLe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33475() {
-    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[2]"));
+    return arrayGt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33476() {
-    return jsonbConcat(jsonbInput("[2]"), jsonbInput("{\"a\":1}"));
+    return arrayGe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33477() {
-    return jsonbConcat(jsonbInput("[2]"), jsonbInput("{\"a\":1}"));
+    return arrayEq(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33478() {
-    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[]"));
+    return arrayNe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33479() {
-    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[]"));
+    return arrayLt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33480() {
-    return jsonbConcat(jsonbInput("null"), jsonbInput("[1]"));
+    return arrayLe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33481() {
-    return jsonbConcat(jsonbInput("null"), jsonbInput("[1]"));
+    return arrayGt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33482() {
-    return jsonbConcat(jsonbInput("true"), jsonbInput("{\"a\":1}"));
+    return arrayGe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33483() {
-    return jsonbConcat(jsonbInput("true"), jsonbInput("{\"a\":1}"));
+    return arrayEq(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33484() {
-    return jsonbConcat(jsonbInput(null), jsonbInput("1"));
+    return arrayNe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33485() {
-    return jsonbConcat(jsonbInput(null), jsonbInput("1"));
+    return arrayLt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33486() {
-    return jsonbDeleteKey(jsonbInput("{\"a\":1,\"b\":2}"), textInput("a"));
+    return arrayLe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33487() {
-    return jsonbDeleteKey(jsonbInput("{\"a\":1}"), textInput("missing"));
+    return arrayGt(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33488() {
-    return jsonbDeleteKey(jsonbInput("[\"a\",\"b\",\"a\"]"), textInput("a"));
+    return arrayGe(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33489() {
-    return jsonbDeleteKey(jsonbInput("1"), textInput("a"));
+    return arrayEq(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
 }
 export function evaluate33490() {
-    return jsonbDeleteKey(jsonbInput("{\"a\":1,\"b\":2}"), textInput("a"));
+    return arrayNe(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
 }
 export function evaluate33491() {
-    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("1"));
+    return arrayLt(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
 }
 export function evaluate33492() {
-    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("-1"));
+    return arrayLe(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
 }
 export function evaluate33493() {
-    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("99"));
+    return arrayGt(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
 }
 export function evaluate33494() {
-    return jsonbDeleteIndex(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), int4Input("0"));
+    return arrayGe(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
 }
 export function evaluate33495() {
-    return jsonbDeleteIndex(jsonbInput("1"), int4Input("0"));
+    return arrayEq(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33496() {
-    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("1"));
+    return arrayNe(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33497() {
-    return jsonbDeleteKeys(jsonbInput("{\"a\":1,\"b\":2,\"c\":3}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("c"))]));
+    return arrayLt(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33498() {
-    return jsonbDeleteKeys(jsonbInput("[\"a\",\"b\",\"c\"]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return arrayLe(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33499() {
-    return jsonbDeleteKeys(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+    return arrayGt(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33500() {
-    return jsonbDeleteKeys(jsonbInput("{\"a\":1,\"b\":2,\"c\":3}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("c"))]));
+    return arrayGe(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33501() {
-    return jsonbDeletePath(jsonbInput("{\"a\":{\"b\":1,\"c\":2}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return arrayEq(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33502() {
-    return jsonbDeletePath(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
+    return arrayNe(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33503() {
-    return jsonbDeletePath(jsonbInput("1"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return arrayLt(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33504() {
-    return jsonbDeletePath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return arrayLe(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33505() {
-    return jsonbDeletePath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
+    return arrayGt(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33506() {
-    return jsonbDeletePath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
+    return arrayGe(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33507() {
-    return jsonbDeletePath(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
+    return arrayContains(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]));
 }
 export function evaluate33508() {
-    return jsonbDeletePath(jsonbInput("{\"a\":{\"b\":1,\"c\":2}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
+    return arrayContained(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]));
 }
 export function evaluate33509() {
-    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(true));
+    return arrayOverlap(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]));
 }
 export function evaluate33510() {
-    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(true));
+    return arrayContains(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("1"))]));
 }
 export function evaluate33511() {
-    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(false));
+    return arrayContained(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("1"))]));
 }
 export function evaluate33512() {
-    return jsonbSet(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("9"), booleanInput(true));
+    return arrayOverlap(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("1"))]));
 }
 export function evaluate33513() {
-    return jsonbSet(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("5"))]), jsonbInput("9"), booleanInput(true));
+    return arrayContains(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]));
 }
 export function evaluate33514() {
-    return jsonbSet(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("-1"))]), jsonbInput("9"), booleanInput(true));
+    return arrayContained(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]));
 }
 export function evaluate33515() {
-    return jsonbSet(jsonbInput("{\"a\":[1,2]}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("9"), booleanInput(true));
+    return arrayOverlap(arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input(null))]));
 }
 export function evaluate33516() {
-    return jsonbSet(jsonbInput("1"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(true));
+    return arrayContains(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate33517() {
-    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []), jsonbInput("2"), booleanInput(true));
+    return arrayContained(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate33518() {
-    return jsonbSet(jsonbInput("[]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("0"))]), jsonbInput("2"), booleanInput(true));
+    return arrayOverlap(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate33519() {
-    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(true));
+    return arrayContains(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33520() {
-    return jsonbSet(jsonbInput("[1]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("foo"))]), jsonbInput("2"), booleanInput(true));
+    return arrayContained(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33521() {
-    return jsonbInsert(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(false));
+    return arrayOverlap(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33522() {
-    return jsonbInsert(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(false));
+    return arrayConcat(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33523() {
-    return jsonbInsert(jsonbInput("[1,3]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("2"), booleanInput(false));
+    return arrayConcat(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [], [], null));
 }
 export function evaluate33524() {
-    return jsonbInsert(jsonbInput("[1,3]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("2"), booleanInput(true));
+    return arrayConcat(arrayInput("pg_catalog.int4", [], [], null), arrayInput("pg_catalog.int4", [], [], null));
 }
 export function evaluate33525() {
-    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("use_json_null"));
+    return arrayConcat(arrayInput("pg_catalog.int4", [], [], []), arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]));
 }
 export function evaluate33526() {
-    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("delete_key"));
+    return arrayConcat(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate33527() {
-    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("return_target"));
+    return arrayConcat(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate33528() {
-    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("raise_exception"));
+    return arrayConcat(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate33529() {
-    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("nope"));
+    return arrayConcat(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate33530() {
-    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(true), textInput("use_json_null"));
+    return arrayConcat(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate33531() {
-    return jsonStripNulls(jsonInput("{\"a\":1,\"b\":null,\"c\":{\"d\":null}}"), booleanInput(false));
+    return arrayConcat(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), arrayInput("pg_catalog.int4", [1, 3], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33532() {
-    return jsonStripNulls(jsonInput("[1, null, 2]"), booleanInput(true));
+    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("1"));
 }
 export function evaluate33533() {
-    return jsonStripNulls(jsonInput("[1, null, 2]"), booleanInput(false));
+    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("3"));
 }
 export function evaluate33534() {
-    return jsonStripNulls(jsonInput("1e2"), booleanInput(false));
+    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("4"));
 }
 export function evaluate33535() {
-    return jsonbStripNulls(jsonbInput("{\"a\":1,\"b\":null,\"c\":[null,2]}"), booleanInput(false));
+    return arraySubscript(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("2"));
 }
 export function evaluate33536() {
-    return jsonbStripNulls(jsonbInput("{\"a\":1,\"b\":null,\"c\":[null,2]}"), booleanInput(true));
+    return arraySubscript(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("7")), arrayElementInput("pg_catalog.int4", int4Input("8")), arrayElementInput("pg_catalog.int4", int4Input("9"))]), int4Input("0"));
 }
 export function evaluate33537() {
-    return jsonbPretty(jsonbInput("{\"b\":[1,2],\"a\":3}"));
+    return arraySubscript(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"), int4Input("1"));
 }
 export function evaluate33538() {
-    return jsonbPretty(jsonbInput("1"));
+    return arraySubscript(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("2"));
 }
 export function evaluate33539() {
-    return jsonbPretty(jsonbInput("[]"));
+    return arraySubscript(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), int4Input("1"), int4Input(null));
 }
 export function evaluate33540() {
-    return jsonbPretty(jsonbInput("{}"));
+    return arraySubscript(arrayInput("pg_catalog.int4", [], [], null), int4Input("1"));
 }
 export function evaluate33541() {
-    return jsonbToBool(jsonbInput("true"));
+    return sqlIsNull(arrayInput("pg_catalog.int4", [], [], null));
 }
 export function evaluate33542() {
-    return jsonbToBool(jsonbInput("false"));
+    return sqlCase(() => arrayInput("pg_catalog.int4", [], [], []), [() => booleanInput(true), () => arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))])]);
 }
 export function evaluate33543() {
-    return jsonbToBool(jsonbInput("null"));
+    return sqlCoalesce(() => arrayInput("pg_catalog.int4", [], [], null), () => arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]));
 }
 export function evaluate33544() {
-    return jsonbToBool(jsonbInput("1"));
+    return arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]);
 }
 export function evaluate33545() {
-    return jsonbToInt4(jsonbInput("2.9"));
+    return arrayCardinality(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]));
 }
 export function evaluate33546() {
-    return jsonbToInt4(jsonbInput("2.5"));
+    return arrayEq(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]));
 }
 export function evaluate33547() {
-    return jsonbToInt4(jsonbInput("-2.5"));
+    return arrayLt(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), arrayInput("pg_catalog.int2", [2], [1], [arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input("1"))]));
 }
 export function evaluate33548() {
-    return jsonbToInt2(jsonbInput("40000"));
+    return arrayContains(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), arrayInput("pg_catalog.int2", [1], [1], [arrayElementInput("pg_catalog.int2", int2Input("1"))]));
 }
 export function evaluate33549() {
-    return jsonbToNumeric(jsonbInput("1.2300"));
+    return arrayOverlap(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), arrayInput("pg_catalog.int2", [2], [1], [arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input("1"))]));
 }
 export function evaluate33550() {
-    return jsonbToInt8(jsonbInput("2.9"));
+    return arrayConcat(arrayInput("pg_catalog.int2", [1], [1], [arrayElementInput("pg_catalog.int2", int2Input("1"))]), arrayInput("pg_catalog.int2", [2], [1], [arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input("1"))]));
 }
 export function evaluate33551() {
-    return jsonbToFloat4(jsonbInput("1e2"));
+    return arraySubscript(arrayInput("pg_catalog.int2", [3], [1], [arrayElementInput("pg_catalog.int2", int2Input("1")), arrayElementInput("pg_catalog.int2", int2Input("2")), arrayElementInput("pg_catalog.int2", int2Input(null))]), int4Input("2"));
 }
 export function evaluate33552() {
-    return jsonbToFloat8(jsonbInput("1e2"));
+    return arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]);
 }
 export function evaluate33553() {
-    return jsonbToInt4(jsonbInput("true"));
+    return arrayCardinality(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]));
 }
 export function evaluate33554() {
-    return jsonbToInt4(jsonbInput("[1]"));
+    return arrayEq(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]));
 }
 export function evaluate33555() {
-    return jsonObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+    return arrayLt(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), arrayInput("pg_catalog.int8", [2], [1], [arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input("1"))]));
 }
 export function evaluate33556() {
-    return jsonObject(arrayInput("pg_catalog.text", [], [], []));
+    return arrayContains(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("1"))]));
 }
 export function evaluate33557() {
-    return jsonObject(arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return arrayOverlap(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), arrayInput("pg_catalog.int8", [2], [1], [arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input("1"))]));
 }
 export function evaluate33558() {
-    return jsonObjectPair(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+    return arrayConcat(arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("1"))]), arrayInput("pg_catalog.int8", [2], [1], [arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input("1"))]));
 }
 export function evaluate33559() {
-    return jsonObjectPair(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1"))]), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("x"))]));
+    return arraySubscript(arrayInput("pg_catalog.int8", [3], [1], [arrayElementInput("pg_catalog.int8", int8Input("1")), arrayElementInput("pg_catalog.int8", int8Input("2")), arrayElementInput("pg_catalog.int8", int8Input(null))]), int4Input("2"));
 }
 export function evaluate33560() {
-    return jsonObject(arrayInput("pg_catalog.text", [2, 2], [1, 1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+    return arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]);
 }
 export function evaluate33561() {
-    return jsonObject(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput(null))]));
+    return arrayCardinality(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]));
 }
 export function evaluate33562() {
-    return jsonObject(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput(null)), arrayElementInput("pg_catalog.text", textInput("a"))]));
+    return arrayEq(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]));
 }
 export function evaluate33563() {
-    return jsonObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+    return arrayLt(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), arrayInput("pg_catalog.float4", [2], [1], [arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]));
 }
 export function evaluate33564() {
-    return jsonbObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("2")), arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1"))]));
+    return arrayContains(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]));
 }
 export function evaluate33565() {
-    return jsonbObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+    return arrayOverlap(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), arrayInput("pg_catalog.float4", [2], [1], [arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]));
 }
 export function evaluate33566() {
-    return jsonbObjectPair(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("2"))]));
+    return arrayConcat(arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]), arrayInput("pg_catalog.float4", [2], [1], [arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input("3dcccccd"))]));
 }
 export function evaluate33567() {
-    return arrayToJson(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return arraySubscript(arrayInput("pg_catalog.float4", [3], [1], [arrayElementInput("pg_catalog.float4", float4Input("3dcccccd")), arrayElementInput("pg_catalog.float4", float4Input("7fc00000")), arrayElementInput("pg_catalog.float4", float4Input(null))]), int4Input("2"));
 }
 export function evaluate33568() {
-    return arrayToJsonPretty(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(true));
+    return arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]);
 }
 export function evaluate33569() {
-    return arrayToJsonPretty(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), booleanInput(true));
+    return arrayCardinality(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]));
 }
 export function evaluate33570() {
-    return arrayToJson(arrayInput("pg_catalog.int4", [], [], []));
+    return arrayEq(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]));
 }
 export function evaluate33571() {
-    return arrayToJson(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return arrayLt(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), arrayInput("pg_catalog.float8", [2], [1], [arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]));
 }
 export function evaluate33572() {
-    return toJson("pg_catalog.int4", int4Input("1"));
+    return arrayContains(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), arrayInput("pg_catalog.float8", [1], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]));
 }
 export function evaluate33573() {
-    return toJson("pg_catalog.text", textInput("hi"));
+    return arrayOverlap(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), arrayInput("pg_catalog.float8", [2], [1], [arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]));
 }
 export function evaluate33574() {
-    return toJson("pg_catalog.bool", booleanInput(true));
+    return arrayConcat(arrayInput("pg_catalog.float8", [1], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]), arrayInput("pg_catalog.float8", [2], [1], [arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a"))]));
 }
 export function evaluate33575() {
-    return toJson("pg_catalog.\"numeric\"", decimalInput("1.2300"));
+    return arraySubscript(arrayInput("pg_catalog.float8", [3], [1], [arrayElementInput("pg_catalog.float8", float8Input("3fb999999999999a")), arrayElementInput("pg_catalog.float8", float8Input("7ff8000000000000")), arrayElementInput("pg_catalog.float8", float8Input(null))]), int4Input("2"));
 }
 export function evaluate33576() {
-    return toJson("pg_catalog.float8", float8Input("7ff8000000000000"));
+    return arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]);
 }
 export function evaluate33577() {
-    return toJson("pg_catalog.float8", float8Input("7ff0000000000000"));
+    return arrayCardinality(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]));
 }
 export function evaluate33578() {
-    return toJson("pg_catalog.float8", float8Input("8000000000000000"));
+    return arrayEq(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]));
 }
 export function evaluate33579() {
-    return toJson("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return arrayLt(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), arrayInput("pg_catalog.\"numeric\"", [2], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]));
 }
 export function evaluate33580() {
-    return toJson("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return arrayContains(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), arrayInput("pg_catalog.\"numeric\"", [1], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]));
 }
 export function evaluate33581() {
-    return toJson("pg_catalog.\"json\"", jsonInput("{\"a\":1}"));
+    return arrayOverlap(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), arrayInput("pg_catalog.\"numeric\"", [2], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]));
 }
 export function evaluate33582() {
-    return toJson("pg_catalog.jsonb", jsonbInput("{\"b\":1,\"a\":2}"));
+    return arrayConcat(arrayInput("pg_catalog.\"numeric\"", [1], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]), arrayInput("pg_catalog.\"numeric\"", [2], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20"))]));
 }
 export function evaluate33583() {
-    return toJson("pg_catalog.uuid", uuidInput("550e8400-e29b-41d4-a716-446655440000"));
+    return arraySubscript(arrayInput("pg_catalog.\"numeric\"", [3], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("1.20")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.30")), arrayElementInput("pg_catalog.\"numeric\"", decimalInput(null))]), int4Input("2"));
 }
 export function evaluate33584() {
-    return toJsonb("pg_catalog.\"numeric\"", decimalInput("1.2300"));
+    return arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]);
 }
 export function evaluate33585() {
-    return toJsonb("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return arrayCardinality(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]));
 }
 export function evaluate33586() {
-    return jsonBuildArray();
+    return arrayEq(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]));
 }
 export function evaluate33587() {
-    return jsonBuildObject();
+    return arrayLt(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), arrayInput("pg_catalog.bool", [2], [1], [arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(false))]));
 }
 export function evaluate33588() {
-    return jsonbBuildArray();
+    return arrayContains(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), arrayInput("pg_catalog.bool", [1], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false))]));
 }
 export function evaluate33589() {
-    return jsonbBuildObject();
+    return arrayOverlap(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), arrayInput("pg_catalog.bool", [2], [1], [arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(false))]));
 }
 export function evaluate33590() {
-    return jsonBuildArray("pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"), "pg_catalog.bool", booleanInput(true), "pg_catalog.int4", int4Input(null));
+    return arrayConcat(arrayInput("pg_catalog.bool", [1], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false))]), arrayInput("pg_catalog.bool", [2], [1], [arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(false))]));
 }
 export function evaluate33591() {
-    return jsonBuildArray("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
+    return arraySubscript(arrayInput("pg_catalog.bool", [3], [1], [arrayElementInput("pg_catalog.bool", booleanInput(false)), arrayElementInput("pg_catalog.bool", booleanInput(true)), arrayElementInput("pg_catalog.bool", booleanInput(null))]), int4Input("2"));
 }
 export function evaluate33592() {
-    return jsonBuildObject("pg_catalog.text", textInput("a"), "pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("b"), "pg_catalog.text", textInput(null));
+    return arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]);
 }
 export function evaluate33593() {
-    return jsonBuildObject("pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"));
+    return arrayCardinality(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate33594() {
-    return jsonBuildObject("pg_catalog.bool", booleanInput(true), "pg_catalog.text", textInput("a"));
+    return arrayEq(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate33595() {
-    return jsonBuildObject("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]), "pg_catalog.text", textInput("a"));
+    return arrayLt(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput("a,b"))]));
 }
 export function evaluate33596() {
-    return jsonBuildObject("pg_catalog.text", textInput("a"));
+    return arrayContains(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a,b"))]));
 }
 export function evaluate33597() {
-    return jsonbBuildArray("pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"));
+    return arrayOverlap(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput("a,b"))]));
 }
 export function evaluate33598() {
-    return jsonbBuildObject("pg_catalog.text", textInput("b"), "pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"), "pg_catalog.int4", int4Input("2"));
+    return arrayConcat(arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a,b"))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput("a,b"))]));
 }
 export function evaluate33599() {
-    return toJson("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
+    return arraySubscript(arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a,b")), arrayElementInput("pg_catalog.text", textInput("NULL")), arrayElementInput("pg_catalog.text", textInput(null))]), int4Input("2"));
 }
 export function evaluate33600() {
-    return dateInput(null);
+    return arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]);
 }
 export function evaluate33601() {
-    return dateInput("2020-01-02");
+    return arrayCardinality(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]));
 }
 export function evaluate33602() {
-    return dateInput(" 2020-01-02");
+    return arrayEq(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]));
 }
 export function evaluate33603() {
-    return dateInput("2024-1-5");
+    return arrayLt(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), arrayInput("pg_catalog.\"varchar\"", [2], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]));
 }
 export function evaluate33604() {
-    return dateInput("2024-02-29");
+    return arrayContains(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]));
 }
 export function evaluate33605() {
-    return dateInput("0001-01-01");
+    return arrayOverlap(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), arrayInput("pg_catalog.\"varchar\"", [2], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]));
 }
 export function evaluate33606() {
-    return dateInput("infinity");
+    return arrayConcat(arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]), arrayInput("pg_catalog.\"varchar\"", [2], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]));
 }
 export function evaluate33607() {
-    return dateInput("+infinity");
+    return arraySubscript(arrayInput("pg_catalog.\"varchar\"", [3], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a")), arrayElementInput("pg_catalog.\"varchar\"", textInput("b")), arrayElementInput("pg_catalog.\"varchar\"", textInput(null))]), int4Input("2"));
 }
 export function evaluate33608() {
-    return dateInput("-infinity");
+    return arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]);
 }
 export function evaluate33609() {
-    return dateInput("");
+    return arrayCardinality(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]));
 }
 export function evaluate33610() {
-    return dateInput("not-a-date");
+    return arrayEq(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]));
 }
 export function evaluate33611() {
-    return dateInput("2023-02-29");
+    return arrayLt(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), arrayInput("pg_catalog.bpchar", [2], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput("a "))]));
 }
 export function evaluate33612() {
-    return dateInput("2024-02-30");
+    return arrayContains(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), arrayInput("pg_catalog.bpchar", [1], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a "))]));
 }
 export function evaluate33613() {
-    return timeInput(null);
+    return arrayOverlap(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), arrayInput("pg_catalog.bpchar", [2], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput("a "))]));
 }
 export function evaluate33614() {
-    return timeInput("00:00:00");
+    return arrayConcat(arrayInput("pg_catalog.bpchar", [1], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a "))]), arrayInput("pg_catalog.bpchar", [2], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput("a "))]));
 }
 export function evaluate33615() {
-    return timeInput("12:34");
+    return arraySubscript(arrayInput("pg_catalog.bpchar", [3], [1], [arrayElementInput("pg_catalog.bpchar", textInput("a ")), arrayElementInput("pg_catalog.bpchar", textInput("b")), arrayElementInput("pg_catalog.bpchar", textInput(null))]), int4Input("2"));
 }
 export function evaluate33616() {
-    return timeInput("12:34:56");
+    return arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]);
 }
 export function evaluate33617() {
-    return timeInput("12:34:56.1");
+    return arrayCardinality(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]));
 }
 export function evaluate33618() {
-    return timeInput("12:34:56.123456");
+    return arrayEq(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]));
 }
 export function evaluate33619() {
-    return timeInput("24:00:00");
+    return arrayLt(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), arrayInput("pg_catalog.uuid", [2], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]));
 }
 export function evaluate33620() {
-    return timeInput("12:60:00");
+    return arrayContains(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), arrayInput("pg_catalog.uuid", [1], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]));
 }
 export function evaluate33621() {
-    return timeInput("24:00:01");
+    return arrayOverlap(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), arrayInput("pg_catalog.uuid", [2], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]));
 }
 export function evaluate33622() {
-    return timeInput("not-a-time");
+    return arrayConcat(arrayInput("pg_catalog.uuid", [1], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]), arrayInput("pg_catalog.uuid", [2], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001"))]));
 }
 export function evaluate33623() {
-    return timestampInput(null);
+    return arraySubscript(arrayInput("pg_catalog.uuid", [3], [1], [arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000001")), arrayElementInput("pg_catalog.uuid", uuidInput("00000000-0000-0000-0000-000000000002")), arrayElementInput("pg_catalog.uuid", uuidInput(null))]), int4Input("2"));
 }
 export function evaluate33624() {
-    return timestampInput("2020-01-02");
+    return arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]);
 }
 export function evaluate33625() {
-    return timestampInput("2020-01-02 03:04:05");
+    return arrayCardinality(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
 }
 export function evaluate33626() {
-    return timestampInput("2020-01-02T03:04:05");
+    return arrayEq(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
 }
 export function evaluate33627() {
-    return timestampInput("2020-01-02 24:00:00");
+    return arrayLt(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [2], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
 }
 export function evaluate33628() {
-    return timestampInput("infinity");
+    return arrayContains(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [1], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
 }
 export function evaluate33629() {
-    return timestampInput("-infinity");
+    return arrayOverlap(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [2], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
 }
 export function evaluate33630() {
-    return timestampInput("not-a-timestamp");
+    return arrayConcat(arrayInput("enum:[\"enum_alpha\",\"state\"]", [1], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), arrayInput("enum:[\"enum_alpha\",\"state\"]", [2], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]));
 }
 export function evaluate33631() {
-    return intervalInput(null);
+    return arraySubscript(arrayInput("enum:[\"enum_alpha\",\"state\"]", [3], [1], [arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("zebra", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"])), arrayElementInput("enum:[\"enum_alpha\",\"state\"]", enumInput(null, "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]))]), int4Input("2"));
 }
 export function evaluate33632() {
-    return intervalInput("0");
+    return arraySlice(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[int4Input("1"), int4Input("2")]]);
 }
 export function evaluate33633() {
-    return intervalInput("1 year");
+    return arraySlice(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[int4Input("0"), int4Input("1")]]);
 }
 export function evaluate33634() {
-    return intervalInput("2 months");
+    return arraySlice(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[null, int4Input("2")]]);
 }
 export function evaluate33635() {
-    return intervalInput("3 days");
+    return arraySlice(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[int4Input("2"), null]]);
 }
 export function evaluate33636() {
-    return intervalInput("04:05:06");
+    return arraySlice(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [[int4Input("9"), int4Input("10")]]);
 }
 export function evaluate33637() {
-    return intervalInput("1 year 2 mons 3 days 04:05:06");
+    return arraySlice(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), [[int4Input("2"), int4Input("3")], [int4Input("1"), int4Input("2")]]);
 }
 export function evaluate33638() {
-    return intervalInput("1 week");
+    return arraySlice(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), [[int4Input("2"), int4Input("3")]]);
 }
 export function evaluate33639() {
-    return intervalInput("infinity");
+    return arrayAssign(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("2")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate33640() {
-    return intervalInput("-infinity");
+    return arrayAssign(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("5")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate33641() {
-    return intervalInput("-05:00:00");
+    return arrayAssign(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), [int4Input("-2")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate33642() {
-    return intervalInput("+03:00:00");
+    return arrayAssign(arrayInput("pg_catalog.int4", [], [], []), [int4Input("4")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate33643() {
-    return intervalInput("-05:30");
+    return arrayAssign(arrayInput("pg_catalog.int4", [], [], null), [int4Input("4")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate33644() {
-    return intervalInput("1 day -02:00:00");
+    return arrayAssign(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), [int4Input("2"), int4Input("1")], arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate33645() {
-    return intervalInput("not-an-interval");
+    return arrayAppend(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate33646() {
-    return dateEq(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33647() {
-    return dateNe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return arrayAppend(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate33648() {
-    return dateLt(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33649() {
-    return dateLe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return arrayAppend(arrayInput("pg_catalog.int4", [], [], []), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate33650() {
-    return dateGt(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate33651() {
-    return dateGe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return arrayAppend(arrayInput("pg_catalog.int4", [], [], null), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate33652() {
-    return dateEq(dateInput("2020-01-02"), dateInput("2020-01-01"));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [], [], null));
 }
 export function evaluate33653() {
-    return dateNe(dateInput("2020-01-02"), dateInput("2020-01-01"));
+    return arrayAppend(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate33654() {
-    return dateLt(dateInput("2020-01-02"), dateInput("2020-01-01"));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("9")), arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]));
 }
 export function evaluate33655() {
-    return dateLe(dateInput("2020-01-02"), dateInput("2020-01-01"));
+    return arrayAppend(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("4")));
 }
 export function evaluate33656() {
-    return dateGt(dateInput("2020-01-02"), dateInput("2020-01-01"));
+    return arrayPrepend(arrayElementInput("pg_catalog.int4", int4Input("0")), arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33657() {
-    return dateGe(dateInput("2020-01-02"), dateInput("2020-01-01"));
+    return arrayPosition(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate33658() {
-    return dateEq(dateInput("2020-01-01"), dateInput("2020-01-01"));
+    return arrayPositions(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate33659() {
-    return dateNe(dateInput("2020-01-01"), dateInput("2020-01-01"));
+    return arrayPosition(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
 }
 export function evaluate33660() {
-    return dateLt(dateInput("2020-01-01"), dateInput("2020-01-01"));
+    return arrayPositions(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
 }
 export function evaluate33661() {
-    return dateLe(dateInput("2020-01-01"), dateInput("2020-01-01"));
+    return arrayPosition(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("2")), int4Input("1"));
 }
 export function evaluate33662() {
-    return dateGt(dateInput("2020-01-01"), dateInput("2020-01-01"));
+    return arrayPosition(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate33663() {
-    return dateGe(dateInput("2020-01-01"), dateInput("2020-01-01"));
+    return arrayPositions(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate33664() {
-    return dateEq(dateInput("infinity"), dateInput("2020-01-01"));
+    return arrayPosition(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
 }
 export function evaluate33665() {
-    return dateNe(dateInput("infinity"), dateInput("2020-01-01"));
+    return arrayPositions(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), arrayElementInput("pg_catalog.int4", int4Input("2")));
 }
 export function evaluate33666() {
-    return dateLt(dateInput("infinity"), dateInput("2020-01-01"));
+    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)));
 }
 export function evaluate33667() {
-    return dateLe(dateInput("infinity"), dateInput("2020-01-01"));
+    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("7")));
 }
 export function evaluate33668() {
-    return dateGt(dateInput("infinity"), dateInput("2020-01-01"));
+    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("1")));
 }
 export function evaluate33669() {
-    return dateGe(dateInput("infinity"), dateInput("2020-01-01"));
+    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("7")));
 }
 export function evaluate33670() {
-    return dateEq(dateInput("-infinity"), dateInput("2020-01-01"));
+    return arrayRemove(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("9")));
 }
 export function evaluate33671() {
-    return dateNe(dateInput("-infinity"), dateInput("2020-01-01"));
+    return arrayReplace(arrayInput("pg_catalog.int4", [4], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input(null))]), arrayElementInput("pg_catalog.int4", int4Input("9")), arrayElementInput("pg_catalog.int4", int4Input("7")));
 }
 export function evaluate33672() {
-    return dateLt(dateInput("-infinity"), dateInput("2020-01-01"));
+    return arrayFill(arrayElementInput("pg_catalog.int4", int4Input("5")), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33673() {
-    return dateLe(dateInput("-infinity"), dateInput("2020-01-01"));
+    return arrayFill(arrayElementInput("pg_catalog.int4", int4Input(null)), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("0")), arrayElementInput("pg_catalog.int4", int4Input("-1"))]));
 }
 export function evaluate33674() {
-    return dateGt(dateInput("-infinity"), dateInput("2020-01-01"));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("0"));
 }
 export function evaluate33675() {
-    return dateGe(dateInput("-infinity"), dateInput("2020-01-01"));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("1"));
 }
 export function evaluate33676() {
-    return dateEq(dateInput(null), dateInput("2020-01-01"));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("3"));
 }
 export function evaluate33677() {
-    return dateNe(dateInput(null), dateInput("2020-01-01"));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("4"));
 }
 export function evaluate33678() {
-    return dateLt(dateInput(null), dateInput("2020-01-01"));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]), int4Input("-1"));
 }
 export function evaluate33679() {
-    return dateLe(dateInput(null), dateInput("2020-01-01"));
+    return arrayTrim(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]), int4Input("0"));
 }
 export function evaluate33680() {
-    return dateGt(dateInput(null), dateInput("2020-01-01"));
+    return arrayReverse(arrayInput("pg_catalog.int4", [3], [0], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3"))]));
 }
 export function evaluate33681() {
-    return dateGe(dateInput(null), dateInput("2020-01-01"));
+    return arrayReverse(arrayInput("pg_catalog.int4", [3, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("5")), arrayElementInput("pg_catalog.int4", int4Input("6"))]));
 }
 export function evaluate33682() {
-    return dateEq(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate33683() {
-    return dateEq(dateInput(null), dateInput("2020-01-02"));
+    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(true));
 }
 export function evaluate33684() {
-    return dateEq(dateInput("infinity"), dateInput("-infinity"));
+    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(false), booleanInput(true));
 }
 export function evaluate33685() {
-    return dateNe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return arraySort(arrayInput("pg_catalog.int4", [4], [0], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(true), booleanInput(false));
 }
 export function evaluate33686() {
-    return dateNe(dateInput(null), dateInput("2020-01-02"));
+    return arraySort(arrayInput("pg_catalog.int4", [3, 2], [0, 1], [arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4")), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("9")), arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate33687() {
-    return dateNe(dateInput("infinity"), dateInput("-infinity"));
+    return arrayConcat(arrayCoerce("pg_catalog.int4", arrayInput("pg_catalog.int2", [1], [1], [arrayElementInput("pg_catalog.int2", int2Input("1"))])), arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate33688() {
-    return dateLt(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return arrayConcat(arrayCoerce("pg_catalog.int8", arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))])), arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("2"))]));
 }
 export function evaluate33689() {
-    return dateLt(dateInput(null), dateInput("2020-01-02"));
+    return arrayConcat(arrayCoerce("pg_catalog.\"numeric\"", arrayInput("pg_catalog.int8", [1], [1], [arrayElementInput("pg_catalog.int8", int8Input("1"))])), arrayInput("pg_catalog.\"numeric\"", [1], [1], [arrayElementInput("pg_catalog.\"numeric\"", decimalInput("2.5"))]));
 }
 export function evaluate33690() {
-    return dateLt(dateInput("infinity"), dateInput("-infinity"));
+    return arrayConcat(arrayCoerce("pg_catalog.float4", arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))])), arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("40200000"))]));
 }
 export function evaluate33691() {
-    return dateLe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return arrayConcat(arrayCoerce("pg_catalog.float8", arrayInput("pg_catalog.float4", [1], [1], [arrayElementInput("pg_catalog.float4", float4Input("3fc00000"))])), arrayInput("pg_catalog.float8", [1], [1], [arrayElementInput("pg_catalog.float8", float8Input("4004000000000000"))]));
 }
 export function evaluate33692() {
-    return dateLe(dateInput(null), dateInput("2020-01-02"));
+    return arrayConcat(arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), arrayCoerce("pg_catalog.text", arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("b"))])));
 }
 export function evaluate33693() {
-    return dateLe(dateInput("infinity"), dateInput("-infinity"));
+    return arrayConcat(arrayInput("pg_catalog.\"varchar\"", [1], [1], [arrayElementInput("pg_catalog.\"varchar\"", textInput("a"))]), arrayCoerce("pg_catalog.\"varchar\"", arrayInput("pg_catalog.bpchar", [1], [1], [arrayElementInput("pg_catalog.bpchar", textInput("b "))])));
 }
 export function evaluate33694() {
-    return dateGt(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return jsonInput(null);
 }
 export function evaluate33695() {
-    return dateGt(dateInput(null), dateInput("2020-01-02"));
+    return jsonbInput(null);
 }
 export function evaluate33696() {
-    return dateGt(dateInput("infinity"), dateInput("-infinity"));
+    return jsonInput("null");
 }
 export function evaluate33697() {
-    return dateGe(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return jsonbInput("null");
 }
 export function evaluate33698() {
-    return dateGe(dateInput(null), dateInput("2020-01-02"));
+    return jsonInput("true");
 }
 export function evaluate33699() {
-    return dateGe(dateInput("infinity"), dateInput("-infinity"));
+    return jsonbInput("true");
 }
 export function evaluate33700() {
-    return dateCompare(dateInput("2020-01-01"), dateInput("2020-01-01"));
+    return jsonInput("false");
 }
 export function evaluate33701() {
-    return dateCompare(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return jsonbInput("false");
 }
 export function evaluate33702() {
-    return dateCompare(dateInput("infinity"), dateInput("-infinity"));
+    return jsonInput("0");
 }
 export function evaluate33703() {
-    return dateCompare(dateInput(null), dateInput("2020-01-01"));
+    return jsonbInput("0");
 }
 export function evaluate33704() {
-    return timeEq(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonInput("1.2300");
 }
 export function evaluate33705() {
-    return timeNe(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonbInput("1.2300");
 }
 export function evaluate33706() {
-    return timeLt(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonInput("1e2");
 }
 export function evaluate33707() {
-    return timeLe(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonbInput("1e2");
 }
 export function evaluate33708() {
-    return timeGt(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonInput("\"hi\"");
 }
 export function evaluate33709() {
-    return timeGe(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonbInput("\"hi\"");
 }
 export function evaluate33710() {
-    return timeEq(timeInput("18:00:00"), timeInput("12:00:00"));
+    return jsonInput("[]");
 }
 export function evaluate33711() {
-    return timeNe(timeInput("18:00:00"), timeInput("12:00:00"));
+    return jsonbInput("[]");
 }
 export function evaluate33712() {
-    return timeLt(timeInput("18:00:00"), timeInput("12:00:00"));
+    return jsonInput("{}");
 }
 export function evaluate33713() {
-    return timeLe(timeInput("18:00:00"), timeInput("12:00:00"));
+    return jsonbInput("{}");
 }
 export function evaluate33714() {
-    return timeGt(timeInput("18:00:00"), timeInput("12:00:00"));
+    return jsonInput("[1, null, 3]");
 }
 export function evaluate33715() {
-    return timeGe(timeInput("18:00:00"), timeInput("12:00:00"));
+    return jsonbInput("[1, null, 3]");
 }
 export function evaluate33716() {
-    return timeEq(timeInput("12:00:00"), timeInput("12:00:00"));
+    return jsonInput("{\"b\":2,\"a\":1}");
 }
 export function evaluate33717() {
-    return timeNe(timeInput("12:00:00"), timeInput("12:00:00"));
+    return jsonbInput("{\"b\":2,\"a\":1}");
 }
 export function evaluate33718() {
-    return timeLt(timeInput("12:00:00"), timeInput("12:00:00"));
+    return jsonInput("{\"a\":1,\"a\":2}");
 }
 export function evaluate33719() {
-    return timeLe(timeInput("12:00:00"), timeInput("12:00:00"));
+    return jsonbInput("{\"a\":1,\"a\":2}");
 }
 export function evaluate33720() {
-    return timeGt(timeInput("12:00:00"), timeInput("12:00:00"));
+    return jsonInput(" { \"a\" : 1 } ");
 }
 export function evaluate33721() {
-    return timeGe(timeInput("12:00:00"), timeInput("12:00:00"));
+    return jsonbInput(" { \"a\" : 1 } ");
 }
 export function evaluate33722() {
-    return timeEq(timeInput("24:00:00"), timeInput("12:00:00"));
+    return jsonInput("{\"aa\":1,\"b\":2}");
 }
 export function evaluate33723() {
-    return timeNe(timeInput("24:00:00"), timeInput("12:00:00"));
+    return jsonbInput("{\"aa\":1,\"b\":2}");
 }
 export function evaluate33724() {
-    return timeLt(timeInput("24:00:00"), timeInput("12:00:00"));
+    return jsonInput("\"\\u0041\"");
 }
 export function evaluate33725() {
-    return timeLe(timeInput("24:00:00"), timeInput("12:00:00"));
+    return jsonbInput("\"\\u0041\"");
 }
 export function evaluate33726() {
-    return timeGt(timeInput("24:00:00"), timeInput("12:00:00"));
+    return jsonInput("\"a\\/b\"");
 }
 export function evaluate33727() {
-    return timeGe(timeInput("24:00:00"), timeInput("12:00:00"));
+    return jsonbInput("\"a\\/b\"");
 }
 export function evaluate33728() {
-    return timeEq(timeInput(null), timeInput("12:00:00"));
+    return jsonInput("\"\\uD83D\\uDE00\"");
 }
 export function evaluate33729() {
-    return timeNe(timeInput(null), timeInput("12:00:00"));
+    return jsonbInput("\"\\uD83D\\uDE00\"");
 }
 export function evaluate33730() {
-    return timeLt(timeInput(null), timeInput("12:00:00"));
+    return jsonInput("9007199254740993");
 }
 export function evaluate33731() {
-    return timeLe(timeInput(null), timeInput("12:00:00"));
+    return jsonbInput("9007199254740993");
 }
 export function evaluate33732() {
-    return timeGt(timeInput(null), timeInput("12:00:00"));
+    return jsonInput("-0");
 }
 export function evaluate33733() {
-    return timeGe(timeInput(null), timeInput("12:00:00"));
+    return jsonbInput("-0");
 }
 export function evaluate33734() {
-    return timeEq(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonInput("");
 }
 export function evaluate33735() {
-    return timeEq(timeInput(null), timeInput("18:00:00"));
+    return jsonbInput("");
 }
 export function evaluate33736() {
-    return timeEq(timeInput("24:00:00"), timeInput("12:00:00"));
+    return jsonInput("01");
 }
 export function evaluate33737() {
-    return timeNe(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonbInput("01");
 }
 export function evaluate33738() {
-    return timeNe(timeInput(null), timeInput("18:00:00"));
+    return jsonInput("truee");
 }
 export function evaluate33739() {
-    return timeNe(timeInput("24:00:00"), timeInput("12:00:00"));
+    return jsonbInput("truee");
 }
 export function evaluate33740() {
-    return timeLt(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonInput("[1,]");
 }
 export function evaluate33741() {
-    return timeLt(timeInput(null), timeInput("18:00:00"));
+    return jsonbInput("[1,]");
 }
 export function evaluate33742() {
-    return timeLt(timeInput("24:00:00"), timeInput("12:00:00"));
+    return jsonInput("{a:1}");
 }
 export function evaluate33743() {
-    return timeLe(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonbInput("{a:1}");
 }
 export function evaluate33744() {
-    return timeLe(timeInput(null), timeInput("18:00:00"));
+    return jsonInput("1 2");
 }
 export function evaluate33745() {
-    return timeLe(timeInput("24:00:00"), timeInput("12:00:00"));
+    return jsonbInput("1 2");
 }
 export function evaluate33746() {
-    return timeGt(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonInput("\"\\uD800\"");
 }
 export function evaluate33747() {
-    return timeGt(timeInput(null), timeInput("18:00:00"));
+    return jsonbInput("\"\\uD800\"");
 }
 export function evaluate33748() {
-    return timeGt(timeInput("24:00:00"), timeInput("12:00:00"));
+    return jsonInput("\"\\u0000\"");
 }
 export function evaluate33749() {
-    return timeGe(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonbInput("\"\\u0000\"");
 }
 export function evaluate33750() {
-    return timeGe(timeInput(null), timeInput("18:00:00"));
+    return jsonInput("\"a\\u0000b\"");
 }
 export function evaluate33751() {
-    return timeGe(timeInput("24:00:00"), timeInput("12:00:00"));
+    return jsonbInput("\"a\\u0000b\"");
 }
 export function evaluate33752() {
-    return timeCompare(timeInput("12:00:00"), timeInput("12:00:00"));
+    return jsonTypeof(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
 }
 export function evaluate33753() {
-    return timeCompare(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonTypeof(jsonInput("[10,20,30]"));
 }
 export function evaluate33754() {
-    return timeCompare(timeInput(null), timeInput("12:00:00"));
+    return jsonTypeof(jsonInput("1"));
 }
 export function evaluate33755() {
-    return timestampEq(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return jsonTypeof(jsonInput("null"));
 }
 export function evaluate33756() {
-    return timestampNe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return jsonTypeof(jsonInput(null));
 }
 export function evaluate33757() {
-    return timestampLt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return jsonTypeof(jsonInput("  [1]"));
 }
 export function evaluate33758() {
-    return timestampLe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return jsonbTypeof(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
 }
 export function evaluate33759() {
-    return timestampGt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return jsonbTypeof(jsonbInput("1"));
 }
 export function evaluate33760() {
-    return timestampGe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return jsonbTypeof(jsonbInput("null"));
 }
 export function evaluate33761() {
-    return timestampEq(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+    return jsonbTypeof(jsonbInput(null));
 }
 export function evaluate33762() {
-    return timestampNe(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+    return jsonArrayLength(jsonInput("[10,20,30]"));
 }
 export function evaluate33763() {
-    return timestampLt(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+    return jsonArrayLength(jsonInput("[[1],2]"));
 }
 export function evaluate33764() {
-    return timestampLe(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+    return jsonArrayLength(jsonInput("[]"));
 }
 export function evaluate33765() {
-    return timestampGt(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+    return jsonArrayLength(jsonInput("{}"));
 }
 export function evaluate33766() {
-    return timestampGe(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
+    return jsonArrayLength(jsonInput("1"));
 }
 export function evaluate33767() {
-    return timestampEq(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+    return jsonbArrayLength(jsonbInput("[10,20,30]"));
 }
 export function evaluate33768() {
-    return timestampNe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+    return jsonbArrayLength(jsonbInput("1"));
 }
 export function evaluate33769() {
-    return timestampLt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+    return jsonbArrayLength(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
 }
 export function evaluate33770() {
-    return timestampLe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
 }
 export function evaluate33771() {
-    return timestampGt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
 }
 export function evaluate33772() {
-    return timestampGe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
 }
 export function evaluate33773() {
-    return timestampEq(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
 }
 export function evaluate33774() {
-    return timestampNe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
 }
 export function evaluate33775() {
-    return timestampLt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
 }
 export function evaluate33776() {
-    return timestampLe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
 }
 export function evaluate33777() {
-    return timestampGt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("a"));
 }
 export function evaluate33778() {
-    return timestampGe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
 }
 export function evaluate33779() {
-    return timestampEq(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
 }
 export function evaluate33780() {
-    return timestampNe(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
 }
 export function evaluate33781() {
-    return timestampLt(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
 }
 export function evaluate33782() {
-    return timestampLe(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
 }
 export function evaluate33783() {
-    return timestampGt(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
 }
 export function evaluate33784() {
-    return timestampGe(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
 }
 export function evaluate33785() {
-    return timestampEq(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("b"));
 }
 export function evaluate33786() {
-    return timestampEq(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
 }
 export function evaluate33787() {
-    return timestampEq(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
 }
 export function evaluate33788() {
-    return timestampNe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
 }
 export function evaluate33789() {
-    return timestampNe(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
 }
 export function evaluate33790() {
-    return timestampNe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
 }
 export function evaluate33791() {
-    return timestampLt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
 }
 export function evaluate33792() {
-    return timestampLt(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
 }
 export function evaluate33793() {
-    return timestampLt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("c"));
 }
 export function evaluate33794() {
-    return timestampLe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
 }
 export function evaluate33795() {
-    return timestampLe(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
 }
 export function evaluate33796() {
-    return timestampLe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
 }
 export function evaluate33797() {
-    return timestampGt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
 }
 export function evaluate33798() {
-    return timestampGt(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
 }
 export function evaluate33799() {
-    return timestampGt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
 }
 export function evaluate33800() {
-    return timestampGe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
 }
 export function evaluate33801() {
-    return timestampGe(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput("missing"));
 }
 export function evaluate33802() {
-    return timestampGe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
 }
 export function evaluate33803() {
-    return timestampCompare(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
 }
 export function evaluate33804() {
-    return timestampCompare(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
 }
 export function evaluate33805() {
-    return timestampCompare(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
 }
 export function evaluate33806() {
-    return intervalEq(intervalInput("1 year"), intervalInput("360 days"));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
 }
 export function evaluate33807() {
-    return intervalNe(intervalInput("1 year"), intervalInput("360 days"));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
 }
 export function evaluate33808() {
-    return intervalLt(intervalInput("1 year"), intervalInput("360 days"));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
 }
 export function evaluate33809() {
-    return intervalLe(intervalInput("1 year"), intervalInput("360 days"));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(""));
 }
 export function evaluate33810() {
-    return intervalGt(intervalInput("1 year"), intervalInput("360 days"));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
 }
 export function evaluate33811() {
-    return intervalGe(intervalInput("1 year"), intervalInput("360 days"));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
 }
 export function evaluate33812() {
-    return intervalEq(intervalInput("1 mon"), intervalInput("30 days"));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
 }
 export function evaluate33813() {
-    return intervalNe(intervalInput("1 mon"), intervalInput("30 days"));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
 }
 export function evaluate33814() {
-    return intervalLt(intervalInput("1 mon"), intervalInput("30 days"));
+    return jsonObjectField(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
 }
 export function evaluate33815() {
-    return intervalLe(intervalInput("1 mon"), intervalInput("30 days"));
+    return jsonObjectFieldText(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
 }
 export function evaluate33816() {
-    return intervalGt(intervalInput("1 mon"), intervalInput("30 days"));
+    return jsonbObjectField(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
 }
 export function evaluate33817() {
-    return intervalGe(intervalInput("1 mon"), intervalInput("30 days"));
+    return jsonbObjectFieldText(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), textInput(null));
 }
 export function evaluate33818() {
-    return intervalEq(intervalInput("1 year"), intervalInput("1 mon"));
+    return jsonObjectField(jsonInput("{\"a\":1,\"a\":2}"), textInput("a"));
 }
 export function evaluate33819() {
-    return intervalNe(intervalInput("1 year"), intervalInput("1 mon"));
+    return jsonObjectField(jsonInput(" { \"a\" : 1 } "), textInput("a"));
 }
 export function evaluate33820() {
-    return intervalLt(intervalInput("1 year"), intervalInput("1 mon"));
+    return jsonObjectField(jsonInput("[10,20,30]"), textInput("a"));
 }
 export function evaluate33821() {
-    return intervalLe(intervalInput("1 year"), intervalInput("1 mon"));
+    return jsonbObjectField(jsonbInput("[10,20,30]"), textInput("a"));
 }
 export function evaluate33822() {
-    return intervalGt(intervalInput("1 year"), intervalInput("1 mon"));
+    return jsonObjectField(jsonInput("1"), textInput("a"));
 }
 export function evaluate33823() {
-    return intervalGe(intervalInput("1 year"), intervalInput("1 mon"));
+    return jsonbObjectField(jsonbInput("1"), textInput("a"));
 }
 export function evaluate33824() {
-    return intervalEq(intervalInput("infinity"), intervalInput("1 year"));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("0"));
 }
 export function evaluate33825() {
-    return intervalNe(intervalInput("infinity"), intervalInput("1 year"));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("0"));
 }
 export function evaluate33826() {
-    return intervalLt(intervalInput("infinity"), intervalInput("1 year"));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("0"));
 }
 export function evaluate33827() {
-    return intervalLe(intervalInput("infinity"), intervalInput("1 year"));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("0"));
 }
 export function evaluate33828() {
-    return intervalGt(intervalInput("infinity"), intervalInput("1 year"));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("0"));
 }
 export function evaluate33829() {
-    return intervalGe(intervalInput("infinity"), intervalInput("1 year"));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("0"));
 }
 export function evaluate33830() {
-    return intervalEq(intervalInput(null), intervalInput("1 year"));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("0"));
 }
 export function evaluate33831() {
-    return intervalNe(intervalInput(null), intervalInput("1 year"));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("0"));
 }
 export function evaluate33832() {
-    return intervalLt(intervalInput(null), intervalInput("1 year"));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33833() {
-    return intervalLe(intervalInput(null), intervalInput("1 year"));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33834() {
-    return intervalGt(intervalInput(null), intervalInput("1 year"));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33835() {
-    return intervalGe(intervalInput(null), intervalInput("1 year"));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33836() {
-    return intervalEq(intervalInput("1 year"), intervalInput("1 mon"));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33837() {
-    return intervalEq(intervalInput(null), intervalInput("1 mon"));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33838() {
-    return intervalEq(intervalInput("infinity"), intervalInput("1 year"));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33839() {
-    return intervalNe(intervalInput("1 year"), intervalInput("1 mon"));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate33840() {
-    return intervalNe(intervalInput(null), intervalInput("1 mon"));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("2"));
 }
 export function evaluate33841() {
-    return intervalNe(intervalInput("infinity"), intervalInput("1 year"));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("2"));
 }
 export function evaluate33842() {
-    return intervalLt(intervalInput("1 year"), intervalInput("1 mon"));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("2"));
 }
 export function evaluate33843() {
-    return intervalLt(intervalInput(null), intervalInput("1 mon"));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("2"));
 }
 export function evaluate33844() {
-    return intervalLt(intervalInput("infinity"), intervalInput("1 year"));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("2"));
 }
 export function evaluate33845() {
-    return intervalLe(intervalInput("1 year"), intervalInput("1 mon"));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("2"));
 }
 export function evaluate33846() {
-    return intervalLe(intervalInput(null), intervalInput("1 mon"));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("2"));
 }
 export function evaluate33847() {
-    return intervalLe(intervalInput("infinity"), intervalInput("1 year"));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("2"));
 }
 export function evaluate33848() {
-    return intervalGt(intervalInput("1 year"), intervalInput("1 mon"));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate33849() {
-    return intervalGt(intervalInput(null), intervalInput("1 mon"));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate33850() {
-    return intervalGt(intervalInput("infinity"), intervalInput("1 year"));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate33851() {
-    return intervalGe(intervalInput("1 year"), intervalInput("1 mon"));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate33852() {
-    return intervalGe(intervalInput(null), intervalInput("1 mon"));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate33853() {
-    return intervalGe(intervalInput("infinity"), intervalInput("1 year"));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate33854() {
-    return intervalCompare(intervalInput("1 year"), intervalInput("360 days"));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate33855() {
-    return intervalCompare(intervalInput("1 year"), intervalInput("1 mon"));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate33856() {
-    return intervalCompare(intervalInput(null), intervalInput("1 year"));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-4"));
 }
 export function evaluate33857() {
-    return dateFinite(dateInput("2020-01-01"));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-4"));
 }
 export function evaluate33858() {
-    return dateFinite(dateInput("infinity"));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-4"));
 }
 export function evaluate33859() {
-    return dateFinite(dateInput(null));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-4"));
 }
 export function evaluate33860() {
-    return timestampFinite(timestampInput("2020-01-02 03:04:05"));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input("-4"));
 }
 export function evaluate33861() {
-    return timestampFinite(timestampInput("infinity"));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input("-4"));
 }
 export function evaluate33862() {
-    return intervalFinite(intervalInput("1 year"));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input("-4"));
 }
 export function evaluate33863() {
-    return intervalFinite(intervalInput("infinity"));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input("-4"));
 }
 export function evaluate33864() {
-    return makeDate(int4Input("2020"), int4Input("1"), int4Input("2"));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input(null));
 }
 export function evaluate33865() {
-    return makeDate(int4Input("-1"), int4Input("1"), int4Input("1"));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input(null));
 }
 export function evaluate33866() {
-    return makeDate(int4Input("2023"), int4Input("2"), int4Input("29"));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input(null));
 }
 export function evaluate33867() {
-    return makeTime(int4Input("12"), int4Input("34"), float8Input("404c400000000000"));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input(null));
 }
 export function evaluate33868() {
-    return makeTime(int4Input("24"), int4Input("0"), float8Input("3fb999999999999a"));
+    return jsonArrayElement(jsonInput("[10,20,30]"), int4Input(null));
 }
 export function evaluate33869() {
-    return makeTimestamp(int4Input("2020"), int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4"), float8Input("4016000000000000"));
+    return jsonArrayElementText(jsonInput("[10,20,30]"), int4Input(null));
 }
 export function evaluate33870() {
-    return makeInterval(int4Input("1"), int4Input("2"), int4Input("0"), int4Input("3"), int4Input("4"), int4Input("5"), float8Input("401a000000000000"));
+    return jsonbArrayElement(jsonbInput("[10,20,30]"), int4Input(null));
 }
 export function evaluate33871() {
-    return sqlIsNull(dateInput(null));
+    return jsonbArrayElementText(jsonbInput("[10,20,30]"), int4Input(null));
 }
 export function evaluate33872() {
-    return sqlCase(() => dateInput("2020-01-01"), [() => booleanInput(true), () => dateInput("2020-01-02")]);
+    return jsonArrayElement(jsonInput("[1, null, 3]"), int4Input("1"));
 }
 export function evaluate33873() {
-    return sqlCoalesce(() => dateInput(null), () => dateInput("2020-01-02"));
+    return jsonArrayElementText(jsonInput("[1, null, 3]"), int4Input("1"));
 }
 export function evaluate33874() {
-    return sqlCase(() => timeInput("12:00:00"), [() => booleanInput(true), () => timeInput("18:00:00")]);
+    return jsonArrayElement(jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), int4Input("0"));
 }
 export function evaluate33875() {
-    return sqlCoalesce(() => timestampInput(null), () => timestampInput("2020-01-02 03:04:05"));
+    return jsonArrayElement(jsonInput("1"), int4Input("0"));
 }
 export function evaluate33876() {
-    return sqlCase(() => intervalInput("1 mon"), [() => booleanInput(false), () => intervalInput("1 year")]);
+    return jsonbArrayElement(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), int4Input("0"));
 }
 export function evaluate33877() {
-    return timestamptzInput(null);
+    return jsonbArrayElement(jsonbInput("1"), int4Input("0"));
 }
 export function evaluate33878() {
-    return timestamptzInput("2020-01-02 03:04:05");
+    return jsonbArrayElementText(jsonbInput("\"hi\""), int4Input("0"));
 }
 export function evaluate33879() {
-    return timestamptzInput("2020-01-02 03:04:05+00");
+    return jsonArrayElementText(jsonInput("\"hi\""), int4Input("0"));
 }
 export function evaluate33880() {
-    return timestamptzInput("2020-01-02 03:04:05+01");
+    return jsonbArrayElement(jsonbInput("1"), int4Input("-1"));
 }
 export function evaluate33881() {
-    return timestamptzInput("2020-01-02 03:04:05-05");
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33882() {
-    return timestamptzInput("2020-01-02 03:04:05+05:30");
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33883() {
-    return timestamptzInput("2020-01-02 03:04:05+0530");
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33884() {
-    return timestamptzInput("2020-01-02 03:04:05Z");
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33885() {
-    return timestamptzInput("2020-01-02 03:04:05 UTC");
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33886() {
-    return timestamptzInput("2020-01-02T03:04:05+00");
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33887() {
-    return timestamptzInput("2020-01-02 24:00:00+00");
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33888() {
-    return timestamptzInput("2020-01-02 03:04:05.123456+00");
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate33889() {
-    return timestamptzInput("infinity");
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33890() {
-    return timestamptzInput("-infinity");
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33891() {
-    return timestamptzInput("0001-01-01 00:00:00 BC");
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33892() {
-    return timestamptzInput("not-a-timestamptz");
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33893() {
-    return timestamptzInput("2020-01-02 03:04:05+16");
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33894() {
-    return timestamptzInput("2020-01-02 12:60:00+00");
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33895() {
-    return timetzInput(null);
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33896() {
-    return timetzInput("12:00:00");
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate33897() {
-    return timetzInput("12:00:00+00");
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33898() {
-    return timetzInput("12:00:00+01");
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33899() {
-    return timetzInput("12:00:00-05:30");
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33900() {
-    return timetzInput("12:00:00Z");
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33901() {
-    return timetzInput("12:00+00");
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33902() {
-    return timetzInput("24:00:00+00");
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33903() {
-    return timetzInput("12:00:00+00:00:01");
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33904() {
-    return timetzInput("not-a-timetz");
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33905() {
-    return timetzInput("12:60:00+00");
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
 }
 export function evaluate33906() {
-    return timetzInput("12:00:00+16");
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
 }
 export function evaluate33907() {
-    return timetzInput("12:00:00+00:60");
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
 }
 export function evaluate33908() {
-    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
 }
 export function evaluate33909() {
-    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
 }
 export function evaluate33910() {
-    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
 }
 export function evaluate33911() {
-    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
 }
 export function evaluate33912() {
-    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [3], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("-1"))]));
 }
 export function evaluate33913() {
-    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33914() {
-    return timestamptzEq(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33915() {
-    return timestamptzNe(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33916() {
-    return timestamptzLt(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33917() {
-    return timestamptzLe(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33918() {
-    return timestamptzGt(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33919() {
-    return timestamptzGe(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33920() {
-    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33921() {
-    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33922() {
-    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33923() {
-    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33924() {
-    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33925() {
-    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33926() {
-    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33927() {
-    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33928() {
-    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("missing"))]));
 }
 export function evaluate33929() {
-    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33930() {
-    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33931() {
-    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33932() {
-    return timestamptzEq(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33933() {
-    return timestamptzNe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33934() {
-    return timestamptzLt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33935() {
-    return timestamptzLe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33936() {
-    return timestamptzGt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate33937() {
-    return timestamptzGe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33938() {
-    return timestamptzEq(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33939() {
-    return timestamptzNe(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33940() {
-    return timestamptzLt(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33941() {
-    return timestamptzLe(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33942() {
-    return timestamptzGt(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33943() {
-    return timestamptzGe(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33944() {
-    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33945() {
-    return timestamptzEq(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate33946() {
-    return timestamptzEq(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate33947() {
-    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate33948() {
-    return timestamptzNe(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate33949() {
-    return timestamptzNe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate33950() {
-    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonExtractPathText(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate33951() {
-    return timestamptzLt(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonbExtractPath(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate33952() {
-    return timestamptzLt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbExtractPathText(jsonbInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate33953() {
-    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonExtractPath(jsonInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33954() {
-    return timestamptzLe(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonExtractPath(jsonInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33955() {
-    return timestamptzLe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbExtractPath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate33956() {
-    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonExtractPath(jsonInput("{\"1\":\"a\"}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate33957() {
-    return timestamptzGt(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate33958() {
-    return timestamptzGt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonExtractPath(jsonInput("{\"a\":{\"b\":[1,2,3]}}"), arrayInput("pg_catalog.text", [], [], null));
 }
 export function evaluate33959() {
-    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonbExtractPath(jsonbInput("\"hi\""), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("0"))]));
 }
 export function evaluate33960() {
-    return timestamptzGe(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonExtractPath(jsonInput("\"hi\""), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("0"))]));
 }
 export function evaluate33961() {
-    return timestamptzGe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbEq(jsonbInput("null"), jsonbInput("\"\""));
 }
 export function evaluate33962() {
-    return timestamptzCompare(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
+    return jsonbNe(jsonbInput("null"), jsonbInput("\"\""));
 }
 export function evaluate33963() {
-    return timestamptzCompare(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonbLt(jsonbInput("null"), jsonbInput("\"\""));
 }
 export function evaluate33964() {
-    return timestamptzCompare(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbLe(jsonbInput("null"), jsonbInput("\"\""));
 }
 export function evaluate33965() {
-    return timetzEq(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return jsonbGt(jsonbInput("null"), jsonbInput("\"\""));
 }
 export function evaluate33966() {
-    return timetzNe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return jsonbGe(jsonbInput("null"), jsonbInput("\"\""));
 }
 export function evaluate33967() {
-    return timetzLt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return jsonbCompare(jsonbInput("null"), jsonbInput("\"\""));
 }
 export function evaluate33968() {
-    return timetzLe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return jsonbEq(jsonbInput("\"\""), jsonbInput("0"));
 }
 export function evaluate33969() {
-    return timetzGt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return jsonbNe(jsonbInput("\"\""), jsonbInput("0"));
 }
 export function evaluate33970() {
-    return timetzGe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return jsonbLt(jsonbInput("\"\""), jsonbInput("0"));
 }
 export function evaluate33971() {
-    return timetzEq(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+    return jsonbLe(jsonbInput("\"\""), jsonbInput("0"));
 }
 export function evaluate33972() {
-    return timetzNe(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+    return jsonbGt(jsonbInput("\"\""), jsonbInput("0"));
 }
 export function evaluate33973() {
-    return timetzLt(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+    return jsonbGe(jsonbInput("\"\""), jsonbInput("0"));
 }
 export function evaluate33974() {
-    return timetzLe(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+    return jsonbCompare(jsonbInput("\"\""), jsonbInput("0"));
 }
 export function evaluate33975() {
-    return timetzGt(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+    return jsonbEq(jsonbInput("0"), jsonbInput("false"));
 }
 export function evaluate33976() {
-    return timetzGe(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+    return jsonbNe(jsonbInput("0"), jsonbInput("false"));
 }
 export function evaluate33977() {
-    return timetzEq(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+    return jsonbLt(jsonbInput("0"), jsonbInput("false"));
 }
 export function evaluate33978() {
-    return timetzNe(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+    return jsonbLe(jsonbInput("0"), jsonbInput("false"));
 }
 export function evaluate33979() {
-    return timetzLt(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+    return jsonbGt(jsonbInput("0"), jsonbInput("false"));
 }
 export function evaluate33980() {
-    return timetzLe(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+    return jsonbGe(jsonbInput("0"), jsonbInput("false"));
 }
 export function evaluate33981() {
-    return timetzGt(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+    return jsonbCompare(jsonbInput("0"), jsonbInput("false"));
 }
 export function evaluate33982() {
-    return timetzGe(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+    return jsonbEq(jsonbInput("false"), jsonbInput("[]"));
 }
 export function evaluate33983() {
-    return timetzEq(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return jsonbNe(jsonbInput("false"), jsonbInput("[]"));
 }
 export function evaluate33984() {
-    return timetzNe(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return jsonbLt(jsonbInput("false"), jsonbInput("[]"));
 }
 export function evaluate33985() {
-    return timetzLt(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return jsonbLe(jsonbInput("false"), jsonbInput("[]"));
 }
 export function evaluate33986() {
-    return timetzLe(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return jsonbGt(jsonbInput("false"), jsonbInput("[]"));
 }
 export function evaluate33987() {
-    return timetzGt(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return jsonbGe(jsonbInput("false"), jsonbInput("[]"));
 }
 export function evaluate33988() {
-    return timetzGe(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return jsonbCompare(jsonbInput("false"), jsonbInput("[]"));
 }
 export function evaluate33989() {
-    return timetzEq(timetzInput(null), timetzInput("12:00:00+00"));
+    return jsonbEq(jsonbInput("[]"), jsonbInput("null"));
 }
 export function evaluate33990() {
-    return timetzNe(timetzInput(null), timetzInput("12:00:00+00"));
+    return jsonbNe(jsonbInput("[]"), jsonbInput("null"));
 }
 export function evaluate33991() {
-    return timetzLt(timetzInput(null), timetzInput("12:00:00+00"));
+    return jsonbLt(jsonbInput("[]"), jsonbInput("null"));
 }
 export function evaluate33992() {
-    return timetzLe(timetzInput(null), timetzInput("12:00:00+00"));
+    return jsonbLe(jsonbInput("[]"), jsonbInput("null"));
 }
 export function evaluate33993() {
-    return timetzGt(timetzInput(null), timetzInput("12:00:00+00"));
+    return jsonbGt(jsonbInput("[]"), jsonbInput("null"));
 }
 export function evaluate33994() {
-    return timetzGe(timetzInput(null), timetzInput("12:00:00+00"));
+    return jsonbGe(jsonbInput("[]"), jsonbInput("null"));
 }
 export function evaluate33995() {
-    return timetzEq(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return jsonbCompare(jsonbInput("[]"), jsonbInput("null"));
 }
 export function evaluate33996() {
-    return timetzEq(timetzInput(null), timetzInput("18:00:00+00"));
+    return jsonbEq(jsonbInput("[]"), jsonbInput("{}"));
 }
 export function evaluate33997() {
-    return timetzNe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return jsonbNe(jsonbInput("[]"), jsonbInput("{}"));
 }
 export function evaluate33998() {
-    return timetzNe(timetzInput(null), timetzInput("18:00:00+00"));
+    return jsonbLt(jsonbInput("[]"), jsonbInput("{}"));
 }
 export function evaluate33999() {
-    return timetzLt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return jsonbLe(jsonbInput("[]"), jsonbInput("{}"));
 }
 export function evaluate34000() {
-    return timetzLt(timetzInput(null), timetzInput("18:00:00+00"));
+    return jsonbGt(jsonbInput("[]"), jsonbInput("{}"));
 }
 export function evaluate34001() {
-    return timetzLe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return jsonbGe(jsonbInput("[]"), jsonbInput("{}"));
 }
 export function evaluate34002() {
-    return timetzLe(timetzInput(null), timetzInput("18:00:00+00"));
+    return jsonbCompare(jsonbInput("[]"), jsonbInput("{}"));
 }
 export function evaluate34003() {
-    return timetzGt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return jsonbEq(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate34004() {
-    return timetzGt(timetzInput(null), timetzInput("18:00:00+00"));
+    return jsonbNe(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate34005() {
-    return timetzGe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+    return jsonbLt(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate34006() {
-    return timetzGe(timetzInput(null), timetzInput("18:00:00+00"));
+    return jsonbLe(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate34007() {
-    return timetzCompare(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+    return jsonbGt(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate34008() {
-    return timetzCompare(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return jsonbGe(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate34009() {
-    return timetzCompare(timetzInput(null), timetzInput("12:00:00+00"));
+    return jsonbCompare(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate34010() {
-    return timestamptzFinite(timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbEq(jsonbInput("[2]"), jsonbInput("[1,2]"));
 }
 export function evaluate34011() {
-    return timestamptzFinite(timestamptzInput("infinity"));
+    return jsonbNe(jsonbInput("[2]"), jsonbInput("[1,2]"));
 }
 export function evaluate34012() {
-    return timestamptzFinite(timestamptzInput(null));
+    return jsonbLt(jsonbInput("[2]"), jsonbInput("[1,2]"));
 }
 export function evaluate34013() {
-    return makeTimestamptz(int4Input("2020"), int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4"), float8Input("4016000000000000"));
+    return jsonbLe(jsonbInput("[2]"), jsonbInput("[1,2]"));
 }
 export function evaluate34014() {
-    return sqlCoalesce(() => timestamptzInput(null), () => timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbGt(jsonbInput("[2]"), jsonbInput("[1,2]"));
 }
 export function evaluate34015() {
-    return sqlCase(() => timetzInput("12:00:00+00"), [() => booleanInput(true), () => timetzInput("18:00:00+00")]);
+    return jsonbGe(jsonbInput("[2]"), jsonbInput("[1,2]"));
 }
 export function evaluate34016() {
-    return extractTimestamp(textInput("microsecond"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbCompare(jsonbInput("[2]"), jsonbInput("[1,2]"));
 }
 export function evaluate34017() {
-    return extractTimestamp(textInput("millisecond"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbEq(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate34018() {
-    return extractTimestamp(textInput("second"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbNe(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate34019() {
-    return extractTimestamp(textInput("minute"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbLt(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate34020() {
-    return extractTimestamp(textInput("hour"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbLe(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate34021() {
-    return extractTimestamp(textInput("day"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbGt(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate34022() {
-    return extractTimestamp(textInput("month"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbGe(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate34023() {
-    return extractTimestamp(textInput("quarter"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbCompare(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate34024() {
-    return extractTimestamp(textInput("week"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbEq(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate34025() {
-    return extractTimestamp(textInput("year"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbNe(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate34026() {
-    return extractTimestamp(textInput("decade"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbLt(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate34027() {
-    return extractTimestamp(textInput("century"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbLe(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate34028() {
-    return extractTimestamp(textInput("millennium"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbGt(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate34029() {
-    return extractTimestamp(textInput("julian"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbGe(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate34030() {
-    return extractTimestamp(textInput("isoyear"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbCompare(jsonbInput("{\"aa\":1}"), jsonbInput("{\"b\":1}"));
 }
 export function evaluate34031() {
-    return extractTimestamp(textInput("dow"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbEq(jsonbInput("\"abc\""), jsonbInput("\"z\""));
 }
 export function evaluate34032() {
-    return extractTimestamp(textInput("isodow"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbNe(jsonbInput("\"abc\""), jsonbInput("\"z\""));
 }
 export function evaluate34033() {
-    return extractTimestamp(textInput("doy"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbLt(jsonbInput("\"abc\""), jsonbInput("\"z\""));
 }
 export function evaluate34034() {
-    return extractTimestamp(textInput("epoch"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbLe(jsonbInput("\"abc\""), jsonbInput("\"z\""));
 }
 export function evaluate34035() {
-    return extractTimestamp(textInput("YEAR"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbGt(jsonbInput("\"abc\""), jsonbInput("\"z\""));
 }
 export function evaluate34036() {
-    return extractTimestamp(textInput("microseconds"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbGe(jsonbInput("\"abc\""), jsonbInput("\"z\""));
 }
 export function evaluate34037() {
-    return extractTimestamp(textInput("timezone"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbCompare(jsonbInput("\"abc\""), jsonbInput("\"z\""));
 }
 export function evaluate34038() {
-    return extractTimestamp(textInput(null), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbEq(jsonbInput("\"B\""), jsonbInput("\"a\""));
 }
 export function evaluate34039() {
-    return extractTimestamp(textInput("year"), timestampInput(null));
+    return jsonbNe(jsonbInput("\"B\""), jsonbInput("\"a\""));
 }
 export function evaluate34040() {
-    return extractTimestamp(textInput("year"), timestampInput("infinity"));
+    return jsonbLt(jsonbInput("\"B\""), jsonbInput("\"a\""));
 }
 export function evaluate34041() {
-    return extractTimestamp(textInput("hour"), timestampInput("infinity"));
+    return jsonbLe(jsonbInput("\"B\""), jsonbInput("\"a\""));
 }
 export function evaluate34042() {
-    return extractTimestamp(textInput("epoch"), timestampInput("-infinity"));
+    return jsonbGt(jsonbInput("\"B\""), jsonbInput("\"a\""));
 }
 export function evaluate34043() {
-    return extractTimestamp(textInput("bogus"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbGe(jsonbInput("\"B\""), jsonbInput("\"a\""));
 }
 export function evaluate34044() {
-    return extractTimestamp(textInput("now"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbCompare(jsonbInput("\"B\""), jsonbInput("\"a\""));
 }
 export function evaluate34045() {
-    return datePartTimestamp(textInput("year"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbEq(jsonbInput("1.0"), jsonbInput("100"));
 }
 export function evaluate34046() {
-    return datePartTimestamp(textInput("second"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbNe(jsonbInput("1.0"), jsonbInput("100"));
 }
 export function evaluate34047() {
-    return datePartTimestamp(textInput("epoch"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbLt(jsonbInput("1.0"), jsonbInput("100"));
 }
 export function evaluate34048() {
-    return datePartTimestamp(textInput("hour"), timestampInput("infinity"));
+    return jsonbLe(jsonbInput("1.0"), jsonbInput("100"));
 }
 export function evaluate34049() {
-    return extractDate(textInput("year"), dateInput("2020-01-02"));
+    return jsonbGt(jsonbInput("1.0"), jsonbInput("100"));
 }
 export function evaluate34050() {
-    return extractDate(textInput("epoch"), dateInput("2020-01-02"));
+    return jsonbGe(jsonbInput("1.0"), jsonbInput("100"));
 }
 export function evaluate34051() {
-    return extractDate(textInput("dow"), dateInput("2020-01-02"));
+    return jsonbCompare(jsonbInput("1.0"), jsonbInput("100"));
 }
 export function evaluate34052() {
-    return extractDate(textInput("hour"), dateInput("2020-01-02"));
+    return jsonbEq(jsonbInput(null), jsonbInput("[1]"));
 }
 export function evaluate34053() {
-    return extractDate(textInput("year"), dateInput("infinity"));
+    return jsonbNe(jsonbInput(null), jsonbInput("[1]"));
 }
 export function evaluate34054() {
-    return extractDate(textInput("month"), dateInput("infinity"));
+    return jsonbLt(jsonbInput(null), jsonbInput("[1]"));
 }
 export function evaluate34055() {
-    return extractDate(textInput("julian"), dateInput("-infinity"));
+    return jsonbLe(jsonbInput(null), jsonbInput("[1]"));
 }
 export function evaluate34056() {
-    return extractDate(textInput("year"), dateInput(null));
+    return jsonbGt(jsonbInput(null), jsonbInput("[1]"));
 }
 export function evaluate34057() {
-    return datePartDate(textInput("year"), dateInput("2020-01-02"));
+    return jsonbGe(jsonbInput(null), jsonbInput("[1]"));
 }
 export function evaluate34058() {
-    return datePartDate(textInput("hour"), dateInput("2020-01-02"));
+    return jsonbCompare(jsonbInput(null), jsonbInput("[1]"));
 }
 export function evaluate34059() {
-    return datePartDate(textInput("hour"), dateInput("infinity"));
+    return jsonbEq(jsonbInput("[1]"), jsonbInput("[1]"));
 }
 export function evaluate34060() {
-    return extractTime(textInput("hour"), timeInput("12:34:56.123456"));
+    return jsonbNe(jsonbInput("[1]"), jsonbInput("[1]"));
 }
 export function evaluate34061() {
-    return extractTime(textInput("second"), timeInput("12:34:56.123456"));
+    return jsonbLt(jsonbInput("[1]"), jsonbInput("[1]"));
 }
 export function evaluate34062() {
-    return extractTime(textInput("epoch"), timeInput("12:34:56.123456"));
+    return jsonbLe(jsonbInput("[1]"), jsonbInput("[1]"));
 }
 export function evaluate34063() {
-    return extractTime(textInput("timezone"), timeInput("12:34:56.123456"));
+    return jsonbGt(jsonbInput("[1]"), jsonbInput("[1]"));
 }
 export function evaluate34064() {
-    return extractTime(textInput("day"), timeInput("12:34:56.123456"));
+    return jsonbGe(jsonbInput("[1]"), jsonbInput("[1]"));
 }
 export function evaluate34065() {
-    return extractTime(textInput("hour"), timeInput(null));
+    return jsonbCompare(jsonbInput("[1]"), jsonbInput("[1]"));
 }
 export function evaluate34066() {
-    return datePartTime(textInput("millisecond"), timeInput("12:34:56.123456"));
+    return jsonbEq(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate34067() {
-    return extractTimetz(textInput("timezone"), timetzInput("12:34:56.123456+01:30"));
+    return jsonbNe(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate34068() {
-    return extractTimetz(textInput("timezone_hour"), timetzInput("12:34:56.123456+01:30"));
+    return jsonbLt(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate34069() {
-    return extractTimetz(textInput("timezone_minute"), timetzInput("12:34:56.123456+01:30"));
+    return jsonbLe(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate34070() {
-    return extractTimetz(textInput("epoch"), timetzInput("12:34:56.123456+01:30"));
+    return jsonbGt(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate34071() {
-    return extractTimetz(textInput("hour"), timetzInput("12:34:56.123456+01:30"));
+    return jsonbGe(jsonbInput("[1]"), jsonbInput("[1,2]"));
 }
 export function evaluate34072() {
-    return extractTimetz(textInput("timezone"), timetzInput(null));
+    return jsonbContains(jsonbInput("1"), jsonbInput("1"));
 }
 export function evaluate34073() {
-    return datePartTimetz(textInput("timezone"), timetzInput("12:34:56.123456+01:30"));
+    return jsonbContained(jsonbInput("1"), jsonbInput("1"));
 }
 export function evaluate34074() {
-    return extractInterval(textInput("year"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbContains(jsonbInput("1"), jsonbInput("1"));
 }
 export function evaluate34075() {
-    return extractInterval(textInput("month"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbContained(jsonbInput("1"), jsonbInput("1"));
 }
 export function evaluate34076() {
-    return extractInterval(textInput("day"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("1"));
 }
 export function evaluate34077() {
-    return extractInterval(textInput("hour"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbContained(jsonbInput("1"), jsonbInput("[1]"));
 }
 export function evaluate34078() {
-    return extractInterval(textInput("second"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("1"));
 }
 export function evaluate34079() {
-    return extractInterval(textInput("week"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbContained(jsonbInput("1"), jsonbInput("[1]"));
 }
 export function evaluate34080() {
-    return extractInterval(textInput("quarter"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbContains(jsonbInput("1"), jsonbInput("[1]"));
 }
 export function evaluate34081() {
-    return extractInterval(textInput("quarter"), intervalInput("-13 mons"));
+    return jsonbContained(jsonbInput("[1]"), jsonbInput("1"));
 }
 export function evaluate34082() {
-    return extractInterval(textInput("epoch"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbContains(jsonbInput("1"), jsonbInput("[1]"));
 }
 export function evaluate34083() {
-    return extractInterval(textInput("hour"), intervalInput("infinity"));
+    return jsonbContained(jsonbInput("[1]"), jsonbInput("1"));
 }
 export function evaluate34084() {
-    return extractInterval(textInput("month"), intervalInput("infinity"));
+    return jsonbContains(jsonbInput("[1,2]"), jsonbInput("[1,1]"));
 }
 export function evaluate34085() {
-    return extractInterval(textInput("year"), intervalInput(null));
+    return jsonbContained(jsonbInput("[1,1]"), jsonbInput("[1,2]"));
 }
 export function evaluate34086() {
-    return datePartInterval(textInput("epoch"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbContains(jsonbInput("[1,2]"), jsonbInput("[1,1]"));
 }
 export function evaluate34087() {
-    return extractTimestamptz(textInput("hour"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbContained(jsonbInput("[1,1]"), jsonbInput("[1,2]"));
 }
 export function evaluate34088() {
-    return extractTimestamptz(textInput("timezone"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbContains(jsonbInput("{\"a\":[1,2]}"), jsonbInput("{\"a\":[1]}"));
 }
 export function evaluate34089() {
-    return extractTimestamptz(textInput("epoch"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbContained(jsonbInput("{\"a\":[1]}"), jsonbInput("{\"a\":[1,2]}"));
 }
 export function evaluate34090() {
-    return extractTimestamptz(textInput("hour"), timestamptzInput(null));
+    return jsonbContains(jsonbInput("{\"a\":[1,2]}"), jsonbInput("{\"a\":[1]}"));
 }
 export function evaluate34091() {
-    return datePartTimestamptz(textInput("year"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbContained(jsonbInput("{\"a\":[1]}"), jsonbInput("{\"a\":[1,2]}"));
 }
 export function evaluate34092() {
-    return dateTruncTimestamp(textInput("microsecond"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("[]"));
 }
 export function evaluate34093() {
-    return dateTruncTimestamp(textInput("millisecond"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbContained(jsonbInput("[]"), jsonbInput("[1]"));
 }
 export function evaluate34094() {
-    return dateTruncTimestamp(textInput("second"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("[]"));
 }
 export function evaluate34095() {
-    return dateTruncTimestamp(textInput("minute"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbContained(jsonbInput("[]"), jsonbInput("[1]"));
 }
 export function evaluate34096() {
-    return dateTruncTimestamp(textInput("hour"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbContains(jsonbInput("[]"), jsonbInput("[1]"));
 }
 export function evaluate34097() {
-    return dateTruncTimestamp(textInput("day"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbContained(jsonbInput("[1]"), jsonbInput("[]"));
 }
 export function evaluate34098() {
-    return dateTruncTimestamp(textInput("month"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbContains(jsonbInput("[]"), jsonbInput("[1]"));
 }
 export function evaluate34099() {
-    return dateTruncTimestamp(textInput("quarter"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbContained(jsonbInput("[1]"), jsonbInput("[]"));
 }
 export function evaluate34100() {
-    return dateTruncTimestamp(textInput("week"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbContains(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
 }
 export function evaluate34101() {
-    return dateTruncTimestamp(textInput("year"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbContained(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
 }
 export function evaluate34102() {
-    return dateTruncTimestamp(textInput("decade"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbContains(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
 }
 export function evaluate34103() {
-    return dateTruncTimestamp(textInput("century"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbContained(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
 }
 export function evaluate34104() {
-    return dateTruncTimestamp(textInput("millennium"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbContains(jsonbInput("{}"), jsonbInput("{}"));
 }
 export function evaluate34105() {
-    return dateTruncTimestamp(textInput("year"), timestampInput("infinity"));
+    return jsonbContained(jsonbInput("{}"), jsonbInput("{}"));
 }
 export function evaluate34106() {
-    return dateTruncTimestamp(textInput("week"), timestampInput("2021-01-01 15:00:00"));
+    return jsonbContains(jsonbInput("{}"), jsonbInput("{}"));
 }
 export function evaluate34107() {
-    return dateTruncTimestamp(textInput("epoch"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbContained(jsonbInput("{}"), jsonbInput("{}"));
 }
 export function evaluate34108() {
-    return dateTruncTimestamp(textInput("day"), timestampInput(null));
+    return jsonbContains(jsonbInput("[null]"), jsonbInput("null"));
 }
 export function evaluate34109() {
-    return dateTruncTimestamptz(textInput("day"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbContained(jsonbInput("null"), jsonbInput("[null]"));
 }
 export function evaluate34110() {
-    return dateTruncTimestamptz(textInput("hour"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbContains(jsonbInput("[null]"), jsonbInput("null"));
 }
 export function evaluate34111() {
-    return dateTruncInterval(textInput("year"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbContained(jsonbInput("null"), jsonbInput("[null]"));
 }
 export function evaluate34112() {
-    return dateTruncInterval(textInput("month"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbContains(jsonbInput("null"), jsonbInput("[null]"));
 }
 export function evaluate34113() {
-    return dateTruncInterval(textInput("day"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbContained(jsonbInput("[null]"), jsonbInput("null"));
 }
 export function evaluate34114() {
-    return dateTruncInterval(textInput("hour"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbContains(jsonbInput("null"), jsonbInput("[null]"));
 }
 export function evaluate34115() {
-    return dateTruncInterval(textInput("second"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbContained(jsonbInput("[null]"), jsonbInput("null"));
 }
 export function evaluate34116() {
-    return dateTruncInterval(textInput("millennium"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbContains(jsonbInput("false"), jsonbInput("false"));
 }
 export function evaluate34117() {
-    return dateTruncInterval(textInput("week"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbContained(jsonbInput("false"), jsonbInput("false"));
 }
 export function evaluate34118() {
-    return dateTruncInterval(textInput("year"), intervalInput("infinity"));
+    return jsonbContains(jsonbInput("false"), jsonbInput("false"));
 }
 export function evaluate34119() {
-    return dateTruncInterval(textInput("day"), intervalInput(null));
+    return jsonbContained(jsonbInput("false"), jsonbInput("false"));
 }
 export function evaluate34120() {
-    return extractDate(textInput("year"), dateInput("0001-01-01 BC"));
+    return jsonbContains(jsonbInput("true"), jsonbInput("false"));
 }
 export function evaluate34121() {
-    return dateTruncTimestamp(textInput("millennium"), timestampInput("0001-01-01 BC"));
+    return jsonbContained(jsonbInput("false"), jsonbInput("true"));
 }
 export function evaluate34122() {
-    return datePlInt(dateInput("2020-01-02"), int4Input("3"));
+    return jsonbContains(jsonbInput("true"), jsonbInput("false"));
 }
 export function evaluate34123() {
-    return datePlInt(dateInput("2020-01-02"), int4Input("3"));
+    return jsonbContained(jsonbInput("false"), jsonbInput("true"));
 }
 export function evaluate34124() {
-    return intPlDate(int4Input("3"), dateInput("2020-01-02"));
+    return jsonbContains(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
 }
 export function evaluate34125() {
-    return intPlDate(int4Input("3"), dateInput("2020-01-02"));
+    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
 }
 export function evaluate34126() {
-    return datePlInt(dateInput("2020-01-02"), int4Input(null));
+    return jsonbContains(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
 }
 export function evaluate34127() {
-    return datePlInt(dateInput("infinity"), int4Input("3"));
+    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[[1]]"));
 }
 export function evaluate34128() {
-    return dateMiInt(dateInput("2020-01-02"), int4Input("3"));
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("[[1]]"));
 }
 export function evaluate34129() {
-    return dateMiInt(dateInput("2020-01-02"), int4Input("3"));
+    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[1]"));
 }
 export function evaluate34130() {
-    return dateMiDate(dateInput("2020-01-02"), dateInput("2020-01-01"));
+    return jsonbContains(jsonbInput("[1]"), jsonbInput("[[1]]"));
 }
 export function evaluate34131() {
-    return dateMiDate(dateInput("2020-01-02"), dateInput("2020-01-01"));
+    return jsonbContained(jsonbInput("[[1]]"), jsonbInput("[1]"));
 }
 export function evaluate34132() {
-    return dateMiDate(dateInput("infinity"), dateInput("2020-01-01"));
+    return jsonbContains(jsonbInput(null), jsonbInput("1"));
 }
 export function evaluate34133() {
-    return datePlInterval(dateInput("2020-01-31"), intervalInput("1 month"));
+    return jsonbContained(jsonbInput("1"), jsonbInput(null));
 }
 export function evaluate34134() {
-    return datePlInterval(dateInput("2020-01-31"), intervalInput("1 month"));
+    return jsonbContains(jsonbInput(null), jsonbInput("1"));
 }
 export function evaluate34135() {
-    return intervalPlDate(intervalInput("1 month"), dateInput("2020-01-31"));
+    return jsonbContained(jsonbInput("1"), jsonbInput(null));
 }
 export function evaluate34136() {
-    return dateMiInterval(dateInput("2020-02-29"), intervalInput("1 month"));
+    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("a"));
 }
 export function evaluate34137() {
-    return intervalPlDate(intervalInput("1 month"), dateInput("2020-01-31"));
+    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("a"));
 }
 export function evaluate34138() {
-    return dateMiInterval(dateInput("2020-02-29"), intervalInput("1 month"));
+    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("b"));
 }
 export function evaluate34139() {
-    return datePlTime(dateInput("2020-01-02"), timeInput("12:00:00"));
+    return jsonbExists(jsonbInput("{\"a\":1}"), textInput("b"));
 }
 export function evaluate34140() {
-    return datePlTime(dateInput("2020-01-02"), timeInput("12:00:00"));
+    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("a"));
 }
 export function evaluate34141() {
-    return timePlDate(timeInput("12:00:00"), dateInput("2020-01-02"));
+    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("a"));
 }
 export function evaluate34142() {
-    return timePlDate(timeInput("12:00:00"), dateInput("2020-01-02"));
+    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("1"));
 }
 export function evaluate34143() {
-    return datePlTimetz(dateInput("2020-01-02"), timetzInput("12:00:00+01"));
+    return jsonbExists(jsonbInput("[\"a\",1]"), textInput("1"));
 }
 export function evaluate34144() {
-    return datePlTimetz(dateInput("2020-01-02"), timetzInput("12:00:00+01"));
+    return jsonbExists(jsonbInput("\"hello\""), textInput("hello"));
 }
 export function evaluate34145() {
-    return timetzPlDate(timetzInput("12:00:00+01"), dateInput("2020-01-02"));
+    return jsonbExists(jsonbInput("\"hello\""), textInput("hello"));
 }
 export function evaluate34146() {
-    return timetzPlDate(timetzInput("12:00:00+01"), dateInput("2020-01-02"));
+    return jsonbExists(jsonbInput("true"), textInput("true"));
 }
 export function evaluate34147() {
-    return datePlInterval(dateInput("2020-01-02"), intervalInput(null));
+    return jsonbExists(jsonbInput("true"), textInput("true"));
 }
 export function evaluate34148() {
-    return timestampPlInterval(timestampInput("2020-06-15 12:34:56.123456"), intervalInput("1 month"));
+    return jsonbExists(jsonbInput("{\"\":\"x\"}"), textInput(""));
 }
 export function evaluate34149() {
-    return timestampPlInterval(timestampInput("2020-06-15 12:34:56.123456"), intervalInput("1 month"));
+    return jsonbExists(jsonbInput("{\"\":\"x\"}"), textInput(""));
 }
 export function evaluate34150() {
-    return intervalPlTimestamp(intervalInput("1 month"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbExists(jsonbInput("[\"\"]"), textInput(""));
 }
 export function evaluate34151() {
-    return intervalPlTimestamp(intervalInput("1 month"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbExists(jsonbInput("[\"\"]"), textInput(""));
 }
 export function evaluate34152() {
-    return timestampMiInterval(timestampInput("2020-06-15 12:34:56.123456"), intervalInput("1 day"));
+    return jsonbExists(jsonbInput(null), textInput("a"));
 }
 export function evaluate34153() {
-    return timestampMiInterval(timestampInput("2020-06-15 12:34:56.123456"), intervalInput("1 day"));
+    return jsonbExists(jsonbInput(null), textInput("a"));
 }
 export function evaluate34154() {
-    return timestampMiTimestamp(timestampInput("2020-01-02 15:00:00"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate34155() {
-    return timestampMiTimestamp(timestampInput("2020-01-02 15:00:00"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate34156() {
-    return timestampPlInterval(timestampInput("infinity"), intervalInput("1 month"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate34157() {
-    return timestampPlInterval(timestampInput("infinity"), intervalInput("infinity"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate34158() {
-    return timestampMiTimestamp(timestampInput("infinity"), timestampInput("infinity"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate34159() {
-    return timestamptzPlInterval(timestamptzInput("2020-01-01 12:00:00+00"), intervalInput("02:00:00"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate34160() {
-    return timestamptzPlInterval(timestamptzInput("2020-01-01 12:00:00+00"), intervalInput("02:00:00"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate34161() {
-    return intervalPlTimestamptz(intervalInput("02:00:00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate34162() {
-    return intervalPlTimestamptz(intervalInput("02:00:00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate34163() {
-    return timestamptzMiInterval(timestamptzInput("2020-01-01 12:00:00+00"), intervalInput("02:00:00"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate34164() {
-    return timestamptzMiInterval(timestamptzInput("2020-01-01 12:00:00+00"), intervalInput("02:00:00"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate34165() {
-    return timestamptzMiTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate34166() {
-    return timestamptzMiTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate34167() {
-    return timePlInterval(timeInput("23:00:00"), intervalInput("02:00:00"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate34168() {
-    return timePlInterval(timeInput("23:00:00"), intervalInput("02:00:00"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate34169() {
-    return intervalPlTime(intervalInput("02:00:00"), timeInput("23:00:00"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate34170() {
-    return intervalPlTime(intervalInput("02:00:00"), timeInput("23:00:00"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate34171() {
-    return timeMiInterval(timeInput("12:00:00"), intervalInput("02:00:00"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate34172() {
-    return timeMiInterval(timeInput("12:00:00"), intervalInput("02:00:00"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate34173() {
-    return timeMiTime(timeInput("18:00:00"), timeInput("12:00:00"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate34174() {
-    return timeMiTime(timeInput("18:00:00"), timeInput("12:00:00"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate34175() {
-    return timePlInterval(timeInput("12:00:00"), intervalInput("infinity"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate34176() {
-    return timetzPlInterval(timetzInput("12:00:00+01"), intervalInput("02:00:00"));
+    return jsonbExistsAll(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate34177() {
-    return timetzPlInterval(timetzInput("12:00:00+01"), intervalInput("02:00:00"));
+    return jsonbExistsAny(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate34178() {
-    return intervalPlTimetz(intervalInput("02:00:00"), timetzInput("12:00:00+01"));
+    return jsonFromText(textInput(null));
 }
 export function evaluate34179() {
-    return intervalPlTimetz(intervalInput("02:00:00"), timetzInput("12:00:00+01"));
+    return jsonbFromText(textInput(null));
 }
 export function evaluate34180() {
-    return timetzMiInterval(timetzInput("12:00:00+01"), intervalInput("02:00:00"));
+    return jsonFromText(textInput("1"));
 }
 export function evaluate34181() {
-    return timetzMiInterval(timetzInput("12:00:00+01"), intervalInput("02:00:00"));
+    return jsonbFromText(textInput("1"));
 }
 export function evaluate34182() {
-    return intervalPl(intervalInput("1 month"), intervalInput("1 day"));
+    return jsonFromText(textInput("{\"b\":2,\"a\":1}"));
 }
 export function evaluate34183() {
-    return intervalPl(intervalInput("1 month"), intervalInput("25 hours"));
+    return jsonbFromText(textInput("{\"b\":2,\"a\":1}"));
 }
 export function evaluate34184() {
-    return intervalMi(intervalInput("1 year 2 mons 3 days 04:05:06.7"), intervalInput("1 month"));
+    return jsonFromText(textInput("not-json"));
 }
 export function evaluate34185() {
-    return intervalMi(intervalInput("1 year 2 mons 3 days 04:05:06.7"), intervalInput("1 month"));
+    return jsonbFromText(textInput("not-json"));
 }
 export function evaluate34186() {
-    return intervalUm(intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonFromText(textInput("\"\\u0000\""));
 }
 export function evaluate34187() {
-    return intervalUm(intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbFromText(textInput("\"\\u0000\""));
 }
 export function evaluate34188() {
-    return intervalUm(intervalInput("infinity"));
+    return jsonText(jsonInput(null));
 }
 export function evaluate34189() {
-    return intervalMul(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("4004000000000000"));
+    return jsonbText(jsonbInput(null));
 }
 export function evaluate34190() {
-    return intervalMul(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("4004000000000000"));
+    return jsonToJsonb(jsonInput(null));
 }
 export function evaluate34191() {
-    return mulDInterval(float8Input("4004000000000000"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonbToJson(jsonbInput(null));
 }
 export function evaluate34192() {
-    return mulDInterval(float8Input("4004000000000000"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+    return jsonText(jsonInput("1"));
 }
 export function evaluate34193() {
-    return intervalMul(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input(null));
+    return jsonbText(jsonbInput("1"));
 }
 export function evaluate34194() {
-    return intervalMul(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("7ff0000000000000"));
+    return jsonToJsonb(jsonInput("1"));
 }
 export function evaluate34195() {
-    return intervalDiv(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("4004000000000000"));
+    return jsonbToJson(jsonbInput("1"));
 }
 export function evaluate34196() {
-    return intervalDiv(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("4004000000000000"));
+    return jsonText(jsonInput(" { \"a\" : 1 } "));
 }
 export function evaluate34197() {
-    return intervalDiv(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("0000000000000000"));
+    return jsonbText(jsonbInput(" { \"a\" : 1 } "));
 }
 export function evaluate34198() {
-    return justifyHours(intervalInput("25 hours"));
+    return jsonToJsonb(jsonInput(" { \"a\" : 1 } "));
 }
 export function evaluate34199() {
-    return justifyDays(intervalInput("45 days"));
+    return jsonbToJson(jsonbInput(" { \"a\" : 1 } "));
 }
 export function evaluate34200() {
-    return justifyInterval(intervalInput("1 year 15 days 30 hours"));
+    return jsonText(jsonInput("{\"a\":1,\"a\":2}"));
 }
 export function evaluate34201() {
-    return justifyHours(intervalInput("infinity"));
+    return jsonbText(jsonbInput("{\"a\":1,\"a\":2}"));
 }
 export function evaluate34202() {
-    return dateFromTimestamp(timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonToJsonb(jsonInput("{\"a\":1,\"a\":2}"));
 }
 export function evaluate34203() {
-    return dateFromTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbToJson(jsonbInput("{\"a\":1,\"a\":2}"));
 }
 export function evaluate34204() {
-    return dateFromTimestamp(timestampInput("infinity"));
+    return sqlIsNull(jsonInput(null));
 }
 export function evaluate34205() {
-    return timestampFromDate(dateInput("2020-01-02"));
+    return sqlIsNotNull(jsonbInput(null));
 }
 export function evaluate34206() {
-    return timestampFromDateTime(dateInput("2020-01-02"), timeInput("12:00:00"));
+    return sqlCase(() => jsonInput("[10,20,30]"), [() => booleanInput(true), () => jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}")]);
 }
 export function evaluate34207() {
-    return timestampFromTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"));
+    return sqlCase(() => jsonbInput("[10,20,30]"), [() => booleanInput(false), () => jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}")]);
 }
 export function evaluate34208() {
-    return timestampFromDate(dateInput("294277-01-01"));
+    return sqlCoalesce(() => jsonInput(null), () => jsonInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
 }
 export function evaluate34209() {
-    return timestamptzFromTimestamp(timestampInput("2020-06-15 12:34:56.123456"));
+    return sqlCoalesce(() => jsonbInput(null), () => jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"));
 }
 export function evaluate34210() {
-    return timestamptzFromDate(dateInput("2020-01-02"));
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":2,\"a\":3}"));
 }
 export function evaluate34211() {
-    return timestamptzFromDateTime(dateInput("2020-01-02"), timeInput("12:00:00"));
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{\"b\":2,\"a\":3}"));
 }
 export function evaluate34212() {
-    return timestamptzFromDateTimetz(dateInput("2020-01-02"), timetzInput("12:00:00+01"));
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
 }
 export function evaluate34213() {
-    return timeFromTimestamp(timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("{}"));
 }
 export function evaluate34214() {
-    return timeFromTimestamp(timestampInput("infinity"));
+    return jsonbConcat(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
 }
 export function evaluate34215() {
-    return timeFromTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbConcat(jsonbInput("{}"), jsonbInput("{\"a\":1}"));
 }
 export function evaluate34216() {
-    return timeFromTimetz(timetzInput("12:00:00+01"));
+    return jsonbConcat(jsonbInput("[1]"), jsonbInput("[2,3]"));
 }
 export function evaluate34217() {
-    return timeFromInterval(intervalInput("25 hours"));
+    return jsonbConcat(jsonbInput("[1]"), jsonbInput("[2,3]"));
 }
 export function evaluate34218() {
-    return timeFromInterval(intervalInput("infinity"));
+    return jsonbConcat(jsonbInput("[]"), jsonbInput("[1]"));
 }
 export function evaluate34219() {
-    return timetzFromTime(timeInput("12:00:00"));
+    return jsonbConcat(jsonbInput("[]"), jsonbInput("[1]"));
 }
 export function evaluate34220() {
-    return timetzFromTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"));
+    return jsonbConcat(jsonbInput("1"), jsonbInput("2"));
 }
 export function evaluate34221() {
-    return timetzFromTimestamptz(timestamptzInput("infinity"));
+    return jsonbConcat(jsonbInput("1"), jsonbInput("2"));
 }
 export function evaluate34222() {
-    return intervalFromTime(timeInput("12:00:00"));
+    return jsonbConcat(jsonbInput("1"), jsonbInput("[2]"));
 }
 export function evaluate34223() {
-    return dateTimestampEq(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbConcat(jsonbInput("1"), jsonbInput("[2]"));
 }
 export function evaluate34224() {
-    return dateTimestampNe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbConcat(jsonbInput("[1]"), jsonbInput("2"));
 }
 export function evaluate34225() {
-    return dateTimestampLt(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbConcat(jsonbInput("[1]"), jsonbInput("2"));
 }
 export function evaluate34226() {
-    return dateTimestampLe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[2]"));
 }
 export function evaluate34227() {
-    return dateTimestampGt(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[2]"));
 }
 export function evaluate34228() {
-    return dateTimestampGe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbConcat(jsonbInput("[2]"), jsonbInput("{\"a\":1}"));
 }
 export function evaluate34229() {
-    return dateTimestampEq(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbConcat(jsonbInput("[2]"), jsonbInput("{\"a\":1}"));
 }
 export function evaluate34230() {
-    return dateTimestampNe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[]"));
 }
 export function evaluate34231() {
-    return dateTimestampLt(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbConcat(jsonbInput("{\"a\":1}"), jsonbInput("[]"));
 }
 export function evaluate34232() {
-    return dateTimestampLe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbConcat(jsonbInput("null"), jsonbInput("[1]"));
 }
 export function evaluate34233() {
-    return dateTimestampGt(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbConcat(jsonbInput("null"), jsonbInput("[1]"));
 }
 export function evaluate34234() {
-    return dateTimestampGe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbConcat(jsonbInput("true"), jsonbInput("{\"a\":1}"));
 }
 export function evaluate34235() {
-    return dateTimestampCompare(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbConcat(jsonbInput("true"), jsonbInput("{\"a\":1}"));
 }
 export function evaluate34236() {
-    return timestampDateEq(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return jsonbConcat(jsonbInput(null), jsonbInput("1"));
 }
 export function evaluate34237() {
-    return timestampDateNe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return jsonbConcat(jsonbInput(null), jsonbInput("1"));
 }
 export function evaluate34238() {
-    return timestampDateLt(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return jsonbDeleteKey(jsonbInput("{\"a\":1,\"b\":2}"), textInput("a"));
 }
 export function evaluate34239() {
-    return timestampDateLe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return jsonbDeleteKey(jsonbInput("{\"a\":1}"), textInput("missing"));
 }
 export function evaluate34240() {
-    return timestampDateGt(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return jsonbDeleteKey(jsonbInput("[\"a\",\"b\",\"a\"]"), textInput("a"));
 }
 export function evaluate34241() {
-    return timestampDateGe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return jsonbDeleteKey(jsonbInput("1"), textInput("a"));
 }
 export function evaluate34242() {
-    return timestampDateEq(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return jsonbDeleteKey(jsonbInput("{\"a\":1,\"b\":2}"), textInput("a"));
 }
 export function evaluate34243() {
-    return timestampDateNe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate34244() {
-    return timestampDateLt(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("-1"));
 }
 export function evaluate34245() {
-    return timestampDateLe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("99"));
 }
 export function evaluate34246() {
-    return timestampDateGt(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return jsonbDeleteIndex(jsonbInput("{\"a\":1,\"b\":[2,3],\"c\":null}"), int4Input("0"));
 }
 export function evaluate34247() {
-    return timestampDateGe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return jsonbDeleteIndex(jsonbInput("1"), int4Input("0"));
 }
 export function evaluate34248() {
-    return timestampDateCompare(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+    return jsonbDeleteIndex(jsonbInput("[10,20,30]"), int4Input("1"));
 }
 export function evaluate34249() {
-    return dateTimestamptzEq(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbDeleteKeys(jsonbInput("{\"a\":1,\"b\":2,\"c\":3}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("c"))]));
 }
 export function evaluate34250() {
-    return dateTimestamptzNe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbDeleteKeys(jsonbInput("[\"a\",\"b\",\"c\"]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate34251() {
-    return dateTimestamptzLt(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbDeleteKeys(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate34252() {
-    return dateTimestamptzLe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbDeleteKeys(jsonbInput("{\"a\":1,\"b\":2,\"c\":3}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("c"))]));
 }
 export function evaluate34253() {
-    return dateTimestamptzGt(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbDeletePath(jsonbInput("{\"a\":{\"b\":1,\"c\":2}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate34254() {
-    return dateTimestamptzGe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbDeletePath(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate34255() {
-    return dateTimestamptzEq(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbDeletePath(jsonbInput("1"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate34256() {
-    return dateTimestamptzNe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbDeletePath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate34257() {
-    return dateTimestamptzLt(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbDeletePath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("01"))]));
 }
 export function evaluate34258() {
-    return dateTimestamptzLe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbDeletePath(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("+1"))]));
 }
 export function evaluate34259() {
-    return dateTimestamptzGt(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbDeletePath(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate34260() {
-    return dateTimestamptzGe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbDeletePath(jsonbInput("{\"a\":{\"b\":1,\"c\":2}}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]));
 }
 export function evaluate34261() {
-    return dateTimestamptzCompare(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(true));
 }
 export function evaluate34262() {
-    return timestamptzDateEq(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(true));
 }
 export function evaluate34263() {
-    return timestamptzDateNe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(false));
 }
 export function evaluate34264() {
-    return timestamptzDateLt(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return jsonbSet(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("9"), booleanInput(true));
 }
 export function evaluate34265() {
-    return timestamptzDateLe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return jsonbSet(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("5"))]), jsonbInput("9"), booleanInput(true));
 }
 export function evaluate34266() {
-    return timestamptzDateGt(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return jsonbSet(jsonbInput("[10,20,30]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("-1"))]), jsonbInput("9"), booleanInput(true));
 }
 export function evaluate34267() {
-    return timestamptzDateGe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return jsonbSet(jsonbInput("{\"a\":[1,2]}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("9"), booleanInput(true));
 }
 export function evaluate34268() {
-    return timestamptzDateEq(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return jsonbSet(jsonbInput("1"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(true));
 }
 export function evaluate34269() {
-    return timestamptzDateNe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [], [], []), jsonbInput("2"), booleanInput(true));
 }
 export function evaluate34270() {
-    return timestamptzDateLt(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return jsonbSet(jsonbInput("[]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("0"))]), jsonbInput("2"), booleanInput(true));
 }
 export function evaluate34271() {
-    return timestamptzDateLe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return jsonbSet(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(true));
 }
 export function evaluate34272() {
-    return timestamptzDateGt(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return jsonbSet(jsonbInput("[1]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("foo"))]), jsonbInput("2"), booleanInput(true));
 }
 export function evaluate34273() {
-    return timestamptzDateGe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return jsonbInsert(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("b"))]), jsonbInput("2"), booleanInput(false));
 }
 export function evaluate34274() {
-    return timestamptzDateCompare(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+    return jsonbInsert(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(false));
 }
 export function evaluate34275() {
-    return timestampTimestamptzEq(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbInsert(jsonbInput("[1,3]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("2"), booleanInput(false));
 }
 export function evaluate34276() {
-    return timestampTimestamptzNe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbInsert(jsonbInput("[1,3]"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("1"))]), jsonbInput("2"), booleanInput(true));
 }
 export function evaluate34277() {
-    return timestampTimestamptzLt(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("use_json_null"));
 }
 export function evaluate34278() {
-    return timestampTimestamptzLe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("delete_key"));
 }
 export function evaluate34279() {
-    return timestampTimestamptzGt(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("return_target"));
 }
 export function evaluate34280() {
-    return timestampTimestamptzGe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("raise_exception"));
 }
 export function evaluate34281() {
-    return timestampTimestamptzEq(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput(null), booleanInput(true), textInput("nope"));
 }
 export function evaluate34282() {
-    return timestampTimestamptzNe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbSetLax(jsonbInput("{\"a\":1}"), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]), jsonbInput("2"), booleanInput(true), textInput("use_json_null"));
 }
 export function evaluate34283() {
-    return timestampTimestamptzLt(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonStripNulls(jsonInput("{\"a\":1,\"b\":null,\"c\":{\"d\":null}}"), booleanInput(false));
 }
 export function evaluate34284() {
-    return timestampTimestamptzLe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonStripNulls(jsonInput("[1, null, 2]"), booleanInput(true));
 }
 export function evaluate34285() {
-    return timestampTimestamptzGt(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonStripNulls(jsonInput("[1, null, 2]"), booleanInput(false));
 }
 export function evaluate34286() {
-    return timestampTimestamptzGe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonStripNulls(jsonInput("1e2"), booleanInput(false));
 }
 export function evaluate34287() {
-    return timestampTimestamptzCompare(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+    return jsonbStripNulls(jsonbInput("{\"a\":1,\"b\":null,\"c\":[null,2]}"), booleanInput(false));
 }
 export function evaluate34288() {
-    return timestamptzTimestampEq(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbStripNulls(jsonbInput("{\"a\":1,\"b\":null,\"c\":[null,2]}"), booleanInput(true));
 }
 export function evaluate34289() {
-    return timestamptzTimestampNe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbPretty(jsonbInput("{\"b\":[1,2],\"a\":3}"));
 }
 export function evaluate34290() {
-    return timestamptzTimestampLt(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbPretty(jsonbInput("1"));
 }
 export function evaluate34291() {
-    return timestamptzTimestampLe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbPretty(jsonbInput("[]"));
 }
 export function evaluate34292() {
-    return timestamptzTimestampGt(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbPretty(jsonbInput("{}"));
 }
 export function evaluate34293() {
-    return timestamptzTimestampGe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbToBool(jsonbInput("true"));
 }
 export function evaluate34294() {
-    return timestamptzTimestampEq(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbToBool(jsonbInput("false"));
 }
 export function evaluate34295() {
-    return timestamptzTimestampNe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbToBool(jsonbInput("null"));
 }
 export function evaluate34296() {
-    return timestamptzTimestampLt(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbToBool(jsonbInput("1"));
 }
 export function evaluate34297() {
-    return timestamptzTimestampLe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbToInt4(jsonbInput("2.9"));
 }
 export function evaluate34298() {
-    return timestamptzTimestampGt(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbToInt4(jsonbInput("2.5"));
 }
 export function evaluate34299() {
-    return timestamptzTimestampGe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbToInt4(jsonbInput("-2.5"));
 }
 export function evaluate34300() {
-    return timestamptzTimestampCompare(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+    return jsonbToInt2(jsonbInput("40000"));
 }
 export function evaluate34301() {
-    return dateTimestampEq(dateInput("2020-01-02"), timestampInput("2020-01-02 15:00:00"));
+    return jsonbToNumeric(jsonbInput("1.2300"));
 }
 export function evaluate34302() {
-    return dateTimestampLt(dateInput("294277-01-01"), timestampInput("infinity"));
+    return jsonbToInt8(jsonbInput("2.9"));
 }
 export function evaluate34303() {
-    return dateTimestampCompare(dateInput("294277-01-01"), timestampInput("2020-06-15 12:34:56.123456"));
+    return jsonbToFloat4(jsonbInput("1e2"));
 }
 export function evaluate34304() {
-    return dateTimestampEq(dateInput(null), timestampInput("2020-01-02 00:00:00"));
+    return jsonbToFloat8(jsonbInput("1e2"));
 }
 export function evaluate34305() {
-    return overlapsTimestamp(timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 16:00:00"));
+    return jsonbToInt4(jsonbInput("true"));
 }
 export function evaluate34306() {
-    return overlapsTimestamp(timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 14:00:00"));
+    return jsonbToInt4(jsonbInput("[1]"));
 }
 export function evaluate34307() {
-    return overlapsTimestamp(timestampInput("2020-01-02 14:00:00"), timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 16:00:00"), timestampInput("2020-01-02 12:00:00"));
+    return jsonObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("2"))]));
 }
 export function evaluate34308() {
-    return overlapsTimestamp(timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 14:00:00"));
+    return jsonObject(arrayInput("pg_catalog.text", [], [], []));
 }
 export function evaluate34309() {
-    return overlapsTimestamp(timestampInput("2020-01-02 12:00:00"), timestampInput(null), timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"));
+    return jsonObject(arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate34310() {
-    return overlapsTimestamp(timestampInput(null), timestampInput(null), timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"));
+    return jsonObjectPair(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("2"))]));
 }
 export function evaluate34311() {
-    return overlapsTimestampIntervalInterval(timestampInput("2020-01-02 10:00:00"), intervalInput("02:00:00"), timestampInput("2020-01-02 12:00:00"), intervalInput("02:00:00"));
+    return jsonObjectPair(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1"))]), arrayInput("pg_catalog.text", [1], [1], [arrayElementInput("pg_catalog.text", textInput("x"))]));
 }
 export function evaluate34312() {
-    return overlapsTimestampIntervalTimestamp(timestampInput("2020-01-02 10:00:00"), intervalInput("02:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 16:00:00"));
+    return jsonObject(arrayInput("pg_catalog.text", [2, 2], [1, 1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("2"))]));
 }
 export function evaluate34313() {
-    return overlapsTimestampTimestampInterval(timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"), timestampInput("2020-01-02 12:00:00"), intervalInput("02:00:00"));
+    return jsonObject(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput(null))]));
 }
 export function evaluate34314() {
-    return overlapsTimestamp(timestampInput("infinity"), timestampInput("2020-01-02 15:00:00"), timestampInput("2020-01-02 00:00:00"), timestampInput("infinity"));
+    return jsonObject(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput(null)), arrayElementInput("pg_catalog.text", textInput("a"))]));
 }
 export function evaluate34315() {
-    return overlapsTimestamptz(timestamptzInput("2020-01-02 10:00:00+00"), timestamptzInput("2020-01-02 14:00:00+00"), timestamptzInput("2020-01-02 12:00:00+00"), timestamptzInput("2020-01-02 16:00:00+00"));
+    return jsonObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("2"))]));
 }
 export function evaluate34316() {
-    return overlapsTimestamptzIntervalInterval(timestamptzInput("2020-01-02 10:00:00+00"), intervalInput("02:00:00"), timestamptzInput("2020-01-02 12:00:00+00"), intervalInput("02:00:00"));
+    return jsonbObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("b")), arrayElementInput("pg_catalog.text", textInput("2")), arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1"))]));
 }
 export function evaluate34317() {
-    return overlapsTimestamptzIntervalTimestamptz(timestamptzInput("2020-01-02 10:00:00+00"), intervalInput("02:00:00"), timestamptzInput("2020-01-02 12:00:00+00"), timestamptzInput("2020-01-02 16:00:00+00"));
+    return jsonbObject(arrayInput("pg_catalog.text", [4], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("2"))]));
 }
 export function evaluate34318() {
-    return overlapsTimestamptzTimestamptzInterval(timestamptzInput("2020-01-02 10:00:00+00"), timestamptzInput("2020-01-02 14:00:00+00"), timestamptzInput("2020-01-02 12:00:00+00"), intervalInput("02:00:00"));
+    return jsonbObjectPair(arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("a")), arrayElementInput("pg_catalog.text", textInput("b"))]), arrayInput("pg_catalog.text", [2], [1], [arrayElementInput("pg_catalog.text", textInput("1")), arrayElementInput("pg_catalog.text", textInput("2"))]));
 }
 export function evaluate34319() {
-    return overlapsTime(timeInput("12:00:00"), timeInput("18:00:00"), timeInput("15:00:00"), timeInput("23:00:00"));
+    return arrayToJson(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate34320() {
-    return overlapsTimeIntervalTime(timeInput("23:00:00"), intervalInput("02:00:00"), timeInput("00:30:00"), timeInput("01:30:00"));
+    return arrayToJsonPretty(arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]), booleanInput(true));
 }
 export function evaluate34321() {
-    return overlapsTimeIntervalInterval(timeInput("12:00:00"), intervalInput("02:00:00"), timeInput("13:00:00"), intervalInput("02:00:00"));
+    return arrayToJsonPretty(arrayInput("pg_catalog.int4", [2, 2], [1, 1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2")), arrayElementInput("pg_catalog.int4", int4Input("3")), arrayElementInput("pg_catalog.int4", int4Input("4"))]), booleanInput(true));
 }
 export function evaluate34322() {
-    return overlapsTimeIntervalTime(timeInput("12:00:00"), intervalInput("02:00:00"), timeInput("13:00:00"), timeInput("18:00:00"));
+    return arrayToJson(arrayInput("pg_catalog.int4", [], [], []));
 }
 export function evaluate34323() {
-    return overlapsTimeTimeInterval(timeInput("12:00:00"), timeInput("18:00:00"), timeInput("17:00:00"), intervalInput("02:00:00"));
+    return arrayToJson(arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate34324() {
-    return overlapsTime(timeInput(null), timeInput("18:00:00"), timeInput("12:00:00"), timeInput("23:00:00"));
+    return toJson("pg_catalog.int4", int4Input("1"));
 }
 export function evaluate34325() {
-    return overlapsTimetz(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"), timetzInput("13:00:00+01"), timetzInput("18:00:00+00"));
+    return toJson("pg_catalog.text", textInput("hi"));
 }
 export function evaluate34326() {
-    return overlapsTimetz(timetzInput("12:00:00+00"), timetzInput(null), timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+    return toJson("pg_catalog.bool", booleanInput(true));
 }
 export function evaluate34327() {
-    return ageTimestamp(timestampInput("2001-04-10"), timestampInput("1957-06-13"));
+    return toJson("pg_catalog.\"numeric\"", decimalInput("1.2300"));
 }
 export function evaluate34328() {
-    return ageTimestamp(timestampInput("1957-06-13"), timestampInput("2001-04-10"));
+    return toJson("pg_catalog.float8", float8Input("7ff8000000000000"));
 }
 export function evaluate34329() {
-    return ageTimestamp(timestampInput("2020-03-31"), timestampInput("2020-02-29"));
+    return toJson("pg_catalog.float8", float8Input("7ff0000000000000"));
 }
 export function evaluate34330() {
-    return ageTimestamp(timestampInput("2021-03-01"), timestampInput("2020-02-29"));
+    return toJson("pg_catalog.float8", float8Input("8000000000000000"));
 }
 export function evaluate34331() {
-    return ageTimestamp(timestampInput("2020-01-02 03:04:05.5"), timestampInput("2020-01-02 03:04:04.25"));
+    return toJson("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate34332() {
-    return ageTimestamp(timestampInput("0001-01-01"), timestampInput("0001-01-01 BC"));
+    return toJson("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate34333() {
-    return ageTimestamp(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+    return toJson("pg_catalog.\"json\"", jsonInput("{\"a\":1}"));
 }
 export function evaluate34334() {
-    return ageTimestamp(timestampInput("infinity"), timestampInput("infinity"));
+    return toJson("pg_catalog.jsonb", jsonbInput("{\"b\":1,\"a\":2}"));
 }
 export function evaluate34335() {
-    return ageTimestamp(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+    return toJson("pg_catalog.uuid", uuidInput("550e8400-e29b-41d4-a716-446655440000"));
 }
 export function evaluate34336() {
-    return ageTimestamptz(timestamptzInput("2001-04-10 00:00:00+00"), timestamptzInput("1957-06-13 00:00:00+00"));
+    return toJsonb("pg_catalog.\"numeric\"", decimalInput("1.2300"));
 }
 export function evaluate34337() {
-    return ageTimestamptz(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return toJsonb("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [3], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input(null)), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate34338() {
-    return dateLarger(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return jsonBuildArray();
 }
 export function evaluate34339() {
-    return dateSmaller(dateInput("2020-01-01"), dateInput("2020-01-02"));
+    return jsonBuildObject();
 }
 export function evaluate34340() {
-    return dateLarger(dateInput("infinity"), dateInput("2020-01-02"));
+    return jsonbBuildArray();
 }
 export function evaluate34341() {
-    return dateLarger(dateInput(null), dateInput("2020-01-02"));
+    return jsonbBuildObject();
 }
 export function evaluate34342() {
-    return timeLarger(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonBuildArray("pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"), "pg_catalog.bool", booleanInput(true), "pg_catalog.int4", int4Input(null));
 }
 export function evaluate34343() {
-    return timeSmaller(timeInput("12:00:00"), timeInput("18:00:00"));
+    return jsonBuildArray("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [2], [1], [arrayElementInput("pg_catalog.int4", int4Input("1")), arrayElementInput("pg_catalog.int4", int4Input("2"))]));
 }
 export function evaluate34344() {
-    return timestampLarger(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return jsonBuildObject("pg_catalog.text", textInput("a"), "pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("b"), "pg_catalog.text", textInput(null));
 }
 export function evaluate34345() {
-    return timestampSmaller(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+    return jsonBuildObject("pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"));
 }
 export function evaluate34346() {
-    return timestamptzLarger(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonBuildObject("pg_catalog.bool", booleanInput(true), "pg_catalog.text", textInput("a"));
 }
 export function evaluate34347() {
-    return timestamptzSmaller(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+    return jsonBuildObject("array:pg_catalog.int4", arrayInput("pg_catalog.int4", [1], [1], [arrayElementInput("pg_catalog.int4", int4Input("1"))]), "pg_catalog.text", textInput("a"));
 }
 export function evaluate34348() {
-    return timetzLarger(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return jsonBuildObject("pg_catalog.text", textInput("a"));
 }
 export function evaluate34349() {
-    return timetzSmaller(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+    return jsonbBuildArray("pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"));
 }
 export function evaluate34350() {
-    return intervalLarger(intervalInput("1 year"), intervalInput("360 days"));
+    return jsonbBuildObject("pg_catalog.text", textInput("b"), "pg_catalog.int4", int4Input("1"), "pg_catalog.text", textInput("a"), "pg_catalog.int4", int4Input("2"));
 }
 export function evaluate34351() {
-    return intervalSmaller(intervalInput("1 year"), intervalInput("360 days"));
+    return toJson("enum:[\"enum_alpha\",\"state\"]", enumInput("apple", "enum:[\"enum_alpha\",\"state\"]", ["zebra", "apple", "middle", "quote's", "\u00E9"]));
 }
 export function evaluate34352() {
-    return intervalLarger(intervalInput("1 day"), intervalInput("24 hours"));
+    return dateInput(null);
 }
 export function evaluate34353() {
-    return intervalLarger(intervalInput("infinity"), intervalInput("1 year"));
+    return dateInput("2020-01-02");
 }
 export function evaluate34354() {
-    return timezoneIntervalTimestamp(intervalInput("03:00:00"), timestampInput("2020-06-15 12:34:56.123456"));
+    return dateInput(" 2020-01-02");
 }
 export function evaluate34355() {
-    return timezoneIntervalTimestamp(intervalInput("-05:00:00"), timestampInput("2020-06-15 12:34:56.123456"));
+    return dateInput("2024-1-5");
 }
 export function evaluate34356() {
-    return timezoneIntervalTimestamp(intervalInput("03:00:00.75"), timestampInput("2020-06-15 12:34:56.123456"));
+    return dateInput("2024-02-29");
 }
 export function evaluate34357() {
-    return timezoneIntervalTimestamp(intervalInput("25 hours"), timestampInput("2020-01-02 03:04:05"));
+    return dateInput("0001-01-01");
 }
 export function evaluate34358() {
-    return timezoneIntervalTimestamp(intervalInput("03:00:00"), timestampInput("infinity"));
+    return dateInput("infinity");
 }
 export function evaluate34359() {
-    return timezoneIntervalTimestamp(intervalInput("1 mon"), timestampInput("infinity"));
+    return dateInput("+infinity");
 }
 export function evaluate34360() {
-    return timezoneIntervalTimestamp(intervalInput("1 mon"), timestampInput("2020-06-15 12:34:56.123456"));
+    return dateInput("-infinity");
 }
 export function evaluate34361() {
-    return timezoneIntervalTimestamp(intervalInput("1 day"), timestampInput("2020-06-15 12:34:56.123456"));
+    return dateInput("");
 }
 export function evaluate34362() {
-    return timezoneIntervalTimestamp(intervalInput("infinity"), timestampInput("2020-06-15 12:34:56.123456"));
+    return dateInput("not-a-date");
 }
 export function evaluate34363() {
-    return timezoneIntervalTimestamp(intervalInput(null), timestampInput("2020-06-15 12:34:56.123456"));
+    return dateInput("2023-02-29");
 }
 export function evaluate34364() {
-    return timezoneIntervalTimestamp(intervalInput("03:00:00"), timestampInput(null));
+    return dateInput("2024-02-30");
 }
 export function evaluate34365() {
-    return timezoneIntervalTimestamptz(intervalInput("03:00:00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timeInput(null);
 }
 export function evaluate34366() {
-    return timezoneIntervalTimestamptz(intervalInput("-05:00:00"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timeInput("00:00:00");
 }
 export function evaluate34367() {
-    return timezoneIntervalTimestamptz(intervalInput("03:00:00.75"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timeInput("12:34");
 }
 export function evaluate34368() {
-    return timezoneIntervalTimestamptz(intervalInput("03:00:00"), timestamptzInput("infinity"));
+    return timeInput("12:34:56");
 }
 export function evaluate34369() {
-    return timezoneIntervalTimestamptz(intervalInput("1 mon"), timestamptzInput("infinity"));
+    return timeInput("12:34:56.1");
 }
 export function evaluate34370() {
-    return timezoneIntervalTimestamptz(intervalInput("1 mon"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timeInput("12:34:56.123456");
 }
 export function evaluate34371() {
-    return timezoneIntervalTimestamptz(intervalInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timeInput("24:00:00");
 }
 export function evaluate34372() {
-    return timezoneIntervalTimestamptz(intervalInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+    return timeInput("12:60:00");
 }
 export function evaluate34373() {
-    return timezoneIntervalTimetz(intervalInput("03:00:00"), timetzInput("12:00:00+00"));
+    return timeInput("24:00:01");
 }
 export function evaluate34374() {
-    return timezoneIntervalTimetz(intervalInput("-05:00:00"), timetzInput("12:00:00+00"));
+    return timeInput("not-a-time");
 }
 export function evaluate34375() {
-    return timezoneIntervalTimetz(intervalInput("03:00:00"), timetzInput("13:00:00+01"));
+    return timestampInput(null);
 }
 export function evaluate34376() {
-    return timezoneIntervalTimetz(intervalInput("03:00:00"), timetzInput("23:00:00+00"));
+    return timestampInput("2020-01-02");
 }
 export function evaluate34377() {
-    return timezoneIntervalTimetz(intervalInput("03:00:00.75"), timetzInput("12:00:00+00"));
+    return timestampInput("2020-01-02 03:04:05");
 }
 export function evaluate34378() {
-    return timezoneIntervalTimetz(intervalInput("1 mon"), timetzInput("12:00:00+00"));
+    return timestampInput("2020-01-02T03:04:05");
 }
 export function evaluate34379() {
-    return timezoneIntervalTimetz(intervalInput("infinity"), timetzInput("12:00:00+00"));
+    return timestampInput("2020-01-02 24:00:00");
 }
 export function evaluate34380() {
-    return timezoneIntervalTimetz(intervalInput(null), timetzInput("12:00:00+00"));
+    return timestampInput("infinity");
 }
 export function evaluate34381() {
-    return bitCompare(bitInput("101"), bitInput("101"));
+    return timestampInput("-infinity");
 }
 export function evaluate34382() {
-    return bitCompare(bitInput("101"), bitInput("100"));
+    return timestampInput("not-a-timestamp");
 }
 export function evaluate34383() {
-    return bitCompare(bitInput("1"), bitInput("10"));
+    return intervalInput(null);
 }
 export function evaluate34384() {
-    return bitCompare(bitInput("0"), bitInput("00"));
+    return intervalInput("0");
 }
 export function evaluate34385() {
-    return bitCompare(bitInput(""), bitInput("0"));
+    return intervalInput("1 year");
 }
 export function evaluate34386() {
-    return bitCompare(bitInput(null), bitInput("1"));
+    return intervalInput("2 months");
 }
 export function evaluate34387() {
-    return bitCompare(bitInput("1"), bitInput(null));
+    return intervalInput("3 days");
 }
 export function evaluate34388() {
-    return bitEq(bitInput("101"), bitInput("101"));
+    return intervalInput("04:05:06");
 }
 export function evaluate34389() {
-    return bitEq(bitInput("101"), bitInput("100"));
+    return intervalInput("1 year 2 mons 3 days 04:05:06");
 }
 export function evaluate34390() {
-    return bitEq(bitInput("1"), bitInput("10"));
+    return intervalInput("1 week");
 }
 export function evaluate34391() {
-    return bitEq(bitInput("0"), bitInput("00"));
+    return intervalInput("infinity");
 }
 export function evaluate34392() {
-    return bitEq(bitInput(""), bitInput("0"));
+    return intervalInput("-infinity");
 }
 export function evaluate34393() {
-    return bitEq(bitInput(null), bitInput("1"));
+    return intervalInput("-05:00:00");
 }
 export function evaluate34394() {
-    return bitEq(bitInput("1"), bitInput(null));
+    return intervalInput("+03:00:00");
 }
 export function evaluate34395() {
-    return bitGe(bitInput("101"), bitInput("101"));
+    return intervalInput("-05:30");
 }
 export function evaluate34396() {
-    return bitGe(bitInput("101"), bitInput("100"));
+    return intervalInput("1 day -02:00:00");
 }
 export function evaluate34397() {
-    return bitGe(bitInput("1"), bitInput("10"));
+    return intervalInput("not-an-interval");
 }
 export function evaluate34398() {
-    return bitGe(bitInput("0"), bitInput("00"));
+    return dateEq(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate34399() {
-    return bitGe(bitInput(""), bitInput("0"));
+    return dateNe(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate34400() {
-    return bitGe(bitInput(null), bitInput("1"));
+    return dateLt(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate34401() {
-    return bitGe(bitInput("1"), bitInput(null));
+    return dateLe(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate34402() {
-    return bitGt(bitInput("101"), bitInput("101"));
+    return dateGt(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate34403() {
-    return bitGt(bitInput("101"), bitInput("100"));
+    return dateGe(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate34404() {
-    return bitGt(bitInput("1"), bitInput("10"));
+    return dateEq(dateInput("2020-01-02"), dateInput("2020-01-01"));
 }
 export function evaluate34405() {
-    return bitGt(bitInput("0"), bitInput("00"));
+    return dateNe(dateInput("2020-01-02"), dateInput("2020-01-01"));
 }
 export function evaluate34406() {
-    return bitGt(bitInput(""), bitInput("0"));
+    return dateLt(dateInput("2020-01-02"), dateInput("2020-01-01"));
 }
 export function evaluate34407() {
-    return bitGt(bitInput(null), bitInput("1"));
+    return dateLe(dateInput("2020-01-02"), dateInput("2020-01-01"));
 }
 export function evaluate34408() {
-    return bitGt(bitInput("1"), bitInput(null));
+    return dateGt(dateInput("2020-01-02"), dateInput("2020-01-01"));
 }
 export function evaluate34409() {
-    return bitLe(bitInput("101"), bitInput("101"));
+    return dateGe(dateInput("2020-01-02"), dateInput("2020-01-01"));
 }
 export function evaluate34410() {
-    return bitLe(bitInput("101"), bitInput("100"));
+    return dateEq(dateInput("2020-01-01"), dateInput("2020-01-01"));
 }
 export function evaluate34411() {
-    return bitLe(bitInput("1"), bitInput("10"));
+    return dateNe(dateInput("2020-01-01"), dateInput("2020-01-01"));
 }
 export function evaluate34412() {
-    return bitLe(bitInput("0"), bitInput("00"));
+    return dateLt(dateInput("2020-01-01"), dateInput("2020-01-01"));
 }
 export function evaluate34413() {
-    return bitLe(bitInput(""), bitInput("0"));
+    return dateLe(dateInput("2020-01-01"), dateInput("2020-01-01"));
 }
 export function evaluate34414() {
-    return bitLe(bitInput(null), bitInput("1"));
+    return dateGt(dateInput("2020-01-01"), dateInput("2020-01-01"));
 }
 export function evaluate34415() {
-    return bitLe(bitInput("1"), bitInput(null));
+    return dateGe(dateInput("2020-01-01"), dateInput("2020-01-01"));
 }
 export function evaluate34416() {
-    return bitLt(bitInput("101"), bitInput("101"));
+    return dateEq(dateInput("infinity"), dateInput("2020-01-01"));
 }
 export function evaluate34417() {
-    return bitLt(bitInput("101"), bitInput("100"));
+    return dateNe(dateInput("infinity"), dateInput("2020-01-01"));
 }
 export function evaluate34418() {
-    return bitLt(bitInput("1"), bitInput("10"));
+    return dateLt(dateInput("infinity"), dateInput("2020-01-01"));
 }
 export function evaluate34419() {
-    return bitLt(bitInput("0"), bitInput("00"));
+    return dateLe(dateInput("infinity"), dateInput("2020-01-01"));
 }
 export function evaluate34420() {
-    return bitLt(bitInput(""), bitInput("0"));
+    return dateGt(dateInput("infinity"), dateInput("2020-01-01"));
 }
 export function evaluate34421() {
-    return bitLt(bitInput(null), bitInput("1"));
+    return dateGe(dateInput("infinity"), dateInput("2020-01-01"));
 }
 export function evaluate34422() {
-    return bitLt(bitInput("1"), bitInput(null));
+    return dateEq(dateInput("-infinity"), dateInput("2020-01-01"));
 }
 export function evaluate34423() {
-    return bitNe(bitInput("101"), bitInput("101"));
+    return dateNe(dateInput("-infinity"), dateInput("2020-01-01"));
 }
 export function evaluate34424() {
-    return bitNe(bitInput("101"), bitInput("100"));
+    return dateLt(dateInput("-infinity"), dateInput("2020-01-01"));
 }
 export function evaluate34425() {
-    return bitNe(bitInput("1"), bitInput("10"));
+    return dateLe(dateInput("-infinity"), dateInput("2020-01-01"));
 }
 export function evaluate34426() {
-    return bitNe(bitInput("0"), bitInput("00"));
+    return dateGt(dateInput("-infinity"), dateInput("2020-01-01"));
 }
 export function evaluate34427() {
-    return bitNe(bitInput(""), bitInput("0"));
+    return dateGe(dateInput("-infinity"), dateInput("2020-01-01"));
 }
 export function evaluate34428() {
-    return bitNe(bitInput(null), bitInput("1"));
+    return dateEq(dateInput(null), dateInput("2020-01-01"));
 }
 export function evaluate34429() {
-    return bitNe(bitInput("1"), bitInput(null));
+    return dateNe(dateInput(null), dateInput("2020-01-01"));
 }
 export function evaluate34430() {
-    return bitCompare(bitInput("101"), bitInput("101"));
+    return dateLt(dateInput(null), dateInput("2020-01-01"));
 }
 export function evaluate34431() {
-    return bitCompare(bitInput("101"), bitInput("100"));
+    return dateLe(dateInput(null), dateInput("2020-01-01"));
 }
 export function evaluate34432() {
-    return bitCompare(bitInput("1"), bitInput("10"));
+    return dateGt(dateInput(null), dateInput("2020-01-01"));
 }
 export function evaluate34433() {
-    return bitCompare(bitInput("0"), bitInput("00"));
+    return dateGe(dateInput(null), dateInput("2020-01-01"));
 }
 export function evaluate34434() {
-    return bitCompare(bitInput(""), bitInput("0"));
+    return dateEq(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate34435() {
-    return bitCompare(bitInput(null), bitInput("1"));
+    return dateEq(dateInput(null), dateInput("2020-01-02"));
 }
 export function evaluate34436() {
-    return bitCompare(bitInput("1"), bitInput(null));
+    return dateEq(dateInput("infinity"), dateInput("-infinity"));
 }
 export function evaluate34437() {
-    return bitEq(bitInput("101"), bitInput("101"));
+    return dateNe(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate34438() {
-    return bitEq(bitInput("101"), bitInput("100"));
+    return dateNe(dateInput(null), dateInput("2020-01-02"));
 }
 export function evaluate34439() {
-    return bitEq(bitInput("1"), bitInput("10"));
+    return dateNe(dateInput("infinity"), dateInput("-infinity"));
 }
 export function evaluate34440() {
-    return bitEq(bitInput("0"), bitInput("00"));
+    return dateLt(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate34441() {
-    return bitEq(bitInput(""), bitInput("0"));
+    return dateLt(dateInput(null), dateInput("2020-01-02"));
 }
 export function evaluate34442() {
-    return bitEq(bitInput(null), bitInput("1"));
+    return dateLt(dateInput("infinity"), dateInput("-infinity"));
 }
 export function evaluate34443() {
-    return bitEq(bitInput("1"), bitInput(null));
+    return dateLe(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate34444() {
-    return bitGe(bitInput("101"), bitInput("101"));
+    return dateLe(dateInput(null), dateInput("2020-01-02"));
 }
 export function evaluate34445() {
-    return bitGe(bitInput("101"), bitInput("100"));
+    return dateLe(dateInput("infinity"), dateInput("-infinity"));
 }
 export function evaluate34446() {
-    return bitGe(bitInput("1"), bitInput("10"));
+    return dateGt(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate34447() {
-    return bitGe(bitInput("0"), bitInput("00"));
+    return dateGt(dateInput(null), dateInput("2020-01-02"));
 }
 export function evaluate34448() {
-    return bitGe(bitInput(""), bitInput("0"));
+    return dateGt(dateInput("infinity"), dateInput("-infinity"));
 }
 export function evaluate34449() {
-    return bitGe(bitInput(null), bitInput("1"));
+    return dateGe(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate34450() {
-    return bitGe(bitInput("1"), bitInput(null));
+    return dateGe(dateInput(null), dateInput("2020-01-02"));
 }
 export function evaluate34451() {
-    return bitGt(bitInput("101"), bitInput("101"));
+    return dateGe(dateInput("infinity"), dateInput("-infinity"));
 }
 export function evaluate34452() {
-    return bitGt(bitInput("101"), bitInput("100"));
+    return dateCompare(dateInput("2020-01-01"), dateInput("2020-01-01"));
 }
 export function evaluate34453() {
-    return bitGt(bitInput("1"), bitInput("10"));
+    return dateCompare(dateInput("2020-01-01"), dateInput("2020-01-02"));
 }
 export function evaluate34454() {
-    return bitGt(bitInput("0"), bitInput("00"));
+    return dateCompare(dateInput("infinity"), dateInput("-infinity"));
 }
 export function evaluate34455() {
-    return bitGt(bitInput(""), bitInput("0"));
+    return dateCompare(dateInput(null), dateInput("2020-01-01"));
 }
 export function evaluate34456() {
-    return bitGt(bitInput(null), bitInput("1"));
+    return timeEq(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate34457() {
-    return bitGt(bitInput("1"), bitInput(null));
+    return timeNe(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate34458() {
-    return bitLe(bitInput("101"), bitInput("101"));
+    return timeLt(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate34459() {
-    return bitLe(bitInput("101"), bitInput("100"));
+    return timeLe(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate34460() {
-    return bitLe(bitInput("1"), bitInput("10"));
+    return timeGt(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate34461() {
-    return bitLe(bitInput("0"), bitInput("00"));
+    return timeGe(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate34462() {
-    return bitLe(bitInput(""), bitInput("0"));
+    return timeEq(timeInput("18:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34463() {
-    return bitLe(bitInput(null), bitInput("1"));
+    return timeNe(timeInput("18:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34464() {
-    return bitLe(bitInput("1"), bitInput(null));
+    return timeLt(timeInput("18:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34465() {
-    return bitLt(bitInput("101"), bitInput("101"));
+    return timeLe(timeInput("18:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34466() {
-    return bitLt(bitInput("101"), bitInput("100"));
+    return timeGt(timeInput("18:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34467() {
-    return bitLt(bitInput("1"), bitInput("10"));
+    return timeGe(timeInput("18:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34468() {
-    return bitLt(bitInput("0"), bitInput("00"));
+    return timeEq(timeInput("12:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34469() {
-    return bitLt(bitInput(""), bitInput("0"));
+    return timeNe(timeInput("12:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34470() {
-    return bitLt(bitInput(null), bitInput("1"));
+    return timeLt(timeInput("12:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34471() {
-    return bitLt(bitInput("1"), bitInput(null));
+    return timeLe(timeInput("12:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34472() {
-    return bitNe(bitInput("101"), bitInput("101"));
+    return timeGt(timeInput("12:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34473() {
-    return bitNe(bitInput("101"), bitInput("100"));
+    return timeGe(timeInput("12:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34474() {
-    return bitNe(bitInput("1"), bitInput("10"));
+    return timeEq(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34475() {
-    return bitNe(bitInput("0"), bitInput("00"));
+    return timeNe(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34476() {
-    return bitNe(bitInput(""), bitInput("0"));
+    return timeLt(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34477() {
-    return bitNe(bitInput(null), bitInput("1"));
+    return timeLe(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34478() {
-    return bitNe(bitInput("1"), bitInput(null));
+    return timeGt(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34479() {
-    return bitLt(bitInput("101"), bitInput("101"));
+    return timeGe(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34480() {
-    return bitLt(bitInput("101"), bitInput("100"));
+    return timeEq(timeInput(null), timeInput("12:00:00"));
 }
 export function evaluate34481() {
-    return bitLt(bitInput("1"), bitInput("10"));
+    return timeNe(timeInput(null), timeInput("12:00:00"));
 }
 export function evaluate34482() {
-    return bitLt(bitInput("0"), bitInput("00"));
+    return timeLt(timeInput(null), timeInput("12:00:00"));
 }
 export function evaluate34483() {
-    return bitLt(bitInput(""), bitInput("0"));
+    return timeLe(timeInput(null), timeInput("12:00:00"));
 }
 export function evaluate34484() {
-    return bitLt(bitInput(null), bitInput("1"));
+    return timeGt(timeInput(null), timeInput("12:00:00"));
 }
 export function evaluate34485() {
-    return bitLt(bitInput("1"), bitInput(null));
+    return timeGe(timeInput(null), timeInput("12:00:00"));
 }
 export function evaluate34486() {
-    return bitLt(bitInput("101"), bitInput("101"));
+    return timeEq(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate34487() {
-    return bitLt(bitInput("101"), bitInput("100"));
+    return timeEq(timeInput(null), timeInput("18:00:00"));
 }
 export function evaluate34488() {
-    return bitLt(bitInput("1"), bitInput("10"));
+    return timeEq(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34489() {
-    return bitLt(bitInput("0"), bitInput("00"));
+    return timeNe(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate34490() {
-    return bitLt(bitInput(""), bitInput("0"));
+    return timeNe(timeInput(null), timeInput("18:00:00"));
 }
 export function evaluate34491() {
-    return bitLt(bitInput(null), bitInput("1"));
+    return timeNe(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34492() {
-    return bitLt(bitInput("1"), bitInput(null));
+    return timeLt(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate34493() {
-    return bitLe(bitInput("101"), bitInput("101"));
+    return timeLt(timeInput(null), timeInput("18:00:00"));
 }
 export function evaluate34494() {
-    return bitLe(bitInput("101"), bitInput("100"));
+    return timeLt(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34495() {
-    return bitLe(bitInput("1"), bitInput("10"));
+    return timeLe(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate34496() {
-    return bitLe(bitInput("0"), bitInput("00"));
+    return timeLe(timeInput(null), timeInput("18:00:00"));
 }
 export function evaluate34497() {
-    return bitLe(bitInput(""), bitInput("0"));
+    return timeLe(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34498() {
-    return bitLe(bitInput(null), bitInput("1"));
+    return timeGt(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate34499() {
-    return bitLe(bitInput("1"), bitInput(null));
+    return timeGt(timeInput(null), timeInput("18:00:00"));
 }
 export function evaluate34500() {
-    return bitLe(bitInput("101"), bitInput("101"));
+    return timeGt(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34501() {
-    return bitLe(bitInput("101"), bitInput("100"));
+    return timeGe(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate34502() {
-    return bitLe(bitInput("1"), bitInput("10"));
+    return timeGe(timeInput(null), timeInput("18:00:00"));
 }
 export function evaluate34503() {
-    return bitLe(bitInput("0"), bitInput("00"));
+    return timeGe(timeInput("24:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34504() {
-    return bitLe(bitInput(""), bitInput("0"));
+    return timeCompare(timeInput("12:00:00"), timeInput("12:00:00"));
 }
 export function evaluate34505() {
-    return bitLe(bitInput(null), bitInput("1"));
+    return timeCompare(timeInput("12:00:00"), timeInput("18:00:00"));
 }
 export function evaluate34506() {
-    return bitLe(bitInput("1"), bitInput(null));
+    return timeCompare(timeInput(null), timeInput("12:00:00"));
 }
 export function evaluate34507() {
-    return bitNe(bitInput("101"), bitInput("101"));
+    return timestampEq(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34508() {
-    return bitNe(bitInput("101"), bitInput("100"));
+    return timestampNe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34509() {
-    return bitNe(bitInput("1"), bitInput("10"));
+    return timestampLt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34510() {
-    return bitNe(bitInput("0"), bitInput("00"));
+    return timestampLe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34511() {
-    return bitNe(bitInput(""), bitInput("0"));
+    return timestampGt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34512() {
-    return bitNe(bitInput(null), bitInput("1"));
+    return timestampGe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34513() {
-    return bitNe(bitInput("1"), bitInput(null));
+    return timestampEq(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34514() {
-    return bitNe(bitInput("101"), bitInput("101"));
+    return timestampNe(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34515() {
-    return bitNe(bitInput("101"), bitInput("100"));
+    return timestampLt(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34516() {
-    return bitNe(bitInput("1"), bitInput("10"));
+    return timestampLe(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34517() {
-    return bitNe(bitInput("0"), bitInput("00"));
+    return timestampGt(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34518() {
-    return bitNe(bitInput(""), bitInput("0"));
+    return timestampGe(timestampInput("2020-01-03 00:00:00"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34519() {
-    return bitNe(bitInput(null), bitInput("1"));
+    return timestampEq(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34520() {
-    return bitNe(bitInput("1"), bitInput(null));
+    return timestampNe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34521() {
-    return bitEq(bitInput("101"), bitInput("101"));
+    return timestampLt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34522() {
-    return bitEq(bitInput("101"), bitInput("100"));
+    return timestampLe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34523() {
-    return bitEq(bitInput("1"), bitInput("10"));
+    return timestampGt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34524() {
-    return bitEq(bitInput("0"), bitInput("00"));
+    return timestampGe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34525() {
-    return bitEq(bitInput(""), bitInput("0"));
+    return timestampEq(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34526() {
-    return bitEq(bitInput(null), bitInput("1"));
+    return timestampNe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34527() {
-    return bitEq(bitInput("1"), bitInput(null));
+    return timestampLt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34528() {
-    return bitEq(bitInput("101"), bitInput("101"));
+    return timestampLe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34529() {
-    return bitEq(bitInput("101"), bitInput("100"));
+    return timestampGt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34530() {
-    return bitEq(bitInput("1"), bitInput("10"));
+    return timestampGe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34531() {
-    return bitEq(bitInput("0"), bitInput("00"));
+    return timestampEq(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34532() {
-    return bitEq(bitInput(""), bitInput("0"));
+    return timestampNe(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34533() {
-    return bitEq(bitInput(null), bitInput("1"));
+    return timestampLt(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34534() {
-    return bitEq(bitInput("1"), bitInput(null));
+    return timestampLe(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34535() {
-    return bitGt(bitInput("101"), bitInput("101"));
+    return timestampGt(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34536() {
-    return bitGt(bitInput("101"), bitInput("100"));
+    return timestampGe(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34537() {
-    return bitGt(bitInput("1"), bitInput("10"));
+    return timestampEq(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34538() {
-    return bitGt(bitInput("0"), bitInput("00"));
+    return timestampEq(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34539() {
-    return bitGt(bitInput(""), bitInput("0"));
+    return timestampEq(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34540() {
-    return bitGt(bitInput(null), bitInput("1"));
+    return timestampNe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34541() {
-    return bitGt(bitInput("1"), bitInput(null));
+    return timestampNe(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34542() {
-    return bitGt(bitInput("101"), bitInput("101"));
+    return timestampNe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34543() {
-    return bitGt(bitInput("101"), bitInput("100"));
+    return timestampLt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34544() {
-    return bitGt(bitInput("1"), bitInput("10"));
+    return timestampLt(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34545() {
-    return bitGt(bitInput("0"), bitInput("00"));
+    return timestampLt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34546() {
-    return bitGt(bitInput(""), bitInput("0"));
+    return timestampLe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34547() {
-    return bitGt(bitInput(null), bitInput("1"));
+    return timestampLe(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34548() {
-    return bitGt(bitInput("1"), bitInput(null));
+    return timestampLe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34549() {
-    return bitGe(bitInput("101"), bitInput("101"));
+    return timestampGt(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34550() {
-    return bitGe(bitInput("101"), bitInput("100"));
+    return timestampGt(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34551() {
-    return bitGe(bitInput("1"), bitInput("10"));
+    return timestampGt(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34552() {
-    return bitGe(bitInput("0"), bitInput("00"));
+    return timestampGe(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34553() {
-    return bitGe(bitInput(""), bitInput("0"));
+    return timestampGe(timestampInput(null), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34554() {
-    return bitGe(bitInput(null), bitInput("1"));
+    return timestampGe(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34555() {
-    return bitGe(bitInput("1"), bitInput(null));
+    return timestampCompare(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34556() {
-    return bitGe(bitInput("101"), bitInput("101"));
+    return timestampCompare(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
 }
 export function evaluate34557() {
-    return bitGe(bitInput("101"), bitInput("100"));
+    return timestampCompare(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34558() {
-    return bitGe(bitInput("1"), bitInput("10"));
+    return intervalEq(intervalInput("1 year"), intervalInput("360 days"));
 }
 export function evaluate34559() {
-    return bitGe(bitInput("0"), bitInput("00"));
+    return intervalNe(intervalInput("1 year"), intervalInput("360 days"));
 }
 export function evaluate34560() {
-    return bitGe(bitInput(""), bitInput("0"));
+    return intervalLt(intervalInput("1 year"), intervalInput("360 days"));
 }
 export function evaluate34561() {
-    return bitGe(bitInput(null), bitInput("1"));
+    return intervalLe(intervalInput("1 year"), intervalInput("360 days"));
 }
 export function evaluate34562() {
-    return bitGe(bitInput("1"), bitInput(null));
+    return intervalGt(intervalInput("1 year"), intervalInput("360 days"));
 }
 export function evaluate34563() {
-    return bitAnd(bitInput("1010"), bitInput("1100"));
+    return intervalGe(intervalInput("1 year"), intervalInput("360 days"));
 }
 export function evaluate34564() {
-    return bitAnd(bitInput("1111"), bitInput("0000"));
+    return intervalEq(intervalInput("1 mon"), intervalInput("30 days"));
 }
 export function evaluate34565() {
-    return bitAnd(bitInput("101"), bitInput("10"));
+    return intervalNe(intervalInput("1 mon"), intervalInput("30 days"));
 }
 export function evaluate34566() {
-    return bitAnd(bitInput(null), bitInput("1010"));
+    return intervalLt(intervalInput("1 mon"), intervalInput("30 days"));
 }
 export function evaluate34567() {
-    return bitAnd(bitInput("1010"), bitInput(null));
+    return intervalLe(intervalInput("1 mon"), intervalInput("30 days"));
 }
 export function evaluate34568() {
-    return bitOr(bitInput("1010"), bitInput("1100"));
+    return intervalGt(intervalInput("1 mon"), intervalInput("30 days"));
 }
 export function evaluate34569() {
-    return bitOr(bitInput("1111"), bitInput("0000"));
+    return intervalGe(intervalInput("1 mon"), intervalInput("30 days"));
 }
 export function evaluate34570() {
-    return bitOr(bitInput("101"), bitInput("10"));
+    return intervalEq(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate34571() {
-    return bitOr(bitInput(null), bitInput("1010"));
+    return intervalNe(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate34572() {
-    return bitOr(bitInput("1010"), bitInput(null));
+    return intervalLt(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate34573() {
-    return bitXor(bitInput("1010"), bitInput("1100"));
+    return intervalLe(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate34574() {
-    return bitXor(bitInput("1111"), bitInput("0000"));
+    return intervalGt(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate34575() {
-    return bitXor(bitInput("101"), bitInput("10"));
+    return intervalGe(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate34576() {
-    return bitXor(bitInput(null), bitInput("1010"));
+    return intervalEq(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate34577() {
-    return bitXor(bitInput("1010"), bitInput(null));
+    return intervalNe(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate34578() {
-    return bitAnd(bitInput("1010"), bitInput("1100"));
+    return intervalLt(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate34579() {
-    return bitAnd(bitInput("1111"), bitInput("0000"));
+    return intervalLe(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate34580() {
-    return bitAnd(bitInput("101"), bitInput("10"));
+    return intervalGt(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate34581() {
-    return bitAnd(bitInput(null), bitInput("1010"));
+    return intervalGe(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate34582() {
-    return bitAnd(bitInput("1010"), bitInput(null));
+    return intervalEq(intervalInput(null), intervalInput("1 year"));
 }
 export function evaluate34583() {
-    return bitOr(bitInput("1010"), bitInput("1100"));
+    return intervalNe(intervalInput(null), intervalInput("1 year"));
 }
 export function evaluate34584() {
-    return bitOr(bitInput("1111"), bitInput("0000"));
+    return intervalLt(intervalInput(null), intervalInput("1 year"));
 }
 export function evaluate34585() {
-    return bitOr(bitInput("101"), bitInput("10"));
+    return intervalLe(intervalInput(null), intervalInput("1 year"));
 }
 export function evaluate34586() {
-    return bitOr(bitInput(null), bitInput("1010"));
+    return intervalGt(intervalInput(null), intervalInput("1 year"));
 }
 export function evaluate34587() {
-    return bitOr(bitInput("1010"), bitInput(null));
+    return intervalGe(intervalInput(null), intervalInput("1 year"));
 }
 export function evaluate34588() {
-    return bitXor(bitInput("1010"), bitInput("1100"));
+    return intervalEq(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate34589() {
-    return bitXor(bitInput("1111"), bitInput("0000"));
+    return intervalEq(intervalInput(null), intervalInput("1 mon"));
 }
 export function evaluate34590() {
-    return bitXor(bitInput("101"), bitInput("10"));
+    return intervalEq(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate34591() {
-    return bitXor(bitInput(null), bitInput("1010"));
+    return intervalNe(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate34592() {
-    return bitXor(bitInput("1010"), bitInput(null));
+    return intervalNe(intervalInput(null), intervalInput("1 mon"));
 }
 export function evaluate34593() {
-    return bitNot(bitInput(null));
+    return intervalNe(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate34594() {
-    return bitNot(bitInput(""));
+    return intervalLt(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate34595() {
-    return bitNot(bitInput("1010"));
+    return intervalLt(intervalInput(null), intervalInput("1 mon"));
 }
 export function evaluate34596() {
-    return bitNot(bitInput("0"));
+    return intervalLt(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate34597() {
-    return bitNot(bitInput("1010"));
+    return intervalLe(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate34598() {
-    return bitShiftLeft(bitInput("10110001"), int4Input(null));
+    return intervalLe(intervalInput(null), intervalInput("1 mon"));
 }
 export function evaluate34599() {
-    return bitShiftLeft(bitInput("10110001"), int4Input("0"));
+    return intervalLe(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate34600() {
-    return bitShiftLeft(bitInput("10110001"), int4Input("1"));
+    return intervalGt(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate34601() {
-    return bitShiftLeft(bitInput("10110001"), int4Input("-1"));
+    return intervalGt(intervalInput(null), intervalInput("1 mon"));
 }
 export function evaluate34602() {
-    return bitShiftLeft(bitInput("10110001"), int4Input("8"));
+    return intervalGt(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate34603() {
-    return bitShiftLeft(bitInput("10110001"), int4Input("-2147483648"));
+    return intervalGe(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate34604() {
-    return bitShiftRight(bitInput("10110001"), int4Input(null));
+    return intervalGe(intervalInput(null), intervalInput("1 mon"));
 }
 export function evaluate34605() {
-    return bitShiftRight(bitInput("10110001"), int4Input("0"));
+    return intervalGe(intervalInput("infinity"), intervalInput("1 year"));
 }
 export function evaluate34606() {
-    return bitShiftRight(bitInput("10110001"), int4Input("1"));
+    return intervalCompare(intervalInput("1 year"), intervalInput("360 days"));
 }
 export function evaluate34607() {
-    return bitShiftRight(bitInput("10110001"), int4Input("-1"));
+    return intervalCompare(intervalInput("1 year"), intervalInput("1 mon"));
 }
 export function evaluate34608() {
-    return bitShiftRight(bitInput("10110001"), int4Input("8"));
+    return intervalCompare(intervalInput(null), intervalInput("1 year"));
 }
 export function evaluate34609() {
-    return bitShiftRight(bitInput("10110001"), int4Input("-2147483648"));
+    return dateFinite(dateInput("2020-01-01"));
 }
 export function evaluate34610() {
-    return bitShiftLeft(bitInput("10110001"), int4Input(null));
+    return dateFinite(dateInput("infinity"));
 }
 export function evaluate34611() {
-    return bitShiftLeft(bitInput("10110001"), int4Input("0"));
+    return dateFinite(dateInput(null));
 }
 export function evaluate34612() {
-    return bitShiftLeft(bitInput("10110001"), int4Input("1"));
+    return timestampFinite(timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34613() {
-    return bitShiftLeft(bitInput("10110001"), int4Input("-1"));
+    return timestampFinite(timestampInput("infinity"));
 }
 export function evaluate34614() {
-    return bitShiftLeft(bitInput("10110001"), int4Input("8"));
+    return intervalFinite(intervalInput("1 year"));
 }
 export function evaluate34615() {
-    return bitShiftLeft(bitInput("10110001"), int4Input("-2147483648"));
+    return intervalFinite(intervalInput("infinity"));
 }
 export function evaluate34616() {
-    return bitShiftRight(bitInput("10110001"), int4Input(null));
+    return makeDate(int4Input("2020"), int4Input("1"), int4Input("2"));
 }
 export function evaluate34617() {
-    return bitShiftRight(bitInput("10110001"), int4Input("0"));
+    return makeDate(int4Input("-1"), int4Input("1"), int4Input("1"));
 }
 export function evaluate34618() {
-    return bitShiftRight(bitInput("10110001"), int4Input("1"));
+    return makeDate(int4Input("2023"), int4Input("2"), int4Input("29"));
 }
 export function evaluate34619() {
-    return bitShiftRight(bitInput("10110001"), int4Input("-1"));
+    return makeTime(int4Input("12"), int4Input("34"), float8Input("404c400000000000"));
 }
 export function evaluate34620() {
-    return bitShiftRight(bitInput("10110001"), int4Input("8"));
+    return makeTime(int4Input("24"), int4Input("0"), float8Input("3fb999999999999a"));
 }
 export function evaluate34621() {
-    return bitShiftRight(bitInput("10110001"), int4Input("-2147483648"));
+    return makeTimestamp(int4Input("2020"), int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4"), float8Input("4016000000000000"));
 }
 export function evaluate34622() {
-    return bitCat(bitInput("10"), bitInput("11"));
+    return makeInterval(int4Input("1"), int4Input("2"), int4Input("0"), int4Input("3"), int4Input("4"), int4Input("5"), float8Input("401a000000000000"));
 }
 export function evaluate34623() {
-    return bitCat(bitInput(""), bitInput("1"));
+    return sqlIsNull(dateInput(null));
 }
 export function evaluate34624() {
-    return bitCat(bitInput("1"), bitInput(""));
+    return sqlCase(() => dateInput("2020-01-01"), [() => booleanInput(true), () => dateInput("2020-01-02")]);
 }
 export function evaluate34625() {
-    return bitCat(bitInput(null), bitInput("1"));
+    return sqlCoalesce(() => dateInput(null), () => dateInput("2020-01-02"));
 }
 export function evaluate34626() {
-    return bitCat(bitInput("10"), bitInput("11"));
+    return sqlCase(() => timeInput("12:00:00"), [() => booleanInput(true), () => timeInput("18:00:00")]);
 }
 export function evaluate34627() {
-    return bitCat(bitInput(""), bitInput("1"));
+    return sqlCoalesce(() => timestampInput(null), () => timestampInput("2020-01-02 03:04:05"));
 }
 export function evaluate34628() {
-    return bitCat(bitInput("1"), bitInput(""));
+    return sqlCase(() => intervalInput("1 mon"), [() => booleanInput(false), () => intervalInput("1 year")]);
 }
 export function evaluate34629() {
-    return bitCat(bitInput(null), bitInput("1"));
+    return timestamptzInput(null);
 }
 export function evaluate34630() {
-    return bitLength(bitInput(null));
+    return timestamptzInput("2020-01-02 03:04:05");
 }
 export function evaluate34631() {
-    return bitLength(bitInput(""));
+    return timestamptzInput("2020-01-02 03:04:05+00");
 }
 export function evaluate34632() {
-    return bitLength(bitInput("1"));
+    return timestamptzInput("2020-01-02 03:04:05+01");
 }
 export function evaluate34633() {
-    return bitLength(bitInput("101010011"));
+    return timestamptzInput("2020-01-02 03:04:05-05");
 }
 export function evaluate34634() {
-    return bitOctetLength(bitInput(null));
+    return timestamptzInput("2020-01-02 03:04:05+05:30");
 }
 export function evaluate34635() {
-    return bitOctetLength(bitInput(""));
+    return timestamptzInput("2020-01-02 03:04:05+0530");
 }
 export function evaluate34636() {
-    return bitOctetLength(bitInput("1"));
+    return timestamptzInput("2020-01-02 03:04:05Z");
 }
 export function evaluate34637() {
-    return bitOctetLength(bitInput("101010011"));
+    return timestamptzInput("2020-01-02 03:04:05 UTC");
 }
 export function evaluate34638() {
-    return bitLength(bitInput(null));
+    return timestamptzInput("2020-01-02T03:04:05+00");
 }
 export function evaluate34639() {
-    return bitLength(bitInput(""));
+    return timestamptzInput("2020-01-02 24:00:00+00");
 }
 export function evaluate34640() {
-    return bitLength(bitInput("1"));
+    return timestamptzInput("2020-01-02 03:04:05.123456+00");
 }
 export function evaluate34641() {
-    return bitLength(bitInput("101010011"));
+    return timestamptzInput("infinity");
 }
 export function evaluate34642() {
-    return bitCount(bitInput(null));
+    return timestamptzInput("-infinity");
 }
 export function evaluate34643() {
-    return bitCount(bitInput(""));
+    return timestamptzInput("0001-01-01 00:00:00 BC");
 }
 export function evaluate34644() {
-    return bitCount(bitInput("1"));
+    return timestamptzInput("not-a-timestamptz");
 }
 export function evaluate34645() {
-    return bitCount(bitInput("101010011"));
+    return timestamptzInput("2020-01-02 03:04:05+16");
 }
 export function evaluate34646() {
-    return bitSubstrLength(bitInput("10110"), int4Input("1"), int4Input("2"));
+    return timestamptzInput("2020-01-02 12:60:00+00");
 }
 export function evaluate34647() {
-    return bitSubstrLength(bitInput("10110"), int4Input("0"), int4Input("3"));
+    return timetzInput(null);
 }
 export function evaluate34648() {
-    return bitSubstrLength(bitInput("10110"), int4Input("-1"), int4Input("4"));
+    return timetzInput("12:00:00");
 }
 export function evaluate34649() {
-    return bitSubstrLength(bitInput("10110"), int4Input("2"), int4Input("-1"));
+    return timetzInput("12:00:00+00");
 }
 export function evaluate34650() {
-    return bitSubstr(bitInput("10110"), int4Input("2"));
+    return timetzInput("12:00:00+01");
 }
 export function evaluate34651() {
-    return bitSubstrLength(bitInput("10110"), int4Input("8"), int4Input("2"));
+    return timetzInput("12:00:00-05:30");
 }
 export function evaluate34652() {
-    return bitSubstrLength(bitInput("10110"), int4Input(null), int4Input("1"));
+    return timetzInput("12:00:00Z");
 }
 export function evaluate34653() {
-    return bitOverlay(bitInput("10110"), bitInput("11"), int4Input("2"));
+    return timetzInput("12:00+00");
 }
 export function evaluate34654() {
-    return bitOverlayLength(bitInput("10110"), bitInput("0"), int4Input("2"), int4Input("2"));
+    return timetzInput("24:00:00+00");
 }
 export function evaluate34655() {
-    return bitOverlayLength(bitInput("10110"), bitInput("1"), int4Input("0"), int4Input("1"));
+    return timetzInput("12:00:00+00:00:01");
 }
 export function evaluate34656() {
-    return bitOverlayLength(bitInput("10110"), bitInput("1"), int4Input("2"), int4Input("-1"));
+    return timetzInput("not-a-timetz");
 }
 export function evaluate34657() {
-    return bitPosition(bitInput("101101"), bitInput("011"));
+    return timetzInput("12:60:00+00");
 }
 export function evaluate34658() {
-    return bitPosition(bitInput("101101"), bitInput(""));
+    return timetzInput("12:00:00+16");
 }
 export function evaluate34659() {
-    return bitPosition(bitInput(""), bitInput(""));
+    return timetzInput("12:00:00+00:60");
 }
 export function evaluate34660() {
-    return bitPosition(bitInput(""), bitInput("1"));
+    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34661() {
-    return bitPosition(bitInput("101"), bitInput("111"));
+    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34662() {
-    return bitPosition(bitInput(null), bitInput("1"));
+    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34663() {
-    return bitGet(bitInput("1011"), int4Input(null));
+    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34664() {
-    return bitGet(bitInput("1011"), int4Input("0"));
+    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34665() {
-    return bitGet(bitInput("1011"), int4Input("1"));
+    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34666() {
-    return bitGet(bitInput("1011"), int4Input("4"));
+    return timestamptzEq(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34667() {
-    return bitGet(bitInput("1011"), int4Input("-1"));
+    return timestamptzNe(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34668() {
-    return bitSet(bitInput("1011"), int4Input("0"), int4Input("0"));
+    return timestamptzLt(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34669() {
-    return bitSet(bitInput("1011"), int4Input("3"), int4Input("1"));
+    return timestamptzLe(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34670() {
-    return bitSet(bitInput("1011"), int4Input("-1"), int4Input("1"));
+    return timestamptzGt(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34671() {
-    return bitSet(bitInput("1011"), int4Input("1"), int4Input("2"));
+    return timestamptzGe(timestamptzInput("2020-01-01 13:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34672() {
-    return bitSet(bitInput("1011"), int4Input(null), int4Input("1"));
+    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34673() {
-    return bitTypmod(bitInput("101"), int4Input("3"), booleanInput(true));
+    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34674() {
-    return bitTypmod(bitInput("101"), int4Input("5"), booleanInput(true));
+    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34675() {
-    return bitTypmod(bitInput("10110"), int4Input("3"), booleanInput(true));
+    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34676() {
-    return bitTypmod(bitInput("101"), int4Input("5"), booleanInput(false));
+    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34677() {
-    return bitTypmod(bitInput("101"), int4Input("0"), booleanInput(true));
+    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34678() {
-    return bitTypmod(bitInput(null), int4Input("4"), booleanInput(true));
+    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
 }
 export function evaluate34679() {
-    return varbitTypmod(bitInput("101"), int4Input("5"), booleanInput(false));
+    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
 }
 export function evaluate34680() {
-    return varbitTypmod(bitInput("10110"), int4Input("3"), booleanInput(false));
+    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
 }
 export function evaluate34681() {
-    return varbitTypmod(bitInput("10110"), int4Input("3"), booleanInput(true));
+    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
 }
 export function evaluate34682() {
-    return varbitTypmod(bitInput("101"), int4Input("0"), booleanInput(true));
+    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
 }
 export function evaluate34683() {
-    return varbitTypmod(bitInput(null), int4Input("3"), booleanInput(true));
+    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
 }
 export function evaluate34684() {
-    return bitFromInt4(int4Input("5"), int4Input("4"));
+    return timestamptzEq(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34685() {
-    return bitFromInt4(int4Input("-1"), int4Input("4"));
+    return timestamptzNe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34686() {
-    return bitFromInt4(int4Input("1"), int4Input("8"));
+    return timestamptzLt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34687() {
-    return bitFromInt4(int4Input("-1"), int4Input("40"));
+    return timestamptzLe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34688() {
-    return bitFromInt4(int4Input("5"), int4Input("0"));
+    return timestamptzGt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34689() {
-    return bitFromInt4(int4Input(null), int4Input("4"));
+    return timestamptzGe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34690() {
-    return bitFromInt4(int4Input("1"), int4Input(null));
+    return timestamptzEq(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34691() {
-    return bitFromInt8(int8Input("-1"), int4Input("8"));
+    return timestamptzNe(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34692() {
-    return bitFromInt8(int8Input("1"), int4Input("70"));
+    return timestamptzLt(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34693() {
-    return bitFromInt8(int8Input("9223372036854775807"), int4Input("64"));
+    return timestamptzLe(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34694() {
-    return bitFromInt8(int8Input("-9223372036854775808"), int4Input("64"));
+    return timestamptzGt(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34695() {
-    return bitToInt4(bitInput(""));
+    return timestamptzGe(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34696() {
-    return bitToInt4(bitInput("1"));
+    return timestamptzEq(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34697() {
-    return bitToInt4(bitInput("101"));
+    return timestamptzEq(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34698() {
-    return bitToInt4(bitInput("10000000"));
+    return timestamptzEq(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34699() {
-    return bitToInt4(bitInput("11111111111111111111111111111111"));
+    return timestamptzNe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34700() {
-    return bitToInt4(bitInput("111111111111111111111111111111111"));
+    return timestamptzNe(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34701() {
-    return bitToInt4(bitInput(null));
+    return timestamptzNe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34702() {
-    return bitToInt8(bitInput("1111111111111111111111111111111111111111111111111111111111111111"));
+    return timestamptzLt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34703() {
-    return bitToInt8(bitInput("11111111111111111111111111111111111111111111111111111111111111111"));
+    return timestamptzLt(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34704() {
-    return bitToInt8(bitInput("1"));
+    return timestamptzLt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34705() {
-    return bitInput("xFF");
+    return timestamptzLe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34706() {
-    return bitInput("xFF");
+    return timestamptzLe(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34707() {
-    return bitInput("Xff");
+    return timestamptzLe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34708() {
-    return bitInput("xF");
+    return timestamptzGt(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34709() {
-    return bitInput("xA");
+    return timestamptzGt(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34710() {
-    return bitInput("xab");
+    return timestamptzGt(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34711() {
-    return bitInput("b1010");
+    return timestamptzGe(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34712() {
-    return bitInput("B1010");
+    return timestamptzGe(timestamptzInput(null), timestamptzInput("2020-01-01 13:00:00+00"));
 }
 export function evaluate34713() {
-    return bitInput("x");
+    return timestamptzGe(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
 }
 export function evaluate34714() {
-    return bitInput("b");
+    return timestamptzCompare(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+01"));
 }
 export function evaluate34715() {
+    return timestamptzCompare(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate34716() {
+    return timestamptzCompare(timestamptzInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34717() {
+    return timetzEq(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate34718() {
+    return timetzNe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate34719() {
+    return timetzLt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate34720() {
+    return timetzLe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate34721() {
+    return timetzGt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate34722() {
+    return timetzGe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate34723() {
+    return timetzEq(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate34724() {
+    return timetzNe(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate34725() {
+    return timetzLt(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate34726() {
+    return timetzLe(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate34727() {
+    return timetzGt(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate34728() {
+    return timetzGe(timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate34729() {
+    return timetzEq(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate34730() {
+    return timetzNe(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate34731() {
+    return timetzLt(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate34732() {
+    return timetzLe(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate34733() {
+    return timetzGt(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate34734() {
+    return timetzGe(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate34735() {
+    return timetzEq(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate34736() {
+    return timetzNe(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate34737() {
+    return timetzLt(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate34738() {
+    return timetzLe(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate34739() {
+    return timetzGt(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate34740() {
+    return timetzGe(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate34741() {
+    return timetzEq(timetzInput(null), timetzInput("12:00:00+00"));
+}
+export function evaluate34742() {
+    return timetzNe(timetzInput(null), timetzInput("12:00:00+00"));
+}
+export function evaluate34743() {
+    return timetzLt(timetzInput(null), timetzInput("12:00:00+00"));
+}
+export function evaluate34744() {
+    return timetzLe(timetzInput(null), timetzInput("12:00:00+00"));
+}
+export function evaluate34745() {
+    return timetzGt(timetzInput(null), timetzInput("12:00:00+00"));
+}
+export function evaluate34746() {
+    return timetzGe(timetzInput(null), timetzInput("12:00:00+00"));
+}
+export function evaluate34747() {
+    return timetzEq(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate34748() {
+    return timetzEq(timetzInput(null), timetzInput("18:00:00+00"));
+}
+export function evaluate34749() {
+    return timetzNe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate34750() {
+    return timetzNe(timetzInput(null), timetzInput("18:00:00+00"));
+}
+export function evaluate34751() {
+    return timetzLt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate34752() {
+    return timetzLt(timetzInput(null), timetzInput("18:00:00+00"));
+}
+export function evaluate34753() {
+    return timetzLe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate34754() {
+    return timetzLe(timetzInput(null), timetzInput("18:00:00+00"));
+}
+export function evaluate34755() {
+    return timetzGt(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate34756() {
+    return timetzGt(timetzInput(null), timetzInput("18:00:00+00"));
+}
+export function evaluate34757() {
+    return timetzGe(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"));
+}
+export function evaluate34758() {
+    return timetzGe(timetzInput(null), timetzInput("18:00:00+00"));
+}
+export function evaluate34759() {
+    return timetzCompare(timetzInput("12:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate34760() {
+    return timetzCompare(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate34761() {
+    return timetzCompare(timetzInput(null), timetzInput("12:00:00+00"));
+}
+export function evaluate34762() {
+    return timestamptzFinite(timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34763() {
+    return timestamptzFinite(timestamptzInput("infinity"));
+}
+export function evaluate34764() {
+    return timestamptzFinite(timestamptzInput(null));
+}
+export function evaluate34765() {
+    return makeTimestamptz(int4Input("2020"), int4Input("1"), int4Input("2"), int4Input("3"), int4Input("4"), float8Input("4016000000000000"));
+}
+export function evaluate34766() {
+    return sqlCoalesce(() => timestamptzInput(null), () => timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34767() {
+    return sqlCase(() => timetzInput("12:00:00+00"), [() => booleanInput(true), () => timetzInput("18:00:00+00")]);
+}
+export function evaluate34768() {
+    return extractTimestamp(textInput("microsecond"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34769() {
+    return extractTimestamp(textInput("millisecond"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34770() {
+    return extractTimestamp(textInput("second"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34771() {
+    return extractTimestamp(textInput("minute"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34772() {
+    return extractTimestamp(textInput("hour"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34773() {
+    return extractTimestamp(textInput("day"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34774() {
+    return extractTimestamp(textInput("month"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34775() {
+    return extractTimestamp(textInput("quarter"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34776() {
+    return extractTimestamp(textInput("week"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34777() {
+    return extractTimestamp(textInput("year"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34778() {
+    return extractTimestamp(textInput("decade"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34779() {
+    return extractTimestamp(textInput("century"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34780() {
+    return extractTimestamp(textInput("millennium"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34781() {
+    return extractTimestamp(textInput("julian"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34782() {
+    return extractTimestamp(textInput("isoyear"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34783() {
+    return extractTimestamp(textInput("dow"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34784() {
+    return extractTimestamp(textInput("isodow"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34785() {
+    return extractTimestamp(textInput("doy"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34786() {
+    return extractTimestamp(textInput("epoch"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34787() {
+    return extractTimestamp(textInput("YEAR"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34788() {
+    return extractTimestamp(textInput("microseconds"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34789() {
+    return extractTimestamp(textInput("timezone"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34790() {
+    return extractTimestamp(textInput(null), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34791() {
+    return extractTimestamp(textInput("year"), timestampInput(null));
+}
+export function evaluate34792() {
+    return extractTimestamp(textInput("year"), timestampInput("infinity"));
+}
+export function evaluate34793() {
+    return extractTimestamp(textInput("hour"), timestampInput("infinity"));
+}
+export function evaluate34794() {
+    return extractTimestamp(textInput("epoch"), timestampInput("-infinity"));
+}
+export function evaluate34795() {
+    return extractTimestamp(textInput("bogus"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34796() {
+    return extractTimestamp(textInput("now"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34797() {
+    return datePartTimestamp(textInput("year"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34798() {
+    return datePartTimestamp(textInput("second"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34799() {
+    return datePartTimestamp(textInput("epoch"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34800() {
+    return datePartTimestamp(textInput("hour"), timestampInput("infinity"));
+}
+export function evaluate34801() {
+    return extractDate(textInput("year"), dateInput("2020-01-02"));
+}
+export function evaluate34802() {
+    return extractDate(textInput("epoch"), dateInput("2020-01-02"));
+}
+export function evaluate34803() {
+    return extractDate(textInput("dow"), dateInput("2020-01-02"));
+}
+export function evaluate34804() {
+    return extractDate(textInput("hour"), dateInput("2020-01-02"));
+}
+export function evaluate34805() {
+    return extractDate(textInput("year"), dateInput("infinity"));
+}
+export function evaluate34806() {
+    return extractDate(textInput("month"), dateInput("infinity"));
+}
+export function evaluate34807() {
+    return extractDate(textInput("julian"), dateInput("-infinity"));
+}
+export function evaluate34808() {
+    return extractDate(textInput("year"), dateInput(null));
+}
+export function evaluate34809() {
+    return datePartDate(textInput("year"), dateInput("2020-01-02"));
+}
+export function evaluate34810() {
+    return datePartDate(textInput("hour"), dateInput("2020-01-02"));
+}
+export function evaluate34811() {
+    return datePartDate(textInput("hour"), dateInput("infinity"));
+}
+export function evaluate34812() {
+    return extractTime(textInput("hour"), timeInput("12:34:56.123456"));
+}
+export function evaluate34813() {
+    return extractTime(textInput("second"), timeInput("12:34:56.123456"));
+}
+export function evaluate34814() {
+    return extractTime(textInput("epoch"), timeInput("12:34:56.123456"));
+}
+export function evaluate34815() {
+    return extractTime(textInput("timezone"), timeInput("12:34:56.123456"));
+}
+export function evaluate34816() {
+    return extractTime(textInput("day"), timeInput("12:34:56.123456"));
+}
+export function evaluate34817() {
+    return extractTime(textInput("hour"), timeInput(null));
+}
+export function evaluate34818() {
+    return datePartTime(textInput("millisecond"), timeInput("12:34:56.123456"));
+}
+export function evaluate34819() {
+    return extractTimetz(textInput("timezone"), timetzInput("12:34:56.123456+01:30"));
+}
+export function evaluate34820() {
+    return extractTimetz(textInput("timezone_hour"), timetzInput("12:34:56.123456+01:30"));
+}
+export function evaluate34821() {
+    return extractTimetz(textInput("timezone_minute"), timetzInput("12:34:56.123456+01:30"));
+}
+export function evaluate34822() {
+    return extractTimetz(textInput("epoch"), timetzInput("12:34:56.123456+01:30"));
+}
+export function evaluate34823() {
+    return extractTimetz(textInput("hour"), timetzInput("12:34:56.123456+01:30"));
+}
+export function evaluate34824() {
+    return extractTimetz(textInput("timezone"), timetzInput(null));
+}
+export function evaluate34825() {
+    return datePartTimetz(textInput("timezone"), timetzInput("12:34:56.123456+01:30"));
+}
+export function evaluate34826() {
+    return extractInterval(textInput("year"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34827() {
+    return extractInterval(textInput("month"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34828() {
+    return extractInterval(textInput("day"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34829() {
+    return extractInterval(textInput("hour"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34830() {
+    return extractInterval(textInput("second"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34831() {
+    return extractInterval(textInput("week"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34832() {
+    return extractInterval(textInput("quarter"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34833() {
+    return extractInterval(textInput("quarter"), intervalInput("-13 mons"));
+}
+export function evaluate34834() {
+    return extractInterval(textInput("epoch"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34835() {
+    return extractInterval(textInput("hour"), intervalInput("infinity"));
+}
+export function evaluate34836() {
+    return extractInterval(textInput("month"), intervalInput("infinity"));
+}
+export function evaluate34837() {
+    return extractInterval(textInput("year"), intervalInput(null));
+}
+export function evaluate34838() {
+    return datePartInterval(textInput("epoch"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34839() {
+    return extractTimestamptz(textInput("hour"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34840() {
+    return extractTimestamptz(textInput("timezone"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34841() {
+    return extractTimestamptz(textInput("epoch"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34842() {
+    return extractTimestamptz(textInput("hour"), timestamptzInput(null));
+}
+export function evaluate34843() {
+    return datePartTimestamptz(textInput("year"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34844() {
+    return dateTruncTimestamp(textInput("microsecond"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34845() {
+    return dateTruncTimestamp(textInput("millisecond"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34846() {
+    return dateTruncTimestamp(textInput("second"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34847() {
+    return dateTruncTimestamp(textInput("minute"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34848() {
+    return dateTruncTimestamp(textInput("hour"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34849() {
+    return dateTruncTimestamp(textInput("day"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34850() {
+    return dateTruncTimestamp(textInput("month"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34851() {
+    return dateTruncTimestamp(textInput("quarter"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34852() {
+    return dateTruncTimestamp(textInput("week"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34853() {
+    return dateTruncTimestamp(textInput("year"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34854() {
+    return dateTruncTimestamp(textInput("decade"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34855() {
+    return dateTruncTimestamp(textInput("century"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34856() {
+    return dateTruncTimestamp(textInput("millennium"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34857() {
+    return dateTruncTimestamp(textInput("year"), timestampInput("infinity"));
+}
+export function evaluate34858() {
+    return dateTruncTimestamp(textInput("week"), timestampInput("2021-01-01 15:00:00"));
+}
+export function evaluate34859() {
+    return dateTruncTimestamp(textInput("epoch"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34860() {
+    return dateTruncTimestamp(textInput("day"), timestampInput(null));
+}
+export function evaluate34861() {
+    return dateTruncTimestamptz(textInput("day"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34862() {
+    return dateTruncTimestamptz(textInput("hour"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34863() {
+    return dateTruncInterval(textInput("year"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34864() {
+    return dateTruncInterval(textInput("month"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34865() {
+    return dateTruncInterval(textInput("day"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34866() {
+    return dateTruncInterval(textInput("hour"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34867() {
+    return dateTruncInterval(textInput("second"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34868() {
+    return dateTruncInterval(textInput("millennium"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34869() {
+    return dateTruncInterval(textInput("week"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34870() {
+    return dateTruncInterval(textInput("year"), intervalInput("infinity"));
+}
+export function evaluate34871() {
+    return dateTruncInterval(textInput("day"), intervalInput(null));
+}
+export function evaluate34872() {
+    return extractDate(textInput("year"), dateInput("0001-01-01 BC"));
+}
+export function evaluate34873() {
+    return dateTruncTimestamp(textInput("millennium"), timestampInput("0001-01-01 BC"));
+}
+export function evaluate34874() {
+    return datePlInt(dateInput("2020-01-02"), int4Input("3"));
+}
+export function evaluate34875() {
+    return datePlInt(dateInput("2020-01-02"), int4Input("3"));
+}
+export function evaluate34876() {
+    return intPlDate(int4Input("3"), dateInput("2020-01-02"));
+}
+export function evaluate34877() {
+    return intPlDate(int4Input("3"), dateInput("2020-01-02"));
+}
+export function evaluate34878() {
+    return datePlInt(dateInput("2020-01-02"), int4Input(null));
+}
+export function evaluate34879() {
+    return datePlInt(dateInput("infinity"), int4Input("3"));
+}
+export function evaluate34880() {
+    return dateMiInt(dateInput("2020-01-02"), int4Input("3"));
+}
+export function evaluate34881() {
+    return dateMiInt(dateInput("2020-01-02"), int4Input("3"));
+}
+export function evaluate34882() {
+    return dateMiDate(dateInput("2020-01-02"), dateInput("2020-01-01"));
+}
+export function evaluate34883() {
+    return dateMiDate(dateInput("2020-01-02"), dateInput("2020-01-01"));
+}
+export function evaluate34884() {
+    return dateMiDate(dateInput("infinity"), dateInput("2020-01-01"));
+}
+export function evaluate34885() {
+    return datePlInterval(dateInput("2020-01-31"), intervalInput("1 month"));
+}
+export function evaluate34886() {
+    return datePlInterval(dateInput("2020-01-31"), intervalInput("1 month"));
+}
+export function evaluate34887() {
+    return intervalPlDate(intervalInput("1 month"), dateInput("2020-01-31"));
+}
+export function evaluate34888() {
+    return dateMiInterval(dateInput("2020-02-29"), intervalInput("1 month"));
+}
+export function evaluate34889() {
+    return intervalPlDate(intervalInput("1 month"), dateInput("2020-01-31"));
+}
+export function evaluate34890() {
+    return dateMiInterval(dateInput("2020-02-29"), intervalInput("1 month"));
+}
+export function evaluate34891() {
+    return datePlTime(dateInput("2020-01-02"), timeInput("12:00:00"));
+}
+export function evaluate34892() {
+    return datePlTime(dateInput("2020-01-02"), timeInput("12:00:00"));
+}
+export function evaluate34893() {
+    return timePlDate(timeInput("12:00:00"), dateInput("2020-01-02"));
+}
+export function evaluate34894() {
+    return timePlDate(timeInput("12:00:00"), dateInput("2020-01-02"));
+}
+export function evaluate34895() {
+    return datePlTimetz(dateInput("2020-01-02"), timetzInput("12:00:00+01"));
+}
+export function evaluate34896() {
+    return datePlTimetz(dateInput("2020-01-02"), timetzInput("12:00:00+01"));
+}
+export function evaluate34897() {
+    return timetzPlDate(timetzInput("12:00:00+01"), dateInput("2020-01-02"));
+}
+export function evaluate34898() {
+    return timetzPlDate(timetzInput("12:00:00+01"), dateInput("2020-01-02"));
+}
+export function evaluate34899() {
+    return datePlInterval(dateInput("2020-01-02"), intervalInput(null));
+}
+export function evaluate34900() {
+    return timestampPlInterval(timestampInput("2020-06-15 12:34:56.123456"), intervalInput("1 month"));
+}
+export function evaluate34901() {
+    return timestampPlInterval(timestampInput("2020-06-15 12:34:56.123456"), intervalInput("1 month"));
+}
+export function evaluate34902() {
+    return intervalPlTimestamp(intervalInput("1 month"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34903() {
+    return intervalPlTimestamp(intervalInput("1 month"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34904() {
+    return timestampMiInterval(timestampInput("2020-06-15 12:34:56.123456"), intervalInput("1 day"));
+}
+export function evaluate34905() {
+    return timestampMiInterval(timestampInput("2020-06-15 12:34:56.123456"), intervalInput("1 day"));
+}
+export function evaluate34906() {
+    return timestampMiTimestamp(timestampInput("2020-01-02 15:00:00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34907() {
+    return timestampMiTimestamp(timestampInput("2020-01-02 15:00:00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34908() {
+    return timestampPlInterval(timestampInput("infinity"), intervalInput("1 month"));
+}
+export function evaluate34909() {
+    return timestampPlInterval(timestampInput("infinity"), intervalInput("infinity"));
+}
+export function evaluate34910() {
+    return timestampMiTimestamp(timestampInput("infinity"), timestampInput("infinity"));
+}
+export function evaluate34911() {
+    return timestamptzPlInterval(timestamptzInput("2020-01-01 12:00:00+00"), intervalInput("02:00:00"));
+}
+export function evaluate34912() {
+    return timestamptzPlInterval(timestamptzInput("2020-01-01 12:00:00+00"), intervalInput("02:00:00"));
+}
+export function evaluate34913() {
+    return intervalPlTimestamptz(intervalInput("02:00:00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34914() {
+    return intervalPlTimestamptz(intervalInput("02:00:00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34915() {
+    return timestamptzMiInterval(timestamptzInput("2020-01-01 12:00:00+00"), intervalInput("02:00:00"));
+}
+export function evaluate34916() {
+    return timestamptzMiInterval(timestamptzInput("2020-01-01 12:00:00+00"), intervalInput("02:00:00"));
+}
+export function evaluate34917() {
+    return timestamptzMiTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate34918() {
+    return timestamptzMiTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate34919() {
+    return timePlInterval(timeInput("23:00:00"), intervalInput("02:00:00"));
+}
+export function evaluate34920() {
+    return timePlInterval(timeInput("23:00:00"), intervalInput("02:00:00"));
+}
+export function evaluate34921() {
+    return intervalPlTime(intervalInput("02:00:00"), timeInput("23:00:00"));
+}
+export function evaluate34922() {
+    return intervalPlTime(intervalInput("02:00:00"), timeInput("23:00:00"));
+}
+export function evaluate34923() {
+    return timeMiInterval(timeInput("12:00:00"), intervalInput("02:00:00"));
+}
+export function evaluate34924() {
+    return timeMiInterval(timeInput("12:00:00"), intervalInput("02:00:00"));
+}
+export function evaluate34925() {
+    return timeMiTime(timeInput("18:00:00"), timeInput("12:00:00"));
+}
+export function evaluate34926() {
+    return timeMiTime(timeInput("18:00:00"), timeInput("12:00:00"));
+}
+export function evaluate34927() {
+    return timePlInterval(timeInput("12:00:00"), intervalInput("infinity"));
+}
+export function evaluate34928() {
+    return timetzPlInterval(timetzInput("12:00:00+01"), intervalInput("02:00:00"));
+}
+export function evaluate34929() {
+    return timetzPlInterval(timetzInput("12:00:00+01"), intervalInput("02:00:00"));
+}
+export function evaluate34930() {
+    return intervalPlTimetz(intervalInput("02:00:00"), timetzInput("12:00:00+01"));
+}
+export function evaluate34931() {
+    return intervalPlTimetz(intervalInput("02:00:00"), timetzInput("12:00:00+01"));
+}
+export function evaluate34932() {
+    return timetzMiInterval(timetzInput("12:00:00+01"), intervalInput("02:00:00"));
+}
+export function evaluate34933() {
+    return timetzMiInterval(timetzInput("12:00:00+01"), intervalInput("02:00:00"));
+}
+export function evaluate34934() {
+    return intervalPl(intervalInput("1 month"), intervalInput("1 day"));
+}
+export function evaluate34935() {
+    return intervalPl(intervalInput("1 month"), intervalInput("25 hours"));
+}
+export function evaluate34936() {
+    return intervalMi(intervalInput("1 year 2 mons 3 days 04:05:06.7"), intervalInput("1 month"));
+}
+export function evaluate34937() {
+    return intervalMi(intervalInput("1 year 2 mons 3 days 04:05:06.7"), intervalInput("1 month"));
+}
+export function evaluate34938() {
+    return intervalUm(intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34939() {
+    return intervalUm(intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34940() {
+    return intervalUm(intervalInput("infinity"));
+}
+export function evaluate34941() {
+    return intervalMul(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("4004000000000000"));
+}
+export function evaluate34942() {
+    return intervalMul(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("4004000000000000"));
+}
+export function evaluate34943() {
+    return mulDInterval(float8Input("4004000000000000"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34944() {
+    return mulDInterval(float8Input("4004000000000000"), intervalInput("1 year 2 mons 3 days 04:05:06.7"));
+}
+export function evaluate34945() {
+    return intervalMul(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input(null));
+}
+export function evaluate34946() {
+    return intervalMul(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("7ff0000000000000"));
+}
+export function evaluate34947() {
+    return intervalDiv(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("4004000000000000"));
+}
+export function evaluate34948() {
+    return intervalDiv(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("4004000000000000"));
+}
+export function evaluate34949() {
+    return intervalDiv(intervalInput("1 year 2 mons 3 days 04:05:06.7"), float8Input("0000000000000000"));
+}
+export function evaluate34950() {
+    return justifyHours(intervalInput("25 hours"));
+}
+export function evaluate34951() {
+    return justifyDays(intervalInput("45 days"));
+}
+export function evaluate34952() {
+    return justifyInterval(intervalInput("1 year 15 days 30 hours"));
+}
+export function evaluate34953() {
+    return justifyHours(intervalInput("infinity"));
+}
+export function evaluate34954() {
+    return dateFromTimestamp(timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34955() {
+    return dateFromTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34956() {
+    return dateFromTimestamp(timestampInput("infinity"));
+}
+export function evaluate34957() {
+    return timestampFromDate(dateInput("2020-01-02"));
+}
+export function evaluate34958() {
+    return timestampFromDateTime(dateInput("2020-01-02"), timeInput("12:00:00"));
+}
+export function evaluate34959() {
+    return timestampFromTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34960() {
+    return timestampFromDate(dateInput("294277-01-01"));
+}
+export function evaluate34961() {
+    return timestamptzFromTimestamp(timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34962() {
+    return timestamptzFromDate(dateInput("2020-01-02"));
+}
+export function evaluate34963() {
+    return timestamptzFromDateTime(dateInput("2020-01-02"), timeInput("12:00:00"));
+}
+export function evaluate34964() {
+    return timestamptzFromDateTimetz(dateInput("2020-01-02"), timetzInput("12:00:00+01"));
+}
+export function evaluate34965() {
+    return timeFromTimestamp(timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate34966() {
+    return timeFromTimestamp(timestampInput("infinity"));
+}
+export function evaluate34967() {
+    return timeFromTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34968() {
+    return timeFromTimetz(timetzInput("12:00:00+01"));
+}
+export function evaluate34969() {
+    return timeFromInterval(intervalInput("25 hours"));
+}
+export function evaluate34970() {
+    return timeFromInterval(intervalInput("infinity"));
+}
+export function evaluate34971() {
+    return timetzFromTime(timeInput("12:00:00"));
+}
+export function evaluate34972() {
+    return timetzFromTimestamptz(timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate34973() {
+    return timetzFromTimestamptz(timestamptzInput("infinity"));
+}
+export function evaluate34974() {
+    return intervalFromTime(timeInput("12:00:00"));
+}
+export function evaluate34975() {
+    return dateTimestampEq(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34976() {
+    return dateTimestampNe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34977() {
+    return dateTimestampLt(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34978() {
+    return dateTimestampLe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34979() {
+    return dateTimestampGt(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34980() {
+    return dateTimestampGe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34981() {
+    return dateTimestampEq(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34982() {
+    return dateTimestampNe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34983() {
+    return dateTimestampLt(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34984() {
+    return dateTimestampLe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34985() {
+    return dateTimestampGt(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34986() {
+    return dateTimestampGe(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34987() {
+    return dateTimestampCompare(dateInput("2020-01-02"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate34988() {
+    return timestampDateEq(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+}
+export function evaluate34989() {
+    return timestampDateNe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+}
+export function evaluate34990() {
+    return timestampDateLt(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+}
+export function evaluate34991() {
+    return timestampDateLe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+}
+export function evaluate34992() {
+    return timestampDateGt(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+}
+export function evaluate34993() {
+    return timestampDateGe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+}
+export function evaluate34994() {
+    return timestampDateEq(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+}
+export function evaluate34995() {
+    return timestampDateNe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+}
+export function evaluate34996() {
+    return timestampDateLt(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+}
+export function evaluate34997() {
+    return timestampDateLe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+}
+export function evaluate34998() {
+    return timestampDateGt(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+}
+export function evaluate34999() {
+    return timestampDateGe(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+}
+export function evaluate35000() {
+    return timestampDateCompare(timestampInput("2020-01-02 00:00:00"), dateInput("2020-01-02"));
+}
+export function evaluate35001() {
+    return dateTimestamptzEq(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35002() {
+    return dateTimestamptzNe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35003() {
+    return dateTimestamptzLt(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35004() {
+    return dateTimestamptzLe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35005() {
+    return dateTimestamptzGt(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35006() {
+    return dateTimestamptzGe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35007() {
+    return dateTimestamptzEq(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35008() {
+    return dateTimestamptzNe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35009() {
+    return dateTimestamptzLt(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35010() {
+    return dateTimestamptzLe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35011() {
+    return dateTimestamptzGt(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35012() {
+    return dateTimestamptzGe(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35013() {
+    return dateTimestamptzCompare(dateInput("2020-01-02"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35014() {
+    return timestamptzDateEq(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate35015() {
+    return timestamptzDateNe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate35016() {
+    return timestamptzDateLt(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate35017() {
+    return timestamptzDateLe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate35018() {
+    return timestamptzDateGt(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate35019() {
+    return timestamptzDateGe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate35020() {
+    return timestamptzDateEq(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate35021() {
+    return timestamptzDateNe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate35022() {
+    return timestamptzDateLt(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate35023() {
+    return timestamptzDateLe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate35024() {
+    return timestamptzDateGt(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate35025() {
+    return timestamptzDateGe(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate35026() {
+    return timestamptzDateCompare(timestamptzInput("2020-01-02 00:00:00+00"), dateInput("2020-01-02"));
+}
+export function evaluate35027() {
+    return timestampTimestamptzEq(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35028() {
+    return timestampTimestamptzNe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35029() {
+    return timestampTimestamptzLt(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35030() {
+    return timestampTimestamptzLe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35031() {
+    return timestampTimestamptzGt(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35032() {
+    return timestampTimestamptzGe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35033() {
+    return timestampTimestamptzEq(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35034() {
+    return timestampTimestamptzNe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35035() {
+    return timestampTimestamptzLt(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35036() {
+    return timestampTimestamptzLe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35037() {
+    return timestampTimestamptzGt(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35038() {
+    return timestampTimestamptzGe(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35039() {
+    return timestampTimestamptzCompare(timestampInput("2020-01-02 00:00:00"), timestamptzInput("2020-01-02 00:00:00+00"));
+}
+export function evaluate35040() {
+    return timestamptzTimestampEq(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate35041() {
+    return timestamptzTimestampNe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate35042() {
+    return timestamptzTimestampLt(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate35043() {
+    return timestamptzTimestampLe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate35044() {
+    return timestamptzTimestampGt(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate35045() {
+    return timestamptzTimestampGe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate35046() {
+    return timestamptzTimestampEq(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate35047() {
+    return timestamptzTimestampNe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate35048() {
+    return timestamptzTimestampLt(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate35049() {
+    return timestamptzTimestampLe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate35050() {
+    return timestamptzTimestampGt(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate35051() {
+    return timestamptzTimestampGe(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate35052() {
+    return timestamptzTimestampCompare(timestamptzInput("2020-01-02 00:00:00+00"), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate35053() {
+    return dateTimestampEq(dateInput("2020-01-02"), timestampInput("2020-01-02 15:00:00"));
+}
+export function evaluate35054() {
+    return dateTimestampLt(dateInput("294277-01-01"), timestampInput("infinity"));
+}
+export function evaluate35055() {
+    return dateTimestampCompare(dateInput("294277-01-01"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate35056() {
+    return dateTimestampEq(dateInput(null), timestampInput("2020-01-02 00:00:00"));
+}
+export function evaluate35057() {
+    return overlapsTimestamp(timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 16:00:00"));
+}
+export function evaluate35058() {
+    return overlapsTimestamp(timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 14:00:00"));
+}
+export function evaluate35059() {
+    return overlapsTimestamp(timestampInput("2020-01-02 14:00:00"), timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 16:00:00"), timestampInput("2020-01-02 12:00:00"));
+}
+export function evaluate35060() {
+    return overlapsTimestamp(timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 14:00:00"));
+}
+export function evaluate35061() {
+    return overlapsTimestamp(timestampInput("2020-01-02 12:00:00"), timestampInput(null), timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"));
+}
+export function evaluate35062() {
+    return overlapsTimestamp(timestampInput(null), timestampInput(null), timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"));
+}
+export function evaluate35063() {
+    return overlapsTimestampIntervalInterval(timestampInput("2020-01-02 10:00:00"), intervalInput("02:00:00"), timestampInput("2020-01-02 12:00:00"), intervalInput("02:00:00"));
+}
+export function evaluate35064() {
+    return overlapsTimestampIntervalTimestamp(timestampInput("2020-01-02 10:00:00"), intervalInput("02:00:00"), timestampInput("2020-01-02 12:00:00"), timestampInput("2020-01-02 16:00:00"));
+}
+export function evaluate35065() {
+    return overlapsTimestampTimestampInterval(timestampInput("2020-01-02 10:00:00"), timestampInput("2020-01-02 14:00:00"), timestampInput("2020-01-02 12:00:00"), intervalInput("02:00:00"));
+}
+export function evaluate35066() {
+    return overlapsTimestamp(timestampInput("infinity"), timestampInput("2020-01-02 15:00:00"), timestampInput("2020-01-02 00:00:00"), timestampInput("infinity"));
+}
+export function evaluate35067() {
+    return overlapsTimestamptz(timestamptzInput("2020-01-02 10:00:00+00"), timestamptzInput("2020-01-02 14:00:00+00"), timestamptzInput("2020-01-02 12:00:00+00"), timestamptzInput("2020-01-02 16:00:00+00"));
+}
+export function evaluate35068() {
+    return overlapsTimestamptzIntervalInterval(timestamptzInput("2020-01-02 10:00:00+00"), intervalInput("02:00:00"), timestamptzInput("2020-01-02 12:00:00+00"), intervalInput("02:00:00"));
+}
+export function evaluate35069() {
+    return overlapsTimestamptzIntervalTimestamptz(timestamptzInput("2020-01-02 10:00:00+00"), intervalInput("02:00:00"), timestamptzInput("2020-01-02 12:00:00+00"), timestamptzInput("2020-01-02 16:00:00+00"));
+}
+export function evaluate35070() {
+    return overlapsTimestamptzTimestamptzInterval(timestamptzInput("2020-01-02 10:00:00+00"), timestamptzInput("2020-01-02 14:00:00+00"), timestamptzInput("2020-01-02 12:00:00+00"), intervalInput("02:00:00"));
+}
+export function evaluate35071() {
+    return overlapsTime(timeInput("12:00:00"), timeInput("18:00:00"), timeInput("15:00:00"), timeInput("23:00:00"));
+}
+export function evaluate35072() {
+    return overlapsTimeIntervalTime(timeInput("23:00:00"), intervalInput("02:00:00"), timeInput("00:30:00"), timeInput("01:30:00"));
+}
+export function evaluate35073() {
+    return overlapsTimeIntervalInterval(timeInput("12:00:00"), intervalInput("02:00:00"), timeInput("13:00:00"), intervalInput("02:00:00"));
+}
+export function evaluate35074() {
+    return overlapsTimeIntervalTime(timeInput("12:00:00"), intervalInput("02:00:00"), timeInput("13:00:00"), timeInput("18:00:00"));
+}
+export function evaluate35075() {
+    return overlapsTimeTimeInterval(timeInput("12:00:00"), timeInput("18:00:00"), timeInput("17:00:00"), intervalInput("02:00:00"));
+}
+export function evaluate35076() {
+    return overlapsTime(timeInput(null), timeInput("18:00:00"), timeInput("12:00:00"), timeInput("23:00:00"));
+}
+export function evaluate35077() {
+    return overlapsTimetz(timetzInput("12:00:00+00"), timetzInput("18:00:00+00"), timetzInput("13:00:00+01"), timetzInput("18:00:00+00"));
+}
+export function evaluate35078() {
+    return overlapsTimetz(timetzInput("12:00:00+00"), timetzInput(null), timetzInput("18:00:00+00"), timetzInput("12:00:00+00"));
+}
+export function evaluate35079() {
+    return ageTimestamp(timestampInput("2001-04-10"), timestampInput("1957-06-13"));
+}
+export function evaluate35080() {
+    return ageTimestamp(timestampInput("1957-06-13"), timestampInput("2001-04-10"));
+}
+export function evaluate35081() {
+    return ageTimestamp(timestampInput("2020-03-31"), timestampInput("2020-02-29"));
+}
+export function evaluate35082() {
+    return ageTimestamp(timestampInput("2021-03-01"), timestampInput("2020-02-29"));
+}
+export function evaluate35083() {
+    return ageTimestamp(timestampInput("2020-01-02 03:04:05.5"), timestampInput("2020-01-02 03:04:04.25"));
+}
+export function evaluate35084() {
+    return ageTimestamp(timestampInput("0001-01-01"), timestampInput("0001-01-01 BC"));
+}
+export function evaluate35085() {
+    return ageTimestamp(timestampInput("infinity"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate35086() {
+    return ageTimestamp(timestampInput("infinity"), timestampInput("infinity"));
+}
+export function evaluate35087() {
+    return ageTimestamp(timestampInput(null), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate35088() {
+    return ageTimestamptz(timestamptzInput("2001-04-10 00:00:00+00"), timestamptzInput("1957-06-13 00:00:00+00"));
+}
+export function evaluate35089() {
+    return ageTimestamptz(timestamptzInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate35090() {
+    return dateLarger(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate35091() {
+    return dateSmaller(dateInput("2020-01-01"), dateInput("2020-01-02"));
+}
+export function evaluate35092() {
+    return dateLarger(dateInput("infinity"), dateInput("2020-01-02"));
+}
+export function evaluate35093() {
+    return dateLarger(dateInput(null), dateInput("2020-01-02"));
+}
+export function evaluate35094() {
+    return timeLarger(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate35095() {
+    return timeSmaller(timeInput("12:00:00"), timeInput("18:00:00"));
+}
+export function evaluate35096() {
+    return timestampLarger(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate35097() {
+    return timestampSmaller(timestampInput("2020-01-02 03:04:05"), timestampInput("2020-01-03 00:00:00"));
+}
+export function evaluate35098() {
+    return timestamptzLarger(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate35099() {
+    return timestamptzSmaller(timestamptzInput("2020-01-01 12:00:00+00"), timestamptzInput("2020-01-01 13:00:00+00"));
+}
+export function evaluate35100() {
+    return timetzLarger(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate35101() {
+    return timetzSmaller(timetzInput("12:00:00+00"), timetzInput("13:00:00+01"));
+}
+export function evaluate35102() {
+    return intervalLarger(intervalInput("1 year"), intervalInput("360 days"));
+}
+export function evaluate35103() {
+    return intervalSmaller(intervalInput("1 year"), intervalInput("360 days"));
+}
+export function evaluate35104() {
+    return intervalLarger(intervalInput("1 day"), intervalInput("24 hours"));
+}
+export function evaluate35105() {
+    return intervalLarger(intervalInput("infinity"), intervalInput("1 year"));
+}
+export function evaluate35106() {
+    return timezoneIntervalTimestamp(intervalInput("03:00:00"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate35107() {
+    return timezoneIntervalTimestamp(intervalInput("-05:00:00"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate35108() {
+    return timezoneIntervalTimestamp(intervalInput("03:00:00.75"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate35109() {
+    return timezoneIntervalTimestamp(intervalInput("25 hours"), timestampInput("2020-01-02 03:04:05"));
+}
+export function evaluate35110() {
+    return timezoneIntervalTimestamp(intervalInput("03:00:00"), timestampInput("infinity"));
+}
+export function evaluate35111() {
+    return timezoneIntervalTimestamp(intervalInput("1 mon"), timestampInput("infinity"));
+}
+export function evaluate35112() {
+    return timezoneIntervalTimestamp(intervalInput("1 mon"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate35113() {
+    return timezoneIntervalTimestamp(intervalInput("1 day"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate35114() {
+    return timezoneIntervalTimestamp(intervalInput("infinity"), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate35115() {
+    return timezoneIntervalTimestamp(intervalInput(null), timestampInput("2020-06-15 12:34:56.123456"));
+}
+export function evaluate35116() {
+    return timezoneIntervalTimestamp(intervalInput("03:00:00"), timestampInput(null));
+}
+export function evaluate35117() {
+    return timezoneIntervalTimestamptz(intervalInput("03:00:00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate35118() {
+    return timezoneIntervalTimestamptz(intervalInput("-05:00:00"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate35119() {
+    return timezoneIntervalTimestamptz(intervalInput("03:00:00.75"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate35120() {
+    return timezoneIntervalTimestamptz(intervalInput("03:00:00"), timestamptzInput("infinity"));
+}
+export function evaluate35121() {
+    return timezoneIntervalTimestamptz(intervalInput("1 mon"), timestamptzInput("infinity"));
+}
+export function evaluate35122() {
+    return timezoneIntervalTimestamptz(intervalInput("1 mon"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate35123() {
+    return timezoneIntervalTimestamptz(intervalInput("infinity"), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate35124() {
+    return timezoneIntervalTimestamptz(intervalInput(null), timestamptzInput("2020-01-01 12:00:00+00"));
+}
+export function evaluate35125() {
+    return timezoneIntervalTimetz(intervalInput("03:00:00"), timetzInput("12:00:00+00"));
+}
+export function evaluate35126() {
+    return timezoneIntervalTimetz(intervalInput("-05:00:00"), timetzInput("12:00:00+00"));
+}
+export function evaluate35127() {
+    return timezoneIntervalTimetz(intervalInput("03:00:00"), timetzInput("13:00:00+01"));
+}
+export function evaluate35128() {
+    return timezoneIntervalTimetz(intervalInput("03:00:00"), timetzInput("23:00:00+00"));
+}
+export function evaluate35129() {
+    return timezoneIntervalTimetz(intervalInput("03:00:00.75"), timetzInput("12:00:00+00"));
+}
+export function evaluate35130() {
+    return timezoneIntervalTimetz(intervalInput("1 mon"), timetzInput("12:00:00+00"));
+}
+export function evaluate35131() {
+    return timezoneIntervalTimetz(intervalInput("infinity"), timetzInput("12:00:00+00"));
+}
+export function evaluate35132() {
+    return timezoneIntervalTimetz(intervalInput(null), timetzInput("12:00:00+00"));
+}
+export function evaluate35133() {
+    return bitCompare(bitInput("101"), bitInput("101"));
+}
+export function evaluate35134() {
+    return bitCompare(bitInput("101"), bitInput("100"));
+}
+export function evaluate35135() {
+    return bitCompare(bitInput("1"), bitInput("10"));
+}
+export function evaluate35136() {
+    return bitCompare(bitInput("0"), bitInput("00"));
+}
+export function evaluate35137() {
+    return bitCompare(bitInput(""), bitInput("0"));
+}
+export function evaluate35138() {
+    return bitCompare(bitInput(null), bitInput("1"));
+}
+export function evaluate35139() {
+    return bitCompare(bitInput("1"), bitInput(null));
+}
+export function evaluate35140() {
+    return bitEq(bitInput("101"), bitInput("101"));
+}
+export function evaluate35141() {
+    return bitEq(bitInput("101"), bitInput("100"));
+}
+export function evaluate35142() {
+    return bitEq(bitInput("1"), bitInput("10"));
+}
+export function evaluate35143() {
+    return bitEq(bitInput("0"), bitInput("00"));
+}
+export function evaluate35144() {
+    return bitEq(bitInput(""), bitInput("0"));
+}
+export function evaluate35145() {
+    return bitEq(bitInput(null), bitInput("1"));
+}
+export function evaluate35146() {
+    return bitEq(bitInput("1"), bitInput(null));
+}
+export function evaluate35147() {
+    return bitGe(bitInput("101"), bitInput("101"));
+}
+export function evaluate35148() {
+    return bitGe(bitInput("101"), bitInput("100"));
+}
+export function evaluate35149() {
+    return bitGe(bitInput("1"), bitInput("10"));
+}
+export function evaluate35150() {
+    return bitGe(bitInput("0"), bitInput("00"));
+}
+export function evaluate35151() {
+    return bitGe(bitInput(""), bitInput("0"));
+}
+export function evaluate35152() {
+    return bitGe(bitInput(null), bitInput("1"));
+}
+export function evaluate35153() {
+    return bitGe(bitInput("1"), bitInput(null));
+}
+export function evaluate35154() {
+    return bitGt(bitInput("101"), bitInput("101"));
+}
+export function evaluate35155() {
+    return bitGt(bitInput("101"), bitInput("100"));
+}
+export function evaluate35156() {
+    return bitGt(bitInput("1"), bitInput("10"));
+}
+export function evaluate35157() {
+    return bitGt(bitInput("0"), bitInput("00"));
+}
+export function evaluate35158() {
+    return bitGt(bitInput(""), bitInput("0"));
+}
+export function evaluate35159() {
+    return bitGt(bitInput(null), bitInput("1"));
+}
+export function evaluate35160() {
+    return bitGt(bitInput("1"), bitInput(null));
+}
+export function evaluate35161() {
+    return bitLe(bitInput("101"), bitInput("101"));
+}
+export function evaluate35162() {
+    return bitLe(bitInput("101"), bitInput("100"));
+}
+export function evaluate35163() {
+    return bitLe(bitInput("1"), bitInput("10"));
+}
+export function evaluate35164() {
+    return bitLe(bitInput("0"), bitInput("00"));
+}
+export function evaluate35165() {
+    return bitLe(bitInput(""), bitInput("0"));
+}
+export function evaluate35166() {
+    return bitLe(bitInput(null), bitInput("1"));
+}
+export function evaluate35167() {
+    return bitLe(bitInput("1"), bitInput(null));
+}
+export function evaluate35168() {
+    return bitLt(bitInput("101"), bitInput("101"));
+}
+export function evaluate35169() {
+    return bitLt(bitInput("101"), bitInput("100"));
+}
+export function evaluate35170() {
+    return bitLt(bitInput("1"), bitInput("10"));
+}
+export function evaluate35171() {
+    return bitLt(bitInput("0"), bitInput("00"));
+}
+export function evaluate35172() {
+    return bitLt(bitInput(""), bitInput("0"));
+}
+export function evaluate35173() {
+    return bitLt(bitInput(null), bitInput("1"));
+}
+export function evaluate35174() {
+    return bitLt(bitInput("1"), bitInput(null));
+}
+export function evaluate35175() {
+    return bitNe(bitInput("101"), bitInput("101"));
+}
+export function evaluate35176() {
+    return bitNe(bitInput("101"), bitInput("100"));
+}
+export function evaluate35177() {
+    return bitNe(bitInput("1"), bitInput("10"));
+}
+export function evaluate35178() {
+    return bitNe(bitInput("0"), bitInput("00"));
+}
+export function evaluate35179() {
+    return bitNe(bitInput(""), bitInput("0"));
+}
+export function evaluate35180() {
+    return bitNe(bitInput(null), bitInput("1"));
+}
+export function evaluate35181() {
+    return bitNe(bitInput("1"), bitInput(null));
+}
+export function evaluate35182() {
+    return bitCompare(bitInput("101"), bitInput("101"));
+}
+export function evaluate35183() {
+    return bitCompare(bitInput("101"), bitInput("100"));
+}
+export function evaluate35184() {
+    return bitCompare(bitInput("1"), bitInput("10"));
+}
+export function evaluate35185() {
+    return bitCompare(bitInput("0"), bitInput("00"));
+}
+export function evaluate35186() {
+    return bitCompare(bitInput(""), bitInput("0"));
+}
+export function evaluate35187() {
+    return bitCompare(bitInput(null), bitInput("1"));
+}
+export function evaluate35188() {
+    return bitCompare(bitInput("1"), bitInput(null));
+}
+export function evaluate35189() {
+    return bitEq(bitInput("101"), bitInput("101"));
+}
+export function evaluate35190() {
+    return bitEq(bitInput("101"), bitInput("100"));
+}
+export function evaluate35191() {
+    return bitEq(bitInput("1"), bitInput("10"));
+}
+export function evaluate35192() {
+    return bitEq(bitInput("0"), bitInput("00"));
+}
+export function evaluate35193() {
+    return bitEq(bitInput(""), bitInput("0"));
+}
+export function evaluate35194() {
+    return bitEq(bitInput(null), bitInput("1"));
+}
+export function evaluate35195() {
+    return bitEq(bitInput("1"), bitInput(null));
+}
+export function evaluate35196() {
+    return bitGe(bitInput("101"), bitInput("101"));
+}
+export function evaluate35197() {
+    return bitGe(bitInput("101"), bitInput("100"));
+}
+export function evaluate35198() {
+    return bitGe(bitInput("1"), bitInput("10"));
+}
+export function evaluate35199() {
+    return bitGe(bitInput("0"), bitInput("00"));
+}
+export function evaluate35200() {
+    return bitGe(bitInput(""), bitInput("0"));
+}
+export function evaluate35201() {
+    return bitGe(bitInput(null), bitInput("1"));
+}
+export function evaluate35202() {
+    return bitGe(bitInput("1"), bitInput(null));
+}
+export function evaluate35203() {
+    return bitGt(bitInput("101"), bitInput("101"));
+}
+export function evaluate35204() {
+    return bitGt(bitInput("101"), bitInput("100"));
+}
+export function evaluate35205() {
+    return bitGt(bitInput("1"), bitInput("10"));
+}
+export function evaluate35206() {
+    return bitGt(bitInput("0"), bitInput("00"));
+}
+export function evaluate35207() {
+    return bitGt(bitInput(""), bitInput("0"));
+}
+export function evaluate35208() {
+    return bitGt(bitInput(null), bitInput("1"));
+}
+export function evaluate35209() {
+    return bitGt(bitInput("1"), bitInput(null));
+}
+export function evaluate35210() {
+    return bitLe(bitInput("101"), bitInput("101"));
+}
+export function evaluate35211() {
+    return bitLe(bitInput("101"), bitInput("100"));
+}
+export function evaluate35212() {
+    return bitLe(bitInput("1"), bitInput("10"));
+}
+export function evaluate35213() {
+    return bitLe(bitInput("0"), bitInput("00"));
+}
+export function evaluate35214() {
+    return bitLe(bitInput(""), bitInput("0"));
+}
+export function evaluate35215() {
+    return bitLe(bitInput(null), bitInput("1"));
+}
+export function evaluate35216() {
+    return bitLe(bitInput("1"), bitInput(null));
+}
+export function evaluate35217() {
+    return bitLt(bitInput("101"), bitInput("101"));
+}
+export function evaluate35218() {
+    return bitLt(bitInput("101"), bitInput("100"));
+}
+export function evaluate35219() {
+    return bitLt(bitInput("1"), bitInput("10"));
+}
+export function evaluate35220() {
+    return bitLt(bitInput("0"), bitInput("00"));
+}
+export function evaluate35221() {
+    return bitLt(bitInput(""), bitInput("0"));
+}
+export function evaluate35222() {
+    return bitLt(bitInput(null), bitInput("1"));
+}
+export function evaluate35223() {
+    return bitLt(bitInput("1"), bitInput(null));
+}
+export function evaluate35224() {
+    return bitNe(bitInput("101"), bitInput("101"));
+}
+export function evaluate35225() {
+    return bitNe(bitInput("101"), bitInput("100"));
+}
+export function evaluate35226() {
+    return bitNe(bitInput("1"), bitInput("10"));
+}
+export function evaluate35227() {
+    return bitNe(bitInput("0"), bitInput("00"));
+}
+export function evaluate35228() {
+    return bitNe(bitInput(""), bitInput("0"));
+}
+export function evaluate35229() {
+    return bitNe(bitInput(null), bitInput("1"));
+}
+export function evaluate35230() {
+    return bitNe(bitInput("1"), bitInput(null));
+}
+export function evaluate35231() {
+    return bitLt(bitInput("101"), bitInput("101"));
+}
+export function evaluate35232() {
+    return bitLt(bitInput("101"), bitInput("100"));
+}
+export function evaluate35233() {
+    return bitLt(bitInput("1"), bitInput("10"));
+}
+export function evaluate35234() {
+    return bitLt(bitInput("0"), bitInput("00"));
+}
+export function evaluate35235() {
+    return bitLt(bitInput(""), bitInput("0"));
+}
+export function evaluate35236() {
+    return bitLt(bitInput(null), bitInput("1"));
+}
+export function evaluate35237() {
+    return bitLt(bitInput("1"), bitInput(null));
+}
+export function evaluate35238() {
+    return bitLt(bitInput("101"), bitInput("101"));
+}
+export function evaluate35239() {
+    return bitLt(bitInput("101"), bitInput("100"));
+}
+export function evaluate35240() {
+    return bitLt(bitInput("1"), bitInput("10"));
+}
+export function evaluate35241() {
+    return bitLt(bitInput("0"), bitInput("00"));
+}
+export function evaluate35242() {
+    return bitLt(bitInput(""), bitInput("0"));
+}
+export function evaluate35243() {
+    return bitLt(bitInput(null), bitInput("1"));
+}
+export function evaluate35244() {
+    return bitLt(bitInput("1"), bitInput(null));
+}
+export function evaluate35245() {
+    return bitLe(bitInput("101"), bitInput("101"));
+}
+export function evaluate35246() {
+    return bitLe(bitInput("101"), bitInput("100"));
+}
+export function evaluate35247() {
+    return bitLe(bitInput("1"), bitInput("10"));
+}
+export function evaluate35248() {
+    return bitLe(bitInput("0"), bitInput("00"));
+}
+export function evaluate35249() {
+    return bitLe(bitInput(""), bitInput("0"));
+}
+export function evaluate35250() {
+    return bitLe(bitInput(null), bitInput("1"));
+}
+export function evaluate35251() {
+    return bitLe(bitInput("1"), bitInput(null));
+}
+export function evaluate35252() {
+    return bitLe(bitInput("101"), bitInput("101"));
+}
+export function evaluate35253() {
+    return bitLe(bitInput("101"), bitInput("100"));
+}
+export function evaluate35254() {
+    return bitLe(bitInput("1"), bitInput("10"));
+}
+export function evaluate35255() {
+    return bitLe(bitInput("0"), bitInput("00"));
+}
+export function evaluate35256() {
+    return bitLe(bitInput(""), bitInput("0"));
+}
+export function evaluate35257() {
+    return bitLe(bitInput(null), bitInput("1"));
+}
+export function evaluate35258() {
+    return bitLe(bitInput("1"), bitInput(null));
+}
+export function evaluate35259() {
+    return bitNe(bitInput("101"), bitInput("101"));
+}
+export function evaluate35260() {
+    return bitNe(bitInput("101"), bitInput("100"));
+}
+export function evaluate35261() {
+    return bitNe(bitInput("1"), bitInput("10"));
+}
+export function evaluate35262() {
+    return bitNe(bitInput("0"), bitInput("00"));
+}
+export function evaluate35263() {
+    return bitNe(bitInput(""), bitInput("0"));
+}
+export function evaluate35264() {
+    return bitNe(bitInput(null), bitInput("1"));
+}
+export function evaluate35265() {
+    return bitNe(bitInput("1"), bitInput(null));
+}
+export function evaluate35266() {
+    return bitNe(bitInput("101"), bitInput("101"));
+}
+export function evaluate35267() {
+    return bitNe(bitInput("101"), bitInput("100"));
+}
+export function evaluate35268() {
+    return bitNe(bitInput("1"), bitInput("10"));
+}
+export function evaluate35269() {
+    return bitNe(bitInput("0"), bitInput("00"));
+}
+export function evaluate35270() {
+    return bitNe(bitInput(""), bitInput("0"));
+}
+export function evaluate35271() {
+    return bitNe(bitInput(null), bitInput("1"));
+}
+export function evaluate35272() {
+    return bitNe(bitInput("1"), bitInput(null));
+}
+export function evaluate35273() {
+    return bitEq(bitInput("101"), bitInput("101"));
+}
+export function evaluate35274() {
+    return bitEq(bitInput("101"), bitInput("100"));
+}
+export function evaluate35275() {
+    return bitEq(bitInput("1"), bitInput("10"));
+}
+export function evaluate35276() {
+    return bitEq(bitInput("0"), bitInput("00"));
+}
+export function evaluate35277() {
+    return bitEq(bitInput(""), bitInput("0"));
+}
+export function evaluate35278() {
+    return bitEq(bitInput(null), bitInput("1"));
+}
+export function evaluate35279() {
+    return bitEq(bitInput("1"), bitInput(null));
+}
+export function evaluate35280() {
+    return bitEq(bitInput("101"), bitInput("101"));
+}
+export function evaluate35281() {
+    return bitEq(bitInput("101"), bitInput("100"));
+}
+export function evaluate35282() {
+    return bitEq(bitInput("1"), bitInput("10"));
+}
+export function evaluate35283() {
+    return bitEq(bitInput("0"), bitInput("00"));
+}
+export function evaluate35284() {
+    return bitEq(bitInput(""), bitInput("0"));
+}
+export function evaluate35285() {
+    return bitEq(bitInput(null), bitInput("1"));
+}
+export function evaluate35286() {
+    return bitEq(bitInput("1"), bitInput(null));
+}
+export function evaluate35287() {
+    return bitGt(bitInput("101"), bitInput("101"));
+}
+export function evaluate35288() {
+    return bitGt(bitInput("101"), bitInput("100"));
+}
+export function evaluate35289() {
+    return bitGt(bitInput("1"), bitInput("10"));
+}
+export function evaluate35290() {
+    return bitGt(bitInput("0"), bitInput("00"));
+}
+export function evaluate35291() {
+    return bitGt(bitInput(""), bitInput("0"));
+}
+export function evaluate35292() {
+    return bitGt(bitInput(null), bitInput("1"));
+}
+export function evaluate35293() {
+    return bitGt(bitInput("1"), bitInput(null));
+}
+export function evaluate35294() {
+    return bitGt(bitInput("101"), bitInput("101"));
+}
+export function evaluate35295() {
+    return bitGt(bitInput("101"), bitInput("100"));
+}
+export function evaluate35296() {
+    return bitGt(bitInput("1"), bitInput("10"));
+}
+export function evaluate35297() {
+    return bitGt(bitInput("0"), bitInput("00"));
+}
+export function evaluate35298() {
+    return bitGt(bitInput(""), bitInput("0"));
+}
+export function evaluate35299() {
+    return bitGt(bitInput(null), bitInput("1"));
+}
+export function evaluate35300() {
+    return bitGt(bitInput("1"), bitInput(null));
+}
+export function evaluate35301() {
+    return bitGe(bitInput("101"), bitInput("101"));
+}
+export function evaluate35302() {
+    return bitGe(bitInput("101"), bitInput("100"));
+}
+export function evaluate35303() {
+    return bitGe(bitInput("1"), bitInput("10"));
+}
+export function evaluate35304() {
+    return bitGe(bitInput("0"), bitInput("00"));
+}
+export function evaluate35305() {
+    return bitGe(bitInput(""), bitInput("0"));
+}
+export function evaluate35306() {
+    return bitGe(bitInput(null), bitInput("1"));
+}
+export function evaluate35307() {
+    return bitGe(bitInput("1"), bitInput(null));
+}
+export function evaluate35308() {
+    return bitGe(bitInput("101"), bitInput("101"));
+}
+export function evaluate35309() {
+    return bitGe(bitInput("101"), bitInput("100"));
+}
+export function evaluate35310() {
+    return bitGe(bitInput("1"), bitInput("10"));
+}
+export function evaluate35311() {
+    return bitGe(bitInput("0"), bitInput("00"));
+}
+export function evaluate35312() {
+    return bitGe(bitInput(""), bitInput("0"));
+}
+export function evaluate35313() {
+    return bitGe(bitInput(null), bitInput("1"));
+}
+export function evaluate35314() {
+    return bitGe(bitInput("1"), bitInput(null));
+}
+export function evaluate35315() {
+    return bitAnd(bitInput("1010"), bitInput("1100"));
+}
+export function evaluate35316() {
+    return bitAnd(bitInput("1111"), bitInput("0000"));
+}
+export function evaluate35317() {
+    return bitAnd(bitInput("101"), bitInput("10"));
+}
+export function evaluate35318() {
+    return bitAnd(bitInput(null), bitInput("1010"));
+}
+export function evaluate35319() {
+    return bitAnd(bitInput("1010"), bitInput(null));
+}
+export function evaluate35320() {
+    return bitOr(bitInput("1010"), bitInput("1100"));
+}
+export function evaluate35321() {
+    return bitOr(bitInput("1111"), bitInput("0000"));
+}
+export function evaluate35322() {
+    return bitOr(bitInput("101"), bitInput("10"));
+}
+export function evaluate35323() {
+    return bitOr(bitInput(null), bitInput("1010"));
+}
+export function evaluate35324() {
+    return bitOr(bitInput("1010"), bitInput(null));
+}
+export function evaluate35325() {
+    return bitXor(bitInput("1010"), bitInput("1100"));
+}
+export function evaluate35326() {
+    return bitXor(bitInput("1111"), bitInput("0000"));
+}
+export function evaluate35327() {
+    return bitXor(bitInput("101"), bitInput("10"));
+}
+export function evaluate35328() {
+    return bitXor(bitInput(null), bitInput("1010"));
+}
+export function evaluate35329() {
+    return bitXor(bitInput("1010"), bitInput(null));
+}
+export function evaluate35330() {
+    return bitAnd(bitInput("1010"), bitInput("1100"));
+}
+export function evaluate35331() {
+    return bitAnd(bitInput("1111"), bitInput("0000"));
+}
+export function evaluate35332() {
+    return bitAnd(bitInput("101"), bitInput("10"));
+}
+export function evaluate35333() {
+    return bitAnd(bitInput(null), bitInput("1010"));
+}
+export function evaluate35334() {
+    return bitAnd(bitInput("1010"), bitInput(null));
+}
+export function evaluate35335() {
+    return bitOr(bitInput("1010"), bitInput("1100"));
+}
+export function evaluate35336() {
+    return bitOr(bitInput("1111"), bitInput("0000"));
+}
+export function evaluate35337() {
+    return bitOr(bitInput("101"), bitInput("10"));
+}
+export function evaluate35338() {
+    return bitOr(bitInput(null), bitInput("1010"));
+}
+export function evaluate35339() {
+    return bitOr(bitInput("1010"), bitInput(null));
+}
+export function evaluate35340() {
+    return bitXor(bitInput("1010"), bitInput("1100"));
+}
+export function evaluate35341() {
+    return bitXor(bitInput("1111"), bitInput("0000"));
+}
+export function evaluate35342() {
+    return bitXor(bitInput("101"), bitInput("10"));
+}
+export function evaluate35343() {
+    return bitXor(bitInput(null), bitInput("1010"));
+}
+export function evaluate35344() {
+    return bitXor(bitInput("1010"), bitInput(null));
+}
+export function evaluate35345() {
+    return bitNot(bitInput(null));
+}
+export function evaluate35346() {
+    return bitNot(bitInput(""));
+}
+export function evaluate35347() {
+    return bitNot(bitInput("1010"));
+}
+export function evaluate35348() {
+    return bitNot(bitInput("0"));
+}
+export function evaluate35349() {
+    return bitNot(bitInput("1010"));
+}
+export function evaluate35350() {
+    return bitShiftLeft(bitInput("10110001"), int4Input(null));
+}
+export function evaluate35351() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("0"));
+}
+export function evaluate35352() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("1"));
+}
+export function evaluate35353() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("-1"));
+}
+export function evaluate35354() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("8"));
+}
+export function evaluate35355() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("-2147483648"));
+}
+export function evaluate35356() {
+    return bitShiftRight(bitInput("10110001"), int4Input(null));
+}
+export function evaluate35357() {
+    return bitShiftRight(bitInput("10110001"), int4Input("0"));
+}
+export function evaluate35358() {
+    return bitShiftRight(bitInput("10110001"), int4Input("1"));
+}
+export function evaluate35359() {
+    return bitShiftRight(bitInput("10110001"), int4Input("-1"));
+}
+export function evaluate35360() {
+    return bitShiftRight(bitInput("10110001"), int4Input("8"));
+}
+export function evaluate35361() {
+    return bitShiftRight(bitInput("10110001"), int4Input("-2147483648"));
+}
+export function evaluate35362() {
+    return bitShiftLeft(bitInput("10110001"), int4Input(null));
+}
+export function evaluate35363() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("0"));
+}
+export function evaluate35364() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("1"));
+}
+export function evaluate35365() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("-1"));
+}
+export function evaluate35366() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("8"));
+}
+export function evaluate35367() {
+    return bitShiftLeft(bitInput("10110001"), int4Input("-2147483648"));
+}
+export function evaluate35368() {
+    return bitShiftRight(bitInput("10110001"), int4Input(null));
+}
+export function evaluate35369() {
+    return bitShiftRight(bitInput("10110001"), int4Input("0"));
+}
+export function evaluate35370() {
+    return bitShiftRight(bitInput("10110001"), int4Input("1"));
+}
+export function evaluate35371() {
+    return bitShiftRight(bitInput("10110001"), int4Input("-1"));
+}
+export function evaluate35372() {
+    return bitShiftRight(bitInput("10110001"), int4Input("8"));
+}
+export function evaluate35373() {
+    return bitShiftRight(bitInput("10110001"), int4Input("-2147483648"));
+}
+export function evaluate35374() {
+    return bitCat(bitInput("10"), bitInput("11"));
+}
+export function evaluate35375() {
+    return bitCat(bitInput(""), bitInput("1"));
+}
+export function evaluate35376() {
+    return bitCat(bitInput("1"), bitInput(""));
+}
+export function evaluate35377() {
+    return bitCat(bitInput(null), bitInput("1"));
+}
+export function evaluate35378() {
+    return bitCat(bitInput("10"), bitInput("11"));
+}
+export function evaluate35379() {
+    return bitCat(bitInput(""), bitInput("1"));
+}
+export function evaluate35380() {
+    return bitCat(bitInput("1"), bitInput(""));
+}
+export function evaluate35381() {
+    return bitCat(bitInput(null), bitInput("1"));
+}
+export function evaluate35382() {
+    return bitLength(bitInput(null));
+}
+export function evaluate35383() {
+    return bitLength(bitInput(""));
+}
+export function evaluate35384() {
+    return bitLength(bitInput("1"));
+}
+export function evaluate35385() {
+    return bitLength(bitInput("101010011"));
+}
+export function evaluate35386() {
+    return bitOctetLength(bitInput(null));
+}
+export function evaluate35387() {
+    return bitOctetLength(bitInput(""));
+}
+export function evaluate35388() {
+    return bitOctetLength(bitInput("1"));
+}
+export function evaluate35389() {
+    return bitOctetLength(bitInput("101010011"));
+}
+export function evaluate35390() {
+    return bitLength(bitInput(null));
+}
+export function evaluate35391() {
+    return bitLength(bitInput(""));
+}
+export function evaluate35392() {
+    return bitLength(bitInput("1"));
+}
+export function evaluate35393() {
+    return bitLength(bitInput("101010011"));
+}
+export function evaluate35394() {
+    return bitCount(bitInput(null));
+}
+export function evaluate35395() {
+    return bitCount(bitInput(""));
+}
+export function evaluate35396() {
+    return bitCount(bitInput("1"));
+}
+export function evaluate35397() {
+    return bitCount(bitInput("101010011"));
+}
+export function evaluate35398() {
+    return bitSubstrLength(bitInput("10110"), int4Input("1"), int4Input("2"));
+}
+export function evaluate35399() {
+    return bitSubstrLength(bitInput("10110"), int4Input("0"), int4Input("3"));
+}
+export function evaluate35400() {
+    return bitSubstrLength(bitInput("10110"), int4Input("-1"), int4Input("4"));
+}
+export function evaluate35401() {
+    return bitSubstrLength(bitInput("10110"), int4Input("2"), int4Input("-1"));
+}
+export function evaluate35402() {
+    return bitSubstr(bitInput("10110"), int4Input("2"));
+}
+export function evaluate35403() {
+    return bitSubstrLength(bitInput("10110"), int4Input("8"), int4Input("2"));
+}
+export function evaluate35404() {
+    return bitSubstrLength(bitInput("10110"), int4Input(null), int4Input("1"));
+}
+export function evaluate35405() {
+    return bitOverlay(bitInput("10110"), bitInput("11"), int4Input("2"));
+}
+export function evaluate35406() {
+    return bitOverlayLength(bitInput("10110"), bitInput("0"), int4Input("2"), int4Input("2"));
+}
+export function evaluate35407() {
+    return bitOverlayLength(bitInput("10110"), bitInput("1"), int4Input("0"), int4Input("1"));
+}
+export function evaluate35408() {
+    return bitOverlayLength(bitInput("10110"), bitInput("1"), int4Input("2"), int4Input("-1"));
+}
+export function evaluate35409() {
+    return bitPosition(bitInput("101101"), bitInput("011"));
+}
+export function evaluate35410() {
+    return bitPosition(bitInput("101101"), bitInput(""));
+}
+export function evaluate35411() {
+    return bitPosition(bitInput(""), bitInput(""));
+}
+export function evaluate35412() {
+    return bitPosition(bitInput(""), bitInput("1"));
+}
+export function evaluate35413() {
+    return bitPosition(bitInput("101"), bitInput("111"));
+}
+export function evaluate35414() {
+    return bitPosition(bitInput(null), bitInput("1"));
+}
+export function evaluate35415() {
+    return bitGet(bitInput("1011"), int4Input(null));
+}
+export function evaluate35416() {
+    return bitGet(bitInput("1011"), int4Input("0"));
+}
+export function evaluate35417() {
+    return bitGet(bitInput("1011"), int4Input("1"));
+}
+export function evaluate35418() {
+    return bitGet(bitInput("1011"), int4Input("4"));
+}
+export function evaluate35419() {
+    return bitGet(bitInput("1011"), int4Input("-1"));
+}
+export function evaluate35420() {
+    return bitSet(bitInput("1011"), int4Input("0"), int4Input("0"));
+}
+export function evaluate35421() {
+    return bitSet(bitInput("1011"), int4Input("3"), int4Input("1"));
+}
+export function evaluate35422() {
+    return bitSet(bitInput("1011"), int4Input("-1"), int4Input("1"));
+}
+export function evaluate35423() {
+    return bitSet(bitInput("1011"), int4Input("1"), int4Input("2"));
+}
+export function evaluate35424() {
+    return bitSet(bitInput("1011"), int4Input(null), int4Input("1"));
+}
+export function evaluate35425() {
+    return bitTypmod(bitInput("101"), int4Input("3"), booleanInput(true));
+}
+export function evaluate35426() {
+    return bitTypmod(bitInput("101"), int4Input("5"), booleanInput(true));
+}
+export function evaluate35427() {
+    return bitTypmod(bitInput("10110"), int4Input("3"), booleanInput(true));
+}
+export function evaluate35428() {
+    return bitTypmod(bitInput("101"), int4Input("5"), booleanInput(false));
+}
+export function evaluate35429() {
+    return bitTypmod(bitInput("101"), int4Input("0"), booleanInput(true));
+}
+export function evaluate35430() {
+    return bitTypmod(bitInput(null), int4Input("4"), booleanInput(true));
+}
+export function evaluate35431() {
+    return varbitTypmod(bitInput("101"), int4Input("5"), booleanInput(false));
+}
+export function evaluate35432() {
+    return varbitTypmod(bitInput("10110"), int4Input("3"), booleanInput(false));
+}
+export function evaluate35433() {
+    return varbitTypmod(bitInput("10110"), int4Input("3"), booleanInput(true));
+}
+export function evaluate35434() {
+    return varbitTypmod(bitInput("101"), int4Input("0"), booleanInput(true));
+}
+export function evaluate35435() {
+    return varbitTypmod(bitInput(null), int4Input("3"), booleanInput(true));
+}
+export function evaluate35436() {
+    return bitFromInt4(int4Input("5"), int4Input("4"));
+}
+export function evaluate35437() {
+    return bitFromInt4(int4Input("-1"), int4Input("4"));
+}
+export function evaluate35438() {
+    return bitFromInt4(int4Input("1"), int4Input("8"));
+}
+export function evaluate35439() {
+    return bitFromInt4(int4Input("-1"), int4Input("40"));
+}
+export function evaluate35440() {
+    return bitFromInt4(int4Input("5"), int4Input("0"));
+}
+export function evaluate35441() {
+    return bitFromInt4(int4Input(null), int4Input("4"));
+}
+export function evaluate35442() {
+    return bitFromInt4(int4Input("1"), int4Input(null));
+}
+export function evaluate35443() {
+    return bitFromInt8(int8Input("-1"), int4Input("8"));
+}
+export function evaluate35444() {
+    return bitFromInt8(int8Input("1"), int4Input("70"));
+}
+export function evaluate35445() {
+    return bitFromInt8(int8Input("9223372036854775807"), int4Input("64"));
+}
+export function evaluate35446() {
+    return bitFromInt8(int8Input("-9223372036854775808"), int4Input("64"));
+}
+export function evaluate35447() {
+    return bitToInt4(bitInput(""));
+}
+export function evaluate35448() {
+    return bitToInt4(bitInput("1"));
+}
+export function evaluate35449() {
+    return bitToInt4(bitInput("101"));
+}
+export function evaluate35450() {
+    return bitToInt4(bitInput("10000000"));
+}
+export function evaluate35451() {
+    return bitToInt4(bitInput("11111111111111111111111111111111"));
+}
+export function evaluate35452() {
+    return bitToInt4(bitInput("111111111111111111111111111111111"));
+}
+export function evaluate35453() {
+    return bitToInt4(bitInput(null));
+}
+export function evaluate35454() {
+    return bitToInt8(bitInput("1111111111111111111111111111111111111111111111111111111111111111"));
+}
+export function evaluate35455() {
+    return bitToInt8(bitInput("11111111111111111111111111111111111111111111111111111111111111111"));
+}
+export function evaluate35456() {
+    return bitToInt8(bitInput("1"));
+}
+export function evaluate35457() {
+    return bitInput("xFF");
+}
+export function evaluate35458() {
+    return bitInput("xFF");
+}
+export function evaluate35459() {
+    return bitInput("Xff");
+}
+export function evaluate35460() {
+    return bitInput("xF");
+}
+export function evaluate35461() {
+    return bitInput("xA");
+}
+export function evaluate35462() {
+    return bitInput("xab");
+}
+export function evaluate35463() {
+    return bitInput("b1010");
+}
+export function evaluate35464() {
+    return bitInput("B1010");
+}
+export function evaluate35465() {
+    return bitInput("x");
+}
+export function evaluate35466() {
+    return bitInput("b");
+}
+export function evaluate35467() {
     return bitEq(bitInput("xA"), bitInput("1010"));
 }

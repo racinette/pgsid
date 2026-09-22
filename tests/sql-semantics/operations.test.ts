@@ -17,6 +17,8 @@ import {
   byteaSliceSignatures,
   byteaLikeSignatures,
   byteaOrderSignatures,
+  internalCharComparisonSignatures,
+  nameComparisonSignatures,
   nameLikeSignatures,
   textSignatures,
 } from '../fixtures/sql-semantics/operations/text-signatures.js'
@@ -839,6 +841,8 @@ describe('generated PostgreSQL scalar evaluation', () => {
       ...Object.keys(PG18_BOOLEAN).filter((signature) => signature.startsWith('operator:')),
       ...textSignatures,
       ...nameLikeSignatures,
+      ...nameComparisonSignatures,
+      ...internalCharComparisonSignatures,
       ...byteaLikeSignatures,
       ...byteaLengthSignatures,
       ...byteaAccessSignatures,
@@ -859,7 +863,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
     expect(supported.map((row) => row.signature).sort()).toEqual(
       [...expected, ...additional].sort(),
     )
-    expect(supported).toHaveLength(872)
+    expect(supported).toHaveLength(924)
     expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
     expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
   })
@@ -1116,6 +1120,13 @@ describe('generated PostgreSQL scalar evaluation', () => {
             string,
           ],
       ),
+      ...['a\0b', '\uD800', '\uDC00'].map(
+        (value) =>
+          [
+            { kind: 'internal-char', type: 'pg_catalog."char"', value },
+            'Invalid PostgreSQL UTF8',
+          ] as [SqlExpression, string],
+      ),
       ...['zz', 'a', 'A G'].map(
         (value) =>
           [{ kind: 'bytea', type: 'pg_catalog.bytea', value }, 'Invalid bytea'] as [
@@ -1164,6 +1175,16 @@ describe('generated PostgreSQL scalar evaluation', () => {
       if (!guarded) continue
       const fixture = standardCases.find(
         (fixture) => fixture.name === `text utility ${signature} 0`,
+      )!
+      for (const collation of [undefined, 'en-US'])
+        invalid.push([
+          { ...fixture.expression, collation } as SqlExpression,
+          'Unsupported text collation',
+        ])
+    }
+    for (const signature of nameComparisonSignatures) {
+      const fixture = standardCases.find(
+        (candidate) => candidate.name === `name comparison ${signature} 0`,
       )!
       for (const collation of [undefined, 'en-US'])
         invalid.push([

@@ -644,6 +644,21 @@ export const typescriptTextHelpers: Record<
   return textUtf8Decode(bytes.subarray(0, length))
 }`,
   },
+  charInput: {
+    dependencies: ['textUtf8Encode'],
+    source: `function charInput(value: string | null): bigint | null {
+  if (value === null) return null
+  const bytes = textUtf8Encode(value)
+  if (
+    bytes.length === 4 &&
+    bytes[0] === 92 &&
+    bytes[1]! >= 48 && bytes[1]! <= 55 &&
+    bytes[2]! >= 48 && bytes[2]! <= 55 &&
+    bytes[3]! >= 48 && bytes[3]! <= 55
+  ) return BigInt(((bytes[1]! - 48) * 64 + (bytes[2]! - 48) * 8 + bytes[3]! - 48) & 255)
+  return BigInt(bytes[0] ?? 0)
+}`,
+  },
   byteaInput: {
     dependencies: ['sqlTextError'],
     source: `function byteaInput(value: string | null): string | null {
