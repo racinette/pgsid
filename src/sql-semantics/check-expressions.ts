@@ -4,8 +4,14 @@ import type { PostgresRegexOptions } from './regex/ast.js'
 import { parseRegexpLikeFlags } from './regex/flags.js'
 import { similarToEscape } from './regex/similar.js'
 import type { TypedSqlExpression } from './signatures.js'
+import {
+  emitEvalExpression,
+  type EvalExpression,
+  type EvalExpressionBackend,
+} from './eval-expressions.js'
 
 export type EvalBoolExpression =
+  | { kind: 'eval-scalar'; expression: EvalExpression }
   | { kind: 'certain'; expression: SqlExpression }
   | { kind: 'uncertain' }
   | {
@@ -42,6 +48,8 @@ export type EvalBoolExpression =
   | { kind: 'eval-call'; call: Extract<SqlExpression, { kind: 'operator' | 'function' }> }
 
 export interface EvalBoolBackend<Ast> {
+  scalar: EvalExpressionBackend<Ast>
+  partialScalar: (value: Ast) => { expression: Ast; helpers: readonly string[] }
   certain: (value: TypedSqlExpression<Ast, 'pg_catalog.bool'>) => Ast
   uncertain: () => Ast
   logic: (
@@ -88,6 +96,15 @@ export function emitEvalBoolExpression<Ast>(
     for (const name of names) helpers.add(name)
   }
   const emit = (node: EvalBoolExpression): Ast => {
+    if (node.kind === 'eval-scalar') {
+      const result = emitEvalExpression(node.expression, scalarBackend, backend.scalar)
+      if (result.value.type !== 'pg_catalog.bool')
+        throw new Error('A scalar CHECK atom must be boolean')
+      include(result.helpers)
+      const bridged = backend.partialScalar(result.value.expression)
+      include(bridged.helpers)
+      return bridged.expression
+    }
     if (node.kind === 'certain') {
       if (node.expression.type !== 'pg_catalog.bool')
         throw new Error('A certain CHECK atom must be boolean')

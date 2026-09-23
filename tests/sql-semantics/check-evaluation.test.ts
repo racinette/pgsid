@@ -21,6 +21,7 @@ import {
 import { emitSqlExpression, type SqlExpression } from '../../src/sql-semantics/expressions.js'
 import type { PostgresRegexOptions } from '../../src/sql-semantics/regex/ast.js'
 import { parseRegexpLikeFlags } from '../../src/sql-semantics/regex/flags.js'
+import type { EvalExpression } from '../../src/sql-semantics/eval-expressions.js'
 import { numericMathCopyright } from '../../src/sql-semantics/numeric-math-license.js'
 
 const run = promisify(execFile)
@@ -97,6 +98,34 @@ const concat = (left: SqlExpression, right: SqlExpression): SqlExpression => ({
   type: 'pg_catalog.text',
   signature: 'operator:["pg_catalog","||"](pg_catalog.text,pg_catalog.text)',
   operands: [left, right],
+})
+
+const evalCertain = (expression: SqlExpression): EvalExpression => ({
+  kind: 'certain',
+  expression,
+})
+
+const evalType = (expression: EvalExpression): string =>
+  expression.kind === 'certain'
+    ? expression.expression.type
+    : expression.kind === 'call'
+      ? expression.call.type
+      : expression.type
+
+const evalCall = (
+  kind: 'operator' | 'function',
+  name: string,
+  type: string,
+  operands: readonly EvalExpression[],
+): EvalExpression => ({
+  kind: 'call',
+  call: {
+    kind,
+    type,
+    signature: `${kind}:${JSON.stringify(['pg_catalog', name])}(${operands.map(evalType).join(',')})`,
+    collation: 'C',
+  },
+  operands,
 })
 
 const bpchar = (value: string | null): SqlExpression => ({
@@ -506,6 +535,221 @@ const regexCases: CheckCase[] = [
   },
 ]
 
+const partialScalarCases: CheckCase[] = [
+  ...(
+    [
+      ['date', { kind: 'temporal', type: 'pg_catalog.date', value: '2024-01-01' }],
+      [
+        'uuid',
+        { kind: 'uuid', type: 'pg_catalog.uuid', value: '00000000-0000-0000-0000-000000000000' },
+      ],
+    ] as const
+  ).map(([name, literal]) => ({
+    name: `typed ${name} uncertainty survives equality`,
+    expression: {
+      kind: 'eval-scalar' as const,
+      expression: evalCall('operator', '=', 'pg_catalog.bool', [
+        { kind: 'uncertain', type: literal.type },
+        evalCertain(literal as SqlExpression),
+      ]),
+    },
+    expected: { certain: false } as const,
+  })),
+  {
+    name: 'typed COALESCE uses a later value after SQL NULL',
+    expression: {
+      kind: 'eval-scalar',
+      expression: evalCall('operator', '>', 'pg_catalog.bool', [
+        {
+          kind: 'coalesce',
+          type: 'pg_catalog.int4',
+          operands: [
+            evalCertain({ kind: 'integer', type: 'pg_catalog.int4', value: null }),
+            evalCertain(integer('7')),
+          ],
+        },
+        evalCertain(integer('0')),
+      ]),
+    },
+    expected: { certain: true, value: true },
+  },
+  {
+    name: 'typed COALESCE stops at uncertainty',
+    expression: {
+      kind: 'eval-scalar',
+      expression: evalCall('operator', '>', 'pg_catalog.bool', [
+        {
+          kind: 'coalesce',
+          type: 'pg_catalog.int4',
+          operands: [{ kind: 'uncertain', type: 'pg_catalog.int4' }, evalCertain(integer('7'))],
+        },
+        evalCertain(integer('0')),
+      ]),
+    },
+    expected: { certain: false },
+  },
+  {
+    name: 'typed CASE skips an unselected error',
+    expression: {
+      kind: 'eval-scalar',
+      expression: {
+        kind: 'case',
+        type: 'pg_catalog.bool',
+        branches: [
+          {
+            when: evalCertain({ kind: 'boolean', type: 'pg_catalog.bool', value: false }),
+            then: evalCall('operator', '>', 'pg_catalog.bool', [
+              evalCertain({
+                kind: 'operator',
+                type: 'pg_catalog.int4',
+                signature: 'operator:["pg_catalog","/"](pg_catalog.int4,pg_catalog.int4)',
+                operands: [integer('1'), integer('0')],
+              }),
+              evalCertain(integer('0')),
+            ]),
+          },
+        ],
+        otherwise: evalCertain({ kind: 'boolean', type: 'pg_catalog.bool', value: true }),
+      },
+    },
+    expected: { certain: true, value: true },
+  },
+  {
+    name: 'typed CASE uncertain condition is uncertain',
+    expression: {
+      kind: 'eval-scalar',
+      expression: {
+        kind: 'case',
+        type: 'pg_catalog.bool',
+        branches: [
+          {
+            when: { kind: 'uncertain', type: 'pg_catalog.bool' },
+            then: evalCertain({ kind: 'boolean', type: 'pg_catalog.bool', value: true }),
+          },
+        ],
+        otherwise: evalCertain({ kind: 'boolean', type: 'pg_catalog.bool', value: false }),
+      },
+    },
+    expected: { certain: false },
+  },
+  {
+    name: 'typed CASE skips an unselected uncertain value',
+    expression: {
+      kind: 'eval-scalar',
+      expression: {
+        kind: 'case',
+        type: 'pg_catalog.bool',
+        branches: [
+          {
+            when: evalCertain({ kind: 'boolean', type: 'pg_catalog.bool', value: false }),
+            then: { kind: 'uncertain', type: 'pg_catalog.bool' },
+          },
+        ],
+        otherwise: evalCertain({ kind: 'boolean', type: 'pg_catalog.bool', value: true }),
+      },
+    },
+    expected: { certain: true, value: true },
+  },
+  {
+    name: 'typed NULL test distinguishes uncertainty',
+    expression: {
+      kind: 'eval-scalar',
+      expression: {
+        kind: 'null-test',
+        type: 'pg_catalog.bool',
+        negated: false,
+        operand: { kind: 'uncertain', type: 'pg_catalog.text' },
+      },
+    },
+    expected: { certain: false },
+  },
+  {
+    name: 'typed boolean AND discovers false through uncertainty',
+    expression: {
+      kind: 'eval-scalar',
+      expression: {
+        kind: 'boolean-logic',
+        type: 'pg_catalog.bool',
+        operation: 'and',
+        operands: [
+          { kind: 'uncertain', type: 'pg_catalog.bool' },
+          evalCertain({ kind: 'boolean', type: 'pg_catalog.bool', value: false }),
+        ],
+      },
+    },
+    expected: { certain: true, value: false },
+  },
+  {
+    name: 'typed uncertain text propagates through length and comparison',
+    expression: {
+      kind: 'eval-scalar',
+      expression: evalCall('operator', '>', 'pg_catalog.bool', [
+        evalCall('function', 'length', 'pg_catalog.int4', [
+          { kind: 'uncertain', type: 'pg_catalog.text' },
+        ]),
+        evalCertain(integer('0')),
+      ]),
+    },
+    expected: { certain: false },
+  },
+  {
+    name: 'typed total calls stay certain',
+    expression: {
+      kind: 'eval-scalar',
+      expression: evalCall('operator', '>', 'pg_catalog.bool', [
+        evalCall('function', 'length', 'pg_catalog.int4', [evalCertain(text('abc'))]),
+        evalCertain(integer('0')),
+      ]),
+    },
+    expected: { certain: true, value: true },
+  },
+  {
+    name: 'typed SQL NULL is not uncertainty',
+    expression: {
+      kind: 'eval-scalar',
+      expression: evalCall('operator', '>', 'pg_catalog.bool', [
+        evalCall('function', 'length', 'pg_catalog.int4', [evalCertain(text(null))]),
+        evalCertain(integer('0')),
+      ]),
+    },
+    expected: { certain: true, value: null },
+  },
+  {
+    name: 'typed known error dominates uncertainty',
+    expression: {
+      kind: 'eval-scalar',
+      expression: evalCall('operator', '>', 'pg_catalog.bool', [
+        { kind: 'uncertain', type: 'pg_catalog.int4' },
+        evalCertain({
+          kind: 'operator',
+          type: 'pg_catalog.int4',
+          signature: 'operator:["pg_catalog","/"](pg_catalog.int4,pg_catalog.int4)',
+          operands: [integer('1'), integer('0')],
+        }),
+      ]),
+    },
+    expected: { certain: true, value: null, error: '22012' },
+  },
+  {
+    name: 'false AND skips typed uncertain scalar',
+    expression: {
+      kind: 'eval-boolean-logic',
+      operation: 'and',
+      operands: [
+        certain(false),
+        {
+          kind: 'eval-scalar',
+          expression: evalCall('operator', '>', 'pg_catalog.bool', [
+            { kind: 'uncertain', type: 'pg_catalog.int4' },
+            evalCertain(integer('0')),
+          ]),
+        },
+      ],
+    },
+    expected: { certain: true, value: false },
+  },
+]
+
 interface RegexCallableCase extends CheckCase {
   sql: string
   params: (string | null)[]
@@ -891,6 +1135,7 @@ const allCases = [
   ...comparisonCases,
   ...compositionCases,
   ...regexCases,
+  ...partialScalarCases,
   ...regexCallableCases,
   ...similarCases,
 ]

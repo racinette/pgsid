@@ -403,6 +403,124 @@ export interface ExpressionBackend<Ast> {
   decimal: (value: string | null) => Ast
 }
 
+export type SqlCallableExpression =
+  | {
+      kind: 'operator' | 'function'
+      signature: string
+      type: string
+      collation?: string
+    }
+  | { kind: 'cast'; signature: string | null; type: string }
+
+export function emitSqlCallable<Ast>(
+  node: SqlCallableExpression,
+  operands: readonly TypedSqlExpression<Ast>[],
+  backend: ExpressionBackend<Ast>,
+): { value: TypedSqlExpression<Ast>; helpers: readonly string[] } {
+  const signature = node.signature
+  if (signature === null) throw new Error('A relabel cast has no callable signature')
+  const operator = node.kind === 'operator'
+  const metadata = operator ? operatorMetadata(signature) : functionMetadata(signature)
+  if ((metadata.kind !== 'operator' && metadata.kind !== 'function') || metadata.returnsSet)
+    throw new Error(`Unsupported execution shape: ${signature}`)
+  if (
+    node.kind === 'cast' &&
+    (metadata.schema !== 'pg_catalog' ||
+      metadata.name !== node.type.slice('pg_catalog.'.length).replaceAll('"', '') ||
+      operands.length !== 1 ||
+      (node.type === 'pg_catalog.text'
+        ? !['pg_catalog.bool', 'pg_catalog.bpchar'].includes(operands[0]?.type ?? '')
+        : !/^pg_catalog\.(int[248]|float[48]|"numeric")$/.test(operands[0]?.type ?? '')))
+  )
+    throw new Error(`Invalid cast function: ${signature}`)
+  const variadicAny = metadata.kind === 'function' && metadata.variadic === 'pg_catalog."any"'
+  if (node.type !== metadata.result) throw new Error(`Invalid resolved expression: ${signature}`)
+  if (variadicAny) {
+    if (operands.length < 1) throw new Error(`Invalid resolved expression: ${signature}`)
+  } else if (operands.length !== metadata.args.length)
+    throw new Error(`Invalid resolved expression: ${signature}`)
+  for (let index = 0; index < operands.length; index++) {
+    const declared = variadicAny ? 'pg_catalog."any"' : metadata.args[index]!
+    if (!operandMatchesDeclared(declared, operands[index]!.type))
+      throw new Error(`Operand type mismatch: ${signature}, argument ${index}`)
+  }
+  const binding = backend.bindings
+    .map((group) => (operator ? group.operators : group.functions)[signature])
+    .find((candidate) => candidate !== undefined)
+  if (!binding) throw new Error(`Unsupported overload: ${signature}`)
+  if (
+    operands.some((operand) =>
+      ['pg_catalog.text', 'pg_catalog.bpchar', 'pg_catalog."varchar"', 'pg_catalog.name'].includes(
+        operand.type,
+      ),
+    ) &&
+    ((operator &&
+      ['=', '<>', '<', '<=', '>', '>=', '~~', '!~~', '~~*', '!~~*'].includes(metadata.name)) ||
+      (!operator &&
+        [
+          'texteq',
+          'textne',
+          'text_lt',
+          'text_le',
+          'text_gt',
+          'text_ge',
+          'bpchareq',
+          'bpcharne',
+          'bpcharlt',
+          'bpcharle',
+          'bpchargt',
+          'bpcharge',
+          'strpos',
+          'replace',
+          'split_part',
+          'starts_with',
+          'textlike',
+          'textnlike',
+          'bpcharlike',
+          'bpcharnlike',
+          'like',
+          'notlike',
+          'lower',
+          'upper',
+          'initcap',
+          'casefold',
+          'texticlike',
+          'texticnlike',
+          'bpchariclike',
+          'bpcharicnlike',
+          'namelike',
+          'namenlike',
+          'nameiclike',
+          'nameicnlike',
+          'nameeq',
+          'namene',
+          'namelt',
+          'namele',
+          'namegt',
+          'namege',
+          'nameeqtext',
+          'namenetext',
+          'namelttext',
+          'nameletext',
+          'namegttext',
+          'namegetext',
+          'texteqname',
+          'textnename',
+          'textltname',
+          'textlename',
+          'textgtname',
+          'textgename',
+        ].includes(metadata.name))) &&
+    node.kind !== 'cast' &&
+    node.collation !== 'C'
+  )
+    throw new Error('Unsupported text collation: expected C')
+  const emitter = binding as unknown as CallableEmitter<CallableMetadata, Ast>
+  const value = emitter.emit(metadata, operands)
+  if (value.type !== metadata.result) throw new Error(`Emitter result type mismatch: ${signature}`)
+  return { value, helpers: emitter.helpers }
+}
+
 export function emitSqlExpression<Ast>(
   expression: SqlExpression,
   backend: ExpressionBackend<Ast>,
@@ -926,118 +1044,10 @@ export function emitSqlExpression<Ast>(
       if (node.operand.type !== node.type) throw new Error('Invalid relabel cast')
       return emit(node.operand)
     }
-    const signature = node.signature!
-    const operator = node.kind === 'operator'
-    const metadata = operator ? operatorMetadata(signature) : functionMetadata(signature)
-    if ((metadata.kind !== 'operator' && metadata.kind !== 'function') || metadata.returnsSet) {
-      throw new Error(`Unsupported execution shape: ${signature}`)
-    }
     const operands = node.kind === 'cast' ? [node.operand] : node.operands
-    if (
-      node.kind === 'cast' &&
-      (metadata.schema !== 'pg_catalog' ||
-        metadata.name !== node.type.slice('pg_catalog.'.length).replaceAll('"', '') ||
-        operands.length !== 1 ||
-        (node.type === 'pg_catalog.text'
-          ? !['pg_catalog.bool', 'pg_catalog.bpchar'].includes(node.operand.type)
-          : !/^pg_catalog\.(int[248]|float[48]|"numeric")$/.test(node.operand.type)))
-    ) {
-      throw new Error(`Invalid cast function: ${signature}`)
-    }
-    const variadicAny = metadata.kind === 'function' && metadata.variadic === 'pg_catalog."any"'
-    if (node.type !== metadata.result) throw new Error(`Invalid resolved expression: ${signature}`)
-    if (variadicAny) {
-      if (operands.length < 1) throw new Error(`Invalid resolved expression: ${signature}`)
-    } else if (operands.length !== metadata.args.length) {
-      throw new Error(`Invalid resolved expression: ${signature}`)
-    }
-    for (let i = 0; i < operands.length; i++) {
-      const declared = variadicAny ? 'pg_catalog."any"' : metadata.args[i]!
-      const actual = operands[i]!.type
-      if (!operandMatchesDeclared(declared, actual))
-        throw new Error(`Operand type mismatch: ${signature}, argument ${i}`)
-    }
-    const binding = backend.bindings
-      .map((group) => (operator ? group.operators : group.functions)[signature])
-      .find((binding) => binding !== undefined)
-    if (!binding) throw new Error(`Unsupported overload: ${signature}`)
-    const emitter = binding as unknown as CallableEmitter<CallableMetadata, Ast>
-    if (
-      operands.some((operand) =>
-        [
-          'pg_catalog.text',
-          'pg_catalog.bpchar',
-          'pg_catalog."varchar"',
-          'pg_catalog.name',
-        ].includes(operand.type),
-      ) &&
-      ((operator &&
-        ['=', '<>', '<', '<=', '>', '>=', '~~', '!~~', '~~*', '!~~*'].includes(metadata.name)) ||
-        (!operator &&
-          [
-            'texteq',
-            'textne',
-            'text_lt',
-            'text_le',
-            'text_gt',
-            'text_ge',
-            'bpchareq',
-            'bpcharne',
-            'bpcharlt',
-            'bpcharle',
-            'bpchargt',
-            'bpcharge',
-            'strpos',
-            'replace',
-            'split_part',
-            'starts_with',
-            'textlike',
-            'textnlike',
-            'bpcharlike',
-            'bpcharnlike',
-            'like',
-            'notlike',
-            'lower',
-            'upper',
-            'initcap',
-            'casefold',
-            'texticlike',
-            'texticnlike',
-            'bpchariclike',
-            'bpcharicnlike',
-            'namelike',
-            'namenlike',
-            'nameiclike',
-            'nameicnlike',
-            'nameeq',
-            'namene',
-            'namelt',
-            'namele',
-            'namegt',
-            'namege',
-            'nameeqtext',
-            'namenetext',
-            'namelttext',
-            'nameletext',
-            'namegttext',
-            'namegetext',
-            'texteqname',
-            'textnename',
-            'textltname',
-            'textlename',
-            'textgtname',
-            'textgename',
-          ].includes(metadata.name))) &&
-      node.kind !== 'cast' &&
-      node.collation !== 'C'
-    )
-      throw new Error('Unsupported text collation: expected C')
-    const emittedOperands = operands.map(emit)
-    for (const helper of emitter.helpers) helpers.add(helper)
-    const result = emitter.emit(metadata, emittedOperands)
-    if (result.type !== metadata.result)
-      throw new Error(`Emitter result type mismatch: ${signature}`)
-    return result
+    const result = emitSqlCallable(node, operands.map(emit), backend)
+    for (const helper of result.helpers) helpers.add(helper)
+    return result.value
   }
   return { value: emit(expression), helpers: [...helpers] }
 }

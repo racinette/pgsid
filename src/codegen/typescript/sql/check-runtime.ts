@@ -4,11 +4,58 @@ export const typescriptCheckHelpers: Record<
   string,
   { dependencies: readonly string[]; source: string }
 > = {
-  EvalBool: {
+  EvalValue: {
     dependencies: [],
-    source: `type EvalBool =
+    source: `type EvalValue<T> =
   | { readonly certain: false }
-  | { readonly certain: true; readonly value: boolean | null }`,
+  | { readonly certain: true; readonly value: T | null }`,
+  },
+  evalValueCertain: {
+    dependencies: ['EvalValue'],
+    source: `function evalValueCertain<T>(value: T | null): EvalValue<T> {
+  return { certain: true, value }
+}`,
+  },
+  evalValueUncertain: {
+    dependencies: ['EvalValue'],
+    source: `function evalValueUncertain<T>(): EvalValue<T> {
+  return { certain: false }
+}`,
+  },
+  evalValueNullTest: {
+    dependencies: ['EvalValue', 'evalValueCertain', 'evalValueUncertain'],
+    source: `function evalValueNullTest<T>(operand: EvalValue<T>, negated: boolean): EvalValue<boolean> {
+  if (!operand.certain) return evalValueUncertain<boolean>()
+  return evalValueCertain(negated ? operand.value !== null : operand.value === null)
+}`,
+  },
+  evalValueCoalesce: {
+    dependencies: ['EvalValue', 'evalValueCertain'],
+    source: `function evalValueCoalesce<T>(...operands: readonly (() => EvalValue<T>)[]): EvalValue<T> {
+  for (const operand of operands) {
+    const value = operand()
+    if (!value.certain || value.value !== null) return value
+  }
+  return evalValueCertain<T>(null)
+}`,
+  },
+  evalValueCase: {
+    dependencies: ['EvalValue', 'evalValueUncertain'],
+    source: `function evalValueCase<T>(
+  otherwise: () => EvalValue<T>,
+  ...branches: readonly (readonly [() => EvalValue<boolean>, () => EvalValue<T>])[]
+): EvalValue<T> {
+  for (const [when, then] of branches) {
+    const condition = when()
+    if (!condition.certain) return evalValueUncertain<T>()
+    if (condition.value === true) return then()
+  }
+  return otherwise()
+}`,
+  },
+  EvalBool: {
+    dependencies: ['EvalValue'],
+    source: `type EvalBool = EvalValue<boolean>`,
   },
   evalBoolCertain: {
     dependencies: ['EvalBool'],

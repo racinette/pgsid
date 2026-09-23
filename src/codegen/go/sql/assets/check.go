@@ -1,8 +1,18 @@
 package pgsidsql
 
-type EvalBool struct {
+type EvalValue[T any] struct {
 	Certain bool
-	Value   SqlBoolean
+	Value   T
+}
+
+type EvalBool = EvalValue[SqlBoolean]
+
+func evalBoolFromValue(value EvalValue[SqlBoolean]) EvalBool {
+	return EvalBool{Certain: value.Certain, Value: value.Value}
+}
+
+func evalValueFromBool(value EvalBool) EvalValue[SqlBoolean] {
+	return EvalValue[SqlBoolean]{Certain: value.Certain, Value: value.Value}
 }
 
 func evalBoolCertain(value SqlBoolean) EvalBool { return EvalBool{Certain: true, Value: value} }
