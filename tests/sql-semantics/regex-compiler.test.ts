@@ -6,31 +6,15 @@ import { promisify } from 'node:util'
 import { PGlite } from '@electric-sql/pglite'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { compilePostgresRegex, type CompiledRegex } from '../../src/sql-semantics/regex/compiler.js'
-import { postgresRegexFeatures } from '../../src/sql-semantics/regex/features.js'
-import { parsePostgresRegex } from '../../src/sql-semantics/regex/parser.js'
-import type { RegexSemanticFeature } from '../../src/sql-semantics/regex/profile.js'
 import { REGEX_ENGINE_PROFILES } from '../../src/sql-semantics/regex/profiles.generated.js'
+import {
+  loadRegexConformanceVectors,
+  parseRegexConformanceVectors,
+  regexCapabilityReport,
+  type RegexConformanceVector,
+} from '../fixtures/sql-semantics/regex/conformance.js'
 
 const run = promisify(execFile)
-
-const fixtures = [
-  { pattern: '', subject: '', expected: true },
-  { pattern: '', subject: 'anything', expected: true },
-  { pattern: 'abc', subject: 'xxabcyy', expected: true },
-  { pattern: 'abc', subject: 'ab', expected: false },
-  { pattern: '😀', subject: 'before😀after', expected: true },
-  { pattern: String.raw`a\.b`, subject: 'xa.by', expected: true },
-  { pattern: String.raw`a\.b`, subject: 'xacby', expected: false },
-  { pattern: '***=a.*', subject: 'xa.*y', expected: true },
-  { pattern: '***=a.*', subject: 'axxx', expected: false },
-  { pattern: '^abc$', subject: 'abc', expected: true },
-  { pattern: '^abc$', subject: 'xabc', expected: false },
-  { pattern: '^abc$', subject: 'abc\n', expected: false },
-  { pattern: String.raw`\Aabc\Z`, subject: 'abc', expected: true },
-  { pattern: String.raw`\Aabc\Z`, subject: 'abc\n', expected: false },
-  { pattern: '^$', subject: '', expected: true },
-  { pattern: '^$', subject: '\n', expected: false },
-] as const
 
 const requireSupported = (result: CompiledRegex): Extract<CompiledRegex, { kind: 'supported' }> => {
   expect(result.kind).toBe('supported')
@@ -42,14 +26,14 @@ const requireSupported = (result: CompiledRegex): Extract<CompiledRegex, { kind:
 const goString = (value: string): string => JSON.stringify(value)
 
 const executeRe2 = async (
-  compiled: readonly Extract<CompiledRegex, { kind: 'supported' }>[],
+  compiled: readonly { regex: Extract<CompiledRegex, { kind: 'supported' }>; subject: string }[],
 ): Promise<readonly boolean[]> => {
   const directory = await mkdtemp(join(tmpdir(), 'pgsid-regex-re2-'))
   try {
     const evaluations = compiled
-      .map((regex, index) => {
+      .map(({ regex, subject }) => {
         expect(regex.flags).toEqual([])
-        return `regexp.MustCompile(${goString(regex.source)}).MatchString(${goString(fixtures[index]!.subject)})`
+        return `regexp.MustCompile(${goString(regex.source)}).MatchString(${goString(subject)})`
       })
       .join(',\n')
     await writeFile(join(directory, 'go.mod'), 'module regex-evidence\n\ngo 1.24\n')
@@ -88,53 +72,101 @@ ${evaluations},
 }
 
 let pg: PGlite
+let vectors: readonly RegexConformanceVector[]
 
 describe('PostgreSQL regex compatibility compiler', () => {
   beforeAll(async () => {
+    vectors = await loadRegexConformanceVectors()
     pg = await PGlite.create()
+    await pg.exec('BEGIN')
   })
 
   afterAll(async () => {
+    await pg.exec('ROLLBACK')
     await pg.close()
   })
 
-  it('matches PostgreSQL in ECMAScript and RE2 for every enabled lowering feature', async () => {
-    const postgres: boolean[] = []
-    for (const fixture of fixtures) {
-      const result = await pg.query<{ value: boolean }>('SELECT $1::text ~ $2::text AS value', [
-        fixture.subject,
-        fixture.pattern,
-      ])
-      postgres.push(result.rows[0]!.value)
+  it('matches PostgreSQL observations for every shared vector', async () => {
+    for (const vector of vectors) {
+      const { caseSensitive, ...otherOptions } = vector.options
+      expect(otherOptions).toEqual({})
+      const operator = caseSensitive === false ? '~*' : '~'
+      await pg.exec('SAVEPOINT regex_conformance')
+      let observed: { match: boolean } | { sqlstate: string }
+      try {
+        const result = await pg.query<{ value: boolean }>(
+          `SELECT ($1::text COLLATE "C") ${operator} $2::text AS value`,
+          [vector.subject, vector.pattern],
+        )
+        observed = { match: result.rows[0]!.value }
+        await pg.exec('RELEASE SAVEPOINT regex_conformance')
+      } catch (error) {
+        observed = { sqlstate: (error as { code?: string }).code ?? '' }
+        await pg.exec('ROLLBACK TO SAVEPOINT regex_conformance')
+        await pg.exec('RELEASE SAVEPOINT regex_conformance')
+      }
+      expect(observed, vector.id).toEqual(vector.expected)
     }
-    expect(postgres).toEqual(fixtures.map((fixture) => fixture.expected))
+  })
 
-    const ecmascript = fixtures.map((fixture) =>
-      requireSupported(compilePostgresRegex(fixture.pattern, REGEX_ENGINE_PROFILES.ecmascript)),
-    )
+  it('executes every supported ECMAScript vector', () => {
+    const supported = vectors.flatMap((vector) => {
+      const result = compilePostgresRegex(
+        vector.pattern,
+        REGEX_ENGINE_PROFILES.ecmascript,
+        vector.options,
+      )
+      if (result.kind !== 'supported') return []
+      if (!('match' in vector.expected)) throw new Error(`Invalid supported vector ${vector.id}`)
+      return [{ subject: vector.subject, expected: vector.expected.match, regex: result }]
+    })
     expect(
-      ecmascript.map((regex, index) =>
-        new RegExp(regex.source, regex.flags.join('')).test(fixtures[index]!.subject),
+      supported.map(({ subject, regex }) =>
+        new RegExp(regex.source, regex.flags.join('')).test(subject),
       ),
-    ).toEqual(postgres)
+    ).toEqual(supported.map(({ expected }) => expected))
+  })
 
-    const re2 = fixtures.map((fixture) =>
-      requireSupported(compilePostgresRegex(fixture.pattern, REGEX_ENGINE_PROFILES.re2)),
+  it('executes every supported RE2 vector', async () => {
+    const supported = vectors.flatMap((vector) => {
+      const result = compilePostgresRegex(vector.pattern, REGEX_ENGINE_PROFILES.re2, vector.options)
+      if (result.kind !== 'supported') return []
+      if (!('match' in vector.expected)) throw new Error(`Invalid supported vector ${vector.id}`)
+      return [{ subject: vector.subject, expected: vector.expected.match, regex: result }]
+    })
+    expect(await executeRe2(supported.map(({ subject, regex }) => ({ regex, subject })))).toEqual(
+      supported.map(({ expected }) => expected),
     )
-    expect(await executeRe2(re2)).toEqual(postgres)
+  })
 
-    const evidenced = new Set<RegexSemanticFeature>()
-    for (const fixture of fixtures) {
-      const parsed = parsePostgresRegex(fixture.pattern)
-      if (parsed.kind !== 'valid') throw new Error(`Expected valid fixture ${fixture.pattern}`)
-      postgresRegexFeatures(parsed.regex).forEach((feature) => evidenced.add(feature))
-    }
+  it('reports target decisions and evidence for every enabled feature', () => {
     for (const profile of Object.values(REGEX_ENGINE_PROFILES)) {
-      const enabled = Object.entries(profile.features)
-        .filter(([, disposition]) => disposition !== 'unsupported')
-        .map(([feature]) => feature)
-      expect([...evidenced].sort()).toEqual(enabled.sort())
+      for (const vector of vectors) {
+        const result = compilePostgresRegex(vector.pattern, profile, vector.options)
+        if ('sqlstate' in vector.expected) {
+          expect(result, vector.id).toMatchObject(vector.expected)
+          continue
+        }
+        const unavailable = vector.features.filter(
+          (feature) => profile.features[feature] === 'unsupported',
+        )
+        if (unavailable.length > 0)
+          expect(result, vector.id).toEqual({ kind: 'unsupported', features: unavailable })
+        else expect(result.kind, vector.id).toBe('supported')
+      }
     }
+    const report = regexCapabilityReport(vectors, Object.values(REGEX_ENGINE_PROFILES))
+    expect(
+      report
+        .filter((row) => row.strategy !== 'unsupported')
+        .every((row) => row.evidence.length > 0),
+    ).toBe(true)
+    expect(() =>
+      regexCapabilityReport(
+        vectors.filter((vector) => !vector.features.includes('empty-expression')),
+        Object.values(REGEX_ENGINE_PROFILES),
+      ),
+    ).toThrow(/No conformance evidence for ecmascript.empty-expression/u)
   })
 
   it('reports valid but unavailable semantics separately from invalid patterns', () => {
@@ -173,5 +205,32 @@ describe('PostgreSQL regex compatibility compiler', () => {
     await expect(pg.query("SELECT true AND ('value'::text ~ '(') AS value")).rejects.toMatchObject({
       code: '2201B',
     })
+  })
+
+  it('rejects malformed or mislabeled conformance vectors', () => {
+    const raw = `schema: pgsid.regex-conformance/v1
+vectors:
+  - id: empty
+    pattern: ''
+    options: {}
+    subject: ''
+    expected: { match: true }
+    features: [empty-expression, case-sensitive, unicode-code-points, substring-search]
+`
+    expect(() => parseRegexConformanceVectors(raw.replace('empty-expression', 'literal'))).toThrow(
+      /Incorrect regex conformance features/u,
+    )
+    expect(() =>
+      parseRegexConformanceVectors(
+        raw.replace('  - id: empty', '  - id: empty\n    invented: true'),
+      ),
+    ).toThrow()
+    expect(() =>
+      parseRegexConformanceVectors(
+        raw
+          .replace("pattern: ''", "pattern: &pattern ''")
+          .replace("subject: ''", 'subject: *pattern'),
+      ),
+    ).toThrow(/aliases are not allowed/u)
   })
 })
