@@ -161,3 +161,71 @@ func evalBoolRegexDynamic(value, pattern SqlText, syntax string, caseSensitive, 
 		panic("unknown regex analysis decision")
 	}
 }
+
+func regexLikeFlags(flags string) (string, bool, bool, string, string) {
+	syntax, caseSensitive, expanded, newline := "advanced", true, false, "ordinary"
+	global := false
+	for _, flag := range flags {
+		switch flag {
+		case 'g':
+			global = true
+		case 'b':
+			syntax = "basic"
+		case 'c':
+			caseSensitive = true
+		case 'e':
+			syntax = "extended"
+		case 'i':
+			caseSensitive = false
+		case 'm', 'n':
+			newline = "sensitive"
+		case 'p':
+			newline = "stop"
+		case 'q':
+			syntax = "literal"
+		case 's':
+			newline = "ordinary"
+		case 't':
+			expanded = false
+		case 'w':
+			newline = "anchors"
+		case 'x':
+			expanded = true
+		default:
+			return "", false, false, "", "22023"
+		}
+	}
+	if global {
+		return "", false, false, "", "22023"
+	}
+	return syntax, caseSensitive, expanded, newline, ""
+}
+
+func evalBoolRegexInvalidFlags(value, pattern SqlText) EvalBool {
+	if value.Error != "" {
+		return evalBoolCertain(SqlBoolean{Error: value.Error})
+	}
+	if pattern.Error != "" {
+		return evalBoolCertain(SqlBoolean{Error: pattern.Error})
+	}
+	if !value.Valid || !pattern.Valid {
+		return evalBoolCertain(SqlBoolean{})
+	}
+	return evalBoolCertain(SqlBoolean{Error: "22023"})
+}
+
+func evalBoolRegexpLike(value, pattern, flags SqlText) EvalBool {
+	for _, input := range []SqlText{value, pattern, flags} {
+		if input.Error != "" {
+			return evalBoolCertain(SqlBoolean{Error: input.Error})
+		}
+	}
+	if !value.Valid || !pattern.Valid || !flags.Valid {
+		return evalBoolCertain(SqlBoolean{})
+	}
+	syntax, caseSensitive, expanded, newline, errorCode := regexLikeFlags(flags.Value)
+	if errorCode != "" {
+		return evalBoolCertain(SqlBoolean{Error: errorCode})
+	}
+	return evalBoolRegexDynamic(value, pattern, syntax, caseSensitive, expanded, newline, false)
+}

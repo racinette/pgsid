@@ -89,4 +89,19 @@ export const goEvalBoolBackend: EvalBoolBackend<GoExpression> = {
       helpers: ['evalBoolRegex'],
     }
   },
+  regexWithFlags: (subject, pattern, flags) => ({
+    expression: go.call(go.ident('evalBoolRegexpLike'), [
+      subject.expression,
+      pattern.expression,
+      flags.expression,
+    ]),
+    helpers: ['evalBoolRegexpLike'],
+  }),
+  regexInvalidFlags: (subject, pattern) => ({
+    expression: go.call(go.ident('evalBoolRegexInvalidFlags'), [
+      subject.expression,
+      pattern.expression,
+    ]),
+    helpers: ['evalBoolRegexInvalidFlags'],
+  }),
 }

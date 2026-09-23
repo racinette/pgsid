@@ -3,8 +3,9 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { promisify } from 'node:util'
+import { PGlite } from '@electric-sql/pglite'
 import ts from 'typescript'
-import { describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { factory, identifier, printFile } from '../../src/codegen/typescript/ast.js'
 import { typescriptEvalBoolBackend } from '../../src/codegen/typescript/sql/check.js'
 import { typescriptSqlBackend } from '../../src/codegen/typescript/sql/registry.js'
@@ -17,8 +18,9 @@ import {
   emitEvalBoolExpression,
   type EvalBoolExpression,
 } from '../../src/sql-semantics/check-expressions.js'
-import type { SqlExpression } from '../../src/sql-semantics/expressions.js'
+import { emitSqlExpression, type SqlExpression } from '../../src/sql-semantics/expressions.js'
 import type { PostgresRegexOptions } from '../../src/sql-semantics/regex/ast.js'
+import { parseRegexpLikeFlags } from '../../src/sql-semantics/regex/flags.js'
 
 const run = promisify(execFile)
 
@@ -59,6 +61,35 @@ const dynamicRegex = (
 ): Extract<EvalBoolExpression, { kind: 'eval-regex' }> => ({
   ...regex(subject, '', options, negated),
   pattern: { kind: 'text', type: 'pg_catalog.text', value: pattern },
+})
+
+const text = (value: string | null): SqlExpression => ({
+  kind: 'text',
+  type: 'pg_catalog.text',
+  value,
+})
+
+const regexCall = (
+  kind: 'operator' | 'function',
+  name: string,
+  operands: readonly SqlExpression[],
+): EvalBoolExpression => ({
+  kind: 'eval-call',
+  call: {
+    kind,
+    type: 'pg_catalog.bool',
+    signature: `${kind}:${JSON.stringify(['pg_catalog', name])}(${operands.map((operand) => operand.type).join(',')})`,
+    collation: 'C',
+    operands,
+  },
+})
+
+const bpchar = (value: string | null): SqlExpression => ({
+  kind: 'text-coercion',
+  type: 'pg_catalog.bpchar',
+  length: 3,
+  explicit: false,
+  operand: text(value),
 })
 
 const integer = (value: string): SqlExpression => ({
@@ -460,6 +491,263 @@ const regexCases: CheckCase[] = [
   },
 ]
 
+interface RegexCallableCase extends CheckCase {
+  sql: string
+  params: (string | null)[]
+}
+
+const regexCallableCases: RegexCallableCase[] = [
+  ...(['text', 'name', 'bpchar'] as const).flatMap((subjectType) => {
+    const subject =
+      subjectType === 'text'
+        ? text('a')
+        : subjectType === 'name'
+          ? ({ kind: 'name', type: 'pg_catalog.name', value: 'a' } as const)
+          : bpchar('a')
+    const cast = subjectType === 'bpchar' ? 'char(3)' : subjectType
+    return (['~', '!~', '~*', '!~*'] as const).map((operator) => ({
+      name: `${subjectType} ${operator} operator`,
+      expression: regexCall('operator', operator, [subject, text('a')]),
+      expected: operator.endsWith('*')
+        ? ({ certain: false } as const)
+        : ({ certain: true, value: operator === '~' } as const),
+      sql: `SELECT $1::${cast} OPERATOR(pg_catalog.${operator}) $2::text AS value`,
+      params: ['a', 'a'],
+    }))
+  }),
+  ...(['text', 'name', 'bpchar'] as const).flatMap((subjectType) => {
+    const subject =
+      subjectType === 'text'
+        ? text('a')
+        : subjectType === 'name'
+          ? ({ kind: 'name', type: 'pg_catalog.name', value: 'a' } as const)
+          : bpchar('a')
+    const cast = subjectType === 'bpchar' ? 'char(3)' : subjectType
+    return (['regexeq', 'regexne', 'icregexeq', 'icregexne'] as const).map((suffix) => {
+      const name = `${subjectType}${suffix}`
+      return {
+        name: `${name} function`,
+        expression: regexCall('function', name, [subject, text('a')]),
+        expected: suffix.startsWith('ic')
+          ? ({ certain: false } as const)
+          : ({ certain: true, value: suffix === 'regexeq' } as const),
+        sql: `SELECT pg_catalog.${name}($1::${cast}, $2::text) AS value`,
+        params: ['a', 'a'],
+      }
+    })
+  }),
+  {
+    name: 'bpchar regex sees trailing spaces',
+    expression: regexCall('operator', '~', [bpchar('a'), text(' $')]),
+    expected: { certain: true, value: true },
+    sql: 'SELECT $1::char(3) OPERATOR(pg_catalog.~) $2::text AS value',
+    params: ['a', ' $'],
+  },
+  {
+    name: 'bpchar regex end anchor follows padding',
+    expression: regexCall('operator', '~', [bpchar('a'), text('a$')]),
+    expected: { certain: true, value: false },
+    sql: 'SELECT $1::char(3) OPERATOR(pg_catalog.~) $2::text AS value',
+    params: ['a', 'a$'],
+  },
+  {
+    name: 'regex function NULL subject suppresses invalid pattern',
+    expression: regexCall('function', 'textregexeq', [text(null), text('(')]),
+    expected: { certain: true, value: null },
+    sql: 'SELECT pg_catalog.textregexeq($1::text, $2::text) AS value',
+    params: [null, '('],
+  },
+  {
+    name: 'regex function NULL pattern stays SQL NULL',
+    expression: regexCall('function', 'bpcharregexne', [bpchar('a'), text(null)]),
+    expected: { certain: true, value: null },
+    sql: 'SELECT pg_catalog.bpcharregexne($1::char(3), $2::text) AS value',
+    params: ['a', null],
+  },
+  {
+    name: 'regex operator computes its pattern at evaluation time',
+    expression: regexCall('operator', '~', [
+      text('xxabcyy'),
+      {
+        kind: 'operator',
+        type: 'pg_catalog.text',
+        signature: 'operator:["pg_catalog","||"](pg_catalog.text,pg_catalog.text)',
+        operands: [text('ab'), text('c')],
+      },
+    ]),
+    expected: { certain: true, value: true },
+    sql: 'SELECT $1::text OPERATOR(pg_catalog.~) ($2::text || $3::text) AS value',
+    params: ['xxabcyy', 'ab', 'c'],
+  },
+  {
+    name: 'regex operator computes an unsupported pattern',
+    expression: regexCall('operator', '~', [
+      text('b'),
+      {
+        kind: 'operator',
+        type: 'pg_catalog.text',
+        signature: 'operator:["pg_catalog","||"](pg_catalog.text,pg_catalog.text)',
+        operands: [text('a|'), text('b')],
+      },
+    ]),
+    expected: { certain: false },
+    sql: 'SELECT $1::text OPERATOR(pg_catalog.~) ($2::text || $3::text) AS value',
+    params: ['b', 'a|', 'b'],
+  },
+  {
+    name: 'regex operator computes an invalid pattern',
+    expression: regexCall('operator', '~', [
+      text('b'),
+      {
+        kind: 'operator',
+        type: 'pg_catalog.text',
+        signature: 'operator:["pg_catalog","||"](pg_catalog.text,pg_catalog.text)',
+        operands: [text('('), text('')],
+      },
+    ]),
+    expected: { certain: true, value: null, error: '2201B' },
+    sql: 'SELECT $1::text OPERATOR(pg_catalog.~) ($2::text || $3::text) AS value',
+    params: ['b', '(', ''],
+  },
+  {
+    name: 'regexp_like without flags',
+    expression: regexCall('function', 'regexp_like', [text('xxabyy'), text('ab')]),
+    expected: { certain: true, value: true },
+    sql: 'SELECT pg_catalog.regexp_like($1::text, $2::text) AS value',
+    params: ['xxabyy', 'ab'],
+  },
+  {
+    name: 'regexp_like literal-syntax flag',
+    expression: regexCall('function', 'regexp_like', [text('xa.*y'), text('a.*'), text('q')]),
+    expected: { certain: true, value: true },
+    sql: 'SELECT pg_catalog.regexp_like($1::text, $2::text, $3::text) AS value',
+    params: ['xa.*y', 'a.*', 'q'],
+  },
+  ...(
+    [
+      ['b', 'a', 'a', true],
+      ['e', 'a', 'a', true],
+      ['m', 'a', 'a', true],
+      ['n', 'a', 'a', true],
+      ['p', 'a', 'a', true],
+      ['s', 'a', 'a', true],
+      ['w', 'a', 'a', true],
+      ['x', 'ab', 'a # comment\n b', true],
+      ['t', 'a b', 'a b', true],
+      ['c', 'A', 'a', false],
+      ['ic', 'A', 'a', false],
+    ] as const
+  ).map(([flags, subject, pattern, value]) => ({
+    name: `regexp_like ${flags} flags`,
+    expression: regexCall('function', 'regexp_like', [text(subject), text(pattern), text(flags)]),
+    expected: { certain: true, value } as const,
+    sql: 'SELECT pg_catalog.regexp_like($1::text, $2::text, $3::text) AS value',
+    params: [subject, pattern, flags],
+  })),
+  {
+    name: 'regexp_like computed flags',
+    expression: regexCall('function', 'regexp_like', [
+      text('xa.*y'),
+      text('a.*'),
+      {
+        kind: 'operator',
+        type: 'pg_catalog.text',
+        signature: 'operator:["pg_catalog","||"](pg_catalog.text,pg_catalog.text)',
+        operands: [text(''), text('q')],
+      },
+    ]),
+    expected: { certain: true, value: true },
+    sql: 'SELECT pg_catalog.regexp_like($1::text, $2::text, $3::text) AS value',
+    params: ['xa.*y', 'a.*', 'q'],
+  },
+  ...(['b', 'c', 'e', 'm', 'n', 'p', 's', 't', 'w', 'x', 'i', 'z'] as const).map((flag) => ({
+    name: `regexp_like computed ${flag} flag`,
+    expression: regexCall('function', 'regexp_like', [
+      text('a'),
+      text('a'),
+      {
+        kind: 'operator',
+        type: 'pg_catalog.text',
+        signature: 'operator:["pg_catalog","||"](pg_catalog.text,pg_catalog.text)',
+        operands: [text(''), text(flag)],
+      },
+    ]),
+    expected:
+      flag === 'z'
+        ? ({ certain: true, value: null, error: '22023' } as const)
+        : flag === 'i'
+          ? ({ certain: false } as const)
+          : ({ certain: true, value: true } as const),
+    sql: 'SELECT pg_catalog.regexp_like($1::text, $2::text, $3::text) AS value',
+    params: ['a', 'a', flag],
+  })),
+  {
+    name: 'regexp_like case-insensitive flag stays uncertain',
+    expression: regexCall('function', 'regexp_like', [text('A'), text('a'), text('i')]),
+    expected: { certain: false },
+    sql: 'SELECT pg_catalog.regexp_like($1::text, $2::text, $3::text) AS value',
+    params: ['A', 'a', 'i'],
+  },
+  ...(['g', 'z'] as const).map((flag) => ({
+    name: `regexp_like rejects ${flag} flag`,
+    expression: regexCall('function', 'regexp_like', [text('a'), text('a'), text(flag)]),
+    expected: { certain: true, value: null, error: '22023' } as const,
+    sql: 'SELECT pg_catalog.regexp_like($1::text, $2::text, $3::text) AS value',
+    params: ['a', 'a', flag],
+  })),
+  {
+    name: 'regexp_like computed invalid flags',
+    expression: regexCall('function', 'regexp_like', [
+      text('a'),
+      text('a'),
+      {
+        kind: 'operator',
+        type: 'pg_catalog.text',
+        signature: 'operator:["pg_catalog","||"](pg_catalog.text,pg_catalog.text)',
+        operands: [text(''), text('g')],
+      },
+    ]),
+    expected: { certain: true, value: null, error: '22023' },
+    sql: 'SELECT pg_catalog.regexp_like($1::text, $2::text, $3::text) AS value',
+    params: ['a', 'a', 'g'],
+  },
+  {
+    name: 'regexp_like rejects flags before compiling pattern',
+    expression: regexCall('function', 'regexp_like', [text('a'), text('('), text('g')]),
+    expected: { certain: true, value: null, error: '22023' },
+    sql: 'SELECT pg_catalog.regexp_like($1::text, $2::text, $3::text) AS value',
+    params: ['a', '(', 'g'],
+  },
+  {
+    name: 'regexp_like NULL suppresses invalid flags',
+    expression: regexCall('function', 'regexp_like', [text(null), text('a'), text('g')]),
+    expected: { certain: true, value: null },
+    sql: 'SELECT pg_catalog.regexp_like($1::text, $2::text, $3::text) AS value',
+    params: [null, 'a', 'g'],
+  },
+  {
+    name: 'regexp_like NULL flags yield SQL NULL',
+    expression: regexCall('function', 'regexp_like', [text('a'), text('a'), text(null)]),
+    expected: { certain: true, value: null },
+    sql: 'SELECT pg_catalog.regexp_like($1::text, $2::text, $3::text) AS value',
+    params: ['a', 'a', null],
+  },
+  {
+    name: 'false AND skips regexp_like invalid flags',
+    expression: {
+      kind: 'eval-boolean-logic',
+      operation: 'and',
+      operands: [
+        certain(false),
+        regexCall('function', 'regexp_like', [text('a'), text('a'), text('g')]),
+      ],
+    },
+    expected: { certain: true, value: false },
+    sql: 'SELECT false AND pg_catalog.regexp_like($1::text, $2::text, $3::text) AS value',
+    params: ['a', 'a', 'g'],
+  },
+]
+
 const allCases = [
   ...logicCases,
   ...notCases,
@@ -467,6 +755,7 @@ const allCases = [
   ...comparisonCases,
   ...compositionCases,
   ...regexCases,
+  ...regexCallableCases,
 ]
 
 function typescriptProject(): string {
@@ -526,6 +815,48 @@ function normalizeGo(value: {
 }
 
 describe('generated CHECK predicate evaluation', () => {
+  let pg: PGlite
+
+  beforeAll(async () => {
+    pg = await PGlite.create()
+  })
+
+  afterAll(async () => {
+    await pg.close()
+  })
+
+  it('matches PostgreSQL for catalog regex call forms', async () => {
+    for (const fixture of regexCallableCases) {
+      let observed: { value: boolean | null } | { error: string }
+      try {
+        const result = await pg.query<{ value: boolean | null }>(fixture.sql, fixture.params)
+        observed = result.rows[0]!
+      } catch (error) {
+        if (!(error instanceof Error) || !('code' in error) || typeof error.code !== 'string')
+          throw error
+        observed = { error: error.code }
+      }
+      if (fixture.expected.certain && fixture.expected.error)
+        expect(observed, fixture.name).toEqual({ error: fixture.expected.error })
+      else if (fixture.expected.certain)
+        expect(observed, fixture.name).toEqual({ value: fixture.expected.value })
+      else expect(observed, fixture.name).toHaveProperty('value')
+    }
+  })
+
+  it('maps regexp_like flags in order and rejects invalid options', () => {
+    expect(parseRegexpLikeFlags('qecixn')).toEqual({
+      kind: 'valid',
+      options: { syntax: 'extended', caseSensitive: false, expanded: true, newline: 'sensitive' },
+    })
+    expect(parseRegexpLikeFlags('nxst')).toEqual({
+      kind: 'valid',
+      options: { syntax: 'advanced', caseSensitive: true, expanded: false, newline: 'ordinary' },
+    })
+    expect(parseRegexpLikeFlags('g')).toEqual({ kind: 'invalid', sqlstate: '22023' })
+    expect(parseRegexpLikeFlags('z')).toEqual({ kind: 'invalid', sqlstate: '22023' })
+  })
+
   it('executes and typechecks the generated TypeScript evaluator', async () => {
     const source = typescriptProject()
     const directory = await mkdtemp(join(tmpdir(), 'pgsid-check-typescript-'))
@@ -643,6 +974,14 @@ return [${allCases.map((_, index) => `evaluate${index}`).join(',')}].map((evalua
     expect(printFile(typescriptSqlRuntime(constant.helpers))).not.toContain(
       'function evalBoolRegexAnalyze',
     )
+    const invalidFlags = emitEvalBoolExpression(
+      regexCall('function', 'regexp_like', [text('abc'), text('abc'), text('g')]),
+      typescriptSqlBackend,
+      typescriptEvalBoolBackend,
+    )
+    expect(printFile(typescriptSqlRuntime(invalidFlags.helpers))).not.toContain(
+      'function evalBoolRegexAnalyze',
+    )
     const dynamic = dynamicRegex('abc', 'abc')
     const typescript = emitEvalBoolExpression(
       dynamic,
@@ -723,5 +1062,42 @@ return [${allCases.map((_, index) => `evaluate${index}`).join(',')}].map((evalua
         typescriptEvalBoolBackend,
       ),
     ).toThrow('A dynamic regex CHECK pattern must have text type')
+    expect(() =>
+      emitEvalBoolExpression(
+        regexCall('function', 'regexp_count', [text('a'), text('a')]),
+        typescriptSqlBackend,
+        typescriptEvalBoolBackend,
+      ),
+    ).toThrow('Unsupported regex CHECK signature')
+    expect(() =>
+      emitEvalBoolExpression(
+        {
+          kind: 'eval-call',
+          call: {
+            kind: 'operator',
+            type: 'pg_catalog.bool',
+            signature: 'operator:["pg_catalog","~"](pg_catalog.text,pg_catalog.text)',
+            collation: 'en_US',
+            operands: [text('a'), text('a')],
+          },
+        },
+        goSqlBackend,
+        goEvalBoolBackend,
+      ),
+    ).toThrow('A regex CHECK atom requires a C-collated text subject')
+    const totalRegex = (
+      regexCall('operator', '~', [text('a'), text('a')]) as Extract<
+        EvalBoolExpression,
+        { kind: 'eval-call' }
+      >
+    ).call
+    expect(() => emitSqlExpression(totalRegex, typescriptSqlBackend)).toThrow(
+      'Unsupported overload',
+    )
+    const totalRegexpLike = (regexCall('function', 'regexp_like', [text('a'), text('a')]) as Extract<
+      EvalBoolExpression,
+      { kind: 'eval-call' }
+    >).call
+    expect(() => emitSqlExpression(totalRegexpLike, goSqlBackend)).toThrow('Unsupported overload')
   })
 })

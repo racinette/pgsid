@@ -54,6 +54,7 @@ export function typescriptRegexAnalyzerSource(profile: RegexEngineProfile): stri
     `const REGEX_LOWERING_STRATEGIES = ${JSON.stringify(strategies)} as const satisfies Readonly<Record<RegexLoweringStrategy, RegexLoweringRecipe>>`,
     `const REGEX_ENGINE_PROFILE = ${JSON.stringify(profile)} as const satisfies RegexEngineProfile`,
     declarations('parser.ts'),
+    declarations('flags.ts'),
     declarations('features.ts'),
     declarations('compiler.ts'),
     `function evalBoolRegexAnalyze(pattern: string, options: PostgresRegexOptions = {}): CompiledRegex {
