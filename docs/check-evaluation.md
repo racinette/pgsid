@@ -89,8 +89,9 @@ propagate.
 
 Only incomplete atoms, never total operators:
 
-- A regex (or similar) call whose runtime pattern fails the frozen
-  whitelist linter. A whitelist hit is a normal evaluation (`Certain`).
+- A regex (or similar) call whose pattern has no faithful translation for
+  the selected target engine. A supported translation is an ordinary
+  evaluation (`Certain`).
 - A CHECK node that was not lowered (unsupported overload, session-dependent
   leftover). Never omit the constraint; the atom is `Uncertain`.
 - A partial-row validator whose CHECK reads a field that was not supplied.
@@ -116,6 +117,22 @@ The expression yields `EvalBool`. The function an app calls maps that:
 
 PostgreSQL's own CHECK still treats SQL null as pass. Client `Certain(NULL)`
 matches that. Client `Uncertain` does not.
+
+The wrapper, not the expression evaluator, owns violation diagnostics. A
+`Certain(FALSE)` result identifies the failed table or domain constraint and
+produces a structured violation with SQLSTATE `23514`, the owning schema and
+table or domain, and the constraint name. A human-readable PostgreSQL-style
+message is rendered from that identity. The message is presentation, not the
+identity applications should inspect. `Certain(NULL)` and `Uncertain` never
+produce a CHECK violation; errors raised while evaluating the expression
+remain their own errors.
+
+The catalog must retain each domain CHECK's name alongside its definition,
+including checks on nested domain layers. Constraint names are not recovered
+from rendered SQL. PostgreSQL CHECK declarations have no custom-message field:
+a descriptive constraint name is preserved verbatim, while any application-
+specific wording is a separate presentation policy. Do not promise exact
+PostgreSQL localization or failing-row detail from a partial-row validator.
 
 ## Rejected encodings
 
