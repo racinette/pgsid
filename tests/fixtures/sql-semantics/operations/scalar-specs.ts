@@ -1,4 +1,4 @@
-import { textSpecs } from './text-specs.js'
+import { similarToEscapeSpecs, textSpecs } from './text-specs.js'
 import type { ScalarType, SqlExpression } from '../../../../src/sql-semantics/expressions.js'
 import { functionMetadata, operatorMetadata } from '../../../../src/postgres/builtins/inventory.js'
 import type { ExpressionSpec } from './expression-spec.js'
@@ -262,4 +262,5 @@ export const scalarSpecs: readonly ExpressionSpec[] = [
   ...jsonSpecs,
   ...temporalSpecs,
   ...bitSpecs,
+  ...similarToEscapeSpecs,
 ]

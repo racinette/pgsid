@@ -1,7 +1,31 @@
+import { typescriptSimilarSource } from './regex-analyzer.js'
+
 export const typescriptTextHelpers: Record<
   string,
   { dependencies: readonly string[]; source: string }
 > = {
+  similarToEscape: {
+    dependencies: [],
+    source: typescriptSimilarSource(),
+  },
+  similarToEscapeDefault: {
+    dependencies: ['similarToEscape', 'sqlTextError'],
+    source: `function similarToEscapeDefault(pattern: string | null): string | null {
+  if (pattern === null) return null
+  const result = similarToEscape(pattern)
+  if (result.kind === 'invalid') sqlTextError(result.sqlstate)
+  return result.pattern
+}`,
+  },
+  similarToEscapeExplicit: {
+    dependencies: ['similarToEscape', 'sqlTextError'],
+    source: `function similarToEscapeExplicit(pattern: string | null, escape: string | null): string | null {
+  if (pattern === null || escape === null) return null
+  const result = similarToEscape(pattern, escape)
+  if (result.kind === 'invalid') sqlTextError(result.sqlstate)
+  return result.pattern
+}`,
+  },
   sqlTextError: {
     dependencies: [],
     source: `function sqlTextError(code: string): never {

@@ -39,6 +39,10 @@ const profileDeclarations = new Set([
 ])
 const strategyDeclarations = new Set(['RegexLoweringOperation', 'RegexLoweringRecipe'])
 
+export function typescriptSimilarSource(): string {
+  return declarations('similar.ts')
+}
+
 export function typescriptRegexAnalyzerSource(profile: RegexEngineProfile): string {
   const strategies = Object.fromEntries(
     Object.entries(REGEX_LOWERING_STRATEGIES).filter(([name]) =>

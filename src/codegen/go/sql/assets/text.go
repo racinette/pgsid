@@ -5,6 +5,109 @@ import (
 	"unicode/utf8"
 )
 
+func similarToEscapeRaw(pattern, escape string) (string, string) {
+	if utf8.RuneCountInString(escape) > 1 {
+		return "", "22025"
+	}
+	var escapeCharacter rune
+	if escape != "" {
+		escapeCharacter = []rune(escape)[0]
+	}
+	var result strings.Builder
+	result.WriteString("^(?:")
+	afterEscape, quotes, bracketDepth, classPosition := false, 0, 0, 0
+	for _, character := range pattern {
+		if afterEscape {
+			if character == '"' && bracketDepth == 0 {
+				if quotes == 0 {
+					result.WriteString("){1,1}?(")
+				} else if quotes == 1 {
+					result.WriteString("){1,1}(?:")
+				} else {
+					return "", "2200C"
+				}
+				quotes++
+			} else {
+				result.WriteRune('\\')
+				result.WriteRune(character)
+				classPosition = 3
+			}
+			afterEscape = false
+			continue
+		}
+		if escapeCharacter != 0 && character == escapeCharacter {
+			afterEscape = true
+			continue
+		}
+		if bracketDepth > 0 {
+			if character == '\\' {
+				result.WriteRune('\\')
+			}
+			result.WriteRune(character)
+			if character == ']' && classPosition > 2 {
+				bracketDepth--
+			} else if character == '[' {
+				bracketDepth++
+				classPosition = 3
+			} else if character == '^' {
+				classPosition++
+			} else {
+				classPosition = 3
+			}
+			continue
+		}
+		switch character {
+		case '[':
+			result.WriteRune(character)
+			bracketDepth, classPosition = 1, 1
+		case '%':
+			result.WriteString(".*")
+		case '_':
+			result.WriteRune('.')
+		case '(':
+			result.WriteString("(?:")
+		case '\\', '.', '^', '$':
+			result.WriteRune('\\')
+			result.WriteRune(character)
+		default:
+			result.WriteRune(character)
+		}
+	}
+	result.WriteString(")$")
+	return result.String(), ""
+}
+
+func similarToEscapeDefault(pattern SqlText) SqlText {
+	if pattern.Error != "" {
+		return SqlText{Error: pattern.Error}
+	}
+	if !pattern.Valid {
+		return SqlText{}
+	}
+	value, code := similarToEscapeRaw(pattern.Value, "\\")
+	if code != "" {
+		return SqlText{Error: code}
+	}
+	return SqlText{Value: value, Valid: true}
+}
+
+func similarToEscapeExplicit(pattern, escape SqlText) SqlText {
+	if pattern.Error != "" {
+		return SqlText{Error: pattern.Error}
+	}
+	if escape.Error != "" {
+		return SqlText{Error: escape.Error}
+	}
+	if !pattern.Valid || !escape.Valid {
+		return SqlText{}
+	}
+	value, code := similarToEscapeRaw(pattern.Value, escape.Value)
+	if code != "" {
+		return SqlText{Error: code}
+	}
+	return SqlText{Value: value, Valid: true}
+}
+
 func bpcharText(value SqlText) SqlText {
 	if value.Error != "" {
 		return SqlText{Error: value.Error}

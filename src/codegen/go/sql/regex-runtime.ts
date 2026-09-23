@@ -35,9 +35,11 @@ ${strategies
           ? `{Kind: ${JSON.stringify(operation.kind)}, Characters: ${JSON.stringify(operation.characters)}}`
           : operation.kind === 'emit-source'
             ? `{Kind: ${JSON.stringify(operation.kind)}, Source: ${JSON.stringify(operation.source)}}`
-            : operation.kind === 'add-flag'
-              ? `{Kind: ${JSON.stringify(operation.kind)}, Flag: ${JSON.stringify(operation.flag)}}`
-              : `{Kind: ${JSON.stringify(operation.kind)}}`,
+            : operation.kind === 'wrap-group'
+              ? `{Kind: ${JSON.stringify(operation.kind)}, Prefix: ${JSON.stringify(operation.prefix)}, Suffix: ${JSON.stringify(operation.suffix)}}`
+              : operation.kind === 'add-flag'
+                ? `{Kind: ${JSON.stringify(operation.kind)}, Flag: ${JSON.stringify(operation.flag)}}`
+                : `{Kind: ${JSON.stringify(operation.kind)}}`,
       )
       .join(', ')}}`
   })

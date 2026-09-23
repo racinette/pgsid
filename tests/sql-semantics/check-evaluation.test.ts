@@ -21,6 +21,7 @@ import {
 import { emitSqlExpression, type SqlExpression } from '../../src/sql-semantics/expressions.js'
 import type { PostgresRegexOptions } from '../../src/sql-semantics/regex/ast.js'
 import { parseRegexpLikeFlags } from '../../src/sql-semantics/regex/flags.js'
+import { numericMathCopyright } from '../../src/sql-semantics/numeric-math-license.js'
 
 const run = promisify(execFile)
 
@@ -82,6 +83,20 @@ const regexCall = (
     collation: 'C',
     operands,
   },
+})
+
+const similar = (pattern: SqlExpression, escape?: SqlExpression): SqlExpression => ({
+  kind: 'function',
+  type: 'pg_catalog.text',
+  signature: `function:["pg_catalog","similar_to_escape"](${escape ? 'pg_catalog.text,pg_catalog.text' : 'pg_catalog.text'})`,
+  operands: escape ? [pattern, escape] : [pattern],
+})
+
+const concat = (left: SqlExpression, right: SqlExpression): SqlExpression => ({
+  kind: 'operator',
+  type: 'pg_catalog.text',
+  signature: 'operator:["pg_catalog","||"](pg_catalog.text,pg_catalog.text)',
+  operands: [left, right],
 })
 
 const bpchar = (value: string | null): SqlExpression => ({
@@ -748,6 +763,127 @@ const regexCallableCases: RegexCallableCase[] = [
   },
 ]
 
+const similarCases: RegexCallableCase[] = [
+  {
+    name: 'SIMILAR TO literal pattern',
+    expression: regexCall('operator', '~', [text('a.b'), similar(text('a.b'))]),
+    expected: { certain: true, value: true },
+    sql: 'SELECT $1::text SIMILAR TO $2::text AS value',
+    params: ['a.b', 'a.b'],
+  },
+  {
+    name: 'NOT SIMILAR TO literal pattern',
+    expression: regexCall('operator', '!~', [text('abc'), similar(text('abd'))]),
+    expected: { certain: true, value: true },
+    sql: 'SELECT $1::text NOT SIMILAR TO $2::text AS value',
+    params: ['abc', 'abd'],
+  },
+  {
+    name: 'SIMILAR TO explicit escape',
+    expression: regexCall('operator', '~', [text('a%b'), similar(text('a#%b'), text('#'))]),
+    expected: { certain: true, value: true },
+    sql: 'SELECT $1::text SIMILAR TO $2::text ESCAPE $3::text AS value',
+    params: ['a%b', 'a#%b', '#'],
+  },
+  {
+    name: 'SIMILAR TO empty escape disables escaping',
+    expression: regexCall('operator', '~', [text('abc'), similar(text('abc'), text(''))]),
+    expected: { certain: true, value: true },
+    sql: 'SELECT $1::text SIMILAR TO $2::text ESCAPE $3::text AS value',
+    params: ['abc', 'abc', ''],
+  },
+  {
+    name: 'SIMILAR TO computed pattern',
+    expression: regexCall('operator', '~', [text('abc'), similar(concat(text('a'), text('bc')))]),
+    expected: { certain: true, value: true },
+    sql: 'SELECT $1::text SIMILAR TO ($2::text || $3::text) AS value',
+    params: ['abc', 'a', 'bc'],
+  },
+  {
+    name: 'SIMILAR TO computed escape',
+    expression: regexCall('operator', '~', [
+      text('a%b'),
+      similar(text('a#%b'), concat(text(''), text('#'))),
+    ]),
+    expected: { certain: true, value: true },
+    sql: 'SELECT $1::text SIMILAR TO $2::text ESCAPE ($3::text || $4::text) AS value',
+    params: ['a%b', 'a#%b', '', '#'],
+  },
+  {
+    name: 'SIMILAR TO wildcard is uncertain',
+    expression: regexCall('operator', '~', [text('abc'), similar(text('a%c'))]),
+    expected: { certain: false },
+    sql: 'SELECT $1::text SIMILAR TO $2::text AS value',
+    params: ['abc', 'a%c'],
+  },
+  {
+    name: 'SIMILAR TO null pattern',
+    expression: regexCall('operator', '~', [text('abc'), similar(text(null))]),
+    expected: { certain: true, value: null },
+    sql: 'SELECT $1::text SIMILAR TO $2::text AS value',
+    params: ['abc', null],
+  },
+  {
+    name: 'SIMILAR TO invalid escape',
+    expression: regexCall('operator', '~', [text('abc'), similar(text('abc'), text('##'))]),
+    expected: { certain: true, value: null, error: '22025' },
+    sql: 'SELECT $1::text SIMILAR TO $2::text ESCAPE $3::text AS value',
+    params: ['abc', 'abc', '##'],
+  },
+  {
+    name: 'SIMILAR TO invalid escape precedes null subject',
+    expression: regexCall('operator', '~', [text(null), similar(text('abc'), text('##'))]),
+    expected: { certain: true, value: null, error: '22025' },
+    sql: 'SELECT $1::text SIMILAR TO $2::text ESCAPE $3::text AS value',
+    params: [null, 'abc', '##'],
+  },
+  {
+    name: 'SIMILAR TO null escape',
+    expression: regexCall('operator', '~', [text('abc'), similar(text('abc'), text(null))]),
+    expected: { certain: true, value: null },
+    sql: 'SELECT $1::text SIMILAR TO $2::text ESCAPE $3::text AS value',
+    params: ['abc', 'abc', null],
+  },
+  {
+    name: 'false AND skips invalid SIMILAR TO escape',
+    expression: {
+      kind: 'eval-boolean-logic',
+      operation: 'and',
+      operands: [
+        certain(false),
+        regexCall('operator', '~', [text('abc'), similar(text('abc'), text('##'))]),
+      ],
+    },
+    expected: { certain: true, value: false },
+    sql: 'SELECT false AND ($1::text SIMILAR TO $2::text ESCAPE $3::text) AS value',
+    params: ['abc', 'abc', '##'],
+  },
+  {
+    name: 'SIMILAR TO invalid converted regex',
+    expression: regexCall('operator', '~', [text('abc'), similar(text('('))]),
+    expected: { certain: true, value: null, error: '2201B' },
+    sql: 'SELECT $1::text SIMILAR TO $2::text AS value',
+    params: ['abc', '('],
+  },
+  {
+    name: 'SIMILAR TO computed invalid quote separators',
+    expression: regexCall('operator', '~', [
+      text('abc'),
+      similar(concat(text('a\\"b\\"'), text('c\\"d'))),
+    ]),
+    expected: { certain: true, value: null, error: '2200C' },
+    sql: 'SELECT $1::text SIMILAR TO ($2::text || $3::text) AS value',
+    params: ['abc', 'a\\"b\\"', 'c\\"d'],
+  },
+  {
+    name: 'SIMILAR TO null subject suppresses invalid regex',
+    expression: regexCall('operator', '~', [text(null), similar(text('('))]),
+    expected: { certain: true, value: null },
+    sql: 'SELECT $1::text SIMILAR TO $2::text AS value',
+    params: [null, '('],
+  },
+]
+
 const allCases = [
   ...logicCases,
   ...notCases,
@@ -756,6 +892,7 @@ const allCases = [
   ...compositionCases,
   ...regexCases,
   ...regexCallableCases,
+  ...similarCases,
 ]
 
 function typescriptProject(): string {
@@ -826,7 +963,7 @@ describe('generated CHECK predicate evaluation', () => {
   })
 
   it('matches PostgreSQL for catalog regex call forms', async () => {
-    for (const fixture of regexCallableCases) {
+    for (const fixture of [...regexCallableCases, ...similarCases]) {
       let observed: { value: boolean | null } | { error: string }
       try {
         const result = await pg.query<{ value: boolean | null }>(fixture.sql, fixture.params)
@@ -974,6 +1111,29 @@ return [${allCases.map((_, index) => `evaluate${index}`).join(',')}].map((evalua
     expect(printFile(typescriptSqlRuntime(constant.helpers))).not.toContain(
       'function evalBoolRegexAnalyze',
     )
+    const similarConstant = emitEvalBoolExpression(
+      regexCall('operator', '~', [text('abc'), similar(text('abc'))]),
+      typescriptSqlBackend,
+      typescriptEvalBoolBackend,
+    )
+    expect(printFile(typescriptSqlRuntime(similarConstant.helpers))).not.toContain(
+      'function evalBoolRegexAnalyze',
+    )
+    const similarDynamic = emitEvalBoolExpression(
+      regexCall('operator', '~', [text('abc'), similar(concat(text('a'), text('bc')))]),
+      typescriptSqlBackend,
+      typescriptEvalBoolBackend,
+    )
+    const similarDynamicSource = printFile(typescriptSqlRuntime(similarDynamic.helpers))
+    expect(similarDynamicSource).toContain('function evalBoolRegexAnalyze')
+    expect(similarDynamicSource).toContain('function similarToEscapeDefault')
+    expect(similarDynamicSource).toContain(numericMathCopyright)
+    const goSimilarDynamic = emitEvalBoolExpression(
+      regexCall('operator', '~', [text('abc'), similar(concat(text('a'), text('bc')))]),
+      goSqlBackend,
+      goEvalBoolBackend,
+    )
+    expect(goSqlRuntime(goSimilarDynamic.helpers, 'main')).toContain(numericMathCopyright)
     const invalidFlags = emitEvalBoolExpression(
       regexCall('function', 'regexp_like', [text('abc'), text('abc'), text('g')]),
       typescriptSqlBackend,
@@ -1094,10 +1254,12 @@ return [${allCases.map((_, index) => `evaluate${index}`).join(',')}].map((evalua
     expect(() => emitSqlExpression(totalRegex, typescriptSqlBackend)).toThrow(
       'Unsupported overload',
     )
-    const totalRegexpLike = (regexCall('function', 'regexp_like', [text('a'), text('a')]) as Extract<
-      EvalBoolExpression,
-      { kind: 'eval-call' }
-    >).call
+    const totalRegexpLike = (
+      regexCall('function', 'regexp_like', [text('a'), text('a')]) as Extract<
+        EvalBoolExpression,
+        { kind: 'eval-call' }
+      >
+    ).call
     expect(() => emitSqlExpression(totalRegexpLike, goSqlBackend)).toThrow('Unsupported overload')
   })
 })
