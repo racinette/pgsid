@@ -1,0 +1,210 @@
+schema: pgsid.regex-conformance/v1
+vectors:
+  - id: empty-matches-empty
+    pattern: ''
+    options: {}
+    subject: ''
+    expected: { match: true }
+    features: [empty-expression, case-sensitive, unicode-code-points, substring-search]
+  - id: empty-matches-text
+    pattern: ''
+    options: {}
+    subject: anything
+    expected: { match: true }
+    features: [empty-expression, case-sensitive, unicode-code-points, substring-search]
+  - id: literal-inside-subject
+    pattern: abc
+    options: {}
+    subject: xxabcyy
+    expected: { match: true }
+    features: [literal, case-sensitive, unicode-code-points, substring-search]
+  - id: literal-absent
+    pattern: abc
+    options: {}
+    subject: ab
+    expected: { match: false }
+    features: [literal, case-sensitive, unicode-code-points, substring-search]
+  - id: case-sensitive-rejects-uppercase
+    pattern: abc
+    options: {}
+    subject: ABC
+    expected: { match: false }
+    features: [literal, case-sensitive, unicode-code-points, substring-search]
+  - id: unicode-literal
+    pattern: 😀
+    options: {}
+    subject: before😀after
+    expected: { match: true }
+    features: [literal, case-sensitive, unicode-code-points, substring-search]
+  - id: escaped-dot-literal
+    pattern: 'a\.b'
+    options: {}
+    subject: xa.by
+    expected: { match: true }
+    features: [literal, case-sensitive, unicode-code-points, substring-search]
+  - id: escaped-dot-rejects-any-character
+    pattern: 'a\.b'
+    options: {}
+    subject: xacby
+    expected: { match: false }
+    features: [literal, case-sensitive, unicode-code-points, substring-search]
+  - id: literal-director
+    pattern: '***=a.*'
+    options: {}
+    subject: xa.*y
+    expected: { match: true }
+    features: [literal, case-sensitive, unicode-code-points, substring-search]
+  - id: literal-director-rejects-unescaped-form
+    pattern: '***=a.*'
+    options: {}
+    subject: axxx
+    expected: { match: false }
+    features: [literal, case-sensitive, unicode-code-points, substring-search]
+  - id: literal-director-engine-metacharacters
+    pattern: '***=^$.*+?()[]{}|/\'
+    options: {}
+    subject: '^$.*+?()[]{}|/\'
+    expected: { match: true }
+    features: [literal, case-sensitive, unicode-code-points, substring-search]
+  - id: absolute-anchors-match-entire-subject
+    pattern: ^abc$
+    options: {}
+    subject: abc
+    expected: { match: true }
+    features:
+      [
+        literal,
+        concatenation,
+        beginning-of-string,
+        end-of-string,
+        case-sensitive,
+        unicode-code-points,
+        substring-search,
+      ]
+  - id: beginning-anchor-rejects-prefix
+    pattern: ^abc$
+    options: {}
+    subject: xabc
+    expected: { match: false }
+    features:
+      [
+        literal,
+        concatenation,
+        beginning-of-string,
+        end-of-string,
+        case-sensitive,
+        unicode-code-points,
+        substring-search,
+      ]
+  - id: end-anchor-rejects-final-newline
+    pattern: ^abc$
+    options: {}
+    subject: "abc\n"
+    expected: { match: false }
+    features:
+      [
+        literal,
+        concatenation,
+        beginning-of-string,
+        end-of-string,
+        case-sensitive,
+        unicode-code-points,
+        substring-search,
+      ]
+  - id: escaped-absolute-anchors
+    pattern: '\Aabc\Z'
+    options: {}
+    subject: abc
+    expected: { match: true }
+    features:
+      [
+        literal,
+        concatenation,
+        beginning-of-string,
+        end-of-string,
+        case-sensitive,
+        unicode-code-points,
+        substring-search,
+      ]
+  - id: escaped-end-anchor-rejects-final-newline
+    pattern: '\Aabc\Z'
+    options: {}
+    subject: "abc\n"
+    expected: { match: false }
+    features:
+      [
+        literal,
+        concatenation,
+        beginning-of-string,
+        end-of-string,
+        case-sensitive,
+        unicode-code-points,
+        substring-search,
+      ]
+  - id: escaped-literal-between-anchors
+    pattern: '^a\.b$'
+    options: {}
+    subject: a.b
+    expected: { match: true }
+    features:
+      [
+        literal,
+        concatenation,
+        beginning-of-string,
+        end-of-string,
+        case-sensitive,
+        unicode-code-points,
+        substring-search,
+      ]
+  - id: empty-subject-with-anchors
+    pattern: ^$
+    options: {}
+    subject: ''
+    expected: { match: true }
+    features:
+      [
+        concatenation,
+        beginning-of-string,
+        end-of-string,
+        case-sensitive,
+        unicode-code-points,
+        substring-search,
+      ]
+  - id: anchors-reject-single-newline
+    pattern: ^$
+    options: {}
+    subject: "\n"
+    expected: { match: false }
+    features:
+      [
+        concatenation,
+        beginning-of-string,
+        end-of-string,
+        case-sensitive,
+        unicode-code-points,
+        substring-search,
+      ]
+  - id: unsupported-alternation
+    pattern: a|b
+    options: {}
+    subject: b
+    expected: { match: true }
+    features: [literal, alternation, case-sensitive, unicode-code-points, substring-search]
+  - id: unsupported-case-folding
+    pattern: (?i)abc
+    options: {}
+    subject: ABC
+    expected: { match: true }
+    features: [literal, case-insensitive, unicode-code-points, substring-search]
+  - id: unsupported-case-folding-option
+    pattern: abc
+    options: { caseSensitive: false }
+    subject: ABC
+    expected: { match: true }
+    features: [literal, case-insensitive, unicode-code-points, substring-search]
+  - id: invalid-unclosed-group
+    pattern: '('
+    options: {}
+    subject: value
+    expected: { sqlstate: '2201B' }
+    features: []
