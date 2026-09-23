@@ -826,4 +826,10 @@ for (const [index, [value, format]] of byteaDecodeCases.entries())
       text(format),
     ]),
   )
-export const textSpecs: readonly ExpressionSpec[] = specs
+const similarPrefix = 'text utility function:["pg_catalog","similar_to_escape"]'
+export const textSpecs: readonly ExpressionSpec[] = specs.filter(
+  (fixture) => !fixture.name.startsWith(similarPrefix),
+)
+export const similarToEscapeSpecs: readonly ExpressionSpec[] = specs.filter((fixture) =>
+  fixture.name.startsWith(similarPrefix),
+)

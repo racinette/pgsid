@@ -23,6 +23,7 @@ export class RegexLoweringError extends Error {
 interface ExpressionInput {
   literal?: string
   children?: readonly string[]
+  child?: string
 }
 
 const recipeFor = (
@@ -69,6 +70,11 @@ const lowerExpressionRecipe = (
           )
         source = input.children.join('')
         break
+      case 'wrap-group':
+        if (input.child === undefined)
+          throw new RegexLoweringError(`Strategy ${JSON.stringify(strategy)} requires a child`)
+        source = `${operation.prefix}${input.child}${operation.suffix}`
+        break
       case 'emit-source':
         source = operation.source
         break
@@ -101,6 +107,11 @@ const lowerExpression = (
     case 'concatenation':
       feature = 'concatenation'
       input = { children: expression.expressions.map((child) => lowerExpression(child, profile)) }
+      break
+    case 'group':
+      if (expression.capturing) throw new RegexLoweringError('No capturing-group lowering exists')
+      feature = 'noncapturing-group'
+      input = { child: lowerExpression(expression.expression, profile) }
       break
     case 'assertion':
       if (

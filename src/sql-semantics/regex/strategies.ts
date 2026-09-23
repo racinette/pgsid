@@ -4,6 +4,7 @@ export type RegexLoweringOperation =
   | { kind: 'emit-empty' }
   | { kind: 'escape-literal'; characters: string }
   | { kind: 'join-concatenation' }
+  | { kind: 'wrap-group'; prefix: string; suffix: string }
   | { kind: 'emit-source'; source: string }
   | { kind: 'add-flag'; flag: string }
   | { kind: 'no-op' }
@@ -18,6 +19,9 @@ export const REGEX_LOWERING_STRATEGIES = {
     operations: [{ kind: 'escape-literal', characters: String.raw`\^$.*+?()[]{}|/` }],
   },
   'ecmascript.concatenate': { operations: [{ kind: 'join-concatenation' }] },
+  'ecmascript.wrap-noncapturing-group': {
+    operations: [{ kind: 'wrap-group', prefix: '(?:', suffix: ')' }],
+  },
   'ecmascript.emit-beginning-of-string': {
     operations: [{ kind: 'emit-source', source: '^' }],
   },
@@ -31,6 +35,9 @@ export const REGEX_LOWERING_STRATEGIES = {
     operations: [{ kind: 'escape-literal', characters: String.raw`\^$.*+?()[]{}|` }],
   },
   're2.concatenate': { operations: [{ kind: 'join-concatenation' }] },
+  're2.wrap-noncapturing-group': {
+    operations: [{ kind: 'wrap-group', prefix: '(?:', suffix: ')' }],
+  },
   're2.emit-beginning-of-string': {
     operations: [{ kind: 'emit-source', source: String.raw`\A` }],
   },

@@ -2,6 +2,7 @@ import { emitSqlExpression, type ExpressionBackend, type SqlExpression } from '.
 import { builtinMetadata } from '../postgres/builtins/inventory.js'
 import type { PostgresRegexOptions } from './regex/ast.js'
 import { parseRegexpLikeFlags } from './regex/flags.js'
+import { similarToEscape } from './regex/similar.js'
 import type { TypedSqlExpression } from './signatures.js'
 
 export type EvalBoolExpression =
@@ -160,10 +161,40 @@ export function emitEvalBoolExpression<Ast>(
         throw new Error('A regex CHECK atom requires a C-collated text subject')
       const subject = call.operands[0]!
       const patternExpression = call.operands[1]!
-      const pattern =
+      let pattern: string | SqlExpression =
         patternExpression.kind === 'text' && patternExpression.value !== null
           ? patternExpression.value
           : patternExpression
+      if (
+        regexpOperator &&
+        ['~', '!~'].includes(metadata.name) &&
+        patternExpression.kind === 'function' &&
+        patternExpression.type === 'pg_catalog.text'
+      ) {
+        const conversion = builtinMetadata(patternExpression.signature)
+        if (
+          conversion.kind === 'function' &&
+          conversion.schema === 'pg_catalog' &&
+          conversion.name === 'similar_to_escape' &&
+          conversion.result === 'pg_catalog.text' &&
+          conversion.strict &&
+          conversion.args.length === patternExpression.operands.length &&
+          conversion.args.every(
+            (type, index) =>
+              type === 'pg_catalog.text' && patternExpression.operands[index]?.type === type,
+          ) &&
+          patternExpression.operands.every(
+            (operand) => operand.kind === 'text' && operand.value !== null,
+          )
+        ) {
+          const args = patternExpression.operands as Extract<SqlExpression, { kind: 'text' }>[]
+          const result = similarToEscape(
+            args[0]!.value!,
+            args.length === 2 ? args[1]!.value! : undefined,
+          )
+          if (result.kind === 'converted') pattern = result.pattern
+        }
+      }
       const negated = regexpOperator
         ? metadata.name.startsWith('!')
         : regexpFunction

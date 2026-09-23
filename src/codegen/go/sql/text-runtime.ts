@@ -1,4 +1,7 @@
 export const goTextDependencies: Record<string, readonly string[]> = {
+  similarToEscapeRaw: [],
+  similarToEscapeDefault: ['SqlText', 'similarToEscapeRaw'],
+  similarToEscapeExplicit: ['SqlText', 'similarToEscapeRaw'],
   bpcharText: ['SqlText'],
   booleanText: ['SqlText', 'SqlBoolean'],
   varcharCoerce: ['SqlText', 'SqlInteger', 'SqlBoolean'],

@@ -863,7 +863,7 @@ describe('generated PostgreSQL scalar evaluation', () => {
     expect(supported.map((row) => row.signature).sort()).toEqual(
       [...expected, ...additional].sort(),
     )
-    expect(supported).toHaveLength(924)
+    expect(supported).toHaveLength(926)
     expect(supported.every((row) => row.typescript && row.go && row.fixtures.length > 0)).toBe(true)
     expect(rows.some((row) => !row.typescript && !row.go && row.fixtures.length === 0)).toBe(true)
   })

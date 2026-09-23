@@ -91538,4 +91538,631 @@ export const scalarObservations: Readonly<Record<string, SqlObservation>> = {
     kind: 'value',
     value: 'true',
   },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text) 0': {
+    kind: 'null',
+  },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text) 1': {
+    kind: 'value',
+    value: '^(?:)$',
+  },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text) 2': {
+    kind: 'value',
+    value: '^(?: )$',
+  },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text) 3': {
+    kind: 'value',
+    value: '^(?:  abc  )$',
+  },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text) 4': {
+    kind: 'value',
+    value: '^(?:a😀é中b)$',
+  },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text) 5': {
+    kind: 'value',
+    value: '^(?:é)$',
+  },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text) 6': {
+    kind: 'value',
+    value: '^(?:\n\t)$',
+  },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text) 7': {
+    kind: 'value',
+    value: '^(?:abababa)$',
+  },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text) 8': {
+    kind: 'value',
+    value: "^(?:a'b\\c)$",
+  },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text) 9': {
+    kind: 'value',
+    value: '^(?: a )$',
+  },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text) 10': {
+    kind: 'value',
+    value: '^(?:𐀀)$',
+  },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 0':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 1':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 2':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 3':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 4':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 5':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 6':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 7':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 8':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 9':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 10':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 11':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 12':
+    {
+      kind: 'value',
+      value: '^(?:)$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 13':
+    {
+      kind: 'value',
+      value: '^(?:)$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 14':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 15':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 16':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 17':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 18':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 19':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 20':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 21':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 22':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 23':
+    {
+      kind: 'value',
+      value: '^(?: )$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 24':
+    {
+      kind: 'value',
+      value: '^(?:)$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 25':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 26':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 27':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 28':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 29':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 30':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 31':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 32':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 33':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 34':
+    {
+      kind: 'value',
+      value: '^(?:  abc  )$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 35':
+    {
+      kind: 'value',
+      value: '^(?:\\ abc\\ )$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 36':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 37':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 38':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 39':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 40':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 41':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 42':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 43':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 44':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 45':
+    {
+      kind: 'value',
+      value: '^(?:a😀é中b)$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 46':
+    {
+      kind: 'value',
+      value: '^(?:a😀é中b)$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 47':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 48':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 49':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 50':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 51':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 52':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 53':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 54':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 55':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 56':
+    {
+      kind: 'value',
+      value: '^(?:é)$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 57':
+    {
+      kind: 'value',
+      value: '^(?:é)$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 58':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 59':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 60':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 61':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 62':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 63':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 64':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 65':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 66':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 67':
+    {
+      kind: 'value',
+      value: '^(?:\n\t)$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 68':
+    {
+      kind: 'value',
+      value: '^(?:\n\t)$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 69':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 70':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 71':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 72':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 73':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 74':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 75':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 76':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 77':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 78':
+    {
+      kind: 'value',
+      value: '^(?:abababa)$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 79':
+    {
+      kind: 'value',
+      value: '^(?:abababa)$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 80':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 81':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 82':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 83':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 84':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 85':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 86':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 87':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 88':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 89':
+    {
+      kind: 'value',
+      value: "^(?:a'b\\\\c)$",
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 90':
+    {
+      kind: 'value',
+      value: "^(?:a'b\\\\c)$",
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 91':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 92':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 93':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 94':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 95':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 96':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 97':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 98':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 99':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 100':
+    {
+      kind: 'value',
+      value: '^(?: a )$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 101':
+    {
+      kind: 'value',
+      value: '^(?: a )$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 102':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 103':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 104':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 105':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 106':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 107':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 108':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 109':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 110':
+    {
+      kind: 'null',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 111':
+    {
+      kind: 'value',
+      value: '^(?:𐀀)$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 112':
+    {
+      kind: 'value',
+      value: '^(?:𐀀)$',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 113':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 114':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 115':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 116':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 117':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 118':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 119':
+    {
+      kind: 'error',
+      code: '22025',
+    },
+  'text utility function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text) 120':
+    {
+      kind: 'error',
+      code: '22025',
+    },
 }

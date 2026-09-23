@@ -5,6 +5,8 @@ type regexOperation struct {
 	Characters string
 	Source     string
 	Flag       string
+	Prefix     string
+	Suffix     string
 }
 
 type regexDecision struct {
@@ -1085,6 +1087,13 @@ func regexLower(node *regexNode) string {
 	if node.Kind == "assertion" {
 		feature = node.Assertion
 	}
+	if node.Kind == "group" {
+		if node.Capturing {
+			feature = "capturing-group"
+		} else {
+			feature = "noncapturing-group"
+		}
+	}
 	strategy := regexProfileFeature(feature)
 	if strategy == "unsupported" {
 		panic("unsupported regex lowering")
@@ -1109,6 +1118,8 @@ func regexLower(node *regexNode) string {
 				joined.WriteString(regexLower(child))
 			}
 			source = joined.String()
+		case "wrap-group":
+			source = operation.Prefix + regexLower(node.Children[0]) + operation.Suffix
 		case "emit-source":
 			source = operation.Source
 		default:

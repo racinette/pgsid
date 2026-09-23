@@ -43,6 +43,8 @@ export const textSignatures = [
   'function:["pg_catalog","rpad"](pg_catalog.text,pg_catalog.int4,pg_catalog.text)',
   'function:["pg_catalog","rtrim"](pg_catalog.text)',
   'function:["pg_catalog","rtrim"](pg_catalog.text,pg_catalog.text)',
+  'function:["pg_catalog","similar_to_escape"](pg_catalog.text)',
+  'function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text)',
   'function:["pg_catalog","split_part"](pg_catalog.text,pg_catalog.text,pg_catalog.int4)',
   'function:["pg_catalog","starts_with"](pg_catalog.text,pg_catalog.text)',
   'function:["pg_catalog","strpos"](pg_catalog.text,pg_catalog.text)',

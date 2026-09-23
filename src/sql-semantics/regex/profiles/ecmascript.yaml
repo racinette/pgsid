@@ -9,7 +9,7 @@ features:
   concatenation: ecmascript.concatenate
   alternation: unsupported
   capturing-group: unsupported
-  noncapturing-group: unsupported
+  noncapturing-group: ecmascript.wrap-noncapturing-group
   any-character-including-newline: unsupported
   any-character-excluding-newline: unsupported
   bracket-class: unsupported

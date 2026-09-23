@@ -66,6 +66,34 @@ vectors:
     subject: '^$.*+?()[]{}|/\'
     expected: { match: true }
     features: [literal, case-sensitive, unicode-code-points, substring-search]
+  - id: noncapturing-group-matches
+    pattern: '(?:abc)'
+    options: {}
+    subject: xxabcyy
+    expected: { match: true }
+    features: [literal, noncapturing-group, case-sensitive, unicode-code-points, substring-search]
+  - id: noncapturing-group-does-not-match
+    pattern: '(?:abc)'
+    options: {}
+    subject: ac
+    expected: { match: false }
+    features: [literal, noncapturing-group, case-sensitive, unicode-code-points, substring-search]
+  - id: anchored-noncapturing-group
+    pattern: '^(?:abc)$'
+    options: {}
+    subject: abc
+    expected: { match: true }
+    features:
+      [
+        literal,
+        concatenation,
+        noncapturing-group,
+        beginning-of-string,
+        end-of-string,
+        case-sensitive,
+        unicode-code-points,
+        substring-search,
+      ]
   - id: absolute-anchors-match-entire-subject
     pattern: ^abc$
     options: {}

@@ -8306,6 +8306,94 @@ function bitToInt4(value: string | null): bigint | null {
 function bitToInt8(value: string | null): bigint | null {
     return bitToInt(value, 64);
 }
+type SimilarEscapeResult = {
+    kind: "converted";
+    pattern: string;
+} | {
+    kind: "invalid";
+    sqlstate: "22025" | "2200C";
+};
+function similarToEscape(pattern: string, escape = "\\"): SimilarEscapeResult {
+    if ([...escape].length > 1)
+        return { kind: "invalid", sqlstate: "22025" };
+    const escapeCharacter = escape === "" ? null : escape;
+    let result = "^(?:";
+    let afterEscape = false;
+    let quotes = 0;
+    let bracketDepth = 0;
+    let classPosition = 0;
+    for (const character of pattern) {
+        if (afterEscape) {
+            if (character === "\"" && bracketDepth === 0) {
+                if (quotes === 0)
+                    result += "){1,1}?(";
+                else if (quotes === 1)
+                    result += "){1,1}(?:";
+                else
+                    return { kind: "invalid", sqlstate: "2200C" };
+                quotes++;
+            }
+            else {
+                result += `\\${character}`;
+                classPosition = 3;
+            }
+            afterEscape = false;
+            continue;
+        }
+        if (character === escapeCharacter) {
+            afterEscape = true;
+            continue;
+        }
+        if (bracketDepth > 0) {
+            if (character === "\\")
+                result += "\\";
+            result += character;
+            if (character === "]" && classPosition > 2)
+                bracketDepth--;
+            else if (character === "[") {
+                bracketDepth++;
+                classPosition = 3;
+            }
+            else if (character === "^")
+                classPosition++;
+            else
+                classPosition = 3;
+            continue;
+        }
+        if (character === "[") {
+            result += character;
+            bracketDepth = 1;
+            classPosition = 1;
+        }
+        else if (character === "%")
+            result += ".*";
+        else if (character === "_")
+            result += ".";
+        else if (character === "(")
+            result += "(?:";
+        else if (character === "\\" || character === "." || character === "^" || character === "$")
+            result += `\\${character}`;
+        else
+            result += character;
+    }
+    return { kind: "converted", pattern: `${result})$` };
+}
+function similarToEscapeDefault(pattern: string | null): string | null {
+    if (pattern === null)
+        return null;
+    const result = similarToEscape(pattern);
+    if (result.kind === "invalid")
+        sqlTextError(result.sqlstate);
+    return result.pattern;
+}
+function similarToEscapeExplicit(pattern: string | null, escape: string | null): string | null {
+    if (pattern === null || escape === null)
+        return null;
+    const result = similarToEscape(pattern, escape);
+    if (result.kind === "invalid")
+        sqlTextError(result.sqlstate);
+    return result.pattern;
+}
 export function evaluate0() {
     return int2Add(int2Input("2"), int2Input("3"));
 }
@@ -114709,4 +114797,400 @@ export function evaluate35466() {
 }
 export function evaluate35467() {
     return bitEq(bitInput("xA"), bitInput("1010"));
+}
+export function evaluate35468() {
+    return similarToEscapeDefault(textInput(null));
+}
+export function evaluate35469() {
+    return similarToEscapeDefault(textInput(""));
+}
+export function evaluate35470() {
+    return similarToEscapeDefault(textInput(" "));
+}
+export function evaluate35471() {
+    return similarToEscapeDefault(textInput("  abc  "));
+}
+export function evaluate35472() {
+    return similarToEscapeDefault(textInput("a\uD83D\uDE00\u00E9\u4E2Db"));
+}
+export function evaluate35473() {
+    return similarToEscapeDefault(textInput("e\u0301"));
+}
+export function evaluate35474() {
+    return similarToEscapeDefault(textInput("\n\t"));
+}
+export function evaluate35475() {
+    return similarToEscapeDefault(textInput("abababa"));
+}
+export function evaluate35476() {
+    return similarToEscapeDefault(textInput("a'b\\c"));
+}
+export function evaluate35477() {
+    return similarToEscapeDefault(textInput("\u00A0a\u00A0"));
+}
+export function evaluate35478() {
+    return similarToEscapeDefault(textInput("\uD800\uDC00\uE000"));
+}
+export function evaluate35479() {
+    return similarToEscapeExplicit(textInput(null), textInput(null));
+}
+export function evaluate35480() {
+    return similarToEscapeExplicit(textInput(null), textInput(""));
+}
+export function evaluate35481() {
+    return similarToEscapeExplicit(textInput(null), textInput(" "));
+}
+export function evaluate35482() {
+    return similarToEscapeExplicit(textInput(null), textInput("  abc  "));
+}
+export function evaluate35483() {
+    return similarToEscapeExplicit(textInput(null), textInput("a\uD83D\uDE00\u00E9\u4E2Db"));
+}
+export function evaluate35484() {
+    return similarToEscapeExplicit(textInput(null), textInput("e\u0301"));
+}
+export function evaluate35485() {
+    return similarToEscapeExplicit(textInput(null), textInput("\n\t"));
+}
+export function evaluate35486() {
+    return similarToEscapeExplicit(textInput(null), textInput("abababa"));
+}
+export function evaluate35487() {
+    return similarToEscapeExplicit(textInput(null), textInput("a'b\\c"));
+}
+export function evaluate35488() {
+    return similarToEscapeExplicit(textInput(null), textInput("\u00A0a\u00A0"));
+}
+export function evaluate35489() {
+    return similarToEscapeExplicit(textInput(null), textInput("\uD800\uDC00\uE000"));
+}
+export function evaluate35490() {
+    return similarToEscapeExplicit(textInput(""), textInput(null));
+}
+export function evaluate35491() {
+    return similarToEscapeExplicit(textInput(""), textInput(""));
+}
+export function evaluate35492() {
+    return similarToEscapeExplicit(textInput(""), textInput(" "));
+}
+export function evaluate35493() {
+    return similarToEscapeExplicit(textInput(""), textInput("  abc  "));
+}
+export function evaluate35494() {
+    return similarToEscapeExplicit(textInput(""), textInput("a\uD83D\uDE00\u00E9\u4E2Db"));
+}
+export function evaluate35495() {
+    return similarToEscapeExplicit(textInput(""), textInput("e\u0301"));
+}
+export function evaluate35496() {
+    return similarToEscapeExplicit(textInput(""), textInput("\n\t"));
+}
+export function evaluate35497() {
+    return similarToEscapeExplicit(textInput(""), textInput("abababa"));
+}
+export function evaluate35498() {
+    return similarToEscapeExplicit(textInput(""), textInput("a'b\\c"));
+}
+export function evaluate35499() {
+    return similarToEscapeExplicit(textInput(""), textInput("\u00A0a\u00A0"));
+}
+export function evaluate35500() {
+    return similarToEscapeExplicit(textInput(""), textInput("\uD800\uDC00\uE000"));
+}
+export function evaluate35501() {
+    return similarToEscapeExplicit(textInput(" "), textInput(null));
+}
+export function evaluate35502() {
+    return similarToEscapeExplicit(textInput(" "), textInput(""));
+}
+export function evaluate35503() {
+    return similarToEscapeExplicit(textInput(" "), textInput(" "));
+}
+export function evaluate35504() {
+    return similarToEscapeExplicit(textInput(" "), textInput("  abc  "));
+}
+export function evaluate35505() {
+    return similarToEscapeExplicit(textInput(" "), textInput("a\uD83D\uDE00\u00E9\u4E2Db"));
+}
+export function evaluate35506() {
+    return similarToEscapeExplicit(textInput(" "), textInput("e\u0301"));
+}
+export function evaluate35507() {
+    return similarToEscapeExplicit(textInput(" "), textInput("\n\t"));
+}
+export function evaluate35508() {
+    return similarToEscapeExplicit(textInput(" "), textInput("abababa"));
+}
+export function evaluate35509() {
+    return similarToEscapeExplicit(textInput(" "), textInput("a'b\\c"));
+}
+export function evaluate35510() {
+    return similarToEscapeExplicit(textInput(" "), textInput("\u00A0a\u00A0"));
+}
+export function evaluate35511() {
+    return similarToEscapeExplicit(textInput(" "), textInput("\uD800\uDC00\uE000"));
+}
+export function evaluate35512() {
+    return similarToEscapeExplicit(textInput("  abc  "), textInput(null));
+}
+export function evaluate35513() {
+    return similarToEscapeExplicit(textInput("  abc  "), textInput(""));
+}
+export function evaluate35514() {
+    return similarToEscapeExplicit(textInput("  abc  "), textInput(" "));
+}
+export function evaluate35515() {
+    return similarToEscapeExplicit(textInput("  abc  "), textInput("  abc  "));
+}
+export function evaluate35516() {
+    return similarToEscapeExplicit(textInput("  abc  "), textInput("a\uD83D\uDE00\u00E9\u4E2Db"));
+}
+export function evaluate35517() {
+    return similarToEscapeExplicit(textInput("  abc  "), textInput("e\u0301"));
+}
+export function evaluate35518() {
+    return similarToEscapeExplicit(textInput("  abc  "), textInput("\n\t"));
+}
+export function evaluate35519() {
+    return similarToEscapeExplicit(textInput("  abc  "), textInput("abababa"));
+}
+export function evaluate35520() {
+    return similarToEscapeExplicit(textInput("  abc  "), textInput("a'b\\c"));
+}
+export function evaluate35521() {
+    return similarToEscapeExplicit(textInput("  abc  "), textInput("\u00A0a\u00A0"));
+}
+export function evaluate35522() {
+    return similarToEscapeExplicit(textInput("  abc  "), textInput("\uD800\uDC00\uE000"));
+}
+export function evaluate35523() {
+    return similarToEscapeExplicit(textInput("a\uD83D\uDE00\u00E9\u4E2Db"), textInput(null));
+}
+export function evaluate35524() {
+    return similarToEscapeExplicit(textInput("a\uD83D\uDE00\u00E9\u4E2Db"), textInput(""));
+}
+export function evaluate35525() {
+    return similarToEscapeExplicit(textInput("a\uD83D\uDE00\u00E9\u4E2Db"), textInput(" "));
+}
+export function evaluate35526() {
+    return similarToEscapeExplicit(textInput("a\uD83D\uDE00\u00E9\u4E2Db"), textInput("  abc  "));
+}
+export function evaluate35527() {
+    return similarToEscapeExplicit(textInput("a\uD83D\uDE00\u00E9\u4E2Db"), textInput("a\uD83D\uDE00\u00E9\u4E2Db"));
+}
+export function evaluate35528() {
+    return similarToEscapeExplicit(textInput("a\uD83D\uDE00\u00E9\u4E2Db"), textInput("e\u0301"));
+}
+export function evaluate35529() {
+    return similarToEscapeExplicit(textInput("a\uD83D\uDE00\u00E9\u4E2Db"), textInput("\n\t"));
+}
+export function evaluate35530() {
+    return similarToEscapeExplicit(textInput("a\uD83D\uDE00\u00E9\u4E2Db"), textInput("abababa"));
+}
+export function evaluate35531() {
+    return similarToEscapeExplicit(textInput("a\uD83D\uDE00\u00E9\u4E2Db"), textInput("a'b\\c"));
+}
+export function evaluate35532() {
+    return similarToEscapeExplicit(textInput("a\uD83D\uDE00\u00E9\u4E2Db"), textInput("\u00A0a\u00A0"));
+}
+export function evaluate35533() {
+    return similarToEscapeExplicit(textInput("a\uD83D\uDE00\u00E9\u4E2Db"), textInput("\uD800\uDC00\uE000"));
+}
+export function evaluate35534() {
+    return similarToEscapeExplicit(textInput("e\u0301"), textInput(null));
+}
+export function evaluate35535() {
+    return similarToEscapeExplicit(textInput("e\u0301"), textInput(""));
+}
+export function evaluate35536() {
+    return similarToEscapeExplicit(textInput("e\u0301"), textInput(" "));
+}
+export function evaluate35537() {
+    return similarToEscapeExplicit(textInput("e\u0301"), textInput("  abc  "));
+}
+export function evaluate35538() {
+    return similarToEscapeExplicit(textInput("e\u0301"), textInput("a\uD83D\uDE00\u00E9\u4E2Db"));
+}
+export function evaluate35539() {
+    return similarToEscapeExplicit(textInput("e\u0301"), textInput("e\u0301"));
+}
+export function evaluate35540() {
+    return similarToEscapeExplicit(textInput("e\u0301"), textInput("\n\t"));
+}
+export function evaluate35541() {
+    return similarToEscapeExplicit(textInput("e\u0301"), textInput("abababa"));
+}
+export function evaluate35542() {
+    return similarToEscapeExplicit(textInput("e\u0301"), textInput("a'b\\c"));
+}
+export function evaluate35543() {
+    return similarToEscapeExplicit(textInput("e\u0301"), textInput("\u00A0a\u00A0"));
+}
+export function evaluate35544() {
+    return similarToEscapeExplicit(textInput("e\u0301"), textInput("\uD800\uDC00\uE000"));
+}
+export function evaluate35545() {
+    return similarToEscapeExplicit(textInput("\n\t"), textInput(null));
+}
+export function evaluate35546() {
+    return similarToEscapeExplicit(textInput("\n\t"), textInput(""));
+}
+export function evaluate35547() {
+    return similarToEscapeExplicit(textInput("\n\t"), textInput(" "));
+}
+export function evaluate35548() {
+    return similarToEscapeExplicit(textInput("\n\t"), textInput("  abc  "));
+}
+export function evaluate35549() {
+    return similarToEscapeExplicit(textInput("\n\t"), textInput("a\uD83D\uDE00\u00E9\u4E2Db"));
+}
+export function evaluate35550() {
+    return similarToEscapeExplicit(textInput("\n\t"), textInput("e\u0301"));
+}
+export function evaluate35551() {
+    return similarToEscapeExplicit(textInput("\n\t"), textInput("\n\t"));
+}
+export function evaluate35552() {
+    return similarToEscapeExplicit(textInput("\n\t"), textInput("abababa"));
+}
+export function evaluate35553() {
+    return similarToEscapeExplicit(textInput("\n\t"), textInput("a'b\\c"));
+}
+export function evaluate35554() {
+    return similarToEscapeExplicit(textInput("\n\t"), textInput("\u00A0a\u00A0"));
+}
+export function evaluate35555() {
+    return similarToEscapeExplicit(textInput("\n\t"), textInput("\uD800\uDC00\uE000"));
+}
+export function evaluate35556() {
+    return similarToEscapeExplicit(textInput("abababa"), textInput(null));
+}
+export function evaluate35557() {
+    return similarToEscapeExplicit(textInput("abababa"), textInput(""));
+}
+export function evaluate35558() {
+    return similarToEscapeExplicit(textInput("abababa"), textInput(" "));
+}
+export function evaluate35559() {
+    return similarToEscapeExplicit(textInput("abababa"), textInput("  abc  "));
+}
+export function evaluate35560() {
+    return similarToEscapeExplicit(textInput("abababa"), textInput("a\uD83D\uDE00\u00E9\u4E2Db"));
+}
+export function evaluate35561() {
+    return similarToEscapeExplicit(textInput("abababa"), textInput("e\u0301"));
+}
+export function evaluate35562() {
+    return similarToEscapeExplicit(textInput("abababa"), textInput("\n\t"));
+}
+export function evaluate35563() {
+    return similarToEscapeExplicit(textInput("abababa"), textInput("abababa"));
+}
+export function evaluate35564() {
+    return similarToEscapeExplicit(textInput("abababa"), textInput("a'b\\c"));
+}
+export function evaluate35565() {
+    return similarToEscapeExplicit(textInput("abababa"), textInput("\u00A0a\u00A0"));
+}
+export function evaluate35566() {
+    return similarToEscapeExplicit(textInput("abababa"), textInput("\uD800\uDC00\uE000"));
+}
+export function evaluate35567() {
+    return similarToEscapeExplicit(textInput("a'b\\c"), textInput(null));
+}
+export function evaluate35568() {
+    return similarToEscapeExplicit(textInput("a'b\\c"), textInput(""));
+}
+export function evaluate35569() {
+    return similarToEscapeExplicit(textInput("a'b\\c"), textInput(" "));
+}
+export function evaluate35570() {
+    return similarToEscapeExplicit(textInput("a'b\\c"), textInput("  abc  "));
+}
+export function evaluate35571() {
+    return similarToEscapeExplicit(textInput("a'b\\c"), textInput("a\uD83D\uDE00\u00E9\u4E2Db"));
+}
+export function evaluate35572() {
+    return similarToEscapeExplicit(textInput("a'b\\c"), textInput("e\u0301"));
+}
+export function evaluate35573() {
+    return similarToEscapeExplicit(textInput("a'b\\c"), textInput("\n\t"));
+}
+export function evaluate35574() {
+    return similarToEscapeExplicit(textInput("a'b\\c"), textInput("abababa"));
+}
+export function evaluate35575() {
+    return similarToEscapeExplicit(textInput("a'b\\c"), textInput("a'b\\c"));
+}
+export function evaluate35576() {
+    return similarToEscapeExplicit(textInput("a'b\\c"), textInput("\u00A0a\u00A0"));
+}
+export function evaluate35577() {
+    return similarToEscapeExplicit(textInput("a'b\\c"), textInput("\uD800\uDC00\uE000"));
+}
+export function evaluate35578() {
+    return similarToEscapeExplicit(textInput("\u00A0a\u00A0"), textInput(null));
+}
+export function evaluate35579() {
+    return similarToEscapeExplicit(textInput("\u00A0a\u00A0"), textInput(""));
+}
+export function evaluate35580() {
+    return similarToEscapeExplicit(textInput("\u00A0a\u00A0"), textInput(" "));
+}
+export function evaluate35581() {
+    return similarToEscapeExplicit(textInput("\u00A0a\u00A0"), textInput("  abc  "));
+}
+export function evaluate35582() {
+    return similarToEscapeExplicit(textInput("\u00A0a\u00A0"), textInput("a\uD83D\uDE00\u00E9\u4E2Db"));
+}
+export function evaluate35583() {
+    return similarToEscapeExplicit(textInput("\u00A0a\u00A0"), textInput("e\u0301"));
+}
+export function evaluate35584() {
+    return similarToEscapeExplicit(textInput("\u00A0a\u00A0"), textInput("\n\t"));
+}
+export function evaluate35585() {
+    return similarToEscapeExplicit(textInput("\u00A0a\u00A0"), textInput("abababa"));
+}
+export function evaluate35586() {
+    return similarToEscapeExplicit(textInput("\u00A0a\u00A0"), textInput("a'b\\c"));
+}
+export function evaluate35587() {
+    return similarToEscapeExplicit(textInput("\u00A0a\u00A0"), textInput("\u00A0a\u00A0"));
+}
+export function evaluate35588() {
+    return similarToEscapeExplicit(textInput("\u00A0a\u00A0"), textInput("\uD800\uDC00\uE000"));
+}
+export function evaluate35589() {
+    return similarToEscapeExplicit(textInput("\uD800\uDC00\uE000"), textInput(null));
+}
+export function evaluate35590() {
+    return similarToEscapeExplicit(textInput("\uD800\uDC00\uE000"), textInput(""));
+}
+export function evaluate35591() {
+    return similarToEscapeExplicit(textInput("\uD800\uDC00\uE000"), textInput(" "));
+}
+export function evaluate35592() {
+    return similarToEscapeExplicit(textInput("\uD800\uDC00\uE000"), textInput("  abc  "));
+}
+export function evaluate35593() {
+    return similarToEscapeExplicit(textInput("\uD800\uDC00\uE000"), textInput("a\uD83D\uDE00\u00E9\u4E2Db"));
+}
+export function evaluate35594() {
+    return similarToEscapeExplicit(textInput("\uD800\uDC00\uE000"), textInput("e\u0301"));
+}
+export function evaluate35595() {
+    return similarToEscapeExplicit(textInput("\uD800\uDC00\uE000"), textInput("\n\t"));
+}
+export function evaluate35596() {
+    return similarToEscapeExplicit(textInput("\uD800\uDC00\uE000"), textInput("abababa"));
+}
+export function evaluate35597() {
+    return similarToEscapeExplicit(textInput("\uD800\uDC00\uE000"), textInput("a'b\\c"));
+}
+export function evaluate35598() {
+    return similarToEscapeExplicit(textInput("\uD800\uDC00\uE000"), textInput("\u00A0a\u00A0"));
+}
+export function evaluate35599() {
+    return similarToEscapeExplicit(textInput("\uD800\uDC00\uE000"), textInput("\uD800\uDC00\uE000"));
 }

@@ -74,6 +74,9 @@ export const goTextOperators = {
 } satisfies OperatorBindings<typeof PG18_TEXT, GoExpression>
 
 export const goTextFunctions = {
+  'function:["pg_catalog","similar_to_escape"](pg_catalog.text)': call('similarToEscapeDefault'),
+  'function:["pg_catalog","similar_to_escape"](pg_catalog.text,pg_catalog.text)':
+    call('similarToEscapeExplicit'),
   'function:["pg_catalog","length"](pg_catalog.text)': call('textLength'),
   'function:["pg_catalog","char_length"](pg_catalog.text)': call('textLength'),
   'function:["pg_catalog","character_length"](pg_catalog.text)': call('textLength'),

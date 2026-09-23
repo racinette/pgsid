@@ -153,7 +153,9 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
   ].filter((name) => body.includes(`${name.split('/').at(-1)}.`))
   if (body.includes('decimal.')) imports.push('github.com/shopspring/decimal')
   const copyright =
-    (included.has('SqlDecimalMath') || included.has('textLikeMatch')
+    (included.has('SqlDecimalMath') ||
+    included.has('textLikeMatch') ||
+    included.has('similarToEscapeRaw')
       ? '/*\n' + numericMathCopyright + '\n*/\n'
       : '') + (included.has('sqlFloatMathBits') ? '/*\n' + floatMathCopyright + '\n*/\n' : '')
   return `${copyright}package ${packageName}\n${imports.length ? `import (${imports.map((name) => `\n"${name}"`).join('')}\n)\n` : ''}${body}`

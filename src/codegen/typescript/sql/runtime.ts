@@ -238,7 +238,12 @@ export function typescriptSqlRuntime(required: readonly string[]): ts.Statement[
     }
   }
   for (const name of required) include(name)
-  if ((included.has('SqlDecimalMath') || included.has('textLikeMatch')) && statements.length)
+  if (
+    (included.has('SqlDecimalMath') ||
+      included.has('textLikeMatch') ||
+      included.has('similarToEscape')) &&
+    statements.length
+  )
     ts.addSyntheticLeadingComment(
       statements[0]!,
       ts.SyntaxKind.MultiLineCommentTrivia,
