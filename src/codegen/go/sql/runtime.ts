@@ -13,6 +13,7 @@ import { goArrayDependencies } from './array-runtime.js'
 import { goJsonDependencies } from './json-runtime.js'
 import { goTemporalDependencies } from './temporal-runtime.js'
 import { goCheckDependencies } from './check-runtime.js'
+import { goRegexProfileSource } from './regex-runtime.js'
 
 const dependencies: Record<string, readonly string[]> = {
   float8WidthBucket: ['SqlFloat', 'sqlIntegerRange'],
@@ -119,6 +120,13 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
         return [name, declaration]
       }),
   )
+  declarations.set(
+    'evalBoolRegexAnalyze',
+    readFileSync(new URL('./assets/regex-analyzer.go', import.meta.url), 'utf8').replace(
+      /^package pgsidsql\n/u,
+      '',
+    ),
+  )
   const included = new Set<string>()
   const output: string[] = []
   const include = (name: string) => {
@@ -131,7 +139,8 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
     output.push(declaration)
   }
   for (const name of required) include(name)
-  const body = output.join('\n')
+  const body =
+    output.join('\n') + (included.has('evalBoolRegexAnalyze') ? goRegexProfileSource() : '')
   const imports = [
     'bytes',
     'math',

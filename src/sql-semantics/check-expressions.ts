@@ -29,7 +29,7 @@ export type EvalBoolExpression =
   | {
       kind: 'eval-regex'
       subject: SqlExpression
-      pattern: string
+      pattern: string | SqlExpression
       options?: PostgresRegexOptions
       negated: boolean
       collation: 'C'
@@ -57,7 +57,7 @@ export interface EvalBoolBackend<Ast> {
   ) => { expression: Ast; helpers: readonly string[] }
   regex: (
     subject: TypedSqlExpression<Ast>,
-    pattern: string,
+    pattern: string | TypedSqlExpression<Ast>,
     options: PostgresRegexOptions,
     negated: boolean,
   ) => { expression: Ast; helpers: readonly string[] }
@@ -119,7 +119,16 @@ export function emitEvalBoolExpression<Ast>(
         throw new Error('A regex CHECK atom requires a C-collated text subject')
       const emitted = emitSqlExpression(node.subject, scalarBackend)
       include(emitted.helpers)
-      const result = backend.regex(emitted.value, node.pattern, node.options ?? {}, node.negated)
+      let pattern: string | TypedSqlExpression<Ast>
+      if (typeof node.pattern === 'string') pattern = node.pattern
+      else {
+        if (node.pattern.type !== 'pg_catalog.text')
+          throw new Error('A dynamic regex CHECK pattern must have text type')
+        const emittedPattern = emitSqlExpression(node.pattern, scalarBackend)
+        include(emittedPattern.helpers)
+        pattern = emittedPattern.value
+      }
+      const result = backend.regex(emitted.value, pattern, node.options ?? {}, node.negated)
       include(result.helpers)
       return result.expression
     }

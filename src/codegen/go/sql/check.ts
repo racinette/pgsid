@@ -55,6 +55,19 @@ export const goEvalBoolBackend: EvalBoolBackend<GoExpression> = {
     helpers: ['evalBoolCompare'],
   }),
   regex: (subject, pattern, options, negated) => {
+    if (typeof pattern !== 'string')
+      return {
+        expression: go.call(go.ident('evalBoolRegexDynamic'), [
+          subject.expression,
+          pattern.expression,
+          go.string(options.syntax ?? 'advanced'),
+          go.ident(options.caseSensitive === false ? 'false' : 'true'),
+          go.ident(options.expanded === true ? 'true' : 'false'),
+          go.string(options.newline ?? 'ordinary'),
+          go.ident(negated ? 'true' : 'false'),
+        ]),
+        helpers: ['evalBoolRegexDynamic'],
+      }
     const compiled = compilePostgresRegex(pattern, REGEX_ENGINE_PROFILES.re2, options)
     if (compiled.kind === 'invalid')
       return {

@@ -2,106 +2,10 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { postgresRegexFeatures } from '../../src/sql-semantics/regex/features.js'
 import { parsePostgresRegex } from '../../src/sql-semantics/regex/parser.js'
-
-const validPatterns = [
-  '',
-  'abc',
-  'a|b',
-  '|a|',
-  '(a)',
-  '(?:a)',
-  '.',
-  '[abc]',
-  '[^abc]',
-  '[]a]',
-  '[n-]',
-  '[a-z[:digit:]]',
-  '[[.tab.]]',
-  '[[=a=]]',
-  '\\n',
-  '\\u1234',
-  '\\U0001F600',
-  '\\x41',
-  '\\x123456',
-  '\\101',
-  '\\0',
-  '\\777',
-  '\\uD800',
-  '\\U7ffffffe',
-  '\\d\\D\\s\\S\\w\\W',
-  '[\\d\\D]',
-  '[\\12]',
-  '(a)\\1',
-  '(a)(b)(c)(d)(e)(f)(g)(h)(i)(j)\\10',
-  'a*',
-  'a+?',
-  'a??',
-  'a{0}',
-  'a{1,}',
-  'a{1,2}?',
-  '^a$',
-  '\\Aa\\Z',
-  '\\mword\\M',
-  '\\yword\\Y',
-  '[[:<:]]word[[:>:]]',
-  '(?=a)a',
-  '(?!a)b',
-  '(?<=a)b',
-  '(?<!a)b',
-  '(?# ignored)a',
-  '(?x) a  # ignored\n b',
-  '(?n)^.$',
-  '(?p)^.$',
-  '(?w)^.$',
-  '(?q)a.*',
-  '***=a.*',
-  '***:(?:a)',
-  '(?e)(a|b)+',
-  '(?e)\\d',
-  '(?e))',
-  '(?b)\\(a\\)\\1',
-  '(?b)^a\\{1,2\\}$',
-  '(?b)a\\{0\\}',
-  '(?b)*a',
-  '(?b)^*a',
-  '(?b)a+?',
-] as const
-
-const invalidPatterns = [
-  '\\',
-  '*a',
-  '+a',
-  '?a',
-  '{1}',
-  'a**',
-  'a{256}',
-  'a{2,1}',
-  'a{1',
-  '(',
-  ')',
-  '[',
-  '[z-a]',
-  '[a-c-e]',
-  '[[:bogus:]]',
-  '[[.unknown.]]',
-  '[[=a=]-z]',
-  '\\q',
-  '\\u123',
-  '\\U7fffffff',
-  '\\x',
-  '\\1',
-  '(?=\\1)',
-  '(?=a)*',
-  '[\\A]',
-  '[\\1]',
-  '[[:digit:]-a]',
-  '(?z)a',
-  '***x',
-  '(?e)*a',
-  '(?b)\\1',
-  '(?b)\\{1\\}',
-  '(?b)\\)',
-] as const
+import {
+  invalidRegexPatterns,
+  validRegexPatterns,
+} from '../fixtures/sql-semantics/regex/parser-patterns.js'
 
 let pg: PGlite
 
@@ -129,12 +33,12 @@ describe('PostgreSQL regular expression parser', () => {
     await pg.close()
   })
 
-  it.each(validPatterns)('accepts PostgreSQL pattern %j', async (pattern) => {
+  it.each(validRegexPatterns)('accepts PostgreSQL pattern %j', async (pattern) => {
     expect(await postgresAccepts(pattern)).toBe(true)
     expect(parsePostgresRegex(pattern).kind).toBe('valid')
   })
 
-  it.each(invalidPatterns)('rejects PostgreSQL pattern %j', async (pattern) => {
+  it.each(invalidRegexPatterns)('rejects PostgreSQL pattern %j', async (pattern) => {
     expect(await postgresAccepts(pattern)).toBe(false)
     expect(parsePostgresRegex(pattern)).toMatchObject({ kind: 'invalid', sqlstate: '2201B' })
   })

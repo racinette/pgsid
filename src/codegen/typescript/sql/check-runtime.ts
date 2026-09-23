@@ -1,3 +1,5 @@
+import { REGEX_ANALYZER_SOURCES } from './regex-analyzer.generated.js'
+
 export const typescriptCheckHelpers: Record<
   string,
   { dependencies: readonly string[]; source: string }
@@ -116,6 +118,32 @@ export const typescriptCheckHelpers: Record<
     source: `function evalBoolRegexInvalid(value: string | null): EvalBool {
   if (value === null) return evalBoolCertain(null)
   throw new SqlInvalidRegexError()
+}`,
+  },
+  evalBoolRegexAnalyze: {
+    dependencies: [],
+    source: REGEX_ANALYZER_SOURCES.ecmascript,
+  },
+  evalBoolRegexDynamic: {
+    dependencies: [
+      'EvalBool',
+      'evalBoolCertain',
+      'evalBoolRegex',
+      'evalBoolRegexUnsupported',
+      'evalBoolRegexInvalid',
+      'evalBoolRegexAnalyze',
+    ],
+    source: `function evalBoolRegexDynamic(
+  value: string | null,
+  pattern: string | null,
+  options: PostgresRegexOptions,
+  negated: boolean,
+): EvalBool {
+  if (value === null || pattern === null) return evalBoolCertain(null)
+  const result = evalBoolRegexAnalyze(pattern, options)
+  if (result.kind === 'invalid') return evalBoolRegexInvalid(value)
+  if (result.kind === 'unsupported') return evalBoolRegexUnsupported(value)
+  return evalBoolRegex(value, result.source, result.flags.join(''), negated)
 }`,
   },
 }
