@@ -56,6 +56,27 @@ export const typescriptEvalBoolBackend: EvalBoolBackend<ts.Expression> = {
     helpers: ['evalBoolCompare'],
   }),
   regex: (subject, pattern, options, negated) => {
+    if (typeof pattern !== 'string')
+      return {
+        expression: factory.createCallExpression(identifier('evalBoolRegexDynamic'), undefined, [
+          subject.expression,
+          pattern.expression,
+          factory.createObjectLiteralExpression(
+            Object.entries(options).map(([name, value]) =>
+              factory.createPropertyAssignment(
+                factory.createStringLiteral(name),
+                typeof value === 'boolean'
+                  ? value
+                    ? factory.createTrue()
+                    : factory.createFalse()
+                  : factory.createStringLiteral(value),
+              ),
+            ),
+          ),
+          negated ? factory.createTrue() : factory.createFalse(),
+        ]),
+        helpers: ['evalBoolRegexDynamic'],
+      }
     const compiled = compilePostgresRegex(pattern, REGEX_ENGINE_PROFILES.ecmascript, options)
     if (compiled.kind === 'invalid')
       return {

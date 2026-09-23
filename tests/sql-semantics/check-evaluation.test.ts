@@ -18,6 +18,7 @@ import {
   type EvalBoolExpression,
 } from '../../src/sql-semantics/check-expressions.js'
 import type { SqlExpression } from '../../src/sql-semantics/expressions.js'
+import type { PostgresRegexOptions } from '../../src/sql-semantics/regex/ast.js'
 
 const run = promisify(execFile)
 
@@ -39,7 +40,7 @@ const uncertain: EvalBoolExpression = { kind: 'uncertain' }
 const regex = (
   subject: string | null,
   pattern: string,
-  options: { caseSensitive?: boolean } = {},
+  options: PostgresRegexOptions = {},
   negated = false,
 ): Extract<EvalBoolExpression, { kind: 'eval-regex' }> => ({
   kind: 'eval-regex',
@@ -48,6 +49,16 @@ const regex = (
   options,
   negated,
   collation: 'C',
+})
+
+const dynamicRegex = (
+  subject: string | null,
+  pattern: string | null,
+  options: PostgresRegexOptions = {},
+  negated = false,
+): Extract<EvalBoolExpression, { kind: 'eval-regex' }> => ({
+  ...regex(subject, '', options, negated),
+  pattern: { kind: 'text', type: 'pg_catalog.text', value: pattern },
 })
 
 const integer = (value: string): SqlExpression => ({
@@ -368,6 +379,85 @@ const regexCases: CheckCase[] = [
     },
     expected: { certain: true, value: null, error: '2201B' },
   },
+  {
+    name: 'dynamic supported regex matches',
+    expression: dynamicRegex('xxabcyy', 'abc'),
+    expected: { certain: true, value: true },
+  },
+  {
+    name: 'dynamic pattern is computed by a scalar expression',
+    expression: {
+      ...dynamicRegex('xxabcyy', null),
+      pattern: {
+        kind: 'operator',
+        type: 'pg_catalog.text',
+        signature: 'operator:["pg_catalog","||"](pg_catalog.text,pg_catalog.text)',
+        operands: [
+          { kind: 'text', type: 'pg_catalog.text', value: 'ab' },
+          { kind: 'text', type: 'pg_catalog.text', value: 'c' },
+        ],
+      },
+    },
+    expected: { certain: true, value: true },
+  },
+  {
+    name: 'dynamic supported regex is negated',
+    expression: dynamicRegex('abc', '^abc$', {}, true),
+    expected: { certain: true, value: false },
+  },
+  {
+    name: 'dynamic literal syntax option matches metacharacters literally',
+    expression: dynamicRegex('xa.*y', 'a.*', { syntax: 'literal' }),
+    expected: { certain: true, value: true },
+  },
+  {
+    name: 'dynamic expanded syntax option removes comments',
+    expression: dynamicRegex('xxabyy', 'a # comment\n b', { expanded: true }),
+    expected: { certain: true, value: true },
+  },
+  {
+    name: 'dynamic unsupported regex is uncertain',
+    expression: dynamicRegex('b', 'a|b'),
+    expected: { certain: false },
+  },
+  {
+    name: 'dynamic case folding option is uncertain',
+    expression: dynamicRegex('ABC', 'abc', { caseSensitive: false }),
+    expected: { certain: false },
+  },
+  {
+    name: 'dynamic invalid regex raises SQLSTATE',
+    expression: dynamicRegex('abc', '('),
+    expected: { certain: true, value: null, error: '2201B' },
+  },
+  {
+    name: 'dynamic null subject suppresses invalid pattern',
+    expression: dynamicRegex(null, '('),
+    expected: { certain: true, value: null },
+  },
+  {
+    name: 'dynamic null pattern is SQL NULL',
+    expression: dynamicRegex('abc', null),
+    expected: { certain: true, value: null },
+  },
+  {
+    name: 'false AND skips dynamic invalid regex',
+    expression: {
+      kind: 'eval-boolean-logic',
+      operation: 'and',
+      operands: [certain(false), dynamicRegex('abc', '(')],
+    },
+    expected: { certain: true, value: false },
+  },
+  {
+    name: 'true AND evaluates dynamic invalid regex',
+    expression: {
+      kind: 'eval-boolean-logic',
+      operation: 'and',
+      operands: [certain(true), dynamicRegex('abc', '(')],
+    },
+    expected: { certain: true, value: null, error: '2201B' },
+  },
 ]
 
 const allCases = [
@@ -544,6 +634,30 @@ return [${allCases.map((_, index) => `evaluate${index}`).join(',')}].map((evalua
     expect(goSource).not.toContain(String.raw`(?![\\s\\S])`)
   })
 
+  it('includes a runtime analyzer only for a dynamic pattern', () => {
+    const constant = emitEvalBoolExpression(
+      regex('abc', 'abc'),
+      typescriptSqlBackend,
+      typescriptEvalBoolBackend,
+    )
+    expect(printFile(typescriptSqlRuntime(constant.helpers))).not.toContain(
+      'function evalBoolRegexAnalyze',
+    )
+    const dynamic = dynamicRegex('abc', 'abc')
+    const typescript = emitEvalBoolExpression(
+      dynamic,
+      typescriptSqlBackend,
+      typescriptEvalBoolBackend,
+    )
+    expect(printFile(typescriptSqlRuntime(typescript.helpers))).toContain(
+      'function evalBoolRegexAnalyze',
+    )
+    const goResult = emitEvalBoolExpression(dynamic, goSqlBackend, goEvalBoolBackend)
+    const goSource = goSqlRuntime(goResult.helpers, 'main')
+    expect(goSource).toContain('func evalBoolRegexAnalyze')
+    expect(goSource).not.toContain('ecmascript.escape-literal')
+  })
+
   it('rejects malformed incomplete expressions', () => {
     expect(() =>
       emitEvalBoolExpression(
@@ -599,5 +713,15 @@ return [${allCases.map((_, index) => `evaluate${index}`).join(',')}].map((evalua
         goEvalBoolBackend,
       ),
     ).toThrow('A regex CHECK atom requires a C-collated text subject')
+    expect(() =>
+      emitEvalBoolExpression(
+        {
+          ...dynamicRegex('value', 'value'),
+          pattern: { kind: 'boolean', type: 'pg_catalog.bool', value: true },
+        },
+        typescriptSqlBackend,
+        typescriptEvalBoolBackend,
+      ),
+    ).toThrow('A dynamic regex CHECK pattern must have text type')
   })
 })

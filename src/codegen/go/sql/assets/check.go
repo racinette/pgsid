@@ -138,3 +138,26 @@ func evalBoolRegexInvalid(value SqlText) EvalBool {
 	}
 	return evalBoolCertain(SqlBoolean{Error: "2201B"})
 }
+
+func evalBoolRegexDynamic(value, pattern SqlText, syntax string, caseSensitive, expanded bool, newline string, negated bool) EvalBool {
+	if value.Error != "" {
+		return evalBoolCertain(SqlBoolean{Error: value.Error})
+	}
+	if pattern.Error != "" {
+		return evalBoolCertain(SqlBoolean{Error: pattern.Error})
+	}
+	if !value.Valid || !pattern.Valid {
+		return evalBoolCertain(SqlBoolean{})
+	}
+	decision := evalBoolRegexAnalyze(pattern.Value, syntax, caseSensitive, expanded, newline)
+	switch decision.Kind {
+	case "invalid":
+		return evalBoolRegexInvalid(value)
+	case "unsupported":
+		return evalBoolRegexUnsupported(value)
+	case "supported":
+		return evalBoolRegex(value, decision.Source, negated)
+	default:
+		panic("unknown regex analysis decision")
+	}
+}
