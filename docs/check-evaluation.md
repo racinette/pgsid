@@ -2,8 +2,8 @@
 
 Settled model for generated domain and table CHECK validators. Scalar
 helpers that implement PostgreSQL operators are unchanged: they return SQL
-values. This file is the boolean lattice used when those values are *used as
-a constraint*.
+values. This file is the boolean lattice used when those values are _used as
+a constraint_.
 
 Stage 1 goldens still compare SQL `TRUE` / `FALSE` / `NULL` to PGlite. Do
 not introduce `UNCERTAIN` into that pipeline. Implement this lattice when
@@ -18,12 +18,12 @@ result of `NULL` here means PostgreSQL would also yield SQL null.
 
 **`EvalBool`** is the CHECK-predicate type. Four constructors:
 
-| Constructor | Meaning | PostgreSQL would |
-| ----------- | ------- | ---------------- |
-| `Certain(TRUE)` | we evaluated; result is true | true |
-| `Certain(FALSE)` | we evaluated; result is false | false |
-| `Certain(NULL)` | we evaluated; result is SQL null | null |
-| `Uncertain` | we did not evaluate this atom | unknown; maybe any of the three |
+| Constructor      | Meaning                          | PostgreSQL would                |
+| ---------------- | -------------------------------- | ------------------------------- |
+| `Certain(TRUE)`  | we evaluated; result is true     | true                            |
+| `Certain(FALSE)` | we evaluated; result is false    | false                           |
+| `Certain(NULL)`  | we evaluated; result is SQL null | null                            |
+| `Uncertain`      | we did not evaluate this atom    | unknown; maybe any of the three |
 
 `Uncertain` is not SQL `NULL`. SQL null is an answer and CHECK-in-Postgres
 treats it as pass. `Uncertain` is the absence of an answer.
@@ -47,27 +47,27 @@ locally. Insert validation would accept rows PostgreSQL would reject.
 value **kill** uncertainty. Thunks stay: if the left arm of `AND` is
 `Certain(FALSE)`, the right arm is not called.
 
-| Left | Right | `AND` |
-| ---- | ----- | ----- |
-| `Certain(FALSE)` | anything, including not called | `Certain(FALSE)` |
-| `Certain(TRUE)` | `Certain(x)` | `Certain(x)` |
-| `Certain(TRUE)` | `Uncertain` | `Uncertain` |
-| `Certain(NULL)` | `Certain(FALSE)` | `Certain(FALSE)` |
-| `Certain(NULL)` | `Certain(TRUE)` or `Certain(NULL)` | `Certain(NULL)` |
-| `Certain(NULL)` | `Uncertain` | `Uncertain` |
-| `Uncertain` | `Certain(FALSE)` | `Certain(FALSE)` |
-| `Uncertain` | otherwise | `Uncertain` |
+| Left             | Right                              | `AND`            |
+| ---------------- | ---------------------------------- | ---------------- |
+| `Certain(FALSE)` | anything, including not called     | `Certain(FALSE)` |
+| `Certain(TRUE)`  | `Certain(x)`                       | `Certain(x)`     |
+| `Certain(TRUE)`  | `Uncertain`                        | `Uncertain`      |
+| `Certain(NULL)`  | `Certain(FALSE)`                   | `Certain(FALSE)` |
+| `Certain(NULL)`  | `Certain(TRUE)` or `Certain(NULL)` | `Certain(NULL)`  |
+| `Certain(NULL)`  | `Uncertain`                        | `Uncertain`      |
+| `Uncertain`      | `Certain(FALSE)`                   | `Certain(FALSE)` |
+| `Uncertain`      | otherwise                          | `Uncertain`      |
 
-| Left | Right | `OR` |
-| ---- | ----- | ----- |
-| `Certain(TRUE)` | anything, including not called | `Certain(TRUE)` |
-| `Certain(FALSE)` | `Certain(x)` | `Certain(x)` |
-| `Certain(FALSE)` | `Uncertain` | `Uncertain` |
-| `Certain(NULL)` | `Certain(TRUE)` | `Certain(TRUE)` |
-| `Certain(NULL)` | `Certain(FALSE)` or `Certain(NULL)` | `Certain(NULL)` |
-| `Certain(NULL)` | `Uncertain` | `Uncertain` |
-| `Uncertain` | `Certain(TRUE)` | `Certain(TRUE)` |
-| `Uncertain` | otherwise | `Uncertain` |
+| Left             | Right                               | `OR`            |
+| ---------------- | ----------------------------------- | --------------- |
+| `Certain(TRUE)`  | anything, including not called      | `Certain(TRUE)` |
+| `Certain(FALSE)` | `Certain(x)`                        | `Certain(x)`    |
+| `Certain(FALSE)` | `Uncertain`                         | `Uncertain`     |
+| `Certain(NULL)`  | `Certain(TRUE)`                     | `Certain(TRUE)` |
+| `Certain(NULL)`  | `Certain(FALSE)` or `Certain(NULL)` | `Certain(NULL)` |
+| `Certain(NULL)`  | `Uncertain`                         | `Uncertain`     |
+| `Uncertain`      | `Certain(TRUE)`                     | `Certain(TRUE)` |
+| `Uncertain`      | otherwise                           | `Uncertain`     |
 
 `NOT Uncertain` is `Uncertain`. `NOT Certain(x)` is `Certain` of SQL `NOT x`.
 
@@ -104,11 +104,11 @@ lifted with `Certain`.
 
 The expression yields `EvalBool`. The function an app calls maps that:
 
-| `EvalBool` | Insert validation | `SELECT` of an already-stored row |
-| ---------- | ----------------- | --------------------------------- |
-| `Certain(TRUE)` or `Certain(NULL)` | pass | pass |
-| `Certain(FALSE)` | reject | reject |
-| `Uncertain` | do not decide; send the row to PostgreSQL | ignore the flag; the server already accepted the row |
+| `EvalBool`                         | Insert validation                         | `SELECT` of an already-stored row                    |
+| ---------------------------------- | ----------------------------------------- | ---------------------------------------------------- |
+| `Certain(TRUE)` or `Certain(NULL)` | pass                                      | pass                                                 |
+| `Certain(FALSE)`                   | reject                                    | reject                                               |
+| `Uncertain`                        | do not decide; send the row to PostgreSQL | ignore the flag; the server already accepted the row |
 
 `SELECT` and `INSERT` share the evaluator. They differ only in whether
 `Uncertain` is a fall-through or a no-op. Collapsing `Uncertain` to SQL

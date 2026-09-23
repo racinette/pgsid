@@ -1,8 +1,9 @@
-# Working rules for docs and comments
+# Working rules
 
-These govern what goes into prose — under `docs/` and in code comments — and
-what stays out. Prose is the only thing in this repo that cannot fail, so it
-is the only thing that can be wrong indefinitely.
+Prose rules govern what goes into `docs/` and code comments. Formatting and
+lint rules govern which files those checks judge. Prose is the only thing in
+this repo that cannot fail, so it is the only thing that can be wrong
+indefinitely.
 
 The corpus has its own rules file beside it, under `tests/unit/query/`.
 
@@ -81,3 +82,15 @@ is nothing, don't write it.
 
 **23.** If someone rewrote this mechanism, would the doc obviously need
 rewriting too? If not, you documented a method.
+
+## Formatting and lint
+
+**24.** The formatter judges files a person maintains. Leave a generated file
+in the bytes its producer wrote, and keep it out of the format check. A
+hand-written file about generated columns is not a generated file.
+
+**25.** Lint judges maintained code for defects the typechecker cannot see.
+Generated code the program executes stays in that check. A snapshot stays
+out: producer output kept for byte comparison, guidance a tool rewrites, and
+a borrowed corpus kept in upstream form. Fix a snapshot in the producer, then
+regenerate.

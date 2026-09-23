@@ -29,7 +29,14 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ['dist/**', 'coverage/**', 'node_modules/**', 'tests/fixtures/codegen/**'],
+    ignores: [
+      'dist/**',
+      'coverage/**',
+      'node_modules/**',
+      // Producer output compared byte for byte. A finding here is fixed by regenerating.
+      'tests/fixtures/codegen/**',
+      'tests/fixtures/sql-semantics/projects/**',
+    ],
   },
   {
     files: ['src/**/*.ts', 'tests/**/*.ts'],
