@@ -3,6 +3,7 @@ import { factory, identifier } from '../ast.js'
 import type { EvalBoolBackend } from '../../../sql-semantics/check-expressions.js'
 import { compilePostgresRegex } from '../../../sql-semantics/regex/compiler.js'
 import { REGEX_ENGINE_PROFILES } from '../../../sql-semantics/regex/profiles.generated.js'
+import { typescriptEvalBackend } from './eval.js'
 
 const thunk = (expression: ts.Expression): ts.ArrowFunction =>
   factory.createArrowFunction(
@@ -15,6 +16,8 @@ const thunk = (expression: ts.Expression): ts.ArrowFunction =>
   )
 
 export const typescriptEvalBoolBackend: EvalBoolBackend<ts.Expression> = {
+  scalar: typescriptEvalBackend,
+  partialScalar: (value) => ({ expression: value, helpers: [] }),
   certain: (value) =>
     factory.createCallExpression(identifier('evalBoolCertain'), undefined, [value.expression]),
   uncertain: () => factory.createCallExpression(identifier('evalBoolUncertain'), undefined, []),

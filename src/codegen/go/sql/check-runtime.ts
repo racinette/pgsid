@@ -1,5 +1,8 @@
 export const goCheckDependencies: Record<string, readonly string[]> = {
-  EvalBool: ['SqlBoolean'],
+  EvalValue: [],
+  EvalBool: ['EvalValue', 'SqlBoolean'],
+  evalBoolFromValue: ['EvalBool', 'EvalValue'],
+  evalValueFromBool: ['EvalBool', 'EvalValue'],
   evalBoolCertain: ['EvalBool'],
   evalBoolUncertain: ['EvalBool'],
   evalBoolNot: ['EvalBool'],

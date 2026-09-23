@@ -1,0 +1,183 @@
+import {
+  emitSqlCallable,
+  emitSqlExpression,
+  type ExpressionBackend,
+  type SqlCallableExpression,
+  type SqlExpression,
+  type ScalarType,
+} from './expressions.js'
+import type { TypedSqlExpression } from './signatures.js'
+
+export type EvalExpression =
+  | { kind: 'certain'; expression: SqlExpression }
+  | { kind: 'uncertain'; type: string }
+  | {
+      kind: 'boolean-logic'
+      type: 'pg_catalog.bool'
+      operation: 'and' | 'or' | 'not'
+      operands: readonly EvalExpression[]
+    }
+  | { kind: 'null-test'; type: 'pg_catalog.bool'; negated: boolean; operand: EvalExpression }
+  | { kind: 'coalesce'; type: ScalarType; operands: readonly EvalExpression[] }
+  | {
+      kind: 'case'
+      type: ScalarType
+      branches: readonly { when: EvalExpression; then: EvalExpression }[]
+      otherwise: EvalExpression
+    }
+  | {
+      kind: 'call'
+      call: SqlCallableExpression
+      operands: readonly EvalExpression[]
+    }
+
+export interface EmittedEvalExpression<Ast> extends TypedSqlExpression<Ast> {
+  effect: 'total' | 'partial'
+}
+
+export interface EvalExpressionBackend<Ast> {
+  certain: (type: string, expression: Ast) => { expression: Ast; helpers: readonly string[] }
+  uncertain: (type: string) => { expression: Ast; helpers: readonly string[] }
+  call: (
+    type: string,
+    operands: readonly EmittedEvalExpression<Ast>[],
+    emitTotal: (operands: readonly TypedSqlExpression<Ast>[]) => {
+      value: TypedSqlExpression<Ast>
+      helpers: readonly string[]
+    },
+  ) => { expression: Ast; helpers: readonly string[] }
+  logic: (
+    operation: 'and' | 'or' | 'not',
+    operands: readonly EmittedEvalExpression<Ast>[],
+  ) => { expression: Ast; helpers: readonly string[] }
+  nullTest: (
+    operand: EmittedEvalExpression<Ast>,
+    negated: boolean,
+  ) => { expression: Ast; helpers: readonly string[] }
+  coalesce: (
+    type: string,
+    operands: readonly EmittedEvalExpression<Ast>[],
+  ) => { expression: Ast; helpers: readonly string[] }
+  case: (
+    type: string,
+    branches: readonly { when: EmittedEvalExpression<Ast>; then: EmittedEvalExpression<Ast> }[],
+    otherwise: EmittedEvalExpression<Ast>,
+  ) => { expression: Ast; helpers: readonly string[] }
+}
+
+export function emitEvalExpression<Ast>(
+  expression: EvalExpression,
+  scalarBackend: ExpressionBackend<Ast>,
+  backend: EvalExpressionBackend<Ast>,
+): { value: TypedSqlExpression<Ast>; helpers: readonly string[] } {
+  const helpers = new Set<string>()
+  const include = (names: readonly string[]): void => {
+    for (const name of names) helpers.add(name)
+  }
+  const emit = (node: EvalExpression): EmittedEvalExpression<Ast> => {
+    if (node.kind === 'certain') {
+      const result = emitSqlExpression(node.expression, scalarBackend)
+      include(result.helpers)
+      return { ...result.value, effect: 'total' }
+    }
+    if (node.kind === 'uncertain') {
+      const result = backend.uncertain(node.type)
+      include(result.helpers)
+      return { type: node.type, expression: result.expression, effect: 'partial' }
+    }
+    if (node.kind === 'boolean-logic') {
+      const operands = node.operands.map(emit)
+      if (
+        operands.length !== (node.operation === 'not' ? 1 : 2) ||
+        operands.some((operand) => operand.type !== 'pg_catalog.bool')
+      )
+        throw new Error('Invalid partial boolean expression')
+      if (operands.every((operand) => operand.effect === 'total')) {
+        const result = scalarBackend.syntax(node.operation, node.type, operands)
+        include(result.helpers)
+        return { type: node.type, expression: result.expression, effect: 'total' }
+      }
+      const result = backend.logic(node.operation, operands)
+      include(result.helpers)
+      return { type: node.type, expression: result.expression, effect: 'partial' }
+    }
+    if (node.kind === 'null-test') {
+      const operand = emit(node.operand)
+      if (operand.effect === 'total') {
+        const result = scalarBackend.syntax(node.negated ? 'is-not-null' : 'is-null', node.type, [
+          operand,
+        ])
+        include(result.helpers)
+        return { type: node.type, expression: result.expression, effect: 'total' }
+      }
+      const result = backend.nullTest(operand, node.negated)
+      include(result.helpers)
+      return { type: node.type, expression: result.expression, effect: 'partial' }
+    }
+    if (node.kind === 'coalesce') {
+      const operands = node.operands.map(emit)
+      if (operands.length === 0 || operands.some((operand) => operand.type !== node.type))
+        throw new Error('Invalid partial COALESCE expression')
+      if (operands.every((operand) => operand.effect === 'total')) {
+        const result = scalarBackend.syntax('coalesce', node.type, operands)
+        include(result.helpers)
+        return { type: node.type, expression: result.expression, effect: 'total' }
+      }
+      const result = backend.coalesce(node.type, operands)
+      include(result.helpers)
+      return { type: node.type, expression: result.expression, effect: 'partial' }
+    }
+    if (node.kind === 'case') {
+      if (node.branches.length === 0) throw new Error('Invalid partial CASE expression')
+      const branches = node.branches.map((branch) => ({
+        when: emit(branch.when),
+        then: emit(branch.then),
+      }))
+      const otherwise = emit(node.otherwise)
+      if (
+        branches.some(
+          (branch) => branch.when.type !== 'pg_catalog.bool' || branch.then.type !== node.type,
+        ) ||
+        otherwise.type !== node.type
+      )
+        throw new Error('Invalid partial CASE expression')
+      if (
+        branches.every(
+          (branch) => branch.when.effect === 'total' && branch.then.effect === 'total',
+        ) &&
+        otherwise.effect === 'total'
+      ) {
+        const result = scalarBackend.syntax('case', node.type, [
+          ...branches.flatMap((branch) => [branch.when, branch.then]),
+          otherwise,
+        ])
+        include(result.helpers)
+        return { type: node.type, expression: result.expression, effect: 'total' }
+      }
+      const result = backend.case(node.type, branches, otherwise)
+      include(result.helpers)
+      return { type: node.type, expression: result.expression, effect: 'partial' }
+    }
+    const operands = node.operands.map(emit)
+    if (node.call.kind === 'cast' && node.call.signature === null) {
+      if (operands.length !== 1 || operands[0]!.type !== node.call.type)
+        throw new Error('Invalid partial relabel cast')
+      return operands[0]!
+    }
+    const emitTotal = (raw: readonly TypedSqlExpression<Ast>[]) =>
+      emitSqlCallable(node.call, raw, scalarBackend)
+    if (operands.every((operand) => operand.effect === 'total')) {
+      const result = emitTotal(operands)
+      include(result.helpers)
+      return { ...result.value, effect: 'total' }
+    }
+    const result = backend.call(node.call.type, operands, emitTotal)
+    include(result.helpers)
+    return { type: node.call.type, expression: result.expression, effect: 'partial' }
+  }
+  const result = emit(expression)
+  if (result.effect === 'partial') return { value: result, helpers: [...helpers] }
+  const lifted = backend.certain(result.type, result.expression)
+  include(lifted.helpers)
+  return { value: { type: result.type, expression: lifted.expression }, helpers: [...helpers] }
+}

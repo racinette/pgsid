@@ -2,6 +2,7 @@ import { go, type GoExpression } from '../ast.js'
 import type { EvalBoolBackend } from '../../../sql-semantics/check-expressions.js'
 import { compilePostgresRegex } from '../../../sql-semantics/regex/compiler.js'
 import { REGEX_ENGINE_PROFILES } from '../../../sql-semantics/regex/profiles.generated.js'
+import { goEvalBackend } from './eval.js'
 
 const thunk = (expression: GoExpression): GoExpression => ({
   kind: 'function-literal',
@@ -11,6 +12,11 @@ const thunk = (expression: GoExpression): GoExpression => ({
 })
 
 export const goEvalBoolBackend: EvalBoolBackend<GoExpression> = {
+  scalar: goEvalBackend,
+  partialScalar: (value) => ({
+    expression: go.call(go.ident('evalBoolFromValue'), [value]),
+    helpers: ['evalBoolFromValue'],
+  }),
   certain: (value) => go.call(go.ident('evalBoolCertain'), [value.expression]),
   uncertain: () => go.call(go.ident('evalBoolUncertain'), []),
   logic: (operation, operands) => ({
