@@ -104,4 +104,19 @@ export const typescriptEvalBoolBackend: EvalBoolBackend<ts.Expression> = {
       helpers: ['evalBoolRegex'],
     }
   },
+  regexWithFlags: (subject, pattern, flags) => ({
+    expression: factory.createCallExpression(identifier('evalBoolRegexpLike'), undefined, [
+      subject.expression,
+      pattern.expression,
+      flags.expression,
+    ]),
+    helpers: ['evalBoolRegexpLike'],
+  }),
+  regexInvalidFlags: (subject, pattern) => ({
+    expression: factory.createCallExpression(identifier('evalBoolRegexInvalidFlags'), undefined, [
+      subject.expression,
+      pattern.expression,
+    ]),
+    helpers: ['evalBoolRegexInvalidFlags'],
+  }),
 }

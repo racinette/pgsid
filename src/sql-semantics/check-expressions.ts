@@ -1,5 +1,7 @@
 import { emitSqlExpression, type ExpressionBackend, type SqlExpression } from './expressions.js'
+import { builtinMetadata } from '../postgres/builtins/inventory.js'
 import type { PostgresRegexOptions } from './regex/ast.js'
+import { parseRegexpLikeFlags } from './regex/flags.js'
 import type { TypedSqlExpression } from './signatures.js'
 
 export type EvalBoolExpression =
@@ -31,9 +33,12 @@ export type EvalBoolExpression =
       subject: SqlExpression
       pattern: string | SqlExpression
       options?: PostgresRegexOptions
+      flags?: SqlExpression
+      invalidFlags?: boolean
       negated: boolean
       collation: 'C'
     }
+  | { kind: 'eval-call'; call: Extract<SqlExpression, { kind: 'operator' | 'function' }> }
 
 export interface EvalBoolBackend<Ast> {
   certain: (value: TypedSqlExpression<Ast, 'pg_catalog.bool'>) => Ast
@@ -60,6 +65,15 @@ export interface EvalBoolBackend<Ast> {
     pattern: string | TypedSqlExpression<Ast>,
     options: PostgresRegexOptions,
     negated: boolean,
+  ) => { expression: Ast; helpers: readonly string[] }
+  regexWithFlags: (
+    subject: TypedSqlExpression<Ast>,
+    pattern: TypedSqlExpression<Ast>,
+    flags: TypedSqlExpression<Ast>,
+  ) => { expression: Ast; helpers: readonly string[] }
+  regexInvalidFlags: (
+    subject: TypedSqlExpression<Ast>,
+    pattern: TypedSqlExpression<Ast>,
   ) => { expression: Ast; helpers: readonly string[] }
 }
 
@@ -106,6 +120,82 @@ export function emitEvalBoolExpression<Ast>(
       include(result.helpers)
       return result.expression
     }
+    if (node.kind === 'eval-call') {
+      const { call } = node
+      const metadata = builtinMetadata(call.signature)
+      const validSignature =
+        metadata.kind === call.kind &&
+        metadata.schema === 'pg_catalog' &&
+        metadata.result === 'pg_catalog.bool' &&
+        call.type === metadata.result &&
+        metadata.strict &&
+        metadata.args.length === call.operands.length &&
+        metadata.args.every((type, index) => call.operands[index]?.type === type)
+      const subjectType = metadata.args[0]
+      const patternType = metadata.args[1]
+      const regexpOperator =
+        metadata.kind === 'operator' &&
+        ['~', '!~', '~*', '!~*'].includes(metadata.name) &&
+        ['pg_catalog.text', 'pg_catalog.name', 'pg_catalog.bpchar'].includes(subjectType ?? '') &&
+        patternType === 'pg_catalog.text' &&
+        metadata.args.length === 2
+      const functionMatch =
+        metadata.kind === 'function'
+          ? /^(name|text|bpchar)(ic)?regex(eq|ne)$/u.exec(metadata.name)
+          : null
+      const regexpFunction =
+        functionMatch !== null &&
+        subjectType === `pg_catalog.${functionMatch[1]}` &&
+        patternType === 'pg_catalog.text' &&
+        metadata.args.length === 2
+      const regexpLike =
+        metadata.kind === 'function' &&
+        metadata.name === 'regexp_like' &&
+        metadata.args.length >= 2 &&
+        metadata.args.length <= 3 &&
+        metadata.args.every((type) => type === 'pg_catalog.text')
+      if (!validSignature || (!regexpOperator && !regexpFunction && !regexpLike))
+        throw new Error(`Unsupported regex CHECK signature: ${call.signature}`)
+      if (call.collation !== 'C')
+        throw new Error('A regex CHECK atom requires a C-collated text subject')
+      const subject = call.operands[0]!
+      const patternExpression = call.operands[1]!
+      const pattern =
+        patternExpression.kind === 'text' && patternExpression.value !== null
+          ? patternExpression.value
+          : patternExpression
+      const negated = regexpOperator
+        ? metadata.name.startsWith('!')
+        : regexpFunction
+          ? functionMatch![3] === 'ne'
+          : false
+      const caseSensitive = regexpOperator
+        ? !metadata.name.endsWith('*')
+        : regexpFunction
+          ? functionMatch![2] !== 'ic'
+          : true
+      let options: PostgresRegexOptions = { caseSensitive }
+      let flags: SqlExpression | undefined
+      let invalidFlags = false
+      if (regexpLike && call.operands.length === 3) {
+        const flagExpression = call.operands[2]!
+        if (flagExpression.kind === 'text' && flagExpression.value !== null) {
+          const parsed = parseRegexpLikeFlags(flagExpression.value)
+          if (parsed.kind === 'valid') options = parsed.options
+          else invalidFlags = true
+        } else flags = flagExpression
+      }
+      return emit({
+        kind: 'eval-regex',
+        subject,
+        pattern,
+        options,
+        flags,
+        invalidFlags,
+        negated,
+        collation: 'C',
+      })
+    }
     if (node.kind === 'eval-regex') {
       if (
         ![
@@ -127,6 +217,36 @@ export function emitEvalBoolExpression<Ast>(
         const emittedPattern = emitSqlExpression(node.pattern, scalarBackend)
         include(emittedPattern.helpers)
         pattern = emittedPattern.value
+      }
+      if (node.invalidFlags) {
+        if (typeof pattern === 'string') {
+          const emittedPattern = emitSqlExpression(
+            { kind: 'text', type: 'pg_catalog.text', value: pattern },
+            scalarBackend,
+          )
+          include(emittedPattern.helpers)
+          pattern = emittedPattern.value
+        }
+        const result = backend.regexInvalidFlags(emitted.value, pattern)
+        include(result.helpers)
+        return result.expression
+      }
+      if (node.flags) {
+        if (node.flags.type !== 'pg_catalog.text')
+          throw new Error('Regex CHECK flags must have text type')
+        const emittedFlags = emitSqlExpression(node.flags, scalarBackend)
+        include(emittedFlags.helpers)
+        if (typeof pattern === 'string') {
+          const emittedPattern = emitSqlExpression(
+            { kind: 'text', type: 'pg_catalog.text', value: pattern },
+            scalarBackend,
+          )
+          include(emittedPattern.helpers)
+          pattern = emittedPattern.value
+        }
+        const result = backend.regexWithFlags(emitted.value, pattern, emittedFlags.value)
+        include(result.helpers)
+        return result.expression
       }
       const result = backend.regex(emitted.value, pattern, node.options ?? {}, node.negated)
       include(result.helpers)

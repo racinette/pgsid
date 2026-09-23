@@ -21,4 +21,13 @@ export const goCheckDependencies: Record<string, readonly string[]> = {
     'evalBoolRegexInvalid',
     'evalBoolRegexAnalyze',
   ],
+  regexLikeFlags: [],
+  evalBoolRegexInvalidFlags: ['EvalBool', 'SqlText', 'evalBoolCertain'],
+  evalBoolRegexpLike: [
+    'EvalBool',
+    'SqlText',
+    'evalBoolCertain',
+    'evalBoolRegexDynamic',
+    'regexLikeFlags',
+  ],
 }

@@ -146,4 +146,36 @@ export const typescriptCheckHelpers: Record<
   return evalBoolRegex(value, result.source, result.flags.join(''), negated)
 }`,
   },
+  SqlInvalidRegexOptionError: {
+    dependencies: [],
+    source: `class SqlInvalidRegexOptionError extends Error {
+  readonly code = '22023'
+  constructor() { super('invalid regular expression option') }
+}`,
+  },
+  evalBoolRegexInvalidFlags: {
+    dependencies: ['EvalBool', 'evalBoolCertain', 'SqlInvalidRegexOptionError'],
+    source: `function evalBoolRegexInvalidFlags(value: string | null, pattern: string | null): EvalBool {
+  if (value === null || pattern === null) return evalBoolCertain(null)
+  throw new SqlInvalidRegexOptionError()
+}`,
+  },
+  evalBoolRegexpLike: {
+    dependencies: [
+      'EvalBool',
+      'evalBoolCertain',
+      'SqlInvalidRegexOptionError',
+      'evalBoolRegexDynamic',
+    ],
+    source: `function evalBoolRegexpLike(
+  value: string | null,
+  pattern: string | null,
+  flags: string | null,
+): EvalBool {
+  if (value === null || pattern === null || flags === null) return evalBoolCertain(null)
+  const parsed = parseRegexpLikeFlags(flags)
+  if (parsed.kind === 'invalid') throw new SqlInvalidRegexOptionError()
+  return evalBoolRegexDynamic(value, pattern, parsed.options, false)
+}`,
+  },
 }
