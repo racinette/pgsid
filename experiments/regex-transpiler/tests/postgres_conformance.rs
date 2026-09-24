@@ -158,7 +158,7 @@ fn rust_stress_results_match_postgres() {
     assert!(cases.len() >= 1000, "stress corpus shrank");
     assert_eq!(tuples.len() - original_count, cases.len());
     assert!(family.values().all(|count| *count < cases.len() / 2));
-    assert_eq!(family.len(), 20);
+    assert_eq!(family.len(), 21);
     for name in [
         "precedence",
         "repetition",
@@ -180,13 +180,17 @@ fn rust_stress_results_match_postgres() {
         "extended_interactions",
         "basic_mutations",
         "extended_mutations",
+        "capture_ambiguity",
     ] {
         let minimum = if name == "literal" {
             20
+        } else if name == "capture_ambiguity" {
+            100
         } else if name.ends_with("_interactions")
             || name.ends_with("_mutations")
             || name == "backref_unicode"
             || name == "lookaround_newline"
+            || name == "capture_ambiguity"
         {
             90
         } else {
@@ -268,6 +272,27 @@ fn rust_stress_results_match_postgres() {
         mismatches.len(),
         mismatches.join("\n")
     );
+}
+
+#[test]
+fn repeated_capture_backreferences_follow_postgres_path_preference() {
+    for (pattern, subject, end) in [
+        (r"(a|aa){2}\1", "aaaaa", 4),
+        (r"(a|aa){2}\1", "aaaaaa", 6),
+        (r"((a|aa){1,2})\2", "aaaaa", 4),
+        (r"((a|aa)+)\2", "aaaaa", 5),
+    ] {
+        let engine::CompileOutcome::Ready(program) =
+            engine::compile(pattern, engine::Options::default())
+        else {
+            panic!("capture pattern {pattern:?} did not compile");
+        };
+        assert_eq!(
+            program.find(subject, 0),
+            engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end }),
+            "{pattern:?} on {subject:?}"
+        );
+    }
 }
 
 #[test]
@@ -365,6 +390,87 @@ fn rust_position_results_match_postgres() {
     assert!(
         mismatches.is_empty(),
         "{} position mismatches:\n{}",
+        mismatches.len(),
+        mismatches.join("\n")
+    );
+}
+
+#[test]
+fn rust_boundary_results_respect_declared_limits() {
+    let document: Value =
+        serde_json::from_str(include_str!("../conformance/stress-boundary-fixtures.json")).unwrap();
+    assert_eq!(document["schemaVersion"], 1);
+    assert_eq!(document["oracle"]["collation"], "C");
+    let cases = document["fixtures"].as_array().unwrap();
+    let mut ids = HashSet::new();
+    let mut boundaries = BTreeMap::new();
+    let mut definite = 0;
+    let mut uncertain = 0;
+    let mut mismatches = Vec::new();
+    for fixture in cases {
+        let id = fixture["id"].as_str().unwrap();
+        let boundary = fixture["boundary"].as_str().unwrap();
+        let side = fixture["side"].as_str().unwrap();
+        let input = &fixture["input"];
+        assert!(ids.insert(id));
+        *boundaries.entry(boundary).or_insert(0usize) += 1;
+        let pattern = input["pattern"].as_str().unwrap();
+        let subject = input["subject"].as_str().unwrap();
+        let increment = if side == "at" { 0 } else { 1 };
+        match boundary {
+            "pattern_scalars" | "pattern_unicode_scalars" => {
+                assert_eq!(pattern.chars().count(), 3072 + increment);
+            }
+            "subject_scalars" | "subject_unicode_scalars" => {
+                assert_eq!(subject.chars().count(), 4096 + increment);
+            }
+            "lookbehind_subject_scalars" => {
+                assert_eq!(subject.chars().count(), 256 + increment);
+            }
+            "capture_groups" => {
+                assert_eq!(pattern.matches("(a)").count(), 128 + increment);
+            }
+            "group_depth" => {
+                assert_eq!(
+                    pattern
+                        .chars()
+                        .filter(|character| *character == '(')
+                        .count(),
+                    64 + increment
+                );
+            }
+            "bound_value" => {
+                assert_eq!(pattern, format!("a{{{}}}", 255 + increment));
+            }
+            other => panic!("unknown boundary {other}"),
+        }
+        match fixture["engineExpectation"].as_str().unwrap() {
+            "Definite" => {
+                definite += 1;
+                let actual = evaluate(input);
+                if actual.as_ref() != Some(&fixture["expected"]) {
+                    mismatches.push(format!(
+                        "{id}: expected={}, actual={actual:?}",
+                        fixture["expected"]
+                    ));
+                }
+            }
+            "Uncertain" => {
+                uncertain += 1;
+                if let Some(actual) = evaluate(input) {
+                    mismatches.push(format!("{id}: expected Uncertain, actual={actual}"));
+                }
+            }
+            other => panic!("unknown boundary expectation {other}"),
+        }
+    }
+    assert_eq!(boundaries.len(), 8);
+    assert!(boundaries.values().all(|count| *count == 2));
+    assert_eq!(definite, 9);
+    assert_eq!(uncertain, 7);
+    assert!(
+        mismatches.is_empty(),
+        "{} boundary mismatches:\n{}",
         mismatches.len(),
         mismatches.join("\n")
     );

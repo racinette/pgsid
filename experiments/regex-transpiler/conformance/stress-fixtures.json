@@ -35302,6 +35302,2226 @@
         "kind": "InvalidPattern",
         "sqlstate": "2201B"
       }
+    },
+    {
+      "id": "capture_ambiguity-0001",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa)(a|aa)\\2\\1",
+        "subject": "aaaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 6
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0002",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa)(a|aa)\\2\\1",
+        "subject": "aaaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 6
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0003",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa)(a|aa)\\2\\1",
+        "subject": "aaaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 6
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0004",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa)(a|aa)\\2\\1",
+        "subject": "aaaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 6
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0005",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa)(a|aa)\\2\\1",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0006",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa)(a|aa)\\2\\1",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0007",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa)(a|aa)\\2\\1",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0008",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa)(a|aa)\\2\\1",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0009",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa)(a|aa)\\2\\1",
+        "subject": "aaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0010",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa)(a|aa)\\2\\1",
+        "subject": "aaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0011",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa)(a|aa)\\2\\1",
+        "subject": "aaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0012",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa)(a|aa)\\2\\1",
+        "subject": "aaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0013",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa)+)\\2",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0014",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa)+)\\2",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0015",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa)+)\\2",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0016",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa)+)\\2",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0017",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa)+)\\2",
+        "subject": "aaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 5
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0018",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa)+)\\2",
+        "subject": "aaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 5
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0019",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa)+)\\2",
+        "subject": "aaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 5
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0020",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa)+)\\2",
+        "subject": "aaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 5
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0021",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa)+)\\2",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0022",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa)+)\\2",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0023",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa)+)\\2",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0024",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa)+)\\2",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0025",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*?)(a+)\\1",
+        "subject": "aaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0026",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*?)(a+)\\1",
+        "subject": "aaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0027",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*?)(a+)\\1",
+        "subject": "aaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0028",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*?)(a+)\\1",
+        "subject": "aaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0029",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*?)(a+)\\1",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0030",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*?)(a+)\\1",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0031",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*?)(a+)\\1",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0032",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*?)(a+)\\1",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0033",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*?)(a+)\\1",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0034",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*?)(a+)\\1",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0035",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*?)(a+)\\1",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0036",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*?)(a+)\\1",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0037",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a+?)(a+)\\1",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0038",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a+?)(a+)\\1",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0039",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a+?)(a+)\\1",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0040",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a+?)(a+)\\1",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0041",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a+?)(a+)\\1",
+        "subject": "aaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0042",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a+?)(a+)\\1",
+        "subject": "aaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0043",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a+?)(a+)\\1",
+        "subject": "aaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0044",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a+?)(a+)\\1",
+        "subject": "aaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0045",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a+?)(a+)\\1",
+        "subject": "aa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "capture_ambiguity-0046",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a+?)(a+)\\1",
+        "subject": "aa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "capture_ambiguity-0047",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a+?)(a+)\\1",
+        "subject": "aa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "capture_ambiguity-0048",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a+?)(a+)\\1",
+        "subject": "aa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "capture_ambiguity-0049",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((ab|a)b)\\2",
+        "subject": "abab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0050",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((ab|a)b)\\2",
+        "subject": "abab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0051",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((ab|a)b)\\2",
+        "subject": "abab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0052",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((ab|a)b)\\2",
+        "subject": "abab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0053",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((ab|a)b)\\2",
+        "subject": "abbab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 5
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0054",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((ab|a)b)\\2",
+        "subject": "abbab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 5
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0055",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((ab|a)b)\\2",
+        "subject": "abbab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 5
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0056",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((ab|a)b)\\2",
+        "subject": "abbab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 5
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0057",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((ab|a)b)\\2",
+        "subject": "aabb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "capture_ambiguity-0058",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((ab|a)b)\\2",
+        "subject": "aabb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "capture_ambiguity-0059",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((ab|a)b)\\2",
+        "subject": "aabb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "capture_ambiguity-0060",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((ab|a)b)\\2",
+        "subject": "aabb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "capture_ambiguity-0061",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|ab)(b|)\\1",
+        "subject": "aba",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0062",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|ab)(b|)\\1",
+        "subject": "aba",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0063",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|ab)(b|)\\1",
+        "subject": "aba",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0064",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|ab)(b|)\\1",
+        "subject": "aba",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0065",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|ab)(b|)\\1",
+        "subject": "abbab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 5
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0066",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|ab)(b|)\\1",
+        "subject": "abbab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 5
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0067",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|ab)(b|)\\1",
+        "subject": "abbab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 5
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0068",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|ab)(b|)\\1",
+        "subject": "abbab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 5
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0069",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|ab)(b|)\\1",
+        "subject": "abb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "capture_ambiguity-0070",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|ab)(b|)\\1",
+        "subject": "abb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "capture_ambiguity-0071",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|ab)(b|)\\1",
+        "subject": "abb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "capture_ambiguity-0072",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|ab)(b|)\\1",
+        "subject": "abb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "capture_ambiguity-0073",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*)(a*)\\2\\1",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0074",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*)(a*)\\2\\1",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0075",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*)(a*)\\2\\1",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0076",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*)(a*)\\2\\1",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0077",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*)(a*)\\2\\1",
+        "subject": "aaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0078",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*)(a*)\\2\\1",
+        "subject": "aaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0079",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*)(a*)\\2\\1",
+        "subject": "aaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0080",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*)(a*)\\2\\1",
+        "subject": "aaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0081",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*)(a*)\\2\\1",
+        "subject": "aa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0082",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*)(a*)\\2\\1",
+        "subject": "aa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0083",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*)(a*)\\2\\1",
+        "subject": "aa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0084",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a*)(a*)\\2\\1",
+        "subject": "aa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0085",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa){1,2})\\2",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0086",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa){1,2})\\2",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0087",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa){1,2})\\2",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0088",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa){1,2})\\2",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0089",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa){1,2})\\2",
+        "subject": "aaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0090",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa){1,2})\\2",
+        "subject": "aaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0091",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa){1,2})\\2",
+        "subject": "aaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0092",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa){1,2})\\2",
+        "subject": "aaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0093",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa){1,2})\\2",
+        "subject": "aaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0094",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa){1,2})\\2",
+        "subject": "aaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0095",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa){1,2})\\2",
+        "subject": "aaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0096",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "((a|aa){1,2})\\2",
+        "subject": "aaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0097",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa){2}\\1",
+        "subject": "aaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0098",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa){2}\\1",
+        "subject": "aaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0099",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa){2}\\1",
+        "subject": "aaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0100",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa){2}\\1",
+        "subject": "aaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0101",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa){2}\\1",
+        "subject": "aaaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 6
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0102",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa){2}\\1",
+        "subject": "aaaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 6
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0103",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa){2}\\1",
+        "subject": "aaaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 6
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0104",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa){2}\\1",
+        "subject": "aaaaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 6
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0105",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa){2}\\1",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0106",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa){2}\\1",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0107",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa){2}\\1",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "capture_ambiguity-0108",
+      "family": "capture_ambiguity",
+      "input": {
+        "pattern": "(a|aa){2}\\1",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
     }
   ]
 }

@@ -1557,6 +1557,22 @@ fn clear_captures(expression: &Expression, captures: &mut [Option<MatchSpan>]) {
     }
 }
 
+fn contains_capture(expression: &Expression) -> bool {
+    match expression {
+        Expression::CapturingGroup { .. } => true,
+        Expression::NonCapturingGroup(inner)
+        | Expression::PositiveLookahead(inner)
+        | Expression::NegativeLookahead(inner)
+        | Expression::PositiveLookbehind(inner)
+        | Expression::NegativeLookbehind(inner)
+        | Expression::Repeat(inner, _, _) => contains_capture(inner),
+        Expression::Concatenation(parts) | Expression::Alternation(parts) => {
+            parts.iter().any(contains_capture)
+        }
+        _ => false,
+    }
+}
+
 fn push_capture_unique(states: &mut Vec<CaptureState>, state: CaptureState) -> Result<(), ()> {
     if !states.contains(&state) {
         if states.len() >= MAX_CAPTURE_STATES {
@@ -1585,6 +1601,7 @@ fn capture_advance(
 fn capture_repeat(
     expression: &Expression,
     repetition: &Repetition,
+    non_greedy: bool,
     subject: &[char],
     state: CaptureState,
     mode: MatchMode,
@@ -1596,13 +1613,27 @@ fn capture_repeat(
         Repetition::Bounded { min, max, .. } => (*min, *max),
     };
     let limit = max.unwrap_or(min + subject.len() + 1);
+    // A later backreference sees only the preferred subdivision at each repeat endpoint.
+    let prefer_bounded_paths = matches!(repetition, Repetition::Bounded { .. })
+        && !non_greedy
+        && contains_capture(expression);
     let mut frontier = vec![state];
     let mut reached = Vec::new();
+    let mut bounded_reached = Vec::new();
+    let mut bounded_states = 0;
     let mut seen = Vec::new();
     for count in 0..=limit {
         if count >= min {
-            for candidate in &frontier {
-                push_capture_unique(&mut reached, candidate.clone())?;
+            if prefer_bounded_paths {
+                bounded_states += frontier.len();
+                if bounded_states > MAX_CAPTURE_STATES {
+                    return Err(());
+                }
+                bounded_reached.push(frontier.clone());
+            } else {
+                for candidate in &frontier {
+                    push_capture_unique(&mut reached, candidate.clone())?;
+                }
             }
         }
         if count == limit || frontier.is_empty() {
@@ -1611,7 +1642,10 @@ fn capture_repeat(
         for candidate in &mut frontier {
             clear_captures(expression, &mut candidate.captures);
         }
-        let next = capture_advance(expression, subject, frontier, mode)?;
+        let mut next = capture_advance(expression, subject, frontier, mode)?;
+        if prefer_bounded_paths {
+            next.sort_by(|left, right| right.position.cmp(&left.position));
+        }
         if max.is_none() && count >= min && next.iter().all(|candidate| seen.contains(candidate)) {
             break;
         }
@@ -1619,6 +1653,18 @@ fn capture_repeat(
             push_capture_unique(&mut seen, candidate.clone())?;
         }
         frontier = next;
+    }
+    if prefer_bounded_paths {
+        for candidates in bounded_reached.into_iter().rev() {
+            for candidate in candidates {
+                if !reached
+                    .iter()
+                    .any(|state: &CaptureState| state.position == candidate.position)
+                {
+                    push_capture_unique(&mut reached, candidate)?;
+                }
+            }
+        }
     }
     Ok(reached)
 }
@@ -1687,8 +1733,8 @@ fn capture_match_ends(
             }
             Ok(results)
         }
-        Expression::Repeat(inner, repetition, _) => {
-            capture_repeat(inner, repetition, subject, state, mode)
+        Expression::Repeat(inner, repetition, non_greedy) => {
+            capture_repeat(inner, repetition, *non_greedy, subject, state, mode)
         }
         _ => Ok(match_ends(expression, subject, state.position, mode)
             .into_iter()

@@ -9,3 +9,4 @@ tests/fixtures/sql-semantics/projects/
 **/*.generated.ts
 experiments/regex-transpiler/conformance/stress-fixtures.json
 experiments/regex-transpiler/conformance/stress-position-fixtures.json
+experiments/regex-transpiler/conformance/stress-boundary-fixtures.json
