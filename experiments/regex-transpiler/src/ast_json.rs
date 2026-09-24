@@ -188,6 +188,7 @@ fn expr(value: &Expr) -> Result<Value> {
             syn::Lit::Char(character) => {
                 Ok(json!({ "kind": "character", "scalar": character.value().to_string() }))
             }
+            syn::Lit::Bool(boolean) => Ok(json!({ "kind": "boolean", "state": boolean.value })),
             _ => Err("literal is outside the AST contract".into()),
         },
         Expr::Paren(node) => Ok(json!({ "kind": "parenthesized", "inner": expr(&node.expr)? })),
@@ -433,6 +434,14 @@ mod tests {
             "\n"
         );
         assert!(parse("pub fn f(value: char) -> bool { value == '😀' }").is_ok());
+    }
+
+    #[test]
+    fn boolean_literals_keep_their_value() {
+        let tree: serde_json::Value =
+            serde_json::from_str(&parse("pub fn f() -> bool { false }").unwrap()).unwrap();
+        assert_eq!(tree["items"][0]["body"][0]["value"]["kind"], "boolean");
+        assert_eq!(tree["items"][0]["body"][0]["value"]["state"], false);
     }
 
     #[test]

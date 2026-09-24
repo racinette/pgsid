@@ -29,6 +29,15 @@ for (const [index, testCase] of oracle.cases.entries()) {
         testCase.dotCrossesNewline,
       )
       break
+    case 'find_simple_advanced':
+      actual = generated.find_simple_advanced(
+        testCase.pattern,
+        testCase.subject,
+        testCase.from,
+        testCase.caseSensitive,
+        testCase.dotCrossesNewline,
+      )
+      break
     case 'charge_work':
       actual = generated.charge_work(testCase.current, testCase.amount)
       break

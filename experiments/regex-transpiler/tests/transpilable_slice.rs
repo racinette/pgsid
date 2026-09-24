@@ -48,6 +48,7 @@ fn literal_search_matches_the_live_engine() {
                         match candidate::find_literal(pattern, subject, from, case_sensitive) {
                             candidate::MatchOutcome::Found(span) => (0, span.start, span.end),
                             candidate::MatchOutcome::NoMatch => (1, 0, 0),
+                            candidate::MatchOutcome::Uncertain => (2, 0, 0),
                         };
                     assert_eq!(
                         actual, expected,
@@ -63,7 +64,9 @@ fn literal_search_matches_the_live_engine() {
 fn supported_search_matches_pglite_fixtures() {
     let mut literal = 0;
     let mut insensitive = 0;
+    let mut advanced = 0;
     let mut dot = 0;
+    let mut mixed = 0;
     let mut positioned = 0;
     let mut newline_modes = BTreeSet::new();
     for source in [
@@ -76,6 +79,8 @@ fn supported_search_matches_pglite_fixtures() {
         for fixture in fixtures["fixtures"].as_array().unwrap() {
             let input = &fixture["input"];
             let options = &input["options"];
+            let pattern = input["pattern"].as_str().unwrap();
+            let subject = input["subject"].as_str().unwrap();
             let from = input["start"].as_u64().unwrap_or(1) as usize - 1;
             let actual = if options["syntax"] == "literal"
                 && options["expanded"] == false
@@ -86,24 +91,48 @@ fn supported_search_matches_pglite_fixtures() {
                 if !case_sensitive {
                     insensitive += 1;
                 }
-                candidate::find_literal(
-                    input["pattern"].as_str().unwrap(),
-                    input["subject"].as_str().unwrap(),
-                    from,
-                    case_sensitive,
-                )
-            } else if input["pattern"] == "."
-                && options["syntax"] == "advanced"
+                candidate::find_literal(pattern, subject, from, case_sensitive)
+            } else if options["syntax"] == "advanced"
                 && options["expanded"] == false
+                && pattern.chars().all(|character| {
+                    !matches!(
+                        character,
+                        '^' | '$'
+                            | '['
+                            | ']'
+                            | '('
+                            | ')'
+                            | '{'
+                            | '}'
+                            | '*'
+                            | '+'
+                            | '?'
+                            | '|'
+                            | '\\'
+                    )
+                })
             {
-                dot += 1;
+                advanced += 1;
                 let newline = options["newline"].as_str().unwrap();
                 newline_modes.insert(newline.to_string());
-                candidate::find_any_character(
-                    input["subject"].as_str().unwrap(),
+                let crosses_newline = newline == "ordinary" || newline == "anchors";
+                let actual = candidate::find_simple_advanced(
+                    pattern,
+                    subject,
                     from,
-                    newline == "ordinary" || newline == "anchors",
-                )
+                    options["caseSensitive"].as_bool().unwrap(),
+                    crosses_newline,
+                );
+                if pattern == "." {
+                    dot += 1;
+                    assert!(
+                        actual == candidate::find_any_character(subject, from, crosses_newline)
+                    );
+                }
+                if pattern != "." && pattern.contains('.') {
+                    mixed += 1;
+                }
+                actual
             } else {
                 continue;
             };
@@ -115,13 +144,16 @@ fn supported_search_matches_pglite_fixtures() {
                     json!({ "kind": "Found", "value": { "start": span.start, "end": span.end } })
                 }
                 candidate::MatchOutcome::NoMatch => json!({ "kind": "NoMatch" }),
+                candidate::MatchOutcome::Uncertain => json!({ "kind": "Uncertain" }),
             };
             assert_eq!(actual, fixture["expected"], "input={input}");
         }
     }
     assert!(literal >= 40);
     assert!(insensitive >= 7);
+    assert!(advanced >= 100);
     assert!(dot >= 20);
+    assert!(mixed >= 50);
     assert!(positioned >= 6);
     assert_eq!(newline_modes.len(), 4);
 }
@@ -154,6 +186,7 @@ fn any_character_search_matches_the_live_engine() {
                 {
                     candidate::MatchOutcome::Found(span) => (0, span.start, span.end),
                     candidate::MatchOutcome::NoMatch => (1, 0, 0),
+                    candidate::MatchOutcome::Uncertain => (2, 0, 0),
                 };
                 assert_eq!(
                     actual, expected,
@@ -161,5 +194,62 @@ fn any_character_search_matches_the_live_engine() {
                 );
             }
         }
+    }
+}
+
+#[test]
+fn simple_advanced_search_matches_the_live_engine() {
+    for case_sensitive in [true, false] {
+        for (newline, dot_crosses_newline) in [
+            (engine::NewlineMode::Ordinary, true),
+            (engine::NewlineMode::Sensitive, false),
+            (engine::NewlineMode::Stop, false),
+            (engine::NewlineMode::Anchors, true),
+        ] {
+            for pattern in ["", "a", "a.b", "a..b", ".a", "a.", "..", "Å.😀", "a\nb"] {
+                let engine::CompileOutcome::Ready(program) = engine::compile(
+                    pattern,
+                    engine::Options {
+                        case_sensitive,
+                        newline,
+                        ..engine::Options::default()
+                    },
+                ) else {
+                    panic!("simple advanced pattern did not compile");
+                };
+                for subject in ["", "a", "a😀b", "a\nb", "a😀\nb", "\na", "a\n", "Åβ😀"] {
+                    for from in 0..=subject.chars().count() + 1 {
+                        let expected = match program.find(subject, from) {
+                            engine::MatchOutcome::Found(span) => (0, span.start, span.end),
+                            engine::MatchOutcome::NoMatch => (1, 0, 0),
+                            engine::MatchOutcome::Uncertain => (2, 0, 0),
+                        };
+                        let actual = match candidate::find_simple_advanced(
+                            pattern,
+                            subject,
+                            from,
+                            case_sensitive,
+                            dot_crosses_newline,
+                        ) {
+                            candidate::MatchOutcome::Found(span) => (0, span.start, span.end),
+                            candidate::MatchOutcome::NoMatch => (1, 0, 0),
+                            candidate::MatchOutcome::Uncertain => (2, 0, 0),
+                        };
+                        assert_eq!(
+                            actual, expected,
+                            "pattern={pattern:?} subject={subject:?} from={from} case_sensitive={case_sensitive} newline={newline:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+    for pattern in [
+        "a*", "a|b", "^a", "a$", "a\\+b", "[ab]", "(ab)", "a{2}", "a?",
+    ] {
+        assert!(matches!(
+            candidate::find_simple_advanced(pattern, "ab", 0, true, true),
+            candidate::MatchOutcome::Uncertain
+        ));
     }
 }

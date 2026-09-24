@@ -3,6 +3,7 @@ package generated
 import (
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -44,7 +45,9 @@ type fixtureDocument struct {
 func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 	literal := 0
 	insensitive := 0
+	advanced := 0
 	dot := 0
+	mixed := 0
 	positioned := 0
 	newlineModes := map[string]bool{}
 	for _, path := range []string{"postgres-fixtures.json", "stress-fixtures.json", "targeted-postgres-fixtures.json"} {
@@ -72,10 +75,16 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				if !input.Options.CaseSensitive {
 					insensitive++
 				}
-			} else if input.Pattern == "." && input.Options.Syntax == "advanced" && !input.Options.Expanded {
+			} else if input.Options.Syntax == "advanced" && !input.Options.Expanded && !strings.ContainsAny(input.Pattern, "^$[](){}*+?|\\") {
 				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
-				actual = find_any_character(input.Subject, from, crossesNewline)
-				dot++
+				actual = find_simple_advanced(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline)
+				advanced++
+				if input.Pattern == "." {
+					dot++
+				}
+				if input.Pattern != "." && strings.Contains(input.Pattern, ".") {
+					mixed++
+				}
 				newlineModes[input.Options.Newline] = true
 			} else {
 				continue
@@ -95,9 +104,15 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			if actual != expected {
 				t.Errorf("%s fixture %d: input=%+v, expected=%+v, actual=%+v", path, index, input, expected, actual)
 			}
+			if input.Options.Syntax == "advanced" && input.Pattern == "." {
+				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
+				if found := find_any_character(input.Subject, from, crossesNewline); found != expected {
+					t.Errorf("%s fixture %d: dot atom expected=%+v, actual=%+v", path, index, expected, found)
+				}
+			}
 		}
 	}
-	if literal < 40 || insensitive < 7 || dot < 20 || positioned < 6 || len(newlineModes) != 4 {
-		t.Fatalf("fixture coverage: literal=%d insensitive=%d dot=%d positioned=%d newline=%v", literal, insensitive, dot, positioned, newlineModes)
+	if literal < 40 || insensitive < 7 || advanced < 100 || dot < 20 || mixed < 50 || positioned < 6 || len(newlineModes) != 4 {
+		t.Fatalf("fixture coverage: literal=%d insensitive=%d advanced=%d dot=%d mixed=%d positioned=%d newline=%v", literal, insensitive, advanced, dot, mixed, positioned, newlineModes)
 	}
 }

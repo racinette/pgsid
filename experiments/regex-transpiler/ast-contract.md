@@ -116,7 +116,7 @@ an explicit type.
 
 Blocks are ordered arrays of `local` or `expression` statements. Expression
 statements preserve the Rust semicolon distinction. The initial expression
-kinds are `integer`, `character`, `path`, `parenthesized`, `binary`, `field`, `index`,
+kinds are `integer`, `character`, `boolean`, `path`, `parenthesized`, `binary`, `field`, `index`,
 `method-call`, `struct-literal`, `call`, `if`, `while`, `return`, and `break`.
 `method-call` preserves its receiver, name, and ordered arguments; `call`
 preserves its callee and ordered arguments. The validator admits only the
@@ -124,7 +124,7 @@ specific methods and constructors in the supported Rust dialect.
 
 Integer literals are decimal strings, not JSON numbers, to avoid precision
 loss at the JavaScript boundary. Character literals carry one Unicode scalar
-as a string. The validator must reject or canonicalize other Rust integer
+as a string; boolean literals carry their truth value. The validator must reject or canonicalize other Rust integer
 spellings and enforce the shared numeric limits. Source
 positions and Rust punctuation tokens are omitted: they do not affect accepted
 program behavior. Parser diagnostics remain the Rust component's responsibility.

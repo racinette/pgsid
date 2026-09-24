@@ -42,12 +42,14 @@ func TestGeneratedEngineMatchesRust(t *testing.T) {
 			t.Fatal(err)
 		}
 		switch testCase.Operation {
-		case "find_literal", "find_any_character":
+		case "find_literal", "find_any_character", "find_simple_advanced":
 			var actual MatchOutcome
 			if testCase.Operation == "find_literal" {
 				actual = find_literal(testCase.Pattern, testCase.Subject, testCase.From, testCase.CaseSensitive)
-			} else {
+			} else if testCase.Operation == "find_any_character" {
 				actual = find_any_character(testCase.Subject, testCase.From, testCase.DotCrossesNewline)
+			} else {
+				actual = find_simple_advanced(testCase.Pattern, testCase.Subject, testCase.From, testCase.CaseSensitive, testCase.DotCrossesNewline)
 			}
 			var want MatchOutcome
 			switch expected.Kind {
@@ -62,6 +64,8 @@ func TestGeneratedEngineMatchesRust(t *testing.T) {
 				want = MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: span.Start, end: span.End}}
 			case "NoMatch":
 				want = MatchOutcome{kind: MatchOutcomeNoMatch}
+			case "Uncertain":
+				want = MatchOutcome{kind: MatchOutcomeUncertain}
 			default:
 				t.Fatalf("unknown Rust match outcome in case %d: %s", index, expected.Kind)
 			}

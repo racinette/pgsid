@@ -7,7 +7,16 @@ if (!generatedPath || fixturePaths.length === 0) {
   throw new Error('usage: fixture_check.ts GENERATED_TS FIXTURES_JSON...')
 }
 const generated = await import(pathToFileURL(generatedPath).href)
-const coverage = { literal: 0, insensitive: 0, dot: 0, position: 0, newline: new Set<string>() }
+const reserved = new Set(['^', '$', '[', ']', '(', ')', '{', '}', '*', '+', '?', '|', '\\'])
+const coverage = {
+  literal: 0,
+  insensitive: 0,
+  advanced: 0,
+  dot: 0,
+  mixed: 0,
+  position: 0,
+  newline: new Set<string>(),
+}
 
 for (const fixturePath of fixturePaths) {
   const document = JSON.parse(readFileSync(fixturePath, 'utf8'))
@@ -21,13 +30,28 @@ for (const fixturePath of fixturePaths) {
       actual = generated.find_literal(pattern, subject, from, options.caseSensitive)
       coverage.literal++
       if (!options.caseSensitive) coverage.insensitive++
-    } else if (pattern === '.' && options.syntax === 'advanced' && !options.expanded) {
-      actual = generated.find_any_character(
+    } else if (
+      options.syntax === 'advanced' &&
+      !options.expanded &&
+      Array.from(pattern).every((character) => !reserved.has(character))
+    ) {
+      const crossesNewline = options.newline === 'ordinary' || options.newline === 'anchors'
+      actual = generated.find_simple_advanced(
+        pattern,
         subject,
         from,
-        options.newline === 'ordinary' || options.newline === 'anchors',
+        options.caseSensitive,
+        crossesNewline,
       )
-      coverage.dot++
+      coverage.advanced++
+      if (pattern === '.') {
+        assert.deepEqual(
+          generated.find_any_character(subject, from, crossesNewline),
+          fixture.expected,
+        )
+        coverage.dot++
+      }
+      if (pattern.includes('.') && Array.from(pattern).length > 1) coverage.mixed++
       coverage.newline.add(options.newline)
     } else {
       continue
@@ -43,9 +67,11 @@ for (const fixturePath of fixturePaths) {
 
 assert.ok(coverage.literal >= 40)
 assert.ok(coverage.insensitive >= 7)
+assert.ok(coverage.advanced >= 100)
 assert.ok(coverage.dot >= 20)
+assert.ok(coverage.mixed >= 50)
 assert.ok(coverage.position >= 6)
 assert.deepEqual(coverage.newline, new Set(['ordinary', 'sensitive', 'stop', 'anchors']))
 process.stdout.write(
-  `TypeScript fixtures: ${coverage.literal} literal, ${coverage.dot} dot, ${coverage.insensitive} case-insensitive literal, ${coverage.position} positioned\n`,
+  `TypeScript fixtures: ${coverage.literal} literal, ${coverage.advanced} simple advanced, ${coverage.mixed} mixed, ${coverage.position} positioned\n`,
 )
