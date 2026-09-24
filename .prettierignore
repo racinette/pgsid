@@ -7,3 +7,5 @@ tests/fixtures/sql-semantics/projects/
 
 # Generators write these files and check them themselves.
 **/*.generated.ts
+experiments/regex-transpiler/conformance/stress-fixtures.json
+experiments/regex-transpiler/conformance/stress-position-fixtures.json

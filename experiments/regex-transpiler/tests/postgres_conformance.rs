@@ -2,6 +2,7 @@
 mod engine;
 
 use serde_json::{json, Value};
+use std::collections::{BTreeMap, HashSet};
 
 fn options(input: &Value) -> engine::Options {
     let options = &input["options"];
@@ -25,6 +26,24 @@ fn options(input: &Value) -> engine::Options {
     }
 }
 
+fn evaluate(input: &Value) -> Option<Value> {
+    let pattern = input["pattern"].as_str().unwrap();
+    let subject = input["subject"].as_str().unwrap();
+    match engine::compile(pattern, options(input)) {
+        engine::CompileOutcome::Uncertain => None,
+        engine::CompileOutcome::InvalidPattern => {
+            Some(json!({ "kind": "InvalidPattern", "sqlstate": "2201B" }))
+        }
+        engine::CompileOutcome::Ready(program) => match program.find(subject, 0) {
+            engine::MatchOutcome::Found(span) => {
+                Some(json!({ "kind": "Found", "value": { "start": span.start, "end": span.end } }))
+            }
+            engine::MatchOutcome::NoMatch => Some(json!({ "kind": "NoMatch" })),
+            engine::MatchOutcome::Uncertain => None,
+        },
+    }
+}
+
 #[test]
 fn rust_definite_results_match_postgres() {
     let fixtures: Value =
@@ -39,24 +58,9 @@ fn rust_definite_results_match_postgres() {
         let pattern = input["pattern"].as_str().unwrap();
         let subject = input["subject"].as_str().unwrap();
         let expected = &fixture["expected"];
-        let actual = match engine::compile(pattern, options(input)) {
-            engine::CompileOutcome::Uncertain => {
-                uncertain += 1;
-                continue;
-            }
-            engine::CompileOutcome::InvalidPattern => {
-                json!({ "kind": "InvalidPattern", "sqlstate": "2201B" })
-            }
-            engine::CompileOutcome::Ready(program) => match program.find(subject, 0) {
-                engine::MatchOutcome::Found(span) => {
-                    json!({ "kind": "Found", "value": { "start": span.start, "end": span.end } })
-                }
-                engine::MatchOutcome::NoMatch => json!({ "kind": "NoMatch" }),
-                engine::MatchOutcome::Uncertain => {
-                    uncertain += 1;
-                    continue;
-                }
-            },
+        let Some(actual) = evaluate(input) else {
+            uncertain += 1;
+            continue;
         };
         definite += 1;
         if actual != *expected {
@@ -72,6 +76,232 @@ fn rust_definite_results_match_postgres() {
     assert_eq!(definite, cases.len(), "Rust engine lost definite coverage");
     assert_eq!(uncertain, 0, "Rust engine left a fixture uncertain");
     assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
+}
+
+#[test]
+fn rust_stress_results_match_postgres() {
+    let extracted: Value =
+        serde_json::from_str(include_str!("../conformance/postgres-fixtures.json")).unwrap();
+    let stress: Value =
+        serde_json::from_str(include_str!("../conformance/stress-fixtures.json")).unwrap();
+    assert_eq!(stress["schemaVersion"], 1);
+    assert_eq!(stress["oracle"]["collation"], "C");
+    assert_eq!(stress["generatorSeed"], 99540248);
+    assert_eq!(
+        stress["oracle"]["serverVersion"],
+        extracted["oracle"]["serverVersion"]
+    );
+    let mut tuples: HashSet<String> = extracted["fixtures"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|fixture| serde_json::to_string(&fixture["input"]).unwrap())
+        .collect();
+    let original_count = tuples.len();
+    let cases = stress["fixtures"].as_array().unwrap();
+    let mut ids = HashSet::new();
+    let mut family = BTreeMap::new();
+    let mut syntax = BTreeMap::new();
+    let mut newline = BTreeMap::new();
+    let mut case_sensitive = BTreeMap::new();
+    let mut expanded = BTreeMap::new();
+    let mut outcome = BTreeMap::new();
+    let mut mismatches = Vec::new();
+
+    for fixture in cases {
+        let id = fixture["id"].as_str().unwrap();
+        let label = fixture["family"].as_str().unwrap();
+        let input = &fixture["input"];
+        let expected = &fixture["expected"];
+        assert!(ids.insert(id), "duplicate stress id {id}");
+        assert!(
+            tuples.insert(serde_json::to_string(input).unwrap()),
+            "stress input {id} duplicates another input"
+        );
+        *family.entry(label.to_string()).or_insert(0usize) += 1;
+        *syntax
+            .entry(input["options"]["syntax"].as_str().unwrap().to_string())
+            .or_insert(0usize) += 1;
+        *newline
+            .entry(input["options"]["newline"].as_str().unwrap().to_string())
+            .or_insert(0usize) += 1;
+        *case_sensitive
+            .entry(input["options"]["caseSensitive"].as_bool().unwrap())
+            .or_insert(0usize) += 1;
+        *expanded
+            .entry(input["options"]["expanded"].as_bool().unwrap())
+            .or_insert(0usize) += 1;
+        *outcome
+            .entry(expected["kind"].as_str().unwrap().to_string())
+            .or_insert(0usize) += 1;
+        match evaluate(input) {
+            Some(actual) if actual == *expected => {}
+            actual => mismatches.push(format!(
+                "{id} ({label}): input={input}, expected={expected}, actual={actual:?}"
+            )),
+        }
+    }
+    assert!(cases.len() >= 1000, "stress corpus shrank");
+    assert_eq!(tuples.len() - original_count, cases.len());
+    assert!(family.values().all(|count| *count < cases.len() / 2));
+    assert_eq!(family.len(), 13);
+    for name in [
+        "precedence",
+        "repetition",
+        "zero_width",
+        "captures_backrefs",
+        "lookaround",
+        "brackets_classes",
+        "escaped_bounds",
+        "basic",
+        "extended",
+        "inline",
+        "unicode",
+        "invalid",
+        "literal",
+    ] {
+        assert!(
+            family.get(name).copied().unwrap_or(0) >= if name == "literal" { 20 } else { 70 },
+            "{name} family coverage shrank"
+        );
+    }
+    for (kind, minimum) in [("Found", 400), ("NoMatch", 300), ("InvalidPattern", 80)] {
+        assert!(
+            outcome.get(kind).copied().unwrap_or(0) >= minimum,
+            "{kind} outcomes shrank"
+        );
+    }
+    for (mode, minimum) in [
+        ("ordinary", 300),
+        ("sensitive", 150),
+        ("stop", 100),
+        ("anchors", 150),
+    ] {
+        assert!(
+            newline.get(mode).copied().unwrap_or(0) >= minimum,
+            "{mode} newline coverage shrank"
+        );
+    }
+    for (mode, minimum) in [
+        ("advanced", 700),
+        ("basic", 70),
+        ("extended", 70),
+        ("literal", 20),
+    ] {
+        assert!(
+            syntax.get(mode).copied().unwrap_or(0) >= minimum,
+            "{mode} syntax coverage shrank"
+        );
+    }
+    assert!(case_sensitive.get(&false).copied().unwrap_or(0) >= 300);
+    assert!(expanded.get(&true).copied().unwrap_or(0) >= 300);
+    eprintln!("stress coverage: family={family:?}, syntax={syntax:?}, newline={newline:?}, caseSensitive={case_sensitive:?}, expanded={expanded:?}, outcome={outcome:?}");
+    assert!(
+        mismatches.is_empty(),
+        "{} stress mismatches:\n{}",
+        mismatches.len(),
+        mismatches.join("\n")
+    );
+}
+
+#[test]
+fn expanded_basic_and_extended_patterns_are_definite() {
+    for (syntax, pattern, subject, expected) in [
+        (
+            engine::Syntax::Basic,
+            r"a\{2,3\}b",
+            "aaab",
+            engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 4 }),
+        ),
+        (
+            engine::Syntax::Extended,
+            r"a\wb",
+            "awb",
+            engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 3 }),
+        ),
+    ] {
+        let options = engine::Options {
+            syntax,
+            expanded: true,
+            ..engine::Options::default()
+        };
+        let engine::CompileOutcome::Ready(program) = engine::compile(pattern, options) else {
+            panic!("expanded {syntax:?} pattern was not definite");
+        };
+        assert_eq!(program.find(subject, 0), expected);
+    }
+    let options = engine::Options {
+        expanded: true,
+        ..engine::Options::default()
+    };
+    assert!(matches!(
+        engine::compile("[a-", options),
+        engine::CompileOutcome::InvalidPattern
+    ));
+}
+
+#[test]
+fn rust_position_results_match_postgres() {
+    let document: Value =
+        serde_json::from_str(include_str!("../conformance/stress-position-fixtures.json")).unwrap();
+    assert_eq!(document["schemaVersion"], 1);
+    assert_eq!(document["oracle"]["collation"], "C");
+    let cases = document["fixtures"].as_array().unwrap();
+    let mut ids = HashSet::new();
+    let mut inputs = HashSet::new();
+    let mut operation_counts = BTreeMap::new();
+    let mut mismatches = Vec::new();
+    for fixture in cases {
+        let id = fixture["id"].as_str().unwrap();
+        let operation = fixture["operation"].as_str().unwrap();
+        let input = &fixture["input"];
+        assert!(ids.insert(id));
+        assert!(inputs.insert(format!(
+            "{operation}:{}",
+            serde_json::to_string(input).unwrap()
+        )));
+        *operation_counts.entry(operation).or_insert(0usize) += 1;
+        let pattern = input["pattern"].as_str().unwrap();
+        let subject = input["subject"].as_str().unwrap();
+        let start = input["start"].as_i64().unwrap() as i32;
+        let actual = match engine::compile(pattern, options(input)) {
+            engine::CompileOutcome::InvalidPattern => {
+                Some(json!({ "kind": "InvalidPattern", "sqlstate": "2201B" }))
+            }
+            engine::CompileOutcome::Uncertain => None,
+            engine::CompileOutcome::Ready(program) => match operation {
+                "find" => match program.find(subject, (start - 1) as usize) {
+                    engine::MatchOutcome::Found(span) => Some(
+                        json!({ "kind": "Found", "value": { "start": span.start, "end": span.end } }),
+                    ),
+                    engine::MatchOutcome::NoMatch => Some(json!({ "kind": "NoMatch" })),
+                    engine::MatchOutcome::Uncertain => None,
+                },
+                "count" => match program.count(subject, start) {
+                    engine::CountOutcome::Count(value) => {
+                        Some(json!({ "kind": "Count", "value": value }))
+                    }
+                    engine::CountOutcome::InvalidStart | engine::CountOutcome::Uncertain => None,
+                },
+                other => panic!("unknown operation {other}"),
+            },
+        };
+        if actual.as_ref() != Some(&fixture["expected"]) {
+            mismatches.push(format!(
+                "{id} ({operation}): input={input}, expected={}, actual={actual:?}",
+                fixture["expected"]
+            ));
+        }
+    }
+    assert_eq!(cases.len(), 108);
+    assert_eq!(operation_counts.get("find"), Some(&54));
+    assert_eq!(operation_counts.get("count"), Some(&54));
+    assert!(
+        mismatches.is_empty(),
+        "{} position mismatches:\n{}",
+        mismatches.len(),
+        mismatches.join("\n")
+    );
 }
 
 #[test]

@@ -10,6 +10,7 @@ artifact_dir="$repo_dir/artifacts/regex-transpiler-spike"
 
 cd "$repo_dir"
 mkdir -p "$artifact_dir"
+node "$experiment_dir/conformance/materialize-stress-fixtures.mjs" --check
 cargo test --locked --manifest-path "$experiment_dir/Cargo.toml" --target-dir "$target_dir"
 cargo build --locked --manifest-path "$experiment_dir/Cargo.toml" --target-dir "$target_dir"
 "$target_dir/debug/regex-transpiler-spike" --ast "$experiment_dir/transpiler_fixture.rs" "$artifact_dir/engine.ast.json"
