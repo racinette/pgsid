@@ -33,4 +33,6 @@ export const goCheckDependencies: Record<string, readonly string[]> = {
     'evalBoolRegexDynamic',
     'regexLikeFlags',
   ],
+  evalRegexCount: ['EvalValue', 'SqlInteger', 'SqlText'],
+  evalRegexCountDynamic: ['evalRegexCount', 'regexLikeFlags', 'evalBoolRegexAnalyze'],
 }
