@@ -41,6 +41,9 @@ func TestTranspilerSmoke(t *testing.T) {
 	if !is_before_first(-1) || char_count("😀") != 1 {
 		t.Error("numeric or Unicode input changed its result")
 	}
+	if char_codepoint('😀') != 128512 {
+		t.Error("Unicode scalar cast changed value")
+	}
 	expectPanic(t, func() { char_count(string([]byte{0xff})) })
 }
 

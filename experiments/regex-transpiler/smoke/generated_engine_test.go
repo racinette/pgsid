@@ -59,7 +59,7 @@ func TestLiteralSlice(t *testing.T) {
 	if find_simple_advanced("\\^a", "z^a", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 3}}) {
 		t.Error("escaped anchor changed position")
 	}
-	if !supports_simple_advanced("a[bc]d") || supports_simple_advanced("a[b-d]") {
+	if !supports_simple_advanced("a[bc]d") || !supports_simple_advanced("a[b-d]") {
 		t.Error("literal class support classification changed")
 	}
 	if find_simple_advanced("a[bc]d", "zacd", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 4}}) {
@@ -68,7 +68,7 @@ func TestLiteralSlice(t *testing.T) {
 	if find_simple_advanced("[A]", "a", 0, false, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 0, end: 1}}) {
 		t.Error("literal class missed ASCII case fold")
 	}
-	if !supports_simple_advanced("[^ab]") || supports_simple_advanced("[^a-z]") {
+	if !supports_simple_advanced("[^ab]") || !supports_simple_advanced("[^a-z]") {
 		t.Error("negated class support classification changed")
 	}
 	if find_simple_advanced("[^a]", "\n", 0, true, false, false).kind != MatchOutcomeNoMatch {
@@ -76,6 +76,15 @@ func TestLiteralSlice(t *testing.T) {
 	}
 	if find_simple_advanced("[^a]", "\n", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 0, end: 1}}) {
 		t.Error("ordinary negated class missed newline")
+	}
+	if !supports_simple_advanced("[a-c]") || supports_simple_advanced("[z-a]") {
+		t.Error("range support classification changed")
+	}
+	if find_simple_advanced("[A-C]", "b", 0, false, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 0, end: 1}}) {
+		t.Error("case insensitive range missed ASCII letter")
+	}
+	if find_simple_advanced("[0-9]", "😀", 0, true, true, false).kind != MatchOutcomeNoMatch {
+		t.Error("ASCII range matched supplementary Unicode scalar")
 	}
 	if charge_work(1999999, 1) != (WorkOutcome{kind: WorkOutcomeReady, ready: 2000000}) {
 		t.Error("work charge at budget changed result")

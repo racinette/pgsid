@@ -69,3 +69,7 @@ pub fn char_count(input: &str) -> usize {
     let characters: Vec<char> = input.chars().collect();
     characters.len()
 }
+
+pub fn char_codepoint(value: char) -> u32 {
+    value as u32
+}

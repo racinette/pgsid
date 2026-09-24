@@ -126,6 +126,21 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
                 if atoms[position] == '[' || atoms[position] == '\\' || atoms[position] == '-' {
                     return false;
                 }
+                if atoms.len() - position > 1 && atoms[position + 1] == '-' {
+                    if atoms.len() - position <= 2 || atoms[position + 2] == ']' {
+                        return false;
+                    }
+                    let first = atoms[position] as u32;
+                    let last = atoms[position + 2] as u32;
+                    let digits = first >= 48 && first <= 57 && last >= 48 && last <= 57;
+                    let uppercase = first >= 65 && first <= 90 && last >= 65 && last <= 90;
+                    let lowercase = first >= 97 && first <= 122 && last >= 97 && last <= 122;
+                    if first > last || (digits == false && uppercase == false && lowercase == false)
+                    {
+                        return false;
+                    }
+                    position += 2;
+                }
                 position += 1;
             }
             if position == atoms.len() {
@@ -200,6 +215,21 @@ pub fn find_simple_advanced(
                 if atoms[position] == '[' || atoms[position] == '\\' || atoms[position] == '-' {
                     return MatchOutcome::Uncertain;
                 }
+                if atoms.len() - position > 1 && atoms[position + 1] == '-' {
+                    if atoms.len() - position <= 2 || atoms[position + 2] == ']' {
+                        return MatchOutcome::Uncertain;
+                    }
+                    let first = atoms[position] as u32;
+                    let last = atoms[position + 2] as u32;
+                    let digits = first >= 48 && first <= 57 && last >= 48 && last <= 57;
+                    let uppercase = first >= 65 && first <= 90 && last >= 65 && last <= 90;
+                    let lowercase = first >= 97 && first <= 122 && last >= 97 && last <= 122;
+                    if first > last || (digits == false && uppercase == false && lowercase == false)
+                    {
+                        return MatchOutcome::Uncertain;
+                    }
+                    position += 2;
+                }
                 position += 1;
             }
             if position == atoms.len() {
@@ -261,9 +291,26 @@ pub fn find_simple_advanced(
                 }
                 while atoms[class_position] != ']' {
                     let expected = atoms[class_position];
-                    if actual == expected
-                        || (case_sensitive == false
-                            && actual.to_ascii_lowercase() == expected.to_ascii_lowercase())
+                    let ranged = atoms[class_position + 1] == '-';
+                    if ranged {
+                        let upper = atoms[class_position + 2];
+                        if (case_sensitive
+                            && (actual as u32) >= (expected as u32)
+                            && (actual as u32) <= (upper as u32))
+                            || (case_sensitive == false
+                                && (actual.to_ascii_lowercase() as u32)
+                                    >= (expected.to_ascii_lowercase() as u32)
+                                && (actual.to_ascii_lowercase() as u32)
+                                    <= (upper.to_ascii_lowercase() as u32))
+                        {
+                            break;
+                        }
+                        class_position += 2;
+                    }
+                    if ranged == false
+                        && (actual == expected
+                            || (case_sensitive == false
+                                && actual.to_ascii_lowercase() == expected.to_ascii_lowercase()))
                     {
                         break;
                     }

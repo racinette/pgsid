@@ -17,6 +17,7 @@ const coverage = {
   escaped: 0,
   classes: 0,
   negatedClasses: 0,
+  rangeClasses: 0,
   position: 0,
   newline: new Set<string>(),
 }
@@ -62,6 +63,7 @@ for (const fixturePath of fixturePaths) {
       if (pattern.includes('\\')) coverage.escaped++
       if (pattern.includes('[')) coverage.classes++
       if (pattern.includes('[^')) coverage.negatedClasses++
+      if (pattern.includes('[') && pattern.includes('-')) coverage.rangeClasses++
       coverage.newline.add(options.newline)
     } else {
       continue
@@ -84,8 +86,9 @@ assert.ok(coverage.anchored >= 20)
 assert.ok(coverage.escaped >= 40)
 assert.ok(coverage.classes >= 50)
 assert.ok(coverage.negatedClasses >= 40)
+assert.ok(coverage.rangeClasses >= 50)
 assert.ok(coverage.position >= 6)
 assert.deepEqual(coverage.newline, new Set(['ordinary', 'sensitive', 'stop', 'anchors']))
 process.stdout.write(
-  `TypeScript fixtures: ${coverage.literal} literal, ${coverage.advanced} simple advanced, ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.position} positioned\n`,
+  `TypeScript fixtures: ${coverage.literal} literal, ${coverage.advanced} simple advanced, ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.rangeClasses} ranges, ${coverage.position} positioned\n`,
 )
