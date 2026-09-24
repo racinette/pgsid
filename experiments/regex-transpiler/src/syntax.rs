@@ -106,6 +106,9 @@ fn expr(expr: &Expr) -> Result {
             if method == "len" && node.args.is_empty() {
                 return self::expr(&node.receiver);
             }
+            if method == "to_ascii_lowercase" && node.args.is_empty() {
+                return self::expr(&node.receiver);
+            }
             if method == "collect" && node.args.is_empty() {
                 let Expr::MethodCall(chars) = &*node.receiver else {
                     return Err("only chars().collect() is in the syntax subset".into());

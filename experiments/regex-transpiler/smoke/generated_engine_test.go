@@ -3,16 +3,28 @@ package generated
 import "testing"
 
 func TestLiteralSlice(t *testing.T) {
-	found := find_literal("😀", "a😀a", 0)
+	found := find_literal("😀", "a😀a", 0, true)
 	if found != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 2}}) {
 		t.Errorf("literal match = %+v", found)
 	}
-	empty := find_literal("", "a😀a", 3)
+	empty := find_literal("", "a😀a", 3, true)
 	if empty != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 3, end: 3}}) {
 		t.Errorf("empty literal match = %+v", empty)
 	}
-	if find_literal("a", "a😀a", 4).kind != MatchOutcomeNoMatch {
+	if find_literal("a", "a😀a", 4, true).kind != MatchOutcomeNoMatch {
 		t.Error("out-of-range start matched")
+	}
+	if find_literal("a", "bA", 0, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 2}}) {
+		t.Error("ASCII case folding missed match")
+	}
+	if find_literal("Z", "z", 0, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 0, end: 1}}) {
+		t.Error("ASCII case folding missed range endpoint")
+	}
+	if find_literal("a", "A", 0, true).kind != MatchOutcomeNoMatch {
+		t.Error("case sensitive search matched different case")
+	}
+	if find_literal("Å", "å", 0, false).kind != MatchOutcomeNoMatch || find_literal("K", "K", 0, false).kind != MatchOutcomeNoMatch {
+		t.Error("non-ASCII case folding changed match")
 	}
 	if charge_work(1999999, 1) != (WorkOutcome{kind: WorkOutcomeReady, ready: 2000000}) {
 		t.Error("work charge at budget changed result")

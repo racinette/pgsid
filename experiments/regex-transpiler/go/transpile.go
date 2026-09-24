@@ -215,6 +215,9 @@ func (g *generator) expression(value *node) string {
 		if value.Method == "len" && len(value.Arguments) == 0 {
 			return "len(" + g.expression(value.Receiver) + ")"
 		}
+		if value.Method == "to_ascii_lowercase" && len(value.Arguments) == 0 {
+			return "asciiLowercase(" + g.expression(value.Receiver) + ")"
+		}
 		if value.Method == "collect" && len(value.Arguments) == 0 && value.Receiver != nil && value.Receiver.Kind == "method-call" && value.Receiver.Method == "chars" && len(value.Receiver.Arguments) == 0 {
 			return "[]rune(" + g.expression(value.Receiver.Receiver) + ")"
 		}
@@ -313,6 +316,13 @@ func (g *generator) prelude() {
 	g.writer.line("func checkedChar(value rune) rune {")
 	g.writer.indent++
 	g.writer.line("if value < 0 || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff) { panic(\"invalid Unicode scalar\") }")
+	g.writer.line("return value")
+	g.writer.indent--
+	g.writer.line("}")
+	g.writer.line("func asciiLowercase(value rune) rune {")
+	g.writer.indent++
+	g.writer.line("checkedChar(value)")
+	g.writer.line("if value >= 'A' && value <= 'Z' { return value + ('a' - 'A') }")
 	g.writer.line("return value")
 	g.writer.indent--
 	g.writer.line("}")
