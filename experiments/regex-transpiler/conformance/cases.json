@@ -1,0 +1,43 @@
+{
+  "search": [
+    {
+      "pattern": "",
+      "subject": "",
+      "expected": { "kind": "Found", "value": { "start": 0, "end": 0 } }
+    },
+    {
+      "pattern": "",
+      "subject": "abc",
+      "expected": { "kind": "Found", "value": { "start": 0, "end": 0 } }
+    },
+    {
+      "pattern": "ab",
+      "subject": "zzabz",
+      "expected": { "kind": "Found", "value": { "start": 2, "end": 4 } }
+    },
+    {
+      "pattern": "é",
+      "subject": "aé",
+      "expected": { "kind": "Found", "value": { "start": 1, "end": 2 } }
+    },
+    {
+      "pattern": "😀",
+      "subject": "x😀",
+      "expected": { "kind": "Found", "value": { "start": 1, "end": 2 } }
+    },
+    { "pattern": "z", "subject": "abc", "expected": { "kind": "NoMatch" } },
+    {
+      "pattern": "x",
+      "subjectRepeat": { "text": "x", "count": 4096 },
+      "expected": { "kind": "Found", "value": { "start": 0, "end": 1 } }
+    },
+    {
+      "pattern": "x",
+      "subjectRepeat": { "text": "x", "count": 4097 },
+      "expected": { "kind": "Uncertain" }
+    }
+  ],
+  "shift": [
+    { "input": { "start": 1, "end": 3 }, "offset": 2, "expected": { "start": 3, "end": 5 } }
+  ]
+}
