@@ -49,10 +49,14 @@ const grammar = {
 }
 const mutate = {
   truncate: (pattern) => pattern.slice(0, -1),
+  removeTail: (pattern, count) => pattern.slice(0, -count),
   duplicate: (pattern) => `${pattern}*`,
+  strayClose: (pattern, close) => `${pattern}${close}`,
   reverseBound: (atom) => `${atom}{3,1}`,
+  reverseBasicBound: (atom) => `${atom}\\{3,1\\}`,
   oversizedBound: (atom) => `${atom}{256}`,
   unknownClass: () => '[[:unknown:]]',
+  uncapturedBackreference: () => '\\1',
   trailingEscape: () => '\\',
 }
 
@@ -237,6 +241,26 @@ const families = {
     ['(a|ab){1,2}b', ['abb', 'aabb', 'ab']],
     ['[[:alpha:]]+\\d', ['abd', 'ab3', 'éd']],
   ],
+  basic_mutations: [
+    [mutate.removeTail('a\\(b\\)', 2), ['ab', 'a(b', '']],
+    [mutate.strayClose('ab', '\\)'), ['ab', 'ab)', '']],
+    [mutate.reverseBasicBound('a'), ['aaa', 'a\\{3,1\\}', '']],
+    [mutate.removeTail('a\\{2,3\\}', 2), ['aaa', 'a\\{2,3', '']],
+    [mutate.truncate('[a-]'), ['a', '-', '']],
+    [mutate.duplicate('a*'), ['aaa', 'a*', '']],
+    [mutate.uncapturedBackreference(), ['1', 'a', '']],
+    [mutate.unknownClass(), ['a', 'unknown', '']],
+  ],
+  extended_mutations: [
+    [mutate.truncate('(ab)'), ['ab', '(ab', '']],
+    [mutate.strayClose('ab', ')'), ['ab', 'ab)', '']],
+    [mutate.reverseBound('b'), ['bbb', 'b{3,1}', '']],
+    [mutate.truncate('a{2,}'), ['aa', 'a{2,', '']],
+    [mutate.truncate('[a-]'), ['a', '-', '']],
+    [mutate.duplicate('b*'), ['bbb', 'b*', '']],
+    [mutate.unknownClass(), ['a', 'unknown', '']],
+    [mutate.truncate('(?=a)'), ['a', '(?=a', '']],
+  ],
 }
 
 function flags(options) {
@@ -265,6 +289,7 @@ for (const [family, templates] of Object.entries(families)) {
   let familyCount = 0
   const profiles =
     family.endsWith('_interactions') ||
+    family.endsWith('_mutations') ||
     family === 'backref_unicode' ||
     family === 'lookaround_newline'
       ? combinedProfiles

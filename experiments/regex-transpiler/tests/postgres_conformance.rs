@@ -107,6 +107,7 @@ fn rust_stress_results_match_postgres() {
     let mut expanded = BTreeMap::new();
     let mut expanded_newline = BTreeMap::new();
     let mut outcome = BTreeMap::new();
+    let mut family_outcome = BTreeMap::new();
     let mut mismatches = Vec::new();
 
     for fixture in cases {
@@ -141,6 +142,12 @@ fn rust_stress_results_match_postgres() {
         *outcome
             .entry(expected["kind"].as_str().unwrap().to_string())
             .or_insert(0usize) += 1;
+        *family_outcome
+            .entry((
+                label.to_string(),
+                expected["kind"].as_str().unwrap().to_string(),
+            ))
+            .or_insert(0usize) += 1;
         match evaluate(input) {
             Some(actual) if actual == *expected => {}
             actual => mismatches.push(format!(
@@ -151,7 +158,7 @@ fn rust_stress_results_match_postgres() {
     assert!(cases.len() >= 1000, "stress corpus shrank");
     assert_eq!(tuples.len() - original_count, cases.len());
     assert!(family.values().all(|count| *count < cases.len() / 2));
-    assert_eq!(family.len(), 18);
+    assert_eq!(family.len(), 20);
     for name in [
         "precedence",
         "repetition",
@@ -171,10 +178,13 @@ fn rust_stress_results_match_postgres() {
         "expanded_interactions",
         "basic_interactions",
         "extended_interactions",
+        "basic_mutations",
+        "extended_mutations",
     ] {
         let minimum = if name == "literal" {
             20
         } else if name.ends_with("_interactions")
+            || name.ends_with("_mutations")
             || name == "backref_unicode"
             || name == "lookaround_newline"
         {
@@ -191,6 +201,33 @@ fn rust_stress_results_match_postgres() {
         assert!(
             outcome.get(kind).copied().unwrap_or(0) >= minimum,
             "{kind} outcomes shrank"
+        );
+    }
+    assert!(
+        family_outcome
+            .get(&("basic_mutations".to_string(), "InvalidPattern".to_string()))
+            .copied()
+            .unwrap_or(0)
+            >= 90
+    );
+    assert!(
+        family_outcome
+            .get(&(
+                "extended_mutations".to_string(),
+                "InvalidPattern".to_string()
+            ))
+            .copied()
+            .unwrap_or(0)
+            >= 70
+    );
+    for kind in ["Found", "NoMatch"] {
+        assert!(
+            family_outcome
+                .get(&("extended_mutations".to_string(), kind.to_string()))
+                .copied()
+                .unwrap_or(0)
+                > 0,
+            "Extended mutation oracle lost {kind} outcomes"
         );
     }
     for (mode, minimum) in [
