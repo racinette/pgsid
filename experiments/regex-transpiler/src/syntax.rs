@@ -81,6 +81,12 @@ fn expr(expr: &Expr) -> Result {
         }
         Expr::Paren(node) if node.attrs.is_empty() => self::expr(&node.expr),
         Expr::Group(node) if node.attrs.is_empty() => self::expr(&node.expr),
+        Expr::Cast(node) if node.attrs.is_empty() => {
+            if !matches!(&*node.ty, Type::Path(target) if target.path.is_ident("u32")) {
+                return Err("only casts to u32 are in the syntax subset".into());
+            }
+            self::expr(&node.expr)
+        }
         Expr::Binary(node) if node.attrs.is_empty() => {
             if !matches!(
                 node.op,
@@ -311,6 +317,7 @@ mod tests {
             "enum Empty {}",
             "#[allow(dead_code)] const X: usize = 1;",
             "pub fn f() -> usize { let x = 1; unsafe { x } }",
+            "pub fn f(value: char) -> usize { value as usize }",
         ] {
             let file = syn::parse_file(source).unwrap();
             assert!(check(&file).is_err(), "accepted: {source}");

@@ -193,6 +193,11 @@ fn expr(value: &Expr) -> Result<Value> {
         },
         Expr::Paren(node) => Ok(json!({ "kind": "parenthesized", "inner": expr(&node.expr)? })),
         Expr::Group(node) => expr(&node.expr),
+        Expr::Cast(node) => Ok(json!({
+            "kind": "cast",
+            "value": expr(&node.expr)?,
+            "targetType": ty(&node.ty)?,
+        })),
         Expr::Binary(node) => Ok(json!({
             "kind": "binary",
             "operator": operator(&node.op)?,
@@ -445,6 +450,20 @@ mod tests {
     }
 
     #[test]
+    fn char_codepoint_cast_has_one_lowering() {
+        let tree: serde_json::Value =
+            serde_json::from_str(&parse("pub fn f(value: char) -> u32 { value as u32 }").unwrap())
+                .unwrap();
+        assert_eq!(tree["items"][0]["body"][0]["value"]["kind"], "cast");
+        assert_eq!(
+            tree["items"][0]["body"][0]["value"]["targetType"]["segments"],
+            serde_json::json!(["u32"])
+        );
+        assert!(parse("pub fn f(value: usize) -> u32 { value as u32 }").is_err());
+        assert!(parse("pub fn f(value: char) -> usize { value as usize }").is_err());
+    }
+
+    #[test]
     fn rejects_types_without_target_mappings() {
         assert!(parse("pub fn f(value: Vec<i32>) -> i32 { 1 }").is_err());
         assert!(parse("pub fn f(value: &char) -> bool { 1 == 1 }").is_err());
@@ -533,5 +552,6 @@ mod tests {
         assert_eq!(smoke::subtract_positions(5, 3), 2);
         assert!(smoke::is_before_first(-1));
         assert_eq!(smoke::char_count("😀"), 1);
+        assert_eq!(smoke::char_codepoint('😀'), 128512);
     }
 }

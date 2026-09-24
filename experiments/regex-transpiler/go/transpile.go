@@ -17,6 +17,7 @@ type node struct {
 	Derives       []string    `json:"derives"`
 	Type          *node       `json:"type"`
 	ReturnType    *node       `json:"returnType"`
+	TargetType    *node       `json:"targetType"`
 	Inner         *node       `json:"inner"`
 	Value         *node       `json:"value"`
 	Digits        string      `json:"digits"`
@@ -198,6 +199,11 @@ func (g *generator) expression(value *node) string {
 		return strconv.FormatBool(value.Boolean)
 	case "parenthesized":
 		return "(" + g.expression(value.Inner) + ")"
+	case "cast":
+		if path(value.TargetType) != "u32" {
+			reject("unsupported cast target")
+		}
+		return "int(checkedChar(" + g.expression(value.Value) + "))"
 	case "binary":
 		left, right := g.expression(value.Left), g.expression(value.Right)
 		switch value.Operator {

@@ -64,7 +64,7 @@ assert.deepEqual(generated.find_simple_advanced('\\^a', 'z^a', 0, true, true, fa
   value: { start: 1, end: 3 },
 })
 assert.equal(generated.supports_simple_advanced('a[bc]d'), true)
-assert.equal(generated.supports_simple_advanced('a[b-d]'), false)
+assert.equal(generated.supports_simple_advanced('a[b-d]'), true)
 assert.deepEqual(generated.find_simple_advanced('a[bc]d', 'zacd', 0, true, true, false), {
   kind: 'Found',
   value: { start: 1, end: 4 },
@@ -74,13 +74,22 @@ assert.deepEqual(generated.find_simple_advanced('[A]', 'a', 0, false, true, fals
   value: { start: 0, end: 1 },
 })
 assert.equal(generated.supports_simple_advanced('[^ab]'), true)
-assert.equal(generated.supports_simple_advanced('[^a-z]'), false)
+assert.equal(generated.supports_simple_advanced('[^a-z]'), true)
 assert.deepEqual(generated.find_simple_advanced('[^a]', '\n', 0, true, false, false), {
   kind: 'NoMatch',
 })
 assert.deepEqual(generated.find_simple_advanced('[^a]', '\n', 0, true, true, false), {
   kind: 'Found',
   value: { start: 0, end: 1 },
+})
+assert.equal(generated.supports_simple_advanced('[a-c]'), true)
+assert.equal(generated.supports_simple_advanced('[z-a]'), false)
+assert.deepEqual(generated.find_simple_advanced('[A-C]', 'b', 0, false, true, false), {
+  kind: 'Found',
+  value: { start: 0, end: 1 },
+})
+assert.deepEqual(generated.find_simple_advanced('[0-9]', '😀', 0, true, true, false), {
+  kind: 'NoMatch',
 })
 assert.deepEqual(generated.charge_work(1999999, 1), {
   kind: 'Ready',

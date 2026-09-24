@@ -10,6 +10,7 @@ type Expr =
   | { kind: 'character'; scalar: string }
   | { kind: 'boolean'; state: boolean }
   | { kind: 'parenthesized'; inner: Expr }
+  | { kind: 'cast'; value: Expr; targetType: TypeNode }
   | { kind: 'binary'; operator: string; left: Expr; right: Expr }
   | { kind: 'field'; base: Expr; member: string }
   | { kind: 'index'; base: Expr; index: Expr }
@@ -149,6 +150,8 @@ class Transpiler {
         return 'bool'
       case 'parenthesized':
         return this.infer(value.inner, locals)
+      case 'cast':
+        return this.path(value.targetType)
       case 'binary':
         if (value.operator === 'add' || value.operator === 'subtract') {
           return this.infer(value.left, locals)
@@ -201,6 +204,9 @@ class Transpiler {
         return value.state ? 'true' : 'false'
       case 'parenthesized':
         return `(${this.expression(value.inner, locals)})`
+      case 'cast':
+        if (this.path(value.targetType) !== 'u32') throw new Error('unsupported cast target')
+        return `checkedChar(${this.expression(value.value, locals)}).codePointAt(0)!`
       case 'binary': {
         const left = this.expression(value.left, locals)
         const right = this.expression(value.right, locals)

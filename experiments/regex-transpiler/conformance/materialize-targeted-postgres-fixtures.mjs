@@ -135,6 +135,31 @@ for (const newline of ['ordinary', 'sensitive', 'stop', 'anchors']) {
     }
   }
 }
+for (const newline of ['ordinary', 'sensitive', 'stop', 'anchors']) {
+  for (const caseSensitive of [true, false]) {
+    for (const [pattern, subject] of [
+      ['[a-c]', 'b'],
+      ['[a-c]', 'B'],
+      ['[A-C]', 'b'],
+      ['[A-Z]', 'K'],
+      ['[a-z]', 'Å'],
+      ['[a-z]', '😀'],
+      ['[0-9]', '5'],
+      ['[a-cx-z]', 'y'],
+      ['[a-cx-z]', 'm'],
+      ['[^b-d]', 'c'],
+      ['[^b-d]', 'A'],
+      ['[^b-d]', '\n'],
+      ['a[1-3]b', 'a2b'],
+    ]) {
+      inputs.push({
+        pattern,
+        subject,
+        options: { syntax: 'advanced', caseSensitive, expanded: false, newline },
+      })
+    }
+  }
+}
 for (const [pattern, subject, start, options] of [
   [
     'a',
@@ -182,6 +207,12 @@ for (const [pattern, subject, start, options] of [
   ],
   [
     '[^ab]',
+    'zac',
+    3,
+    { syntax: 'advanced', caseSensitive: true, expanded: false, newline: 'ordinary' },
+  ],
+  [
+    '[a-c]',
     'zac',
     3,
     { syntax: 'advanced', caseSensitive: true, expanded: false, newline: 'ordinary' },

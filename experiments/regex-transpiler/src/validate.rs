@@ -260,6 +260,14 @@ fn infer_expr_type(
         }) => Ok(Some("bool".into())),
         Expr::Paren(paren) => infer_expr_type(&paren.expr, locals, semantics),
         Expr::Group(group) => infer_expr_type(&group.expr, locals, semantics),
+        Expr::Cast(cast) => {
+            if type_name(&cast.ty)? != "u32"
+                || infer_expr_type(&cast.expr, locals, semantics)?.as_deref() != Some("char")
+            {
+                return Err("only char to u32 casts have a target lowering".into());
+            }
+            Ok(Some("u32".into()))
+        }
         Expr::Binary(binary) => {
             let left = infer_expr_type(&binary.left, locals, semantics)?;
             let right = infer_expr_type(&binary.right, locals, semantics)?;
