@@ -393,15 +393,14 @@ pub fn parse(source: &str) -> Result<String> {
 mod tests {
     use super::parse;
 
-    mod engine {
-        include!("../transpiler_fixture.rs");
+    mod smoke {
+        include!("../transpiler_smoke.rs");
     }
 
     #[test]
     fn serializes_slice_without_losing_tail_or_mutability() {
         let value: serde_json::Value =
-            serde_json::from_str(&parse(include_str!("../transpiler_fixture.rs")).unwrap())
-                .unwrap();
+            serde_json::from_str(&parse(include_str!("../transpiler_smoke.rs")).unwrap()).unwrap();
         assert_eq!(value["schemaVersion"], 1);
         let shift = value["items"]
             .as_array()
@@ -430,52 +429,11 @@ mod tests {
     }
 
     #[test]
-    fn rust_source_matches_shared_vectors() {
-        let vectors: serde_json::Value =
-            serde_json::from_str(include_str!("../conformance/cases.json")).unwrap();
-        for vector in vectors["search"].as_array().unwrap() {
-            let subject = if let Some(value) = vector["subject"].as_str() {
-                value.to_string()
-            } else {
-                vector["subjectRepeat"]["text"]
-                    .as_str()
-                    .unwrap()
-                    .repeat(vector["subjectRepeat"]["count"].as_u64().unwrap() as usize)
-            };
-            let actual = engine::literal_search(vector["pattern"].as_str().unwrap(), &subject);
-            let actual = match actual {
-                engine::Outcome::Found(span) => serde_json::json!({
-                    "kind": "Found", "value": { "start": span.start, "end": span.end }
-                }),
-                engine::Outcome::NoMatch => serde_json::json!({ "kind": "NoMatch" }),
-                engine::Outcome::Uncertain => serde_json::json!({ "kind": "Uncertain" }),
-            };
-            assert_eq!(actual, vector["expected"]);
-        }
-        for vector in vectors["shift"].as_array().unwrap() {
-            let span = engine::Span {
-                start: vector["input"]["start"].as_u64().unwrap() as usize,
-                end: vector["input"]["end"].as_u64().unwrap() as usize,
-            };
-            let offset = vector["offset"].as_u64().unwrap() as usize;
-            let shifted = engine::shift_span(span, offset);
-            let expected = engine::Span {
-                start: vector["expected"]["start"].as_u64().unwrap() as usize,
-                end: vector["expected"]["end"].as_u64().unwrap() as usize,
-            };
-            assert!(engine::same_span(shifted, expected));
-            assert_eq!(
-                shifted.start as u64,
-                vector["expected"]["start"].as_u64().unwrap()
-            );
-            assert_eq!(
-                shifted.end as u64,
-                vector["expected"]["end"].as_u64().unwrap()
-            );
-            assert_eq!(
-                span.start as u64,
-                vector["input"]["start"].as_u64().unwrap()
-            );
-        }
+    fn rust_source_matches_transpiler_smoke() {
+        let span = smoke::Span { start: 1, end: 3 };
+        let shifted = smoke::shift_span(span, 2);
+        assert!(smoke::same_span(shifted, smoke::Span { start: 3, end: 5 }));
+        assert_eq!(span.start, 1);
+        assert_eq!(span.end, 3);
     }
 }

@@ -19,8 +19,8 @@ cargo build --locked --manifest-path "$experiment_dir/Cargo.toml" \
 cd "$repo_dir"
 node --import tsx "$experiment_dir/typescript/rust-wasm.ts" \
   "$target_dir/wasm32-unknown-unknown/release/regex_transpiler_spike.wasm" \
-  "$experiment_dir/transpiler_fixture.rs" \
+  "$experiment_dir/transpiler_smoke.rs" \
   "$artifact_dir/from-rust-wasm.ast.json"
 
 node -e 'const fs = require("node:fs"); const a = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); const b = JSON.parse(fs.readFileSync(process.argv[2], "utf8")); if (JSON.stringify(a) !== JSON.stringify(b)) process.exit(1)' \
-  "$artifact_dir/engine.ast.json" "$artifact_dir/from-rust-wasm.ast.json"
+  "$artifact_dir/smoke.ast.json" "$artifact_dir/from-rust-wasm.ast.json"

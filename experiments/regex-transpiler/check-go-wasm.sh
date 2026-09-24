@@ -16,6 +16,6 @@ docker run --rm \
 cd "$repo_dir"
 node --import tsx "$experiment_dir/typescript/go-wasm.ts" \
   "$artifact_dir/go-transpiler.wasm" \
-  "$artifact_dir/engine.ast.json" \
+  "$artifact_dir/smoke.ast.json" \
   "$artifact_dir/from-wasm.go"
 cmp "$artifact_dir/from-ast.go" "$artifact_dir/from-wasm.go"
