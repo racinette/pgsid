@@ -470,6 +470,37 @@ fn rust_boundary_results_match_postgres() {
 }
 
 #[test]
+fn rust_classification_results_match_postgres() {
+    let document: Value = serde_json::from_str(include_str!(
+        "../conformance/stress-classification-fixtures.json"
+    ))
+    .unwrap();
+    assert_eq!(document["schemaVersion"], 1);
+    assert_eq!(document["oracle"]["collation"], "C");
+    let cases = document["fixtures"].as_array().unwrap();
+    assert!(cases.len() >= 100, "classification coverage shrank");
+    let mut ids = HashSet::new();
+    let mut mismatches = Vec::new();
+    for fixture in cases {
+        let id = fixture["id"].as_str().unwrap();
+        assert!(ids.insert(id), "duplicate classification id {id}");
+        let actual = evaluate(&fixture["input"]);
+        if actual.as_ref() != Some(&fixture["expected"]) {
+            mismatches.push(format!(
+                "{id}: expected={}, actual={actual:?}",
+                fixture["expected"]
+            ));
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "{} classification mismatches:\n{}",
+        mismatches.len(),
+        mismatches.join("\n")
+    );
+}
+
+#[test]
 fn absolute_anchors_ignore_newline_mode_and_search_offset() {
     for newline in [
         engine::NewlineMode::Ordinary,
@@ -726,7 +757,7 @@ fn c_collation_collating_elements_and_equivalence_classes() {
     }
     assert!(matches!(
         engine::compile("[[.unknown-name.]]", engine::Options::default()),
-        engine::CompileOutcome::Uncertain
+        engine::CompileOutcome::InvalidPattern
     ));
 }
 
@@ -1252,15 +1283,12 @@ fn numeric_escapes_follow_postgres_digit_consumption() {
             "short or malformed numeric escape {pattern:?}"
         );
     }
-    for pattern in [r"\uD800"] {
-        assert!(
-            matches!(
-                engine::compile(pattern, engine::Options::default()),
-                engine::CompileOutcome::Uncertain
-            ),
-            "non-scalar escape or possible backreference {pattern:?}"
-        );
-    }
+    let engine::CompileOutcome::Ready(program) =
+        engine::compile(r"\uD800", engine::Options::default())
+    else {
+        panic!("non-scalar escape did not compile");
+    };
+    assert_eq!(program.find("x", 0), engine::MatchOutcome::NoMatch);
     assert!(matches!(
         engine::compile(r"\1", engine::Options::default()),
         engine::CompileOutcome::InvalidPattern
