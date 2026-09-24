@@ -14,6 +14,7 @@ function random() {
 const base = new URL('./', import.meta.url)
 const outputPath = fileURLToPath(new URL('stress-fixtures.json', base))
 const positionOutputPath = fileURLToPath(new URL('stress-position-fixtures.json', base))
+const boundaryOutputPath = fileURLToPath(new URL('stress-boundary-fixtures.json', base))
 const extractedPath = fileURLToPath(new URL('postgres-fixtures.json', base))
 const check = process.argv.slice(2).join(' ') === '--check'
 if (process.argv.length > 3 || (process.argv.length === 3 && !check)) {
@@ -261,6 +262,17 @@ const families = {
     [mutate.unknownClass(), ['a', 'unknown', '']],
     [mutate.truncate('(?=a)'), ['a', '(?=a', '']],
   ],
+  capture_ambiguity: [
+    ['(a|aa)(a|aa)\\2\\1', ['aaaaaa', 'aaaa', 'aaaaa']],
+    ['((a|aa)+)\\2', ['aaaa', 'aaaaa', 'aaab']],
+    ['(a*?)(a+)\\1', ['aaa', 'aaaa', 'aaab']],
+    ['(a+?)(a+)\\1', ['aaaa', 'aaa', 'aa']],
+    ['((ab|a)b)\\2', ['abab', 'abbab', 'aabb']],
+    ['(a|ab)(b|)\\1', ['aba', 'abbab', 'abb']],
+    ['(a*)(a*)\\2\\1', ['aaaa', 'aaa', 'aa']],
+    ['((a|aa){1,2})\\2', ['aaaa', 'aaaaa', 'aaa']],
+    ['(a|aa){2}\\1', ['aaaaa', 'aaaaaa', 'aaab']],
+  ],
 }
 
 function flags(options) {
@@ -285,13 +297,17 @@ const extractedTuples = new Set(extracted.fixtures.map(({ input }) => JSON.strin
 const seen = new Set()
 const generated = []
 for (const [family, templates] of Object.entries(families)) {
-  if (templates.length !== 8) throw new Error(`${family}: expected eight templates`)
+  const expectedTemplates = family === 'capture_ambiguity' ? 9 : 8
+  if (templates.length !== expectedTemplates) {
+    throw new Error(`${family}: expected ${expectedTemplates} templates`)
+  }
   let familyCount = 0
   const profiles =
     family.endsWith('_interactions') ||
     family.endsWith('_mutations') ||
     family === 'backref_unicode' ||
-    family === 'lookaround_newline'
+    family === 'lookaround_newline' ||
+    family === 'capture_ambiguity'
       ? combinedProfiles
       : modeProfiles
   for (let index = 0; index < templates.length; index++) {
@@ -322,7 +338,14 @@ for (const [family, templates] of Object.entries(families)) {
       }
     }
   }
-  const quota = family === 'literal' ? 20 : profiles === combinedProfiles ? 90 : 70
+  const quota =
+    family === 'literal'
+      ? 20
+      : family === 'capture_ambiguity'
+        ? 100
+        : profiles === combinedProfiles
+          ? 90
+          : 70
   if (familyCount < quota) {
     throw new Error(`${family}: quota missed with ${familyCount} distinct inputs`)
   }
@@ -345,21 +368,22 @@ try {
   if (extendedEscapeProbe.rows[0].match_start !== 0) {
     throw new Error('(?e) did not use Extended escape behavior')
   }
-  const fixtures = []
-  for (const { id, family, input } of generated) {
+  async function oracleMatch(input, id) {
     const pattern = input.options.syntax === 'extended' ? `(?e)${input.pattern}` : input.pattern
-    let expected
     try {
       const { rows } = await pg.query(sql, [input.subject, pattern, flags(input.options)])
       const { match_start: start, match_end: end } = rows[0]
-      expected =
-        start === 0
-          ? { kind: 'NoMatch' }
-          : { kind: 'Found', value: { start: start - 1, end: end - 1 } }
+      return start === 0
+        ? { kind: 'NoMatch' }
+        : { kind: 'Found', value: { start: start - 1, end: end - 1 } }
     } catch (error) {
       if (error.code !== '2201B') throw new Error(`${id}: ${error.message} (${error.code})`)
-      expected = { kind: 'InvalidPattern', sqlstate: error.code }
+      return { kind: 'InvalidPattern', sqlstate: error.code }
     }
+  }
+  const fixtures = []
+  for (const { id, family, input } of generated) {
+    const expected = await oracleMatch(input, id)
     fixtures.push({ id, family, input, expected })
   }
   const document = {
@@ -437,6 +461,62 @@ try {
   })
   process.stdout.write(
     `${check ? 'checked' : 'wrote'} ${positionFixtures.length} position fixtures\n`,
+  )
+
+  const boundaryOptions = {
+    syntax: 'advanced',
+    caseSensitive: true,
+    expanded: false,
+    newline: 'ordinary',
+  }
+  const boundarySeeds = [
+    ['pattern_scalars', 'a'.repeat(3072), '', 'a'.repeat(3073), ''],
+    ['pattern_unicode_scalars', 'é'.repeat(3072), '', 'é'.repeat(3073), ''],
+    ['subject_scalars', 'z$', `${'a'.repeat(4095)}z`, 'z$', `${'a'.repeat(4096)}z`],
+    ['subject_unicode_scalars', 'é$', 'é'.repeat(4096), 'é$', 'é'.repeat(4097)],
+    [
+      'lookbehind_subject_scalars',
+      '(?<=a)b',
+      `${'a'.repeat(255)}b`,
+      '(?<=a)b',
+      `${'a'.repeat(256)}b`,
+    ],
+    ['capture_groups', '(a)'.repeat(128), 'a'.repeat(128), '(a)'.repeat(129), 'a'.repeat(129)],
+    [
+      'group_depth',
+      `${'('.repeat(64)}a${')'.repeat(64)}`,
+      'a',
+      `${'('.repeat(65)}a${')'.repeat(65)}`,
+      'a',
+    ],
+    ['bound_value', 'a{255}', 'a'.repeat(255), 'a{256}', 'a'.repeat(256)],
+  ]
+  const boundaryFixtures = []
+  for (const [boundary, atPattern, atSubject, overPattern, overSubject] of boundarySeeds) {
+    for (const [side, pattern, subject] of [
+      ['at', atPattern, atSubject],
+      ['over', overPattern, overSubject],
+    ]) {
+      const id = `${boundary}-${side}`
+      const input = { pattern, subject, options: boundaryOptions }
+      boundaryFixtures.push({
+        id,
+        boundary,
+        side,
+        input,
+        expected: await oracleMatch(input, id),
+        engineExpectation: side === 'at' || boundary === 'bound_value' ? 'Definite' : 'Uncertain',
+      })
+    }
+  }
+  writeOrCheck(boundaryOutputPath, {
+    schemaVersion: 1,
+    oracle: { database: 'PostgreSQL via PGlite', serverVersion, collation: 'C' },
+    generatorSeed: seed,
+    fixtures: boundaryFixtures,
+  })
+  process.stdout.write(
+    `${check ? 'checked' : 'wrote'} ${boundaryFixtures.length} boundary fixtures\n`,
   )
 } finally {
   await pg.close()
