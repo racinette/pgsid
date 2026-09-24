@@ -38,7 +38,9 @@ node --import tsx "$experiment_dir/smoke/engine_check.ts" "$artifact_dir/from-as
 node --import tsx "$experiment_dir/smoke/fixture_check.ts" "$artifact_dir/from-ast-engine.ts" \
   "$experiment_dir/conformance/postgres-fixtures.json" \
   "$experiment_dir/conformance/stress-fixtures.json" \
-  "$experiment_dir/conformance/targeted-postgres-fixtures.json"
+  "$experiment_dir/conformance/targeted-postgres-fixtures.json" \
+  "$experiment_dir/conformance/stress-position-fixtures.json" \
+  "$experiment_dir/conformance/stress-boundary-fixtures.json"
 node --import tsx "$experiment_dir/smoke/rust_parity.ts" \
   "$artifact_dir/from-ast-engine.ts" "$artifact_dir/slice-oracle.json"
 
@@ -50,4 +52,6 @@ cp "$artifact_dir/slice-oracle.json" "$test_dir/slice-oracle.json"
 cp "$experiment_dir/conformance/postgres-fixtures.json" "$test_dir/postgres-fixtures.json"
 cp "$experiment_dir/conformance/stress-fixtures.json" "$test_dir/stress-fixtures.json"
 cp "$experiment_dir/conformance/targeted-postgres-fixtures.json" "$test_dir/targeted-postgres-fixtures.json"
+cp "$experiment_dir/conformance/stress-position-fixtures.json" "$test_dir/stress-position-fixtures.json"
+cp "$experiment_dir/conformance/stress-boundary-fixtures.json" "$test_dir/stress-boundary-fixtures.json"
 (cd "$test_dir" && GO111MODULE=off GOCACHE="$go_cache" "$go_bin" test .)

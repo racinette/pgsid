@@ -13,6 +13,7 @@ type parityCase struct {
 	From              int             `json:"from"`
 	CaseSensitive     bool            `json:"caseSensitive"`
 	DotCrossesNewline bool            `json:"dotCrossesNewline"`
+	LineAnchors       bool            `json:"lineAnchors"`
 	Current           int             `json:"current"`
 	Amount            int             `json:"amount"`
 	Expected          json.RawMessage `json:"expected"`
@@ -34,6 +35,16 @@ func TestGeneratedEngineMatchesRust(t *testing.T) {
 		t.Fatalf("unexpected Rust oracle shape: version=%d cases=%d", oracle.SchemaVersion, len(oracle.Cases))
 	}
 	for index, testCase := range oracle.Cases {
+		if testCase.Operation == "supports_simple_advanced" {
+			var want bool
+			if err := json.Unmarshal(testCase.Expected, &want); err != nil {
+				t.Fatal(err)
+			}
+			if actual := supports_simple_advanced(testCase.Pattern); actual != want {
+				t.Errorf("Rust support case %d: pattern=%q, expected=%t, actual=%t", index, testCase.Pattern, want, actual)
+			}
+			continue
+		}
 		var expected struct {
 			Kind  string          `json:"kind"`
 			Value json.RawMessage `json:"value"`
@@ -49,7 +60,7 @@ func TestGeneratedEngineMatchesRust(t *testing.T) {
 			} else if testCase.Operation == "find_any_character" {
 				actual = find_any_character(testCase.Subject, testCase.From, testCase.DotCrossesNewline)
 			} else {
-				actual = find_simple_advanced(testCase.Pattern, testCase.Subject, testCase.From, testCase.CaseSensitive, testCase.DotCrossesNewline)
+				actual = find_simple_advanced(testCase.Pattern, testCase.Subject, testCase.From, testCase.CaseSensitive, testCase.DotCrossesNewline, testCase.LineAnchors)
 			}
 			var want MatchOutcome
 			switch expected.Kind {
