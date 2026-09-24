@@ -31842,6 +31842,3466 @@
       "expected": {
         "kind": "NoMatch"
       }
+    },
+    {
+      "id": "basic_mutations-0001",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\(b",
+        "subject": "ab",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0002",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\(b",
+        "subject": "ab",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0003",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\(b",
+        "subject": "ab",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0004",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\(b",
+        "subject": "ab",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0005",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\(b",
+        "subject": "a(b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0006",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\(b",
+        "subject": "a(b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0007",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\(b",
+        "subject": "a(b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0008",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\(b",
+        "subject": "a(b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0009",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\(b",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0010",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\(b",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0011",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\(b",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0012",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\(b",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0013",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "ab\\)",
+        "subject": "ab",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0014",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "ab\\)",
+        "subject": "ab",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0015",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "ab\\)",
+        "subject": "ab",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0016",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "ab\\)",
+        "subject": "ab",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0017",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "ab\\)",
+        "subject": "ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0018",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "ab\\)",
+        "subject": "ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0019",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "ab\\)",
+        "subject": "ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0020",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "ab\\)",
+        "subject": "ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0021",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "ab\\)",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0022",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "ab\\)",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0023",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "ab\\)",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0024",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "ab\\)",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0025",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{3,1\\}",
+        "subject": "aaa",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0026",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{3,1\\}",
+        "subject": "aaa",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0027",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{3,1\\}",
+        "subject": "aaa",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0028",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{3,1\\}",
+        "subject": "aaa",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0029",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{3,1\\}",
+        "subject": "a\\{3,1\\}",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0030",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{3,1\\}",
+        "subject": "a\\{3,1\\}",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0031",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{3,1\\}",
+        "subject": "a\\{3,1\\}",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0032",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{3,1\\}",
+        "subject": "a\\{3,1\\}",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0033",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{3,1\\}",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0034",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{3,1\\}",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0035",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{3,1\\}",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0036",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{3,1\\}",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0037",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{2,3",
+        "subject": "aaa",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0038",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{2,3",
+        "subject": "aaa",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0039",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{2,3",
+        "subject": "aaa",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0040",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{2,3",
+        "subject": "aaa",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0041",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{2,3",
+        "subject": "a\\{2,3",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0042",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{2,3",
+        "subject": "a\\{2,3",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0043",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{2,3",
+        "subject": "a\\{2,3",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0044",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{2,3",
+        "subject": "a\\{2,3",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0045",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{2,3",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0046",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{2,3",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0047",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{2,3",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0048",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a\\{2,3",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0049",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "a",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0050",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "a",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0051",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "a",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0052",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "a",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0053",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "-",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0054",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "-",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0055",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "-",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0056",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "-",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0057",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0058",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0059",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0060",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0061",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a**",
+        "subject": "aaa",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0062",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a**",
+        "subject": "aaa",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0063",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a**",
+        "subject": "aaa",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0064",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a**",
+        "subject": "aaa",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0065",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a**",
+        "subject": "a*",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0066",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a**",
+        "subject": "a*",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0067",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a**",
+        "subject": "a*",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0068",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a**",
+        "subject": "a*",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0069",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a**",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0070",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a**",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0071",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a**",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0072",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "a**",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0073",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "\\1",
+        "subject": "1",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0074",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "\\1",
+        "subject": "1",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0075",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "\\1",
+        "subject": "1",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0076",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "\\1",
+        "subject": "1",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0077",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "\\1",
+        "subject": "a",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0078",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "\\1",
+        "subject": "a",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0079",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "\\1",
+        "subject": "a",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0080",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "\\1",
+        "subject": "a",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0081",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "\\1",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0082",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "\\1",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0083",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "\\1",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0084",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "\\1",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0085",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "a",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0086",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "a",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0087",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "a",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0088",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "a",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0089",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "unknown",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0090",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "unknown",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0091",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "unknown",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0092",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "unknown",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0093",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0094",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0095",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "basic_mutations-0096",
+      "family": "basic_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0001",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(ab",
+        "subject": "ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0002",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(ab",
+        "subject": "ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0003",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(ab",
+        "subject": "ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0004",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(ab",
+        "subject": "ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0005",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(ab",
+        "subject": "(ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0006",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(ab",
+        "subject": "(ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0007",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(ab",
+        "subject": "(ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0008",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(ab",
+        "subject": "(ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0009",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(ab",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0010",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(ab",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0011",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(ab",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0012",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(ab",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0013",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "ab)",
+        "subject": "ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "extended_mutations-0014",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "ab)",
+        "subject": "ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "extended_mutations-0015",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "ab)",
+        "subject": "ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "extended_mutations-0016",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "ab)",
+        "subject": "ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "extended_mutations-0017",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "ab)",
+        "subject": "ab)",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "extended_mutations-0018",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "ab)",
+        "subject": "ab)",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "extended_mutations-0019",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "ab)",
+        "subject": "ab)",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "extended_mutations-0020",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "ab)",
+        "subject": "ab)",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "extended_mutations-0021",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "ab)",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "extended_mutations-0022",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "ab)",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "extended_mutations-0023",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "ab)",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "extended_mutations-0024",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "ab)",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "extended_mutations-0025",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b{3,1}",
+        "subject": "bbb",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0026",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b{3,1}",
+        "subject": "bbb",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0027",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b{3,1}",
+        "subject": "bbb",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0028",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b{3,1}",
+        "subject": "bbb",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0029",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b{3,1}",
+        "subject": "b{3,1}",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0030",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b{3,1}",
+        "subject": "b{3,1}",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0031",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b{3,1}",
+        "subject": "b{3,1}",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0032",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b{3,1}",
+        "subject": "b{3,1}",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0033",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b{3,1}",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0034",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b{3,1}",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0035",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b{3,1}",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0036",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b{3,1}",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0037",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "a{2,",
+        "subject": "aa",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0038",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "a{2,",
+        "subject": "aa",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0039",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "a{2,",
+        "subject": "aa",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0040",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "a{2,",
+        "subject": "aa",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0041",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "a{2,",
+        "subject": "a{2,",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0042",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "a{2,",
+        "subject": "a{2,",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0043",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "a{2,",
+        "subject": "a{2,",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0044",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "a{2,",
+        "subject": "a{2,",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0045",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "a{2,",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0046",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "a{2,",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0047",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "a{2,",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0048",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "a{2,",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0049",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "a",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0050",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "a",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0051",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "a",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0052",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "a",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0053",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "-",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0054",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "-",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0055",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "-",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0056",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "-",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0057",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0058",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0059",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0060",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[a-",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0061",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b**",
+        "subject": "bbb",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0062",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b**",
+        "subject": "bbb",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0063",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b**",
+        "subject": "bbb",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0064",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b**",
+        "subject": "bbb",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0065",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b**",
+        "subject": "b*",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0066",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b**",
+        "subject": "b*",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0067",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b**",
+        "subject": "b*",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0068",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b**",
+        "subject": "b*",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0069",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b**",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0070",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b**",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0071",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b**",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0072",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "b**",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0073",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "a",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0074",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "a",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0075",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "a",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0076",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "a",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0077",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "unknown",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0078",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "unknown",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0079",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "unknown",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0080",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "unknown",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0081",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0082",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0083",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0084",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "[[:unknown:]]",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0085",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(?=a",
+        "subject": "a",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0086",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(?=a",
+        "subject": "a",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0087",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(?=a",
+        "subject": "a",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0088",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(?=a",
+        "subject": "a",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0089",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(?=a",
+        "subject": "(?=a",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0090",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(?=a",
+        "subject": "(?=a",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0091",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(?=a",
+        "subject": "(?=a",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0092",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(?=a",
+        "subject": "(?=a",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0093",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(?=a",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0094",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(?=a",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0095",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(?=a",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "id": "extended_mutations-0096",
+      "family": "extended_mutations",
+      "input": {
+        "pattern": "(?=a",
+        "subject": "",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
     }
   ]
 }
