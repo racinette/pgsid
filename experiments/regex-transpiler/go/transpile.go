@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"go/format"
 	"io"
+	"strconv"
 	"strings"
 )
 
@@ -19,6 +20,7 @@ type node struct {
 	Inner         *node       `json:"inner"`
 	Value         *node       `json:"value"`
 	Digits        string      `json:"digits"`
+	Scalar        string      `json:"scalar"`
 	Left          *node       `json:"left"`
 	Right         *node       `json:"right"`
 	Base          *node       `json:"base"`
@@ -185,6 +187,12 @@ func (g *generator) expression(value *node) string {
 		reject("unknown path " + strings.Join(value.Segments, "::"))
 	case "integer":
 		return value.Digits
+	case "character":
+		characters := []rune(value.Scalar)
+		if len(characters) != 1 {
+			reject("character literal must be one Unicode scalar")
+		}
+		return strconv.QuoteRune(characters[0])
 	case "parenthesized":
 		return "(" + g.expression(value.Inner) + ")"
 	case "binary":

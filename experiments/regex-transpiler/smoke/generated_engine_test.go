@@ -26,6 +26,15 @@ func TestLiteralSlice(t *testing.T) {
 	if find_literal("Å", "å", 0, false).kind != MatchOutcomeNoMatch || find_literal("K", "K", 0, false).kind != MatchOutcomeNoMatch {
 		t.Error("non-ASCII case folding changed match")
 	}
+	if find_any_character("\n😀", 0, true) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 0, end: 1}}) {
+		t.Error("ordinary dot skipped newline")
+	}
+	if find_any_character("\n😀", 0, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 2}}) {
+		t.Error("newline-sensitive dot missed Unicode scalar")
+	}
+	if find_any_character("\n", 0, false).kind != MatchOutcomeNoMatch || find_any_character("😀", 1, true).kind != MatchOutcomeNoMatch {
+		t.Error("dot matched outside the allowed position range")
+	}
 	if charge_work(1999999, 1) != (WorkOutcome{kind: WorkOutcomeReady, ready: 2000000}) {
 		t.Error("work charge at budget changed result")
 	}

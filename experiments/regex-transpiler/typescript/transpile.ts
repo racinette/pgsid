@@ -7,6 +7,7 @@ type TypeNode =
 type Expr =
   | { kind: 'path'; segments: string[] }
   | { kind: 'integer'; digits: string }
+  | { kind: 'character'; scalar: string }
   | { kind: 'parenthesized'; inner: Expr }
   | { kind: 'binary'; operator: string; left: Expr; right: Expr }
   | { kind: 'field'; base: Expr; member: string }
@@ -141,6 +142,8 @@ class Transpiler {
         )
       case 'integer':
         return 'usize'
+      case 'character':
+        return 'char'
       case 'parenthesized':
         return this.infer(value.inner, locals)
       case 'binary':
@@ -189,6 +192,8 @@ class Transpiler {
       }
       case 'integer':
         return value.digits
+      case 'character':
+        return JSON.stringify(value.scalar)
       case 'parenthesized':
         return `(${this.expression(value.inner, locals)})`
       case 'binary': {

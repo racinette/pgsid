@@ -250,6 +250,10 @@ fn infer_expr_type(
             lit: syn::Lit::Int(_),
             ..
         }) => Ok(Some("usize".into())),
+        Expr::Lit(syn::ExprLit {
+            lit: syn::Lit::Char(_),
+            ..
+        }) => Ok(Some("char".into())),
         Expr::Paren(paren) => infer_expr_type(&paren.expr, locals, semantics),
         Expr::Group(group) => infer_expr_type(&group.expr, locals, semantics),
         Expr::Binary(binary) => {

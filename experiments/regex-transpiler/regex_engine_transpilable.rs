@@ -68,3 +68,18 @@ pub fn find_literal(
     }
     MatchOutcome::NoMatch
 }
+
+pub fn find_any_character(subject: &str, from: usize, dot_crosses_newline: bool) -> MatchOutcome {
+    let haystack: Vec<char> = subject.chars().collect();
+    let mut start = from;
+    while start < haystack.len() {
+        if dot_crosses_newline || haystack[start] != '\n' {
+            return MatchOutcome::Found(MatchSpan {
+                start,
+                end: start + 1,
+            });
+        }
+        start += 1;
+    }
+    MatchOutcome::NoMatch
+}

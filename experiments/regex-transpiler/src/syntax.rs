@@ -70,7 +70,12 @@ fn pat(pat: &Pat) -> Result {
 fn expr(expr: &Expr) -> Result {
     match expr {
         Expr::Path(node) if node.attrs.is_empty() && node.qself.is_none() => path(&node.path, 2),
-        Expr::Lit(node) if node.attrs.is_empty() && matches!(node.lit, syn::Lit::Int(_)) => Ok(()),
+        Expr::Lit(node)
+            if node.attrs.is_empty()
+                && matches!(node.lit, syn::Lit::Int(_) | syn::Lit::Char(_)) =>
+        {
+            Ok(())
+        }
         Expr::Paren(node) if node.attrs.is_empty() => self::expr(&node.expr),
         Expr::Group(node) if node.attrs.is_empty() => self::expr(&node.expr),
         Expr::Binary(node) if node.attrs.is_empty() => {
