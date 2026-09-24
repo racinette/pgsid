@@ -8,6 +8,7 @@ type Expr =
   | { kind: 'path'; segments: string[] }
   | { kind: 'integer'; digits: string }
   | { kind: 'character'; scalar: string }
+  | { kind: 'boolean'; state: boolean }
   | { kind: 'parenthesized'; inner: Expr }
   | { kind: 'binary'; operator: string; left: Expr; right: Expr }
   | { kind: 'field'; base: Expr; member: string }
@@ -144,6 +145,8 @@ class Transpiler {
         return 'usize'
       case 'character':
         return 'char'
+      case 'boolean':
+        return 'bool'
       case 'parenthesized':
         return this.infer(value.inner, locals)
       case 'binary':
@@ -194,6 +197,8 @@ class Transpiler {
         return value.digits
       case 'character':
         return JSON.stringify(value.scalar)
+      case 'boolean':
+        return value.state ? 'true' : 'false'
       case 'parenthesized':
         return `(${this.expression(value.inner, locals)})`
       case 'binary': {

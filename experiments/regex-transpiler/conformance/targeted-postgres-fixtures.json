@@ -606,6 +606,1006 @@
     },
     {
       "input": {
+        "pattern": "a.b",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.b",
+        "subject": "a😀b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "A.b",
+        "subject": "aβb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": ".a",
+        "subject": "\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.",
+        "subject": "a\n",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "Å.😀",
+        "subject": "Åβ😀",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "..",
+        "subject": "😀a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.b",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.b",
+        "subject": "a😀b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "A.b",
+        "subject": "aβb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": ".a",
+        "subject": "\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.",
+        "subject": "a\n",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "Å.😀",
+        "subject": "Åβ😀",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "..",
+        "subject": "😀a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.b",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.b",
+        "subject": "a😀b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "A.b",
+        "subject": "aβb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": ".a",
+        "subject": "\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.",
+        "subject": "a\n",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "Å.😀",
+        "subject": "Åβ😀",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "..",
+        "subject": "😀a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.b",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.b",
+        "subject": "a😀b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "A.b",
+        "subject": "aβb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": ".a",
+        "subject": "\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.",
+        "subject": "a\n",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "Å.😀",
+        "subject": "Åβ😀",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "..",
+        "subject": "😀a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.b",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.b",
+        "subject": "a😀b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "A.b",
+        "subject": "aβb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": ".a",
+        "subject": "\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.",
+        "subject": "a\n",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "Å.😀",
+        "subject": "Åβ😀",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "..",
+        "subject": "😀a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.b",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.b",
+        "subject": "a😀b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "A.b",
+        "subject": "aβb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": ".a",
+        "subject": "\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.",
+        "subject": "a\n",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "Å.😀",
+        "subject": "Åβ😀",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "..",
+        "subject": "😀a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.b",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.b",
+        "subject": "a😀b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "A.b",
+        "subject": "aβb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": ".a",
+        "subject": "\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.",
+        "subject": "a\n",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "Å.😀",
+        "subject": "Åβ😀",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "..",
+        "subject": "😀a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.b",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.b",
+        "subject": "a😀b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "A.b",
+        "subject": "aβb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": ".a",
+        "subject": "\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.",
+        "subject": "a\n",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "Å.😀",
+        "subject": "Åβ😀",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "..",
+        "subject": "😀a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
         "pattern": "a",
         "subject": "aAa",
         "start": 2,
@@ -718,6 +1718,26 @@
       },
       "expected": {
         "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.b",
+        "subject": "za😀b",
+        "start": 2,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
       }
     }
   ]

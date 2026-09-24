@@ -72,7 +72,10 @@ fn expr(expr: &Expr) -> Result {
         Expr::Path(node) if node.attrs.is_empty() && node.qself.is_none() => path(&node.path, 2),
         Expr::Lit(node)
             if node.attrs.is_empty()
-                && matches!(node.lit, syn::Lit::Int(_) | syn::Lit::Char(_)) =>
+                && matches!(
+                    node.lit,
+                    syn::Lit::Int(_) | syn::Lit::Char(_) | syn::Lit::Bool(_)
+                ) =>
         {
             Ok(())
         }

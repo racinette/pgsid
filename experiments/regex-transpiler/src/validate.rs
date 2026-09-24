@@ -254,6 +254,10 @@ fn infer_expr_type(
             lit: syn::Lit::Char(_),
             ..
         }) => Ok(Some("char".into())),
+        Expr::Lit(syn::ExprLit {
+            lit: syn::Lit::Bool(_),
+            ..
+        }) => Ok(Some("bool".into())),
         Expr::Paren(paren) => infer_expr_type(&paren.expr, locals, semantics),
         Expr::Group(group) => infer_expr_type(&group.expr, locals, semantics),
         Expr::Binary(binary) => {

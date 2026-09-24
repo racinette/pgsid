@@ -36,6 +36,16 @@ assert.deepEqual(generated.find_any_character('\n😀', 0, false), {
 })
 assert.deepEqual(generated.find_any_character('\n', 0, false), { kind: 'NoMatch' })
 assert.deepEqual(generated.find_any_character('😀', 1, true), { kind: 'NoMatch' })
+assert.deepEqual(generated.find_simple_advanced('a.b', 'za😀b', 0, true, true), {
+  kind: 'Found',
+  value: { start: 1, end: 4 },
+})
+assert.deepEqual(generated.find_simple_advanced('a.b', 'a\nb', 0, true, false), {
+  kind: 'NoMatch',
+})
+assert.deepEqual(generated.find_simple_advanced('a*', 'aaa', 0, true, true), {
+  kind: 'Uncertain',
+})
 assert.deepEqual(generated.charge_work(1999999, 1), {
   kind: 'Ready',
   value: 2000000,

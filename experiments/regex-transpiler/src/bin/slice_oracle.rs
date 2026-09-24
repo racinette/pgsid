@@ -9,6 +9,7 @@ fn match_outcome(outcome: candidate::MatchOutcome) -> Value {
             json!({ "kind": "Found", "value": { "start": span.start, "end": span.end } })
         }
         candidate::MatchOutcome::NoMatch => json!({ "kind": "NoMatch" }),
+        candidate::MatchOutcome::Uncertain => json!({ "kind": "Uncertain" }),
     }
 }
 
@@ -62,6 +63,33 @@ fn main() {
                         dot_crosses_newline,
                     )),
                 }));
+            }
+        }
+    }
+    for pattern in [
+        "", "a", "a.b", "a..b", ".a", "a.", "..", "Å.😀", "a\nb", "a*", "a|b", "^a", "a\\+b",
+    ] {
+        for subject in subjects {
+            for from in 0..=subject.chars().count() + 2 {
+                for case_sensitive in [true, false] {
+                    for dot_crosses_newline in [true, false] {
+                        cases.push(json!({
+                            "operation": "find_simple_advanced",
+                            "pattern": pattern,
+                            "subject": subject,
+                            "from": from,
+                            "caseSensitive": case_sensitive,
+                            "dotCrossesNewline": dot_crosses_newline,
+                            "expected": match_outcome(candidate::find_simple_advanced(
+                                pattern,
+                                subject,
+                                from,
+                                case_sensitive,
+                                dot_crosses_newline,
+                            )),
+                        }));
+                    }
+                }
             }
         }
     }

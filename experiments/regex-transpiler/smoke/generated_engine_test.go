@@ -35,6 +35,15 @@ func TestLiteralSlice(t *testing.T) {
 	if find_any_character("\n", 0, false).kind != MatchOutcomeNoMatch || find_any_character("😀", 1, true).kind != MatchOutcomeNoMatch {
 		t.Error("dot matched outside the allowed position range")
 	}
+	if find_simple_advanced("a.b", "za😀b", 0, true, true) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 4}}) {
+		t.Error("simple sequence missed Unicode wildcard")
+	}
+	if find_simple_advanced("a.b", "a\nb", 0, true, false).kind != MatchOutcomeNoMatch {
+		t.Error("simple sequence crossed excluded newline")
+	}
+	if find_simple_advanced("a*", "aaa", 0, true, true).kind != MatchOutcomeUncertain {
+		t.Error("unsupported regex operator stayed definite")
+	}
 	if charge_work(1999999, 1) != (WorkOutcome{kind: WorkOutcomeReady, ready: 2000000}) {
 		t.Error("work charge at budget changed result")
 	}

@@ -21,6 +21,7 @@ type node struct {
 	Value         *node       `json:"value"`
 	Digits        string      `json:"digits"`
 	Scalar        string      `json:"scalar"`
+	Boolean       bool        `json:"state"`
 	Left          *node       `json:"left"`
 	Right         *node       `json:"right"`
 	Base          *node       `json:"base"`
@@ -193,6 +194,8 @@ func (g *generator) expression(value *node) string {
 			reject("character literal must be one Unicode scalar")
 		}
 		return strconv.QuoteRune(characters[0])
+	case "boolean":
+		return strconv.FormatBool(value.Boolean)
 	case "parenthesized":
 		return "(" + g.expression(value.Inner) + ")"
 	case "binary":
