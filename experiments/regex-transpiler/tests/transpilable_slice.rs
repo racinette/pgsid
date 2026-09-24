@@ -72,6 +72,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut classes = 0;
     let mut negated_classes = 0;
     let mut range_classes = 0;
+    let mut edge_punctuation = 0;
     let mut positioned = 0;
     let mut newline_modes = BTreeSet::new();
     for source in [
@@ -143,6 +144,13 @@ fn supported_search_matches_pglite_fixtures() {
                 if pattern.contains('[') && pattern.contains('-') {
                     range_classes += 1;
                 }
+                if pattern.contains("[-")
+                    || pattern.contains("-]")
+                    || pattern.contains("[]")
+                    || pattern.contains("[^]")
+                {
+                    edge_punctuation += 1;
+                }
                 actual
             } else {
                 continue;
@@ -170,6 +178,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(classes >= 50);
     assert!(negated_classes >= 40);
     assert!(range_classes >= 50);
+    assert!(edge_punctuation >= 80);
     assert!(positioned >= 6);
     assert_eq!(newline_modes.len(), 4);
 }
@@ -266,6 +275,16 @@ fn simple_advanced_search_matches_the_live_engine() {
                 "[a-cx-z]",
                 "[^b-d]",
                 "a[1-3]b",
+                "[-]",
+                "[-a]",
+                "[a-]",
+                "[a-b-]",
+                "[-a-b]",
+                "[]]",
+                "[]a]",
+                "[^]]",
+                "[^-]",
+                "[]-]",
             ] {
                 let engine::CompileOutcome::Ready(program) = engine::compile(
                     pattern,
@@ -280,7 +299,8 @@ fn simple_advanced_search_matches_the_live_engine() {
                 for subject in [
                     "", "a", "a😀b", "a\nb", "a😀\nb", "\na", "a\n", "Åβ😀", "\na\n", "😀\n",
                     "a.b", "a+b", "^a", "a$", "a\\b", "(a)", "[a]", "zabd", "zacd", "zaed", "ba",
-                    ".", "^", "β", "\n", "c", "a\nc", "abc", "zac", "B", "5", "y", "m", "a2b",
+                    ".", "^", "β", "\n", "c", "a\nc", "abc", "zac", "B", "5", "y", "m", "a2b", "-",
+                    "]", "za]",
                 ] {
                     for from in 0..=subject.chars().count() + 1 {
                         let expected = match program.find(subject, from) {
@@ -310,8 +330,8 @@ fn simple_advanced_search_matches_the_live_engine() {
         }
     }
     for pattern in [
-        "a*", "a|b", "a\\nb", "[z-a]", "[a-b-c]", "[A-z]", "[a-]", "[-a]", "[^]", "[]", "[a",
-        "(ab)", "a{2}", "a?", "a\\",
+        "a*", "a|b", "a\\nb", "[z-a]", "[a-b-c]", "[A-z]", "[--a]", "[a--]", "[---]", "[^]", "[]",
+        "[a", "(ab)", "a{2}", "a?", "a\\",
     ] {
         assert!(matches!(
             candidate::find_simple_advanced(pattern, "ab", 0, true, true, false),
@@ -354,6 +374,19 @@ fn support_classification_matches_search_certainty() {
         "[z-a]",
         "[a-b-c]",
         "[A-z]",
+        "[-]",
+        "[-a]",
+        "[a-]",
+        "[a-b-]",
+        "[-a-b]",
+        "[]]",
+        "[]a]",
+        "[^]]",
+        "[^-]",
+        "[]-]",
+        "[--a]",
+        "[a--]",
+        "[---]",
         "[^]",
         "[]",
         "[a",

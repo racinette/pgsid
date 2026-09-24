@@ -119,27 +119,44 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
             if position < atoms.len() && atoms[position] == '^' {
                 position += 1;
             }
-            if position == atoms.len() || atoms[position] == ']' {
+            if position == atoms.len() {
+                return false;
+            }
+            let first_member = position;
+            if atoms[position] == ']' {
+                position += 1;
+            }
+            if position == atoms.len() {
                 return false;
             }
             while position < atoms.len() && atoms[position] != ']' {
-                if atoms[position] == '[' || atoms[position] == '\\' || atoms[position] == '-' {
+                if atoms[position] == '[' || atoms[position] == '\\' {
+                    return false;
+                }
+                if atoms[position] == '-'
+                    && (atoms.len() - position > 1 && atoms[position + 1] == '-'
+                        || (position != first_member
+                            && (atoms.len() - position <= 1 || atoms[position + 1] != ']')))
+                {
                     return false;
                 }
                 if atoms.len() - position > 1 && atoms[position + 1] == '-' {
-                    if atoms.len() - position <= 2 || atoms[position + 2] == ']' {
+                    if atoms.len() - position <= 2 {
                         return false;
                     }
-                    let first = atoms[position] as u32;
-                    let last = atoms[position + 2] as u32;
-                    let digits = first >= 48 && first <= 57 && last >= 48 && last <= 57;
-                    let uppercase = first >= 65 && first <= 90 && last >= 65 && last <= 90;
-                    let lowercase = first >= 97 && first <= 122 && last >= 97 && last <= 122;
-                    if first > last || (digits == false && uppercase == false && lowercase == false)
-                    {
-                        return false;
+                    if atoms[position + 2] != ']' {
+                        let first = atoms[position] as u32;
+                        let last = atoms[position + 2] as u32;
+                        let digits = first >= 48 && first <= 57 && last >= 48 && last <= 57;
+                        let uppercase = first >= 65 && first <= 90 && last >= 65 && last <= 90;
+                        let lowercase = first >= 97 && first <= 122 && last >= 97 && last <= 122;
+                        if first > last
+                            || (digits == false && uppercase == false && lowercase == false)
+                        {
+                            return false;
+                        }
+                        position += 2;
                     }
-                    position += 2;
                 }
                 position += 1;
             }
@@ -208,27 +225,44 @@ pub fn find_simple_advanced(
             if position < atoms.len() && atoms[position] == '^' {
                 position += 1;
             }
-            if position == atoms.len() || atoms[position] == ']' {
+            if position == atoms.len() {
+                return MatchOutcome::Uncertain;
+            }
+            let first_member = position;
+            if atoms[position] == ']' {
+                position += 1;
+            }
+            if position == atoms.len() {
                 return MatchOutcome::Uncertain;
             }
             while position < atoms.len() && atoms[position] != ']' {
-                if atoms[position] == '[' || atoms[position] == '\\' || atoms[position] == '-' {
+                if atoms[position] == '[' || atoms[position] == '\\' {
+                    return MatchOutcome::Uncertain;
+                }
+                if atoms[position] == '-'
+                    && (atoms.len() - position > 1 && atoms[position + 1] == '-'
+                        || (position != first_member
+                            && (atoms.len() - position <= 1 || atoms[position + 1] != ']')))
+                {
                     return MatchOutcome::Uncertain;
                 }
                 if atoms.len() - position > 1 && atoms[position + 1] == '-' {
-                    if atoms.len() - position <= 2 || atoms[position + 2] == ']' {
+                    if atoms.len() - position <= 2 {
                         return MatchOutcome::Uncertain;
                     }
-                    let first = atoms[position] as u32;
-                    let last = atoms[position + 2] as u32;
-                    let digits = first >= 48 && first <= 57 && last >= 48 && last <= 57;
-                    let uppercase = first >= 65 && first <= 90 && last >= 65 && last <= 90;
-                    let lowercase = first >= 97 && first <= 122 && last >= 97 && last <= 122;
-                    if first > last || (digits == false && uppercase == false && lowercase == false)
-                    {
-                        return MatchOutcome::Uncertain;
+                    if atoms[position + 2] != ']' {
+                        let first = atoms[position] as u32;
+                        let last = atoms[position + 2] as u32;
+                        let digits = first >= 48 && first <= 57 && last >= 48 && last <= 57;
+                        let uppercase = first >= 65 && first <= 90 && last >= 65 && last <= 90;
+                        let lowercase = first >= 97 && first <= 122 && last >= 97 && last <= 122;
+                        if first > last
+                            || (digits == false && uppercase == false && lowercase == false)
+                        {
+                            return MatchOutcome::Uncertain;
+                        }
+                        position += 2;
                     }
-                    position += 2;
                 }
                 position += 1;
             }
@@ -289,9 +323,14 @@ pub fn find_simple_advanced(
                 if negated {
                     class_position += 1;
                 }
+                let leading_closing = atoms[class_position] == ']';
+                if leading_closing {
+                    class_position += 1;
+                }
                 while atoms[class_position] != ']' {
                     let expected = atoms[class_position];
-                    let ranged = atoms[class_position + 1] == '-';
+                    let ranged =
+                        atoms[class_position + 1] == '-' && atoms[class_position + 2] != ']';
                     if ranged {
                         let upper = atoms[class_position + 2];
                         if (case_sensitive
@@ -316,13 +355,20 @@ pub fn find_simple_advanced(
                     }
                     class_position += 1;
                 }
-                let included = atoms[class_position] != ']';
+                let included = (leading_closing && actual == ']') || atoms[class_position] != ']';
                 if included == negated
                     || (negated && actual == '\n' && dot_crosses_newline == false)
                 {
                     break;
                 }
                 subject_position += 1;
+                atom_position += 1;
+                if atoms[atom_position] == '^' {
+                    atom_position += 1;
+                }
+                if atoms[atom_position] == ']' {
+                    atom_position += 1;
+                }
                 while atoms[atom_position] != ']' {
                     atom_position += 1;
                 }

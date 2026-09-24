@@ -86,6 +86,15 @@ func TestLiteralSlice(t *testing.T) {
 	if find_simple_advanced("[0-9]", "😀", 0, true, true, false).kind != MatchOutcomeNoMatch {
 		t.Error("ASCII range matched supplementary Unicode scalar")
 	}
+	if !supports_simple_advanced("[-a]") || !supports_simple_advanced("[]a]") || supports_simple_advanced("[--a]") {
+		t.Error("class edge punctuation support classification changed")
+	}
+	if find_simple_advanced("[-a]", "-", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 0, end: 1}}) {
+		t.Error("leading hyphen missed literal match")
+	}
+	if find_simple_advanced("[]a]", "z]", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 2}}) {
+		t.Error("leading closing bracket missed literal match")
+	}
 	if charge_work(1999999, 1) != (WorkOutcome{kind: WorkOutcomeReady, ready: 2000000}) {
 		t.Error("work charge at budget changed result")
 	}
