@@ -91,6 +91,17 @@ assert.deepEqual(generated.find_simple_advanced('[A-C]', 'b', 0, false, true, fa
 assert.deepEqual(generated.find_simple_advanced('[0-9]', '😀', 0, true, true, false), {
   kind: 'NoMatch',
 })
+assert.equal(generated.supports_simple_advanced('[-a]'), true)
+assert.equal(generated.supports_simple_advanced('[]a]'), true)
+assert.equal(generated.supports_simple_advanced('[--a]'), false)
+assert.deepEqual(generated.find_simple_advanced('[-a]', '-', 0, true, true, false), {
+  kind: 'Found',
+  value: { start: 0, end: 1 },
+})
+assert.deepEqual(generated.find_simple_advanced('[]a]', 'z]', 0, true, true, false), {
+  kind: 'Found',
+  value: { start: 1, end: 2 },
+})
 assert.deepEqual(generated.charge_work(1999999, 1), {
   kind: 'Ready',
   value: 2000000,
