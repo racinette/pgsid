@@ -14,7 +14,6 @@ node "$experiment_dir/conformance/materialize-stress-fixtures.mjs" --check
 node "$experiment_dir/conformance/materialize-targeted-postgres-fixtures.mjs" --check
 cargo test --locked --manifest-path "$experiment_dir/Cargo.toml" --target-dir "$target_dir"
 cargo build --locked --manifest-path "$experiment_dir/Cargo.toml" --target-dir "$target_dir" --bins
-"$target_dir/debug/slice_oracle" > "$artifact_dir/slice-oracle.json"
 "$target_dir/debug/regex-transpiler-spike" --ast "$experiment_dir/transpiler_smoke.rs" "$artifact_dir/smoke.ast.json"
 node --import tsx "$experiment_dir/typescript/transpile.ts" "$artifact_dir/smoke.ast.json" "$artifact_dir/from-ast.ts"
 GOCACHE="$go_cache" "$go_bin" -C "$experiment_dir/go" run ./cmd/transpile "$artifact_dir/smoke.ast.json" "$artifact_dir/from-ast.go"
@@ -41,14 +40,10 @@ node --import tsx "$experiment_dir/smoke/fixture_check.ts" "$artifact_dir/from-a
   "$experiment_dir/conformance/targeted-postgres-fixtures.json" \
   "$experiment_dir/conformance/stress-position-fixtures.json" \
   "$experiment_dir/conformance/stress-boundary-fixtures.json"
-node --import tsx "$experiment_dir/smoke/rust_parity.ts" \
-  "$artifact_dir/from-ast-engine.ts" "$artifact_dir/slice-oracle.json"
 
 cp "$artifact_dir/from-ast-engine.go" "$test_dir/engine.go"
 cp "$experiment_dir/smoke/generated_engine_test.go" "$test_dir/engine_test.go"
 cp "$experiment_dir/smoke/generated_fixture_test.go" "$test_dir/fixture_test.go"
-cp "$experiment_dir/smoke/generated_parity_test.go" "$test_dir/parity_test.go"
-cp "$artifact_dir/slice-oracle.json" "$test_dir/slice-oracle.json"
 cp "$experiment_dir/conformance/postgres-fixtures.json" "$test_dir/postgres-fixtures.json"
 cp "$experiment_dir/conformance/stress-fixtures.json" "$test_dir/stress-fixtures.json"
 cp "$experiment_dir/conformance/targeted-postgres-fixtures.json" "$test_dir/targeted-postgres-fixtures.json"

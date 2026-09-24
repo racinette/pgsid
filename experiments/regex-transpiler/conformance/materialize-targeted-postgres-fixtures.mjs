@@ -189,6 +189,28 @@ for (const newline of ['ordinary', 'sensitive', 'stop', 'anchors']) {
     }
   }
 }
+for (const newline of ['ordinary', 'sensitive', 'stop', 'anchors']) {
+  for (const caseSensitive of [true, false]) {
+    for (const [pattern, subject] of [
+      ['\\A', 'a'],
+      ['\\Z', 'a\n'],
+      ['\\Aa', 'a'],
+      ['\\Aa', '\na'],
+      ['a\\Z', 'a'],
+      ['a\\Z', 'a\n'],
+      ['\\A😀\\Z', '😀'],
+      ['\\A😀\\Z', 'a😀'],
+      ['\\A^a', 'a'],
+      ['a$\\Z', 'a\n'],
+    ]) {
+      inputs.push({
+        pattern,
+        subject,
+        options: { syntax: 'advanced', caseSensitive, expanded: false, newline },
+      })
+    }
+  }
+}
 for (const [pattern, subject, start, options] of [
   [
     'a',
@@ -252,8 +274,53 @@ for (const [pattern, subject, start, options] of [
     3,
     { syntax: 'advanced', caseSensitive: true, expanded: false, newline: 'ordinary' },
   ],
+  [
+    '\\A',
+    'a',
+    2,
+    { syntax: 'advanced', caseSensitive: true, expanded: false, newline: 'ordinary' },
+  ],
+  [
+    '\\Z',
+    'a\n',
+    2,
+    { syntax: 'advanced', caseSensitive: true, expanded: false, newline: 'sensitive' },
+  ],
 ]) {
   inputs.push({ pattern, subject, start, options })
+}
+for (const [pattern, subject, start, newline, caseSensitive] of [
+  ['', '', 1, 'ordinary', true],
+  ['^$', '', 1, 'ordinary', true],
+  ['\\A\\Z', '', 1, 'ordinary', true],
+  ['\\A\\Z', '\n', 1, 'anchors', true],
+  ['^$', '\n', 1, 'anchors', true],
+  ['^$', '\n', 2, 'anchors', true],
+  ['^b', 'a\nb', 1, 'sensitive', true],
+  ['^b', 'a\nb', 3, 'sensitive', true],
+  ['^b', 'a\nb', 3, 'ordinary', true],
+  ['\\Ab', 'a\nb', 3, 'sensitive', true],
+  ['b$', 'a\nb\n', 3, 'sensitive', true],
+  ['b\\Z', 'a\nb\n', 3, 'sensitive', true],
+  ['\\Z', '😀\n', 2, 'ordinary', true],
+  ['\\Z', '😀\n', 3, 'ordinary', true],
+  ['a$', '😀a\n', 2, 'sensitive', true],
+  ['a\\Z', '😀a\n', 2, 'sensitive', true],
+  ['[a-c]', '😀B', 2, 'ordinary', false],
+  ['[a-c]', '😀B', 2, 'ordinary', true],
+  ['[^a]', '😀\n', 2, 'sensitive', true],
+  ['[^a]', '😀\n', 2, 'ordinary', true],
+  ['[a-b-]', '😀-', 2, 'ordinary', true],
+  ['[]a]', '😀]', 2, 'ordinary', true],
+  ['\\A😀\\Z', '😀', 2, 'ordinary', true],
+  ['\\.', '😀.', 2, 'ordinary', true],
+]) {
+  inputs.push({
+    pattern,
+    subject,
+    start,
+    options: { syntax: 'advanced', caseSensitive, expanded: false, newline },
+  })
 }
 
 function flags(options) {

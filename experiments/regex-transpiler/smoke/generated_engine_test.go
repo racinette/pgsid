@@ -95,6 +95,18 @@ func TestLiteralSlice(t *testing.T) {
 	if find_simple_advanced("[]a]", "z]", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 2}}) {
 		t.Error("leading closing bracket missed literal match")
 	}
+	if !supports_simple_advanced("\\A😀\\Z") {
+		t.Error("absolute anchors were rejected")
+	}
+	if find_simple_advanced("\\Aa", "\na", 0, true, true, true).kind != MatchOutcomeNoMatch {
+		t.Error("absolute start anchor matched after newline")
+	}
+	if find_simple_advanced("\\Z", "a\n", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 2, end: 2}}) {
+		t.Error("absolute end anchor matched before final newline")
+	}
+	if find_simple_advanced("\\A", "a", 1, true, true, false).kind != MatchOutcomeNoMatch {
+		t.Error("absolute start anchor ignored search offset")
+	}
 	if charge_work(1999999, 1) != (WorkOutcome{kind: WorkOutcomeReady, ready: 2000000}) {
 		t.Error("work charge at budget changed result")
 	}
