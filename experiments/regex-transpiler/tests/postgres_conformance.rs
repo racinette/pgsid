@@ -105,6 +105,7 @@ fn rust_stress_results_match_postgres() {
     let mut newline = BTreeMap::new();
     let mut case_sensitive = BTreeMap::new();
     let mut expanded = BTreeMap::new();
+    let mut expanded_newline = BTreeMap::new();
     let mut outcome = BTreeMap::new();
     let mut mismatches = Vec::new();
 
@@ -131,6 +132,12 @@ fn rust_stress_results_match_postgres() {
         *expanded
             .entry(input["options"]["expanded"].as_bool().unwrap())
             .or_insert(0usize) += 1;
+        *expanded_newline
+            .entry((
+                input["options"]["expanded"].as_bool().unwrap(),
+                input["options"]["newline"].as_str().unwrap().to_string(),
+            ))
+            .or_insert(0usize) += 1;
         *outcome
             .entry(expected["kind"].as_str().unwrap().to_string())
             .or_insert(0usize) += 1;
@@ -144,7 +151,7 @@ fn rust_stress_results_match_postgres() {
     assert!(cases.len() >= 1000, "stress corpus shrank");
     assert_eq!(tuples.len() - original_count, cases.len());
     assert!(family.values().all(|count| *count < cases.len() / 2));
-    assert_eq!(family.len(), 13);
+    assert_eq!(family.len(), 18);
     for name in [
         "precedence",
         "repetition",
@@ -159,9 +166,24 @@ fn rust_stress_results_match_postgres() {
         "unicode",
         "invalid",
         "literal",
+        "backref_unicode",
+        "lookaround_newline",
+        "expanded_interactions",
+        "basic_interactions",
+        "extended_interactions",
     ] {
+        let minimum = if name == "literal" {
+            20
+        } else if name.ends_with("_interactions")
+            || name == "backref_unicode"
+            || name == "lookaround_newline"
+        {
+            90
+        } else {
+            70
+        };
         assert!(
-            family.get(name).copied().unwrap_or(0) >= if name == "literal" { 20 } else { 70 },
+            family.get(name).copied().unwrap_or(0) >= minimum,
             "{name} family coverage shrank"
         );
     }
@@ -195,6 +217,13 @@ fn rust_stress_results_match_postgres() {
     }
     assert!(case_sensitive.get(&false).copied().unwrap_or(0) >= 300);
     assert!(expanded.get(&true).copied().unwrap_or(0) >= 300);
+    assert!(
+        expanded_newline
+            .get(&(true, "stop".to_string()))
+            .copied()
+            .unwrap_or(0)
+            >= 80
+    );
     eprintln!("stress coverage: family={family:?}, syntax={syntax:?}, newline={newline:?}, caseSensitive={case_sensitive:?}, expanded={expanded:?}, outcome={outcome:?}");
     assert!(
         mismatches.is_empty(),
@@ -293,9 +322,9 @@ fn rust_position_results_match_postgres() {
             ));
         }
     }
-    assert_eq!(cases.len(), 108);
-    assert_eq!(operation_counts.get("find"), Some(&54));
-    assert_eq!(operation_counts.get("count"), Some(&54));
+    assert_eq!(cases.len(), 360);
+    assert_eq!(operation_counts.get("find"), Some(&180));
+    assert_eq!(operation_counts.get("count"), Some(&180));
     assert!(
         mismatches.is_empty(),
         "{} position mismatches:\n{}",
