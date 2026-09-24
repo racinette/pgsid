@@ -143,6 +143,28 @@ func (g *generator) typeName(value *node) string {
 	}
 }
 
+func (g *generator) detach(value string, valueType *node) string {
+	if valueType.Kind == "reference" {
+		return "checkedString(" + value + ")"
+	}
+	name := path(valueType)
+	switch name {
+	case "usize", "u32":
+		return "checkedIndex(" + value + ")"
+	case "i32":
+		return "checkedI32(" + value + ")"
+	case "char":
+		return "checkedChar(" + value + ")"
+	}
+	if name == "Vec" {
+		return "checkedChars(" + value + ")"
+	}
+	if g.types[name] {
+		return "copy" + name + "(" + value + ")"
+	}
+	return value
+}
+
 func (g *generator) expression(value *node) string {
 	if value == nil {
 		reject("missing expression")
@@ -166,16 +188,25 @@ func (g *generator) expression(value *node) string {
 	case "parenthesized":
 		return "(" + g.expression(value.Inner) + ")"
 	case "binary":
+		left, right := g.expression(value.Left), g.expression(value.Right)
+		switch value.Operator {
+		case "add":
+			return "checkedAdd(" + left + ", " + right + ")"
+		case "subtract":
+			return "checkedSubtract(" + left + ", " + right + ")"
+		case "add-assign":
+			return left + " = checkedAdd(" + left + ", " + right + ")"
+		}
 		operators := map[string]string{
-			"add": "+", "subtract": "-", "less-than": "<", "less-or-equal": "<=",
+			"less-than": "<", "less-or-equal": "<=",
 			"greater-than": ">", "greater-or-equal": ">=", "equal": "==",
-			"not-equal": "!=", "and": "&&", "or": "||", "add-assign": "+=",
+			"not-equal": "!=", "and": "&&", "or": "||",
 		}
 		operator, ok := operators[value.Operator]
 		if !ok {
 			reject("unknown operator " + value.Operator)
 		}
-		return g.expression(value.Left) + " " + operator + " " + g.expression(value.Right)
+		return left + " " + operator + " " + right
 	case "field":
 		return g.expression(value.Base) + "." + value.Member
 	case "index":
@@ -251,6 +282,57 @@ func (g *generator) statements(statements []*node) {
 	}
 }
 
+func (g *generator) prelude() {
+	g.writer.line("const maxSharedIndex = 2147483647")
+	g.writer.line("func checkedIndex(value int) int {")
+	g.writer.indent++
+	g.writer.line("if value < 0 || value > maxSharedIndex { panic(\"index outside shared numeric range\") }")
+	g.writer.line("return value")
+	g.writer.indent--
+	g.writer.line("}")
+	g.writer.line("func checkedI32(value int) int {")
+	g.writer.indent++
+	g.writer.line("if value < -2147483648 || value > maxSharedIndex { panic(\"signed integer outside shared numeric range\") }")
+	g.writer.line("return value")
+	g.writer.indent--
+	g.writer.line("}")
+	g.writer.line("func checkedAdd(left int, right int) int {")
+	g.writer.indent++
+	g.writer.line("checkedIndex(left); checkedIndex(right)")
+	g.writer.line("if right > maxSharedIndex-left { panic(\"shared numeric overflow\") }")
+	g.writer.line("return left + right")
+	g.writer.indent--
+	g.writer.line("}")
+	g.writer.line("func checkedSubtract(left int, right int) int {")
+	g.writer.indent++
+	g.writer.line("checkedIndex(left); checkedIndex(right)")
+	g.writer.line("if right > left { panic(\"shared numeric underflow\") }")
+	g.writer.line("return left - right")
+	g.writer.indent--
+	g.writer.line("}")
+	g.writer.line("func checkedChar(value rune) rune {")
+	g.writer.indent++
+	g.writer.line("if value < 0 || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff) { panic(\"invalid Unicode scalar\") }")
+	g.writer.line("return value")
+	g.writer.indent--
+	g.writer.line("}")
+	g.writer.line("func checkedString(value string) string {")
+	g.writer.indent++
+	g.writer.line("if len(value) > maxSharedIndex || !utf8.ValidString(value) { panic(\"invalid or oversized string\") }")
+	g.writer.line("return value")
+	g.writer.indent--
+	g.writer.line("}")
+	g.writer.line("func checkedChars(value []rune) []rune {")
+	g.writer.indent++
+	g.writer.line("if len(value) > maxSharedIndex { panic(\"vector outside shared numeric range\") }")
+	g.writer.line("result := make([]rune, len(value))")
+	g.writer.line("for index, character := range value { result[index] = checkedChar(character) }")
+	g.writer.line("return result")
+	g.writer.indent--
+	g.writer.line("}")
+	g.writer.line("")
+}
+
 func (g *generator) item(value *node) {
 	if value == nil {
 		reject("missing item")
@@ -264,6 +346,15 @@ func (g *generator) item(value *node) {
 		for _, field := range value.Fields {
 			g.writer.line(field.Name + " " + g.typeName(field.Type))
 		}
+		g.writer.indent--
+		g.writer.line("}")
+		g.writer.line("func copy" + value.Name + "(value " + value.Name + ") " + value.Name + " {")
+		g.writer.indent++
+		fields := make([]string, 0, len(value.Fields))
+		for _, field := range value.Fields {
+			fields = append(fields, field.Name+": "+g.detach("value."+field.Name, field.Type))
+		}
+		g.writer.line("return " + value.Name + "{" + strings.Join(fields, ", ") + "}")
 		g.writer.indent--
 		g.writer.line("}")
 	case "enum":
@@ -290,6 +381,23 @@ func (g *generator) item(value *node) {
 		}
 		g.writer.indent--
 		g.writer.line("}")
+		g.writer.line("func copy" + value.Name + "(value " + value.Name + ") " + value.Name + " {")
+		g.writer.indent++
+		g.writer.line("switch value.kind {")
+		g.writer.indent++
+		for _, variant := range value.Variants {
+			fields := "kind: " + value.Name + variant.Name
+			if variant.Payload != nil {
+				name := strings.ToLower(variant.Name)
+				fields += ", " + name + ": " + g.detach("value."+name, variant.Payload)
+			}
+			g.writer.line("case " + value.Name + variant.Name + ": return " + value.Name + "{" + fields + "}")
+		}
+		g.writer.indent--
+		g.writer.line("}")
+		g.writer.line("panic(\"unknown enum variant\")")
+		g.writer.indent--
+		g.writer.line("}")
 	case "function":
 		parameters := make([]string, 0, len(value.Parameters))
 		for _, parameter := range value.Parameters {
@@ -297,6 +405,11 @@ func (g *generator) item(value *node) {
 		}
 		g.writer.line(fmt.Sprintf("func %s(%s) %s {", value.Name, strings.Join(parameters, ", "), g.typeName(value.ReturnType)))
 		g.writer.indent++
+		for _, parameter := range value.Parameters {
+			if detached := g.detach(parameter.Name, parameter.Type); detached != parameter.Name {
+				g.writer.line(parameter.Name + " = " + detached)
+			}
+		}
 		g.statements(value.Body)
 		g.writer.indent--
 		g.writer.line("}")
@@ -333,6 +446,9 @@ func Transpile(input []byte) (output []byte, err error) {
 	generator := generator{enums: make(map[string][]variant), types: make(map[string]bool)}
 	generator.writer.line("package generated")
 	generator.writer.line("")
+	generator.writer.line("import \"unicode/utf8\"")
+	generator.writer.line("")
+	generator.prelude()
 	for _, item := range document.Items {
 		if item != nil && item.Kind == "enum" {
 			generator.enums[item.Name] = item.Variants

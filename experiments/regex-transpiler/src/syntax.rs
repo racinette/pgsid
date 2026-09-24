@@ -86,7 +86,6 @@ fn expr(expr: &Expr) -> Result {
                     | BinOp::Ne(_)
                     | BinOp::And(_)
                     | BinOp::Or(_)
-                    | BinOp::AddAssign(_)
             ) {
                 return Err("binary operator is outside the syntax subset".into());
             }
@@ -142,6 +141,11 @@ fn expr(expr: &Expr) -> Result {
                 return Err("qualified calls are outside the syntax subset".into());
             }
             path(&callee.path, 2)?;
+            if callee.path.segments.len() != 2 || node.args.len() != 1 {
+                return Err(
+                    "only single-payload enum constructors are in the syntax subset".into(),
+                );
+            }
             for arg in &node.args {
                 self::expr(arg)?;
             }
@@ -183,6 +187,12 @@ fn block(block: &syn::Block) -> Result {
                 expr(&node.cond)?;
                 self::block(&node.body)?;
             }
+            Stmt::Expr(Expr::Binary(node), _)
+                if node.attrs.is_empty() && matches!(node.op, BinOp::AddAssign(_)) =>
+            {
+                expr(&node.left)?;
+                expr(&node.right)?;
+            }
             Stmt::Expr(value, _) => expr(value)?,
             _ => return Err("statement is outside the syntax subset".into()),
         }
@@ -212,6 +222,9 @@ pub fn check(file: &syn::File) -> Result {
                 }
             }
             Item::Enum(node) => {
+                if node.variants.is_empty() {
+                    return Err("empty enums are outside the syntax subset".into());
+                }
                 if !node.generics.params.is_empty() || node.generics.where_clause.is_some() {
                     return Err("enum generics are outside the syntax subset".into());
                 }
@@ -279,8 +292,12 @@ mod tests {
         for source in [
             "pub fn f() -> usize { loop {} }",
             "pub fn f() -> usize { let x = 1 * 2; x }",
+            "pub fn f() -> usize { let mut x = 1; let y = x += 1; y }",
             "pub fn f() -> usize { std::mem::size_of::<usize>() }",
             "pub fn f() -> usize { let x = vec![1]; x.len() }",
+            "pub fn f() -> usize { helper() }",
+            "pub fn f() -> usize { Outcome::Found(1, 2) }",
+            "enum Empty {}",
             "#[allow(dead_code)] const X: usize = 1;",
             "pub fn f() -> usize { let x = 1; unsafe { x } }",
         ] {

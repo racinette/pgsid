@@ -112,7 +112,17 @@ class Transpiler {
 
   private clone(value: string, type: TypeNode | string): string {
     const name = typeof type === 'string' ? type : this.path(type)
-    return this.copy.has(name) ? `clone${name}(${value})` : value
+    return this.copy.has(name) ? `copy${name}(${value})` : value
+  }
+
+  private detach(value: string, type: TypeNode | string): string {
+    const name = typeof type === 'string' ? type : this.path(type)
+    if (name === 'usize' || name === 'u32') return `checkedIndex(${value})`
+    if (name === 'i32') return `checkedI32(${value})`
+    if (name === 'char') return `checkedChar(${value})`
+    if (name === '&str') return `checkedString(${value})`
+    if (name === 'Vec<char>') return `checkedChars(${value})`
+    return this.structs.has(name) || this.enums.has(name) ? `copy${name}(${value})` : value
   }
 
   private equal(left: string, right: string, type: TypeNode | string): string {
@@ -182,20 +192,20 @@ class Transpiler {
       case 'binary': {
         const left = this.expression(value.left, locals)
         const right = this.expression(value.right, locals)
+        if (value.operator === 'add') return `checkedAdd(${left}, ${right})`
+        if (value.operator === 'subtract') return `checkedSubtract(${left}, ${right})`
+        if (value.operator === 'add-assign') return `${left} = checkedAdd(${left}, ${right})`
         if (value.operator === 'equal' || value.operator === 'not-equal') {
           const equality = this.equal(left, right, this.infer(value.left, locals) ?? '')
           return value.operator === 'equal' ? equality : `!(${equality})`
         }
         const symbols: Record<string, string> = {
-          add: '+',
-          subtract: '-',
           'less-than': '<',
           'less-or-equal': '<=',
           'greater-than': '>',
           'greater-or-equal': '>=',
           and: '&&',
           or: '||',
-          'add-assign': '+=',
         }
         const operator = symbols[value.operator]
         if (!operator) throw new Error(`unknown operator ${value.operator}`)
@@ -204,7 +214,7 @@ class Transpiler {
       case 'field':
         return `${this.expression(value.base, locals)}.${value.member}`
       case 'index':
-        return `${this.expression(value.base, locals)}[${this.expression(value.index, locals)}]`
+        return `indexChar(${this.expression(value.base, locals)}, checkedIndex(${this.expression(value.index, locals)}))`
       case 'method-call': {
         if (value.method === 'len' && value.arguments.length === 0) {
           return `${this.expression(value.receiver, locals)}.length`
@@ -220,8 +230,17 @@ class Transpiler {
         }
         throw new Error(`unsupported method ${value.method}`)
       }
-      case 'struct-literal':
-        return `{ ${value.fields.map((field) => `${field.name}: ${this.expression(field.value, locals)}`).join(', ')} }`
+      case 'struct-literal': {
+        const item = this.structs.get(value.path.join('::'))
+        if (!item) throw new Error(`unknown struct ${value.path.join('::')}`)
+        return `{ ${value.fields
+          .map((field) => {
+            const declaration = item.fields.find((candidate) => candidate.name === field.name)
+            if (!declaration) throw new Error(`unknown field ${item.name}.${field.name}`)
+            return `${field.name}: ${this.clone(this.expression(field.value, locals), declaration.type)}`
+          })
+          .join(', ')} }`
+      }
       case 'call': {
         if (
           value.callee.kind !== 'path' ||
@@ -285,15 +304,13 @@ class Transpiler {
     for (const field of item.fields) this.writer.line(`${field.name}: ${this.type(field.type)};`)
     this.writer.indent--
     this.writer.line('}')
-    if (this.copy.has(item.name)) {
-      this.writer.line(`function clone${item.name}(value: ${item.name}): ${item.name} {`)
-      this.writer.indent++
-      this.writer.line(
-        `return { ${item.fields.map((field) => `${field.name}: ${this.clone(`value.${field.name}`, field.type)}`).join(', ')} };`,
-      )
-      this.writer.indent--
-      this.writer.line('}')
-    }
+    this.writer.line(`function copy${item.name}(value: ${item.name}): ${item.name} {`)
+    this.writer.indent++
+    this.writer.line(
+      `return { ${item.fields.map((field) => `${field.name}: ${this.detach(`value.${field.name}`, field.type)}`).join(', ')} };`,
+    )
+    this.writer.indent--
+    this.writer.line('}')
     if (this.equality.has(item.name)) {
       this.writer.line(
         `function equal${item.name}(left: ${item.name}, right: ${item.name}): boolean {`,
@@ -316,21 +333,19 @@ class Transpiler {
       ),
     )
     this.writer.indent--
-    if (this.copy.has(item.name)) {
-      this.writer.line(`function clone${item.name}(value: ${item.name}): ${item.name} {`)
-      this.writer.indent++
-      this.writer.line('switch (value.kind) {')
-      this.writer.indent++
-      for (const variant of item.variants) {
-        this.writer.line(
-          `case '${variant.name}': return ${variant.payload ? `{ kind: '${variant.name}', value: ${this.clone('value.value', variant.payload)} }` : 'value'};`,
-        )
-      }
-      this.writer.indent--
-      this.writer.line('}')
-      this.writer.indent--
-      this.writer.line('}')
+    this.writer.line(`function copy${item.name}(value: ${item.name}): ${item.name} {`)
+    this.writer.indent++
+    this.writer.line('switch (value.kind) {')
+    this.writer.indent++
+    for (const variant of item.variants) {
+      this.writer.line(
+        `case '${variant.name}': return ${variant.payload ? `{ kind: '${variant.name}', value: ${this.detach('value.value', variant.payload)} }` : `{ kind: '${variant.name}' }`};`,
+      )
     }
+    this.writer.indent--
+    this.writer.line('}')
+    this.writer.indent--
+    this.writer.line('}')
     if (this.equality.has(item.name)) {
       this.writer.line(
         `function equal${item.name}(left: ${item.name}, right: ${item.name}): boolean {`,
@@ -350,6 +365,75 @@ class Transpiler {
   }
 
   transpile(): string {
+    this.writer.line('const MAX_SHARED_INDEX = 2147483647;')
+    this.writer.line('function checkedIndex(value: number): number {')
+    this.writer.indent++
+    this.writer.line(
+      "if (!Number.isInteger(value) || value < 0 || value > MAX_SHARED_INDEX) throw new RangeError('index outside shared numeric range');",
+    )
+    this.writer.line('return value;')
+    this.writer.indent--
+    this.writer.line('}')
+    this.writer.line('function checkedI32(value: number): number {')
+    this.writer.indent++
+    this.writer.line(
+      "if (!Number.isInteger(value) || value < -2147483648 || value > MAX_SHARED_INDEX) throw new RangeError('signed integer outside shared numeric range');",
+    )
+    this.writer.line('return value;')
+    this.writer.indent--
+    this.writer.line('}')
+    this.writer.line('function checkedAdd(left: number, right: number): number {')
+    this.writer.indent++
+    this.writer.line('checkedIndex(left); checkedIndex(right);')
+    this.writer.line(
+      "if (right > MAX_SHARED_INDEX - left) throw new RangeError('shared numeric overflow');",
+    )
+    this.writer.line('return left + right;')
+    this.writer.indent--
+    this.writer.line('}')
+    this.writer.line('function checkedSubtract(left: number, right: number): number {')
+    this.writer.indent++
+    this.writer.line('checkedIndex(left); checkedIndex(right);')
+    this.writer.line("if (right > left) throw new RangeError('shared numeric underflow');")
+    this.writer.line('return left - right;')
+    this.writer.indent--
+    this.writer.line('}')
+    this.writer.line('function checkedChar(value: string): string {')
+    this.writer.indent++
+    this.writer.line('const points = Array.from(value);')
+    this.writer.line(
+      "if (points.length !== 1 || (value.codePointAt(0)! >= 0xd800 && value.codePointAt(0)! <= 0xdfff)) throw new RangeError('invalid Unicode scalar');",
+    )
+    this.writer.line('return value;')
+    this.writer.indent--
+    this.writer.line('}')
+    this.writer.line('function checkedString(value: string): string {')
+    this.writer.indent++
+    this.writer.line(
+      "if (value.length > MAX_SHARED_INDEX) throw new RangeError('string outside shared numeric range');",
+    )
+    this.writer.line('for (const character of value) checkedChar(character);')
+    this.writer.line('return value;')
+    this.writer.indent--
+    this.writer.line('}')
+    this.writer.line('function checkedChars(value: string[]): string[] {')
+    this.writer.indent++
+    this.writer.line(
+      "if (value.length > MAX_SHARED_INDEX) throw new RangeError('vector outside shared numeric range');",
+    )
+    this.writer.line('return Array.from(value, checkedChar);')
+    this.writer.indent--
+    this.writer.line('}')
+    this.writer.line()
+    this.writer.line('function indexChar(values: string[], index: number): string {')
+    this.writer.indent++
+    this.writer.line(
+      "if (!Number.isSafeInteger(index) || index < 0 || index >= values.length) throw new RangeError('index out of bounds');",
+    )
+    this.writer.line('return values[index]!;')
+    this.writer.indent--
+    this.writer.line('}')
+    this.writer.line()
     for (const item of this.document.items) {
       switch (item.kind) {
         case 'constant':
@@ -371,6 +455,10 @@ class Transpiler {
           const locals = new Map(
             item.parameters.map((parameter) => [parameter.name, this.path(parameter.type)]),
           )
+          for (const parameter of item.parameters) {
+            const detached = this.detach(parameter.name, parameter.type)
+            if (detached !== parameter.name) this.writer.line(`${parameter.name} = ${detached};`)
+          }
           this.statements(item.body, locals)
           this.writer.indent--
           this.writer.line('}')

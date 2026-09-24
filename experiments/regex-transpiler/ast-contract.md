@@ -30,8 +30,8 @@ pub fn shift_span(span: Span, offset: usize) -> Span {
       "visibility": "public",
       "name": "shift_span",
       "parameters": [
-        { "name": "span", "type": { "kind": "path", "segments": ["Span"] } },
-        { "name": "offset", "type": { "kind": "path", "segments": ["usize"] } }
+        { "name": "span", "mutable": false, "type": { "kind": "path", "segments": ["Span"] } },
+        { "name": "offset", "mutable": false, "type": { "kind": "path", "segments": ["usize"] } }
       ],
       "returnType": { "kind": "path", "segments": ["Span"] },
       "body": [
@@ -128,6 +128,14 @@ other Rust literal spellings and enforce the shared numeric limits. Source
 positions and Rust punctuation tokens are omitted: they do not affect accepted
 program behavior. Parser diagnostics remain the Rust component's responsibility.
 
-This is an AST transport format, not a normalized evaluator IR. The validator
-still has to check names, types, derives, and operations in addition to syntax;
-the current spike's syntax-only pass is not yet that full contract check.
+Generated function inputs are checked against the shared numeric range and
+Unicode scalar rules. Owned vectors and composites are detached from caller
+storage. Arithmetic on position values traps when its result leaves the shared
+range.
+
+This is an AST transport format, not a normalized evaluator IR. Syntax and
+operation validation are separate: an accepted syntax node still needs a
+resolved type and a lowering with the same value semantics in both targets.
+The validator rejects vector equality and character or string ordering. A Rust compilation check remains
+necessary because the AST validator does not implement Rust's full type and
+borrow rules.
