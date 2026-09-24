@@ -6,7 +6,7 @@ use syn::{BinOp, Expr, Fields, FnArg, Item, Pat, ReturnType, Stmt, Type, Visibil
 
 use crate::{
     syntax,
-    validate::{check_methods, inspect, path_name, pattern_ident, type_name, Result},
+    validate::{check_operations, inspect, path_name, pattern_ident, type_name, Result},
 };
 
 fn derive_names(attrs: &[syn::Attribute]) -> Result<Vec<String>> {
@@ -383,7 +383,7 @@ pub fn parse(source: &str) -> Result<String> {
     syntax::check(&file)?;
     inspect(&file)?;
     check_types(&file)?;
-    check_methods(&file)?;
+    check_operations(&file)?;
     let items = file.items.iter().map(item).collect::<Result<Vec<_>>>()?;
     serde_json::to_string(&json!({ "schemaVersion": 1, "items": items }))
         .map_err(|error| error.to_string())
@@ -429,11 +429,76 @@ mod tests {
     }
 
     #[test]
+    fn rejects_comparisons_without_shared_value_semantics() {
+        assert!(parse("pub fn f(a: Vec<char>, b: Vec<char>) -> bool { a == b }").is_err());
+        assert!(parse("pub fn f(a: char, b: char) -> bool { a < b }").is_err());
+        assert!(parse("pub fn f(a: &str, b: &str) -> bool { a < b }").is_err());
+    }
+
+    #[test]
+    fn rejects_unknown_enum_constructors() {
+        let declarations = "enum Outcome { Found(usize), NoMatch }";
+        assert!(parse(&format!(
+            "{declarations} pub fn f() -> Outcome {{ Outcome::Other(1) }}"
+        ))
+        .is_err());
+        assert!(parse(&format!(
+            "{declarations} pub fn f() -> Outcome {{ Outcome::NoMatch(1) }}"
+        ))
+        .is_err());
+    }
+
+    #[test]
+    fn rejects_mutation_through_immutable_bindings() {
+        let span = "struct Span { start: usize }";
+        assert!(parse(&format!(
+            "{span} pub fn f(value: Span) -> Span {{ value.start += 1; value }}"
+        ))
+        .is_err());
+        assert!(parse(&format!(
+            "{span} pub fn f(value: Span) -> Span {{ let copy = value; copy.start += 1; copy }}"
+        ))
+        .is_err());
+    }
+
+    #[test]
+    fn rejects_signed_arithmetic_and_oversized_literals() {
+        assert!(parse("pub fn f(value: i32) -> i32 { value + 1 }").is_err());
+        assert!(parse("const TOO_LARGE: usize = 2147483648;").is_err());
+    }
+
+    #[test]
     fn rust_source_matches_transpiler_smoke() {
         let span = smoke::Span { start: 1, end: 3 };
         let shifted = smoke::shift_span(span, 2);
         assert!(smoke::same_span(shifted, smoke::Span { start: 3, end: 5 }));
         assert_eq!(span.start, 1);
         assert_eq!(span.end, 3);
+        assert!(smoke::same_span(
+            smoke::shift_parameter(span, 2),
+            smoke::Span { start: 3, end: 3 }
+        ));
+        let snapshot = smoke::snapshot_before_shift(span, 2);
+        assert!(smoke::same_span(
+            snapshot.before,
+            smoke::Span { start: 1, end: 3 }
+        ));
+        assert!(smoke::same_span(
+            snapshot.after,
+            smoke::Span { start: 3, end: 3 }
+        ));
+        assert_eq!(smoke::echo_chars(vec!['a']), vec!['a']);
+        assert_eq!(
+            smoke::echo_bag(smoke::CharBag {
+                characters: vec!['a'],
+            })
+            .characters,
+            vec!['a']
+        );
+        assert_eq!(smoke::char_at(vec!['a'], 0), 'a');
+        assert_eq!(smoke::add_positions(2, 3), 5);
+        assert_eq!(smoke::subtract_positions(5, 3), 2);
+        assert!(smoke::is_before_first(-1));
+        assert_eq!(smoke::char_count("😀"), 1);
     }
 }

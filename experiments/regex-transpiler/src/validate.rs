@@ -196,41 +196,135 @@ pub fn inspect(file: &syn::File) -> Result<()> {
     Ok(())
 }
 
-fn infer_expr_type(value: &Expr, locals: &BTreeMap<String, String>) -> Result<Option<String>> {
+struct Semantics {
+    fields: BTreeMap<String, BTreeMap<String, String>>,
+    equality: BTreeSet<String>,
+    variants: BTreeMap<(String, String), Option<String>>,
+}
+
+#[derive(Clone)]
+struct Binding {
+    ty: String,
+    mutable: bool,
+}
+
+type Bindings = BTreeMap<String, Binding>;
+
+fn assignment_root(value: &Expr) -> Option<String> {
     match value {
-        Expr::Path(path) if path.path.segments.len() == 1 => {
-            Ok(locals.get(&path_name(&path.path)).cloned())
+        Expr::Path(path) if path.path.segments.len() == 1 => Some(path_name(&path.path)),
+        Expr::Field(field) => assignment_root(&field.base),
+        Expr::Index(index) => assignment_root(&index.expr),
+        Expr::Paren(paren) => assignment_root(&paren.expr),
+        Expr::Group(group) => assignment_root(&group.expr),
+        _ => None,
+    }
+}
+
+fn numeric(name: &str) -> bool {
+    matches!(name, "usize" | "u32" | "i32")
+}
+
+fn checked_arithmetic(name: &str) -> bool {
+    matches!(name, "usize" | "u32")
+}
+
+fn infer_expr_type(
+    value: &Expr,
+    locals: &Bindings,
+    semantics: &Semantics,
+) -> Result<Option<String>> {
+    match value {
+        Expr::Path(path) if path.path.segments.len() == 1 => Ok(locals
+            .get(&path_name(&path.path))
+            .map(|binding| binding.ty.clone())),
+        Expr::Path(path) if path.path.segments.len() == 2 => {
+            let name = path.path.segments[0].ident.to_string();
+            let variant = path.path.segments[1].ident.to_string();
+            if semantics.variants.get(&(name.clone(), variant)) != Some(&None) {
+                return Err("path is not a unit enum variant".into());
+            }
+            Ok(Some(name))
         }
         Expr::Lit(syn::ExprLit {
             lit: syn::Lit::Int(_),
             ..
         }) => Ok(Some("usize".into())),
-        Expr::Paren(paren) => infer_expr_type(&paren.expr, locals),
-        Expr::Group(group) => infer_expr_type(&group.expr, locals),
+        Expr::Paren(paren) => infer_expr_type(&paren.expr, locals, semantics),
+        Expr::Group(group) => infer_expr_type(&group.expr, locals, semantics),
         Expr::Binary(binary) => {
-            let left = infer_expr_type(&binary.left, locals)?;
-            infer_expr_type(&binary.right, locals)?;
+            let left = infer_expr_type(&binary.left, locals, semantics)?;
+            let right = infer_expr_type(&binary.right, locals, semantics)?;
             match binary.op {
-                syn::BinOp::Add(_) | syn::BinOp::Sub(_) => Ok(left),
-                syn::BinOp::AddAssign(_) => Ok(None),
+                syn::BinOp::Eq(_) | syn::BinOp::Ne(_) => {
+                    let ty = left
+                        .or(right)
+                        .ok_or("cannot resolve equality operand type")?;
+                    if !scalar(&ty) && !semantics.equality.contains(&ty) {
+                        return Err(format!("equality for {ty} has no target lowering"));
+                    }
+                    Ok(Some("bool".into()))
+                }
+                syn::BinOp::Lt(_) | syn::BinOp::Le(_) | syn::BinOp::Gt(_) | syn::BinOp::Ge(_) => {
+                    let ty = left
+                        .or(right)
+                        .ok_or("cannot resolve ordering operand type")?;
+                    if !numeric(&ty) {
+                        return Err(format!("ordering for {ty} has no target lowering"));
+                    }
+                    Ok(Some("bool".into()))
+                }
+                syn::BinOp::Add(_) | syn::BinOp::Sub(_) => {
+                    if !left.as_deref().is_some_and(checked_arithmetic)
+                        || !right.as_deref().is_some_and(checked_arithmetic)
+                    {
+                        return Err("arithmetic needs nonnegative numeric operands".into());
+                    }
+                    Ok(left)
+                }
+                syn::BinOp::AddAssign(_) => {
+                    if !left.as_deref().is_some_and(checked_arithmetic)
+                        || !right.as_deref().is_some_and(checked_arithmetic)
+                    {
+                        return Err("assignment needs nonnegative numeric operands".into());
+                    }
+                    let root = assignment_root(&binary.left)
+                        .ok_or("assignment target is not an addressable binding")?;
+                    if !locals.get(&root).is_some_and(|binding| binding.mutable) {
+                        return Err(format!("assignment target {root} is immutable"));
+                    }
+                    Ok(None)
+                }
                 _ => Ok(Some("bool".into())),
             }
         }
         Expr::Field(field) => {
-            infer_expr_type(&field.base, locals)?;
-            Ok(None)
+            let base = infer_expr_type(&field.base, locals, semantics)?;
+            let Some(base) = base else {
+                return Err("cannot resolve field base type".into());
+            };
+            let syn::Member::Named(member) = &field.member else {
+                return Err("tuple field is outside the subset".into());
+            };
+            semantics
+                .fields
+                .get(&base)
+                .and_then(|fields| fields.get(&member.to_string()))
+                .cloned()
+                .map(Some)
+                .ok_or_else(|| format!("unknown field {base}.{member}"))
         }
         Expr::Index(index) => {
-            let base = infer_expr_type(&index.expr, locals)?;
-            infer_expr_type(&index.index, locals)?;
+            let base = infer_expr_type(&index.expr, locals, semantics)?;
+            infer_expr_type(&index.index, locals, semantics)?;
             if base.as_deref() == Some("Vec<char>") {
                 Ok(Some("char".into()))
             } else {
-                Ok(None)
+                Err("indexing is supported only on Vec<char>".into())
             }
         }
         Expr::MethodCall(call) if call.method == "len" => {
-            if infer_expr_type(&call.receiver, locals)?.as_deref() != Some("Vec<char>") {
+            if infer_expr_type(&call.receiver, locals, semantics)?.as_deref() != Some("Vec<char>") {
                 return Err("len() is supported only on Vec<char>".into());
             }
             Ok(Some("usize".into()))
@@ -239,41 +333,61 @@ fn infer_expr_type(value: &Expr, locals: &BTreeMap<String, String>) -> Result<Op
             let Expr::MethodCall(chars) = &*call.receiver else {
                 unreachable!()
             };
-            if infer_expr_type(&chars.receiver, locals)?.as_deref() != Some("&str") {
+            if infer_expr_type(&chars.receiver, locals, semantics)?.as_deref() != Some("&str") {
                 return Err("chars().collect() is supported only on &str".into());
             }
             Ok(Some("Vec<char>".into()))
         }
         Expr::Struct(structure) => {
-            for field in &structure.fields {
-                infer_expr_type(&field.expr, locals)?;
+            let name = path_name(&structure.path);
+            let declared = semantics
+                .fields
+                .get(&name)
+                .ok_or_else(|| format!("unknown struct {name}"))?;
+            if structure.fields.len() != declared.len() {
+                return Err(format!("struct {name} needs all declared fields"));
             }
-            Ok(Some(path_name(&structure.path)))
+            for field in &structure.fields {
+                infer_expr_type(&field.expr, locals, semantics)?;
+                let syn::Member::Named(member) = &field.member else {
+                    unreachable!();
+                };
+                if !declared.contains_key(&member.to_string()) {
+                    return Err(format!("unknown field {name}.{member}"));
+                }
+            }
+            Ok(Some(name))
         }
         Expr::Call(call) => {
             for argument in &call.args {
-                infer_expr_type(argument, locals)?;
+                infer_expr_type(argument, locals, semantics)?;
             }
             let Expr::Path(path) = &*call.func else {
                 unreachable!()
             };
-            Ok(path_name(&path.path)
-                .split_once("::")
-                .map(|(name, _)| name.to_string()))
+            let name = path.path.segments[0].ident.to_string();
+            let variant = path.path.segments[1].ident.to_string();
+            if !matches!(
+                semantics.variants.get(&(name.clone(), variant)),
+                Some(Some(_))
+            ) {
+                return Err("call is not a declared enum constructor".into());
+            }
+            Ok(Some(name))
         }
         Expr::If(branch) => {
-            infer_expr_type(&branch.cond, locals)?;
-            check_body_methods(&branch.then_branch, &mut locals.clone())?;
+            infer_expr_type(&branch.cond, locals, semantics)?;
+            check_body_methods(&branch.then_branch, &mut locals.clone(), semantics)?;
             Ok(None)
         }
         Expr::While(loop_) => {
-            infer_expr_type(&loop_.cond, locals)?;
-            check_body_methods(&loop_.body, &mut locals.clone())?;
+            infer_expr_type(&loop_.cond, locals, semantics)?;
+            check_body_methods(&loop_.body, &mut locals.clone(), semantics)?;
             Ok(None)
         }
         Expr::Return(ret) => {
             if let Some(value) = &ret.expr {
-                infer_expr_type(value, locals)?;
+                infer_expr_type(value, locals, semantics)?;
             }
             Ok(None)
         }
@@ -282,21 +396,26 @@ fn infer_expr_type(value: &Expr, locals: &BTreeMap<String, String>) -> Result<Op
     }
 }
 
-fn check_body_methods(block: &syn::Block, locals: &mut BTreeMap<String, String>) -> Result<()> {
+fn check_body_methods(
+    block: &syn::Block,
+    locals: &mut Bindings,
+    semantics: &Semantics,
+) -> Result<()> {
     for statement in &block.stmts {
         match statement {
             Stmt::Local(local) => {
-                let (name, _) = pattern_ident(&local.pat)?;
-                let inferred = infer_expr_type(&local.init.as_ref().unwrap().expr, locals)?;
+                let (name, mutable) = pattern_ident(&local.pat)?;
+                let inferred =
+                    infer_expr_type(&local.init.as_ref().unwrap().expr, locals, semantics)?;
                 let ty = if let Pat::Type(typed) = &local.pat {
                     type_name(&typed.ty)?
                 } else {
                     inferred.ok_or_else(|| format!("cannot infer type of {name}"))?
                 };
-                locals.insert(name, ty);
+                locals.insert(name, Binding { ty, mutable });
             }
             Stmt::Expr(value, _) => {
-                infer_expr_type(value, locals)?;
+                infer_expr_type(value, locals, semantics)?;
             }
             _ => {}
         }
@@ -304,7 +423,50 @@ fn check_body_methods(block: &syn::Block, locals: &mut BTreeMap<String, String>)
     Ok(())
 }
 
-pub fn check_methods(file: &syn::File) -> Result<()> {
+pub fn check_operations(file: &syn::File) -> Result<()> {
+    let mut semantics = Semantics {
+        fields: BTreeMap::new(),
+        equality: BTreeSet::new(),
+        variants: BTreeMap::new(),
+    };
+    for item in &file.items {
+        match item {
+            Item::Struct(structure) => {
+                let name = structure.ident.to_string();
+                if derives(&structure.attrs)?.contains("PartialEq") {
+                    semantics.equality.insert(name.clone());
+                }
+                let Fields::Named(fields) = &structure.fields else {
+                    unreachable!();
+                };
+                let mut types = BTreeMap::new();
+                for field in &fields.named {
+                    types.insert(
+                        field.ident.as_ref().unwrap().to_string(),
+                        type_name(&field.ty)?,
+                    );
+                }
+                semantics.fields.insert(name, types);
+            }
+            Item::Enum(enumeration) => {
+                let name = enumeration.ident.to_string();
+                if derives(&enumeration.attrs)?.contains("PartialEq") {
+                    semantics.equality.insert(name.clone());
+                }
+                for variant in &enumeration.variants {
+                    let payload = match &variant.fields {
+                        Fields::Unit => None,
+                        Fields::Unnamed(fields) => Some(type_name(&fields.unnamed[0].ty)?),
+                        _ => unreachable!(),
+                    };
+                    semantics
+                        .variants
+                        .insert((name.clone(), variant.ident.to_string()), payload);
+                }
+            }
+            _ => {}
+        }
+    }
     let constants = file
         .items
         .iter()
@@ -312,8 +474,8 @@ pub fn check_methods(file: &syn::File) -> Result<()> {
             Item::Const(value) => Some((value.ident.to_string(), type_name(&value.ty))),
             _ => None,
         })
-        .map(|(name, ty)| ty.map(|ty| (name, ty)))
-        .collect::<Result<BTreeMap<_, _>>>()?;
+        .map(|(name, ty)| ty.map(|ty| (name, Binding { ty, mutable: false })))
+        .collect::<Result<Bindings>>()?;
     for item in &file.items {
         if let Item::Fn(function) = item {
             let mut locals = constants.clone();
@@ -321,10 +483,16 @@ pub fn check_methods(file: &syn::File) -> Result<()> {
                 let FnArg::Typed(parameter) = parameter else {
                     unreachable!()
                 };
-                let (name, _) = pattern_ident(&parameter.pat)?;
-                locals.insert(name, type_name(&parameter.ty)?);
+                let (name, mutable) = pattern_ident(&parameter.pat)?;
+                locals.insert(
+                    name,
+                    Binding {
+                        ty: type_name(&parameter.ty)?,
+                        mutable,
+                    },
+                );
             }
-            check_body_methods(&function.block, &mut locals)?;
+            check_body_methods(&function.block, &mut locals, &semantics)?;
         }
     }
     Ok(())
