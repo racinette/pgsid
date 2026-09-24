@@ -10,7 +10,7 @@ The envelope has `schemaVersion` and source-ordered `items`. Every node has a
 transpilers to be updated before the parser may emit it. Unknown nodes are
 contract violations, not regex `Uncertain` results.
 
-Here is an encoding of a function from the transpilation fixture:
+Here is an encoding of a function from the transpiler smoke test:
 
 ```rust
 pub fn shift_span(span: Span, offset: usize) -> Span {
@@ -82,7 +82,7 @@ pub fn shift_span(span: Span, offset: usize) -> Span {
 The initial item kinds are `constant`, `struct`, `enum`, and `function`.
 Structs carry named fields. Enums carry unit or single-payload variants.
 Allowed `derive` names are transmitted as a list on structs and enums.
-For example, the enum in that fixture is:
+For example, an enum with a payload is encoded as:
 
 ```json
 {

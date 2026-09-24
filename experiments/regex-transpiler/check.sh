@@ -13,15 +13,15 @@ mkdir -p "$artifact_dir"
 node "$experiment_dir/conformance/materialize-stress-fixtures.mjs" --check
 cargo test --locked --manifest-path "$experiment_dir/Cargo.toml" --target-dir "$target_dir"
 cargo build --locked --manifest-path "$experiment_dir/Cargo.toml" --target-dir "$target_dir"
-"$target_dir/debug/regex-transpiler-spike" --ast "$experiment_dir/transpiler_fixture.rs" "$artifact_dir/engine.ast.json"
-node --import tsx "$experiment_dir/typescript/transpile.ts" "$artifact_dir/engine.ast.json" "$artifact_dir/from-ast.ts"
-GOCACHE="$go_cache" "$go_bin" -C "$experiment_dir/go" run ./cmd/transpile "$artifact_dir/engine.ast.json" "$artifact_dir/from-ast.go"
+"$target_dir/debug/regex-transpiler-spike" --ast "$experiment_dir/transpiler_smoke.rs" "$artifact_dir/smoke.ast.json"
+node --import tsx "$experiment_dir/typescript/transpile.ts" "$artifact_dir/smoke.ast.json" "$artifact_dir/from-ast.ts"
+GOCACHE="$go_cache" "$go_bin" -C "$experiment_dir/go" run ./cmd/transpile "$artifact_dir/smoke.ast.json" "$artifact_dir/from-ast.go"
 
 node_modules/.bin/tsc --strict --noEmit --target es2022 --module esnext --skipLibCheck "$artifact_dir/from-ast.ts"
 "$go_bin" build -o "$artifact_dir/from-ast.a" "$artifact_dir/from-ast.go"
-node --import tsx "$experiment_dir/conformance/check.ts" "$artifact_dir/from-ast.ts" "$experiment_dir/conformance/cases.json"
+node --import tsx "$experiment_dir/smoke/check.ts" "$artifact_dir/from-ast.ts"
 
 test_dir=$(mktemp -d /tmp/pgsid-regex-conformance.XXXXXX)
 cp "$artifact_dir/from-ast.go" "$test_dir/engine.go"
-cp "$experiment_dir/conformance/generated_test.go" "$test_dir/engine_test.go"
-(cd "$test_dir" && PGSID_REGEX_VECTOR_PATH="$experiment_dir/conformance/cases.json" GO111MODULE=off GOCACHE="$go_cache" "$go_bin" test .)
+cp "$experiment_dir/smoke/generated_test.go" "$test_dir/engine_test.go"
+(cd "$test_dir" && GO111MODULE=off GOCACHE="$go_cache" "$go_bin" test .)

@@ -270,7 +270,7 @@ mod tests {
 
     #[test]
     fn accepts_current_slice() {
-        let file = syn::parse_file(include_str!("../transpiler_fixture.rs")).unwrap();
+        let file = syn::parse_file(include_str!("../transpiler_smoke.rs")).unwrap();
         assert!(check(&file).is_ok());
     }
 
