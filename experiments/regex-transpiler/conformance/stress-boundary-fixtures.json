@@ -43,7 +43,7 @@
       "expected": {
         "kind": "NoMatch"
       },
-      "engineExpectation": "Uncertain"
+      "engineExpectation": "Definite"
     },
     {
       "id": "pattern_unicode_scalars-at",
@@ -81,7 +81,7 @@
       "expected": {
         "kind": "NoMatch"
       },
-      "engineExpectation": "Uncertain"
+      "engineExpectation": "Definite"
     },
     {
       "id": "subject_scalars-at",
@@ -127,7 +127,7 @@
           "end": 4097
         }
       },
-      "engineExpectation": "Uncertain"
+      "engineExpectation": "Definite"
     },
     {
       "id": "subject_unicode_scalars-at",
@@ -173,7 +173,7 @@
           "end": 4097
         }
       },
-      "engineExpectation": "Uncertain"
+      "engineExpectation": "Definite"
     },
     {
       "id": "lookbehind_subject_scalars-at",
@@ -219,7 +219,7 @@
           "end": 257
         }
       },
-      "engineExpectation": "Uncertain"
+      "engineExpectation": "Definite"
     },
     {
       "id": "capture_groups-at",
@@ -265,7 +265,7 @@
           "end": 129
         }
       },
-      "engineExpectation": "Uncertain"
+      "engineExpectation": "Definite"
     },
     {
       "id": "group_depth-at",

@@ -396,7 +396,7 @@ fn rust_position_results_match_postgres() {
 }
 
 #[test]
-fn rust_boundary_results_respect_declared_limits() {
+fn rust_boundary_results_match_postgres_except_nested_group_limit() {
     let document: Value =
         serde_json::from_str(include_str!("../conformance/stress-boundary-fixtures.json")).unwrap();
     assert_eq!(document["schemaVersion"], 1);
@@ -466,8 +466,8 @@ fn rust_boundary_results_respect_declared_limits() {
     }
     assert_eq!(boundaries.len(), 8);
     assert!(boundaries.values().all(|count| *count == 2));
-    assert_eq!(definite, 9);
-    assert_eq!(uncertain, 7);
+    assert_eq!(definite, 15);
+    assert_eq!(uncertain, 1);
     assert!(
         mismatches.is_empty(),
         "{} boundary mismatches:\n{}",
@@ -521,16 +521,16 @@ fn absolute_anchors_ignore_newline_mode_and_search_offset() {
 }
 
 #[test]
-fn raised_pattern_limit_admits_both_oversized_fixtures() {
+fn long_patterns_remain_definite() {
     let default_options = engine::Options::default();
-    assert!(matches!(
-        engine::compile(&"a".repeat(3072), default_options),
-        engine::CompileOutcome::Ready(_)
-    ));
-    assert!(matches!(
-        engine::compile(&"a".repeat(3073), default_options),
-        engine::CompileOutcome::Uncertain
-    ));
+    for length in [3072, 3073] {
+        let engine::CompileOutcome::Ready(program) =
+            engine::compile(&"a".repeat(length), default_options)
+        else {
+            panic!("long pattern of {length} scalars was not definite");
+        };
+        assert_eq!(program.find("", 0), engine::MatchOutcome::NoMatch);
+    }
 
     let fixtures: Value =
         serde_json::from_str(include_str!("../conformance/postgres-fixtures.json")).unwrap();
@@ -558,27 +558,26 @@ fn raised_pattern_limit_admits_both_oversized_fixtures() {
     }));
     for fixture in oversized {
         let pattern = fixture["input"]["pattern"].as_str().unwrap();
-        assert!(pattern.chars().count() <= 3072);
         let engine::CompileOutcome::Ready(program) =
             engine::compile(pattern, options(&fixture["input"]))
         else {
-            panic!("oversized fixture should fit under the raised pattern limit");
+            panic!("long extracted pattern was not definite");
         };
         assert_eq!(program.find("", 0), engine::MatchOutcome::NoMatch);
     }
 }
 
 #[test]
-fn raised_capture_limit_admits_sequential_groups() {
+fn sequential_captures_without_backreferences_remain_definite() {
     let options = engine::Options::default();
-    assert!(matches!(
-        engine::compile(&"(a)".repeat(128), options),
-        engine::CompileOutcome::Ready(_)
-    ));
-    assert!(matches!(
-        engine::compile(&"(a)".repeat(129), options),
-        engine::CompileOutcome::Uncertain
-    ));
+    for length in [128, 129] {
+        let engine::CompileOutcome::Ready(program) =
+            engine::compile(&"(a)".repeat(length), options)
+        else {
+            panic!("{length} sequential captures were not definite");
+        };
+        assert_eq!(program.find("", 0), engine::MatchOutcome::NoMatch);
+    }
 }
 
 #[test]
@@ -833,11 +832,49 @@ fn lookbehind_uses_prior_positions_without_losing_subject_context() {
     let long_subject = "a".repeat(256) + "b";
     assert_eq!(
         program.find(&long_subject, 0),
-        engine::MatchOutcome::Uncertain
+        engine::MatchOutcome::Found(engine::MatchSpan {
+            start: 256,
+            end: 257,
+        })
     );
     assert_eq!(
         program.count(&long_subject, 1),
-        engine::CountOutcome::Uncertain
+        engine::CountOutcome::Count(1)
+    );
+
+    let longer_subject = "a".repeat(8192) + "b";
+    assert_eq!(
+        program.find(&longer_subject, 0),
+        engine::MatchOutcome::Found(engine::MatchSpan {
+            start: 8192,
+            end: 8193,
+        })
+    );
+    assert_eq!(
+        program.count(&longer_subject, 1),
+        engine::CountOutcome::Count(1)
+    );
+
+    let engine::CompileOutcome::Ready(nested) =
+        engine::compile("(?<=(?<=a)b)c", engine::Options::default())
+    else {
+        panic!("nested lookbehind did not compile");
+    };
+    assert_eq!(
+        nested.find("abc", 0),
+        engine::MatchOutcome::Found(engine::MatchSpan { start: 2, end: 3 })
+    );
+}
+
+#[test]
+fn count_reuses_a_compiled_automaton_across_many_matches() {
+    let engine::CompileOutcome::Ready(program) = engine::compile("a", engine::Options::default())
+    else {
+        panic!("literal did not compile");
+    };
+    assert_eq!(
+        program.count(&"a".repeat(8192), 1),
+        engine::CountOutcome::Count(8192)
     );
 }
 
