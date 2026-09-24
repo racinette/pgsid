@@ -73,6 +73,15 @@ assert.deepEqual(generated.find_simple_advanced('[A]', 'a', 0, false, true, fals
   kind: 'Found',
   value: { start: 0, end: 1 },
 })
+assert.equal(generated.supports_simple_advanced('[^ab]'), true)
+assert.equal(generated.supports_simple_advanced('[^a-z]'), false)
+assert.deepEqual(generated.find_simple_advanced('[^a]', '\n', 0, true, false, false), {
+  kind: 'NoMatch',
+})
+assert.deepEqual(generated.find_simple_advanced('[^a]', '\n', 0, true, true, false), {
+  kind: 'Found',
+  value: { start: 0, end: 1 },
+})
 assert.deepEqual(generated.charge_work(1999999, 1), {
   kind: 'Ready',
   value: 2000000,

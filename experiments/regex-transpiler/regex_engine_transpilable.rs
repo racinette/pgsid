@@ -116,7 +116,10 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
         }
         if atom == '[' {
             position += 1;
-            if position == atoms.len() || atoms[position] == ']' || atoms[position] == '^' {
+            if position < atoms.len() && atoms[position] == '^' {
+                position += 1;
+            }
+            if position == atoms.len() || atoms[position] == ']' {
                 return false;
             }
             while position < atoms.len() && atoms[position] != ']' {
@@ -187,7 +190,10 @@ pub fn find_simple_advanced(
         }
         if atom == '[' {
             position += 1;
-            if position == atoms.len() || atoms[position] == ']' || atoms[position] == '^' {
+            if position < atoms.len() && atoms[position] == '^' {
+                position += 1;
+            }
+            if position == atoms.len() || atoms[position] == ']' {
                 return MatchOutcome::Uncertain;
             }
             while position < atoms.len() && atoms[position] != ']' {
@@ -249,6 +255,10 @@ pub fn find_simple_advanced(
                 }
                 let actual = haystack[subject_position];
                 let mut class_position = atom_position + 1;
+                let negated = atoms[class_position] == '^';
+                if negated {
+                    class_position += 1;
+                }
                 while atoms[class_position] != ']' {
                     let expected = atoms[class_position];
                     if actual == expected
@@ -259,7 +269,10 @@ pub fn find_simple_advanced(
                     }
                     class_position += 1;
                 }
-                if atoms[class_position] == ']' {
+                let included = atoms[class_position] != ']';
+                if included == negated
+                    || (negated && actual == '\n' && dot_crosses_newline == false)
+                {
                     break;
                 }
                 subject_position += 1;

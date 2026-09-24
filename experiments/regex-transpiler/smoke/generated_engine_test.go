@@ -68,6 +68,15 @@ func TestLiteralSlice(t *testing.T) {
 	if find_simple_advanced("[A]", "a", 0, false, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 0, end: 1}}) {
 		t.Error("literal class missed ASCII case fold")
 	}
+	if !supports_simple_advanced("[^ab]") || supports_simple_advanced("[^a-z]") {
+		t.Error("negated class support classification changed")
+	}
+	if find_simple_advanced("[^a]", "\n", 0, true, false, false).kind != MatchOutcomeNoMatch {
+		t.Error("newline-sensitive negated class matched newline")
+	}
+	if find_simple_advanced("[^a]", "\n", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 0, end: 1}}) {
+		t.Error("ordinary negated class missed newline")
+	}
 	if charge_work(1999999, 1) != (WorkOutcome{kind: WorkOutcomeReady, ready: 2000000}) {
 		t.Error("work charge at budget changed result")
 	}
