@@ -110,6 +110,8 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
                 && escaped != '{'
                 && escaped != '}'
                 && escaped != '\\'
+                && escaped != 'A'
+                && escaped != 'Z'
             {
                 return false;
             }
@@ -216,6 +218,8 @@ pub fn find_simple_advanced(
                 && escaped != '{'
                 && escaped != '}'
                 && escaped != '\\'
+                && escaped != 'A'
+                && escaped != 'Z'
             {
                 return MatchOutcome::Uncertain;
             }
@@ -313,6 +317,12 @@ pub fn find_simple_advanced(
             {
                 break;
             }
+            if escaped && atom == 'A' && subject_position != 0 {
+                break;
+            }
+            if escaped && atom == 'Z' && subject_position != haystack.len() {
+                break;
+            }
             if escaped == false && atom == '[' {
                 if subject_position >= haystack.len() {
                     break;
@@ -373,7 +383,9 @@ pub fn find_simple_advanced(
                     atom_position += 1;
                 }
             }
-            if escaped || (atom != '^' && atom != '$' && atom != '[') {
+            if (escaped && atom != 'A' && atom != 'Z')
+                || (escaped == false && atom != '^' && atom != '$' && atom != '[')
+            {
                 if subject_position >= haystack.len() {
                     break;
                 }

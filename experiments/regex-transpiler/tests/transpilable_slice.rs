@@ -73,17 +73,28 @@ fn supported_search_matches_pglite_fixtures() {
     let mut negated_classes = 0;
     let mut range_classes = 0;
     let mut edge_punctuation = 0;
+    let mut absolute_anchors = 0;
     let mut positioned = 0;
     let mut newline_modes = BTreeSet::new();
-    for source in [
-        include_str!("../conformance/postgres-fixtures.json"),
-        include_str!("../conformance/stress-fixtures.json"),
-        include_str!("../conformance/targeted-postgres-fixtures.json"),
-        include_str!("../conformance/stress-position-fixtures.json"),
-        include_str!("../conformance/stress-boundary-fixtures.json"),
+    for (source, required) in [
+        (include_str!("../conformance/postgres-fixtures.json"), false),
+        (include_str!("../conformance/stress-fixtures.json"), false),
+        (
+            include_str!("../conformance/targeted-postgres-fixtures.json"),
+            true,
+        ),
+        (
+            include_str!("../conformance/stress-position-fixtures.json"),
+            false,
+        ),
+        (
+            include_str!("../conformance/stress-boundary-fixtures.json"),
+            false,
+        ),
     ] {
         let fixtures: Value = serde_json::from_str(source).unwrap();
         assert_eq!(fixtures["oracle"]["database"], "PostgreSQL via PGlite");
+        let mut checked = 0;
         for fixture in fixtures["fixtures"].as_array().unwrap() {
             if fixture["operation"] == "count" {
                 continue;
@@ -151,6 +162,9 @@ fn supported_search_matches_pglite_fixtures() {
                 {
                     edge_punctuation += 1;
                 }
+                if pattern.contains("\\A") || pattern.contains("\\Z") {
+                    absolute_anchors += 1;
+                }
                 actual
             } else {
                 continue;
@@ -166,6 +180,10 @@ fn supported_search_matches_pglite_fixtures() {
                 candidate::MatchOutcome::Uncertain => json!({ "kind": "Uncertain" }),
             };
             assert_eq!(actual, fixture["expected"], "input={input}");
+            checked += 1;
+        }
+        if required {
+            assert_eq!(checked, fixtures["fixtures"].as_array().unwrap().len());
         }
     }
     assert!(literal >= 40);
@@ -179,6 +197,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(negated_classes >= 40);
     assert!(range_classes >= 50);
     assert!(edge_punctuation >= 80);
+    assert!(absolute_anchors >= 50);
     assert!(positioned >= 6);
     assert_eq!(newline_modes.len(), 4);
 }
@@ -285,6 +304,13 @@ fn simple_advanced_search_matches_the_live_engine() {
                 "[^]]",
                 "[^-]",
                 "[]-]",
+                "\\A",
+                "\\Z",
+                "\\Aa",
+                "a\\Z",
+                "\\A😀\\Z",
+                "\\A^a",
+                "a$\\Z",
             ] {
                 let engine::CompileOutcome::Ready(program) = engine::compile(
                     pattern,
@@ -300,7 +326,7 @@ fn simple_advanced_search_matches_the_live_engine() {
                     "", "a", "a😀b", "a\nb", "a😀\nb", "\na", "a\n", "Åβ😀", "\na\n", "😀\n",
                     "a.b", "a+b", "^a", "a$", "a\\b", "(a)", "[a]", "zabd", "zacd", "zaed", "ba",
                     ".", "^", "β", "\n", "c", "a\nc", "abc", "zac", "B", "5", "y", "m", "a2b", "-",
-                    "]", "za]",
+                    "]", "za]", "a😀", "a😀\n",
                 ] {
                     for from in 0..=subject.chars().count() + 1 {
                         let expected = match program.find(subject, from) {
@@ -331,7 +357,7 @@ fn simple_advanced_search_matches_the_live_engine() {
     }
     for pattern in [
         "a*", "a|b", "a\\nb", "[z-a]", "[a-b-c]", "[A-z]", "[--a]", "[a--]", "[---]", "[^]", "[]",
-        "[a", "(ab)", "a{2}", "a?", "a\\",
+        "[a", "(ab)", "a{2}", "a?", "a\\", "\\B",
     ] {
         assert!(matches!(
             candidate::find_simple_advanced(pattern, "ab", 0, true, true, false),
@@ -356,6 +382,7 @@ fn support_classification_matches_search_certainty() {
         "a*",
         "a|b",
         "a\\nb",
+        "\\B",
         "[ab]",
         "a[bc]d",
         "[a^b]",
@@ -384,6 +411,11 @@ fn support_classification_matches_search_certainty() {
         "[^]]",
         "[^-]",
         "[]-]",
+        "\\A",
+        "\\Z",
+        "\\Aa",
+        "a\\Z",
+        "\\A😀\\Z",
         "[--a]",
         "[a--]",
         "[---]",

@@ -52,6 +52,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 	negatedClasses := 0
 	rangeClasses := 0
 	edgePunctuation := 0
+	absoluteAnchors := 0
 	positioned := 0
 	newlineModes := map[string]bool{}
 	for _, path := range []string{"postgres-fixtures.json", "stress-fixtures.json", "targeted-postgres-fixtures.json", "stress-position-fixtures.json", "stress-boundary-fixtures.json"} {
@@ -66,6 +67,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 		if document.SchemaVersion != 1 || document.Oracle.Database != "PostgreSQL via PGlite" {
 			t.Fatalf("unexpected fixture document: %s", path)
 		}
+		checked := 0
 		for index, fixture := range document.Fixtures {
 			if fixture.Operation != "" && fixture.Operation != "find" {
 				continue
@@ -111,6 +113,9 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				if strings.Contains(input.Pattern, "[-") || strings.Contains(input.Pattern, "-]") || strings.Contains(input.Pattern, "[]") || strings.Contains(input.Pattern, "[^]") {
 					edgePunctuation++
 				}
+				if strings.Contains(input.Pattern, "\\A") || strings.Contains(input.Pattern, "\\Z") {
+					absoluteAnchors++
+				}
 				newlineModes[input.Options.Newline] = true
 			} else {
 				continue
@@ -137,6 +142,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			if actual != expected {
 				t.Errorf("%s fixture %d: input=%+v, expected=%+v, actual=%+v", path, index, input, expected, actual)
 			}
+			checked++
 			if input.Options.Syntax == "advanced" && input.Pattern == "." {
 				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
 				if found := find_any_character(input.Subject, from, crossesNewline); found != expected {
@@ -144,8 +150,11 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				}
 			}
 		}
+		if path == "targeted-postgres-fixtures.json" && checked != len(document.Fixtures) {
+			t.Errorf("targeted fixtures checked %d of %d", checked, len(document.Fixtures))
+		}
 	}
-	if literal < 40 || insensitive < 7 || advanced < 100 || dot < 20 || mixed < 50 || anchored < 20 || escaped < 40 || classes < 50 || negatedClasses < 40 || rangeClasses < 50 || edgePunctuation < 80 || positioned < 6 || len(newlineModes) != 4 {
-		t.Fatalf("fixture coverage: literal=%d insensitive=%d advanced=%d dot=%d mixed=%d anchored=%d escaped=%d classes=%d negatedClasses=%d rangeClasses=%d edgePunctuation=%d positioned=%d newline=%v", literal, insensitive, advanced, dot, mixed, anchored, escaped, classes, negatedClasses, rangeClasses, edgePunctuation, positioned, newlineModes)
+	if literal < 40 || insensitive < 7 || advanced < 100 || dot < 20 || mixed < 50 || anchored < 20 || escaped < 40 || classes < 50 || negatedClasses < 40 || rangeClasses < 50 || edgePunctuation < 80 || absoluteAnchors < 50 || positioned < 6 || len(newlineModes) != 4 {
+		t.Fatalf("fixture coverage: literal=%d insensitive=%d advanced=%d dot=%d mixed=%d anchored=%d escaped=%d classes=%d negatedClasses=%d rangeClasses=%d edgePunctuation=%d absoluteAnchors=%d positioned=%d newline=%v", literal, insensitive, advanced, dot, mixed, anchored, escaped, classes, negatedClasses, rangeClasses, edgePunctuation, absoluteAnchors, positioned, newlineModes)
 	}
 }

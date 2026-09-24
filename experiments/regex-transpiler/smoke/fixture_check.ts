@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { basename } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 const [generatedPath, ...fixturePaths] = process.argv.slice(2)
@@ -19,6 +20,7 @@ const coverage = {
   negatedClasses: 0,
   rangeClasses: 0,
   edgePunctuation: 0,
+  absoluteAnchors: 0,
   position: 0,
   newline: new Set<string>(),
 }
@@ -27,6 +29,7 @@ for (const fixturePath of fixturePaths) {
   const document = JSON.parse(readFileSync(fixturePath, 'utf8'))
   assert.equal(document.schemaVersion, 1)
   assert.equal(document.oracle.database, 'PostgreSQL via PGlite')
+  let checked = 0
   for (const [index, fixture] of document.fixtures.entries()) {
     if (fixture.operation && fixture.operation !== 'find') continue
     const { pattern, subject, options } = fixture.input
@@ -72,6 +75,7 @@ for (const fixturePath of fixturePaths) {
         pattern.includes('[^]')
       )
         coverage.edgePunctuation++
+      if (pattern.includes('\\A') || pattern.includes('\\Z')) coverage.absoluteAnchors++
       coverage.newline.add(options.newline)
     } else {
       continue
@@ -82,6 +86,10 @@ for (const fixturePath of fixturePaths) {
       fixture.expected,
       `${fixturePath} fixture ${index}: ${JSON.stringify(fixture.input)}`,
     )
+    checked++
+  }
+  if (basename(fixturePath) === 'targeted-postgres-fixtures.json') {
+    assert.equal(checked, document.fixtures.length)
   }
 }
 
@@ -96,8 +104,9 @@ assert.ok(coverage.classes >= 50)
 assert.ok(coverage.negatedClasses >= 40)
 assert.ok(coverage.rangeClasses >= 50)
 assert.ok(coverage.edgePunctuation >= 80)
+assert.ok(coverage.absoluteAnchors >= 50)
 assert.ok(coverage.position >= 6)
 assert.deepEqual(coverage.newline, new Set(['ordinary', 'sensitive', 'stop', 'anchors']))
 process.stdout.write(
-  `TypeScript fixtures: ${coverage.literal} literal, ${coverage.advanced} simple advanced, ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.rangeClasses} ranges, ${coverage.edgePunctuation} class edge cases, ${coverage.position} positioned\n`,
+  `TypeScript fixtures: ${coverage.literal} literal, ${coverage.advanced} simple advanced, ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.rangeClasses} ranges, ${coverage.edgePunctuation} class edge cases, ${coverage.absoluteAnchors} absolute anchors, ${coverage.position} positioned\n`,
 )
