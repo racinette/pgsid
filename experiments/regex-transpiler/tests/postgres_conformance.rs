@@ -396,7 +396,7 @@ fn rust_position_results_match_postgres() {
 }
 
 #[test]
-fn rust_boundary_results_match_postgres_except_nested_group_limit() {
+fn rust_boundary_results_match_postgres() {
     let document: Value =
         serde_json::from_str(include_str!("../conformance/stress-boundary-fixtures.json")).unwrap();
     assert_eq!(document["schemaVersion"], 1);
@@ -404,8 +404,6 @@ fn rust_boundary_results_match_postgres_except_nested_group_limit() {
     let cases = document["fixtures"].as_array().unwrap();
     let mut ids = HashSet::new();
     let mut boundaries = BTreeMap::new();
-    let mut definite = 0;
-    let mut uncertain = 0;
     let mut mismatches = Vec::new();
     for fixture in cases {
         let id = fixture["id"].as_str().unwrap();
@@ -439,35 +437,30 @@ fn rust_boundary_results_match_postgres_except_nested_group_limit() {
                     64 + increment
                 );
             }
+            "group_depth_wide" => {
+                assert_eq!(
+                    pattern
+                        .chars()
+                        .filter(|character| *character == '(')
+                        .count(),
+                    512 + increment
+                );
+            }
             "bound_value" => {
                 assert_eq!(pattern, format!("a{{{}}}", 255 + increment));
             }
             other => panic!("unknown boundary {other}"),
         }
-        match fixture["engineExpectation"].as_str().unwrap() {
-            "Definite" => {
-                definite += 1;
-                let actual = evaluate(input);
-                if actual.as_ref() != Some(&fixture["expected"]) {
-                    mismatches.push(format!(
-                        "{id}: expected={}, actual={actual:?}",
-                        fixture["expected"]
-                    ));
-                }
-            }
-            "Uncertain" => {
-                uncertain += 1;
-                if let Some(actual) = evaluate(input) {
-                    mismatches.push(format!("{id}: expected Uncertain, actual={actual}"));
-                }
-            }
-            other => panic!("unknown boundary expectation {other}"),
+        let actual = evaluate(input);
+        if actual.as_ref() != Some(&fixture["expected"]) {
+            mismatches.push(format!(
+                "{id}: expected={}, actual={actual:?}",
+                fixture["expected"]
+            ));
         }
     }
-    assert_eq!(boundaries.len(), 10);
+    assert_eq!(boundaries.len(), 11);
     assert!(boundaries.values().all(|count| *count == 2));
-    assert_eq!(definite, 19);
-    assert_eq!(uncertain, 1);
     assert!(
         mismatches.is_empty(),
         "{} boundary mismatches:\n{}",
@@ -578,6 +571,67 @@ fn sequential_captures_without_backreferences_remain_definite() {
         };
         assert_eq!(program.find("", 0), engine::MatchOutcome::NoMatch);
     }
+}
+
+#[test]
+fn deeply_nested_groups_parse_and_match_without_recursion() {
+    let advanced = format!("{}a{}", "(".repeat(512), ")".repeat(512));
+    let engine::CompileOutcome::Ready(program) =
+        engine::compile(&advanced, engine::Options::default())
+    else {
+        panic!("deeply nested Advanced groups were not definite");
+    };
+    assert_eq!(
+        program.find("a", 0),
+        engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 1 })
+    );
+
+    let basic = format!("{}a{}", "\\(".repeat(512), "\\)".repeat(512));
+    let options = engine::Options {
+        syntax: engine::Syntax::Basic,
+        ..engine::Options::default()
+    };
+    let engine::CompileOutcome::Ready(program) = engine::compile(&basic, options) else {
+        panic!("deeply nested Basic groups were not definite");
+    };
+    assert_eq!(
+        program.find("a", 0),
+        engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 1 })
+    );
+
+    assert!(matches!(
+        engine::compile(&"(".repeat(8192), engine::Options::default()),
+        engine::CompileOutcome::InvalidPattern
+    ));
+    assert!(matches!(
+        engine::compile(
+            &format!("{}a{}[", "(".repeat(8192), ")".repeat(8192)),
+            engine::Options::default()
+        ),
+        engine::CompileOutcome::InvalidPattern
+    ));
+    assert!(matches!(
+        engine::compile(
+            &format!("{}a{}\\1", "(".repeat(65), ")".repeat(65)),
+            engine::Options::default()
+        ),
+        engine::CompileOutcome::Uncertain
+    ));
+    assert!(matches!(
+        engine::compile(
+            &format!("{}a{}", "(?=".repeat(65), ")".repeat(65)),
+            engine::Options::default()
+        ),
+        engine::CompileOutcome::Uncertain
+    ));
+}
+
+#[test]
+fn nested_bounds_that_expand_beyond_the_automaton_budget_are_uncertain() {
+    assert!(matches!(
+        engine::compile("((a{255}){255}){255}", engine::Options::default()),
+        engine::CompileOutcome::Uncertain
+    ));
 }
 
 #[test]

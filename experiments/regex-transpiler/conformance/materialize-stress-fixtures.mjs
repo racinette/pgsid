@@ -503,6 +503,13 @@ try {
       `${'('.repeat(65)}a${')'.repeat(65)}`,
       'a',
     ],
+    [
+      'group_depth_wide',
+      `${'('.repeat(512)}a${')'.repeat(512)}`,
+      'a',
+      `${'('.repeat(513)}a${')'.repeat(513)}`,
+      'a',
+    ],
     ['bound_value', 'a{255}', 'a'.repeat(255), 'a{256}', 'a'.repeat(256)],
   ]
   const boundaryFixtures = []
@@ -519,7 +526,6 @@ try {
         side,
         input,
         expected: await oracleMatch(input, id),
-        engineExpectation: boundary === 'group_depth' && side === 'over' ? 'Uncertain' : 'Definite',
       })
     }
   }
