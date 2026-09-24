@@ -183,12 +183,13 @@ fn operator(value: &BinOp) -> Result<&'static str> {
 fn expr(value: &Expr) -> Result<Value> {
     match value {
         Expr::Path(node) => Ok(json!({ "kind": "path", "segments": segments(&node.path) })),
-        Expr::Lit(node) => {
-            let syn::Lit::Int(number) = &node.lit else {
-                return Err("literal is outside the AST contract".into());
-            };
-            Ok(json!({ "kind": "integer", "digits": integer(number)? }))
-        }
+        Expr::Lit(node) => match &node.lit {
+            syn::Lit::Int(number) => Ok(json!({ "kind": "integer", "digits": integer(number)? })),
+            syn::Lit::Char(character) => {
+                Ok(json!({ "kind": "character", "scalar": character.value().to_string() }))
+            }
+            _ => Err("literal is outside the AST contract".into()),
+        },
         Expr::Paren(node) => Ok(json!({ "kind": "parenthesized", "inner": expr(&node.expr)? })),
         Expr::Group(node) => expr(&node.expr),
         Expr::Binary(node) => Ok(json!({
@@ -415,6 +416,23 @@ mod tests {
     #[test]
     fn rejects_nondecimal_literals() {
         assert!(parse("const X: usize = 0xff;").is_err());
+    }
+
+    #[test]
+    fn character_literals_preserve_unicode_scalars() {
+        let tree: serde_json::Value = serde_json::from_str(
+            &parse("pub fn f(value: char) -> bool { value == '\\n' }").unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            tree["items"][0]["body"][0]["value"]["right"]["kind"],
+            "character"
+        );
+        assert_eq!(
+            tree["items"][0]["body"][0]["value"]["right"]["scalar"],
+            "\n"
+        );
+        assert!(parse("pub fn f(value: char) -> bool { value == '😀' }").is_ok());
     }
 
     #[test]
