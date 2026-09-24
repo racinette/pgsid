@@ -1,8 +1,6 @@
-const MAX_PATTERN_SCALARS: usize = 3072;
-const MAX_SUBJECT_SCALARS: usize = 4096;
-const MAX_LOOKBEHIND_SUBJECT_SCALARS: usize = 256;
+const MAX_BACKREFERENCE_SUBJECT_SCALARS: usize = 4096;
 const MAX_GROUP_DEPTH: usize = 64;
-const MAX_CAPTURE_GROUPS: usize = 128;
+const MAX_BACKREFERENCE_CAPTURE_GROUPS: usize = 128;
 const MAX_BOUND: usize = 255;
 const MAX_CAPTURE_STATES: usize = 2048;
 
@@ -55,7 +53,6 @@ pub struct Program {
     preference: MatchPreference,
     capture_count: usize,
     has_backreference: bool,
-    has_lookbehind: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -111,8 +108,14 @@ enum Expression {
     BackReference(usize),
     PositiveLookahead(Box<Expression>),
     NegativeLookahead(Box<Expression>),
-    PositiveLookbehind(Box<Expression>),
-    NegativeLookbehind(Box<Expression>),
+    PositiveLookbehind {
+        id: usize,
+        inner: Box<Expression>,
+    },
+    NegativeLookbehind {
+        id: usize,
+        inner: Box<Expression>,
+    },
     Concatenation(Vec<Expression>),
     Alternation(Vec<Expression>),
     Repeat(Box<Expression>, Repetition, bool),
@@ -156,7 +159,7 @@ struct Cursor<'a> {
 struct ParseContext {
     closed_captures: Vec<bool>,
     has_backreference: bool,
-    has_lookbehind: bool,
+    next_lookbehind_id: usize,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -636,18 +639,19 @@ fn parse_atom<'a>(
             } else {
                 GroupKind::Capturing
             };
-            if matches!(
+            let capture_index = if kind == GroupKind::Capturing && !in_lookaround {
+                context.closed_captures.push(false);
+                Some(context.closed_captures.len() - 1)
+            } else {
+                None
+            };
+            let lookbehind_id = if matches!(
                 kind,
                 GroupKind::PositiveLookbehind | GroupKind::NegativeLookbehind
             ) {
-                context.has_lookbehind = true;
-            }
-            let capture_index = if kind == GroupKind::Capturing && !in_lookaround {
-                if context.closed_captures.len() > MAX_CAPTURE_GROUPS {
-                    return Err(ParseIssue::Unsupported);
-                }
-                context.closed_captures.push(false);
-                Some(context.closed_captures.len() - 1)
+                let id = context.next_lookbehind_id;
+                context.next_lookbehind_id += 1;
+                Some(id)
             } else {
                 None
             };
@@ -675,12 +679,14 @@ fn parse_atom<'a>(
                 }
                 GroupKind::PositiveLookahead => Expression::PositiveLookahead(Box::new(expression)),
                 GroupKind::NegativeLookahead => Expression::NegativeLookahead(Box::new(expression)),
-                GroupKind::PositiveLookbehind => {
-                    Expression::PositiveLookbehind(Box::new(expression))
-                }
-                GroupKind::NegativeLookbehind => {
-                    Expression::NegativeLookbehind(Box::new(expression))
-                }
+                GroupKind::PositiveLookbehind => Expression::PositiveLookbehind {
+                    id: lookbehind_id.unwrap(),
+                    inner: Box::new(expression),
+                },
+                GroupKind::NegativeLookbehind => Expression::NegativeLookbehind {
+                    id: lookbehind_id.unwrap(),
+                    inner: Box::new(expression),
+                },
             };
             return Ok((next, expression));
         }
@@ -879,9 +885,6 @@ fn parse_basic<'a>(mut cursor: Cursor<'a>, depth: usize, context: &mut ParseCont
             cursor.position += 2;
             match escaped {
                 '(' => {
-                    if context.closed_captures.len() > MAX_CAPTURE_GROUPS {
-                        return Err(ParseIssue::Unsupported);
-                    }
                     context.closed_captures.push(false);
                     let index = context.closed_captures.len() - 1;
                     let (next, inner) = parse_basic(cursor, depth + 1, context)?;
@@ -1005,8 +1008,8 @@ fn parse_repetition<'a>(mut cursor: Cursor<'a>, atom: Expression, syntax: Syntax
             | Expression::NonWordBoundary
             | Expression::PositiveLookahead(_)
             | Expression::NegativeLookahead(_)
-            | Expression::PositiveLookbehind(_)
-            | Expression::NegativeLookbehind(_)
+            | Expression::PositiveLookbehind { .. }
+            | Expression::NegativeLookbehind { .. }
     ) {
         return Err(ParseIssue::Invalid);
     }
@@ -1127,9 +1130,7 @@ fn expression_preference(expression: &Expression) -> Option<MatchPreference> {
 }
 
 pub fn compile(pattern: &str, options: Options) -> CompileOutcome {
-    if pattern.chars().count() > MAX_PATTERN_SCALARS
-        || (options.syntax == Syntax::Literal && options.newline != NewlineMode::Ordinary)
-    {
+    if options.syntax == Syntax::Literal && options.newline != NewlineMode::Ordinary {
         return CompileOutcome::Uncertain;
     }
 
@@ -1188,7 +1189,6 @@ pub fn compile(pattern: &str, options: Options) -> CompileOutcome {
             preference: MatchPreference::Longest,
             capture_count: 0,
             has_backreference: false,
-            has_lookbehind: false,
         });
     }
     let characters: Vec<char> = if expanded {
@@ -1207,7 +1207,7 @@ pub fn compile(pattern: &str, options: Options) -> CompileOutcome {
     let mut context = ParseContext {
         closed_captures: vec![false],
         has_backreference: false,
-        has_lookbehind: false,
+        next_lookbehind_id: 0,
     };
     let parsed = match syntax {
         Syntax::Advanced | Syntax::Extended => {
@@ -1218,6 +1218,11 @@ pub fn compile(pattern: &str, options: Options) -> CompileOutcome {
     };
     match parsed {
         Ok((cursor, expression)) if cursor.position == characters.len() => {
+            if context.has_backreference
+                && context.closed_captures.len() - 1 > MAX_BACKREFERENCE_CAPTURE_GROUPS
+            {
+                return CompileOutcome::Uncertain;
+            }
             let preference = expression_preference(&expression).unwrap_or(MatchPreference::Longest);
             CompileOutcome::Ready(Program {
                 expression,
@@ -1228,7 +1233,6 @@ pub fn compile(pattern: &str, options: Options) -> CompileOutcome {
                 preference,
                 capture_count: context.closed_captures.len() - 1,
                 has_backreference: context.has_backreference,
-                has_lookbehind: context.has_lookbehind,
             })
         }
         Ok(_) | Err(ParseIssue::Invalid) => CompileOutcome::InvalidPattern,
@@ -1243,15 +1247,266 @@ fn push_unique(mut positions: Vec<usize>, position: usize) -> Vec<usize> {
     positions
 }
 
+struct MatchContext {
+    lookbehind_ends: Vec<Option<Vec<bool>>>,
+}
+
+struct Automaton<'a> {
+    states: Vec<Vec<Transition<'a>>>,
+    start: usize,
+    accept: usize,
+}
+
+enum Transition<'a> {
+    Epsilon(usize),
+    Assertion(&'a Expression, usize),
+    Character(&'a Expression, usize),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ScanMode {
+    Search,
+    Lookahead,
+    Lookbehind,
+}
+
+impl<'a> Automaton<'a> {
+    fn new(expression: &'a Expression) -> Self {
+        let mut automaton = Self {
+            states: Vec::new(),
+            start: 0,
+            accept: 0,
+        };
+        (automaton.start, automaton.accept) = automaton.compile(expression);
+        automaton
+    }
+
+    fn state(&mut self) -> usize {
+        let index = self.states.len();
+        self.states.push(Vec::new());
+        index
+    }
+
+    fn optional(&mut self, expression: &'a Expression, start: usize) -> usize {
+        let end = self.state();
+        let (inner_start, inner_end) = self.compile(expression);
+        self.states[start].push(Transition::Epsilon(end));
+        self.states[start].push(Transition::Epsilon(inner_start));
+        self.states[inner_end].push(Transition::Epsilon(end));
+        end
+    }
+
+    fn star(&mut self, expression: &'a Expression, start: usize) -> usize {
+        let end = self.state();
+        let (inner_start, inner_end) = self.compile(expression);
+        self.states[start].push(Transition::Epsilon(end));
+        self.states[start].push(Transition::Epsilon(inner_start));
+        self.states[inner_end].push(Transition::Epsilon(inner_start));
+        self.states[inner_end].push(Transition::Epsilon(end));
+        end
+    }
+
+    fn compile(&mut self, expression: &'a Expression) -> (usize, usize) {
+        match expression {
+            Expression::CapturingGroup { inner, .. } | Expression::NonCapturingGroup(inner) => {
+                self.compile(inner)
+            }
+            Expression::Concatenation(parts) => {
+                let start = self.state();
+                let mut previous = start;
+                for part in parts {
+                    let (part_start, part_end) = self.compile(part);
+                    self.states[previous].push(Transition::Epsilon(part_start));
+                    previous = part_end;
+                }
+                (start, previous)
+            }
+            Expression::Alternation(branches) => {
+                let start = self.state();
+                let end = self.state();
+                for branch in branches {
+                    let (branch_start, branch_end) = self.compile(branch);
+                    self.states[start].push(Transition::Epsilon(branch_start));
+                    self.states[branch_end].push(Transition::Epsilon(end));
+                }
+                (start, end)
+            }
+            Expression::Repeat(inner, repetition, _) => {
+                let (min, max) = match repetition {
+                    Repetition::ZeroOrMore => (0, None),
+                    Repetition::OneOrMore => (1, None),
+                    Repetition::ZeroOrOne => (0, Some(1)),
+                    Repetition::Bounded { min, max, .. } => (*min, *max),
+                };
+                let start = self.state();
+                let mut previous = start;
+                for _ in 0..min {
+                    let (inner_start, inner_end) = self.compile(inner);
+                    self.states[previous].push(Transition::Epsilon(inner_start));
+                    previous = inner_end;
+                }
+                if let Some(max) = max {
+                    for _ in min..max {
+                        previous = self.optional(inner, previous);
+                    }
+                } else {
+                    previous = self.star(inner, previous);
+                }
+                (start, previous)
+            }
+            Expression::BackReference(_) => unreachable!(),
+            _ => {
+                let start = self.state();
+                let end = self.state();
+                let transition = match expression {
+                    Expression::Literal(_)
+                    | Expression::CharacterClass { .. }
+                    | Expression::AnyCharacter => Transition::Character(expression, end),
+                    Expression::Empty => Transition::Epsilon(end),
+                    _ => Transition::Assertion(expression, end),
+                };
+                self.states[start].push(transition);
+                (start, end)
+            }
+        }
+    }
+}
+
+fn set_active(
+    active: &mut [Option<usize>],
+    indexes: &mut Vec<usize>,
+    index: usize,
+    start: usize,
+) -> bool {
+    match active[index] {
+        Some(previous) if previous <= start => return false,
+        None => indexes.push(index),
+        Some(_) => {}
+    }
+    active[index] = Some(start);
+    true
+}
+
+fn run_automaton(
+    automaton: &Automaton<'_>,
+    subject: &[char],
+    from: usize,
+    mode: MatchMode,
+    preference: MatchPreference,
+    scan_mode: ScanMode,
+    context: &mut MatchContext,
+) -> (Option<MatchSpan>, Vec<bool>) {
+    let collect_all_ends = scan_mode == ScanMode::Lookbehind;
+    let mut active = vec![None; automaton.states.len()];
+    let mut next = vec![None; automaton.states.len()];
+    let mut active_indexes = Vec::new();
+    let mut next_indexes = Vec::new();
+    let mut ends = if collect_all_ends {
+        vec![false; subject.len() + 1]
+    } else {
+        Vec::new()
+    };
+    let mut best: Option<MatchSpan> = None;
+    for position in from..=subject.len() {
+        if scan_mode != ScanMode::Lookahead || position == from {
+            set_active(&mut active, &mut active_indexes, automaton.start, position);
+        }
+        let mut queue = active_indexes.clone();
+        let mut queue_position = 0;
+        while queue_position < queue.len() {
+            let index = queue[queue_position];
+            queue_position += 1;
+            let start = active[index].unwrap();
+            for transition in &automaton.states[index] {
+                let destination = match transition {
+                    Transition::Epsilon(destination) => Some(*destination),
+                    Transition::Assertion(assertion, destination)
+                        if match_ends(assertion, subject, position, mode, context)
+                            .contains(&position) =>
+                    {
+                        Some(*destination)
+                    }
+                    _ => None,
+                };
+                if let Some(destination) = destination {
+                    if set_active(&mut active, &mut active_indexes, destination, start) {
+                        queue.push(destination);
+                    }
+                }
+            }
+        }
+        if let Some(start) = active[automaton.accept] {
+            if collect_all_ends {
+                ends[position] = true;
+            }
+            let candidate = MatchSpan {
+                start,
+                end: position,
+            };
+            if best.as_ref().is_none_or(|current| {
+                start < current.start
+                    || (start == current.start
+                        && match preference {
+                            MatchPreference::Longest => position > current.end,
+                            MatchPreference::Shortest => position < current.end,
+                        })
+            }) {
+                best = Some(candidate);
+            }
+        }
+        if scan_mode == ScanMode::Lookahead && best.is_some() {
+            break;
+        }
+        if position == subject.len() {
+            break;
+        }
+        for index in &active_indexes {
+            let start = active[*index].unwrap();
+            for transition in &automaton.states[*index] {
+                if let Transition::Character(character, destination) = transition {
+                    if match_ends(character, subject, position, mode, context)
+                        .contains(&(position + 1))
+                    {
+                        set_active(&mut next, &mut next_indexes, *destination, start);
+                    }
+                }
+            }
+        }
+        if !collect_all_ends
+            && best.as_ref().is_some_and(|span| {
+                next_indexes
+                    .iter()
+                    .all(|index| next[*index].unwrap() > span.start)
+            })
+        {
+            break;
+        }
+        if scan_mode == ScanMode::Lookahead && next_indexes.is_empty() {
+            break;
+        }
+        for index in active_indexes.drain(..) {
+            active[index] = None;
+        }
+        let previous = active;
+        active = next;
+        next = previous;
+        let previous_indexes = active_indexes;
+        active_indexes = next_indexes;
+        next_indexes = previous_indexes;
+    }
+    (best, ends)
+}
+
 fn advance(
     expression: &Expression,
     subject: &[char],
     positions: Vec<usize>,
     mode: MatchMode,
+    context: &mut MatchContext,
 ) -> Vec<usize> {
     let mut next = Vec::new();
     for position in positions {
-        for end in match_ends(expression, subject, position, mode) {
+        for end in match_ends(expression, subject, position, mode, context) {
             next = push_unique(next, end);
         }
     }
@@ -1264,13 +1519,14 @@ fn match_repeat(
     subject: &[char],
     start: usize,
     mode: MatchMode,
+    context: &mut MatchContext,
 ) -> Vec<usize> {
     if let Repetition::Bounded { min, max, .. } = repetition {
         let mut reached = if *min == 0 { vec![start] } else { Vec::new() };
         let mut frontier = vec![start];
         let limit = max.unwrap_or(min + subject.len() + 1);
         for count in 1..=limit {
-            frontier = advance(expression, subject, frontier, mode);
+            frontier = advance(expression, subject, frontier, mode, context);
             if frontier.is_empty() {
                 break;
             }
@@ -1290,19 +1546,19 @@ fn match_repeat(
         return reached;
     }
     let mut reached = match repetition {
-        Repetition::OneOrMore => advance(expression, subject, vec![start], mode),
+        Repetition::OneOrMore => advance(expression, subject, vec![start], mode, context),
         Repetition::ZeroOrMore | Repetition::ZeroOrOne => vec![start],
         Repetition::Bounded { .. } => Vec::new(),
     };
     if matches!(repetition, Repetition::ZeroOrOne) {
-        return advance(expression, subject, vec![start], mode)
+        return advance(expression, subject, vec![start], mode, context)
             .into_iter()
             .fold(reached, push_unique);
     }
 
     let mut frontier = reached.clone();
     while !frontier.is_empty() {
-        let candidates = advance(expression, subject, frontier, mode);
+        let candidates = advance(expression, subject, frontier, mode, context);
         frontier = Vec::new();
         for end in candidates {
             if !reached.contains(&end) {
@@ -1332,17 +1588,30 @@ fn is_word(character: Option<&char>) -> bool {
 }
 
 fn lookbehind_matches(
+    id: usize,
     expression: &Expression,
     subject: &[char],
     position: usize,
     mode: MatchMode,
+    context: &mut MatchContext,
 ) -> bool {
-    for start in 0..=position {
-        if match_ends(expression, subject, start, mode).contains(&position) {
-            return true;
-        }
+    if context.lookbehind_ends.len() <= id {
+        context.lookbehind_ends.resize_with(id + 1, || None);
     }
-    false
+    if context.lookbehind_ends[id].is_none() {
+        let automaton = Automaton::new(expression);
+        let (_, ends) = run_automaton(
+            &automaton,
+            subject,
+            0,
+            mode,
+            MatchPreference::Longest,
+            ScanMode::Lookbehind,
+            context,
+        );
+        context.lookbehind_ends[id] = Some(ends);
+    }
+    context.lookbehind_ends[id].as_ref().unwrap()[position]
 }
 
 fn match_ends(
@@ -1350,6 +1619,7 @@ fn match_ends(
     subject: &[char],
     start: usize,
     mode: MatchMode,
+    context: &mut MatchContext,
 ) -> Vec<usize> {
     let stop_at_newline = matches!(mode.newline, NewlineMode::Sensitive | NewlineMode::Stop);
     let line_anchors = matches!(mode.newline, NewlineMode::Sensitive | NewlineMode::Anchors);
@@ -1465,20 +1735,32 @@ fn match_ends(
             }
         }
         Expression::CapturingGroup { inner, .. } | Expression::NonCapturingGroup(inner) => {
-            match_ends(inner, subject, start, mode)
+            match_ends(inner, subject, start, mode, context)
         }
         Expression::BackReference(_) => Vec::new(),
         Expression::PositiveLookahead(inner) | Expression::NegativeLookahead(inner) => {
-            let matches = !match_ends(inner, subject, start, mode).is_empty();
+            let automaton = Automaton::new(inner);
+            let matches = run_automaton(
+                &automaton,
+                subject,
+                start,
+                mode,
+                MatchPreference::Shortest,
+                ScanMode::Lookahead,
+                context,
+            )
+            .0
+            .is_some();
             if matches == matches!(expression, Expression::PositiveLookahead(_)) {
                 vec![start]
             } else {
                 Vec::new()
             }
         }
-        Expression::PositiveLookbehind(inner) | Expression::NegativeLookbehind(inner) => {
-            let matches = lookbehind_matches(inner, subject, start, mode);
-            if matches == matches!(expression, Expression::PositiveLookbehind(_)) {
+        Expression::PositiveLookbehind { id, inner }
+        | Expression::NegativeLookbehind { id, inner } => {
+            let matches = lookbehind_matches(*id, inner, subject, start, mode, context);
+            if matches == matches!(expression, Expression::PositiveLookbehind { .. }) {
                 vec![start]
             } else {
                 Vec::new()
@@ -1487,7 +1769,7 @@ fn match_ends(
         Expression::Concatenation(parts) => {
             let mut positions = vec![start];
             for part in parts {
-                positions = advance(part, subject, positions, mode);
+                positions = advance(part, subject, positions, mode, context);
                 if positions.is_empty() {
                     break;
                 }
@@ -1497,37 +1779,16 @@ fn match_ends(
         Expression::Alternation(branches) => {
             let mut ends = Vec::new();
             for branch in branches {
-                for end in match_ends(branch, subject, start, mode) {
+                for end in match_ends(branch, subject, start, mode, context) {
                     ends = push_unique(ends, end);
                 }
             }
             ends
         }
         Expression::Repeat(inner, repetition, _) => {
-            match_repeat(inner, repetition, subject, start, mode)
+            match_repeat(inner, repetition, subject, start, mode, context)
         }
     }
-}
-
-fn first_match(
-    expression: &Expression,
-    subject: &[char],
-    from: usize,
-    mode: MatchMode,
-    preference: MatchPreference,
-) -> Option<MatchSpan> {
-    for start in from..=subject.len() {
-        let ends = match_ends(expression, subject, start, mode);
-        let end = if preference == MatchPreference::Shortest {
-            ends.into_iter().min()
-        } else {
-            ends.into_iter().max()
-        };
-        if let Some(end) = end {
-            return Some(MatchSpan { start, end });
-        }
-    }
-    None
 }
 
 #[derive(Clone, PartialEq, Eq)]
@@ -1545,8 +1806,8 @@ fn clear_captures(expression: &Expression, captures: &mut [Option<MatchSpan>]) {
         Expression::NonCapturingGroup(inner)
         | Expression::PositiveLookahead(inner)
         | Expression::NegativeLookahead(inner)
-        | Expression::PositiveLookbehind(inner)
-        | Expression::NegativeLookbehind(inner)
+        | Expression::PositiveLookbehind { inner, .. }
+        | Expression::NegativeLookbehind { inner, .. }
         | Expression::Repeat(inner, _, _) => clear_captures(inner, captures),
         Expression::Concatenation(parts) | Expression::Alternation(parts) => {
             for part in parts {
@@ -1563,8 +1824,8 @@ fn contains_capture(expression: &Expression) -> bool {
         Expression::NonCapturingGroup(inner)
         | Expression::PositiveLookahead(inner)
         | Expression::NegativeLookahead(inner)
-        | Expression::PositiveLookbehind(inner)
-        | Expression::NegativeLookbehind(inner)
+        | Expression::PositiveLookbehind { inner, .. }
+        | Expression::NegativeLookbehind { inner, .. }
         | Expression::Repeat(inner, _, _) => contains_capture(inner),
         Expression::Concatenation(parts) | Expression::Alternation(parts) => {
             parts.iter().any(contains_capture)
@@ -1588,10 +1849,11 @@ fn capture_advance(
     subject: &[char],
     states: Vec<CaptureState>,
     mode: MatchMode,
+    context: &mut MatchContext,
 ) -> Result<Vec<CaptureState>, ()> {
     let mut next = Vec::new();
     for state in states {
-        for candidate in capture_match_ends(expression, subject, state, mode)? {
+        for candidate in capture_match_ends(expression, subject, state, mode, context)? {
             push_capture_unique(&mut next, candidate)?;
         }
     }
@@ -1605,6 +1867,7 @@ fn capture_repeat(
     subject: &[char],
     state: CaptureState,
     mode: MatchMode,
+    context: &mut MatchContext,
 ) -> Result<Vec<CaptureState>, ()> {
     let (min, max) = match repetition {
         Repetition::ZeroOrMore => (0, None),
@@ -1642,7 +1905,7 @@ fn capture_repeat(
         for candidate in &mut frontier {
             clear_captures(expression, &mut candidate.captures);
         }
-        let mut next = capture_advance(expression, subject, frontier, mode)?;
+        let mut next = capture_advance(expression, subject, frontier, mode, context)?;
         if prefer_bounded_paths {
             next.sort_by(|left, right| right.position.cmp(&left.position));
         }
@@ -1674,6 +1937,7 @@ fn capture_match_ends(
     subject: &[char],
     state: CaptureState,
     mode: MatchMode,
+    context: &mut MatchContext,
 ) -> Result<Vec<CaptureState>, ()> {
     match expression {
         Expression::CapturingGroup { index, inner } => {
@@ -1682,7 +1946,7 @@ fn capture_match_ends(
             state.captures[*index] = None;
             clear_captures(inner, &mut state.captures);
             let mut results = Vec::new();
-            for mut candidate in capture_match_ends(inner, subject, state, mode)? {
+            for mut candidate in capture_match_ends(inner, subject, state, mode, context)? {
                 candidate.captures[*index] = Some(MatchSpan {
                     start,
                     end: candidate.position,
@@ -1691,7 +1955,9 @@ fn capture_match_ends(
             }
             Ok(results)
         }
-        Expression::NonCapturingGroup(inner) => capture_match_ends(inner, subject, state, mode),
+        Expression::NonCapturingGroup(inner) => {
+            capture_match_ends(inner, subject, state, mode, context)
+        }
         Expression::BackReference(index) => {
             let Some(span) = state.captures[*index] else {
                 return Ok(Vec::new());
@@ -1717,7 +1983,7 @@ fn capture_match_ends(
         Expression::Concatenation(parts) => {
             let mut states = vec![state];
             for part in parts {
-                states = capture_advance(part, subject, states, mode)?;
+                states = capture_advance(part, subject, states, mode, context)?;
                 if states.is_empty() {
                     break;
                 }
@@ -1727,22 +1993,31 @@ fn capture_match_ends(
         Expression::Alternation(branches) => {
             let mut results = Vec::new();
             for branch in branches {
-                for candidate in capture_match_ends(branch, subject, state.clone(), mode)? {
+                for candidate in capture_match_ends(branch, subject, state.clone(), mode, context)?
+                {
                     push_capture_unique(&mut results, candidate)?;
                 }
             }
             Ok(results)
         }
-        Expression::Repeat(inner, repetition, non_greedy) => {
-            capture_repeat(inner, repetition, *non_greedy, subject, state, mode)
-        }
-        _ => Ok(match_ends(expression, subject, state.position, mode)
-            .into_iter()
-            .map(|position| CaptureState {
-                position,
-                captures: state.captures.clone(),
-            })
-            .collect()),
+        Expression::Repeat(inner, repetition, non_greedy) => capture_repeat(
+            inner,
+            repetition,
+            *non_greedy,
+            subject,
+            state,
+            mode,
+            context,
+        ),
+        _ => Ok(
+            match_ends(expression, subject, state.position, mode, context)
+                .into_iter()
+                .map(|position| CaptureState {
+                    position,
+                    captures: state.captures.clone(),
+                })
+                .collect(),
+        ),
     }
 }
 
@@ -1753,13 +2028,14 @@ fn first_capture_match(
     mode: MatchMode,
     preference: MatchPreference,
     capture_count: usize,
+    context: &mut MatchContext,
 ) -> Result<Option<MatchSpan>, ()> {
     for start in from..=subject.len() {
         let state = CaptureState {
             position: start,
             captures: vec![None; capture_count + 1],
         };
-        let states = capture_match_ends(expression, subject, state, mode)?;
+        let states = capture_match_ends(expression, subject, state, mode, context)?;
         let ends = states.into_iter().map(|state| state.position);
         let end = if preference == MatchPreference::Shortest {
             ends.min()
@@ -1776,11 +2052,12 @@ fn first_capture_match(
 impl Program {
     pub fn find(&self, subject: &str, from: usize) -> MatchOutcome {
         let characters: Vec<char> = subject.chars().collect();
-        if characters.len() > MAX_SUBJECT_SCALARS
-            || (self.has_lookbehind && characters.len() > MAX_LOOKBEHIND_SUBJECT_SCALARS)
-        {
+        if self.has_backreference && characters.len() > MAX_BACKREFERENCE_SUBJECT_SCALARS {
             return MatchOutcome::Uncertain;
         }
+        let mut context = MatchContext {
+            lookbehind_ends: Vec::new(),
+        };
         let result = if self.has_backreference {
             first_capture_match(
                 &self.expression,
@@ -1789,15 +2066,20 @@ impl Program {
                 self.mode,
                 self.preference,
                 self.capture_count,
+                &mut context,
             )
         } else {
-            Ok(first_match(
-                &self.expression,
+            let automaton = Automaton::new(&self.expression);
+            Ok(run_automaton(
+                &automaton,
                 &characters,
                 from,
                 self.mode,
                 self.preference,
-            ))
+                ScanMode::Search,
+                &mut context,
+            )
+            .0)
         };
         match result {
             Ok(Some(span)) => MatchOutcome::Found(span),
@@ -1811,11 +2093,17 @@ impl Program {
             return CountOutcome::InvalidStart;
         }
         let characters: Vec<char> = subject.chars().collect();
-        if characters.len() > MAX_SUBJECT_SCALARS
-            || (self.has_lookbehind && characters.len() > MAX_LOOKBEHIND_SUBJECT_SCALARS)
-        {
+        if self.has_backreference && characters.len() > MAX_BACKREFERENCE_SUBJECT_SCALARS {
             return CountOutcome::Uncertain;
         }
+        let mut context = MatchContext {
+            lookbehind_ends: Vec::new(),
+        };
+        let automaton = if self.has_backreference {
+            None
+        } else {
+            Some(Automaton::new(&self.expression))
+        };
         let mut search_from = (start_1_based - 1) as usize;
         let mut count = 0;
         loop {
@@ -1827,15 +2115,19 @@ impl Program {
                     self.mode,
                     self.preference,
                     self.capture_count,
+                    &mut context,
                 )
             } else {
-                Ok(first_match(
-                    &self.expression,
+                Ok(run_automaton(
+                    automaton.as_ref().unwrap(),
                     &characters,
                     search_from,
                     self.mode,
                     self.preference,
-                ))
+                    ScanMode::Search,
+                    &mut context,
+                )
+                .0)
             };
             let span = match found {
                 Ok(Some(span)) => span,

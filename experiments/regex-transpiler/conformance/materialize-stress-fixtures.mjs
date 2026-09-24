@@ -505,7 +505,7 @@ try {
         side,
         input,
         expected: await oracleMatch(input, id),
-        engineExpectation: side === 'at' || boundary === 'bound_value' ? 'Definite' : 'Uncertain',
+        engineExpectation: boundary === 'group_depth' && side === 'over' ? 'Uncertain' : 'Definite',
       })
     }
   }
