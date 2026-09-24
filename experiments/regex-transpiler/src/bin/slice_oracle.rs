@@ -24,7 +24,8 @@ fn main() {
     let mut cases = Vec::new();
     let subjects = [
         "", "a", "A", "ba", "aaa", "AaA", "a😀a", "😀", "\n", "\na", "a\n", "Åå", "Kk", "KK",
-        "a\0a", "😀\nβ", "a.b", "a+b", "^a", "a$", "a\\b", "(a)", "[a]",
+        "a\0a", "😀\nβ", "a.b", "a+b", "^a", "a$", "a\\b", "(a)", "[a]", "zabd", "zacd", "zaed",
+        "ba", ".", "^", "β",
     ];
     for pattern in [
         "", "a", "A", "aa", "aA", "😀", "Å", "å", "K", "K", "\n", ".", "\0", "Z", "z",
@@ -69,7 +70,8 @@ fn main() {
     for pattern in [
         "", "a", "a.b", "a..b", ".a", "a.", "..", "Å.😀", "a\nb", "^a", "a$", "^$", "^a.b$", "a^b",
         "a$b", "^.", "^😀$", "a*", "a|b", "a\\+b", "a\\.b", "\\^a", "a\\$", "a\\\\b", "\\(a\\)",
-        "\\[a\\]", "a\\nb", "a\\",
+        "\\[a\\]", "a\\nb", "a\\", "a[bc]d", "[ab][ab]", "[.]", "[a^b]", "[😀β]", "[A]", "[a\n]",
+        "[a-z]", "[^ab]", "[]", "[a",
     ] {
         cases.push(json!({
             "operation": "supports_simple_advanced",

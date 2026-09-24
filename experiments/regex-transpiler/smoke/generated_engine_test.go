@@ -59,6 +59,15 @@ func TestLiteralSlice(t *testing.T) {
 	if find_simple_advanced("\\^a", "z^a", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 3}}) {
 		t.Error("escaped anchor changed position")
 	}
+	if !supports_simple_advanced("a[bc]d") || supports_simple_advanced("a[b-d]") {
+		t.Error("literal class support classification changed")
+	}
+	if find_simple_advanced("a[bc]d", "zacd", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 4}}) {
+		t.Error("literal class missed sequence match")
+	}
+	if find_simple_advanced("[A]", "a", 0, false, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 0, end: 1}}) {
+		t.Error("literal class missed ASCII case fold")
+	}
 	if charge_work(1999999, 1) != (WorkOutcome{kind: WorkOutcomeReady, ready: 2000000}) {
 		t.Error("work charge at budget changed result")
 	}

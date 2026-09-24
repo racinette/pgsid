@@ -63,6 +63,16 @@ assert.deepEqual(generated.find_simple_advanced('\\^a', 'z^a', 0, true, true, fa
   kind: 'Found',
   value: { start: 1, end: 3 },
 })
+assert.equal(generated.supports_simple_advanced('a[bc]d'), true)
+assert.equal(generated.supports_simple_advanced('a[b-d]'), false)
+assert.deepEqual(generated.find_simple_advanced('a[bc]d', 'zacd', 0, true, true, false), {
+  kind: 'Found',
+  value: { start: 1, end: 4 },
+})
+assert.deepEqual(generated.find_simple_advanced('[A]', 'a', 0, false, true, false), {
+  kind: 'Found',
+  value: { start: 0, end: 1 },
+})
 assert.deepEqual(generated.charge_work(1999999, 1), {
   kind: 'Ready',
   value: 2000000,

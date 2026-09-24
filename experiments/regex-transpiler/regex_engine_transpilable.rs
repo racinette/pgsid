@@ -114,9 +114,24 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
                 return false;
             }
         }
+        if atom == '[' {
+            position += 1;
+            if position == atoms.len() || atoms[position] == ']' || atoms[position] == '^' {
+                return false;
+            }
+            while position < atoms.len() && atoms[position] != ']' {
+                if atoms[position] == '[' || atoms[position] == '\\' || atoms[position] == '-' {
+                    return false;
+                }
+                position += 1;
+            }
+            if position == atoms.len() {
+                return false;
+            }
+        }
         if atom != '\\'
-            && (atom == '['
-                || atom == ']'
+            && atom != '['
+            && (atom == ']'
                 || atom == '('
                 || atom == ')'
                 || atom == '{'
@@ -170,9 +185,24 @@ pub fn find_simple_advanced(
                 return MatchOutcome::Uncertain;
             }
         }
+        if atom == '[' {
+            position += 1;
+            if position == atoms.len() || atoms[position] == ']' || atoms[position] == '^' {
+                return MatchOutcome::Uncertain;
+            }
+            while position < atoms.len() && atoms[position] != ']' {
+                if atoms[position] == '[' || atoms[position] == '\\' || atoms[position] == '-' {
+                    return MatchOutcome::Uncertain;
+                }
+                position += 1;
+            }
+            if position == atoms.len() {
+                return MatchOutcome::Uncertain;
+            }
+        }
         if atom != '\\'
-            && (atom == '['
-                || atom == ']'
+            && atom != '['
+            && (atom == ']'
                 || atom == '('
                 || atom == ')'
                 || atom == '{'
@@ -213,7 +243,31 @@ pub fn find_simple_advanced(
             {
                 break;
             }
-            if escaped || (atom != '^' && atom != '$') {
+            if escaped == false && atom == '[' {
+                if subject_position >= haystack.len() {
+                    break;
+                }
+                let actual = haystack[subject_position];
+                let mut class_position = atom_position + 1;
+                while atoms[class_position] != ']' {
+                    let expected = atoms[class_position];
+                    if actual == expected
+                        || (case_sensitive == false
+                            && actual.to_ascii_lowercase() == expected.to_ascii_lowercase())
+                    {
+                        break;
+                    }
+                    class_position += 1;
+                }
+                if atoms[class_position] == ']' {
+                    break;
+                }
+                subject_position += 1;
+                while atoms[atom_position] != ']' {
+                    atom_position += 1;
+                }
+            }
+            if escaped || (atom != '^' && atom != '$' && atom != '[') {
                 if subject_position >= haystack.len() {
                     break;
                 }
