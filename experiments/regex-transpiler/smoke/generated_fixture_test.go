@@ -48,6 +48,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 	mixed := 0
 	anchored := 0
 	escaped := 0
+	classes := 0
 	positioned := 0
 	newlineModes := map[string]bool{}
 	for _, path := range []string{"postgres-fixtures.json", "stress-fixtures.json", "targeted-postgres-fixtures.json", "stress-position-fixtures.json", "stress-boundary-fixtures.json"} {
@@ -95,6 +96,9 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				if strings.Contains(input.Pattern, "\\") {
 					escaped++
 				}
+				if strings.Contains(input.Pattern, "[") {
+					classes++
+				}
 				newlineModes[input.Options.Newline] = true
 			} else {
 				continue
@@ -129,7 +133,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			}
 		}
 	}
-	if literal < 40 || insensitive < 7 || advanced < 100 || dot < 20 || mixed < 50 || anchored < 20 || escaped < 40 || positioned < 6 || len(newlineModes) != 4 {
-		t.Fatalf("fixture coverage: literal=%d insensitive=%d advanced=%d dot=%d mixed=%d anchored=%d escaped=%d positioned=%d newline=%v", literal, insensitive, advanced, dot, mixed, anchored, escaped, positioned, newlineModes)
+	if literal < 40 || insensitive < 7 || advanced < 100 || dot < 20 || mixed < 50 || anchored < 20 || escaped < 40 || classes < 50 || positioned < 6 || len(newlineModes) != 4 {
+		t.Fatalf("fixture coverage: literal=%d insensitive=%d advanced=%d dot=%d mixed=%d anchored=%d escaped=%d classes=%d positioned=%d newline=%v", literal, insensitive, advanced, dot, mixed, anchored, escaped, classes, positioned, newlineModes)
 	}
 }
