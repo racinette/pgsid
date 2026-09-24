@@ -108,9 +108,11 @@ const evalCertain = (expression: SqlExpression): EvalExpression => ({
 const evalType = (expression: EvalExpression): string =>
   expression.kind === 'certain'
     ? expression.expression.type
-    : expression.kind === 'call'
-      ? expression.call.type
-      : expression.type
+    : expression.kind === 'regex-count'
+      ? 'pg_catalog.int4'
+      : expression.kind === 'call'
+        ? expression.call.type
+        : expression.type
 
 const evalCall = (
   kind: 'operator' | 'function',
@@ -1128,7 +1130,163 @@ const similarCases: RegexCallableCase[] = [
   },
 ]
 
-const allCases = [
+interface RegexCountCase extends CheckCase {
+  sql: string
+  params: (string | number | null)[]
+}
+
+const countExpression = (operands: readonly EvalExpression[]): EvalExpression => ({
+  kind: 'regex-count',
+  signature: `function:["pg_catalog","regexp_count"](${operands.map(evalType).join(',')})`,
+  collation: 'C',
+  operands,
+})
+
+const countCase = (
+  name: string,
+  args: readonly (string | number | null)[],
+  target: number,
+  expected: Expected,
+): RegexCountCase => {
+  const operands = args.map((argument, index) =>
+    evalCertain(
+      index === 2
+        ? { kind: 'integer', type: 'pg_catalog.int4', value: argument?.toString() ?? null }
+        : text(argument as string | null),
+    ),
+  )
+  const sqlArgs = args.map((_, index) => `$${index + 1}::${index === 2 ? 'int4' : 'text'}`)
+  return {
+    name,
+    expression: {
+      kind: 'eval-scalar',
+      expression: evalCall('operator', '=', 'pg_catalog.bool', [
+        countExpression(operands),
+        evalCertain(integer(String(target))),
+      ]),
+    },
+    expected,
+    sql: `SELECT pg_catalog.regexp_count(${sqlArgs.join(', ')}) = ${target} AS value`,
+    params: [...args],
+  }
+}
+
+const regexCountCases: RegexCountCase[] = [
+  countCase('regexp_count counts nonoverlapping literal matches', ['aaaa', 'aa'], 2, {
+    certain: true,
+    value: true,
+  }),
+  countCase('regexp_count starts at a character position', ['aaaa', 'aa', 2], 1, {
+    certain: true,
+    value: true,
+  }),
+  countCase('regexp_count start counts Unicode code points', ['😀a😀', '😀', 2], 1, {
+    certain: true,
+    value: true,
+  }),
+  countCase('regexp_count start after end yields zero', ['abc', 'a', 9], 0, {
+    certain: true,
+    value: true,
+  }),
+  countCase('regexp_count includes zero-length matches', ['😀a', ''], 3, {
+    certain: true,
+    value: true,
+  }),
+  countCase('regexp_count end anchor counts once', ['abc', '$'], 1, {
+    certain: true,
+    value: true,
+  }),
+  countCase('regexp_count literal syntax flag', ['a.a a.a', 'a.a', 1, 'q'], 2, {
+    certain: true,
+    value: true,
+  }),
+  countCase('regexp_count unsupported alternation is uncertain', ['aba', 'a|b'], 3, {
+    certain: false,
+  }),
+  countCase('regexp_count invalid start', ['a', 'a', 0], 1, {
+    certain: true,
+    value: null,
+    error: '22023',
+  }),
+  countCase('regexp_count invalid start precedes unsupported pattern', ['a', 'a|b', 0], 1, {
+    certain: true,
+    value: null,
+    error: '22023',
+  }),
+  countCase('regexp_count invalid flags', ['a', 'a', 1, 'g'], 1, {
+    certain: true,
+    value: null,
+    error: '22023',
+  }),
+  countCase('regexp_count rejects flags before an invalid pattern', ['a', '(', 1, 'g'], 1, {
+    certain: true,
+    value: null,
+    error: '22023',
+  }),
+  countCase('regexp_count invalid pattern', ['a', '('], 1, {
+    certain: true,
+    value: null,
+    error: '2201B',
+  }),
+  countCase('regexp_count NULL subject', [null, '('], 1, {
+    certain: true,
+    value: null,
+  }),
+  countCase('regexp_count NULL start', ['a', 'a', null], 1, {
+    certain: true,
+    value: null,
+  }),
+  countCase('regexp_count NULL flags', ['a', 'a', 1, null], 1, {
+    certain: true,
+    value: null,
+  }),
+  {
+    name: 'regexp_count computed pattern',
+    expression: {
+      kind: 'eval-scalar',
+      expression: evalCall('operator', '=', 'pg_catalog.bool', [
+        countExpression([evalCertain(text('aba')), evalCertain(concat(text('a'), text('')))]),
+        evalCertain(integer('2')),
+      ]),
+    },
+    expected: { certain: true, value: true },
+    sql: 'SELECT pg_catalog.regexp_count($1::text, $2::text || $3::text) = 2 AS value',
+    params: ['aba', 'a', ''],
+  },
+  {
+    name: 'regexp_count computed flags',
+    expression: {
+      kind: 'eval-scalar',
+      expression: evalCall('operator', '=', 'pg_catalog.bool', [
+        countExpression([
+          evalCertain(text('a.a a.a')),
+          evalCertain(text('a.a')),
+          evalCertain(integer('1')),
+          evalCertain(concat(text(''), text('q'))),
+        ]),
+        evalCertain(integer('2')),
+      ]),
+    },
+    expected: { certain: true, value: true },
+    sql: 'SELECT pg_catalog.regexp_count($1::text, $2::text, $3::int4, $4::text || $5::text) = 2 AS value',
+    params: ['a.a a.a', 'a.a', 1, '', 'q'],
+  },
+  {
+    name: 'regexp_count computed invalid pattern',
+    expression: {
+      kind: 'eval-scalar',
+      expression: evalCall('operator', '=', 'pg_catalog.bool', [
+        countExpression([evalCertain(text('a')), evalCertain(concat(text('('), text('')))]),
+        evalCertain(integer('1')),
+      ]),
+    },
+    expected: { certain: true, value: null, error: '2201B' },
+    sql: 'SELECT pg_catalog.regexp_count($1::text, $2::text || $3::text) = 1 AS value',
+    params: ['a', '(', ''],
+  },
+]
+
+const allCases: CheckCase[] = [
   ...logicCases,
   ...notCases,
   ...testCases,
@@ -1138,6 +1296,18 @@ const allCases = [
   ...partialScalarCases,
   ...regexCallableCases,
   ...similarCases,
+  ...regexCountCases,
+  {
+    name: 'regexp_count uncertain pattern propagates through comparison',
+    expression: {
+      kind: 'eval-scalar',
+      expression: evalCall('operator', '=', 'pg_catalog.bool', [
+        countExpression([evalCertain(text('aba')), { kind: 'uncertain', type: 'pg_catalog.text' }]),
+        evalCertain(integer('2')),
+      ]),
+    },
+    expected: { certain: false },
+  },
 ]
 
 function typescriptProject(): string {
@@ -1208,7 +1378,7 @@ describe('generated CHECK predicate evaluation', () => {
   })
 
   it('matches PostgreSQL for catalog regex call forms', async () => {
-    for (const fixture of [...regexCallableCases, ...similarCases]) {
+    for (const fixture of [...regexCallableCases, ...similarCases, ...regexCountCases]) {
       let observed: { value: boolean | null } | { error: string }
       try {
         const result = await pg.query<{ value: boolean | null }>(fixture.sql, fixture.params)
@@ -1400,6 +1570,24 @@ return [${allCases.map((_, index) => `evaluate${index}`).join(',')}].map((evalua
     const goSource = goSqlRuntime(goResult.helpers, 'main')
     expect(goSource).toContain('func evalBoolRegexAnalyze')
     expect(goSource).not.toContain('ecmascript.escape-literal')
+
+    const constantCount = emitEvalBoolExpression(
+      regexCountCases[0]!.expression,
+      typescriptSqlBackend,
+      typescriptEvalBoolBackend,
+    )
+    expect(printFile(typescriptSqlRuntime(constantCount.helpers))).not.toContain(
+      'function evalBoolRegexAnalyze',
+    )
+    const dynamicCount = emitEvalBoolExpression(
+      regexCountCases.find((fixture) => fixture.name === 'regexp_count computed pattern')!
+        .expression,
+      typescriptSqlBackend,
+      typescriptEvalBoolBackend,
+    )
+    expect(printFile(typescriptSqlRuntime(dynamicCount.helpers))).toContain(
+      'function evalBoolRegexAnalyze',
+    )
   })
 
   it('rejects malformed incomplete expressions', () => {
@@ -1506,5 +1694,28 @@ return [${allCases.map((_, index) => `evaluate${index}`).join(',')}].map((evalua
       >
     ).call
     expect(() => emitSqlExpression(totalRegexpLike, goSqlBackend)).toThrow('Unsupported overload')
+    const totalRegexpCount: SqlExpression = {
+      kind: 'function',
+      type: 'pg_catalog.int4',
+      signature: 'function:["pg_catalog","regexp_count"](pg_catalog.text,pg_catalog.text)',
+      operands: [text('a'), text('a')],
+      collation: 'C',
+    }
+    expect(() => emitSqlExpression(totalRegexpCount, typescriptSqlBackend)).toThrow(
+      'Unsupported overload',
+    )
+    expect(() =>
+      emitEvalBoolExpression(
+        {
+          kind: 'eval-scalar',
+          expression: {
+            ...countExpression([evalCertain(text('a')), evalCertain(text('a'))]),
+            signature: 'function:["pg_catalog","regexp_like"](pg_catalog.text,pg_catalog.text)',
+          } as EvalExpression,
+        },
+        goSqlBackend,
+        goEvalBoolBackend,
+      ),
+    ).toThrow('Unsupported partial regex count signature')
   })
 })

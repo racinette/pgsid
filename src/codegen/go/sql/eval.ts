@@ -1,6 +1,9 @@
 import { go, type GoExpression, type GoStatement } from '../ast.js'
 import type { EvalExpressionBackend } from '../../../sql-semantics/eval-expressions.js'
 import type { EmittedEvalExpression } from '../../../sql-semantics/eval-expressions.js'
+import { compilePostgresRegex } from '../../../sql-semantics/regex/compiler.js'
+import { parseRegexpLikeFlags } from '../../../sql-semantics/regex/flags.js'
+import { REGEX_ENGINE_PROFILES } from '../../../sql-semantics/regex/profiles.generated.js'
 
 function sqlValueType(type: string): string {
   if (type === 'pg_catalog.bool') return 'SqlBoolean'
@@ -182,6 +185,65 @@ export const goEvalBackend: EvalExpressionBackend<GoExpression> = {
     return {
       expression: iife(type, body),
       helpers: ['EvalValue', 'SqlBoolean', sqlValueType(type)],
+    }
+  },
+  regexCount: (operands, pattern, flags) => {
+    const dynamic = pattern === undefined || (operands.length === 4 && flags === undefined)
+    const parsedFlags = !dynamic ? parseRegexpLikeFlags(flags ?? '') : undefined
+    const compiled =
+      !dynamic && parsedFlags?.kind === 'valid'
+        ? compilePostgresRegex(pattern, REGEX_ENGINE_PROFILES.re2, parsedFlags.options)
+        : undefined
+    const mode = dynamic
+      ? 'dynamic'
+      : parsedFlags?.kind === 'invalid'
+        ? 'invalid-flags'
+        : compiled!.kind
+    const body: GoStatement[] = operands.map((operand, index) =>
+      go.assign([go.ident(`argument${index}`)], [operand.expression]),
+    )
+    for (const [index, operand] of operands.entries())
+      body.push(errorGuard('pg_catalog.int4', `argument${index}`, operand))
+    for (const [index, operand] of operands.entries())
+      if (operand.effect === 'partial')
+        body.push(
+          go.if(go.parsed(`!argument${index}.Certain`), [go.return(uncertain('pg_catalog.int4'))]),
+        )
+    const raw = (index: number): GoExpression => {
+      const operand = operands[index]
+      if (!operand)
+        return index === 2
+          ? go.composite(go.ident('SqlInteger'), [
+              go.keyValue('Value', go.parsed('1')),
+              go.keyValue('Valid', go.ident('true')),
+            ])
+          : go.composite(go.ident('SqlText'), [
+              go.keyValue('Value', go.string('')),
+              go.keyValue('Valid', go.ident('true')),
+            ])
+      const value = go.ident(`argument${index}`)
+      return operand.effect === 'partial' ? go.selector(value, 'Value') : value
+    }
+    body.push(
+      go.return(
+        go.call(go.ident(dynamic ? 'evalRegexCountDynamic' : 'evalRegexCount'), [
+          raw(0),
+          raw(1),
+          raw(2),
+          raw(3),
+          go.string(mode),
+          go.string(compiled?.kind === 'supported' ? compiled.source : ''),
+        ]),
+      ),
+    )
+    return {
+      expression: iife('pg_catalog.int4', body),
+      helpers: [
+        'EvalValue',
+        'SqlInteger',
+        'SqlText',
+        dynamic ? 'evalRegexCountDynamic' : 'evalRegexCount',
+      ],
     }
   },
 }

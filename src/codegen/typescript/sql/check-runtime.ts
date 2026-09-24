@@ -225,4 +225,89 @@ export const typescriptCheckHelpers: Record<
   return evalBoolRegexDynamic(value, pattern, parsed.options, false)
 }`,
   },
+  SqlInvalidRegexStartError: {
+    dependencies: [],
+    source: `class SqlInvalidRegexStartError extends Error {
+  readonly code = '22023'
+  constructor() { super('invalid regexp_count start position') }
+}`,
+  },
+  evalRegexCount: {
+    dependencies: [
+      'EvalValue',
+      'evalValueCertain',
+      'evalValueUncertain',
+      'SqlInvalidRegexStartError',
+      'SqlInvalidRegexError',
+      'SqlInvalidRegexOptionError',
+    ],
+    source: `function evalRegexCount(
+  value: string | null,
+  pattern: string | null,
+  start: bigint | null,
+  flags: string | null,
+  mode: string,
+  source: string,
+  engineFlags: string,
+): EvalValue<bigint> {
+  if (value === null || pattern === null || start === null || flags === null)
+    return evalValueCertain<bigint>(null)
+  if (start <= 0n) throw new SqlInvalidRegexStartError()
+  if (mode === 'invalid-flags') throw new SqlInvalidRegexOptionError()
+  if (mode === 'invalid') throw new SqlInvalidRegexError()
+  if (mode === 'unsupported') return evalValueUncertain<bigint>()
+  if (mode !== 'supported') throw new Error('invalid regex count decision')
+  let offset = 0
+  let position = 1n
+  for (const character of value) {
+    if (position >= start) break
+    offset += character.length
+    position++
+  }
+  if (position < start) return evalValueCertain(0n)
+  const regex = new RegExp(source, engineFlags + 'g')
+  regex.lastIndex = offset
+  let count = 0n
+  while (regex.lastIndex <= value.length) {
+    const match = regex.exec(value)
+    if (match === null) break
+    count++
+    if (match[0].length === 0) {
+      if (regex.lastIndex === value.length) break
+      const point = value.codePointAt(regex.lastIndex)!
+      regex.lastIndex += point > 0xffff ? 2 : 1
+    }
+  }
+  return evalValueCertain(count)
+}`,
+  },
+  evalRegexCountDynamic: {
+    dependencies: [
+      'evalRegexCount',
+      'evalBoolRegexAnalyze',
+      'SqlInvalidRegexStartError',
+      'SqlInvalidRegexOptionError',
+    ],
+    source: `function evalRegexCountDynamic(
+  value: string | null,
+  pattern: string | null,
+  start: bigint | null,
+  flags: string | null,
+  _mode: string,
+  _source: string,
+  _engineFlags: string,
+): EvalValue<bigint> {
+  if (value === null || pattern === null || start === null || flags === null)
+    return evalValueCertain<bigint>(null)
+  if (start <= 0n) throw new SqlInvalidRegexStartError()
+  const parsed = parseRegexpLikeFlags(flags)
+  if (parsed.kind === 'invalid') throw new SqlInvalidRegexOptionError()
+  const decision = evalBoolRegexAnalyze(pattern, parsed.options)
+  return evalRegexCount(
+    value, pattern, start, flags, decision.kind,
+    decision.kind === 'supported' ? decision.source : '',
+    decision.kind === 'supported' ? decision.flags.join('') : '',
+  )
+}`,
+  },
 }

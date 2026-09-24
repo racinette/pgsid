@@ -239,3 +239,64 @@ func evalBoolRegexpLike(value, pattern, flags SqlText) EvalBool {
 	}
 	return evalBoolRegexDynamic(value, pattern, syntax, caseSensitive, expanded, newline, false)
 }
+
+func evalRegexCount(value, pattern SqlText, start SqlInteger, flags SqlText, mode, source string) EvalValue[SqlInteger] {
+	for _, input := range []SqlText{value, pattern, flags} {
+		if input.Error != "" {
+			return EvalValue[SqlInteger]{Certain: true, Value: SqlInteger{Error: input.Error}}
+		}
+	}
+	if start.Error != "" {
+		return EvalValue[SqlInteger]{Certain: true, Value: SqlInteger{Error: start.Error}}
+	}
+	if !value.Valid || !pattern.Valid || !start.Valid || !flags.Valid {
+		return EvalValue[SqlInteger]{Certain: true}
+	}
+	if start.Value <= 0 {
+		return EvalValue[SqlInteger]{Certain: true, Value: SqlInteger{Error: "22023"}}
+	}
+	if mode == "invalid-flags" {
+		return EvalValue[SqlInteger]{Certain: true, Value: SqlInteger{Error: "22023"}}
+	}
+	if mode == "invalid" {
+		return EvalValue[SqlInteger]{Certain: true, Value: SqlInteger{Error: "2201B"}}
+	}
+	if mode == "unsupported" {
+		return EvalValue[SqlInteger]{}
+	}
+	if mode != "supported" {
+		panic("unknown regex count decision")
+	}
+	chars := []rune(value.Value)
+	if start.Value > int64(len(chars))+1 {
+		return EvalValue[SqlInteger]{Certain: true, Value: SqlInteger{Value: 0, Valid: true}}
+	}
+	if start.Value > 1 && strings.Contains(source, "^") {
+		return EvalValue[SqlInteger]{}
+	}
+	matches := regexp.MustCompile(source).FindAllStringIndex(string(chars[start.Value-1:]), -1)
+	return EvalValue[SqlInteger]{Certain: true, Value: SqlInteger{Value: int64(len(matches)), Valid: true}}
+}
+
+func evalRegexCountDynamic(value, pattern SqlText, start SqlInteger, flags SqlText, _, _ string) EvalValue[SqlInteger] {
+	for _, input := range []SqlText{value, pattern, flags} {
+		if input.Error != "" {
+			return EvalValue[SqlInteger]{Certain: true, Value: SqlInteger{Error: input.Error}}
+		}
+	}
+	if start.Error != "" {
+		return EvalValue[SqlInteger]{Certain: true, Value: SqlInteger{Error: start.Error}}
+	}
+	if !value.Valid || !pattern.Valid || !start.Valid || !flags.Valid {
+		return EvalValue[SqlInteger]{Certain: true}
+	}
+	if start.Value <= 0 {
+		return EvalValue[SqlInteger]{Certain: true, Value: SqlInteger{Error: "22023"}}
+	}
+	syntax, caseSensitive, expanded, newline, errorCode := regexLikeFlags(flags.Value)
+	if errorCode != "" {
+		return EvalValue[SqlInteger]{Certain: true, Value: SqlInteger{Error: errorCode}}
+	}
+	decision := evalBoolRegexAnalyze(pattern.Value, syntax, caseSensitive, expanded, newline)
+	return evalRegexCount(value, pattern, start, flags, decision.Kind, decision.Source)
+}

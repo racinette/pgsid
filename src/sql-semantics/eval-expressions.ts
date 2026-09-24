@@ -7,6 +7,7 @@ import {
   type ScalarType,
 } from './expressions.js'
 import type { TypedSqlExpression } from './signatures.js'
+import { builtinMetadata } from '../postgres/builtins/inventory.js'
 
 export type EvalExpression =
   | { kind: 'certain'; expression: SqlExpression }
@@ -28,6 +29,12 @@ export type EvalExpression =
   | {
       kind: 'call'
       call: SqlCallableExpression
+      operands: readonly EvalExpression[]
+    }
+  | {
+      kind: 'regex-count'
+      signature: string
+      collation: 'C'
       operands: readonly EvalExpression[]
     }
 
@@ -62,6 +69,11 @@ export interface EvalExpressionBackend<Ast> {
     type: string,
     branches: readonly { when: EmittedEvalExpression<Ast>; then: EmittedEvalExpression<Ast> }[],
     otherwise: EmittedEvalExpression<Ast>,
+  ) => { expression: Ast; helpers: readonly string[] }
+  regexCount: (
+    operands: readonly EmittedEvalExpression<Ast>[],
+    pattern: string | undefined,
+    flags: string | undefined,
   ) => { expression: Ast; helpers: readonly string[] }
 }
 
@@ -157,6 +169,35 @@ export function emitEvalExpression<Ast>(
       const result = backend.case(node.type, branches, otherwise)
       include(result.helpers)
       return { type: node.type, expression: result.expression, effect: 'partial' }
+    }
+    if (node.kind === 'regex-count') {
+      const metadata = builtinMetadata(node.signature)
+      const operands = node.operands.map(emit)
+      if (
+        metadata.kind !== 'function' ||
+        metadata.schema !== 'pg_catalog' ||
+        metadata.name !== 'regexp_count' ||
+        metadata.result !== 'pg_catalog.int4' ||
+        !metadata.strict ||
+        metadata.returnsSet ||
+        metadata.args.length !== operands.length ||
+        metadata.args.length < 2 ||
+        metadata.args.length > 4 ||
+        metadata.args.some((type, index) => operands[index]?.type !== type) ||
+        node.collation !== 'C'
+      )
+        throw new Error(`Unsupported partial regex count signature: ${node.signature}`)
+      const literal = (index: number): string | undefined => {
+        const operand = node.operands[index]
+        return operand?.kind === 'certain' &&
+          operand.expression.kind === 'text' &&
+          operand.expression.value !== null
+          ? operand.expression.value
+          : undefined
+      }
+      const result = backend.regexCount(operands, literal(1), literal(3))
+      include(result.helpers)
+      return { type: 'pg_catalog.int4', expression: result.expression, effect: 'partial' }
     }
     const operands = node.operands.map(emit)
     if (node.call.kind === 'cast' && node.call.signature === null) {
