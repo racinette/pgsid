@@ -483,6 +483,20 @@ try {
     ],
     ['capture_groups', '(a)'.repeat(128), 'a'.repeat(128), '(a)'.repeat(129), 'a'.repeat(129)],
     [
+      'backreference_subject_scalars',
+      '(a)\\1',
+      `${'z'.repeat(4094)}aa`,
+      '(a)\\1',
+      `${'z'.repeat(4095)}aa`,
+    ],
+    [
+      'backreference_capture_groups',
+      `${'(a)'.repeat(128)}\\1`,
+      'a'.repeat(129),
+      `${'(a)'.repeat(129)}\\1`,
+      'a'.repeat(130),
+    ],
+    [
       'group_depth',
       `${'('.repeat(64)}a${')'.repeat(64)}`,
       'a',

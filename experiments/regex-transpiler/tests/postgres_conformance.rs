@@ -421,13 +421,13 @@ fn rust_boundary_results_match_postgres_except_nested_group_limit() {
             "pattern_scalars" | "pattern_unicode_scalars" => {
                 assert_eq!(pattern.chars().count(), 3072 + increment);
             }
-            "subject_scalars" | "subject_unicode_scalars" => {
+            "subject_scalars" | "subject_unicode_scalars" | "backreference_subject_scalars" => {
                 assert_eq!(subject.chars().count(), 4096 + increment);
             }
             "lookbehind_subject_scalars" => {
                 assert_eq!(subject.chars().count(), 256 + increment);
             }
-            "capture_groups" => {
+            "capture_groups" | "backreference_capture_groups" => {
                 assert_eq!(pattern.matches("(a)").count(), 128 + increment);
             }
             "group_depth" => {
@@ -464,9 +464,9 @@ fn rust_boundary_results_match_postgres_except_nested_group_limit() {
             other => panic!("unknown boundary expectation {other}"),
         }
     }
-    assert_eq!(boundaries.len(), 8);
+    assert_eq!(boundaries.len(), 10);
     assert!(boundaries.values().all(|count| *count == 2));
-    assert_eq!(definite, 15);
+    assert_eq!(definite, 19);
     assert_eq!(uncertain, 1);
     assert!(
         mismatches.is_empty(),

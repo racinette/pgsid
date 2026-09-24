@@ -1,8 +1,7 @@
-const MAX_BACKREFERENCE_SUBJECT_SCALARS: usize = 4096;
 const MAX_GROUP_DEPTH: usize = 64;
-const MAX_BACKREFERENCE_CAPTURE_GROUPS: usize = 128;
 const MAX_BOUND: usize = 255;
 const MAX_CAPTURE_STATES: usize = 2048;
+const MAX_CAPTURE_WORK: usize = 2_000_000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Syntax {
@@ -1218,11 +1217,6 @@ pub fn compile(pattern: &str, options: Options) -> CompileOutcome {
     };
     match parsed {
         Ok((cursor, expression)) if cursor.position == characters.len() => {
-            if context.has_backreference
-                && context.closed_captures.len() - 1 > MAX_BACKREFERENCE_CAPTURE_GROUPS
-            {
-                return CompileOutcome::Uncertain;
-            }
             let preference = expression_preference(&expression).unwrap_or(MatchPreference::Longest);
             CompileOutcome::Ready(Program {
                 expression,
@@ -1249,6 +1243,16 @@ fn push_unique(mut positions: Vec<usize>, position: usize) -> Vec<usize> {
 
 struct MatchContext {
     lookbehind_ends: Vec<Option<Vec<bool>>>,
+    capture_work: usize,
+}
+
+fn charge_capture_work(context: &mut MatchContext, amount: usize) -> Result<(), ()> {
+    context.capture_work = context
+        .capture_work
+        .checked_add(amount)
+        .filter(|work| *work <= MAX_CAPTURE_WORK)
+        .ok_or(())?;
+    Ok(())
 }
 
 struct Automaton<'a> {
@@ -1834,7 +1838,17 @@ fn contains_capture(expression: &Expression) -> bool {
     }
 }
 
-fn push_capture_unique(states: &mut Vec<CaptureState>, state: CaptureState) -> Result<(), ()> {
+fn push_capture_unique(
+    states: &mut Vec<CaptureState>,
+    state: CaptureState,
+    context: &mut MatchContext,
+) -> Result<(), ()> {
+    charge_capture_work(
+        context,
+        (state.captures.len() + 1)
+            .checked_mul(states.len() + 1)
+            .ok_or(())?,
+    )?;
     if !states.contains(&state) {
         if states.len() >= MAX_CAPTURE_STATES {
             return Err(());
@@ -1854,7 +1868,7 @@ fn capture_advance(
     let mut next = Vec::new();
     for state in states {
         for candidate in capture_match_ends(expression, subject, state, mode, context)? {
-            push_capture_unique(&mut next, candidate)?;
+            push_capture_unique(&mut next, candidate, context)?;
         }
     }
     Ok(next)
@@ -1892,10 +1906,17 @@ fn capture_repeat(
                 if bounded_states > MAX_CAPTURE_STATES {
                     return Err(());
                 }
+                charge_capture_work(
+                    context,
+                    frontier
+                        .len()
+                        .checked_mul(frontier.first().map_or(0, |state| state.captures.len() + 1))
+                        .ok_or(())?,
+                )?;
                 bounded_reached.push(frontier.clone());
             } else {
                 for candidate in &frontier {
-                    push_capture_unique(&mut reached, candidate.clone())?;
+                    push_capture_unique(&mut reached, candidate.clone(), context)?;
                 }
             }
         }
@@ -1909,11 +1930,21 @@ fn capture_repeat(
         if prefer_bounded_paths {
             next.sort_by(|left, right| right.position.cmp(&left.position));
         }
+        if max.is_none() && count >= min {
+            let capture_width = next.first().map_or(0, |state| state.captures.len() + 1);
+            charge_capture_work(
+                context,
+                next.len()
+                    .checked_mul(seen.len())
+                    .and_then(|comparisons| comparisons.checked_mul(capture_width))
+                    .ok_or(())?,
+            )?;
+        }
         if max.is_none() && count >= min && next.iter().all(|candidate| seen.contains(candidate)) {
             break;
         }
         for candidate in &next {
-            push_capture_unique(&mut seen, candidate.clone())?;
+            push_capture_unique(&mut seen, candidate.clone(), context)?;
         }
         frontier = next;
     }
@@ -1924,7 +1955,7 @@ fn capture_repeat(
                     .iter()
                     .any(|state: &CaptureState| state.position == candidate.position)
                 {
-                    push_capture_unique(&mut reached, candidate)?;
+                    push_capture_unique(&mut reached, candidate, context)?;
                 }
             }
         }
@@ -1939,6 +1970,7 @@ fn capture_match_ends(
     mode: MatchMode,
     context: &mut MatchContext,
 ) -> Result<Vec<CaptureState>, ()> {
+    charge_capture_work(context, 1)?;
     match expression {
         Expression::CapturingGroup { index, inner } => {
             let start = state.position;
@@ -1951,7 +1983,7 @@ fn capture_match_ends(
                     start,
                     end: candidate.position,
                 });
-                push_capture_unique(&mut results, candidate)?;
+                push_capture_unique(&mut results, candidate, context)?;
             }
             Ok(results)
         }
@@ -1995,7 +2027,7 @@ fn capture_match_ends(
             for branch in branches {
                 for candidate in capture_match_ends(branch, subject, state.clone(), mode, context)?
                 {
-                    push_capture_unique(&mut results, candidate)?;
+                    push_capture_unique(&mut results, candidate, context)?;
                 }
             }
             Ok(results)
@@ -2031,6 +2063,7 @@ fn first_capture_match(
     context: &mut MatchContext,
 ) -> Result<Option<MatchSpan>, ()> {
     for start in from..=subject.len() {
+        charge_capture_work(context, capture_count + 1)?;
         let state = CaptureState {
             position: start,
             captures: vec![None; capture_count + 1],
@@ -2052,11 +2085,9 @@ fn first_capture_match(
 impl Program {
     pub fn find(&self, subject: &str, from: usize) -> MatchOutcome {
         let characters: Vec<char> = subject.chars().collect();
-        if self.has_backreference && characters.len() > MAX_BACKREFERENCE_SUBJECT_SCALARS {
-            return MatchOutcome::Uncertain;
-        }
         let mut context = MatchContext {
             lookbehind_ends: Vec::new(),
+            capture_work: 0,
         };
         let result = if self.has_backreference {
             first_capture_match(
@@ -2093,11 +2124,9 @@ impl Program {
             return CountOutcome::InvalidStart;
         }
         let characters: Vec<char> = subject.chars().collect();
-        if self.has_backreference && characters.len() > MAX_BACKREFERENCE_SUBJECT_SCALARS {
-            return CountOutcome::Uncertain;
-        }
         let mut context = MatchContext {
             lookbehind_ends: Vec::new(),
+            capture_work: 0,
         };
         let automaton = if self.has_backreference {
             None
