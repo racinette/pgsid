@@ -1,0 +1,2181 @@
+{
+  "schemaVersion": 1,
+  "oracle": {
+    "database": "PostgreSQL via PGlite",
+    "serverVersion": "18.3",
+    "collation": "C"
+  },
+  "generatorSeed": 99540248,
+  "fixtures": [
+    {
+      "id": "position-0001",
+      "operation": "find",
+      "input": {
+        "pattern": "a*",
+        "subject": "baa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 0
+        }
+      }
+    },
+    {
+      "id": "position-0002",
+      "operation": "count",
+      "input": {
+        "pattern": "a*",
+        "subject": "baa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 3
+      }
+    },
+    {
+      "id": "position-0003",
+      "operation": "find",
+      "input": {
+        "pattern": "a*",
+        "subject": "baa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "position-0004",
+      "operation": "count",
+      "input": {
+        "pattern": "a*",
+        "subject": "baa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "id": "position-0005",
+      "operation": "find",
+      "input": {
+        "pattern": "a*",
+        "subject": "baa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "position-0006",
+      "operation": "count",
+      "input": {
+        "pattern": "a*",
+        "subject": "baa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "id": "position-0007",
+      "operation": "find",
+      "input": {
+        "pattern": "a*",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "position-0008",
+      "operation": "count",
+      "input": {
+        "pattern": "a*",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "id": "position-0009",
+      "operation": "find",
+      "input": {
+        "pattern": "a*",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "position-0010",
+      "operation": "count",
+      "input": {
+        "pattern": "a*",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "id": "position-0011",
+      "operation": "find",
+      "input": {
+        "pattern": "a*",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "position-0012",
+      "operation": "count",
+      "input": {
+        "pattern": "a*",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "id": "position-0013",
+      "operation": "find",
+      "input": {
+        "pattern": "a*",
+        "subject": "bbb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 0
+        }
+      }
+    },
+    {
+      "id": "position-0014",
+      "operation": "count",
+      "input": {
+        "pattern": "a*",
+        "subject": "bbb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 4
+      }
+    },
+    {
+      "id": "position-0015",
+      "operation": "find",
+      "input": {
+        "pattern": "a*",
+        "subject": "bbb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 1
+        }
+      }
+    },
+    {
+      "id": "position-0016",
+      "operation": "count",
+      "input": {
+        "pattern": "a*",
+        "subject": "bbb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 3
+      }
+    },
+    {
+      "id": "position-0017",
+      "operation": "find",
+      "input": {
+        "pattern": "a*",
+        "subject": "bbb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "position-0018",
+      "operation": "count",
+      "input": {
+        "pattern": "a*",
+        "subject": "bbb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "id": "position-0019",
+      "operation": "find",
+      "input": {
+        "pattern": "ab",
+        "subject": "abab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "position-0020",
+      "operation": "count",
+      "input": {
+        "pattern": "ab",
+        "subject": "abab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "id": "position-0021",
+      "operation": "find",
+      "input": {
+        "pattern": "ab",
+        "subject": "abab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "position-0022",
+      "operation": "count",
+      "input": {
+        "pattern": "ab",
+        "subject": "abab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0023",
+      "operation": "find",
+      "input": {
+        "pattern": "ab",
+        "subject": "abab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "position-0024",
+      "operation": "count",
+      "input": {
+        "pattern": "ab",
+        "subject": "abab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0025",
+      "operation": "find",
+      "input": {
+        "pattern": "ab",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "position-0026",
+      "operation": "count",
+      "input": {
+        "pattern": "ab",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0027",
+      "operation": "find",
+      "input": {
+        "pattern": "ab",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "position-0028",
+      "operation": "count",
+      "input": {
+        "pattern": "ab",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0029",
+      "operation": "find",
+      "input": {
+        "pattern": "ab",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "position-0030",
+      "operation": "count",
+      "input": {
+        "pattern": "ab",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 0
+      }
+    },
+    {
+      "id": "position-0031",
+      "operation": "find",
+      "input": {
+        "pattern": "ab",
+        "subject": "abbb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "position-0032",
+      "operation": "count",
+      "input": {
+        "pattern": "ab",
+        "subject": "abbb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0033",
+      "operation": "find",
+      "input": {
+        "pattern": "ab",
+        "subject": "abbb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "position-0034",
+      "operation": "count",
+      "input": {
+        "pattern": "ab",
+        "subject": "abbb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 0
+      }
+    },
+    {
+      "id": "position-0035",
+      "operation": "find",
+      "input": {
+        "pattern": "ab",
+        "subject": "abbb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "position-0036",
+      "operation": "count",
+      "input": {
+        "pattern": "ab",
+        "subject": "abbb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 0
+      }
+    },
+    {
+      "id": "position-0037",
+      "operation": "find",
+      "input": {
+        "pattern": "^a",
+        "subject": "a\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "id": "position-0038",
+      "operation": "count",
+      "input": {
+        "pattern": "^a",
+        "subject": "a\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "id": "position-0039",
+      "operation": "find",
+      "input": {
+        "pattern": "^a",
+        "subject": "a\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "position-0040",
+      "operation": "count",
+      "input": {
+        "pattern": "^a",
+        "subject": "a\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 0
+      }
+    },
+    {
+      "id": "position-0041",
+      "operation": "find",
+      "input": {
+        "pattern": "^a",
+        "subject": "a\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "position-0042",
+      "operation": "count",
+      "input": {
+        "pattern": "^a",
+        "subject": "a\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0043",
+      "operation": "find",
+      "input": {
+        "pattern": "^a",
+        "subject": "ba\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "position-0044",
+      "operation": "count",
+      "input": {
+        "pattern": "^a",
+        "subject": "ba\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 0
+      }
+    },
+    {
+      "id": "position-0045",
+      "operation": "find",
+      "input": {
+        "pattern": "^a",
+        "subject": "ba\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 3,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "position-0046",
+      "operation": "count",
+      "input": {
+        "pattern": "^a",
+        "subject": "ba\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0047",
+      "operation": "find",
+      "input": {
+        "pattern": "^a",
+        "subject": "ba\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 3,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "position-0048",
+      "operation": "count",
+      "input": {
+        "pattern": "^a",
+        "subject": "ba\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0049",
+      "operation": "find",
+      "input": {
+        "pattern": "^a",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "id": "position-0050",
+      "operation": "count",
+      "input": {
+        "pattern": "^a",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0051",
+      "operation": "find",
+      "input": {
+        "pattern": "^a",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "position-0052",
+      "operation": "count",
+      "input": {
+        "pattern": "^a",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 0
+      }
+    },
+    {
+      "id": "position-0053",
+      "operation": "find",
+      "input": {
+        "pattern": "^a",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "position-0054",
+      "operation": "count",
+      "input": {
+        "pattern": "^a",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 0
+      }
+    },
+    {
+      "id": "position-0055",
+      "operation": "find",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "abab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "position-0056",
+      "operation": "count",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "abab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "id": "position-0057",
+      "operation": "find",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "abab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "position-0058",
+      "operation": "count",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "abab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "id": "position-0059",
+      "operation": "find",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "abab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 3,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "position-0060",
+      "operation": "count",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "abab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0061",
+      "operation": "find",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "aabb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "position-0062",
+      "operation": "count",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "aabb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0063",
+      "operation": "find",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "aabb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "position-0064",
+      "operation": "count",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "aabb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0065",
+      "operation": "find",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "aabb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "position-0066",
+      "operation": "count",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "aabb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0067",
+      "operation": "find",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "bbba",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "position-0068",
+      "operation": "count",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "bbba",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 0
+      }
+    },
+    {
+      "id": "position-0069",
+      "operation": "find",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "bbba",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "position-0070",
+      "operation": "count",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "bbba",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 0
+      }
+    },
+    {
+      "id": "position-0071",
+      "operation": "find",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "bbba",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "position-0072",
+      "operation": "count",
+      "input": {
+        "pattern": "(?<=a)b",
+        "subject": "bbba",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 0
+      }
+    },
+    {
+      "id": "position-0073",
+      "operation": "find",
+      "input": {
+        "pattern": "é",
+        "subject": "aéé",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "position-0074",
+      "operation": "count",
+      "input": {
+        "pattern": "é",
+        "subject": "aéé",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "id": "position-0075",
+      "operation": "find",
+      "input": {
+        "pattern": "é",
+        "subject": "aéé",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "position-0076",
+      "operation": "count",
+      "input": {
+        "pattern": "é",
+        "subject": "aéé",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "id": "position-0077",
+      "operation": "find",
+      "input": {
+        "pattern": "é",
+        "subject": "aéé",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "position-0078",
+      "operation": "count",
+      "input": {
+        "pattern": "é",
+        "subject": "aéé",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0079",
+      "operation": "find",
+      "input": {
+        "pattern": "é",
+        "subject": "😀éa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "position-0080",
+      "operation": "count",
+      "input": {
+        "pattern": "é",
+        "subject": "😀éa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0081",
+      "operation": "find",
+      "input": {
+        "pattern": "é",
+        "subject": "😀éa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "position-0082",
+      "operation": "count",
+      "input": {
+        "pattern": "é",
+        "subject": "😀éa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0083",
+      "operation": "find",
+      "input": {
+        "pattern": "é",
+        "subject": "😀éa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "id": "position-0084",
+      "operation": "count",
+      "input": {
+        "pattern": "é",
+        "subject": "😀éa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 0
+      }
+    },
+    {
+      "id": "position-0085",
+      "operation": "find",
+      "input": {
+        "pattern": "é",
+        "subject": "éé",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "position-0086",
+      "operation": "count",
+      "input": {
+        "pattern": "é",
+        "subject": "éé",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0087",
+      "operation": "find",
+      "input": {
+        "pattern": "é",
+        "subject": "éé",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "position-0088",
+      "operation": "count",
+      "input": {
+        "pattern": "é",
+        "subject": "éé",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0089",
+      "operation": "find",
+      "input": {
+        "pattern": "é",
+        "subject": "éé",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "position-0090",
+      "operation": "count",
+      "input": {
+        "pattern": "é",
+        "subject": "éé",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0091",
+      "operation": "find",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "id": "position-0092",
+      "operation": "count",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "id": "position-0093",
+      "operation": "find",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "position-0094",
+      "operation": "count",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "id": "position-0095",
+      "operation": "find",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "position-0096",
+      "operation": "count",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "aaaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0097",
+      "operation": "find",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "baaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "position-0098",
+      "operation": "count",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "baaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "id": "position-0099",
+      "operation": "find",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "baaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "id": "position-0100",
+      "operation": "count",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "baaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "id": "position-0101",
+      "operation": "find",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "baaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "position-0102",
+      "operation": "count",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "baaa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0103",
+      "operation": "find",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "abba",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "id": "position-0104",
+      "operation": "count",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "abba",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 1
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "id": "position-0105",
+      "operation": "find",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "abba",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 3,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "position-0106",
+      "operation": "count",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "abba",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        },
+        "start": 2
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "id": "position-0107",
+      "operation": "find",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "abba",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 3,
+          "end": 4
+        }
+      }
+    },
+    {
+      "id": "position-0108",
+      "operation": "count",
+      "input": {
+        "pattern": "a|aa",
+        "subject": "abba",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        },
+        "start": 3
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    }
+  ]
+}

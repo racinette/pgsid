@@ -1059,9 +1059,9 @@ fn expanded_characters(pattern: &str) -> Result<Vec<char>, ParseIssue> {
                 return Err(ParseIssue::Unsupported);
             }
             loop {
-                let current = *source.get(position).ok_or(ParseIssue::Unsupported)?;
+                let current = *source.get(position).ok_or(ParseIssue::Invalid)?;
                 if current == '\\' {
-                    let escaped = source.get(position + 1).ok_or(ParseIssue::Unsupported)?;
+                    let escaped = source.get(position + 1).ok_or(ParseIssue::Invalid)?;
                     result.push(current);
                     result.push(*escaped);
                     position += 2;
@@ -1190,9 +1190,6 @@ pub fn compile(pattern: &str, options: Options) -> CompileOutcome {
             has_backreference: false,
             has_lookbehind: false,
         });
-    }
-    if expanded && syntax != Syntax::Advanced {
-        return CompileOutcome::Uncertain;
     }
     let characters: Vec<char> = if expanded {
         match expanded_characters(body) {
