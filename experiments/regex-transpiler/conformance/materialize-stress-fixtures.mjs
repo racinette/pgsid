@@ -30,6 +30,16 @@ const modeProfiles = [
   { caseSensitive: false, expanded: true, newline: 'sensitive' },
   { caseSensitive: false, expanded: true, newline: 'anchors' },
 ]
+const combinedProfiles = [
+  { caseSensitive: true, expanded: true, newline: 'sensitive' },
+  { caseSensitive: false, expanded: true, newline: 'stop' },
+  { caseSensitive: true, expanded: true, newline: 'anchors' },
+  { caseSensitive: false, expanded: true, newline: 'ordinary' },
+  { caseSensitive: false, expanded: false, newline: 'anchors' },
+  { caseSensitive: true, expanded: false, newline: 'stop' },
+  { caseSensitive: false, expanded: false, newline: 'sensitive' },
+  { caseSensitive: true, expanded: true, newline: 'stop' },
+]
 
 const grammar = {
   sequence: (...parts) => parts.join(''),
@@ -177,6 +187,56 @@ const families = {
     ['a{2}', ['a{2}', 'aa', 'xa{2}y']],
     ['é+', ['é+', 'éé', 'xé+y']],
   ],
+  backref_unicode: [
+    ['(é|e\u0301)\\1', ['éé', 'e\u0301e\u0301', 'ée\u0301']],
+    ['([A-C])\\1', ['Aa', 'BB', 'Cc']],
+    ['([[:digit:]])x\\1', ['1x1', '1x2', '9x9']],
+    ['([ab]+)c\\1', ['abcab', 'aabcaab', 'abca']],
+    ['((a|ab))\\2', ['aa', 'abab', 'aab']],
+    ['([éa])\\1', ['éé', 'aa', 'éa']],
+    ['(a?)(b)\\1', ['aba', 'bb', 'abb']],
+    ['(a|aa)\\1', ['aaaa', 'aaa', 'aa']],
+  ],
+  lookaround_newline: [
+    ['(?<=^a)b', ['ab', 'a\nb', 'zab']],
+    ['(?<!^a)b', ['ab', 'a\nb', 'zab']],
+    ['(?=a$)a', ['a\nb', 'za', 'a']],
+    ['(?<=a\n)b', ['a\nb', 'ab', 'za\nb']],
+    ['(?=a.b)a.b', ['a\nb', 'acb', 'ab']],
+    ['(?<!\n)b', ['a\nb', 'ab', 'bb']],
+    ['(?<=a|a\n)b', ['a\nb', 'ab', 'b']],
+    ['(^|(?<=\n))b', ['a\nb', 'bb', 'ab']],
+  ],
+  expanded_interactions: [
+    ['a # skip\n b', ['ab', 'a b', 'a#b']],
+    ['( a | ab ) b', ['abb', 'ab', 'a b']],
+    ['a [b #] c', ['a#c', 'abc', 'a c']],
+    ['(?x)a#x\nb', ['ab', 'a#b', 'a b']],
+    ['a\\ b', ['a b', 'ab', 'a\\ b']],
+    ['a{ 1 , 2 }b', ['ab', 'aab', 'a{ 1 , 2 }b']],
+    ['[a #]+b', ['a#b', 'a b', 'ab']],
+    ['(?t)a b', ['a b', 'ab', 'a#b']],
+  ],
+  basic_interactions: [
+    ['\\(ab\\)\\{1,2\\}\\1', ['abab', 'ababab', 'ab']],
+    ['^a\\{1,3\\}b$', ['aaab', 'ab', 'aaaab']],
+    ['[[:digit:]]\\{1,2\\}x', ['12x', '1x', '3\\{1,2\\}x']],
+    ['\\(a\\)b\\1', ['aba', 'abb', 'zaba']],
+    ['a+b|c', ['a+b|c', 'aaab', 'abc']],
+    ['a?b', ['a?b', 'ab', 'b']],
+    ['[A-C]*z', ['ABz', 'acz', 'zz']],
+    ['a\\.b', ['a.b', 'axb', 'a\\.b']],
+  ],
+  extended_interactions: [
+    ['(ab|a)+b', ['abab', 'aab', 'ab']],
+    ['^a{1,3}b$', ['aaab', 'ab', 'aaaab']],
+    ['a\\wb', ['awb', 'a_b', 'a\\wb']],
+    ['([A-C]+)b', ['ACb', 'acb', 'bb']],
+    ['a.*b', ['a\nb', 'axxb', 'ab']],
+    ['ab|cd', ['abcd', 'zcd', 'ac']],
+    ['(a|ab){1,2}b', ['abb', 'aabb', 'ab']],
+    ['[[:alpha:]]+\\d', ['abd', 'ab3', 'éd']],
+  ],
 }
 
 function flags(options) {
@@ -203,15 +263,26 @@ const generated = []
 for (const [family, templates] of Object.entries(families)) {
   if (templates.length !== 8) throw new Error(`${family}: expected eight templates`)
   let familyCount = 0
+  const profiles =
+    family.endsWith('_interactions') ||
+    family === 'backref_unicode' ||
+    family === 'lookaround_newline'
+      ? combinedProfiles
+      : modeProfiles
   for (let index = 0; index < templates.length; index++) {
     const [pattern, subjects] = templates[index]
     if (subjects.length !== 3) throw new Error(`${family}: expected three subjects`)
-    const profileStart = random() % modeProfiles.length
+    const profileStart = random() % profiles.length
     for (const subject of subjects) {
       for (let variant = 0; variant < 4; variant++) {
-        const profile = modeProfiles[(profileStart + variant * 2 + index) % modeProfiles.length]
-        const syntax =
-          family === 'basic' || family === 'extended' || family === 'literal' ? family : 'advanced'
+        const profile = profiles[(profileStart + variant * 2 + index) % profiles.length]
+        const syntax = family.startsWith('basic')
+          ? 'basic'
+          : family.startsWith('extended')
+            ? 'extended'
+            : family === 'literal'
+              ? 'literal'
+              : 'advanced'
         const options = { syntax, ...profile }
         if (syntax === 'literal') {
           options.caseSensitive = true
@@ -226,7 +297,8 @@ for (const [family, templates] of Object.entries(families)) {
       }
     }
   }
-  if (familyCount < (family === 'literal' ? 20 : 70)) {
+  const quota = family === 'literal' ? 20 : profiles === combinedProfiles ? 90 : 70
+  if (familyCount < quota) {
     throw new Error(`${family}: quota missed with ${familyCount} distinct inputs`)
   }
 }
@@ -286,6 +358,12 @@ try {
     ['(?<=a)b', ['abab', 'aabb', 'bbba']],
     ['é', ['aéé', '😀éa', 'e\u0301é']],
     ['a|aa', ['aaaa', 'baaa', 'abba']],
+    ['(a|aa)', ['aaaa', 'baaa', 'aaab']],
+    ['(?=a)a', ['aaa', 'baa', 'aba']],
+    ['^b', ['a\nb', 'bbb', 'abbb']],
+    ['(é|e\u0301)', ['e\u0301é', 'éé', 'xe\u0301y']],
+    ['(a)b\\1', ['abaaba', 'xabax', 'ababa']],
+    ['a*?', ['aaa', 'baa', 'bbb']],
   ]
   const positionFixtures = []
   const countSql =
@@ -295,10 +373,11 @@ try {
     regexp_instr(($1::text collate "C"), $2::text, $3::integer, 1, 1, $4::text) as match_end`
   for (const [patternIndex, [pattern, subjects]] of positionSeeds.entries()) {
     for (const [subjectIndex, subject] of subjects.entries()) {
-      for (const start of [1, 2, 3]) {
+      for (const start of [1, 2, 3, 4, 5]) {
+        const profiles = patternIndex < 6 ? modeProfiles : combinedProfiles
         const options = {
           syntax: 'advanced',
-          ...modeProfiles[(patternIndex + subjectIndex + start) % modeProfiles.length],
+          ...profiles[(patternIndex + subjectIndex + start) % profiles.length],
         }
         for (const operation of ['find', 'count']) {
           const input = { pattern, subject, options, start }
