@@ -70,6 +70,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut anchored = 0;
     let mut escaped = 0;
     let mut classes = 0;
+    let mut negated_classes = 0;
     let mut positioned = 0;
     let mut newline_modes = BTreeSet::new();
     for source in [
@@ -135,6 +136,9 @@ fn supported_search_matches_pglite_fixtures() {
                 if pattern.contains('[') {
                     classes += 1;
                 }
+                if pattern.contains("[^") {
+                    negated_classes += 1;
+                }
                 actual
             } else {
                 continue;
@@ -160,6 +164,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(anchored >= 20);
     assert!(escaped >= 40);
     assert!(classes >= 50);
+    assert!(negated_classes >= 40);
     assert!(positioned >= 6);
     assert_eq!(newline_modes.len(), 4);
 }
@@ -213,10 +218,43 @@ fn simple_advanced_search_matches_the_live_engine() {
             (engine::NewlineMode::Anchors, true, true),
         ] {
             for pattern in [
-                "", "a", "a.b", "a..b", ".a", "a.", "..", "Å.😀", "a\nb", "^a", "a$", "^$",
-                "^a.b$", "a^b", "a$b", "^.", "^😀$", "a\\.b", "a\\+b", "\\^a", "a\\$", "a\\\\b",
-                "\\(a\\)", "\\[a\\]", "a[bc]d", "[ab][ab]", "[.]", "[a^b]", "[😀β]", "[A]",
+                "",
+                "a",
+                "a.b",
+                "a..b",
+                ".a",
+                "a.",
+                "..",
+                "Å.😀",
+                "a\nb",
+                "^a",
+                "a$",
+                "^$",
+                "^a.b$",
+                "a^b",
+                "a$b",
+                "^.",
+                "^😀$",
+                "a\\.b",
+                "a\\+b",
+                "\\^a",
+                "a\\$",
+                "a\\\\b",
+                "\\(a\\)",
+                "\\[a\\]",
+                "a[bc]d",
+                "[ab][ab]",
+                "[.]",
+                "[a^b]",
+                "[😀β]",
+                "[A]",
                 "[a\n]",
+                "[^ab]",
+                "a[^b]c",
+                "[^A]",
+                "[^😀β]",
+                "[^\n]",
+                "[^^]",
             ] {
                 let engine::CompileOutcome::Ready(program) = engine::compile(
                     pattern,
@@ -231,7 +269,7 @@ fn simple_advanced_search_matches_the_live_engine() {
                 for subject in [
                     "", "a", "a😀b", "a\nb", "a😀\nb", "\na", "a\n", "Åβ😀", "\na\n", "😀\n",
                     "a.b", "a+b", "^a", "a$", "a\\b", "(a)", "[a]", "zabd", "zacd", "zaed", "ba",
-                    ".", "^", "β", "\n",
+                    ".", "^", "β", "\n", "c", "a\nc", "abc", "zac",
                 ] {
                     for from in 0..=subject.chars().count() + 1 {
                         let expected = match program.find(subject, from) {
@@ -261,7 +299,7 @@ fn simple_advanced_search_matches_the_live_engine() {
         }
     }
     for pattern in [
-        "a*", "a|b", "a\\nb", "[a-z]", "[^ab]", "[]", "[a", "(ab)", "a{2}", "a?", "a\\",
+        "a*", "a|b", "a\\nb", "[a-z]", "[^a-z]", "[^]", "[]", "[a", "(ab)", "a{2}", "a?", "a\\",
     ] {
         assert!(matches!(
             candidate::find_simple_advanced(pattern, "ab", 0, true, true, false),
@@ -273,9 +311,38 @@ fn simple_advanced_search_matches_the_live_engine() {
 #[test]
 fn support_classification_matches_search_certainty() {
     for pattern in [
-        "", "a", ".", "^a$", "a\\.b", "\\^a", "a\\$", "a\\\\b", "\\(a\\)", "\\[a\\]", "a*", "a|b",
-        "a\\nb", "[ab]", "a[bc]d", "[a^b]", "[😀β]", "[a\n]", "[a-z]", "[^ab]", "[]", "[a", "(ab)",
-        "a{2}", "a?", "a\\",
+        "",
+        "a",
+        ".",
+        "^a$",
+        "a\\.b",
+        "\\^a",
+        "a\\$",
+        "a\\\\b",
+        "\\(a\\)",
+        "\\[a\\]",
+        "a*",
+        "a|b",
+        "a\\nb",
+        "[ab]",
+        "a[bc]d",
+        "[a^b]",
+        "[😀β]",
+        "[a\n]",
+        "[^ab]",
+        "a[^b]c",
+        "[^😀β]",
+        "[^\n]",
+        "[^^]",
+        "[a-z]",
+        "[^a-z]",
+        "[^]",
+        "[]",
+        "[a",
+        "(ab)",
+        "a{2}",
+        "a?",
+        "a\\",
     ] {
         let supported = candidate::supports_simple_advanced(pattern);
         let certain = !matches!(
