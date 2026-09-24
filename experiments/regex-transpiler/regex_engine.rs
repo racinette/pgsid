@@ -86,7 +86,7 @@ pub enum CountOutcome {
 #[derive(Debug)]
 enum Expression {
     Empty,
-    Literal(char),
+    Literal(u32),
     CharacterClass {
         negated: bool,
         bracket: bool,
@@ -132,8 +132,8 @@ enum MatchPreference {
 
 #[derive(Debug)]
 struct CharacterRange {
-    from: char,
-    to: char,
+    from: u32,
+    to: u32,
 }
 
 #[derive(Debug)]
@@ -396,7 +396,10 @@ fn parse_alternation<'a>(
 }
 
 fn named_class_ranges(name: &str) -> Option<Vec<CharacterRange>> {
-    let range = |from, to| CharacterRange { from, to };
+    let range = |from: char, to: char| CharacterRange {
+        from: from as u32,
+        to: to as u32,
+    };
     let ranges = match name {
         "alnum" => vec![range('0', '9'), range('A', 'Z'), range('a', 'z')],
         "alpha" => vec![range('A', 'Z'), range('a', 'z')],
@@ -453,8 +456,54 @@ fn collating_character(name: &[char]) -> Result<char, ParseIssue> {
     }
     let name: String = name.iter().collect();
     match name.as_str() {
+        "NUL" => Ok('\0'),
+        "SOH" => Ok('\u{0001}'),
+        "STX" => Ok('\u{0002}'),
+        "ETX" => Ok('\u{0003}'),
+        "EOT" => Ok('\u{0004}'),
+        "ENQ" => Ok('\u{0005}'),
+        "ACK" => Ok('\u{0006}'),
+        "BEL" | "alert" => Ok('\u{0007}'),
+        "BS" | "backspace" => Ok('\u{0008}'),
+        "HT" | "tab" => Ok('\t'),
+        "LF" | "newline" => Ok('\n'),
+        "VT" | "vertical-tab" => Ok('\u{000b}'),
+        "FF" | "form-feed" => Ok('\u{000c}'),
+        "CR" | "carriage-return" => Ok('\r'),
+        "SO" => Ok('\u{000e}'),
+        "SI" => Ok('\u{000f}'),
+        "DLE" => Ok('\u{0010}'),
+        "DC1" => Ok('\u{0011}'),
+        "DC2" => Ok('\u{0012}'),
+        "DC3" => Ok('\u{0013}'),
+        "DC4" => Ok('\u{0014}'),
+        "NAK" => Ok('\u{0015}'),
+        "SYN" => Ok('\u{0016}'),
+        "ETB" => Ok('\u{0017}'),
+        "CAN" => Ok('\u{0018}'),
+        "EM" => Ok('\u{0019}'),
+        "SUB" => Ok('\u{001a}'),
+        "ESC" => Ok('\u{001b}'),
+        "IS4" | "FS" => Ok('\u{001c}'),
+        "IS3" | "GS" => Ok('\u{001d}'),
+        "IS2" | "RS" => Ok('\u{001e}'),
+        "IS1" | "US" => Ok('\u{001f}'),
+        "space" => Ok(' '),
+        "exclamation-mark" => Ok('!'),
+        "quotation-mark" => Ok('"'),
+        "number-sign" => Ok('#'),
+        "dollar-sign" => Ok('$'),
+        "percent-sign" => Ok('%'),
+        "ampersand" => Ok('&'),
+        "apostrophe" => Ok('\''),
+        "left-parenthesis" => Ok('('),
+        "right-parenthesis" => Ok(')'),
+        "asterisk" => Ok('*'),
+        "plus-sign" => Ok('+'),
+        "comma" => Ok(','),
         "hyphen" | "hyphen-minus" => Ok('-'),
         "period" | "full-stop" => Ok('.'),
+        "slash" | "solidus" => Ok('/'),
         "zero" => Ok('0'),
         "one" => Ok('1'),
         "two" => Ok('2'),
@@ -465,7 +514,25 @@ fn collating_character(name: &[char]) -> Result<char, ParseIssue> {
         "seven" => Ok('7'),
         "eight" => Ok('8'),
         "nine" => Ok('9'),
-        _ => Err(ParseIssue::Unsupported),
+        "colon" => Ok(':'),
+        "semicolon" => Ok(';'),
+        "less-than-sign" => Ok('<'),
+        "equals-sign" => Ok('='),
+        "greater-than-sign" => Ok('>'),
+        "question-mark" => Ok('?'),
+        "commercial-at" => Ok('@'),
+        "left-square-bracket" => Ok('['),
+        "backslash" | "reverse-solidus" => Ok('\\'),
+        "right-square-bracket" => Ok(']'),
+        "circumflex" | "circumflex-accent" => Ok('^'),
+        "underscore" | "low-line" => Ok('_'),
+        "grave-accent" => Ok('`'),
+        "left-brace" | "left-curly-bracket" => Ok('{'),
+        "vertical-line" => Ok('|'),
+        "right-brace" | "right-curly-bracket" => Ok('}'),
+        "tilde" => Ok('~'),
+        "DEL" => Ok('\u{007f}'),
+        _ => Err(ParseIssue::Invalid),
     }
 }
 
@@ -508,13 +575,13 @@ fn control_letter(character: char) -> char {
 fn bracket_character<'a>(
     mut cursor: Cursor<'a>,
     syntax: Syntax,
-) -> Result<(Cursor<'a>, char, bool), ParseIssue> {
+) -> Result<(Cursor<'a>, u32, bool), ParseIssue> {
     let raw = cursor.peek().ok_or(ParseIssue::Invalid)?;
     if raw == '[' {
         match cursor.characters.get(cursor.position + 1) {
             Some('.') => {
                 let (next, character) = parse_collating_character(cursor)?;
-                return Ok((next, character, true));
+                return Ok((next, character as u32, true));
             }
             Some('=') | Some(':') => return Err(ParseIssue::Invalid),
             _ => {}
@@ -541,20 +608,20 @@ fn bracket_character<'a>(
                 .get(cursor.position + 1)
                 .ok_or(ParseIssue::Invalid)?;
             cursor.position += 2;
-            return Ok((cursor, control_letter(*control), true));
+            return Ok((cursor, control_letter(*control) as u32, true));
         }
         if let Some(character) = simple_control_escape(escaped) {
             cursor.position += 1;
-            return Ok((cursor, character, true));
+            return Ok((cursor, character as u32, true));
         }
         if escaped.is_ascii_alphanumeric() {
             return Err(ParseIssue::Invalid);
         }
         cursor.position += 1;
-        return Ok((cursor, escaped, true));
+        return Ok((cursor, escaped as u32, true));
     }
     cursor.position += 1;
-    Ok((cursor, raw, false))
+    Ok((cursor, raw as u32, false))
 }
 
 fn parse_character_class<'a>(mut cursor: Cursor<'a>, syntax: Syntax) -> Parsed<'a> {
@@ -618,8 +685,8 @@ fn parse_character_class<'a>(mut cursor: Cursor<'a>, syntax: Syntax) -> Parsed<'
                 return Err(ParseIssue::Invalid);
             }
             ranges.push(CharacterRange {
-                from: character,
-                to: character,
+                from: character as u32,
+                to: character as u32,
             });
             continue;
         }
@@ -651,17 +718,18 @@ fn parse_character_class<'a>(mut cursor: Cursor<'a>, syntax: Syntax) -> Parsed<'
         }
         let (next, first, escaped_first) = bracket_character(cursor, syntax)?;
         cursor = next;
-        if first == '-'
+        if first == '-' as u32
             && !escaped_first
             && (!ranges.is_empty() || !complement_ranges.is_empty())
             && cursor.peek() != Some(']')
         {
             return Err(ParseIssue::Invalid);
         }
-        let range_follows =
-            (first != '-' || escaped_first || (ranges.is_empty() && complement_ranges.is_empty()))
-                && cursor.peek() == Some('-')
-                && cursor.characters.get(cursor.position + 1) != Some(&']');
+        let range_follows = (first != '-' as u32
+            || escaped_first
+            || (ranges.is_empty() && complement_ranges.is_empty()))
+            && cursor.peek() == Some('-')
+            && cursor.characters.get(cursor.position + 1) != Some(&']');
         if range_follows {
             cursor.position += 1;
             let (next, last, _) = bracket_character(cursor, syntax)?;
@@ -683,7 +751,10 @@ fn parse_character_class<'a>(mut cursor: Cursor<'a>, syntax: Syntax) -> Parsed<'
 }
 
 fn shorthand_class(escape: char) -> Option<Expression> {
-    let range = |from, to| CharacterRange { from, to };
+    let range = |from: char, to: char| CharacterRange {
+        from: from as u32,
+        to: to as u32,
+    };
     let ranges = match escape.to_ascii_lowercase() {
         'd' => vec![range('0', '9')],
         'w' => vec![
@@ -703,7 +774,7 @@ fn shorthand_class(escape: char) -> Option<Expression> {
     })
 }
 
-fn numeric_escape<'a>(mut cursor: Cursor<'a>) -> Result<Option<(Cursor<'a>, char)>, ParseIssue> {
+fn numeric_escape<'a>(mut cursor: Cursor<'a>) -> Result<Option<(Cursor<'a>, u32)>, ParseIssue> {
     let Some(escape) = cursor.peek() else {
         return Err(ParseIssue::Invalid);
     };
@@ -723,10 +794,7 @@ fn numeric_escape<'a>(mut cursor: Cursor<'a>) -> Result<Option<(Cursor<'a>, char
         let Some(digit) = cursor.peek().and_then(|character| character.to_digit(base)) else {
             break;
         };
-        value = value
-            .checked_mul(base)
-            .and_then(|number| number.checked_add(digit))
-            .ok_or(ParseIssue::Unsupported)?;
+        value = value.wrapping_mul(base).wrapping_add(digit);
         cursor.position += 1;
         digits += 1;
         if base == 8 && value > 0xff {
@@ -738,8 +806,10 @@ fn numeric_escape<'a>(mut cursor: Cursor<'a>) -> Result<Option<(Cursor<'a>, char
     if digits < min_digits {
         return Err(ParseIssue::Invalid);
     }
-    let character = char::from_u32(value).ok_or(ParseIssue::Unsupported)?;
-    Ok(Some((cursor, character)))
+    if value > 0x7fff_fffe {
+        return Err(ParseIssue::Invalid);
+    }
+    Ok(Some((cursor, value)))
 }
 
 fn parse_atom<'a>(
@@ -765,7 +835,7 @@ fn parse_atom<'a>(
             let escaped = cursor.peek().ok_or(ParseIssue::Invalid)?;
             if syntax == Syntax::Extended {
                 cursor.position += 1;
-                return Ok((cursor, Expression::Literal(escaped)));
+                return Ok((cursor, Expression::Literal(escaped as u32)));
             }
             let assertion = match escaped {
                 'A' => Some(Expression::AbsoluteBeginning),
@@ -786,7 +856,7 @@ fn parse_atom<'a>(
             }
             if let Some(control) = simple_control_escape(escaped) {
                 cursor.position += 1;
-                return Ok((cursor, Expression::Literal(control)));
+                return Ok((cursor, Expression::Literal(control as u32)));
             }
             if escaped == 'c' {
                 let control = cursor
@@ -794,7 +864,7 @@ fn parse_atom<'a>(
                     .get(cursor.position + 1)
                     .ok_or(ParseIssue::Invalid)?;
                 cursor.position += 2;
-                return Ok((cursor, Expression::Literal(control_letter(*control))));
+                return Ok((cursor, Expression::Literal(control_letter(*control) as u32)));
             }
             if syntax == Syntax::Advanced && matches!(escaped, '1'..='9') {
                 let mut end = cursor.position;
@@ -835,11 +905,11 @@ fn parse_atom<'a>(
                 return Err(ParseIssue::Invalid);
             }
             cursor.position += 1;
-            Expression::Literal(escaped)
+            Expression::Literal(escaped as u32)
         }
         '*' | '+' | '?' => return Err(ParseIssue::Invalid),
-        '{' | ']' | '}' => Expression::Literal(character),
-        _ => Expression::Literal(character),
+        '{' | ']' | '}' => Expression::Literal(character as u32),
+        _ => Expression::Literal(character as u32),
     };
     Ok((cursor, atom))
 }
@@ -1000,7 +1070,7 @@ fn parse_basic_iterative<'a>(mut cursor: Cursor<'a>, context: &mut ParseContext)
                     context.has_backreference = true;
                     Expression::BackReference(index)
                 }
-                _ => Expression::Literal(escaped),
+                _ => Expression::Literal(escaped as u32),
             }
         } else {
             cursor.position += 1;
@@ -1022,7 +1092,7 @@ fn parse_basic_iterative<'a>(mut cursor: Cursor<'a>, context: &mut ParseContext)
                 {
                     Expression::EndOfString
                 }
-                _ => Expression::Literal(character),
+                _ => Expression::Literal(character as u32),
             }
         };
         let (next, atom) = parse_basic_repetition(cursor, atom)?;
@@ -1318,7 +1388,11 @@ pub fn compile(pattern: &str, options: Options) -> CompileOutcome {
     }
     if syntax == Syntax::Literal {
         return CompileOutcome::Ready(Program {
-            expression: concatenate(body.chars().map(Expression::Literal).collect()),
+            expression: concatenate(
+                body.chars()
+                    .map(|character| Expression::Literal(character as u32))
+                    .collect(),
+            ),
             mode: MatchMode {
                 newline,
                 case_sensitive,
@@ -1756,13 +1830,17 @@ fn equal_char(left: char, right: char, case_sensitive: bool) -> bool {
     left == right || (!case_sensitive && left.to_ascii_lowercase() == right.to_ascii_lowercase())
 }
 
+fn equal_codepoint(character: char, expected: u32, case_sensitive: bool) -> bool {
+    char::from_u32(expected).is_some_and(|expected| equal_char(character, expected, case_sensitive))
+}
+
 fn in_range(character: char, range: &CharacterRange, case_sensitive: bool) -> bool {
-    (range.from <= character && character <= range.to)
+    (range.from <= character as u32 && character as u32 <= range.to)
         || (!case_sensitive
-            && ((range.from <= character.to_ascii_lowercase()
-                && character.to_ascii_lowercase() <= range.to)
-                || (range.from <= character.to_ascii_uppercase()
-                    && character.to_ascii_uppercase() <= range.to)))
+            && ((range.from <= character.to_ascii_lowercase() as u32
+                && character.to_ascii_lowercase() as u32 <= range.to)
+                || (range.from <= character.to_ascii_uppercase() as u32
+                    && character.to_ascii_uppercase() as u32 <= range.to)))
 }
 
 fn is_word(character: Option<&char>) -> bool {
@@ -1808,10 +1886,9 @@ fn match_ends(
     match expression {
         Expression::Empty => vec![start],
         Expression::Literal(expected) => {
-            if subject
-                .get(start)
-                .is_some_and(|character| equal_char(*character, *expected, mode.case_sensitive))
-            {
+            if subject.get(start).is_some_and(|character| {
+                equal_codepoint(*character, *expected, mode.case_sensitive)
+            }) {
                 vec![start + 1]
             } else {
                 Vec::new()
@@ -2377,7 +2454,7 @@ mod tests {
 
     #[test]
     fn automaton_builds_deep_group_chains_iteratively() {
-        let mut expression = Expression::Literal('a');
+        let mut expression = Expression::Literal('a' as u32);
         for _ in 0..512 {
             expression = Expression::NonCapturingGroup(Box::new(expression));
         }

@@ -15,6 +15,7 @@ const base = new URL('./', import.meta.url)
 const outputPath = fileURLToPath(new URL('stress-fixtures.json', base))
 const positionOutputPath = fileURLToPath(new URL('stress-position-fixtures.json', base))
 const boundaryOutputPath = fileURLToPath(new URL('stress-boundary-fixtures.json', base))
+const classificationOutputPath = fileURLToPath(new URL('stress-classification-fixtures.json', base))
 const extractedPath = fileURLToPath(new URL('postgres-fixtures.json', base))
 const check = process.argv.slice(2).join(' ') === '--check'
 if (process.argv.length > 3 || (process.argv.length === 3 && !check)) {
@@ -537,6 +538,143 @@ try {
   })
   process.stdout.write(
     `${check ? 'checked' : 'wrote'} ${boundaryFixtures.length} boundary fixtures\n`,
+  )
+
+  const collatingNames = [
+    ['NUL', 0],
+    ['SOH', 1],
+    ['STX', 2],
+    ['ETX', 3],
+    ['EOT', 4],
+    ['ENQ', 5],
+    ['ACK', 6],
+    ['BEL', 7],
+    ['alert', 7],
+    ['BS', 8],
+    ['backspace', 8],
+    ['HT', 9],
+    ['tab', 9],
+    ['LF', 10],
+    ['newline', 10],
+    ['VT', 11],
+    ['vertical-tab', 11],
+    ['FF', 12],
+    ['form-feed', 12],
+    ['CR', 13],
+    ['carriage-return', 13],
+    ['SO', 14],
+    ['SI', 15],
+    ['DLE', 16],
+    ['DC1', 17],
+    ['DC2', 18],
+    ['DC3', 19],
+    ['DC4', 20],
+    ['NAK', 21],
+    ['SYN', 22],
+    ['ETB', 23],
+    ['CAN', 24],
+    ['EM', 25],
+    ['SUB', 26],
+    ['ESC', 27],
+    ['IS4', 28],
+    ['FS', 28],
+    ['IS3', 29],
+    ['GS', 29],
+    ['IS2', 30],
+    ['RS', 30],
+    ['IS1', 31],
+    ['US', 31],
+    ['space', 32],
+    ['exclamation-mark', 33],
+    ['quotation-mark', 34],
+    ['number-sign', 35],
+    ['dollar-sign', 36],
+    ['percent-sign', 37],
+    ['ampersand', 38],
+    ['apostrophe', 39],
+    ['left-parenthesis', 40],
+    ['right-parenthesis', 41],
+    ['asterisk', 42],
+    ['plus-sign', 43],
+    ['comma', 44],
+    ['hyphen', 45],
+    ['hyphen-minus', 45],
+    ['period', 46],
+    ['full-stop', 46],
+    ['slash', 47],
+    ['solidus', 47],
+    ['zero', 48],
+    ['one', 49],
+    ['two', 50],
+    ['three', 51],
+    ['four', 52],
+    ['five', 53],
+    ['six', 54],
+    ['seven', 55],
+    ['eight', 56],
+    ['nine', 57],
+    ['colon', 58],
+    ['semicolon', 59],
+    ['less-than-sign', 60],
+    ['equals-sign', 61],
+    ['greater-than-sign', 62],
+    ['question-mark', 63],
+    ['commercial-at', 64],
+    ['left-square-bracket', 91],
+    ['backslash', 92],
+    ['reverse-solidus', 92],
+    ['right-square-bracket', 93],
+    ['circumflex', 94],
+    ['circumflex-accent', 94],
+    ['underscore', 95],
+    ['low-line', 95],
+    ['grave-accent', 96],
+    ['left-brace', 123],
+    ['left-curly-bracket', 123],
+    ['vertical-line', 124],
+    ['right-brace', 125],
+    ['right-curly-bracket', 125],
+    ['tilde', 126],
+    ['DEL', 127],
+  ]
+  const classificationSeeds = collatingNames.map(([name, code]) => [
+    `collating-${name}`,
+    `[[.${name}.]]`,
+    code === 0 ? 'x' : String.fromCodePoint(code),
+  ])
+  classificationSeeds.push(
+    ['collating-single-unicode', '[[.é.]]', 'é'],
+    ['collating-unknown', '[[.unknown-name.]]', 'x'],
+    ['collating-unknown-equivalence', '[[=unknown-name=]]', 'x'],
+    ['collating-name-case', '[[.Space.]]', ' '],
+    ['surrogate-literal', String.raw`\uD800`, 'x'],
+    ['surrogate-alternative', String.raw`\uD800|a`, 'a'],
+    ['surrogate-repetition', String.raw`\uD800*a`, 'a'],
+    ['surrogate-bracket', String.raw`[\uD800]`, 'x'],
+    ['surrogate-negated-bracket', String.raw`[^\uD800]`, 'x'],
+    ['surrogate-range-middle', String.raw`[a-\uD800]`, 'z'],
+    ['surrogate-range-above', String.raw`[a-\uD800]`, '😀'],
+    ['surrogate-range-only', String.raw`[\uD800-\uDFFF]`, 'x'],
+    ['surrogate-range-reversed', String.raw`[\uD800-a]`, 'x'],
+    ['beyond-unicode-literal', String.raw`\U00110000`, 'x'],
+    ['beyond-unicode-range', String.raw`[a-\U00110000]`, '😀'],
+    ['maximum-codepoint', String.raw`\U7FFFFFFE`, 'x'],
+    ['above-maximum-codepoint', String.raw`\U7FFFFFFF`, 'x'],
+    ['wrapping-hex-escape', String.raw`\x100000061`, 'a'],
+    ['overflow-hex-escape', String.raw`\x80000061`, 'a'],
+  )
+  const classificationFixtures = []
+  for (const [id, pattern, subject] of classificationSeeds) {
+    const input = { pattern, subject, options: boundaryOptions }
+    classificationFixtures.push({ id, input, expected: await oracleMatch(input, id) })
+  }
+  writeOrCheck(classificationOutputPath, {
+    schemaVersion: 1,
+    oracle: { database: 'PostgreSQL via PGlite', serverVersion, collation: 'C' },
+    fixtures: classificationFixtures,
+  })
+  process.stdout.write(
+    `${check ? 'checked' : 'wrote'} ${classificationFixtures.length} classification fixtures\n`,
   )
 } finally {
   await pg.close()
