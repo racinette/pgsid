@@ -85,31 +85,102 @@ pub fn find_any_character(subject: &str, from: usize, dot_crosses_newline: bool)
     MatchOutcome::NoMatch
 }
 
+pub fn supports_simple_advanced(pattern: &str) -> bool {
+    let atoms: Vec<char> = pattern.chars().collect();
+    let mut position = 0;
+    while position < atoms.len() {
+        let atom = atoms[position];
+        if atom == '\\' {
+            position += 1;
+            if position == atoms.len() {
+                return false;
+            }
+            let escaped = atoms[position];
+            if escaped != '.'
+                && escaped != '^'
+                && escaped != '$'
+                && escaped != '*'
+                && escaped != '+'
+                && escaped != '?'
+                && escaped != '|'
+                && escaped != '('
+                && escaped != ')'
+                && escaped != '['
+                && escaped != ']'
+                && escaped != '{'
+                && escaped != '}'
+                && escaped != '\\'
+            {
+                return false;
+            }
+        }
+        if atom != '\\'
+            && (atom == '['
+                || atom == ']'
+                || atom == '('
+                || atom == ')'
+                || atom == '{'
+                || atom == '}'
+                || atom == '*'
+                || atom == '+'
+                || atom == '?'
+                || atom == '|')
+        {
+            return false;
+        }
+        position += 1;
+    }
+    true
+}
+
 pub fn find_simple_advanced(
     pattern: &str,
     subject: &str,
     from: usize,
     case_sensitive: bool,
     dot_crosses_newline: bool,
+    line_anchors: bool,
 ) -> MatchOutcome {
     let atoms: Vec<char> = pattern.chars().collect();
     let haystack: Vec<char> = subject.chars().collect();
     let mut position = 0;
     while position < atoms.len() {
         let atom = atoms[position];
-        if atom == '^'
-            || atom == '$'
-            || atom == '['
-            || atom == ']'
-            || atom == '('
-            || atom == ')'
-            || atom == '{'
-            || atom == '}'
-            || atom == '*'
-            || atom == '+'
-            || atom == '?'
-            || atom == '|'
-            || atom == '\\'
+        if atom == '\\' {
+            position += 1;
+            if position == atoms.len() {
+                return MatchOutcome::Uncertain;
+            }
+            let escaped = atoms[position];
+            if escaped != '.'
+                && escaped != '^'
+                && escaped != '$'
+                && escaped != '*'
+                && escaped != '+'
+                && escaped != '?'
+                && escaped != '|'
+                && escaped != '('
+                && escaped != ')'
+                && escaped != '['
+                && escaped != ']'
+                && escaped != '{'
+                && escaped != '}'
+                && escaped != '\\'
+            {
+                return MatchOutcome::Uncertain;
+            }
+        }
+        if atom != '\\'
+            && (atom == '['
+                || atom == ']'
+                || atom == '('
+                || atom == ')'
+                || atom == '{'
+                || atom == '}'
+                || atom == '*'
+                || atom == '+'
+                || atom == '?'
+                || atom == '|')
         {
             return MatchOutcome::Uncertain;
         }
@@ -120,28 +191,51 @@ pub fn find_simple_advanced(
     }
     let mut start = from;
     while start <= haystack.len() {
-        let mut offset = 0;
-        while offset < atoms.len() {
-            if offset >= haystack.len() - start {
-                break;
+        let mut atom_position = 0;
+        let mut subject_position = start;
+        while atom_position < atoms.len() {
+            let escaped = atoms[atom_position] == '\\';
+            if escaped {
+                atom_position += 1;
             }
-            let actual = haystack[start + offset];
-            let atom = atoms[offset];
-            if atom == '.' && actual == '\n' && dot_crosses_newline == false {
-                break;
-            }
-            if atom != '.'
-                && actual != atom
-                && (case_sensitive || actual.to_ascii_lowercase() != atom.to_ascii_lowercase())
+            let atom = atoms[atom_position];
+            if escaped == false
+                && atom == '^'
+                && subject_position != 0
+                && (line_anchors == false || haystack[subject_position - 1] != '\n')
             {
                 break;
             }
-            offset += 1;
+            if escaped == false
+                && atom == '$'
+                && subject_position != haystack.len()
+                && (line_anchors == false || haystack[subject_position] != '\n')
+            {
+                break;
+            }
+            if escaped || (atom != '^' && atom != '$') {
+                if subject_position >= haystack.len() {
+                    break;
+                }
+                let actual = haystack[subject_position];
+                if escaped == false && atom == '.' && actual == '\n' && dot_crosses_newline == false
+                {
+                    break;
+                }
+                if (escaped || atom != '.')
+                    && actual != atom
+                    && (case_sensitive || actual.to_ascii_lowercase() != atom.to_ascii_lowercase())
+                {
+                    break;
+                }
+                subject_position += 1;
+            }
+            atom_position += 1;
         }
-        if offset == atoms.len() {
+        if atom_position == atoms.len() {
             return MatchOutcome::Found(MatchSpan {
                 start,
-                end: start + offset,
+                end: subject_position,
             });
         }
         if start == haystack.len() {

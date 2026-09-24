@@ -54,6 +54,45 @@ for (const newline of ['ordinary', 'sensitive', 'stop', 'anchors']) {
     }
   }
 }
+for (const newline of ['ordinary', 'sensitive', 'stop', 'anchors']) {
+  for (const [pattern, subject] of [
+    ['^a', 'a'],
+    ['^a', '\na'],
+    ['a$', 'a\n'],
+    ['^$', '\n'],
+    ['^a$', '\na\n'],
+    ['^a.b$', 'a\nb'],
+    ['^a.b$', 'a😀b'],
+  ]) {
+    inputs.push({
+      pattern,
+      subject,
+      options: { syntax: 'advanced', caseSensitive: true, expanded: false, newline },
+    })
+  }
+}
+for (const newline of ['ordinary', 'sensitive', 'stop', 'anchors']) {
+  for (const punctuation of '.^$*+?|()[]{}\\') {
+    inputs.push({
+      pattern: `\\${punctuation}`,
+      subject: `a${punctuation}b`,
+      options: { syntax: 'advanced', caseSensitive: true, expanded: false, newline },
+    })
+  }
+  for (const [pattern, subject] of [
+    ['a\\.b', 'za.b'],
+    ['^a\\.$', 'a.'],
+    ['\\^a', 'z^a'],
+    ['a\\$', 'za$'],
+    ['a\\\\b', 'za\\b'],
+  ]) {
+    inputs.push({
+      pattern,
+      subject,
+      options: { syntax: 'advanced', caseSensitive: true, expanded: false, newline },
+    })
+  }
+}
 for (const [pattern, subject, start, options] of [
   [
     'a',
@@ -86,6 +125,12 @@ for (const [pattern, subject, start, options] of [
     'za😀b',
     2,
     { syntax: 'advanced', caseSensitive: true, expanded: false, newline: 'ordinary' },
+  ],
+  [
+    '^a',
+    '\na',
+    2,
+    { syntax: 'advanced', caseSensitive: true, expanded: false, newline: 'sensitive' },
   ],
 ]) {
   inputs.push({ pattern, subject, start, options })

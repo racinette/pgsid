@@ -22,16 +22,14 @@ type fixtureInput struct {
 }
 
 type fixtureExpected struct {
-	Kind  string `json:"kind"`
-	Value struct {
-		Start int `json:"start"`
-		End   int `json:"end"`
-	} `json:"value"`
+	Kind  string          `json:"kind"`
+	Value json.RawMessage `json:"value"`
 }
 
 type fixture struct {
-	Input    fixtureInput    `json:"input"`
-	Expected fixtureExpected `json:"expected"`
+	Operation string          `json:"operation"`
+	Input     fixtureInput    `json:"input"`
+	Expected  fixtureExpected `json:"expected"`
 }
 
 type fixtureDocument struct {
@@ -48,9 +46,11 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 	advanced := 0
 	dot := 0
 	mixed := 0
+	anchored := 0
+	escaped := 0
 	positioned := 0
 	newlineModes := map[string]bool{}
-	for _, path := range []string{"postgres-fixtures.json", "stress-fixtures.json", "targeted-postgres-fixtures.json"} {
+	for _, path := range []string{"postgres-fixtures.json", "stress-fixtures.json", "targeted-postgres-fixtures.json", "stress-position-fixtures.json", "stress-boundary-fixtures.json"} {
 		data, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
@@ -63,6 +63,9 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			t.Fatalf("unexpected fixture document: %s", path)
 		}
 		for index, fixture := range document.Fixtures {
+			if fixture.Operation != "" && fixture.Operation != "find" {
+				continue
+			}
 			input := fixture.Input
 			from := 0
 			if input.Start != 0 {
@@ -75,15 +78,22 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				if !input.Options.CaseSensitive {
 					insensitive++
 				}
-			} else if input.Options.Syntax == "advanced" && !input.Options.Expanded && !strings.ContainsAny(input.Pattern, "^$[](){}*+?|\\") {
+			} else if input.Options.Syntax == "advanced" && !input.Options.Expanded && supports_simple_advanced(input.Pattern) {
 				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
-				actual = find_simple_advanced(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline)
+				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
+				actual = find_simple_advanced(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors)
 				advanced++
 				if input.Pattern == "." {
 					dot++
 				}
 				if input.Pattern != "." && strings.Contains(input.Pattern, ".") {
 					mixed++
+				}
+				if strings.ContainsAny(input.Pattern, "^$") {
+					anchored++
+				}
+				if strings.Contains(input.Pattern, "\\") {
+					escaped++
 				}
 				newlineModes[input.Options.Newline] = true
 			} else {
@@ -95,7 +105,14 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			var expected MatchOutcome
 			switch fixture.Expected.Kind {
 			case "Found":
-				expected = MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: fixture.Expected.Value.Start, end: fixture.Expected.Value.End}}
+				var span struct {
+					Start int `json:"start"`
+					End   int `json:"end"`
+				}
+				if err := json.Unmarshal(fixture.Expected.Value, &span); err != nil {
+					t.Fatal(err)
+				}
+				expected = MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: span.Start, end: span.End}}
 			case "NoMatch":
 				expected = MatchOutcome{kind: MatchOutcomeNoMatch}
 			default:
@@ -112,7 +129,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			}
 		}
 	}
-	if literal < 40 || insensitive < 7 || advanced < 100 || dot < 20 || mixed < 50 || positioned < 6 || len(newlineModes) != 4 {
-		t.Fatalf("fixture coverage: literal=%d insensitive=%d advanced=%d dot=%d mixed=%d positioned=%d newline=%v", literal, insensitive, advanced, dot, mixed, positioned, newlineModes)
+	if literal < 40 || insensitive < 7 || advanced < 100 || dot < 20 || mixed < 50 || anchored < 20 || escaped < 40 || positioned < 6 || len(newlineModes) != 4 {
+		t.Fatalf("fixture coverage: literal=%d insensitive=%d advanced=%d dot=%d mixed=%d anchored=%d escaped=%d positioned=%d newline=%v", literal, insensitive, advanced, dot, mixed, anchored, escaped, positioned, newlineModes)
 	}
 }

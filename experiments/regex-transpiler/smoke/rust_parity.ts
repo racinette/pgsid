@@ -36,7 +36,11 @@ for (const [index, testCase] of oracle.cases.entries()) {
         testCase.from,
         testCase.caseSensitive,
         testCase.dotCrossesNewline,
+        testCase.lineAnchors,
       )
+      break
+    case 'supports_simple_advanced':
+      actual = generated.supports_simple_advanced(testCase.pattern)
       break
     case 'charge_work':
       actual = generated.charge_work(testCase.current, testCase.amount)
