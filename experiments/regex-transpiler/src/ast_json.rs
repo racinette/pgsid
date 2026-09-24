@@ -429,6 +429,12 @@ mod tests {
     }
 
     #[test]
+    fn ascii_lowercase_requires_a_character() {
+        assert!(parse("pub fn f(value: char) -> char { value.to_ascii_lowercase() }").is_ok());
+        assert!(parse("pub fn f(value: &str) -> &str { value.to_ascii_lowercase() }").is_err());
+    }
+
+    #[test]
     fn rejects_comparisons_without_shared_value_semantics() {
         assert!(parse("pub fn f(a: Vec<char>, b: Vec<char>) -> bool { a == b }").is_err());
         assert!(parse("pub fn f(a: char, b: char) -> bool { a < b }").is_err());

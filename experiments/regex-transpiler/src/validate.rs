@@ -329,6 +329,12 @@ fn infer_expr_type(
             }
             Ok(Some("usize".into()))
         }
+        Expr::MethodCall(call) if call.method == "to_ascii_lowercase" => {
+            if infer_expr_type(&call.receiver, locals, semantics)?.as_deref() != Some("char") {
+                return Err("to_ascii_lowercase() is supported only on char".into());
+            }
+            Ok(Some("char".into()))
+        }
         Expr::MethodCall(call) if call.method == "collect" => {
             let Expr::MethodCall(chars) = &*call.receiver else {
                 unreachable!()

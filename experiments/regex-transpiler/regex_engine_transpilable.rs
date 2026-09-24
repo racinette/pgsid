@@ -28,7 +28,12 @@ pub fn charge_work(current: usize, amount: usize) -> WorkOutcome {
     WorkOutcome::Ready(current + amount)
 }
 
-pub fn find_literal(pattern: &str, subject: &str, from: usize) -> MatchOutcome {
+pub fn find_literal(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+) -> MatchOutcome {
     let needle: Vec<char> = pattern.chars().collect();
     let haystack: Vec<char> = subject.chars().collect();
     if from > haystack.len() {
@@ -41,7 +46,11 @@ pub fn find_literal(pattern: &str, subject: &str, from: usize) -> MatchOutcome {
             if offset >= haystack.len() - start {
                 break;
             }
-            if haystack[start + offset] != needle[offset] {
+            let actual = haystack[start + offset];
+            let expected = needle[offset];
+            if actual != expected
+                && (case_sensitive || actual.to_ascii_lowercase() != expected.to_ascii_lowercase())
+            {
                 break;
             }
             offset += 1;

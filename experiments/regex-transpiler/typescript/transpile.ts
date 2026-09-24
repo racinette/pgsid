@@ -164,7 +164,9 @@ class Transpiler {
           ? 'Vec<char>'
           : value.method === 'len'
             ? 'usize'
-            : undefined
+            : value.method === 'to_ascii_lowercase'
+              ? 'char'
+              : undefined
       case 'call':
         return value.callee.kind === 'path' && value.callee.segments.length === 2
           ? value.callee.segments[0]
@@ -218,6 +220,9 @@ class Transpiler {
       case 'method-call': {
         if (value.method === 'len' && value.arguments.length === 0) {
           return `${this.expression(value.receiver, locals)}.length`
+        }
+        if (value.method === 'to_ascii_lowercase' && value.arguments.length === 0) {
+          return `asciiLowercase(${this.expression(value.receiver, locals)})`
         }
         if (
           value.method === 'collect' &&
@@ -405,6 +410,14 @@ class Transpiler {
       "if (points.length !== 1 || (value.codePointAt(0)! >= 0xd800 && value.codePointAt(0)! <= 0xdfff)) throw new RangeError('invalid Unicode scalar');",
     )
     this.writer.line('return value;')
+    this.writer.indent--
+    this.writer.line('}')
+    this.writer.line('function asciiLowercase(value: string): string {')
+    this.writer.indent++
+    this.writer.line('const codepoint = checkedChar(value).codePointAt(0)!;')
+    this.writer.line(
+      'return codepoint >= 65 && codepoint <= 90 ? String.fromCodePoint(codepoint + 32) : value;',
+    )
     this.writer.indent--
     this.writer.line('}')
     this.writer.line('function checkedString(value: string): string {')
