@@ -12,6 +12,7 @@ tests/unit/query/espalier/.cache/
 # hand-maintained claim, so nothing here is reviewed and nothing is committed.
 artifacts/
 src/codegen/go/wasm/go-ast.wasm
+experiments/regex-transpiler/target/
 
 vendor/*
 !vendor/README.MD

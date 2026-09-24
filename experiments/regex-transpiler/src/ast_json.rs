@@ -1,0 +1,481 @@
+use std::collections::BTreeSet;
+
+use serde_json::{json, Value};
+use syn::punctuated::Punctuated;
+use syn::{BinOp, Expr, Fields, FnArg, Item, Pat, ReturnType, Stmt, Type, Visibility};
+
+use crate::{
+    syntax,
+    validate::{check_methods, inspect, path_name, pattern_ident, type_name, Result},
+};
+
+fn derive_names(attrs: &[syn::Attribute]) -> Result<Vec<String>> {
+    let mut names = Vec::new();
+    for attribute in attrs {
+        let paths: Punctuated<syn::Path, syn::Token![,]> = attribute
+            .parse_args_with(Punctuated::parse_terminated)
+            .map_err(|error| error.to_string())?;
+        names.extend(paths.iter().map(path_name));
+    }
+    Ok(names)
+}
+
+fn visibility(value: &Visibility) -> Result<&'static str> {
+    match value {
+        Visibility::Inherited => Ok("private"),
+        Visibility::Public(_) => Ok("public"),
+        _ => Err("restricted visibility is outside the AST contract".into()),
+    }
+}
+
+fn check_type(value: &Type, declarations: &BTreeSet<String>) -> Result<()> {
+    match value {
+        Type::Reference(reference) => {
+            if type_name(&reference.elem)? != "str" {
+                return Err("only &str references are in the AST contract".into());
+            }
+        }
+        Type::Path(_) => {
+            let name = type_name(value)?;
+            if !matches!(
+                name.as_str(),
+                "usize" | "u32" | "i32" | "bool" | "char" | "Vec<char>"
+            ) && !declarations.contains(&name)
+            {
+                return Err(format!("type {name} is outside the AST contract"));
+            }
+        }
+        _ => return Err("type is outside the AST contract".into()),
+    }
+    Ok(())
+}
+
+fn check_body_types(block: &syn::Block, declarations: &BTreeSet<String>) -> Result<()> {
+    for statement in &block.stmts {
+        match statement {
+            Stmt::Local(local) => {
+                if let Pat::Type(typed) = &local.pat {
+                    check_type(&typed.ty, declarations)?;
+                }
+            }
+            Stmt::Expr(Expr::If(branch), _) => check_body_types(&branch.then_branch, declarations)?,
+            Stmt::Expr(Expr::While(loop_), _) => check_body_types(&loop_.body, declarations)?,
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn check_types(file: &syn::File) -> Result<()> {
+    let declarations = file
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Struct(node) => Some(node.ident.to_string()),
+            Item::Enum(node) => Some(node.ident.to_string()),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    for item in &file.items {
+        match item {
+            Item::Const(node) => check_type(&node.ty, &declarations)?,
+            Item::Struct(node) => {
+                let Fields::Named(fields) = &node.fields else {
+                    unreachable!()
+                };
+                for field in &fields.named {
+                    check_type(&field.ty, &declarations)?;
+                }
+            }
+            Item::Enum(node) => {
+                for variant in &node.variants {
+                    if let Fields::Unnamed(fields) = &variant.fields {
+                        check_type(&fields.unnamed[0].ty, &declarations)?;
+                    }
+                }
+            }
+            Item::Fn(node) => {
+                for arg in &node.sig.inputs {
+                    let FnArg::Typed(arg) = arg else {
+                        unreachable!()
+                    };
+                    check_type(&arg.ty, &declarations)?;
+                }
+                let ReturnType::Type(_, output) = &node.sig.output else {
+                    unreachable!()
+                };
+                check_type(output, &declarations)?;
+                check_body_types(&node.block, &declarations)?;
+            }
+            _ => unreachable!(),
+        }
+    }
+    Ok(())
+}
+
+fn segments(path: &syn::Path) -> Vec<String> {
+    path.segments
+        .iter()
+        .map(|segment| segment.ident.to_string())
+        .collect()
+}
+
+fn ty(value: &Type) -> Result<Value> {
+    match value {
+        Type::Reference(reference) => Ok(json!({
+            "kind": "reference",
+            "inner": ty(&reference.elem)?,
+        })),
+        Type::Path(path) => {
+            let segment = &path.path.segments[0];
+            if let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments {
+                let syn::GenericArgument::Type(argument) = &arguments.args[0] else {
+                    return Err("expected a type argument".into());
+                };
+                Ok(json!({
+                    "kind": "path",
+                    "segments": segments(&path.path),
+                    "typeArguments": [ty(argument)?],
+                }))
+            } else {
+                Ok(json!({ "kind": "path", "segments": segments(&path.path) }))
+            }
+        }
+        _ => Err("type is outside the AST contract".into()),
+    }
+}
+
+fn integer(value: &syn::LitInt) -> Result<String> {
+    let source = value.to_string();
+    if !source.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err(format!(
+            "integer literal {source} must use unsuffixed decimal syntax"
+        ));
+    }
+    let number = source
+        .parse::<u32>()
+        .map_err(|_| format!("integer literal {source} exceeds the shared numeric bound"))?;
+    if number > i32::MAX as u32 {
+        return Err(format!(
+            "integer literal {source} exceeds the shared numeric bound"
+        ));
+    }
+    Ok(number.to_string())
+}
+
+fn operator(value: &BinOp) -> Result<&'static str> {
+    match value {
+        BinOp::Add(_) => Ok("add"),
+        BinOp::Sub(_) => Ok("subtract"),
+        BinOp::Lt(_) => Ok("less-than"),
+        BinOp::Le(_) => Ok("less-or-equal"),
+        BinOp::Gt(_) => Ok("greater-than"),
+        BinOp::Ge(_) => Ok("greater-or-equal"),
+        BinOp::Eq(_) => Ok("equal"),
+        BinOp::Ne(_) => Ok("not-equal"),
+        BinOp::And(_) => Ok("and"),
+        BinOp::Or(_) => Ok("or"),
+        BinOp::AddAssign(_) => Ok("add-assign"),
+        _ => Err("binary operator is outside the AST contract".into()),
+    }
+}
+
+fn expr(value: &Expr) -> Result<Value> {
+    match value {
+        Expr::Path(node) => Ok(json!({ "kind": "path", "segments": segments(&node.path) })),
+        Expr::Lit(node) => {
+            let syn::Lit::Int(number) = &node.lit else {
+                return Err("literal is outside the AST contract".into());
+            };
+            Ok(json!({ "kind": "integer", "digits": integer(number)? }))
+        }
+        Expr::Paren(node) => Ok(json!({ "kind": "parenthesized", "inner": expr(&node.expr)? })),
+        Expr::Group(node) => expr(&node.expr),
+        Expr::Binary(node) => Ok(json!({
+            "kind": "binary",
+            "operator": operator(&node.op)?,
+            "left": expr(&node.left)?,
+            "right": expr(&node.right)?,
+        })),
+        Expr::Field(node) => {
+            let syn::Member::Named(member) = &node.member else {
+                return Err("tuple field is outside the AST contract".into());
+            };
+            Ok(json!({ "kind": "field", "base": expr(&node.base)?, "member": member.to_string() }))
+        }
+        Expr::Index(node) => Ok(json!({
+            "kind": "index",
+            "base": expr(&node.expr)?,
+            "index": expr(&node.index)?,
+        })),
+        Expr::MethodCall(node) => {
+            if node.method == "collect" {
+                let Expr::MethodCall(chars) = &*node.receiver else {
+                    return Err("collect receiver is outside the AST contract".into());
+                };
+                Ok(json!({
+                    "kind": "method-call",
+                    "receiver": {
+                        "kind": "method-call",
+                        "receiver": expr(&chars.receiver)?,
+                        "method": "chars",
+                        "arguments": [],
+                    },
+                    "method": "collect",
+                    "arguments": [],
+                }))
+            } else {
+                Ok(json!({
+                    "kind": "method-call",
+                    "receiver": expr(&node.receiver)?,
+                    "method": node.method.to_string(),
+                    "arguments": [],
+                }))
+            }
+        }
+        Expr::Struct(node) => {
+            let fields = node
+                .fields
+                .iter()
+                .map(|field| {
+                    let syn::Member::Named(member) = &field.member else {
+                        return Err("tuple field is outside the AST contract".into());
+                    };
+                    Ok(json!({ "name": member.to_string(), "value": expr(&field.expr)? }))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            Ok(json!({
+                "kind": "struct-literal",
+                "path": segments(&node.path),
+                "fields": fields,
+            }))
+        }
+        Expr::Call(node) => Ok(json!({
+            "kind": "call",
+            "callee": expr(&node.func)?,
+            "arguments": node.args.iter().map(expr).collect::<Result<Vec<_>>>()?,
+        })),
+        Expr::If(node) => Ok(json!({
+            "kind": "if",
+            "condition": expr(&node.cond)?,
+            "body": block(&node.then_branch)?,
+        })),
+        Expr::While(node) => Ok(json!({
+            "kind": "while",
+            "condition": expr(&node.cond)?,
+            "body": block(&node.body)?,
+        })),
+        Expr::Return(node) => Ok(json!({
+            "kind": "return",
+            "value": expr(node.expr.as_ref().ok_or("bare return is outside the AST contract")?)?,
+        })),
+        Expr::Break(_) => Ok(json!({ "kind": "break" })),
+        _ => Err("expression is outside the AST contract".into()),
+    }
+}
+
+fn block(value: &syn::Block) -> Result<Vec<Value>> {
+    value.stmts.iter().map(|statement| match statement {
+        Stmt::Local(local) => {
+            let (name, mutable) = pattern_ident(&local.pat)?;
+            let mut result = json!({
+                "kind": "local",
+                "binding": { "name": name, "mutable": mutable },
+                "initializer": expr(&local.init.as_ref().ok_or("uninitialized local is outside the AST contract")?.expr)?,
+            });
+            if let Pat::Type(typed) = &local.pat {
+                result["type"] = ty(&typed.ty)?;
+            }
+            Ok(result)
+        }
+        Stmt::Expr(expression, semi) => Ok(json!({
+            "kind": "expression",
+            "semicolon": semi.is_some(),
+            "value": expr(expression)?,
+        })),
+        _ => Err("statement is outside the AST contract".into()),
+    }).collect()
+}
+
+fn item(value: &Item) -> Result<Value> {
+    match value {
+        Item::Const(node) => Ok(json!({
+            "kind": "constant",
+            "visibility": visibility(&node.vis)?,
+            "name": node.ident.to_string(),
+            "type": ty(&node.ty)?,
+            "value": expr(&node.expr)?,
+        })),
+        Item::Struct(node) => {
+            let Fields::Named(named) = &node.fields else {
+                return Err("struct fields are outside the AST contract".into());
+            };
+            let fields = named
+                .named
+                .iter()
+                .map(|field| {
+                    Ok(json!({
+                        "visibility": visibility(&field.vis)?,
+                        "name": field.ident.as_ref().ok_or("unnamed field")?.to_string(),
+                        "type": ty(&field.ty)?,
+                    }))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            Ok(json!({
+                "kind": "struct",
+                "visibility": visibility(&node.vis)?,
+                "name": node.ident.to_string(),
+                "derives": derive_names(&node.attrs)?,
+                "fields": fields,
+            }))
+        }
+        Item::Enum(node) => {
+            let variants = node
+                .variants
+                .iter()
+                .map(|variant| {
+                    let mut value = json!({ "name": variant.ident.to_string() });
+                    if let Fields::Unnamed(fields) = &variant.fields {
+                        value["payload"] = ty(&fields.unnamed[0].ty)?;
+                    }
+                    Ok(value)
+                })
+                .collect::<Result<Vec<_>>>()?;
+            Ok(json!({
+                "kind": "enum",
+                "visibility": visibility(&node.vis)?,
+                "name": node.ident.to_string(),
+                "derives": derive_names(&node.attrs)?,
+                "variants": variants,
+            }))
+        }
+        Item::Fn(node) => {
+            let parameters = node
+                .sig
+                .inputs
+                .iter()
+                .map(|arg| {
+                    let FnArg::Typed(arg) = arg else {
+                        return Err("receiver is outside the AST contract".into());
+                    };
+                    let (name, mutable) = pattern_ident(&arg.pat)?;
+                    Ok(json!({ "name": name, "mutable": mutable, "type": ty(&arg.ty)? }))
+                })
+                .collect::<Result<Vec<_>>>()?;
+            let ReturnType::Type(_, output) = &node.sig.output else {
+                return Err("explicit return type is required".into());
+            };
+            Ok(json!({
+                "kind": "function",
+                "visibility": visibility(&node.vis)?,
+                "name": node.sig.ident.to_string(),
+                "parameters": parameters,
+                "returnType": ty(output)?,
+                "body": block(&node.block)?,
+            }))
+        }
+        _ => Err("item is outside the AST contract".into()),
+    }
+}
+
+pub fn parse(source: &str) -> Result<String> {
+    let file = syn::parse_file(source).map_err(|error| error.to_string())?;
+    syntax::check(&file)?;
+    inspect(&file)?;
+    check_types(&file)?;
+    check_methods(&file)?;
+    let items = file.items.iter().map(item).collect::<Result<Vec<_>>>()?;
+    serde_json::to_string(&json!({ "schemaVersion": 1, "items": items }))
+        .map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse;
+
+    mod engine {
+        include!("../transpiler_fixture.rs");
+    }
+
+    #[test]
+    fn serializes_slice_without_losing_tail_or_mutability() {
+        let value: serde_json::Value =
+            serde_json::from_str(&parse(include_str!("../transpiler_fixture.rs")).unwrap())
+                .unwrap();
+        assert_eq!(value["schemaVersion"], 1);
+        let shift = value["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["name"] == "shift_span")
+            .unwrap();
+        assert_eq!(shift["body"][0]["binding"]["mutable"], true);
+        assert_eq!(shift["body"][3]["semicolon"], false);
+    }
+
+    #[test]
+    fn rejects_nondecimal_literals() {
+        assert!(parse("const X: usize = 0xff;").is_err());
+    }
+
+    #[test]
+    fn rejects_types_without_target_mappings() {
+        assert!(parse("pub fn f(value: Vec<i32>) -> i32 { 1 }").is_err());
+        assert!(parse("pub fn f(value: &char) -> bool { 1 == 1 }").is_err());
+    }
+
+    #[test]
+    fn rejects_string_length_with_different_target_units() {
+        assert!(parse("pub fn f(value: &str) -> usize { value.len() }").is_err());
+    }
+
+    #[test]
+    fn rust_source_matches_shared_vectors() {
+        let vectors: serde_json::Value =
+            serde_json::from_str(include_str!("../conformance/cases.json")).unwrap();
+        for vector in vectors["search"].as_array().unwrap() {
+            let subject = if let Some(value) = vector["subject"].as_str() {
+                value.to_string()
+            } else {
+                vector["subjectRepeat"]["text"]
+                    .as_str()
+                    .unwrap()
+                    .repeat(vector["subjectRepeat"]["count"].as_u64().unwrap() as usize)
+            };
+            let actual = engine::literal_search(vector["pattern"].as_str().unwrap(), &subject);
+            let actual = match actual {
+                engine::Outcome::Found(span) => serde_json::json!({
+                    "kind": "Found", "value": { "start": span.start, "end": span.end }
+                }),
+                engine::Outcome::NoMatch => serde_json::json!({ "kind": "NoMatch" }),
+                engine::Outcome::Uncertain => serde_json::json!({ "kind": "Uncertain" }),
+            };
+            assert_eq!(actual, vector["expected"]);
+        }
+        for vector in vectors["shift"].as_array().unwrap() {
+            let span = engine::Span {
+                start: vector["input"]["start"].as_u64().unwrap() as usize,
+                end: vector["input"]["end"].as_u64().unwrap() as usize,
+            };
+            let offset = vector["offset"].as_u64().unwrap() as usize;
+            let shifted = engine::shift_span(span, offset);
+            let expected = engine::Span {
+                start: vector["expected"]["start"].as_u64().unwrap() as usize,
+                end: vector["expected"]["end"].as_u64().unwrap() as usize,
+            };
+            assert!(engine::same_span(shifted, expected));
+            assert_eq!(
+                shifted.start as u64,
+                vector["expected"]["start"].as_u64().unwrap()
+            );
+            assert_eq!(
+                shifted.end as u64,
+                vector["expected"]["end"].as_u64().unwrap()
+            );
+            assert_eq!(
+                span.start as u64,
+                vector["input"]["start"].as_u64().unwrap()
+            );
+        }
+    }
+}
