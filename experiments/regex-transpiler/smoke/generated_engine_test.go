@@ -69,6 +69,9 @@ func TestLiteralSlice(t *testing.T) {
 			t.Errorf("unsupported bounded group was accepted: %q", pattern)
 		}
 	}
+	if !SupportsExtendedGroup("(a|ab)b", false) || SupportsExtendedGroup("(a|ab)\\w", false) {
+		t.Error("extended group support gate changed")
+	}
 	found := FindLiteral("😀", "a😀a", 0, true)
 	if found != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Errorf("literal match = %+v", found)

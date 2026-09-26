@@ -90,6 +90,12 @@ fn bounded_group_gate_requires_fixed_literal_member() {
 }
 
 #[test]
+fn extended_group_gate_excludes_advanced_escapes() {
+    assert!(candidate::supports_extended_group("(a|ab)b", false));
+    assert!(!candidate::supports_extended_group("(a|ab)\\w", false));
+}
+
+#[test]
 fn literal_search_matches_the_live_engine() {
     for case_sensitive in [true, false] {
         for pattern in ["", "a", "A", "😀", "aa", "Å", "å", "K", "k", "\n"] {
@@ -141,6 +147,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut bounded_group = 0;
     let mut expanded_advanced = 0;
     let mut extended = 0;
+    let mut extended_group = 0;
     let mut basic = 0;
     let mut dot = 0;
     let mut mixed = 0;
@@ -406,6 +413,23 @@ fn supported_search_matches_pglite_fixtures() {
                     newline == "sensitive" || newline == "anchors",
                     options["expanded"].as_bool().unwrap(),
                 )
+            } else if options["syntax"] == "extended"
+                && candidate::supports_extended_group(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                extended_group += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_extended_group(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
             } else if options["syntax"] == "basic"
                 && candidate::supports_basic_compatible(
                     pattern,
@@ -456,6 +480,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(bounded_group >= 20);
     assert!(expanded_advanced >= 200);
     assert!(extended >= 50);
+    assert!(extended_group >= 20);
     assert!(basic >= 50);
     assert!(dot >= 20);
     assert!(mixed >= 50);
