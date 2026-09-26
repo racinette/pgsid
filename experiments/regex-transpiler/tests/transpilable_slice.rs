@@ -188,6 +188,33 @@ fn choice_capture_repeats_the_chosen_literal() {
 }
 
 #[test]
+fn two_choice_backrefs_compare_all_literal_alternatives() {
+    for pattern in ["(a|aa)(a|aa)\\2\\1", "(a|ab)(b|)\\1"] {
+        assert!(candidate::supports_two_choice_backref(pattern, false));
+    }
+    assert!(!candidate::supports_two_choice_backref(
+        "(a|ab)(b|)\\2",
+        false
+    ));
+    assert!(matches!(
+        candidate::find_two_choice_backref(
+            "(a|aa)(a|aa)\\2\\1",
+            "aaaaaa",
+            0,
+            true,
+            true,
+            false,
+            false
+        ),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 6 })
+    ));
+    assert!(matches!(
+        candidate::find_two_choice_backref("(a|ab)(b|)\\1", "abbab", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 5 })
+    ));
+}
+
+#[test]
 fn repeated_choice_explores_literal_alternatives() {
     for pattern in [
         "(a|ab)*b",
@@ -1049,6 +1076,23 @@ fn supported_search_matches_pglite_fixtures() {
                 choice_capture += 1;
                 let newline = options["newline"].as_str().unwrap();
                 candidate::find_choice_capture_backref(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "advanced"
+                && candidate::supports_two_choice_backref(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                choice_capture += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_two_choice_backref(
                     pattern,
                     subject,
                     from,

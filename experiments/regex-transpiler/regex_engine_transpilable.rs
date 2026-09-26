@@ -128,6 +128,15 @@ struct TwoCaptureResult {
     second_reference: bool,
 }
 
+struct TwoChoiceResult {
+    valid: bool,
+    first_left: Vec<char>,
+    first_right: Vec<char>,
+    second_left: Vec<char>,
+    second_right: Vec<char>,
+    second_reference: bool,
+}
+
 struct InlineResult {
     valid: bool,
     mode: char,
@@ -2195,6 +2204,111 @@ fn choice_capture_atoms(pattern: &str, expanded: bool) -> ChoiceCaptureResult {
 
 pub fn supports_choice_capture_backref(pattern: &str, expanded: bool) -> bool {
     choice_capture_atoms(pattern, expanded).valid
+}
+
+fn two_choice_atoms(pattern: &str, expanded: bool) -> TwoChoiceResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut first_left: Vec<char> = Vec::new();
+    let mut first_right: Vec<char> = Vec::new();
+    let mut second_left: Vec<char> = Vec::new();
+    let mut second_right: Vec<char> = Vec::new();
+    let mut valid = source.len() >= 11;
+    let mut position = 0;
+    if valid {
+        valid = source[position] == '(';
+        position += 1;
+    }
+    if valid {
+        while position < source.len() && source[position] != '|' {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            first_left.push(source[position]);
+            position += 1;
+        }
+        if first_left.len() == 0 || position == source.len() {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 1;
+        while position < source.len() && source[position] != ')' {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            first_right.push(source[position]);
+            position += 1;
+        }
+        if first_right.len() == 0 || position == source.len() {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 1;
+        if position == source.len() || source[position] != '(' {
+            valid = false;
+        } else {
+            position += 1;
+        };
+    }
+    if valid {
+        while position < source.len() && source[position] != '|' {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            second_left.push(source[position]);
+            position += 1;
+        }
+        if second_left.len() == 0 || position == source.len() {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 1;
+        while position < source.len() && source[position] != ')' {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            second_right.push(source[position]);
+            position += 1;
+        }
+        if position == source.len() {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 1;
+    }
+    let mut second_reference = false;
+    if valid
+        && source.len() - position >= 2
+        && source[position] == '\\'
+        && source[position + 1] == '2'
+    {
+        second_reference = true;
+        position += 2;
+    }
+    if valid
+        && (source.len() - position != 2 || source[position] != '\\' || source[position + 1] != '1')
+    {
+        valid = false;
+    }
+    TwoChoiceResult {
+        valid,
+        first_left,
+        first_right,
+        second_left,
+        second_right,
+        second_reference,
+    }
+}
+
+pub fn supports_two_choice_backref(pattern: &str, expanded: bool) -> bool {
+    two_choice_atoms(pattern, expanded).valid
 }
 
 fn repeated_choice_atoms(pattern: &str, expanded: bool) -> RepeatedChoiceResult {
@@ -4903,6 +5017,108 @@ pub fn find_choice_capture_backref(
         start: second.start,
         end: second.end,
     })
+}
+
+pub fn find_two_choice_backref(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = two_choice_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let mut found = false;
+    let mut best_start = 0;
+    let mut best_end = 0;
+    let mut first_variant = 0;
+    while first_variant < 2 {
+        let mut first: Vec<char> = Vec::new();
+        let mut index = 0;
+        if first_variant == 0 {
+            while index < parsed.first_left.len() {
+                first.push(parsed.first_left[index]);
+                index += 1;
+            }
+        } else {
+            while index < parsed.first_right.len() {
+                first.push(parsed.first_right[index]);
+                index += 1;
+            }
+        };
+        let mut second_variant = 0;
+        while second_variant < 2 {
+            let mut second: Vec<char> = Vec::new();
+            index = 0;
+            if second_variant == 0 {
+                while index < parsed.second_left.len() {
+                    second.push(parsed.second_left[index]);
+                    index += 1;
+                }
+            } else {
+                while index < parsed.second_right.len() {
+                    second.push(parsed.second_right[index]);
+                    index += 1;
+                }
+            };
+            let mut atoms: Vec<char> = Vec::new();
+            index = 0;
+            while index < first.len() {
+                atoms.push(first[index]);
+                index += 1;
+            }
+            index = 0;
+            while index < second.len() {
+                atoms.push(second[index]);
+                index += 1;
+            }
+            if parsed.second_reference {
+                index = 0;
+                while index < second.len() {
+                    atoms.push(second[index]);
+                    index += 1;
+                }
+            }
+            index = 0;
+            while index < first.len() {
+                atoms.push(first[index]);
+                index += 1;
+            }
+            let result = search_atoms(
+                atoms,
+                subject,
+                from,
+                case_sensitive,
+                dot_crosses_newline,
+                line_anchors,
+            );
+            if result.kind == 2 {
+                return MatchOutcome::Uncertain;
+            }
+            if result.kind == 0
+                && (found == false
+                    || result.start < best_start
+                    || result.start == best_start && result.end > best_end)
+            {
+                found = true;
+                best_start = result.start;
+                best_end = result.end;
+            }
+            second_variant += 1;
+        }
+        first_variant += 1;
+    }
+    if found {
+        return MatchOutcome::Found(MatchSpan {
+            start: best_start,
+            end: best_end,
+        });
+    }
+    MatchOutcome::NoMatch
 }
 
 pub fn find_repeated_choice(

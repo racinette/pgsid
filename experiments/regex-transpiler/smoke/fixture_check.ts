@@ -367,6 +367,22 @@ for (const fixturePath of fixturePaths) {
       coverage.choiceCapture++
     } else if (
       options.syntax === 'advanced' &&
+      generated.supportsTwoChoiceBackref(pattern, options.expanded)
+    ) {
+      const crossesNewline = options.newline === 'ordinary' || options.newline === 'anchors'
+      const lineAnchors = options.newline === 'sensitive' || options.newline === 'anchors'
+      actual = generated.findTwoChoiceBackref(
+        pattern,
+        subject,
+        from,
+        options.caseSensitive,
+        crossesNewline,
+        lineAnchors,
+        options.expanded,
+      )
+      coverage.choiceCapture++
+    } else if (
+      options.syntax === 'advanced' &&
       generated.supportsTwoCaptureBackref(pattern, options.expanded)
     ) {
       actual = generated.findTwoCaptureBackref(
