@@ -131,6 +131,24 @@ fn leading_lookahead_gate_rejects_nested_assertions() {
 }
 
 #[test]
+fn chained_single_character_assertions_match_with_literal_repetition() {
+    for pattern in ["a(?=b)b*(?=c)c*", "(?<=a)b*(?<=b)c*", "(?!a)(?=b)b"] {
+        assert!(candidate::supports_chained_assertions(pattern, false));
+    }
+    for pattern in ["a(?=b)b*", "(?=ab)(?=b)b", "(?=(a))(?=b)b", "(?=b)b+(?=c)c"] {
+        assert!(!candidate::supports_chained_assertions(pattern, false));
+    }
+    assert!(matches!(
+        candidate::find_chained_assertions("a(?=b)b*(?=c)c*", "abc", 0, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 3 })
+    ));
+    assert!(matches!(
+        candidate::find_chained_assertions("(?<=a)b*(?<=b)c*", "abc", 0, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 3 })
+    ));
+}
+
+#[test]
 fn fixed_backref_gate_requires_literal_capture() {
     assert!(candidate::supports_fixed_backref("(a)?b\\1", false));
     assert!(matches!(
@@ -818,6 +836,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut two_capture = 0;
     let mut inline = 0;
     let mut middle_lookahead = 0;
+    let mut chained_assertions = 0;
     let mut bounded_group = 0;
     let mut expanded_advanced = 0;
     let mut extended = 0;
@@ -1295,6 +1314,20 @@ fn supported_search_matches_pglite_fixtures() {
                     options["expanded"].as_bool().unwrap(),
                 )
             } else if options["syntax"] == "advanced"
+                && candidate::supports_chained_assertions(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                chained_assertions += 1;
+                candidate::find_chained_assertions(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "advanced"
                 && candidate::supports_bounded_group(
                     pattern,
                     options["expanded"].as_bool().unwrap(),
@@ -1560,6 +1593,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(two_capture >= 30);
     assert!(inline >= 20);
     assert!(middle_lookahead >= 20);
+    assert!(chained_assertions >= 4);
     assert!(bounded_group >= 20);
     assert!(expanded_advanced >= 200);
     assert!(extended >= 50);
