@@ -24971,6 +24971,886 @@
           "end": 4
         }
       }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "aaab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|bc",
+        "subject": "xbc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a-c]+",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.*b",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "^a{1,3}b$",
+        "subject": "aab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a b",
+        "subject": "ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "aaab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|bc",
+        "subject": "xbc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a-c]+",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.*b",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "^a{1,3}b$",
+        "subject": "aab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a b",
+        "subject": "ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "aaab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|bc",
+        "subject": "xbc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a-c]+",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.*b",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "^a{1,3}b$",
+        "subject": "aab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a b",
+        "subject": "ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "aaab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|bc",
+        "subject": "xbc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a-c]+",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.*b",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "^a{1,3}b$",
+        "subject": "aab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a b",
+        "subject": "ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "aaab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|bc",
+        "subject": "xbc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a-c]+",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.*b",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "^a{1,3}b$",
+        "subject": "aab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a b",
+        "subject": "ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "aaab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|bc",
+        "subject": "xbc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a-c]+",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.*b",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "^a{1,3}b$",
+        "subject": "aab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a b",
+        "subject": "ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "aaab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|bc",
+        "subject": "xbc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a-c]+",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.*b",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "^a{1,3}b$",
+        "subject": "aab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a b",
+        "subject": "ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "aaab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|bc",
+        "subject": "xbc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a-c]+",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a.*b",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "^a{1,3}b$",
+        "subject": "aab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a b",
+        "subject": "ab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
     }
   ]
 }

@@ -379,6 +379,21 @@ pub fn supports_expanded_advanced(pattern: &str) -> bool {
     supports_atoms(atoms)
 }
 
+pub fn supports_extended_compatible(pattern: &str, expanded: bool) -> bool {
+    let source: Vec<char> = pattern.chars().collect();
+    let mut position = 0;
+    while position < source.len() {
+        if source[position] == '\\' {
+            return false;
+        }
+        position += 1;
+    }
+    if expanded {
+        return supports_expanded_advanced(pattern);
+    }
+    supports_simple_advanced(pattern)
+}
+
 fn search_atoms(
     atoms: Vec<char>,
     subject: &str,
@@ -1179,5 +1194,25 @@ pub fn count_expanded_advanced(
         dot_crosses_newline,
         line_anchors,
         true,
+    )
+}
+
+pub fn find_extended_compatible(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    find_advanced(
+        pattern,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        expanded,
     )
 }
