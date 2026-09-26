@@ -1195,6 +1195,8 @@ pub fn definitely_invalid_backreference(pattern: &str, syntax: char, expanded: b
     let mut open: Vec<usize> = Vec::new();
     let mut closed: Vec<usize> = Vec::new();
     let mut depth = 0;
+    let mut paren_depth = 0;
+    let mut assertion_depth = 0;
     let mut bracket = false;
     let mut bracket_members = 0;
     let mut position = 0;
@@ -1216,6 +1218,16 @@ pub fn definitely_invalid_backreference(pattern: &str, syntax: char, expanded: b
                 return false;
             }
             let escaped = source[position + 1];
+            if syntax == 'a'
+                && assertion_depth > 0
+                && (escaped as u32) >= 49
+                && (escaped as u32) <= 57
+                && (position + 2 == source.len()
+                    || (source[position + 2] as u32) < 48
+                    || (source[position + 2] as u32) > 57)
+            {
+                return true;
+            }
             if syntax == 'b' && escaped == '(' {
                 closed.push(0);
                 if depth == open.len() {
@@ -1237,6 +1249,31 @@ pub fn definitely_invalid_backreference(pattern: &str, syntax: char, expanded: b
                 && (source[position + 2] as u32) <= 57
             {
                 return true;
+            } else if syntax == 'a'
+                && (escaped as u32) >= 49
+                && (escaped as u32) <= 57
+                && position + 2 < source.len()
+                && (source[position + 2] as u32) >= 48
+                && (source[position + 2] as u32) <= 57
+            {
+                let mut reference = ((escaped as u32) - 48) as usize;
+                let mut scan = position + 2;
+                let mut digits = 1;
+                while scan < source.len()
+                    && (source[scan] as u32) >= 48
+                    && (source[scan] as u32) <= 57
+                    && digits < 3
+                {
+                    let double = reference + reference;
+                    let four = double + double;
+                    let eight = four + four;
+                    reference = eight + double + ((source[scan] as u32) - 48) as usize;
+                    scan += 1;
+                    digits += 1;
+                }
+                if reference <= closed.len() && closed[reference - 1] == 0 {
+                    return true;
+                }
             } else if (escaped as u32) >= 49
                 && (escaped as u32) <= 57
                 && (position + 2 == source.len()
@@ -1250,6 +1287,16 @@ pub fn definitely_invalid_backreference(pattern: &str, syntax: char, expanded: b
             }
             position += 2;
         } else if syntax == 'a' && atom == '(' {
+            paren_depth += 1;
+            if assertion_depth == 0
+                && source.len() - position >= 3
+                && source[position + 1] == '?'
+                && (source[position + 2] == '='
+                    || source[position + 2] == '!'
+                    || source[position + 2] == '<')
+            {
+                assertion_depth = paren_depth;
+            };
             closed.push(0);
             if depth == open.len() {
                 open.push(closed.len());
@@ -1259,6 +1306,12 @@ pub fn definitely_invalid_backreference(pattern: &str, syntax: char, expanded: b
             depth += 1;
             position += 1;
         } else if syntax == 'a' && atom == ')' {
+            if assertion_depth == paren_depth {
+                assertion_depth = 0;
+            };
+            if paren_depth > 0 {
+                paren_depth = paren_depth - 1;
+            };
             if depth > 0 {
                 depth = depth - 1;
                 closed[open[depth] - 1] = 1;
