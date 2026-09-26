@@ -5175,6 +5175,92 @@ pub fn find_basic_special_bracket(
     })
 }
 
+fn basic_literal_escaped_letter_atoms(pattern: &str, expanded: bool) -> BasicLiteralResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut atoms: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut escaped_letter = false;
+    let mut punctuation = false;
+    let mut valid = true;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '\\' && position + 1 < source.len() {
+            let letter = source[position + 1];
+            let codepoint = letter as u32;
+            if codepoint >= 65 && codepoint <= 90 || codepoint >= 97 && codepoint <= 122 {
+                atoms.push(letter);
+                escaped_letter = true;
+                position += 2;
+            } else {
+                valid = false;
+                break;
+            };
+        } else if atom == '+'
+            || atom == '?'
+            || atom == '|'
+            || atom == '('
+            || atom == ')'
+            || atom == '{'
+            || atom == '}'
+        {
+            atoms.push('\\');
+            atoms.push(atom);
+            punctuation = true;
+            position += 1;
+        } else if simple_literal_char(atom) {
+            atoms.push(atom);
+            position += 1;
+        } else {
+            valid = false;
+            break;
+        };
+    }
+    BasicLiteralResult {
+        valid: valid && escaped_letter && punctuation,
+        atoms,
+    }
+}
+
+pub fn supports_basic_literal_escaped_letter(pattern: &str, expanded: bool) -> bool {
+    let parsed = basic_literal_escaped_letter_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    supports_atoms(parsed.atoms)
+}
+
+pub fn find_basic_literal_escaped_letter(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    if supports_basic_literal_escaped_letter(pattern, expanded) == false {
+        return MatchOutcome::Uncertain;
+    }
+    let result = search_atoms(
+        basic_literal_escaped_letter_atoms(pattern, expanded).atoms,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
+}
+
 fn collating_bracket_atoms(pattern: &str, expanded: bool) -> BasicLiteralResult {
     let source = pattern_atoms(pattern, expanded);
     let mut atoms: Vec<char> = Vec::new();
