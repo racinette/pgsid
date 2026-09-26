@@ -13899,6 +13899,1662 @@
           "end": 2
         }
       }
+    },
+    {
+      "input": {
+        "pattern": "\\a",
+        "subject": "x\u0007",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\b",
+        "subject": "x\b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\B",
+        "subject": "x\\",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\e",
+        "subject": "x\u001b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\f",
+        "subject": "x\f",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\n",
+        "subject": "x\n",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\r",
+        "subject": "x\r",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\t",
+        "subject": "x\t",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\v",
+        "subject": "x\u000b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\a",
+        "subject": "x\u0007",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\b",
+        "subject": "x\b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\B",
+        "subject": "x\\",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\e",
+        "subject": "x\u001b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\f",
+        "subject": "x\f",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\n",
+        "subject": "x\n",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\r",
+        "subject": "x\r",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\t",
+        "subject": "x\t",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\v",
+        "subject": "x\u000b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\a",
+        "subject": "x\u0007",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\b",
+        "subject": "x\b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\B",
+        "subject": "x\\",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\e",
+        "subject": "x\u001b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\f",
+        "subject": "x\f",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\n",
+        "subject": "x\n",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\r",
+        "subject": "x\r",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\t",
+        "subject": "x\t",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\v",
+        "subject": "x\u000b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\a",
+        "subject": "x\u0007",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\b",
+        "subject": "x\b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\B",
+        "subject": "x\\",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\e",
+        "subject": "x\u001b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\f",
+        "subject": "x\f",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\n",
+        "subject": "x\n",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\r",
+        "subject": "x\r",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\t",
+        "subject": "x\t",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "\\v",
+        "subject": "x\u000b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\d]",
+        "subject": "a5",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\D]",
+        "subject": "5é",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\s]",
+        "subject": "a\n",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\S]",
+        "subject": "\nA",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\w]",
+        "subject": "-A",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\W]",
+        "subject": "Aé",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[^\\d]",
+        "subject": "5a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[^\\D]",
+        "subject": "a5",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a\\d]",
+        "subject": "5",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\d\\w]",
+        "subject": "_",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\d-]",
+        "subject": "-",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[^\\d\\D]",
+        "subject": "a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\d]",
+        "subject": "a5",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\D]",
+        "subject": "5é",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\s]",
+        "subject": "a\n",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\S]",
+        "subject": "\nA",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\w]",
+        "subject": "-A",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\W]",
+        "subject": "Aé",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[^\\d]",
+        "subject": "5a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[^\\D]",
+        "subject": "a5",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a\\d]",
+        "subject": "5",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\d\\w]",
+        "subject": "_",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\d-]",
+        "subject": "-",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[^\\d\\D]",
+        "subject": "a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\d]",
+        "subject": "a5",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\D]",
+        "subject": "5é",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\s]",
+        "subject": "a\n",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\S]",
+        "subject": "\nA",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\w]",
+        "subject": "-A",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\W]",
+        "subject": "Aé",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[^\\d]",
+        "subject": "5a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[^\\D]",
+        "subject": "a5",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a\\d]",
+        "subject": "5",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\d\\w]",
+        "subject": "_",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\d-]",
+        "subject": "-",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[^\\d\\D]",
+        "subject": "a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\d]",
+        "subject": "a5",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\D]",
+        "subject": "5é",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\s]",
+        "subject": "a\n",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\S]",
+        "subject": "\nA",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\w]",
+        "subject": "-A",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\W]",
+        "subject": "Aé",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[^\\d]",
+        "subject": "5a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[^\\D]",
+        "subject": "a5",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a\\d]",
+        "subject": "5",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\d\\w]",
+        "subject": "_",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[\\d-]",
+        "subject": "-",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[^\\d\\D]",
+        "subject": "a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
     }
   ]
 }

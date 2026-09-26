@@ -118,3 +118,25 @@ pub struct NamedSpan {
 pub fn named_position(value: NamedSpan) -> usize {
     value.from_position
 }
+
+pub fn stack_probe(seed: usize) -> usize {
+    let mut work: Vec<usize> = Vec::new();
+    work.push(seed);
+    work.push(seed + 1);
+    let mut cursor = work.len();
+    cursor = cursor - 1;
+    let mut value = work[cursor];
+    value = value + 2;
+    work[cursor] = value;
+    work[cursor]
+}
+
+pub fn append_position(mut positions: Vec<usize>, next: usize) -> usize {
+    positions.push(next);
+    positions.len()
+}
+
+pub fn overwrite_position(mut positions: Vec<usize>, at: usize, next: usize) -> usize {
+    positions[at] = next;
+    positions[at]
+}

@@ -60,10 +60,18 @@ func (g *generator) goType(value *node) ast.Expr {
 	}
 	name := path(value)
 	if len(value.TypeArguments) != 0 {
-		if name != "Vec" || len(value.TypeArguments) != 1 || path(value.TypeArguments[0]) != "char" {
+		if name != "Vec" || len(value.TypeArguments) != 1 {
 			reject("unsupported generic type")
 		}
-		return &ast.ArrayType{Elt: goIdent("rune")}
+		switch path(value.TypeArguments[0]) {
+		case "char":
+			return &ast.ArrayType{Elt: goIdent("rune")}
+		case "usize":
+			return &ast.ArrayType{Elt: goIdent("int")}
+		default:
+			reject("unsupported vector element type")
+			return nil
+		}
 	}
 	switch name {
 	case "usize", "u32", "i32":
@@ -96,6 +104,9 @@ func (g *generator) goDetach(value ast.Expr, valueType *node) ast.Expr {
 	case "char":
 		return goCall("checkedChar", value)
 	case "Vec":
+		if len(valueType.TypeArguments) == 1 && path(valueType.TypeArguments[0]) == "usize" {
+			return goCall("checkedIndices", value)
+		}
 		return goCall("checkedChars", value)
 	default:
 		if g.types[name] {
@@ -188,6 +199,9 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		}
 		return goComposite(g.name(name), fields...)
 	case "call":
+		if value.Callee != nil && len(value.Callee.Segments) == 2 && value.Callee.Segments[0] == "Vec" && value.Callee.Segments[1] == "new" && len(value.Arguments) == 0 {
+			return &ast.CompositeLit{Type: &ast.ArrayType{Elt: goIdent("int")}}
+		}
 		if value.Callee == nil || value.Callee.Kind != "path" || len(value.Callee.Segments) != 2 || len(value.Arguments) != 1 {
 			reject("unsupported call")
 		}
@@ -233,6 +247,21 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 			result = append(result, &ast.ReturnStmt{Results: []ast.Expr{g.goExpression(value.Value)}})
 		case "break":
 			result = append(result, &ast.BranchStmt{Tok: token.BREAK})
+		case "assign":
+			result = append(result, goAssign(g.goExpression(value.Left), g.goDetach(g.goExpression(value.Right), g.inferType(value.Left)), token.ASSIGN))
+		case "method-call":
+			if value.Method == "push" && len(value.Arguments) == 1 {
+				receiver := g.goExpression(value.Receiver)
+				result = append(result, &ast.ExprStmt{X: goCall("checkedAdd", goCall("len", receiver), goInteger("1"))})
+				result = append(result, goAssign(receiver, goCall("append", receiver, goCall("checkedIndex", g.goExpression(value.Arguments[0]))), token.ASSIGN))
+				continue
+			}
+			generated := g.goExpression(value)
+			if index == len(statements)-1 && !statement.Semicolon {
+				result = append(result, &ast.ReturnStmt{Results: []ast.Expr{generated}})
+			} else {
+				result = append(result, &ast.ExprStmt{X: generated})
+			}
 		case "if", "while":
 			condition := g.goExpression(value.Condition)
 			originalLocals, originalTypes := g.locals, g.localTypes

@@ -158,6 +158,13 @@ fn expr(expr: &Expr) -> Result {
                 return Err("qualified calls are outside the syntax subset".into());
             }
             path(&callee.path, 2)?;
+            if callee.path.segments.len() == 2
+                && callee.path.segments[0].ident == "Vec"
+                && callee.path.segments[1].ident == "new"
+                && node.args.is_empty()
+            {
+                return Ok(());
+            }
             if callee.path.segments.len() != 2 || node.args.len() != 1 {
                 return Err(
                     "only single-payload enum constructors are in the syntax subset".into(),
@@ -257,6 +264,19 @@ fn block(block: &syn::Block, function_body: bool) -> Result {
             {
                 expr(&node.left)?;
                 expr(&node.right)?;
+            }
+            Stmt::Expr(Expr::Assign(node), _) if node.attrs.is_empty() => {
+                expr(&node.left)?;
+                expr(&node.right)?;
+            }
+            Stmt::Expr(Expr::MethodCall(node), _)
+                if node.attrs.is_empty()
+                    && node.turbofish.is_none()
+                    && node.method == "push"
+                    && node.args.len() == 1 =>
+            {
+                expr(&node.receiver)?;
+                expr(&node.args[0])?;
             }
             Stmt::Expr(value, _) => expr(value)?,
             _ => return Err("statement is outside the syntax subset".into()),

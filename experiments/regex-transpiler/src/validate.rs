@@ -221,6 +221,13 @@ fn assignment_root(value: &Expr) -> Option<String> {
     }
 }
 
+fn is_new_index_vector(value: &Expr) -> bool {
+    matches!(value,
+        Expr::Call(call)
+        if call.args.is_empty()
+            && matches!(&*call.func, Expr::Path(path) if path_name(&path.path) == "Vec::new"))
+}
+
 fn numeric(name: &str) -> bool {
     matches!(name, "usize" | "u32" | "i32")
 }
@@ -347,18 +354,37 @@ fn infer_expr_type(
         }
         Expr::Index(index) => {
             let base = infer_expr_type(&index.expr, locals, semantics)?;
-            infer_expr_type(&index.index, locals, semantics)?;
+            if infer_expr_type(&index.index, locals, semantics)?.as_deref() != Some("usize") {
+                return Err("vector index must be usize".into());
+            }
             if base.as_deref() == Some("Vec<char>") {
                 Ok(Some("char".into()))
+            } else if base.as_deref() == Some("Vec<usize>") {
+                Ok(Some("usize".into()))
             } else {
-                Err("indexing is supported only on Vec<char>".into())
+                Err("indexing is supported only on shared vectors".into())
             }
         }
         Expr::MethodCall(call) if call.method == "len" => {
-            if infer_expr_type(&call.receiver, locals, semantics)?.as_deref() != Some("Vec<char>") {
-                return Err("len() is supported only on Vec<char>".into());
+            let receiver = infer_expr_type(&call.receiver, locals, semantics)?;
+            if receiver.as_deref() != Some("Vec<char>") && receiver.as_deref() != Some("Vec<usize>")
+            {
+                return Err("len() is supported only on shared vectors".into());
             }
             Ok(Some("usize".into()))
+        }
+        Expr::MethodCall(call) if call.method == "push" => {
+            if infer_expr_type(&call.receiver, locals, semantics)?.as_deref() != Some("Vec<usize>")
+                || infer_expr_type(&call.args[0], locals, semantics)?.as_deref() != Some("usize")
+            {
+                return Err("push() requires a Vec<usize> and a usize value".into());
+            }
+            let root = assignment_root(&call.receiver)
+                .ok_or("push() receiver is not an addressable binding")?;
+            if !locals.get(&root).is_some_and(|binding| binding.mutable) {
+                return Err(format!("push() receiver {root} is immutable"));
+            }
+            Ok(None)
         }
         Expr::MethodCall(call) if call.method == "to_ascii_lowercase" => {
             if infer_expr_type(&call.receiver, locals, semantics)?.as_deref() != Some("char") {
@@ -396,6 +422,11 @@ fn infer_expr_type(
             Ok(Some(name))
         }
         Expr::Call(call) => {
+            if let Expr::Path(path) = &*call.func {
+                if path_name(&path.path) == "Vec::new" && call.args.is_empty() {
+                    return Err("Vec::new() requires an explicitly typed Vec<usize> local".into());
+                }
+            }
             for argument in &call.args {
                 infer_expr_type(argument, locals, semantics)?;
             }
@@ -411,6 +442,38 @@ fn infer_expr_type(
                 return Err("call is not a declared enum constructor".into());
             }
             Ok(Some(name))
+        }
+        Expr::Assign(assign) => {
+            let destination = infer_expr_type(&assign.left, locals, semantics)?
+                .ok_or("assignment destination has no shared type")?;
+            let source = infer_expr_type(&assign.right, locals, semantics)?
+                .ok_or("assignment source has no shared type")?;
+            match &*assign.left {
+                Expr::Path(_) if scalar(&destination) => {}
+                Expr::Index(_) if destination == "usize" => {}
+                _ => {
+                    return Err(
+                        "assignment target must be a scalar binding or vector element".into(),
+                    )
+                }
+            }
+            if destination != source
+                && !(matches!(
+                    &*assign.right,
+                    Expr::Lit(syn::ExprLit {
+                        lit: syn::Lit::Int(_),
+                        ..
+                    })
+                ) && matches!(destination.as_str(), "u32" | "i32"))
+            {
+                return Err("assignment source and destination types differ".into());
+            }
+            let root = assignment_root(&assign.left)
+                .ok_or("assignment target is not an addressable binding")?;
+            if !locals.get(&root).is_some_and(|binding| binding.mutable) {
+                return Err(format!("assignment target {root} is immutable"));
+            }
+            Ok(None)
         }
         Expr::If(branch) => {
             check_if_methods(branch, locals, semantics)?;
@@ -441,12 +504,24 @@ fn check_body_methods(
         match statement {
             Stmt::Local(local) => {
                 let (name, mutable) = pattern_ident(&local.pat)?;
-                let inferred =
-                    infer_expr_type(&local.init.as_ref().unwrap().expr, locals, semantics)?;
-                let ty = if let Pat::Type(typed) = &local.pat {
-                    type_name(&typed.ty)?
+                let initializer = &local.init.as_ref().unwrap().expr;
+                let ty = if is_new_index_vector(initializer) {
+                    let Pat::Type(typed) = &local.pat else {
+                        return Err(
+                            "Vec::new() requires an explicitly typed Vec<usize> local".into()
+                        );
+                    };
+                    if type_name(&typed.ty)? != "Vec<usize>" {
+                        return Err("Vec::new() is supported only for Vec<usize>".into());
+                    }
+                    "Vec<usize>".into()
                 } else {
-                    inferred.ok_or_else(|| format!("cannot infer type of {name}"))?
+                    let inferred = infer_expr_type(initializer, locals, semantics)?;
+                    if let Pat::Type(typed) = &local.pat {
+                        type_name(&typed.ty)?
+                    } else {
+                        inferred.ok_or_else(|| format!("cannot infer type of {name}"))?
+                    }
                 };
                 locals.insert(name, Binding { ty, mutable });
             }

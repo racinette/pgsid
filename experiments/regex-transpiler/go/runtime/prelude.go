@@ -68,3 +68,14 @@ func checkedChars(value []rune) []rune {
 	}
 	return result
 }
+
+func checkedIndices(value []int) []int {
+	if len(value) > maxSharedIndex {
+		panic("vector outside shared numeric range")
+	}
+	result := make([]int, len(value))
+	for index, position := range value {
+		result[index] = checkedIndex(position)
+	}
+	return result
+}

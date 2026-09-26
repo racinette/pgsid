@@ -49,6 +49,26 @@ function checkedChars(value: string[]): string[] {
   return Array.from(value, checkedChar)
 }
 
+function checkedIndices(value: number[]): number[] {
+  if (value.length > MAX_SHARED_INDEX) throw new RangeError('vector outside shared numeric range')
+  return Array.from(value, checkedIndex)
+}
+
+function checkedIndexIn(values: number[], index: number): number {
+  checkedIndex(index)
+  if (index >= values.length) throw new RangeError('index out of bounds')
+  return index
+}
+
+function indexNumber(values: number[], index: number): number {
+  return checkedIndex(values[checkedIndexIn(values, index)]!)
+}
+
+function pushIndex(values: number[], value: number): void {
+  checkedAdd(values.length, 1)
+  values.push(checkedIndex(value))
+}
+
 function indexChar(values: string[], index: number): string {
   if (!Number.isSafeInteger(index) || index < 0 || index >= values.length)
     throw new RangeError('index out of bounds')

@@ -59,6 +59,16 @@ func TestTranspilerSmoke(t *testing.T) {
 	if NamedPosition(NamedSpan{FromPosition: 2}) != 2 {
 		t.Error("named field changed its position")
 	}
+	if StackProbe(3) != 6 {
+		t.Error("mutable vector stack changed its result")
+	}
+	positions := []int{2}
+	if AppendPosition(positions, 4) != 2 || OverwritePosition(positions, 0, 4) != 4 || positions[0] != 2 {
+		t.Error("mutable vector input changed its caller's storage")
+	}
+	expectPanic(t, func() { AppendPosition([]int{-1}, 4) })
+	expectPanic(t, func() { AppendPosition(positions, 2147483648) })
+	expectPanic(t, func() { OverwritePosition(positions, 1, 4) })
 	expectPanic(t, func() { CharCount(string([]byte{0xff})) })
 }
 
