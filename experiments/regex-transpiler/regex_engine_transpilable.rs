@@ -135,6 +135,12 @@ struct TwoCaptureResult {
     second_reference: bool,
 }
 
+#[derive(Clone, Copy)]
+struct OptionalLiteralState {
+    pattern: usize,
+    subject: usize,
+}
+
 struct TwoChoiceResult {
     valid: bool,
     first_left: Vec<char>,
@@ -1430,6 +1436,133 @@ pub fn supports_optional_group(pattern: &str, expanded: bool) -> bool {
         return false;
     }
     supports_atoms(parsed.left) && supports_atoms(parsed.right)
+}
+
+pub fn supports_multi_optional_group(pattern: &str, expanded: bool) -> bool {
+    let source = pattern_atoms(pattern, expanded);
+    let mut position = 0;
+    let mut groups = 0;
+    let mut inside = false;
+    let mut members = 0;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '(' {
+            if inside {
+                return false;
+            }
+            inside = true;
+            members = 0;
+            groups += 1;
+            position += 1;
+        } else if atom == ')' {
+            if inside == false
+                || members == 0
+                || source.len() - position < 2
+                || source[position + 1] != '?'
+            {
+                return false;
+            }
+            inside = false;
+            position += 2;
+        } else if simple_literal_char(atom) {
+            if inside {
+                members += 1;
+            }
+            position += 1;
+        } else {
+            return false;
+        };
+    }
+    inside == false && groups >= 2
+}
+
+pub fn find_multi_optional_group(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    if supports_multi_optional_group(pattern, expanded) == false {
+        return MatchOutcome::Uncertain;
+    }
+    let source = pattern_atoms(pattern, expanded);
+    let haystack: Vec<char> = subject.chars().collect();
+    if from > haystack.len() {
+        return MatchOutcome::NoMatch;
+    }
+    let mut work = 0;
+    let mut start = from;
+    while start <= haystack.len() {
+        let mut stack: Vec<OptionalLiteralState> = Vec::new();
+        stack.push(OptionalLiteralState {
+            pattern: 0,
+            subject: start,
+        });
+        let mut stack_len = 1;
+        let mut found = false;
+        let mut best_end = start;
+        while stack_len > 0 {
+            stack_len = stack_len - 1;
+            let state = stack[stack_len];
+            let mut pattern_position = state.pattern;
+            let mut subject_position = state.subject;
+            let mut matched = true;
+            while pattern_position < source.len() {
+                if work == MAX_CAPTURE_WORK {
+                    return MatchOutcome::Uncertain;
+                }
+                work += 1;
+                let atom = source[pattern_position];
+                if atom == '(' {
+                    let mut closing = pattern_position + 1;
+                    while source[closing] != ')' {
+                        closing += 1;
+                    }
+                    let skipped = OptionalLiteralState {
+                        pattern: closing + 2,
+                        subject: subject_position,
+                    };
+                    if stack_len == stack.len() {
+                        stack.push(skipped);
+                    } else {
+                        stack[stack_len] = skipped;
+                    }
+                    stack_len += 1;
+                    pattern_position += 1;
+                } else if atom == ')' {
+                    pattern_position += 2;
+                } else {
+                    if subject_position == haystack.len() {
+                        matched = false;
+                        break;
+                    }
+                    let actual = haystack[subject_position];
+                    if actual != atom
+                        && (case_sensitive
+                            || actual.to_ascii_lowercase() != atom.to_ascii_lowercase())
+                    {
+                        matched = false;
+                        break;
+                    }
+                    subject_position += 1;
+                    pattern_position += 1;
+                };
+            }
+            if matched && (found == false || subject_position > best_end) {
+                found = true;
+                best_end = subject_position;
+            }
+        }
+        if found {
+            return MatchOutcome::Found(MatchSpan {
+                start,
+                end: best_end,
+            });
+        }
+        start += 1;
+    }
+    MatchOutcome::NoMatch
 }
 
 fn fixed_lookbehind_atoms(pattern: &str, expanded: bool) -> LookbehindResult {

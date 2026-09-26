@@ -60,6 +60,27 @@ fn optional_group_gate_requires_one_fixed_literal_member() {
 }
 
 #[test]
+fn multiple_optional_literal_groups_search_all_participation_choices() {
+    for pattern in ["a(b)?c(d)?e", "(ab)?(cd)?e", "a(b)?(c)?(d)?e"] {
+        assert!(candidate::supports_multi_optional_group(pattern, false));
+    }
+    for pattern in ["a(b)?c", "a(b+)?c(d)?e", "a((b)?)?c(d)?e", "a(b)?c(d)??e"] {
+        assert!(!candidate::supports_multi_optional_group(pattern, false));
+    }
+    for (subject, end) in [("xabcdey", 6), ("xacdey", 5), ("xabcey", 5), ("xacey", 4)] {
+        assert!(matches!(
+            candidate::find_multi_optional_group("a(b)?c(d)?e", subject, 0, true, false),
+            candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: actual_end })
+                if actual_end == end
+        ));
+    }
+    assert!(matches!(
+        candidate::find_multi_optional_group("(ab)?(cd)?e", "e", 0, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 1 })
+    ));
+}
+
+#[test]
 fn fixed_lookbehind_gate_requires_fixed_width_prefix() {
     assert!(candidate::supports_fixed_lookbehind("(?<=ab)c", false));
     for pattern in ["(?<=^a)b", "(?<!^a)b", "(?<=.)b", "(?<=..)b*", "(?<=a|b)c"] {
@@ -764,6 +785,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut grouped = 0;
     let mut group_choice = 0;
     let mut optional_group = 0;
+    let mut multi_optional_group = 0;
     let mut lookbehind = 0;
     let mut lookahead = 0;
     let mut backref = 0;
@@ -1048,6 +1070,20 @@ fn supported_search_matches_pglite_fixtures() {
                     options["caseSensitive"].as_bool().unwrap(),
                     newline == "ordinary" || newline == "anchors",
                     newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "advanced"
+                && candidate::supports_multi_optional_group(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                multi_optional_group += 1;
+                candidate::find_multi_optional_group(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
                     options["expanded"].as_bool().unwrap(),
                 )
             } else if options["syntax"] == "advanced"
@@ -1473,6 +1509,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(grouped >= 20);
     assert!(group_choice >= 20);
     assert!(optional_group >= 50);
+    assert!(multi_optional_group >= 4);
     assert!(lookbehind >= 20);
     assert!(lookahead >= 20);
     assert!(backref >= 20);
