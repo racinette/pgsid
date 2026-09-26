@@ -81,6 +81,14 @@ func TestLiteralSlice(t *testing.T) {
 	if !SupportsBasicLetterEscape("a\\wb", false) || SupportsBasicLetterEscape("a\\w\\(b\\)", false) {
 		t.Error("basic letter escape gate changed")
 	}
+	if !SupportsBasicEscapedBound("a\\{2,3\\}b", false) {
+		t.Error("basic escaped bound was rejected")
+	}
+	for _, pattern := range []string{"a\\{3,1\\}b", "a\\{2,3", "a{2,3}b", "\\(a\\)\\{2\\}"} {
+		if SupportsBasicEscapedBound(pattern, false) {
+			t.Errorf("unsupported basic bound was accepted: %q", pattern)
+		}
+	}
 	found := FindLiteral("😀", "a😀a", 0, true)
 	if found != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Errorf("literal match = %+v", found)

@@ -50,6 +50,10 @@ assert.equal(generated.supportsExtendedLiteralEscape('[\\w]', false), false)
 assert.equal(generated.supportsExtendedLiteralEscape('a\\1b', false), false)
 assert.equal(generated.supportsBasicLetterEscape('a\\wb', false), true)
 assert.equal(generated.supportsBasicLetterEscape('a\\w\\(b\\)', false), false)
+assert.equal(generated.supportsBasicEscapedBound('a\\{2,3\\}b', false), true)
+for (const pattern of ['a\\{3,1\\}b', 'a\\{2,3', 'a{2,3}b', '\\(a\\)\\{2\\}']) {
+  assert.equal(generated.supportsBasicEscapedBound(pattern, false), false)
+}
 
 assert.deepEqual(generated.findLiteral('😀', 'a😀a', 0, true), {
   kind: 'Found',
