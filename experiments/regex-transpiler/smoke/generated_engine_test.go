@@ -1,6 +1,9 @@
 package generated
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestLiteralSlice(t *testing.T) {
 	if !SupportsFlatGroups("a((b)c)", false) {
@@ -72,7 +75,13 @@ func TestLiteralSlice(t *testing.T) {
 	if !SupportsBoundedGroup("(ab){1,3}c", false) {
 		t.Error("bounded literal group was rejected")
 	}
-	for _, pattern := range []string{"(a|b){2}", "(ab){1,}", "(ab)*", "(a+){2}", "(ab){17}"} {
+	if !SupportsBoundedGroup("a(ab)*c", false) || !SupportsBoundedGroup("a(ab)+c", false) {
+		t.Error("unbounded literal group was rejected")
+	}
+	if FindBoundedGroup("a(b)*c", strings.Repeat("b", 300), 0, true, true, false, false).Kind != MatchOutcomeUncertain {
+		t.Error("unbounded literal group exceeded work limit without uncertainty")
+	}
+	for _, pattern := range []string{"(a|b){2}", "(ab){1,}", "(a+){2}", "(ab){17}"} {
 		if SupportsBoundedGroup(pattern, false) {
 			t.Errorf("unsupported bounded group was accepted: %q", pattern)
 		}

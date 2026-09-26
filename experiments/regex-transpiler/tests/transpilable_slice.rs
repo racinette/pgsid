@@ -90,11 +90,17 @@ fn middle_lookahead_gate_requires_literal_prefix() {
 }
 
 #[test]
-fn bounded_group_gate_requires_fixed_literal_member() {
+fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
-    for pattern in ["(a|b){2}", "(ab){1,}", "(ab)*", "(a+){2}", "(ab){17}"] {
+    assert!(candidate::supports_bounded_group("a(ab)*c", false));
+    assert!(candidate::supports_bounded_group("a(ab)+c", false));
+    for pattern in ["(a|b){2}", "(ab){1,}", "(a+){2}", "(ab){17}"] {
         assert!(!candidate::supports_bounded_group(pattern, false));
     }
+    assert!(matches!(
+        candidate::find_bounded_group("a(b)*c", &"b".repeat(300), 0, true, true, false, false),
+        candidate::MatchOutcome::Uncertain
+    ));
 }
 
 #[test]

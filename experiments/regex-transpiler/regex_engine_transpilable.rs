@@ -1225,11 +1225,19 @@ fn bounded_group_atoms(pattern: &str, expanded: bool) -> BoundedGroupResult {
     }
     if valid {
         position += 1;
-        if position == source.len() || source[position] != '{' {
+        if position == source.len()
+            || (source[position] != '{' && source[position] != '*' && source[position] != '+')
+        {
             valid = false;
         }
     }
-    if valid {
+    if valid && (source[position] == '*' || source[position] == '+') {
+        if source[position] == '+' {
+            lower = 1;
+        }
+        upper = MAX_CAPTURE_WORK;
+        position += 1;
+    } else if valid {
         position += 1;
         let mut digits = 0;
         while position < source.len()
@@ -1251,7 +1259,7 @@ fn bounded_group_atoms(pattern: &str, expanded: bool) -> BoundedGroupResult {
             valid = false;
         }
     }
-    if valid {
+    if valid && upper != MAX_CAPTURE_WORK {
         upper = lower;
         if source[position] == ',' {
             position += 1;
@@ -1281,7 +1289,9 @@ fn bounded_group_atoms(pattern: &str, expanded: bool) -> BoundedGroupResult {
         }
     }
     if valid {
-        position += 1;
+        if upper != MAX_CAPTURE_WORK {
+            position += 1;
+        }
         while position < source.len() {
             if simple_literal_char(source[position]) == false {
                 valid = false;
@@ -1292,7 +1302,7 @@ fn bounded_group_atoms(pattern: &str, expanded: bool) -> BoundedGroupResult {
         }
         let mut size = prefix.len() + suffix.len();
         let mut repeat = 0;
-        while repeat < upper {
+        while repeat < upper && upper != MAX_CAPTURE_WORK {
             size += member.len();
             repeat += 1;
         }
@@ -3268,11 +3278,28 @@ fn search_bounded_group(
             end: 0,
         };
     }
+    let mut upper = parsed.upper;
+    if upper == MAX_CAPTURE_WORK {
+        let haystack: Vec<char> = subject.chars().collect();
+        upper = 0;
+        let mut consumed = 0;
+        while haystack.len() - consumed >= parsed.member.len() && consumed <= 256 {
+            consumed += parsed.member.len();
+            upper += 1;
+        }
+        if consumed > 256 - parsed.prefix.len() - parsed.suffix.len() {
+            return SearchResult {
+                kind: 2,
+                start: 0,
+                end: 0,
+            };
+        }
+    }
     let mut repetitions = parsed.lower;
     let mut found = false;
     let mut best_start = 0;
     let mut best_end = 0;
-    while repetitions <= parsed.upper {
+    while repetitions <= upper {
         let mut atoms: Vec<char> = Vec::new();
         let mut index = 0;
         while index < parsed.prefix.len() {
