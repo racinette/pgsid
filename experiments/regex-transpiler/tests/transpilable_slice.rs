@@ -284,7 +284,11 @@ fn capture_program_reuses_the_first_capture_across_repeated_groups() {
             candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 4 })
         ));
     }
-    assert!(!candidate::supports_capture_program("a(?:(b|c))d", false));
+    assert!(candidate::supports_capture_program("a(?:(b|c))d", false));
+    assert!(matches!(
+        candidate::find_capture_program("a(?:(b|c))d", "xacd", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 4 })
+    ));
     assert!(candidate::supports_capture_program("a(b.[bc]*)+", false));
     assert!(matches!(
         candidate::find_capture_program("a(b.[bc]*)+", "abxbcy", 0, true, true, false, false),
