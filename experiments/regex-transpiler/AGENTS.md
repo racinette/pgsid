@@ -32,8 +32,13 @@ reference; expand the transpilable engine only through the shared dialect.
   constants, and fields, and `export` for public declarations.
 
 The current parser and validator decide whether a proposed Rust construct is
-accepted. Extend them before using a new construct in the engine. A construct
-that parses in Rust is not thereby in the shared dialect.
+accepted. A construct that parses in Rust is not thereby in the shared dialect.
+
+When implementing regex features, work within the Rust syntax already accepted
+by this dialect. Do not expand its syntax to accommodate a feature without
+asking the user first. If the feature seems to require new syntax, explain the
+specific construct and why the current syntax cannot express it, then wait for
+the user's decision before changing the syntax rules.
 
 ## Preserve the AST boundary
 
