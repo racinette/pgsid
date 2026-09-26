@@ -12,6 +12,7 @@ const VM_END: usize = 9;
 const VM_ACCEPT: usize = 10;
 const VM_JUMP: usize = 11;
 const VM_CLASS: usize = 12;
+const VM_NUMERIC: usize = 13;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct MatchSpan {
@@ -2547,18 +2548,55 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
                 };
             } else if atom == '\\' && source.len() - position >= 2 {
                 let escaped = source[position + 1];
+                let escape_start = position;
+                position += 2;
                 if escaped == 'w' {
                     operation = VM_WORD;
-                } else if (escaped as u32) >= 49 && (escaped as u32) <= 57 {
-                    operation = VM_BACKREF;
+                } else if (escaped as u32) >= 48 && (escaped as u32) <= 57 {
                     reference = ((escaped as u32) - 48) as usize;
-                    if reference > closed_groups {
-                        valid = false;
+                    let mut decimal_digits = 1;
+                    while position < source.len()
+                        && (source[position] as u32) >= 48
+                        && (source[position] as u32) <= 57
+                        && decimal_digits < 3
+                    {
+                        let double = reference + reference;
+                        let four = double + double;
+                        let eight = four + four;
+                        reference = eight + double + ((source[position] as u32) - 48) as usize;
+                        position += 1;
+                        decimal_digits += 1;
                     }
+                    if escaped != '0' && reference <= closed_groups {
+                        operation = VM_BACKREF;
+                    } else if (escaped as u32) <= 55 && (escaped == '0' || decimal_digits > 1) {
+                        let mut octal_position = escape_start + 1;
+                        let mut octal = 0;
+                        let mut octal_digits = 0;
+                        while octal_position < source.len() && octal_digits < 3 {
+                            let codepoint = source[octal_position] as u32;
+                            if codepoint < 48 || codepoint > 55 {
+                                break;
+                            }
+                            let double = octal + octal;
+                            let four = double + double;
+                            let candidate = four + four + ((codepoint - 48) as usize);
+                            if candidate > 255 {
+                                break;
+                            }
+                            octal = candidate;
+                            octal_position += 1;
+                            octal_digits += 1;
+                        }
+                        operation = VM_NUMERIC;
+                        reference = octal;
+                        position = octal_position;
+                    } else {
+                        valid = false;
+                    };
                 } else {
                     valid = false;
-                }
-                position += 2;
+                };
             } else if simple_literal_char(atom) {
                 operation = VM_LITERAL;
                 member = atom;
@@ -2642,7 +2680,9 @@ pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
         position += 3;
     }
     if captures >= 4 && code.len() - position >= 2 {
-        if code[position].operation == VM_BACKREF && code[position].group <= captures {
+        if (code[position].operation == VM_BACKREF && code[position].group <= captures)
+            || (code[position].operation == VM_NUMERIC && code[position].group <= 255)
+        {
             position += 1;
             if code.len() - position >= 2 && code[position].operation == VM_LITERAL {
                 position += 1;
@@ -2976,9 +3016,18 @@ fn run_capture_program(
                         let word = (codepoint >= 48 && codepoint <= 57)
                             || (lowercase >= 97 && lowercase <= 122)
                             || actual == '_';
+                        let mut numeric_lower = step.group;
+                        if numeric_lower >= 65 && numeric_lower <= 90 {
+                            numeric_lower += 32;
+                        };
                         matched = (step.operation == VM_ANY
                             && (dot_crosses_newline || actual != '\n'))
                             || (step.operation == VM_WORD && word)
+                            || (step.operation == VM_NUMERIC
+                                && ((actual as u32) as usize == step.group
+                                    || (case_sensitive == false
+                                        && (actual.to_ascii_lowercase() as u32) as usize
+                                            == numeric_lower)))
                             || (step.operation == VM_LITERAL
                                 && (actual == step.atom
                                     || (case_sensitive == false
