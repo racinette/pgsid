@@ -2644,7 +2644,16 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
                 let next = instructions.len() + 1;
                 instructions.push(make_capture_step(VM_SPLIT, frame.start, next, 0, ' '));
                 position += 1;
-            }
+            } else if source.len() - position >= 3
+                && source[position] == '{'
+                && source[position + 1] == '0'
+                && source[position + 2] == '}'
+                && frame.start < instructions.len()
+            {
+                instructions[frame.start] =
+                    make_capture_step(VM_JUMP, instructions.len(), 0, 0, ' ');
+                position += 3;
+            };
         } else {
             let mut operation = 0;
             let mut member = ' ';
@@ -2779,6 +2788,26 @@ pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
     }
     let noncapturing = program.noncapturing;
     let code = program.instructions;
+    let mut zero_group = false;
+    let mut simple_zero_program = true;
+    let mut zero_position = 0;
+    while zero_position < code.len() {
+        let operation = code[zero_position].operation;
+        if operation == VM_JUMP {
+            zero_group = true;
+        } else if operation != VM_OPEN
+            && operation != VM_CLOSE
+            && operation != VM_ANY
+            && operation != VM_BACKREF
+            && operation != VM_ACCEPT
+        {
+            simple_zero_program = false;
+        }
+        zero_position += 1;
+    }
+    if zero_group && simple_zero_program && noncapturing == 0 {
+        return true;
+    }
     if noncapturing > 0 {
         let mut position = 0;
         let mut literals = 0;

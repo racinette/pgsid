@@ -951,6 +951,20 @@ fn noncapturing_choices_can_include_word_classes() {
 }
 
 #[test]
+fn zero_repetition_leaves_captures_unset() {
+    assert!(candidate::supports_capture_program("(.){0}(\\1)", false));
+    assert!(matches!(
+        candidate::find_capture_program("(.){0}(\\1)", "a", 0, true, true, false, false),
+        candidate::MatchOutcome::NoMatch
+    ));
+    assert!(candidate::supports_capture_program("((.))(\\2){0}", false));
+    assert!(matches!(
+        candidate::find_capture_program("((.))(\\2){0}", "a", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 1 })
+    ));
+}
+
+#[test]
 fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
     assert!(candidate::supports_bounded_group("a(ab)*c", false));
