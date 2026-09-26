@@ -995,6 +995,19 @@ fn capture_can_contain_a_starred_backreference() {
 }
 
 #[test]
+fn top_level_choice_keeps_branch_specific_captures() {
+    assert!(candidate::supports_capture_program("^(.)\\1|\\1.", false));
+    assert!(matches!(
+        candidate::find_capture_program("^(.)\\1|\\1.", "ab", 0, true, true, false, false),
+        candidate::MatchOutcome::NoMatch
+    ));
+    assert!(matches!(
+        candidate::find_capture_program("^(.)\\1|\\1.", "aa", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 2 })
+    ));
+}
+
+#[test]
 fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
     assert!(candidate::supports_bounded_group("a(ab)*c", false));

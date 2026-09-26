@@ -2592,6 +2592,44 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
     let mut instructions: Vec<CaptureInstruction> = Vec::new();
     let mut frames: Vec<CaptureFrame> = Vec::new();
     let mut frame_count = 0;
+    let mut root_choice = false;
+    let mut root_scan = 0;
+    let mut root_depth = 0;
+    let mut root_bracket = false;
+    let mut root_escaped = false;
+    while root_scan < source.len() {
+        let member = source[root_scan];
+        if root_escaped {
+            root_escaped = false;
+        } else if member == '\\' {
+            root_escaped = true;
+        } else if member == '[' {
+            root_bracket = true;
+        } else if member == ']' && root_bracket {
+            root_bracket = false;
+        } else if root_bracket == false && member == '(' {
+            root_depth += 1;
+        } else if root_bracket == false && member == ')' && root_depth > 0 {
+            root_depth = root_depth - 1;
+        } else if root_bracket == false && member == '|' && root_depth == 0 {
+            root_choice = true;
+            break;
+        }
+        root_scan += 1;
+    }
+    if root_choice {
+        instructions.push(make_capture_step(VM_SPLIT, 1, 0, 0, ' '));
+        frames.push(CaptureFrame {
+            group: 0,
+            start: 0,
+            starred: false,
+            choice: true,
+            split: 0,
+            jump: 0,
+            branched: false,
+        });
+        frame_count = 1;
+    }
     let mut groups = 0;
     let mut noncapturing = 0;
     let mut closed_groups = 0;
@@ -2716,7 +2754,7 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
             };
             position += 1;
         } else if atom == ')' {
-            if frame_count == 0 {
+            if frame_count == 0 || (root_choice && frame_count == 1) {
                 valid = false;
                 break;
             }
@@ -2866,6 +2904,15 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
             }
         };
     }
+    if root_choice && frame_count == 1 {
+        let root = frames[0];
+        if root.branched {
+            instructions[root.jump] = make_capture_step(VM_JUMP, instructions.len(), 0, 0, ' ');
+            frame_count = 0;
+        } else {
+            valid = false;
+        };
+    }
     if frame_count != 0 {
         valid = false;
     }
@@ -2913,6 +2960,8 @@ pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
     }
     let mut forward_choice = false;
     let mut forward_valid = code.len() > 1 && code[code.len() - 1].operation == VM_ACCEPT;
+    let rooted_choice =
+        code.len() > 0 && (code[0].operation == VM_SPLIT || code[0].operation == VM_BEGIN);
     let mut forward_position = 0;
     while forward_position < code.len() {
         let step = code[forward_position];
@@ -2934,7 +2983,13 @@ pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
             && step.operation != VM_CLOSE
             && step.operation != VM_ACCEPT
         {
-            forward_valid = false;
+            if rooted_choice == false
+                || (step.operation != VM_ANY
+                    && step.operation != VM_BEGIN
+                    && step.operation != VM_BACKREF)
+            {
+                forward_valid = false;
+            }
         }
         forward_position += 1;
     }
