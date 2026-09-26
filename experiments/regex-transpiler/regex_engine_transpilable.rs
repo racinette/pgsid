@@ -81,6 +81,22 @@ struct ChoiceCaptureResult {
     suffix: Vec<char>,
 }
 
+struct RepeatedChoiceResult {
+    valid: bool,
+    prefix: Vec<char>,
+    first: Vec<char>,
+    second: Vec<char>,
+    suffix: Vec<char>,
+    lower: usize,
+    upper: usize,
+}
+
+#[derive(Clone, Copy)]
+struct RepeatedChoiceState {
+    position: usize,
+    repetitions: usize,
+}
+
 #[derive(Clone, Copy)]
 struct CaptureState {
     start: usize,
@@ -1790,6 +1806,151 @@ fn choice_capture_atoms(pattern: &str, expanded: bool) -> ChoiceCaptureResult {
 
 pub fn supports_choice_capture_backref(pattern: &str, expanded: bool) -> bool {
     choice_capture_atoms(pattern, expanded).valid
+}
+
+fn repeated_choice_atoms(pattern: &str, expanded: bool) -> RepeatedChoiceResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut prefix: Vec<char> = Vec::new();
+    let mut first: Vec<char> = Vec::new();
+    let mut second: Vec<char> = Vec::new();
+    let mut suffix: Vec<char> = Vec::new();
+    let mut valid = true;
+    let mut lower = 0;
+    let mut upper = 0;
+    let mut position = 0;
+    while position < source.len() && source[position] != '(' {
+        if simple_literal_char(source[position]) == false {
+            valid = false;
+            break;
+        }
+        prefix.push(source[position]);
+        position += 1;
+    }
+    if position == source.len() {
+        valid = false;
+    }
+    if valid {
+        position += 1;
+        while position < source.len() && source[position] != '|' {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            first.push(source[position]);
+            position += 1;
+        }
+        if first.len() == 0 || position == source.len() {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 1;
+        while position < source.len() && source[position] != ')' {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            second.push(source[position]);
+            position += 1;
+        }
+        if second.len() == 0 || position == source.len() {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 1;
+        if position == source.len() {
+            valid = false;
+        } else if source[position] == '*' {
+            lower = 0;
+            upper = MAX_CAPTURE_WORK;
+            position += 1;
+        } else if source[position] == '+' {
+            lower = 1;
+            upper = MAX_CAPTURE_WORK;
+            position += 1;
+        } else if source[position] == '?' {
+            lower = 0;
+            upper = 1;
+            position += 1;
+        } else if source[position] == '{' {
+            position += 1;
+            let mut digits = 0;
+            while position < source.len()
+                && (source[position] as u32) >= 48
+                && (source[position] as u32) <= 57
+            {
+                let double = lower + lower;
+                let four = double + double;
+                let eight = four + four;
+                lower = eight + double + ((source[position] as u32) - 48) as usize;
+                digits += 1;
+                position += 1;
+                if lower > 16 {
+                    valid = false;
+                    break;
+                }
+            }
+            if digits == 0 || position == source.len() {
+                valid = false;
+            }
+            upper = lower;
+            if valid && source[position] == ',' {
+                position += 1;
+                upper = 0;
+                digits = 0;
+                while position < source.len()
+                    && (source[position] as u32) >= 48
+                    && (source[position] as u32) <= 57
+                {
+                    let double = upper + upper;
+                    let four = double + double;
+                    let eight = four + four;
+                    upper = eight + double + ((source[position] as u32) - 48) as usize;
+                    digits += 1;
+                    position += 1;
+                    if upper > 16 {
+                        valid = false;
+                        break;
+                    }
+                }
+                if digits == 0 {
+                    upper = MAX_CAPTURE_WORK;
+                }
+            }
+            if position == source.len() || source[position] != '}' || upper < lower {
+                valid = false;
+            }
+            if valid {
+                position += 1;
+            }
+        } else {
+            valid = false;
+        };
+    }
+    if valid {
+        while position < source.len() {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            suffix.push(source[position]);
+            position += 1;
+        }
+    }
+    RepeatedChoiceResult {
+        valid,
+        prefix,
+        first,
+        second,
+        suffix,
+        lower,
+        upper,
+    }
+}
+
+pub fn supports_repeated_choice(pattern: &str, expanded: bool) -> bool {
+    repeated_choice_atoms(pattern, expanded).valid
 }
 
 fn inline_atoms(pattern: &str, expanded: bool) -> InlineResult {
@@ -4140,6 +4301,120 @@ pub fn find_choice_capture_backref(
         start: second.start,
         end: second.end,
     })
+}
+
+pub fn find_repeated_choice(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = repeated_choice_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let haystack: Vec<char> = subject.chars().collect();
+    let mut start = from;
+    let mut work = 0;
+    while start <= haystack.len() {
+        let mut prefix_matches = parsed.prefix.len() <= haystack.len() - start;
+        let mut index = 0;
+        while prefix_matches && index < parsed.prefix.len() {
+            if haystack[start + index] != parsed.prefix[index]
+                && (case_sensitive
+                    || haystack[start + index].to_ascii_lowercase()
+                        != parsed.prefix[index].to_ascii_lowercase())
+            {
+                prefix_matches = false;
+            }
+            index += 1;
+        }
+        if prefix_matches {
+            let mut queue: Vec<RepeatedChoiceState> = Vec::new();
+            queue.push(RepeatedChoiceState {
+                position: start + parsed.prefix.len(),
+                repetitions: 0,
+            });
+            let mut head = 0;
+            let mut found = false;
+            let mut best_end = start;
+            while head < queue.len() {
+                if work == MAX_CAPTURE_WORK {
+                    return MatchOutcome::Uncertain;
+                }
+                work += 1;
+                let state = queue[head];
+                head += 1;
+                if state.repetitions >= parsed.lower {
+                    let mut suffix_matches = parsed.suffix.len() <= haystack.len() - state.position;
+                    index = 0;
+                    while suffix_matches && index < parsed.suffix.len() {
+                        if haystack[state.position + index] != parsed.suffix[index]
+                            && (case_sensitive
+                                || haystack[state.position + index].to_ascii_lowercase()
+                                    != parsed.suffix[index].to_ascii_lowercase())
+                        {
+                            suffix_matches = false;
+                        }
+                        index += 1;
+                    }
+                    if suffix_matches
+                        && (found == false || state.position + parsed.suffix.len() > best_end)
+                    {
+                        found = true;
+                        best_end = state.position + parsed.suffix.len();
+                    }
+                }
+                if state.repetitions < parsed.upper {
+                    let mut first_matches = parsed.first.len() <= haystack.len() - state.position;
+                    index = 0;
+                    while first_matches && index < parsed.first.len() {
+                        if haystack[state.position + index] != parsed.first[index]
+                            && (case_sensitive
+                                || haystack[state.position + index].to_ascii_lowercase()
+                                    != parsed.first[index].to_ascii_lowercase())
+                        {
+                            first_matches = false;
+                        }
+                        index += 1;
+                    }
+                    if first_matches {
+                        queue.push(RepeatedChoiceState {
+                            position: state.position + parsed.first.len(),
+                            repetitions: state.repetitions + 1,
+                        });
+                    }
+                    let mut second_matches = parsed.second.len() <= haystack.len() - state.position;
+                    index = 0;
+                    while second_matches && index < parsed.second.len() {
+                        if haystack[state.position + index] != parsed.second[index]
+                            && (case_sensitive
+                                || haystack[state.position + index].to_ascii_lowercase()
+                                    != parsed.second[index].to_ascii_lowercase())
+                        {
+                            second_matches = false;
+                        }
+                        index += 1;
+                    }
+                    if second_matches {
+                        queue.push(RepeatedChoiceState {
+                            position: state.position + parsed.second.len(),
+                            repetitions: state.repetitions + 1,
+                        });
+                    }
+                }
+            }
+            if found {
+                return MatchOutcome::Found(MatchSpan {
+                    start,
+                    end: best_end,
+                });
+            }
+        }
+        start += 1;
+    }
+    MatchOutcome::NoMatch
 }
 
 fn search_repeated_capture_backref(

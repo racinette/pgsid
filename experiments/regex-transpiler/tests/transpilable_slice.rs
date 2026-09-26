@@ -130,6 +130,22 @@ fn choice_capture_repeats_the_chosen_literal() {
 }
 
 #[test]
+fn repeated_choice_explores_literal_alternatives() {
+    for pattern in ["(a|ab)*b", "(ab|a)+b", "(a|ab){1,2}b"] {
+        assert!(candidate::supports_repeated_choice(pattern, false));
+    }
+    assert!(!candidate::supports_repeated_choice("(a|ab)+?b", false));
+    assert!(matches!(
+        candidate::find_repeated_choice("(a|ab)*b", "zaabb", 0, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 5 })
+    ));
+    assert!(matches!(
+        candidate::find_repeated_choice("(a|ab){1,2}b", "aabb", 0, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 4 })
+    ));
+}
+
+#[test]
 fn invalid_grouping_gate_only_marks_postgres_errors() {
     assert!(candidate::definitely_invalid_grouping("a(b", 'a', false));
     assert!(candidate::definitely_invalid_grouping("a)b", 'a', false));
@@ -545,6 +561,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut expanded_advanced = 0;
     let mut extended = 0;
     let mut extended_literal_close = 0;
+    let mut repeated_choice = 0;
     let mut extended_group = 0;
     let mut extended_escape = 0;
     let mut basic = 0;
@@ -983,6 +1000,20 @@ fn supported_search_matches_pglite_fixtures() {
                     newline == "sensitive" || newline == "anchors",
                     options["expanded"].as_bool().unwrap(),
                 )
+            } else if (options["syntax"] == "advanced" || options["syntax"] == "extended")
+                && candidate::supports_repeated_choice(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                repeated_choice += 1;
+                candidate::find_repeated_choice(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    options["expanded"].as_bool().unwrap(),
+                )
             } else if options["syntax"] == "extended"
                 && candidate::supports_extended_literal_escape(
                     pattern,
@@ -1122,6 +1153,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(expanded_advanced >= 200);
     assert!(extended >= 50);
     assert!(extended_literal_close >= 10);
+    assert!(repeated_choice >= 20);
     assert!(extended_group >= 20);
     assert!(extended_escape >= 20);
     assert!(basic >= 50);
