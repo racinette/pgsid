@@ -89,6 +89,14 @@ func TestLiteralSlice(t *testing.T) {
 			t.Errorf("unsupported basic bound was accepted: %q", pattern)
 		}
 	}
+	if !SupportsBasicFixedBackref("\\(ab\\)\\1", false) {
+		t.Error("basic fixed backreference was rejected")
+	}
+	for _, pattern := range []string{"\\([ab]\\)\\1", "\\(a+\\)\\1", "\\(a\\)\\2", "\\(a\\)b"} {
+		if SupportsBasicFixedBackref(pattern, false) {
+			t.Errorf("unsupported basic backreference was accepted: %q", pattern)
+		}
+	}
 	found := FindLiteral("😀", "a😀a", 0, true)
 	if found != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Errorf("literal match = %+v", found)

@@ -55,6 +55,11 @@ for (const pattern of ['a\\{3,1\\}b', 'a\\{2,3', 'a{2,3}b', '\\(a\\)\\{2\\}']) {
   assert.equal(generated.supportsBasicEscapedBound(pattern, false), false)
 }
 
+assert.equal(generated.supportsBasicFixedBackref('\\(ab\\)\\1', false), true)
+for (const pattern of ['\\([ab]\\)\\1', '\\(a+\\)\\1', '\\(a\\)\\2', '\\(a\\)b']) {
+  assert.equal(generated.supportsBasicFixedBackref(pattern, false), false)
+}
+
 assert.deepEqual(generated.findLiteral('😀', 'a😀a', 0, true), {
   kind: 'Found',
   value: { start: 1, end: 2 },
