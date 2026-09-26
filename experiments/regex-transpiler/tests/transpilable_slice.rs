@@ -532,6 +532,23 @@ fn basic_literal_punctuation_gate_preserves_syntax() {
 }
 
 #[test]
+fn bracket_word_boundaries_match_postgres_spelling() {
+    assert!(candidate::supports_bracket_word_boundary("[[:<:]]a", false));
+    assert!(candidate::supports_bracket_word_boundary("a[[:>:]]", false));
+    assert!(!candidate::supports_bracket_word_boundary(
+        "[[:<:]]*", false
+    ));
+    assert!(matches!(
+        candidate::find_bracket_word_boundary("[[:<:]]a", " a", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 2 })
+    ));
+    assert!(matches!(
+        candidate::find_bracket_word_boundary("a[[:>:]]", "a!", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 1 })
+    ));
+}
+
+#[test]
 fn extended_letter_escapes_are_literal() {
     assert!(candidate::supports_extended_literal_escape("a\\wb", false));
     assert!(!candidate::supports_extended_literal_escape("[\\w]", false));
@@ -633,6 +650,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut basic_escape = 0;
     let mut basic_bound = 0;
     let mut basic_backref = 0;
+    let mut bracket_word = 0;
     let mut invalid_grouping = 0;
     let mut invalid_repeat = 0;
     let mut invalid_bound = 0;
@@ -1180,6 +1198,23 @@ fn supported_search_matches_pglite_fixtures() {
                     newline == "sensitive" || newline == "anchors",
                     options["expanded"].as_bool().unwrap(),
                 )
+            } else if (options["syntax"] == "advanced" || options["syntax"] == "basic")
+                && candidate::supports_bracket_word_boundary(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                bracket_word += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_bracket_word_boundary(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
             } else {
                 continue;
             };
@@ -1225,6 +1260,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(basic_escape >= 20);
     assert!(basic_bound >= 20);
     assert!(basic_backref >= 20);
+    assert!(bracket_word >= 10);
     assert!(invalid_grouping >= 40);
     assert!(invalid_repeat >= 20);
     assert!(invalid_bound >= 20);

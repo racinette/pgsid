@@ -67,6 +67,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 	basicEscape := 0
 	basicBound := 0
 	basicBackref := 0
+	bracketWord := 0
 	invalidGrouping := 0
 	invalidRepeat := 0
 	invalidBound := 0
@@ -329,6 +330,11 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
 				actual = FindBasicFixedBackref(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors, input.Options.Expanded)
 				basicBackref++
+			} else if (input.Options.Syntax == "advanced" || input.Options.Syntax == "basic") && SupportsBracketWordBoundary(input.Pattern, input.Options.Expanded) {
+				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
+				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
+				actual = FindBracketWordBoundary(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors, input.Options.Expanded)
+				bracketWord++
 			} else {
 				continue
 			}
@@ -366,7 +372,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			t.Errorf("targeted fixtures checked %d of %d", checked, len(document.Fixtures))
 		}
 	}
-	if literal < 40 || insensitive < 7 || advanced < 100 || grouped < 20 || groupChoice < 20 || optionalGroup < 50 || lookbehind < 20 || lookahead < 20 || backref < 20 || singleCapture < 50 || choiceCapture < 10 || inline < 20 || middleLookahead < 20 || boundedGroup < 20 || extended < 50 || extendedLiteralClose < 10 || extendedGroup < 20 || repeatedChoice < 20 || extendedEscape < 20 || basic < 50 || basicPunctuation < 20 || basicEscape < 20 || basicBound < 20 || basicBackref < 20 || invalidGrouping < 40 || invalidRepeat < 20 || invalidBound < 20 || invalidPosixClass < 20 || invalidBackreference < 10 || dot < 20 || mixed < 50 || anchored < 20 || escaped < 40 || classes < 50 || negatedClasses < 40 || rangeClasses < 50 || edgePunctuation < 80 || absoluteAnchors < 50 || positioned < 6 || len(newlineModes) != 4 {
+	if literal < 40 || insensitive < 7 || advanced < 100 || grouped < 20 || groupChoice < 20 || optionalGroup < 50 || lookbehind < 20 || lookahead < 20 || backref < 20 || singleCapture < 50 || choiceCapture < 10 || inline < 20 || middleLookahead < 20 || boundedGroup < 20 || extended < 50 || extendedLiteralClose < 10 || extendedGroup < 20 || repeatedChoice < 20 || extendedEscape < 20 || basic < 50 || basicPunctuation < 20 || basicEscape < 20 || basicBound < 20 || basicBackref < 20 || bracketWord < 10 || invalidGrouping < 40 || invalidRepeat < 20 || invalidBound < 20 || invalidPosixClass < 20 || invalidBackreference < 10 || dot < 20 || mixed < 50 || anchored < 20 || escaped < 40 || classes < 50 || negatedClasses < 40 || rangeClasses < 50 || edgePunctuation < 80 || absoluteAnchors < 50 || positioned < 6 || len(newlineModes) != 4 {
 		t.Fatalf("fixture coverage: literal=%d insensitive=%d advanced=%d dot=%d mixed=%d anchored=%d escaped=%d classes=%d negatedClasses=%d rangeClasses=%d edgePunctuation=%d absoluteAnchors=%d positioned=%d newline=%v", literal, insensitive, advanced, dot, mixed, anchored, escaped, classes, negatedClasses, rangeClasses, edgePunctuation, absoluteAnchors, positioned, newlineModes)
 	}
 	if countSupported != 180 || expandedAdvanced < 200 {

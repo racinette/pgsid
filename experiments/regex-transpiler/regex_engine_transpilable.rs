@@ -2348,6 +2348,86 @@ pub fn supports_basic_literal_punctuation(pattern: &str, expanded: bool) -> bool
     supports_atoms(parsed.atoms)
 }
 
+fn bracket_word_atoms(pattern: &str, expanded: bool) -> BasicLiteralResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut atoms: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut valid = true;
+    let mut translated = false;
+    while position < source.len() {
+        if source.len() - position >= 6
+            && source[position] == '['
+            && source[position + 1] == '['
+            && source[position + 2] == ':'
+            && (source[position + 3] == '<' || source[position + 3] == '>')
+            && source[position + 4] == ':'
+            && source[position + 5] == ']'
+            && source.len() - position >= 7
+            && source[position + 6] == ']'
+        {
+            atoms.push('\\');
+            if source[position + 3] == '<' {
+                atoms.push('m');
+            } else {
+                atoms.push('M');
+            };
+            position += 7;
+            translated = true;
+        } else if simple_literal_char(source[position]) {
+            atoms.push(source[position]);
+            position += 1;
+        } else {
+            valid = false;
+            break;
+        };
+    }
+    BasicLiteralResult {
+        valid: valid && translated,
+        atoms,
+    }
+}
+
+pub fn supports_bracket_word_boundary(pattern: &str, expanded: bool) -> bool {
+    let parsed = bracket_word_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    supports_atoms(parsed.atoms)
+}
+
+pub fn find_bracket_word_boundary(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = bracket_word_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let result = search_atoms(
+        parsed.atoms,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
+}
+
 fn extended_escape_atoms(pattern: &str, expanded: bool) -> ExtendedEscapeResult {
     let source = pattern_atoms(pattern, expanded);
     let mut atoms: Vec<char> = Vec::new();
