@@ -686,6 +686,7 @@ fn supports_atoms(atoms: Vec<char>) -> bool {
                 && escaped != 'r'
                 && escaped != 't'
                 && escaped != 'v'
+                && escaped != ' '
             {
                 return false;
             }
@@ -2260,6 +2261,7 @@ fn search_atoms(
                 && escaped != 'r'
                 && escaped != 't'
                 && escaped != 'v'
+                && escaped != ' '
             {
                 return SearchResult {
                     kind: 2,
