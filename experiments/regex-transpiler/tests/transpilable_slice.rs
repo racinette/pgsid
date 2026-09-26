@@ -624,6 +624,24 @@ fn literal_search_matches_the_live_engine() {
 }
 
 #[test]
+fn two_capture_backrefs_preserve_empty_participating_groups() {
+    for pattern in ["(a+)(b+)\\1", "(a?)(b)\\1", "(a*)(a*)\\2\\1"] {
+        assert!(candidate::supports_two_capture_backref(pattern, false));
+    }
+    for pattern in ["(a+)(b+)\\2", "(a|b)(b)\\1", "(a+)(b+)\\1x"] {
+        assert!(!candidate::supports_two_capture_backref(pattern, false));
+    }
+    assert!(matches!(
+        candidate::find_two_capture_backref("(a?)(b)\\1", "bb", 0, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 1 })
+    ));
+    assert!(matches!(
+        candidate::find_two_capture_backref("(a*)(a*)\\2\\1", "aaa", 0, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 2 })
+    ));
+}
+
+#[test]
 fn supported_search_matches_pglite_fixtures() {
     let mut literal = 0;
     let mut insensitive = 0;
@@ -636,6 +654,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut backref = 0;
     let mut single_capture = 0;
     let mut choice_capture = 0;
+    let mut two_capture = 0;
     let mut inline = 0;
     let mut middle_lookahead = 0;
     let mut bounded_group = 0;
@@ -985,6 +1004,20 @@ fn supported_search_matches_pglite_fixtures() {
                     options["expanded"].as_bool().unwrap(),
                 )
             } else if options["syntax"] == "advanced"
+                && candidate::supports_two_capture_backref(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                two_capture += 1;
+                candidate::find_two_capture_backref(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "advanced"
                 && candidate::supports_inline_advanced(
                     pattern,
                     options["expanded"].as_bool().unwrap(),
@@ -1246,6 +1279,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(backref >= 20);
     assert!(single_capture >= 50);
     assert!(choice_capture >= 10);
+    assert!(two_capture >= 30);
     assert!(inline >= 20);
     assert!(middle_lookahead >= 20);
     assert!(bounded_group >= 20);

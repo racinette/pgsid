@@ -111,6 +111,15 @@ struct CaptureState {
     capture_end: usize,
 }
 
+struct TwoCaptureResult {
+    valid: bool,
+    first: char,
+    first_quantifier: char,
+    second: char,
+    second_quantifier: char,
+    second_reference: bool,
+}
+
 struct InlineResult {
     valid: bool,
     mode: char,
@@ -1767,6 +1776,235 @@ pub fn supports_single_capture_backref(pattern: &str, expanded: bool) -> bool {
         return false;
     }
     supports_atoms(parsed.atom)
+}
+
+fn two_capture_atoms(pattern: &str, expanded: bool) -> TwoCaptureResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut position = 0;
+    let mut valid = true;
+    let mut first = ' ';
+    let mut second = ' ';
+    let mut first_quantifier = ' ';
+    let mut second_quantifier = ' ';
+    let mut second_reference = false;
+    if source.len() < 8 || source[position] != '(' {
+        valid = false;
+    }
+    if valid {
+        position += 1;
+        first = source[position];
+        if simple_literal_char(first) == false {
+            valid = false;
+        }
+        position += 1;
+    }
+    if valid
+        && position < source.len()
+        && (source[position] == '?' || source[position] == '*' || source[position] == '+')
+    {
+        first_quantifier = source[position];
+        position += 1;
+    }
+    if valid {
+        if position == source.len() || source[position] != ')' {
+            valid = false;
+        } else {
+            position += 1;
+        };
+    }
+    if valid {
+        if position == source.len() || source[position] != '(' {
+            valid = false;
+        } else {
+            position += 1;
+        };
+    }
+    if valid {
+        if position == source.len() {
+            valid = false;
+        } else {
+            second = source[position];
+            if simple_literal_char(second) == false {
+                valid = false;
+            }
+            position += 1;
+        };
+    }
+    if valid
+        && position < source.len()
+        && (source[position] == '?' || source[position] == '*' || source[position] == '+')
+    {
+        second_quantifier = source[position];
+        position += 1;
+    }
+    if valid {
+        if position == source.len() || source[position] != ')' {
+            valid = false;
+        } else {
+            position += 1;
+        };
+    }
+    if valid
+        && source.len() - position >= 2
+        && source[position] == '\\'
+        && source[position + 1] == '2'
+    {
+        second_reference = true;
+        position += 2;
+    }
+    if valid {
+        if source.len() - position != 2 || source[position] != '\\' || source[position + 1] != '1' {
+            valid = false;
+        };
+    }
+    TwoCaptureResult {
+        valid,
+        first,
+        first_quantifier,
+        second,
+        second_quantifier,
+        second_reference,
+    }
+}
+
+pub fn supports_two_capture_backref(pattern: &str, expanded: bool) -> bool {
+    two_capture_atoms(pattern, expanded).valid
+}
+
+pub fn find_two_capture_backref(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = two_capture_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let haystack: Vec<char> = subject.chars().collect();
+    if from > haystack.len() {
+        return MatchOutcome::NoMatch;
+    }
+    let mut work = 0;
+    let mut start = from;
+    while start <= haystack.len() {
+        let mut first_run = 0;
+        while first_run < haystack.len() - start {
+            let actual = haystack[start + first_run];
+            if actual != parsed.first
+                && (case_sensitive
+                    || actual.to_ascii_lowercase() != parsed.first.to_ascii_lowercase())
+            {
+                break;
+            }
+            first_run += 1;
+        }
+        let mut first_min = 1;
+        if parsed.first_quantifier == '?' || parsed.first_quantifier == '*' {
+            first_min = 0;
+        }
+        let mut first_max = first_run;
+        if parsed.first_quantifier == ' ' || parsed.first_quantifier == '?' {
+            if first_max > 1 {
+                first_max = 1;
+            }
+        }
+        let mut found = false;
+        let mut best_end = start;
+        let mut first_length = first_min;
+        while first_length <= first_max {
+            let second_start = start + first_length;
+            let mut second_run = 0;
+            while second_run < haystack.len() - second_start {
+                let actual = haystack[second_start + second_run];
+                if actual != parsed.second
+                    && (case_sensitive
+                        || actual.to_ascii_lowercase() != parsed.second.to_ascii_lowercase())
+                {
+                    break;
+                }
+                second_run += 1;
+            }
+            let mut second_min = 1;
+            if parsed.second_quantifier == '?' || parsed.second_quantifier == '*' {
+                second_min = 0;
+            }
+            let mut second_max = second_run;
+            if parsed.second_quantifier == ' ' || parsed.second_quantifier == '?' {
+                if second_max > 1 {
+                    second_max = 1;
+                }
+            }
+            let mut second_length = second_min;
+            while second_length <= second_max {
+                if work == MAX_CAPTURE_WORK {
+                    return MatchOutcome::Uncertain;
+                }
+                work += 1;
+                let mut position = second_start + second_length;
+                let mut matches = true;
+                if parsed.second_reference {
+                    if second_length > haystack.len() - position {
+                        matches = false;
+                    } else {
+                        let mut index = 0;
+                        while index < second_length {
+                            let actual = haystack[position + index];
+                            let expected = haystack[second_start + index];
+                            if actual != expected
+                                && (case_sensitive
+                                    || actual.to_ascii_lowercase() != expected.to_ascii_lowercase())
+                            {
+                                matches = false;
+                                break;
+                            }
+                            index += 1;
+                        }
+                        if matches {
+                            position += second_length;
+                        }
+                    };
+                }
+                if matches {
+                    if first_length > haystack.len() - position {
+                        matches = false;
+                    } else {
+                        let mut index = 0;
+                        while index < first_length {
+                            let actual = haystack[position + index];
+                            let expected = haystack[start + index];
+                            if actual != expected
+                                && (case_sensitive
+                                    || actual.to_ascii_lowercase() != expected.to_ascii_lowercase())
+                            {
+                                matches = false;
+                                break;
+                            }
+                            index += 1;
+                        }
+                        if matches {
+                            position += first_length;
+                        }
+                    };
+                }
+                if matches && (found == false || position > best_end) {
+                    found = true;
+                    best_end = position;
+                }
+                second_length += 1;
+            }
+            first_length += 1;
+        }
+        if found {
+            return MatchOutcome::Found(MatchSpan {
+                start,
+                end: best_end,
+            });
+        }
+        start += 1;
+    }
+    MatchOutcome::NoMatch
 }
 
 fn choice_capture_atoms(pattern: &str, expanded: bool) -> ChoiceCaptureResult {
