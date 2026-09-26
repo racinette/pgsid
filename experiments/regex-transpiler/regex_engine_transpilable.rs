@@ -68,6 +68,15 @@ struct InlineResult {
     atoms: Vec<char>,
 }
 
+struct BoundedGroupResult {
+    valid: bool,
+    prefix: Vec<char>,
+    member: Vec<char>,
+    suffix: Vec<char>,
+    lower: usize,
+    upper: usize,
+}
+
 pub fn charge_work(current: usize, amount: usize) -> WorkOutcome {
     if current > MAX_CAPTURE_WORK {
         return WorkOutcome::Uncertain;
@@ -1077,6 +1086,149 @@ pub fn supports_inline_advanced(pattern: &str, expanded: bool) -> bool {
         return false;
     }
     supports_atoms(parsed.atoms)
+}
+
+fn simple_literal_char(atom: char) -> bool {
+    atom != '\\'
+        && atom != '.'
+        && atom != '^'
+        && atom != '$'
+        && atom != '*'
+        && atom != '+'
+        && atom != '?'
+        && atom != '{'
+        && atom != '}'
+        && atom != '['
+        && atom != ']'
+        && atom != '('
+        && atom != ')'
+        && atom != '|'
+}
+
+fn bounded_group_atoms(pattern: &str, expanded: bool) -> BoundedGroupResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut prefix: Vec<char> = Vec::new();
+    let mut member: Vec<char> = Vec::new();
+    let mut suffix: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut valid = true;
+    let mut lower = 0;
+    let mut upper = 0;
+    while position < source.len() && source[position] != '(' {
+        if simple_literal_char(source[position]) == false {
+            valid = false;
+            break;
+        }
+        prefix.push(source[position]);
+        position += 1;
+    }
+    if position == source.len() {
+        valid = false;
+    }
+    if valid {
+        position += 1;
+        while position < source.len() && source[position] != ')' {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            member.push(source[position]);
+            position += 1;
+        }
+        if position == source.len() || member.len() == 0 || member.len() > 16 {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 1;
+        if position == source.len() || source[position] != '{' {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 1;
+        let mut digits = 0;
+        while position < source.len()
+            && (source[position] as u32) >= 48
+            && (source[position] as u32) <= 57
+        {
+            let double = lower + lower;
+            let four = double + double;
+            let eight = four + four;
+            lower = eight + double + ((source[position] as u32) - 48) as usize;
+            digits += 1;
+            position += 1;
+            if digits > 2 {
+                valid = false;
+                break;
+            }
+        }
+        if digits == 0 || lower > 16 || position == source.len() {
+            valid = false;
+        }
+    }
+    if valid {
+        upper = lower;
+        if source[position] == ',' {
+            position += 1;
+            let mut digits = 0;
+            upper = 0;
+            while position < source.len()
+                && (source[position] as u32) >= 48
+                && (source[position] as u32) <= 57
+            {
+                let double = upper + upper;
+                let four = double + double;
+                let eight = four + four;
+                upper = eight + double + ((source[position] as u32) - 48) as usize;
+                digits += 1;
+                position += 1;
+                if digits > 2 {
+                    valid = false;
+                    break;
+                }
+            }
+            if digits == 0 || upper > 16 || upper < lower {
+                valid = false;
+            }
+        }
+        if position == source.len() || source[position] != '}' {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 1;
+        while position < source.len() {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            suffix.push(source[position]);
+            position += 1;
+        }
+        let mut size = prefix.len() + suffix.len();
+        let mut repeat = 0;
+        while repeat < upper {
+            size += member.len();
+            repeat += 1;
+        }
+        if size > 256 {
+            valid = false;
+        }
+    }
+    BoundedGroupResult {
+        valid,
+        prefix,
+        member,
+        suffix,
+        lower,
+        upper,
+    }
+}
+
+pub fn supports_bounded_group(pattern: &str, expanded: bool) -> bool {
+    let parsed = bounded_group_atoms(pattern, expanded);
+    parsed.valid
 }
 
 fn search_atoms(
@@ -2635,6 +2787,114 @@ pub fn find_inline_advanced(
         anchors = true;
     }
     let result = search_atoms(parsed.atoms, subject, from, sensitive, crosses, anchors);
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
+}
+
+fn search_bounded_group(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> SearchResult {
+    let parsed = bounded_group_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return SearchResult {
+            kind: 2,
+            start: 0,
+            end: 0,
+        };
+    }
+    let mut repetitions = parsed.lower;
+    let mut found = false;
+    let mut best_start = 0;
+    let mut best_end = 0;
+    while repetitions <= parsed.upper {
+        let mut atoms: Vec<char> = Vec::new();
+        let mut index = 0;
+        while index < parsed.prefix.len() {
+            atoms.push(parsed.prefix[index]);
+            index += 1;
+        }
+        let mut repeat = 0;
+        while repeat < repetitions {
+            index = 0;
+            while index < parsed.member.len() {
+                atoms.push(parsed.member[index]);
+                index += 1;
+            }
+            repeat += 1;
+        }
+        index = 0;
+        while index < parsed.suffix.len() {
+            atoms.push(parsed.suffix[index]);
+            index += 1;
+        }
+        let result = search_atoms(
+            atoms,
+            subject,
+            from,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+        );
+        if result.kind == 2 {
+            return result;
+        }
+        if result.kind == 0
+            && (found == false
+                || result.start < best_start
+                || (result.start == best_start && result.end > best_end))
+        {
+            found = true;
+            best_start = result.start;
+            best_end = result.end;
+        }
+        repetitions += 1;
+    }
+    if found {
+        return SearchResult {
+            kind: 0,
+            start: best_start,
+            end: best_end,
+        };
+    }
+    SearchResult {
+        kind: 1,
+        start: 0,
+        end: 0,
+    }
+}
+
+pub fn find_bounded_group(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let result = search_bounded_group(
+        pattern,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        expanded,
+    );
     if result.kind == 2 {
         return MatchOutcome::Uncertain;
     }

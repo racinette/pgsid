@@ -783,6 +783,25 @@ for (const expanded of [false, true]) {
     }
   }
 }
+for (const expanded of [false, true]) {
+  for (const newline of ['ordinary', 'sensitive', 'stop', 'anchors']) {
+    for (const caseSensitive of [true, false]) {
+      for (const [pattern, subject] of [
+        ['(ab){1,3}c', 'zababc'],
+        ['a(bc){0,2}d', 'zabcbcd'],
+        ['(é){2}x', 'zééx'],
+        ['x(a){0,1}y', 'zxay'],
+        ['(ab){0}c', 'zc'],
+      ]) {
+        inputs.push({
+          pattern,
+          subject,
+          options: { syntax: 'advanced', caseSensitive, expanded, newline },
+        })
+      }
+    }
+  }
+}
 
 function flags(options) {
   const newline = { ordinary: '', sensitive: 'n', stop: 'p', anchors: 'w' }[options.newline]
