@@ -44,7 +44,16 @@ assert.deepEqual(generated.findSimpleAdvanced('a.b', 'a\nb', 0, true, false, tru
   kind: 'NoMatch',
 })
 assert.deepEqual(generated.findSimpleAdvanced('a*', 'aaa', 0, true, true, false), {
-  kind: 'Uncertain',
+  kind: 'Found',
+  value: { start: 0, end: 3 },
+})
+assert.deepEqual(generated.findSimpleAdvanced('a+b', 'zaaab', 0, true, true, false), {
+  kind: 'Found',
+  value: { start: 1, end: 5 },
+})
+assert.deepEqual(generated.findSimpleAdvanced('[ab]*c', 'abbc', 0, true, true, false), {
+  kind: 'Found',
+  value: { start: 0, end: 4 },
 })
 assert.deepEqual(generated.findSimpleAdvanced('^a$', '\na\n', 0, true, false, true), {
   kind: 'Found',

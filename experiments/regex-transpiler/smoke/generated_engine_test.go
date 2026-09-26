@@ -41,8 +41,14 @@ func TestLiteralSlice(t *testing.T) {
 	if FindSimpleAdvanced("a.b", "a\nb", 0, true, false, true).Kind != MatchOutcomeNoMatch {
 		t.Error("simple sequence crossed excluded newline")
 	}
-	if FindSimpleAdvanced("a*", "aaa", 0, true, true, false).Kind != MatchOutcomeUncertain {
-		t.Error("unsupported regex operator stayed definite")
+	if FindSimpleAdvanced("a*", "aaa", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 3}}) {
+		t.Error("zero-or-more missed the longest endpoint")
+	}
+	if FindSimpleAdvanced("a+b", "zaaab", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 5}}) {
+		t.Error("one-or-more missed repeated prefix")
+	}
+	if FindSimpleAdvanced("[ab]*c", "abbc", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 4}}) {
+		t.Error("class repetition missed sequence")
 	}
 	if FindSimpleAdvanced("^a$", "\na\n", 0, true, false, true) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Error("line anchors missed interior line")
