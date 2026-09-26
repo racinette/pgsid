@@ -302,6 +302,18 @@ fn capture_program_reuses_the_first_capture_across_repeated_groups() {
         candidate::find_capture_program("a([bc])\\1*", "ab", 0, true, true, false, false),
         candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 2 })
     ));
+    assert!(candidate::supports_capture_program(
+        "(a)(a)(a)(a)\\1",
+        false
+    ));
+    assert!(matches!(
+        candidate::find_capture_program("(a)(a)(a)(a)\\1", "aaaaa", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 5 })
+    ));
+    assert!(matches!(
+        candidate::find_capture_program("(a)(a)(a)(a)\\1", "aaaa", 0, true, true, false, false),
+        candidate::MatchOutcome::NoMatch
+    ));
 }
 
 #[test]
