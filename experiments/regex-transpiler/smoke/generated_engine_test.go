@@ -35,6 +35,14 @@ func TestLiteralSlice(t *testing.T) {
 			t.Errorf("unsupported lookahead was accepted: %q", pattern)
 		}
 	}
+	if !SupportsFixedBackref("(ab)c\\1", false) {
+		t.Error("fixed backreference was rejected")
+	}
+	for _, pattern := range []string{"([ab])\\1", "(a+)\\1", "(a)\\2", "(a)|(b)\\1", "(a)*\\1"} {
+		if SupportsFixedBackref(pattern, false) {
+			t.Errorf("unsupported backreference was accepted: %q", pattern)
+		}
+	}
 	found := FindLiteral("😀", "a😀a", 0, true)
 	if found != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Errorf("literal match = %+v", found)
