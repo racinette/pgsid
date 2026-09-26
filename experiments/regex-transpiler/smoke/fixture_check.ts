@@ -49,7 +49,12 @@ for (const fixturePath of fixturePaths) {
         ? generated.supportsExpandedAdvanced(pattern)
         : generated.supportsSimpleAdvanced(pattern)
       const choice = generated.supportsGroupChoice(pattern, options.expanded)
-      if (fixture.operation === 'count' && options.syntax === 'advanced' && (simple || choice)) {
+      const lookbehind = generated.supportsFixedLookbehind(pattern, options.expanded)
+      if (
+        fixture.operation === 'count' &&
+        options.syntax === 'advanced' &&
+        (simple || choice || lookbehind)
+      ) {
         const newline = options.newline
         const args = [
           pattern,
@@ -60,11 +65,13 @@ for (const fixturePath of fixturePaths) {
           newline === 'sensitive' || newline === 'anchors',
         ] as const
         assert.deepEqual(
-          choice
-            ? generated.countGroupChoice(...args, options.expanded)
-            : (options.expanded ? generated.countExpandedAdvanced : generated.countSimpleAdvanced)(
-                ...args,
-              ),
+          lookbehind
+            ? generated.countFixedLookbehind(...args, options.expanded)
+            : choice
+              ? generated.countGroupChoice(...args, options.expanded)
+              : (options.expanded
+                  ? generated.countExpandedAdvanced
+                  : generated.countSimpleAdvanced)(...args),
           fixture.expected,
           `${fixturePath} count fixture ${index}: ${JSON.stringify(fixture.input)}`,
         )
@@ -237,7 +244,7 @@ assert.ok(coverage.rangeClasses >= 50)
 assert.ok(coverage.edgePunctuation >= 80)
 assert.ok(coverage.absoluteAnchors >= 50)
 assert.ok(coverage.position >= 6)
-assert.ok(coverage.countSupported >= 130)
+assert.ok(coverage.countSupported >= 145)
 assert.deepEqual(coverage.newline, new Set(['ordinary', 'sensitive', 'stop', 'anchors']))
 assert.equal(
   coverage.find,
