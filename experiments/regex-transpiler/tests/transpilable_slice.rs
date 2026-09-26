@@ -644,6 +644,56 @@ fn invalid_bracket_range_gate_only_marks_postgres_errors() {
 }
 
 #[test]
+fn invalid_bracket_construct_gate_only_marks_postgres_errors() {
+    for (pattern, syntax) in [
+        ("a[[..]]b", 'a'),
+        ("a[[..]]b", 'b'),
+        ("a[[==]]b", 'a'),
+        ("a[[==]]b", 'b'),
+        ("[[:<:]]*", 'a'),
+        ("[[:>:]]*", 'a'),
+        ("a[\\Z]b", 'a'),
+    ] {
+        assert!(candidate::definitely_invalid_bracket_construct(
+            pattern, syntax, false
+        ));
+    }
+    for pattern in ["a[[.-.]]", "a[[=Y=]]", "[[:<:]]a", "a[\\]]b"] {
+        assert!(!candidate::definitely_invalid_bracket_construct(
+            pattern, 'a', false
+        ));
+    }
+    let mut identified = 0;
+    for source in [
+        include_str!("../conformance/postgres-fixtures.json"),
+        include_str!("../conformance/stress-fixtures.json"),
+        include_str!("../conformance/targeted-postgres-fixtures.json"),
+        include_str!("../conformance/stress-position-fixtures.json"),
+        include_str!("../conformance/stress-boundary-fixtures.json"),
+    ] {
+        let fixtures: Value = serde_json::from_str(source).unwrap();
+        for fixture in fixtures["fixtures"].as_array().unwrap() {
+            let input = &fixture["input"];
+            let syntax = input["options"]["syntax"].as_str().unwrap();
+            if syntax != "literal"
+                && candidate::definitely_invalid_bracket_construct(
+                    input["pattern"].as_str().unwrap(),
+                    syntax.chars().next().unwrap(),
+                    input["options"]["expanded"].as_bool().unwrap(),
+                )
+            {
+                assert_eq!(
+                    fixture["expected"]["kind"], "InvalidPattern",
+                    "input={input}"
+                );
+                identified += 1;
+            }
+        }
+    }
+    assert!(identified >= 7);
+}
+
+#[test]
 fn all_postgres_named_character_classes_use_their_ascii_ranges() {
     for name in [
         "alnum", "alpha", "ascii", "blank", "cntrl", "digit", "graph", "lower", "print", "punct",
@@ -1179,6 +1229,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut invalid_bound = 0;
     let mut invalid_posix_class = 0;
     let mut invalid_range = 0;
+    let mut invalid_bracket_construct = 0;
     let mut invalid_numeric = 0;
     let mut invalid_backreference = 0;
     let mut dot = 0;
@@ -1298,6 +1349,22 @@ fn supported_search_matches_pglite_fixtures() {
                     "input={input}"
                 );
                 invalid_range += 1;
+                checked += 1;
+                continue;
+            }
+            if syntax != "literal"
+                && candidate::definitely_invalid_bracket_construct(
+                    pattern,
+                    syntax.chars().next().unwrap(),
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                assert_eq!(
+                    fixture["expected"],
+                    json!({ "kind": "InvalidPattern", "sqlstate": "2201B" }),
+                    "input={input}"
+                );
+                invalid_bracket_construct += 1;
                 checked += 1;
                 continue;
             }
@@ -2050,6 +2117,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(invalid_bound >= 20);
     assert!(invalid_posix_class >= 20);
     assert!(invalid_range >= 10);
+    assert!(invalid_bracket_construct >= 7);
     assert!(invalid_numeric >= 5);
     assert!(invalid_backreference >= 10);
     assert!(dot >= 20);

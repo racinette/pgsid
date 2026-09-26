@@ -1051,6 +1051,69 @@ pub fn definitely_invalid_bracket_range(pattern: &str, syntax: char, expanded: b
     false
 }
 
+pub fn definitely_invalid_bracket_construct(pattern: &str, syntax: char, expanded: bool) -> bool {
+    if syntax != 'a' && syntax != 'e' && syntax != 'b' {
+        return false;
+    }
+    let source = pattern_atoms(pattern, expanded);
+    let mut position = 0;
+    let mut bracket = false;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '[' && bracket == false {
+            bracket = true;
+            if source.len() - position >= 8
+                && source[position + 1] == '['
+                && source[position + 2] == ':'
+                && (source[position + 3] == '<' || source[position + 3] == '>')
+                && source[position + 4] == ':'
+                && source[position + 5] == ']'
+                && source[position + 6] == ']'
+                && (source[position + 7] == '*'
+                    || source[position + 7] == '+'
+                    || source[position + 7] == '?')
+            {
+                return true;
+            }
+        } else if atom == '['
+            && bracket
+            && source.len() - position >= 4
+            && (source[position + 1] == '.' || source[position + 1] == '=')
+        {
+            let marker = source[position + 1];
+            if source[position + 2] == marker && source[position + 3] == ']' {
+                return true;
+            }
+            position += 2;
+            while position + 1 < source.len()
+                && (source[position] != marker || source[position + 1] != ']')
+            {
+                position += 1;
+            }
+            if position + 1 < source.len() {
+                position += 1;
+            };
+        } else if atom == '\\' && syntax == 'a' && position + 1 < source.len() {
+            let escaped = source[position + 1];
+            if bracket
+                && (escaped == 'A'
+                    || escaped == 'Z'
+                    || escaped == 'm'
+                    || escaped == 'M'
+                    || escaped == 'y'
+                    || escaped == 'Y')
+            {
+                return true;
+            }
+            position += 1;
+        } else if atom == ']' && bracket {
+            bracket = false;
+        };
+        position += 1;
+    }
+    false
+}
+
 pub fn definitely_invalid_backreference(pattern: &str, syntax: char, expanded: bool) -> bool {
     if syntax != 'a' && syntax != 'b' {
         return false;
