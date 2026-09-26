@@ -34,6 +34,23 @@ func TestTranspilerSmoke(t *testing.T) {
 	if built := CharStack('😀'); len(built) != 1 || built[0] != 'b' {
 		t.Errorf("char stack changed its contents: %+v", built)
 	}
+	if !EchoBool(true) || EchoBool(false) {
+		t.Error("boolean argument changed value")
+	}
+	if built := SpanStack(Span{Start: 1, End: 2}); len(built) != 1 || built[0] != (Span{Start: 2, End: 2}) {
+		t.Errorf("span stack changed its contents: %+v", built)
+	}
+	spanStack := []Span{{Start: 1, End: 2}}
+	shiftedSpanStack := ShiftSpanStack(spanStack, 0, 2)
+	if spanStack[0].Start != 1 || shiftedSpanStack[0] != (Span{Start: 3, End: 2}) || SpanStackAt(shiftedSpanStack, 0) != shiftedSpanStack[0] {
+		t.Error("span stack failed to detach its input")
+	}
+	spanStack[0].Start = 9
+	if shiftedSpanStack[0].Start != 3 {
+		t.Error("span stack shares caller storage")
+	}
+	expectPanic(t, func() { SpanStackAt(shiftedSpanStack, 1) })
+	expectPanic(t, func() { ShiftSpanStack([]Span{{Start: -1, End: 2}}, 0, 2) })
 	expectPanic(t, func() { CharStack(0xd800) })
 	bag := CharBag{Characters: []rune{'a'}}
 	echoedBag := EchoBag(bag)

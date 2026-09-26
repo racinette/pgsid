@@ -24,6 +24,10 @@ pub fn same_span(left: Span, right: Span) -> bool {
     left == right
 }
 
+pub fn echo_bool(value: bool) -> bool {
+    value
+}
+
 pub fn shift_parameter(mut span: Span, offset: usize) -> Span {
     span.start += offset;
     span
@@ -58,6 +62,29 @@ pub fn char_stack(value: char) -> Vec<char> {
     characters.push(value);
     characters[0] = 'b';
     characters
+}
+
+pub fn span_stack(value: Span) -> Vec<Span> {
+    let mut spans: Vec<Span> = Vec::new();
+    spans.push(value);
+    spans[0] = Span {
+        start: value.start + 1,
+        end: value.end,
+    };
+    spans
+}
+
+pub fn shift_span_stack(mut spans: Vec<Span>, position: usize, offset: usize) -> Vec<Span> {
+    let previous = spans[position];
+    spans[position] = Span {
+        start: previous.start + offset,
+        end: previous.end,
+    };
+    spans
+}
+
+pub fn span_stack_at(spans: Vec<Span>, position: usize) -> Span {
+    spans[position]
 }
 
 pub fn echo_bag(bag: CharBag) -> CharBag {

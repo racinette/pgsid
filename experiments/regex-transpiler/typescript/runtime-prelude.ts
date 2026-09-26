@@ -12,6 +12,11 @@ function checkedI32(value: number): number {
   return value
 }
 
+function checkedBool(value: boolean): boolean {
+  if (typeof value !== 'boolean') throw new TypeError('expected a boolean')
+  return value
+}
+
 function checkedAdd(left: number, right: number): number {
   checkedIndex(left)
   checkedIndex(right)
@@ -54,6 +59,11 @@ function checkedIndices(value: number[]): number[] {
   return Array.from(value, checkedIndex)
 }
 
+function checkedStructs<T>(value: T[], copyValue: (entry: T) => T): T[] {
+  checkedIndex(value.length)
+  return Array.from(value, copyValue)
+}
+
 function checkedIndexIn<T>(values: T[], index: number): number {
   checkedIndex(index)
   if (index >= values.length) throw new RangeError('index out of bounds')
@@ -78,4 +88,13 @@ function indexChar(values: string[], index: number): string {
   if (!Number.isSafeInteger(index) || index < 0 || index >= values.length)
     throw new RangeError('index out of bounds')
   return values[index]!
+}
+
+function indexStruct<T>(values: T[], index: number, copyValue: (entry: T) => T): T {
+  return copyValue(values[checkedIndexIn(values, index)]!)
+}
+
+function pushStruct<T>(values: T[], value: T, copyValue: (entry: T) => T): void {
+  checkedAdd(values.length, 1)
+  values.push(copyValue(value))
 }

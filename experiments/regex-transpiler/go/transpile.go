@@ -192,10 +192,10 @@ func (g *generator) inferType(value *node) *node {
 		return namedType("bool")
 	case "index":
 		base := g.inferType(value.Base)
-		if base != nil && path(base) == "Vec" && len(base.TypeArguments) == 1 && path(base.TypeArguments[0]) == "usize" {
-			return namedType("usize")
+		if base != nil && path(base) == "Vec" && len(base.TypeArguments) == 1 {
+			return base.TypeArguments[0]
 		}
-		return namedType("char")
+		return nil
 	case "method-call":
 		switch value.Method {
 		case "len":

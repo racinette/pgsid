@@ -11,18 +11,20 @@ reference; expand the transpilable engine only through the shared dialect.
   functions with explicit return types. Supported derives are `Clone`, `Copy`,
   `PartialEq`, and `Eq`; use `Clone` and `Copy` together, and pair `Eq` with
   `PartialEq`.
-- Use `usize`, `u32`, `i32`, `bool`, `char`, `&str`, `Vec<char>`, or a declared
-  struct or enum. Other references, generic types, and custom type parameters
+- Use `usize`, `u32`, `i32`, `bool`, `char`, `&str`, shared vectors, or a
+  declared struct or enum. Other references, generic types, and custom type parameters
   need a lowering rule before they can enter this dialect.
 - Use initialized local bindings. Mark a binding or parameter `mut` only when
   its value is assigned. Use `if`, `else if`, `else`, `while`, `break`, and
   value-bearing `return` as statements. A function body may end with a tail
   expression. Branches do not produce values.
-- A mutable `Vec<usize>` or `Vec<char>` may be initialized with an explicitly
-  typed `Vec::new()` local, grown with `push`, and read or written by index.
-  Direct `=` assignment is limited to mutable scalar bindings and elements of
-  these mutable vectors. Keep vector indexing within bounds in Rust; the
-  generated targets reject out-of-bounds access too.
+- A mutable `Vec<usize>`, `Vec<char>`, or `Vec` of a declared `Copy` struct may
+  be initialized with an explicitly typed `Vec::new()` local, grown with
+  `push`, and read or written by index. Direct `=` assignment is limited to
+  mutable scalar bindings and elements of these mutable vectors. Keep vector
+  indexing within bounds in Rust; the generated targets reject out-of-bounds
+  access too. Generated targets copy struct elements and validate their fields
+  at input, read, push, and assignment boundaries.
 - Use the supported arithmetic, comparisons, field access, vector indexing,
   struct literals, enum variants, `char as u32` and checked `u32 as usize`
   casts, and methods only where the validator can establish a shared meaning.

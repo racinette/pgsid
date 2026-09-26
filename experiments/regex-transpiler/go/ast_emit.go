@@ -69,6 +69,9 @@ func (g *generator) goType(value *node) ast.Expr {
 		case "usize":
 			return &ast.ArrayType{Elt: goIdent("int")}
 		default:
+			if g.types[path(value.TypeArguments[0])] {
+				return &ast.ArrayType{Elt: g.goType(value.TypeArguments[0])}
+			}
 			reject("unsupported vector element type")
 			return nil
 		}
@@ -107,7 +110,14 @@ func (g *generator) goDetach(value ast.Expr, valueType *node) ast.Expr {
 		if len(valueType.TypeArguments) == 1 && path(valueType.TypeArguments[0]) == "usize" {
 			return goCall("checkedIndices", value)
 		}
-		return goCall("checkedChars", value)
+		if len(valueType.TypeArguments) == 1 && path(valueType.TypeArguments[0]) == "char" {
+			return goCall("checkedChars", value)
+		}
+		if len(valueType.TypeArguments) == 1 && g.types[path(valueType.TypeArguments[0])] {
+			return goCall("checkedStructs", value, goIdent("copy"+g.name(path(valueType.TypeArguments[0]))))
+		}
+		reject("unsupported vector element type")
+		return nil
 	default:
 		if g.types[name] {
 			return goCall("copy"+g.name(name), value)
@@ -245,8 +255,8 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 		if statement.Kind == "local" {
 			generated := casedName(statement.Binding.Name, false)
 			value := g.goExpression(statement.Initializer)
-			if statement.Type != nil && path(statement.Type) == "Vec" && len(statement.Type.TypeArguments) == 1 && path(statement.Type.TypeArguments[0]) == "char" && statement.Initializer.Kind == "call" && statement.Initializer.Callee != nil && len(statement.Initializer.Callee.Segments) == 2 && statement.Initializer.Callee.Segments[0] == "Vec" && statement.Initializer.Callee.Segments[1] == "new" {
-				value = &ast.CompositeLit{Type: &ast.ArrayType{Elt: goIdent("rune")}}
+			if statement.Type != nil && path(statement.Type) == "Vec" && len(statement.Type.TypeArguments) == 1 && statement.Initializer.Kind == "call" && statement.Initializer.Callee != nil && len(statement.Initializer.Callee.Segments) == 2 && statement.Initializer.Callee.Segments[0] == "Vec" && statement.Initializer.Callee.Segments[1] == "new" {
+				value = &ast.CompositeLit{Type: g.goType(statement.Type)}
 			}
 			if statement.Type != nil {
 				g.localTypes[statement.Binding.Name] = statement.Type
@@ -272,11 +282,12 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 			if value.Method == "push" && len(value.Arguments) == 1 {
 				receiver := g.goExpression(value.Receiver)
 				result = append(result, &ast.ExprStmt{X: goCall("checkedAdd", goCall("len", receiver), goInteger("1"))})
-				checker := "checkedIndex"
-				if receiverType := g.inferType(value.Receiver); receiverType != nil && path(receiverType) == "Vec" && len(receiverType.TypeArguments) == 1 && path(receiverType.TypeArguments[0]) == "char" {
-					checker = "checkedChar"
+				receiverType := g.inferType(value.Receiver)
+				if receiverType == nil || path(receiverType) != "Vec" || len(receiverType.TypeArguments) != 1 {
+					reject("push receiver is not a vector")
 				}
-				result = append(result, goAssign(receiver, goCall("append", receiver, goCall(checker, g.goExpression(value.Arguments[0]))), token.ASSIGN))
+				element := receiverType.TypeArguments[0]
+				result = append(result, goAssign(receiver, goCall("append", receiver, g.goDetach(g.goExpression(value.Arguments[0]), element)), token.ASSIGN))
 				continue
 			}
 			generated := g.goExpression(value)
