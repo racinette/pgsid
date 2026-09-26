@@ -53563,6 +53563,112 @@
       "expected": {
         "kind": "NoMatch"
       }
+    },
+    {
+      "input": {
+        "pattern": "a(b*)c\\1",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b*)c\\1",
+        "subject": "zabbcbb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 7
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b*)c\\1",
+        "subject": "zabbcb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "a([ab]*)c\\1",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a([ab]*)c\\1",
+        "subject": "zabcab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b*)c\\1x",
+        "subject": "zacx",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
     }
   ]
 }

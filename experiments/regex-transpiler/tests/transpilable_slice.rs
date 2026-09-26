@@ -84,7 +84,11 @@ fn single_capture_gate_requires_one_atom_and_reference() {
         "([ab]+)c\\1",
         false
     ));
-    for pattern in ["([ab]*)\\1", "([ab])\\2", "([ab])", "((a))\\1"] {
+    assert!(candidate::supports_single_capture_backref(
+        "a(b*)c\\1",
+        false
+    ));
+    for pattern in ["([ab]?)\\1", "([ab])\\2", "([ab])", "((a))\\1"] {
         assert!(!candidate::supports_single_capture_backref(pattern, false));
     }
     assert!(matches!(
@@ -94,6 +98,10 @@ fn single_capture_gate_requires_one_atom_and_reference() {
     assert!(matches!(
         candidate::find_single_capture_backref("([ab]+)c\\1", "abcab", 0, true, true, false, false),
         candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 5 })
+    ));
+    assert!(matches!(
+        candidate::find_single_capture_backref("a(b*)c\\1", "ac", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 2 })
     ));
 }
 
