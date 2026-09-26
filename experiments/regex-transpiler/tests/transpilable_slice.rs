@@ -136,10 +136,9 @@ fn choice_capture_repeats_the_chosen_literal() {
         "(a|b)c\\1",
         true
     ));
-    assert!(!candidate::supports_choice_capture_backref(
-        "((a|b))\\2",
-        false
-    ));
+    for pattern in ["((a|ab))\\2", "((ab|a)b)\\2", "((ab)c)\\2"] {
+        assert!(candidate::supports_choice_capture_backref(pattern, false));
+    }
     assert!(matches!(
         candidate::find_choice_capture_backref("(a|aa)\\1", "zaaaay", 0, true, true, false, false),
         candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 5 })
@@ -147,6 +146,10 @@ fn choice_capture_repeats_the_chosen_literal() {
     assert!(matches!(
         candidate::find_choice_capture_backref("(a|b)c\\1", "zbcby", 0, true, true, false, false),
         candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 4 })
+    ));
+    assert!(matches!(
+        candidate::find_choice_capture_backref("((a|ab))\\2", "abab", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 4 })
     ));
 }
 
