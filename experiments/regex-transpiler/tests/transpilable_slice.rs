@@ -926,6 +926,23 @@ fn collating_brackets_translate_to_character_classes() {
 }
 
 #[test]
+fn hyphen_can_start_a_bracket_range() {
+    for (pattern, subject) in [("a[--?]b", "a?b"), ("a[---]b", "a-b")] {
+        assert!(candidate::supports_simple_advanced(pattern));
+        assert!(candidate::supports_basic_compatible(pattern, false));
+        assert!(matches!(
+            candidate::find_simple_advanced(pattern, subject, 0, true, true, false),
+            candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 3 })
+        ));
+        assert!(matches!(
+            candidate::find_basic_compatible(pattern, subject, 0, true, true, false, false),
+            candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 3 })
+        ));
+    }
+    assert!(!candidate::supports_simple_advanced("a[c-b]"));
+}
+
+#[test]
 fn bracket_word_boundaries_match_postgres_spelling() {
     assert!(candidate::supports_bracket_word_boundary("[[:<:]]a", false));
     assert!(candidate::supports_bracket_word_boundary("a[[:>:]]", false));
@@ -2306,9 +2323,9 @@ fn simple_advanced_search_matches_the_live_engine() {
         }
     }
     for pattern in [
-        "[z-a]", "[a-b-c]", "[A-z]", "[--a]", "[a--]", "[---]", "[^]", "[]", "[a", "[\\d-~]",
-        "[a-\\d]", "[\\q]", "(ab)", "a{256}", "a{3,1}", "a{2,", "a*{foo}", "a{2}{3}", "a\\", "a**",
-        "a*??", "^*", "\\m+", "{2}",
+        "[z-a]", "[a-b-c]", "[A-z]", "[--a]", "[a--]", "[^]", "[]", "[a", "[\\d-~]", "[a-\\d]",
+        "[\\q]", "(ab)", "a{256}", "a{3,1}", "a{2,", "a*{foo}", "a{2}{3}", "a\\", "a**", "a*??",
+        "^*", "\\m+", "{2}",
     ] {
         assert!(matches!(
             candidate::find_simple_advanced(pattern, "ab", 0, true, true, false),
