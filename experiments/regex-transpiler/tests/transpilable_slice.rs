@@ -277,6 +277,14 @@ fn capture_program_reuses_the_first_capture_across_repeated_groups() {
         candidate::find_capture_program("a(bc*).*\\1", "abccbccb", 0, true, true, false, false),
         candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 8 })
     ));
+    for pattern in ["a(?:(b))c", "a((?:b))c", "a(?:(?:b))c"] {
+        assert!(candidate::supports_capture_program(pattern, false));
+        assert!(matches!(
+            candidate::find_capture_program(pattern, "xabc", 0, true, true, false, false),
+            candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 4 })
+        ));
+    }
+    assert!(!candidate::supports_capture_program("a(?:(b|c))d", false));
 }
 
 #[test]
@@ -1676,7 +1684,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(backref >= 20);
     assert!(single_capture >= 50);
     assert!(repeated_backref >= 8);
-    assert!(capture_program >= 8);
+    assert!(capture_program >= 11);
     assert!(choice_capture >= 10);
     assert!(two_capture >= 30);
     assert!(inline >= 20);

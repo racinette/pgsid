@@ -174,6 +174,7 @@ struct CaptureInstruction {
 struct CaptureProgram {
     valid: bool,
     instructions: Vec<CaptureInstruction>,
+    noncapturing: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -1940,6 +1941,7 @@ fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
     let mut frames: Vec<CaptureFrame> = Vec::new();
     let mut frame_count = 0;
     let mut groups = 0;
+    let mut noncapturing = 0;
     let mut closed_groups = 0;
     let mut valid = true;
     let mut position = 0;
@@ -1952,13 +1954,24 @@ fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
             instructions.push(make_capture_step(VM_END, 0, 0, 0, ' '));
             position += 1;
         } else if atom == '(' {
-            groups += 1;
-            if groups > 3 {
-                valid = false;
-                break;
+            let mut group = 0;
+            if source.len() - position >= 3
+                && source[position + 1] == '?'
+                && source[position + 2] == ':'
+            {
+                noncapturing += 1;
+                position += 3;
+            } else {
+                groups += 1;
+                group = groups;
+                position += 1;
+                if groups > 3 {
+                    valid = false;
+                    break;
+                }
             }
             let frame = CaptureFrame {
-                group: groups,
+                group,
                 start: instructions.len(),
             };
             if frame_count == frames.len() {
@@ -1967,8 +1980,9 @@ fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
                 frames[frame_count] = frame;
             }
             frame_count += 1;
-            instructions.push(make_capture_step(VM_OPEN, 0, 0, groups, ' '));
-            position += 1;
+            if group > 0 {
+                instructions.push(make_capture_step(VM_OPEN, 0, 0, group, ' '));
+            }
         } else if atom == ')' {
             if frame_count == 0 {
                 valid = false;
@@ -1976,10 +1990,12 @@ fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
             }
             frame_count = frame_count - 1;
             let frame = frames[frame_count];
-            if frame.group > closed_groups {
-                closed_groups = frame.group;
+            if frame.group > 0 {
+                if frame.group > closed_groups {
+                    closed_groups = frame.group;
+                }
+                instructions.push(make_capture_step(VM_CLOSE, 0, 0, frame.group, ' '));
             }
-            instructions.push(make_capture_step(VM_CLOSE, 0, 0, frame.group, ' '));
             position += 1;
             if position < source.len() && source[position] == '+' {
                 let next = instructions.len() + 1;
@@ -2042,6 +2058,7 @@ fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
     CaptureProgram {
         valid,
         instructions,
+        noncapturing,
     }
 }
 
@@ -2050,7 +2067,24 @@ pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
     if program.valid == false {
         return false;
     }
+    let noncapturing = program.noncapturing;
     let code = program.instructions;
+    if noncapturing > 0 {
+        let mut position = 0;
+        let mut literals = 0;
+        let mut valid = code.len() > 1;
+        while position < code.len() {
+            let operation = code[position].operation;
+            if operation == VM_LITERAL {
+                literals += 1;
+            } else if operation != VM_OPEN && operation != VM_CLOSE && operation != VM_ACCEPT {
+                valid = false;
+                break;
+            }
+            position += 1;
+        }
+        return valid && literals > 0 && code[code.len() - 1].operation == VM_ACCEPT;
+    }
     if code.len() == 9 {
         return code[0].operation == VM_OPEN
             && code[0].group == 1
