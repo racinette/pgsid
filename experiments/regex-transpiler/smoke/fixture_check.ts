@@ -60,6 +60,7 @@ const coverage = {
   absoluteAnchors: 0,
   position: 0,
   newline: new Set<string>(),
+  posixNames: new Set<string>(),
 }
 
 for (const fixturePath of fixturePaths) {
@@ -213,6 +214,7 @@ for (const fixturePath of fixturePaths) {
       if (pattern.includes('^') || pattern.includes('$')) coverage.anchored++
       if (pattern.includes('\\')) coverage.escaped++
       if (pattern.includes('[')) coverage.classes++
+      if (pattern.startsWith('[[:') && pattern.endsWith(']]+')) coverage.posixNames.add(pattern)
       if (pattern.includes('[^')) coverage.negatedClasses++
       if (pattern.includes('[') && pattern.includes('-')) coverage.rangeClasses++
       if (
@@ -754,6 +756,7 @@ assert.ok(coverage.mixed >= 50)
 assert.ok(coverage.anchored >= 20)
 assert.ok(coverage.escaped >= 40)
 assert.ok(coverage.classes >= 50)
+assert.equal(coverage.posixNames.size, 14)
 assert.ok(coverage.negatedClasses >= 40)
 assert.ok(coverage.rangeClasses >= 50)
 assert.ok(coverage.edgePunctuation >= 80)

@@ -713,20 +713,145 @@ pub fn definitely_invalid_backreference(pattern: &str, syntax: char, expanded: b
     false
 }
 
-fn posix_class_kind(first: char, second: char, third: char, fourth: char, fifth: char) -> usize {
-    if first == 'd' && second == 'i' && third == 'g' && fourth == 'i' && fifth == 't' {
+fn posix_class_kind(
+    first: char,
+    second: char,
+    third: char,
+    fourth: char,
+    fifth: char,
+    sixth: char,
+) -> usize {
+    if first == 'd'
+        && second == 'i'
+        && third == 'g'
+        && fourth == 'i'
+        && fifth == 't'
+        && sixth == ':'
+    {
         return 1;
     }
-    if first == 'a' && second == 'l' && third == 'p' && fourth == 'h' && fifth == 'a' {
+    if first == 'a'
+        && second == 'l'
+        && third == 'p'
+        && fourth == 'h'
+        && fifth == 'a'
+        && sixth == ':'
+    {
         return 2;
     }
-    if first == 'u' && second == 'p' && third == 'p' && fourth == 'e' && fifth == 'r' {
+    if first == 'u'
+        && second == 'p'
+        && third == 'p'
+        && fourth == 'e'
+        && fifth == 'r'
+        && sixth == ':'
+    {
         return 3;
     }
-    if first == 's' && second == 'p' && third == 'a' && fourth == 'c' && fifth == 'e' {
+    if first == 's'
+        && second == 'p'
+        && third == 'a'
+        && fourth == 'c'
+        && fifth == 'e'
+        && sixth == ':'
+    {
         return 4;
     }
+    if first == 'a'
+        && second == 'l'
+        && third == 'n'
+        && fourth == 'u'
+        && fifth == 'm'
+        && sixth == ':'
+    {
+        return 5;
+    }
+    if first == 'a'
+        && second == 's'
+        && third == 'c'
+        && fourth == 'i'
+        && fifth == 'i'
+        && sixth == ':'
+    {
+        return 6;
+    }
+    if first == 'b'
+        && second == 'l'
+        && third == 'a'
+        && fourth == 'n'
+        && fifth == 'k'
+        && sixth == ':'
+    {
+        return 7;
+    }
+    if first == 'c'
+        && second == 'n'
+        && third == 't'
+        && fourth == 'r'
+        && fifth == 'l'
+        && sixth == ':'
+    {
+        return 8;
+    }
+    if first == 'g'
+        && second == 'r'
+        && third == 'a'
+        && fourth == 'p'
+        && fifth == 'h'
+        && sixth == ':'
+    {
+        return 9;
+    }
+    if first == 'l'
+        && second == 'o'
+        && third == 'w'
+        && fourth == 'e'
+        && fifth == 'r'
+        && sixth == ':'
+    {
+        return 10;
+    }
+    if first == 'p'
+        && second == 'r'
+        && third == 'i'
+        && fourth == 'n'
+        && fifth == 't'
+        && sixth == ':'
+    {
+        return 11;
+    }
+    if first == 'p'
+        && second == 'u'
+        && third == 'n'
+        && fourth == 'c'
+        && fifth == 't'
+        && sixth == ':'
+    {
+        return 12;
+    }
+    if first == 'x'
+        && second == 'd'
+        && third == 'i'
+        && fourth == 'g'
+        && fifth == 'i'
+        && sixth == 't'
+    {
+        return 13;
+    }
+    if first == 'w' && second == 'o' && third == 'r' && fourth == 'd' && fifth == ':' {
+        return 14;
+    }
     0
+}
+
+fn posix_class_width(kind: usize) -> usize {
+    if kind == 14 {
+        return 10;
+    }
+    if kind == 13 {
+        return 12;
+    }
+    11
 }
 
 fn supports_atoms(atoms: Vec<char>) -> bool {
@@ -797,24 +922,30 @@ fn supports_atoms(atoms: Vec<char>) -> bool {
             }
         }
         if atom == '['
-            && atoms.len() - position >= 11
+            && atoms.len() - position >= 10
             && atoms[position + 1] == '['
             && atoms[position + 2] == ':'
-            && atoms[position + 8] == ':'
-            && atoms[position + 9] == ']'
-            && atoms[position + 10] == ']'
         {
-            if posix_class_kind(
+            let kind = posix_class_kind(
                 atoms[position + 3],
                 atoms[position + 4],
                 atoms[position + 5],
                 atoms[position + 6],
                 atoms[position + 7],
-            ) == 0
+                atoms[position + 8],
+            );
+            if kind == 0 {
+                return false;
+            }
+            let width = posix_class_width(kind);
+            if atoms.len() - position < width
+                || atoms[position + width - 3] != ':'
+                || atoms[position + width - 2] != ']'
+                || atoms[position + width - 1] != ']'
             {
                 return false;
             }
-            position += 10;
+            position += width - 1;
         } else if atom == '[' {
             position += 1;
             if position < atoms.len() && atoms[position] == '^' {
@@ -4090,20 +4221,30 @@ fn search_atoms(
             }
         }
         if atom == '['
-            && atoms.len() - position >= 11
+            && atoms.len() - position >= 10
             && atoms[position + 1] == '['
             && atoms[position + 2] == ':'
-            && atoms[position + 8] == ':'
-            && atoms[position + 9] == ']'
-            && atoms[position + 10] == ']'
         {
-            if posix_class_kind(
+            let kind = posix_class_kind(
                 atoms[position + 3],
                 atoms[position + 4],
                 atoms[position + 5],
                 atoms[position + 6],
                 atoms[position + 7],
-            ) == 0
+                atoms[position + 8],
+            );
+            if kind == 0 {
+                return SearchResult {
+                    kind: 2,
+                    start: 0,
+                    end: 0,
+                };
+            }
+            let width = posix_class_width(kind);
+            if atoms.len() - position < width
+                || atoms[position + width - 3] != ':'
+                || atoms[position + width - 2] != ']'
+                || atoms[position + width - 1] != ']'
             {
                 return SearchResult {
                     kind: 2,
@@ -4111,7 +4252,7 @@ fn search_atoms(
                     end: 0,
                 };
             }
-            position += 10;
+            position += width - 1;
         } else if atom == '[' {
             position += 1;
             if position < atoms.len() && atoms[position] == '^' {
@@ -4447,12 +4588,9 @@ fn search_atoms(
                         || (atom == 'Y' && left_word == right_word);
                 } else if escaped == false
                     && atom == '['
-                    && atoms.len() - atom_position >= 11
+                    && atoms.len() - atom_position >= 10
                     && atoms[atom_position + 1] == '['
                     && atoms[atom_position + 2] == ':'
-                    && atoms[atom_position + 8] == ':'
-                    && atoms[atom_position + 9] == ']'
-                    && atoms[atom_position + 10] == ']'
                 {
                     let kind = posix_class_kind(
                         atoms[atom_position + 3],
@@ -4460,6 +4598,7 @@ fn search_atoms(
                         atoms[atom_position + 5],
                         atoms[atom_position + 6],
                         atoms[atom_position + 7],
+                        atoms[atom_position + 8],
                     );
                     if subject_position < haystack.len() {
                         let actual = haystack[subject_position];
@@ -4468,15 +4607,35 @@ fn search_atoms(
                         let upper = codepoint >= 65 && codepoint <= 90;
                         let lower = codepoint >= 97 && codepoint <= 122;
                         let space = (codepoint >= 9 && codepoint <= 13) || actual == ' ';
+                        let letter = upper || lower;
+                        let printable = codepoint >= 32 && codepoint <= 126;
+                        let punctuation = (codepoint >= 33 && codepoint <= 47)
+                            || (codepoint >= 58 && codepoint <= 64)
+                            || (codepoint >= 91 && codepoint <= 96)
+                            || (codepoint >= 123 && codepoint <= 126);
                         matched = (kind == 1 && digit)
-                            || (kind == 2 && (upper || lower))
+                            || (kind == 2 && letter)
                             || (kind == 3 && (upper || (case_sensitive == false && lower)))
-                            || (kind == 4 && space);
+                            || (kind == 4 && space)
+                            || (kind == 5 && (digit || letter))
+                            || (kind == 6 && codepoint <= 127)
+                            || (kind == 7 && (actual == ' ' || actual == '\t'))
+                            || (kind == 8
+                                && (codepoint <= 31 || (codepoint >= 127 && codepoint <= 159)))
+                            || (kind == 9 && codepoint >= 33 && codepoint <= 126)
+                            || (kind == 10 && (lower || (case_sensitive == false && upper)))
+                            || (kind == 11 && printable)
+                            || (kind == 12 && punctuation)
+                            || (kind == 13
+                                && (digit
+                                    || (codepoint >= 65 && codepoint <= 70)
+                                    || (codepoint >= 97 && codepoint <= 102)))
+                            || (kind == 14 && (digit || letter || actual == '_'));
                         if matched {
                             consumed = 1;
                         }
                     };
-                    atom_end = atom_position + 11;
+                    atom_end = atom_position + posix_class_width(kind);
                 } else if escaped == false && atom == '[' {
                     let mut class_position = atom_end;
                     let negated = atoms[class_position] == '^';
