@@ -4336,16 +4336,14 @@ fn basic_literal_atoms(pattern: &str, expanded: bool) -> BasicLiteralResult {
     let mut translated = false;
     while position < source.len() {
         let atom = source[position];
-        if atom == '\\'
-            || atom == '['
-            || atom == ']'
-            || (atom == '^' && position != 0)
-            || (atom == '$' && position + 1 != source.len())
-        {
+        if atom == '\\' || atom == '[' || atom == ']' {
             valid = false;
             break;
         }
-        if atom == '+'
+        if (atom == '^' && position != 0)
+            || (atom == '$' && position + 1 != source.len())
+            || (atom == '*' && (position == 0 || (position == 1 && source[0] == '^')))
+            || atom == '+'
             || atom == '?'
             || atom == '|'
             || atom == '('
