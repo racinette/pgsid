@@ -722,6 +722,21 @@ fn basic_bounded_group_preserves_last_backreference() {
 }
 
 #[test]
+fn angle_word_escapes_follow_the_selected_syntax() {
+    assert!(candidate::supports_angle_word("\\<a", 'b', false));
+    assert!(candidate::supports_angle_word("a\\<b", 'a', false));
+    assert!(!candidate::supports_angle_word("\\<*", 'b', false));
+    assert!(matches!(
+        candidate::find_angle_word("a\\<b", "a<b", 0, true, true, false, 'a', false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 3 })
+    ));
+    assert!(matches!(
+        candidate::find_angle_word("a\\<b", "a<b", 0, true, true, false, 'b', false),
+        candidate::MatchOutcome::NoMatch
+    ));
+}
+
+#[test]
 fn supported_search_matches_pglite_fixtures() {
     let mut literal = 0;
     let mut insensitive = 0;
@@ -1374,6 +1389,25 @@ fn supported_search_matches_pglite_fixtures() {
                     options["caseSensitive"].as_bool().unwrap(),
                     newline == "ordinary" || newline == "anchors",
                     newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if (options["syntax"] == "advanced" || options["syntax"] == "basic")
+                && candidate::supports_angle_word(
+                    pattern,
+                    syntax.chars().next().unwrap(),
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                bracket_word += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_angle_word(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    syntax.chars().next().unwrap(),
                     options["expanded"].as_bool().unwrap(),
                 )
             } else {

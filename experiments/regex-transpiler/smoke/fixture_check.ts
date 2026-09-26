@@ -620,6 +620,23 @@ for (const fixturePath of fixturePaths) {
         options.expanded,
       )
       coverage.bracketWord++
+    } else if (
+      (options.syntax === 'advanced' || options.syntax === 'basic') &&
+      generated.supportsAngleWord(pattern, options.syntax[0], options.expanded)
+    ) {
+      const crossesNewline = options.newline === 'ordinary' || options.newline === 'anchors'
+      const lineAnchors = options.newline === 'sensitive' || options.newline === 'anchors'
+      actual = generated.findAngleWord(
+        pattern,
+        subject,
+        from,
+        options.caseSensitive,
+        crossesNewline,
+        lineAnchors,
+        options.syntax[0],
+        options.expanded,
+      )
+      coverage.bracketWord++
     } else {
       if (options.syntax === 'advanced') coverage.unsupportedAdvanced++
       else coverage.otherOptions++
