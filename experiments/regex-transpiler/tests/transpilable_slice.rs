@@ -802,6 +802,16 @@ fn invalid_backreference_gate_only_marks_postgres_errors() {
         'a',
         false
     ));
+    assert!(candidate::definitely_invalid_backreference(
+        "a((((((((((b\\10))))))))))c",
+        'a',
+        false
+    ));
+    assert!(candidate::definitely_invalid_backreference(
+        "x(\\w)(?=(\\1))",
+        'a',
+        false
+    ));
     assert!(!candidate::definitely_invalid_backreference(
         "(a)\\1", 'a', false
     ));
