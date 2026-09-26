@@ -939,6 +939,18 @@ fn zero_repetition_of_a_noncapturing_group_consumes_nothing() {
 }
 
 #[test]
+fn noncapturing_choices_can_include_word_classes() {
+    assert!(candidate::supports_noncapture_literal(
+        "abc(?:\\w|z)",
+        false
+    ));
+    assert!(matches!(
+        candidate::find_noncapture_literal("abc(?:\\w|z)", "!abc8", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 5 })
+    ));
+}
+
+#[test]
 fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
     assert!(candidate::supports_bounded_group("a(ab)*c", false));
