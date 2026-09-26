@@ -192,6 +192,52 @@ fn invalid_repeat_gate_only_marks_postgres_errors() {
 }
 
 #[test]
+fn invalid_bound_gate_only_marks_postgres_errors() {
+    for pattern in ["a{1,0}", "a{2,", "a{256}", "a{1,2,3}"] {
+        assert!(candidate::definitely_invalid_bound(pattern, 'a', false));
+    }
+    assert!(candidate::definitely_invalid_bound(
+        "a\\{3,1\\}",
+        'b',
+        false
+    ));
+    assert!(!candidate::definitely_invalid_bound("a{2,3}", 'a', false));
+    assert!(!candidate::definitely_invalid_bound(
+        "a\\{2,3\\}",
+        'b',
+        false
+    ));
+    let mut identified = 0;
+    for source in [
+        include_str!("../conformance/postgres-fixtures.json"),
+        include_str!("../conformance/stress-fixtures.json"),
+        include_str!("../conformance/targeted-postgres-fixtures.json"),
+        include_str!("../conformance/stress-position-fixtures.json"),
+        include_str!("../conformance/stress-boundary-fixtures.json"),
+    ] {
+        let fixtures: Value = serde_json::from_str(source).unwrap();
+        for fixture in fixtures["fixtures"].as_array().unwrap() {
+            let input = &fixture["input"];
+            let syntax = input["options"]["syntax"].as_str().unwrap();
+            if syntax != "literal"
+                && candidate::definitely_invalid_bound(
+                    input["pattern"].as_str().unwrap(),
+                    syntax.chars().next().unwrap(),
+                    input["options"]["expanded"].as_bool().unwrap(),
+                )
+            {
+                assert_eq!(
+                    fixture["expected"]["kind"], "InvalidPattern",
+                    "input={input}"
+                );
+                identified += 1;
+            }
+        }
+    }
+    assert!(identified >= 30);
+}
+
+#[test]
 fn inline_gate_accepts_supported_prefix_flags() {
     for pattern in ["(?i)ab", "(?n)^b", "(?x)a b", "(?t)a b"] {
         assert!(candidate::supports_inline_advanced(pattern, false));
@@ -342,6 +388,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut basic_backref = 0;
     let mut invalid_grouping = 0;
     let mut invalid_repeat = 0;
+    let mut invalid_bound = 0;
     let mut dot = 0;
     let mut mixed = 0;
     let mut anchored = 0;
@@ -411,6 +458,22 @@ fn supported_search_matches_pglite_fixtures() {
                     "input={input}"
                 );
                 invalid_repeat += 1;
+                checked += 1;
+                continue;
+            }
+            if syntax != "literal"
+                && candidate::definitely_invalid_bound(
+                    pattern,
+                    syntax.chars().next().unwrap(),
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                assert_eq!(
+                    fixture["expected"],
+                    json!({ "kind": "InvalidPattern", "sqlstate": "2201B" }),
+                    "input={input}"
+                );
+                invalid_bound += 1;
                 checked += 1;
                 continue;
             }
@@ -836,6 +899,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(basic_backref >= 20);
     assert!(invalid_grouping >= 40);
     assert!(invalid_repeat >= 20);
+    assert!(invalid_bound >= 20);
     assert!(dot >= 20);
     assert!(mixed >= 50);
     assert!(anchored >= 20);

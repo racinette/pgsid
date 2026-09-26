@@ -348,6 +348,114 @@ pub fn definitely_invalid_simple_repeat(pattern: &str, syntax: char, expanded: b
     false
 }
 
+pub fn definitely_invalid_bound(pattern: &str, syntax: char, expanded: bool) -> bool {
+    if syntax != 'a' && syntax != 'e' && syntax != 'b' {
+        return false;
+    }
+    let source = pattern_atoms(pattern, expanded);
+    if source.len() >= 4
+        && source[0] == '*'
+        && source[1] == '*'
+        && source[2] == '*'
+        && source[3] == '='
+    {
+        return false;
+    }
+    let mut position = 0;
+    let mut bracket = false;
+    let mut bracket_members = 0;
+    while position < source.len() {
+        let atom = source[position];
+        if bracket {
+            if atom == ']' && bracket_members > 0 {
+                bracket = false;
+            } else {
+                bracket_members += 1;
+            }
+            position += 1;
+        } else if atom == '[' {
+            bracket = true;
+            bracket_members = 0;
+            position += 1;
+        } else if atom == '\\'
+            && (syntax != 'b' || position + 1 == source.len() || source[position + 1] != '{')
+        {
+            position += 2;
+        } else if atom == '{' && syntax != 'b'
+            || atom == '\\'
+                && syntax == 'b'
+                && position + 1 < source.len()
+                && source[position + 1] == '{'
+        {
+            if syntax == 'b' {
+                position += 2;
+            } else {
+                position += 1;
+            }
+            if position < source.len()
+                && (source[position] as u32) >= 48
+                && (source[position] as u32) <= 57
+            {
+                let mut lower = 0;
+                while position < source.len()
+                    && (source[position] as u32) >= 48
+                    && (source[position] as u32) <= 57
+                {
+                    let double = lower + lower;
+                    let four = double + double;
+                    let eight = four + four;
+                    lower = eight + double + ((source[position] as u32) - 48) as usize;
+                    if lower > 255 {
+                        return true;
+                    }
+                    position += 1;
+                }
+                let mut upper = lower;
+                let mut has_upper = true;
+                if position < source.len() && source[position] == ',' {
+                    position += 1;
+                    upper = 0;
+                    has_upper = false;
+                    while position < source.len()
+                        && (source[position] as u32) >= 48
+                        && (source[position] as u32) <= 57
+                    {
+                        let double = upper + upper;
+                        let four = double + double;
+                        let eight = four + four;
+                        upper = eight + double + ((source[position] as u32) - 48) as usize;
+                        if upper > 255 {
+                            return true;
+                        }
+                        has_upper = true;
+                        position += 1;
+                    }
+                }
+                if has_upper && upper < lower {
+                    return true;
+                }
+                if syntax == 'b' {
+                    if position + 1 >= source.len()
+                        || source[position] != '\\'
+                        || source[position + 1] != '}'
+                    {
+                        return true;
+                    }
+                    position += 2;
+                } else {
+                    if position == source.len() || source[position] != '}' {
+                        return true;
+                    }
+                    position += 1;
+                };
+            }
+        } else {
+            position += 1;
+        };
+    }
+    false
+}
+
 fn posix_class_kind(first: char, second: char, third: char, fourth: char, fifth: char) -> usize {
     if first == 'd' && second == 'i' && third == 'g' && fourth == 'i' && fifth == 't' {
         return 1;
