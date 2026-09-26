@@ -32,6 +32,14 @@ fn flat_groups_only_remove_capture_delimiters() {
 }
 
 #[test]
+fn group_choice_gate_rejects_unsupported_precedence() {
+    assert!(candidate::supports_group_choice("a(b|bc)", false));
+    for pattern in ["(a|b)+", "((a|b))", "(a|b)\\1", "(?=a|b)c", "a|b(c|d)"] {
+        assert!(!candidate::supports_group_choice(pattern, false));
+    }
+}
+
+#[test]
 fn literal_search_matches_the_live_engine() {
     for case_sensitive in [true, false] {
         for pattern in ["", "a", "A", "😀", "aa", "Å", "å", "K", "k", "\n"] {
@@ -74,6 +82,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut insensitive = 0;
     let mut advanced = 0;
     let mut grouped = 0;
+    let mut group_choice = 0;
     let mut expanded_advanced = 0;
     let mut extended = 0;
     let mut basic = 0;
@@ -208,6 +217,20 @@ fn supported_search_matches_pglite_fixtures() {
                     newline == "sensitive" || newline == "anchors",
                     options["expanded"].as_bool().unwrap(),
                 )
+            } else if options["syntax"] == "advanced"
+                && candidate::supports_group_choice(pattern, options["expanded"].as_bool().unwrap())
+            {
+                group_choice += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_group_choice(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
             } else if options["syntax"] == "extended"
                 && candidate::supports_extended_compatible(
                     pattern,
@@ -266,6 +289,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(insensitive >= 7);
     assert!(advanced >= 100);
     assert!(grouped >= 20);
+    assert!(group_choice >= 20);
     assert!(expanded_advanced >= 200);
     assert!(extended >= 50);
     assert!(basic >= 50);

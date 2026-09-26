@@ -673,6 +673,24 @@ for (const expanded of [false, true]) {
     }
   }
 }
+for (const expanded of [false, true]) {
+  for (const newline of ['ordinary', 'sensitive', 'stop', 'anchors']) {
+    for (const [pattern, subject] of [
+      ['(a|ab)b', 'zabb'],
+      ['a(b|bc)', 'zabc'],
+      ['(ab|a)c', 'zabc'],
+      ['(a|b)c', 'zbc'],
+      ['a(|b)c', 'zabc'],
+      ['a(b|)c', 'zabc'],
+    ]) {
+      inputs.push({
+        pattern,
+        subject,
+        options: { syntax: 'advanced', caseSensitive: true, expanded, newline },
+      })
+    }
+  }
+}
 
 function flags(options) {
   const newline = { ordinary: '', sensitive: 'n', stop: 'p', anchors: 'w' }[options.newline]

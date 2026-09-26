@@ -35,6 +35,12 @@ struct FlatGroupResult {
     atoms: Vec<char>,
 }
 
+struct GroupChoiceResult {
+    valid: bool,
+    left: Vec<char>,
+    right: Vec<char>,
+}
+
 pub fn charge_work(current: usize, amount: usize) -> WorkOutcome {
     if current > MAX_CAPTURE_WORK {
         return WorkOutcome::Uncertain;
@@ -601,6 +607,123 @@ pub fn supports_flat_groups(pattern: &str, expanded: bool) -> bool {
         return false;
     }
     supports_atoms(parsed.atoms)
+}
+
+fn group_choice_atoms(pattern: &str, expanded: bool) -> GroupChoiceResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut position = 0;
+    let mut bracket = false;
+    let mut inside = false;
+    let mut opened = false;
+    let mut closed = false;
+    let mut split = false;
+    let mut group_start = 0;
+    let mut group_end = 0;
+    let mut split_position = 0;
+    let mut valid = true;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '\\' {
+            if source.len() - position <= 1 {
+                valid = false;
+                break;
+            }
+            if (source[position + 1] as u32) >= 48 && (source[position + 1] as u32) <= 57 {
+                valid = false;
+                break;
+            }
+            position += 2;
+        } else if atom == '[' && bracket == false {
+            if source.len() - position > 1 && source[position + 1] == '[' {
+                valid = false;
+                break;
+            }
+            bracket = true;
+            position += 1;
+        } else if atom == ']' && bracket {
+            bracket = false;
+            position += 1;
+        } else if bracket {
+            position += 1;
+        } else if atom == '(' {
+            if opened || (source.len() - position > 1 && source[position + 1] == '?') {
+                valid = false;
+                break;
+            }
+            opened = true;
+            inside = true;
+            group_start = position;
+            position += 1;
+        } else if atom == '|' {
+            if inside == false || split {
+                valid = false;
+                break;
+            }
+            split = true;
+            split_position = position;
+            position += 1;
+        } else if atom == ')' {
+            if inside == false {
+                valid = false;
+                break;
+            }
+            inside = false;
+            closed = true;
+            group_end = position;
+            if source.len() - position > 1
+                && (source[position + 1] == '*'
+                    || source[position + 1] == '+'
+                    || source[position + 1] == '?'
+                    || source[position + 1] == '{')
+            {
+                valid = false;
+                break;
+            }
+            position += 1;
+        } else if atom == '?' {
+            valid = false;
+            break;
+        } else {
+            position += 1;
+        };
+    }
+    let mut left: Vec<char> = Vec::new();
+    let mut right: Vec<char> = Vec::new();
+    if valid && opened && closed && split && bracket == false {
+        let mut index = 0;
+        while index < group_start {
+            left.push(source[index]);
+            right.push(source[index]);
+            index += 1;
+        }
+        index = group_start + 1;
+        while index < split_position {
+            left.push(source[index]);
+            index += 1;
+        }
+        index = split_position + 1;
+        while index < group_end {
+            right.push(source[index]);
+            index += 1;
+        }
+        index = group_end + 1;
+        while index < source.len() {
+            left.push(source[index]);
+            right.push(source[index]);
+            index += 1;
+        }
+    } else {
+        valid = false;
+    };
+    GroupChoiceResult { valid, left, right }
+}
+
+pub fn supports_group_choice(pattern: &str, expanded: bool) -> bool {
+    let parsed = group_choice_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    supports_atoms(parsed.left) && supports_atoms(parsed.right)
 }
 
 fn search_atoms(
@@ -1535,5 +1658,55 @@ pub fn find_flat_groups(
     MatchOutcome::Found(MatchSpan {
         start: result.start,
         end: result.end,
+    })
+}
+
+pub fn find_group_choice(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = group_choice_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let left = search_atoms(
+        parsed.left,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    );
+    let right = search_atoms(
+        parsed.right,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    );
+    if left.kind == 2 || right.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if left.kind == 1 && right.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    if right.kind == 1
+        || (left.kind == 0
+            && (left.start < right.start || (left.start == right.start && left.end >= right.end)))
+    {
+        return MatchOutcome::Found(MatchSpan {
+            start: left.start,
+            end: left.end,
+        });
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: right.start,
+        end: right.end,
     })
 }
