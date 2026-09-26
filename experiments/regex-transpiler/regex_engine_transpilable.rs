@@ -186,6 +186,10 @@ struct CaptureFrame {
     group: usize,
     start: usize,
     starred: bool,
+    choice: bool,
+    split: usize,
+    jump: usize,
+    branched: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -2624,10 +2628,42 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
                 group = groups;
                 position += 1;
             }
+            let mut choice = false;
+            let mut scan = position;
+            let mut depth = 0;
+            let mut bracket = false;
+            let mut escaped = false;
+            while scan < source.len() {
+                let member = source[scan];
+                if escaped {
+                    escaped = false;
+                } else if member == '\\' {
+                    escaped = true;
+                } else if member == '[' {
+                    bracket = true;
+                } else if member == ']' && bracket {
+                    bracket = false;
+                } else if bracket == false && member == '(' {
+                    depth += 1;
+                } else if bracket == false && member == ')' {
+                    if depth == 0 {
+                        break;
+                    }
+                    depth = depth - 1;
+                } else if bracket == false && member == '|' && depth == 0 {
+                    choice = true;
+                    break;
+                }
+                scan += 1;
+            }
             let frame = CaptureFrame {
                 group,
                 start: instructions.len(),
                 starred,
+                choice,
+                split: 0,
+                jump: 0,
+                branched: false,
             };
             if frame_count == frames.len() {
                 frames.push(frame);
@@ -2642,6 +2678,43 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
             if group > 0 {
                 instructions.push(make_capture_step(VM_OPEN, 0, 0, group, ' '));
             }
+            if choice {
+                let split = instructions.len();
+                instructions.push(make_capture_step(VM_SPLIT, split + 1, 0, 0, ' '));
+                frames[frame_count - 1] = CaptureFrame {
+                    group,
+                    start: frame.start,
+                    starred,
+                    choice,
+                    split,
+                    jump: 0,
+                    branched: false,
+                };
+            }
+        } else if atom == '|' {
+            if frame_count == 0 {
+                valid = false;
+                break;
+            }
+            let frame = frames[frame_count - 1];
+            if frame.choice == false || frame.branched {
+                valid = false;
+                break;
+            }
+            let jump = instructions.len();
+            instructions.push(make_capture_step(VM_JUMP, 0, 0, 0, ' '));
+            instructions[frame.split] =
+                make_capture_step(VM_SPLIT, frame.split + 1, instructions.len(), 0, ' ');
+            frames[frame_count - 1] = CaptureFrame {
+                group: frame.group,
+                start: frame.start,
+                starred: frame.starred,
+                choice: frame.choice,
+                split: frame.split,
+                jump,
+                branched: true,
+            };
+            position += 1;
         } else if atom == ')' {
             if frame_count == 0 {
                 valid = false;
@@ -2649,6 +2722,14 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
             }
             frame_count = frame_count - 1;
             let frame = frames[frame_count];
+            if frame.choice {
+                if frame.branched == false {
+                    valid = false;
+                    break;
+                }
+                instructions[frame.jump] =
+                    make_capture_step(VM_JUMP, instructions.len(), 0, 0, ' ');
+            }
             if frame.group > 0 {
                 if frame.group > closed_groups {
                     closed_groups = frame.group;
@@ -2828,6 +2909,36 @@ pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
         zero_position += 1;
     }
     if zero_group && simple_zero_program && noncapturing == 0 {
+        return true;
+    }
+    let mut forward_choice = false;
+    let mut forward_valid = code.len() > 1 && code[code.len() - 1].operation == VM_ACCEPT;
+    let mut forward_position = 0;
+    while forward_position < code.len() {
+        let step = code[forward_position];
+        if step.operation == VM_SPLIT {
+            forward_choice = true;
+            if step.target <= forward_position
+                || step.alternate <= forward_position
+                || step.target >= code.len()
+                || step.alternate >= code.len()
+            {
+                forward_valid = false;
+            }
+        } else if step.operation == VM_JUMP {
+            if step.target <= forward_position || step.target >= code.len() {
+                forward_valid = false;
+            }
+        } else if step.operation != VM_LITERAL
+            && step.operation != VM_OPEN
+            && step.operation != VM_CLOSE
+            && step.operation != VM_ACCEPT
+        {
+            forward_valid = false;
+        }
+        forward_position += 1;
+    }
+    if forward_choice && forward_valid {
         return true;
     }
     if code.len() == 8
