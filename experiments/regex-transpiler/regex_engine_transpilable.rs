@@ -456,6 +456,82 @@ pub fn definitely_invalid_bound(pattern: &str, syntax: char, expanded: bool) -> 
     false
 }
 
+fn known_posix_class_name(name: Vec<char>) -> bool {
+    if name.len() == 1 {
+        return name[0] == '<' || name[0] == '>';
+    }
+    if name.len() == 4 {
+        return name[0] == 'w' && name[1] == 'o' && name[2] == 'r' && name[3] == 'd';
+    }
+    if name.len() == 6 {
+        return name[0] == 'x'
+            && name[1] == 'd'
+            && name[2] == 'i'
+            && name[3] == 'g'
+            && name[4] == 'i'
+            && name[5] == 't';
+    }
+    if name.len() != 5 {
+        return false;
+    }
+    name[0] == 'a'
+        && name[1] == 'l'
+        && (name[2] == 'n' && name[3] == 'u' && name[4] == 'm'
+            || name[2] == 'p' && name[3] == 'h' && name[4] == 'a')
+        || name[0] == 'a' && name[1] == 's' && name[2] == 'c' && name[3] == 'i' && name[4] == 'i'
+        || name[0] == 'b' && name[1] == 'l' && name[2] == 'a' && name[3] == 'n' && name[4] == 'k'
+        || name[0] == 'c' && name[1] == 'n' && name[2] == 't' && name[3] == 'r' && name[4] == 'l'
+        || name[0] == 'd' && name[1] == 'i' && name[2] == 'g' && name[3] == 'i' && name[4] == 't'
+        || name[0] == 'g' && name[1] == 'r' && name[2] == 'a' && name[3] == 'p' && name[4] == 'h'
+        || name[0] == 'l' && name[1] == 'o' && name[2] == 'w' && name[3] == 'e' && name[4] == 'r'
+        || name[0] == 'p' && name[1] == 'r' && name[2] == 'i' && name[3] == 'n' && name[4] == 't'
+        || name[0] == 'p' && name[1] == 'u' && name[2] == 'n' && name[3] == 'c' && name[4] == 't'
+        || name[0] == 's' && name[1] == 'p' && name[2] == 'a' && name[3] == 'c' && name[4] == 'e'
+        || name[0] == 'u' && name[1] == 'p' && name[2] == 'p' && name[3] == 'e' && name[4] == 'r'
+}
+
+pub fn definitely_invalid_posix_class(pattern: &str, syntax: char, expanded: bool) -> bool {
+    if syntax != 'a' && syntax != 'e' && syntax != 'b' {
+        return false;
+    }
+    let source = pattern_atoms(pattern, expanded);
+    let mut bracket = false;
+    let mut position = 0;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '[' && bracket == false {
+            bracket = true;
+            position += 1;
+        } else if atom == '['
+            && bracket
+            && position + 1 < source.len()
+            && source[position + 1] == ':'
+        {
+            position += 2;
+            let mut name: Vec<char> = Vec::new();
+            while position < source.len() && source[position] != ':' {
+                name.push(source[position]);
+                position += 1;
+            }
+            if position + 1 >= source.len() || source[position + 1] != ']' {
+                return true;
+            }
+            if known_posix_class_name(name) == false {
+                return true;
+            }
+            position += 2;
+        } else if atom == ']' && bracket {
+            bracket = false;
+            position += 1;
+        } else if atom == '\\' && syntax == 'a' {
+            position += 2;
+        } else {
+            position += 1;
+        };
+    }
+    false
+}
+
 fn posix_class_kind(first: char, second: char, third: char, fourth: char, fifth: char) -> usize {
     if first == 'd' && second == 'i' && third == 'g' && fourth == 'i' && fifth == 't' {
         return 1;
