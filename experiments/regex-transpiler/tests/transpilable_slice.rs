@@ -107,6 +107,13 @@ fn basic_literal_punctuation_gate_preserves_syntax() {
 }
 
 #[test]
+fn extended_letter_escapes_are_literal() {
+    assert!(candidate::supports_extended_literal_escape("a\\wb", false));
+    assert!(!candidate::supports_extended_literal_escape("[\\w]", false));
+    assert!(!candidate::supports_extended_literal_escape("a\\1b", false));
+}
+
+#[test]
 fn literal_search_matches_the_live_engine() {
     for case_sensitive in [true, false] {
         for pattern in ["", "a", "A", "😀", "aa", "Å", "å", "K", "k", "\n"] {
@@ -159,6 +166,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut expanded_advanced = 0;
     let mut extended = 0;
     let mut extended_group = 0;
+    let mut extended_escape = 0;
     let mut basic = 0;
     let mut basic_punctuation = 0;
     let mut dot = 0;
@@ -442,6 +450,23 @@ fn supported_search_matches_pglite_fixtures() {
                     newline == "sensitive" || newline == "anchors",
                     options["expanded"].as_bool().unwrap(),
                 )
+            } else if options["syntax"] == "extended"
+                && candidate::supports_extended_literal_escape(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                extended_escape += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_extended_literal_escape(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
             } else if options["syntax"] == "basic"
                 && candidate::supports_basic_compatible(
                     pattern,
@@ -510,6 +535,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(expanded_advanced >= 200);
     assert!(extended >= 50);
     assert!(extended_group >= 20);
+    assert!(extended_escape >= 20);
     assert!(basic >= 50);
     assert!(basic_punctuation >= 20);
     assert!(dot >= 20);

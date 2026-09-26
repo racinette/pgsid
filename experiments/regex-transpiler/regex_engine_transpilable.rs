@@ -82,6 +82,11 @@ struct BasicLiteralResult {
     atoms: Vec<char>,
 }
 
+struct ExtendedEscapeResult {
+    valid: bool,
+    atoms: Vec<char>,
+}
+
 pub fn charge_work(current: usize, amount: usize) -> WorkOutcome {
     if current > MAX_CAPTURE_WORK {
         return WorkOutcome::Uncertain;
@@ -1289,6 +1294,71 @@ fn basic_literal_atoms(pattern: &str, expanded: bool) -> BasicLiteralResult {
 
 pub fn supports_basic_literal_punctuation(pattern: &str, expanded: bool) -> bool {
     let parsed = basic_literal_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    supports_atoms(parsed.atoms)
+}
+
+fn extended_escape_atoms(pattern: &str, expanded: bool) -> ExtendedEscapeResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut atoms: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut bracket = false;
+    let mut valid = true;
+    let mut translated = false;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '\\' {
+            if source.len() - position <= 1 || bracket {
+                valid = false;
+                break;
+            }
+            let escaped = source[position + 1];
+            let codepoint = escaped as u32;
+            if (codepoint >= 65 && codepoint <= 90) || (codepoint >= 97 && codepoint <= 122) {
+                atoms.push(escaped);
+                translated = true;
+            } else if escaped == '.'
+                || escaped == '^'
+                || escaped == '$'
+                || escaped == '*'
+                || escaped == '+'
+                || escaped == '?'
+                || escaped == '|'
+                || escaped == '('
+                || escaped == ')'
+                || escaped == '['
+                || escaped == ']'
+                || escaped == '{'
+                || escaped == '}'
+                || escaped == '\\'
+            {
+                atoms.push(atom);
+                atoms.push(escaped);
+            } else {
+                valid = false;
+                break;
+            }
+            position += 2;
+        } else {
+            if atom == '[' && bracket == false {
+                bracket = true;
+            } else if atom == ']' && bracket {
+                bracket = false;
+            }
+            atoms.push(atom);
+            position += 1;
+        };
+    }
+    ExtendedEscapeResult {
+        valid: valid && translated && bracket == false,
+        atoms,
+    }
+}
+
+pub fn supports_extended_literal_escape(pattern: &str, expanded: bool) -> bool {
+    let parsed = extended_escape_atoms(pattern, expanded);
     if parsed.valid == false {
         return false;
     }
@@ -3026,6 +3096,39 @@ pub fn find_basic_literal_punctuation(
     expanded: bool,
 ) -> MatchOutcome {
     let parsed = basic_literal_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let result = search_atoms(
+        parsed.atoms,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
+}
+
+pub fn find_extended_literal_escape(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = extended_escape_atoms(pattern, expanded);
     if parsed.valid == false {
         return MatchOutcome::Uncertain;
     }
