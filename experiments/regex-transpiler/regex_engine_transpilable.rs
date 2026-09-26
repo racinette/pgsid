@@ -56,6 +56,11 @@ struct LookaheadResult {
     remainder: Vec<char>,
 }
 
+struct FixedBackrefResult {
+    valid: bool,
+    atoms: Vec<char>,
+}
+
 pub fn charge_work(current: usize, amount: usize) -> WorkOutcome {
     if current > MAX_CAPTURE_WORK {
         return WorkOutcome::Uncertain;
@@ -851,6 +856,98 @@ pub fn supports_leading_lookahead(pattern: &str, expanded: bool) -> bool {
         return false;
     }
     supports_atoms(parsed.assertion) && supports_atoms(parsed.remainder)
+}
+
+fn fixed_backref_atoms(pattern: &str, expanded: bool) -> FixedBackrefResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut result: Vec<char> = Vec::new();
+    let mut capture: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut grouped = false;
+    let mut referenced = false;
+    let mut valid = true;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '(' {
+            if grouped {
+                valid = false;
+                break;
+            }
+            grouped = true;
+            position += 1;
+            while position < source.len() && source[position] != ')' {
+                let member = source[position];
+                if member == '\\'
+                    || member == '.'
+                    || member == '^'
+                    || member == '$'
+                    || member == '*'
+                    || member == '+'
+                    || member == '?'
+                    || member == '{'
+                    || member == '}'
+                    || member == '['
+                    || member == ']'
+                    || member == '('
+                    || member == '|'
+                {
+                    valid = false;
+                    break;
+                }
+                capture.push(member);
+                result.push(member);
+                position += 1;
+            }
+            if valid == false || position == source.len() || capture.len() == 0 {
+                valid = false;
+                break;
+            }
+            position += 1;
+            if position < source.len()
+                && (source[position] == '*'
+                    || source[position] == '+'
+                    || source[position] == '?'
+                    || source[position] == '{')
+            {
+                valid = false;
+                break;
+            }
+        } else if atom == '\\' {
+            if source.len() - position <= 1
+                || source[position + 1] != '1'
+                || grouped == false
+                || referenced
+            {
+                valid = false;
+                break;
+            }
+            referenced = true;
+            let mut index = 0;
+            while index < capture.len() {
+                result.push(capture[index]);
+                index += 1;
+            }
+            position += 2;
+        } else if atom == ')' || atom == '|' {
+            valid = false;
+            break;
+        } else {
+            result.push(atom);
+            position += 1;
+        };
+    }
+    FixedBackrefResult {
+        valid: valid && grouped && referenced,
+        atoms: result,
+    }
+}
+
+pub fn supports_fixed_backref(pattern: &str, expanded: bool) -> bool {
+    let parsed = fixed_backref_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    supports_atoms(parsed.atoms)
 }
 
 fn search_atoms(
@@ -2158,6 +2255,104 @@ pub fn count_leading_lookahead(
     let mut count = 0;
     while position <= characters.len() {
         let result = search_leading_lookahead(
+            pattern,
+            subject,
+            position,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+            expanded,
+        );
+        if result.kind == 2 {
+            return CountOutcome::Uncertain;
+        }
+        if result.kind == 1 {
+            break;
+        }
+        if count == MAX_CAPTURE_WORK {
+            return CountOutcome::Uncertain;
+        }
+        count += 1;
+        if result.start == result.end {
+            position = result.end + 1;
+        } else {
+            position = result.end;
+        };
+    }
+    CountOutcome::Count(count)
+}
+
+fn search_fixed_backref(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> SearchResult {
+    let parsed = fixed_backref_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return SearchResult {
+            kind: 2,
+            start: 0,
+            end: 0,
+        };
+    }
+    search_atoms(
+        parsed.atoms,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    )
+}
+
+pub fn find_fixed_backref(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let result = search_fixed_backref(
+        pattern,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        expanded,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
+}
+
+pub fn count_fixed_backref(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> CountOutcome {
+    let characters: Vec<char> = subject.chars().collect();
+    let mut position = from;
+    let mut count = 0;
+    while position <= characters.len() {
+        let result = search_fixed_backref(
             pattern,
             subject,
             position,

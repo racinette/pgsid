@@ -56,6 +56,14 @@ fn leading_lookahead_gate_rejects_nested_assertions() {
 }
 
 #[test]
+fn fixed_backref_gate_requires_literal_capture() {
+    assert!(candidate::supports_fixed_backref("(ab)c\\1", false));
+    for pattern in ["([ab])\\1", "(a+)\\1", "(a)\\2", "(a)|(b)\\1", "(a)*\\1"] {
+        assert!(!candidate::supports_fixed_backref(pattern, false));
+    }
+}
+
+#[test]
 fn literal_search_matches_the_live_engine() {
     for case_sensitive in [true, false] {
         for pattern in ["", "a", "A", "😀", "aa", "Å", "å", "K", "k", "\n"] {
@@ -101,6 +109,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut group_choice = 0;
     let mut lookbehind = 0;
     let mut lookahead = 0;
+    let mut backref = 0;
     let mut expanded_advanced = 0;
     let mut extended = 0;
     let mut basic = 0;
@@ -283,6 +292,23 @@ fn supported_search_matches_pglite_fixtures() {
                     newline == "sensitive" || newline == "anchors",
                     options["expanded"].as_bool().unwrap(),
                 )
+            } else if options["syntax"] == "advanced"
+                && candidate::supports_fixed_backref(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                backref += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_fixed_backref(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
             } else if options["syntax"] == "extended"
                 && candidate::supports_extended_compatible(
                     pattern,
@@ -344,6 +370,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(group_choice >= 20);
     assert!(lookbehind >= 20);
     assert!(lookahead >= 20);
+    assert!(backref >= 20);
     assert!(expanded_advanced >= 200);
     assert!(extended >= 50);
     assert!(basic >= 50);
@@ -381,11 +408,23 @@ fn supported_count_matches_pglite_fixtures() {
             && candidate::supports_fixed_lookbehind(pattern, options["expanded"] == true);
         let lookahead = options["syntax"] == "advanced"
             && candidate::supports_leading_lookahead(pattern, options["expanded"] == true);
-        if !simple && !choice && !lookbehind && !lookahead {
+        let backref = options["syntax"] == "advanced"
+            && candidate::supports_fixed_backref(pattern, options["expanded"] == true);
+        if !simple && !choice && !lookbehind && !lookahead && !backref {
             continue;
         }
         let newline = options["newline"].as_str().unwrap();
-        let outcome = if lookahead {
+        let outcome = if backref {
+            candidate::count_fixed_backref(
+                pattern,
+                input["subject"].as_str().unwrap(),
+                input["start"].as_u64().unwrap() as usize - 1,
+                options["caseSensitive"].as_bool().unwrap(),
+                newline == "ordinary" || newline == "anchors",
+                newline == "sensitive" || newline == "anchors",
+                options["expanded"] == true,
+            )
+        } else if lookahead {
             candidate::count_leading_lookahead(
                 pattern,
                 input["subject"].as_str().unwrap(),
@@ -441,7 +480,7 @@ fn supported_count_matches_pglite_fixtures() {
         assert_eq!(actual, fixture["expected"], "input={input}");
         checked += 1;
     }
-    assert!(checked >= 160);
+    assert_eq!(checked, 180);
 }
 
 #[test]
