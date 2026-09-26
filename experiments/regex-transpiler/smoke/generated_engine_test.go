@@ -61,6 +61,14 @@ func TestLiteralSlice(t *testing.T) {
 			t.Errorf("unsupported middle lookahead was accepted: %q", pattern)
 		}
 	}
+	if !SupportsBoundedGroup("(ab){1,3}c", false) {
+		t.Error("bounded literal group was rejected")
+	}
+	for _, pattern := range []string{"(a|b){2}", "(ab){1,}", "(ab)*", "(a+){2}", "(ab){17}"} {
+		if SupportsBoundedGroup(pattern, false) {
+			t.Errorf("unsupported bounded group was accepted: %q", pattern)
+		}
+	}
 	found := FindLiteral("😀", "a😀a", 0, true)
 	if found != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Errorf("literal match = %+v", found)

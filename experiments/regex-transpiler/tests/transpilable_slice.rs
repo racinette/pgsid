@@ -82,6 +82,14 @@ fn middle_lookahead_gate_requires_literal_prefix() {
 }
 
 #[test]
+fn bounded_group_gate_requires_fixed_literal_member() {
+    assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
+    for pattern in ["(a|b){2}", "(ab){1,}", "(ab)*", "(a+){2}", "(ab){17}"] {
+        assert!(!candidate::supports_bounded_group(pattern, false));
+    }
+}
+
+#[test]
 fn literal_search_matches_the_live_engine() {
     for case_sensitive in [true, false] {
         for pattern in ["", "a", "A", "😀", "aa", "Å", "å", "K", "k", "\n"] {
@@ -130,6 +138,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut backref = 0;
     let mut inline = 0;
     let mut middle_lookahead = 0;
+    let mut bounded_group = 0;
     let mut expanded_advanced = 0;
     let mut extended = 0;
     let mut basic = 0;
@@ -363,6 +372,23 @@ fn supported_search_matches_pglite_fixtures() {
                     newline == "sensitive" || newline == "anchors",
                     options["expanded"].as_bool().unwrap(),
                 )
+            } else if options["syntax"] == "advanced"
+                && candidate::supports_bounded_group(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                bounded_group += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_bounded_group(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
             } else if options["syntax"] == "extended"
                 && candidate::supports_extended_compatible(
                     pattern,
@@ -427,6 +453,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(backref >= 20);
     assert!(inline >= 20);
     assert!(middle_lookahead >= 20);
+    assert!(bounded_group >= 20);
     assert!(expanded_advanced >= 200);
     assert!(extended >= 50);
     assert!(basic >= 50);

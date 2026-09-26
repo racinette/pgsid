@@ -36,6 +36,10 @@ assert.equal(generated.supportsMiddleLookahead('a(?=b)b', false), true)
 for (const pattern of ['a+(?=b)b', 'a(?=[bc])b', '(?=b)b', 'a(?=(b))b']) {
   assert.equal(generated.supportsMiddleLookahead(pattern, false), false)
 }
+assert.equal(generated.supportsBoundedGroup('(ab){1,3}c', false), true)
+for (const pattern of ['(a|b){2}', '(ab){1,}', '(ab)*', '(a+){2}', '(ab){17}']) {
+  assert.equal(generated.supportsBoundedGroup(pattern, false), false)
+}
 
 assert.deepEqual(generated.findLiteral('😀', 'a😀a', 0, true), {
   kind: 'Found',
