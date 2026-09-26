@@ -80,6 +80,18 @@ assert.deepEqual(generated.findSimpleAdvanced('a{0}', 'bbb', 0, true, true, fals
   value: { start: 0, end: 0 },
 })
 assert.equal(generated.supportsSimpleAdvanced('a{256}'), false)
+assert.deepEqual(generated.findSimpleAdvanced('a{foo}', 'za{foo}', 0, true, true, false), {
+  kind: 'Found',
+  value: { start: 1, end: 7 },
+})
+assert.deepEqual(generated.countSimpleAdvanced('a*', 'baa', 0, true, true, false), {
+  kind: 'Count',
+  value: 3,
+})
+assert.deepEqual(generated.countSimpleAdvanced('a*?', 'aaa', 0, true, true, false), {
+  kind: 'Count',
+  value: 4,
+})
 assert.deepEqual(generated.findSimpleAdvanced('^a$', '\na\n', 0, true, false, true), {
   kind: 'Found',
   value: { start: 1, end: 2 },

@@ -71,6 +71,15 @@ func TestLiteralSlice(t *testing.T) {
 	if SupportsSimpleAdvanced("a{256}") {
 		t.Error("out-of-range bound was accepted")
 	}
+	if FindSimpleAdvanced("a{foo}", "za{foo}", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 7}}) {
+		t.Error("nonnumeric braces lost their literal meaning")
+	}
+	if CountSimpleAdvanced("a*", "baa", 0, true, true, false) != (CountOutcome{Kind: CountOutcomeCount, Count: 3}) {
+		t.Error("count missed empty matches or nonoverlapping advance")
+	}
+	if CountSimpleAdvanced("a*?", "aaa", 0, true, true, false) != (CountOutcome{Kind: CountOutcomeCount, Count: 4}) {
+		t.Error("lazy count missed empty matches")
+	}
 	if FindSimpleAdvanced("^a$", "\na\n", 0, true, false, true) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Error("line anchors missed interior line")
 	}

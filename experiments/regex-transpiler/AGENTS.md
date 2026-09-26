@@ -25,9 +25,9 @@ reference; expand the transpilable engine only through the shared dialect.
   generated targets reject out-of-bounds access too.
 - Use the supported arithmetic, comparisons, field access, vector indexing,
   struct literals, enum variants, `char as u32` and checked `u32 as usize`
-  casts, and methods only where the
-  validator can establish a shared meaning. Ordinary function calls are not
-  part of the dialect; calls construct single-payload enum variants.
+  casts, and methods only where the validator can establish a shared meaning.
+  Direct calls to declared functions and single-payload enum constructors are
+  allowed. Generated functions check and detach their arguments at entry.
 - Keep literals within the shared numeric range and write integers as
   unsuffixed decimals. A `char` is one Unicode scalar. Avoid Rust operations
   whose Go and TypeScript meanings differ, including string length, vector

@@ -23,6 +23,14 @@ func TestTranspilerSmoke(t *testing.T) {
 	if characters[0] != 'a' {
 		t.Errorf("echo_chars shared backing storage with its input")
 	}
+	forwarded := ForwardedChars(characters)
+	forwarded[0] = 'b'
+	if characters[0] != 'a' {
+		t.Errorf("forwarded_chars shared backing storage with its input")
+	}
+	if ForwardedSpan(input, 2) != expected || input != (Span{Start: 1, End: 3}) {
+		t.Errorf("forwarded_span changed value semantics")
+	}
 	bag := CharBag{Characters: []rune{'a'}}
 	echoedBag := EchoBag(bag)
 	echoedBag.Characters[0] = 'b'

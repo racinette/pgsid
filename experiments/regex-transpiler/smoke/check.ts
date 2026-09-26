@@ -27,6 +27,11 @@ const characters = ['a']
 const echoed = generated.echoChars(characters)
 echoed[0] = 'b'
 assert.deepEqual(characters, ['a'])
+const forwarded = generated.forwardedChars(characters)
+forwarded[0] = 'b'
+assert.deepEqual(characters, ['a'])
+assert.deepEqual(generated.forwardedSpan(input, 2), expected)
+assert.deepEqual(input, { start: 1, end: 3 })
 
 const bag = { characters: ['a'] }
 const echoedBag = generated.echoBag(bag)

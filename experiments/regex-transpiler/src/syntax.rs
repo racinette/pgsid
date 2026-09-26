@@ -166,10 +166,14 @@ fn expr(expr: &Expr) -> Result {
             {
                 return Ok(());
             }
+            if callee.path.segments.len() == 1 {
+                for arg in &node.args {
+                    self::expr(arg)?;
+                }
+                return Ok(());
+            }
             if callee.path.segments.len() != 2 || node.args.len() != 1 {
-                return Err(
-                    "only single-payload enum constructors are in the syntax subset".into(),
-                );
+                return Err("call is outside the syntax subset".into());
             }
             for arg in &node.args {
                 self::expr(arg)?;
@@ -381,7 +385,6 @@ mod tests {
             "pub fn f() -> usize { let mut x = 1; let y = x += 1; y }",
             "pub fn f() -> usize { std::mem::size_of::<usize>() }",
             "pub fn f() -> usize { let x = vec![1]; x.len() }",
-            "pub fn f() -> usize { helper() }",
             "pub fn f() -> usize { Outcome::Found(1, 2) }",
             "enum Empty {}",
             "#[allow(dead_code)] const X: usize = 1;",

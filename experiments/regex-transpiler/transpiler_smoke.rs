@@ -45,6 +45,14 @@ pub fn echo_chars(characters: Vec<char>) -> Vec<char> {
     characters
 }
 
+pub fn forwarded_chars(characters: Vec<char>) -> Vec<char> {
+    echo_chars(characters)
+}
+
+pub fn forwarded_span(span: Span, offset: usize) -> Span {
+    shift_span(span, offset)
+}
+
 pub fn echo_bag(bag: CharBag) -> CharBag {
     bag
 }

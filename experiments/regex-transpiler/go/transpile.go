@@ -97,6 +97,7 @@ type generator struct {
 	types      map[string]bool
 	names      map[string]string
 	constants  map[string]*node
+	functions  map[string]*node
 	publicEnum map[string]bool
 	locals     map[string]string
 	localTypes map[string]*node
@@ -205,6 +206,11 @@ func (g *generator) inferType(value *node) *node {
 			return &node{Kind: "path", Segments: []string{"Vec"}, TypeArguments: []*node{namedType("char")}}
 		}
 	case "call":
+		if value.Callee != nil && len(value.Callee.Segments) == 1 {
+			if function := g.functions[value.Callee.Segments[0]]; function != nil {
+				return function.ReturnType
+			}
+		}
 		if value.Callee != nil && len(value.Callee.Segments) == 2 && value.Callee.Segments[0] == "Vec" && value.Callee.Segments[1] == "new" {
 			return &node{Kind: "path", Segments: []string{"Vec"}, TypeArguments: []*node{namedType("usize")}}
 		}
@@ -291,6 +297,7 @@ func Transpile(input []byte) (output []byte, err error) {
 		enums: make(map[string][]variant), structs: make(map[string]*node),
 		types: make(map[string]bool), names: make(map[string]string),
 		constants:  make(map[string]*node),
+		functions:  make(map[string]*node),
 		publicEnum: make(map[string]bool),
 	}
 	for _, item := range document.Items {
@@ -300,6 +307,9 @@ func Transpile(input []byte) (output []byte, err error) {
 		generator.names[item.Name] = casedName(item.Name, item.Visibility == "public")
 		if item.Kind == "constant" {
 			generator.constants[item.Name] = item.Type
+		}
+		if item.Kind == "function" {
+			generator.functions[item.Name] = item
 		}
 		if item != nil && item.Kind == "enum" {
 			generator.enums[item.Name] = item.Variants

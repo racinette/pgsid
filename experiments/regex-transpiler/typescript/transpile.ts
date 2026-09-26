@@ -108,6 +108,7 @@ const andAll = (values: ts.Expression[]): ts.Expression =>
 class Transpiler {
   private readonly structs = new Map<string, Extract<Item, { kind: 'struct' }>>()
   private readonly enums = new Map<string, Extract<Item, { kind: 'enum' }>>()
+  private readonly functions = new Map<string, Extract<Item, { kind: 'function' }>>()
   private readonly constants = new Map<string, string>()
   private readonly names = new Map<string, string>()
   private readonly copy = new Set<string>()
@@ -124,6 +125,7 @@ class Transpiler {
           : camelCase(item.name),
       )
       if (item.kind === 'constant') this.constants.set(item.name, this.path(item.type))
+      if (item.kind === 'function') this.functions.set(item.name, item)
       if (item.kind === 'struct' || item.kind === 'enum') {
         if (item.kind === 'struct') this.structs.set(item.name, item)
         else this.enums.set(item.name, item)
@@ -231,6 +233,10 @@ class Transpiler {
               ? 'char'
               : undefined
       case 'call':
+        if (value.callee.kind === 'path' && value.callee.segments.length === 1)
+          return this.functions.get(value.callee.segments[0]!)
+            ? this.path(this.functions.get(value.callee.segments[0]!)!.returnType)
+            : undefined
         if (value.callee.kind === 'path' && value.callee.segments.join('::') === 'Vec::new')
           return 'Vec<usize>'
         return value.callee.kind === 'path' && value.callee.segments.length === 2
@@ -352,6 +358,16 @@ class Transpiler {
           value.arguments.length === 0
         )
           return f.createArrayLiteralExpression()
+        if (value.callee.kind === 'path' && value.callee.segments.length === 1) {
+          const name = value.callee.segments[0]!
+          const functionItem = this.functions.get(name)
+          if (!functionItem || functionItem.parameters.length !== value.arguments.length)
+            throw new Error(`unknown function or wrong argument count ${name}`)
+          return call(
+            this.names.get(name)!,
+            ...value.arguments.map((argument) => this.expression(argument, locals)),
+          )
+        }
         if (
           value.callee.kind !== 'path' ||
           value.callee.segments.length !== 2 ||

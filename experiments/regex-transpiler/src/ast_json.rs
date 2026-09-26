@@ -570,6 +570,20 @@ mod tests {
     }
 
     #[test]
+    fn direct_calls_need_declared_functions_and_matching_arguments() {
+        assert!(parse("pub fn f() -> usize { missing() }").is_err());
+        assert!(
+            parse("pub fn f(value: usize) -> usize { value } pub fn g() -> usize { f() }").is_err()
+        );
+        assert!(
+            parse("pub fn f(value: bool) -> bool { value } pub fn g() -> bool { f(1) }").is_err()
+        );
+        assert!(
+            parse("pub fn f(value: usize) -> usize { value } pub fn g() -> usize { f(1) }").is_ok()
+        );
+    }
+
+    #[test]
     fn rejects_mutation_through_immutable_bindings() {
         let span = "struct Span { start: usize }";
         assert!(parse(&format!(
@@ -634,6 +648,11 @@ mod tests {
             vec!['a']
         );
         assert_eq!(smoke::char_at(vec!['a'], 0), 'a');
+        assert_eq!(smoke::forwarded_chars(vec!['a']), vec!['a']);
+        assert!(smoke::same_span(
+            smoke::forwarded_span(span, 2),
+            smoke::Span { start: 3, end: 5 }
+        ));
         assert_eq!(smoke::add_positions(2, 3), 5);
         assert_eq!(smoke::subtract_positions(5, 3), 2);
         assert!(smoke::is_before_first(-1));

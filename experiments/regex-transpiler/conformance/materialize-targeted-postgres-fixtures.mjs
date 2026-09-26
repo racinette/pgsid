@@ -522,6 +522,22 @@ for (const newline of ['ordinary', 'sensitive', 'stop', 'anchors']) {
     }
   }
 }
+for (const newline of ['ordinary', 'sensitive', 'stop', 'anchors']) {
+  for (const caseSensitive of [true, false]) {
+    for (const [pattern, subject] of [
+      ['a{foo}', 'za{foo}'],
+      ['a{ 1 , 2 }b', 'a{ 1 , 2 }b'],
+      ['a}', 'za}'],
+      ['a{', 'za{'],
+    ]) {
+      inputs.push({
+        pattern,
+        subject,
+        options: { syntax: 'advanced', caseSensitive, expanded: false, newline },
+      })
+    }
+  }
+}
 
 function flags(options) {
   const newline = { ordinary: '', sensitive: 'n', stop: 'p', anchors: 'w' }[options.newline]
