@@ -100,6 +100,7 @@ fn bounded_group_gate_requires_fixed_literal_member() {
 #[test]
 fn extended_group_gate_excludes_advanced_escapes() {
     assert!(candidate::supports_extended_group("(a|ab)b", false));
+    assert!(candidate::supports_extended_group("a(b)?c", false));
     assert!(!candidate::supports_extended_group("(a|ab)\\w", false));
 }
 

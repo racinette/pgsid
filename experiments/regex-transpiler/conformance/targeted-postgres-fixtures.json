@@ -44210,9 +44210,47 @@
     {
       "input": {
         "pattern": "a(b)?c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
         "subject": "zac",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
+        "subject": "zac",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": false,
           "newline": "ordinary"
@@ -44248,9 +44286,47 @@
     {
       "input": {
         "pattern": "a(bc)?d",
+        "subject": "zabcd",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
         "subject": "zad",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
+        "subject": "zad",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": false,
           "newline": "ordinary"
@@ -44285,10 +44361,48 @@
     },
     {
       "input": {
+        "pattern": "^(ab)?c$",
+        "subject": "abc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
         "pattern": "a(β)?c",
         "subject": "zaβc",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(β)?c",
+        "subject": "zaβc",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": false,
           "newline": "ordinary"
@@ -44324,9 +44438,47 @@
     {
       "input": {
         "pattern": "a(b)?c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
         "subject": "zac",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
+        "subject": "zac",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": false,
           "newline": "ordinary"
@@ -44362,9 +44514,47 @@
     {
       "input": {
         "pattern": "a(bc)?d",
+        "subject": "zabcd",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
         "subject": "zad",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
+        "subject": "zad",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": false,
           "newline": "ordinary"
@@ -44399,10 +44589,48 @@
     },
     {
       "input": {
+        "pattern": "^(ab)?c$",
+        "subject": "abc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
         "pattern": "a(β)?c",
         "subject": "zaβc",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(β)?c",
+        "subject": "zaβc",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": false,
           "newline": "ordinary"
@@ -44438,9 +44666,47 @@
     {
       "input": {
         "pattern": "a(b)?c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
         "subject": "zac",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
+        "subject": "zac",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": false,
           "newline": "sensitive"
@@ -44476,9 +44742,47 @@
     {
       "input": {
         "pattern": "a(bc)?d",
+        "subject": "zabcd",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
         "subject": "zad",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
+        "subject": "zad",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": false,
           "newline": "sensitive"
@@ -44513,10 +44817,48 @@
     },
     {
       "input": {
+        "pattern": "^(ab)?c$",
+        "subject": "abc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
         "pattern": "a(β)?c",
         "subject": "zaβc",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(β)?c",
+        "subject": "zaβc",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": false,
           "newline": "sensitive"
@@ -44552,9 +44894,47 @@
     {
       "input": {
         "pattern": "a(b)?c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
         "subject": "zac",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
+        "subject": "zac",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": false,
           "newline": "sensitive"
@@ -44590,9 +44970,47 @@
     {
       "input": {
         "pattern": "a(bc)?d",
+        "subject": "zabcd",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
         "subject": "zad",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
+        "subject": "zad",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": false,
           "newline": "sensitive"
@@ -44627,10 +45045,48 @@
     },
     {
       "input": {
+        "pattern": "^(ab)?c$",
+        "subject": "abc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
         "pattern": "a(β)?c",
         "subject": "zaβc",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(β)?c",
+        "subject": "zaβc",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": false,
           "newline": "sensitive"
@@ -44666,9 +45122,47 @@
     {
       "input": {
         "pattern": "a(b)?c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
         "subject": "zac",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
+        "subject": "zac",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": false,
           "newline": "stop"
@@ -44704,9 +45198,47 @@
     {
       "input": {
         "pattern": "a(bc)?d",
+        "subject": "zabcd",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
         "subject": "zad",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
+        "subject": "zad",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": false,
           "newline": "stop"
@@ -44741,10 +45273,48 @@
     },
     {
       "input": {
+        "pattern": "^(ab)?c$",
+        "subject": "abc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
         "pattern": "a(β)?c",
         "subject": "zaβc",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(β)?c",
+        "subject": "zaβc",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": false,
           "newline": "stop"
@@ -44780,9 +45350,47 @@
     {
       "input": {
         "pattern": "a(b)?c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
         "subject": "zac",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
+        "subject": "zac",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": false,
           "newline": "stop"
@@ -44818,9 +45426,47 @@
     {
       "input": {
         "pattern": "a(bc)?d",
+        "subject": "zabcd",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
         "subject": "zad",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
+        "subject": "zad",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": false,
           "newline": "stop"
@@ -44855,10 +45501,48 @@
     },
     {
       "input": {
+        "pattern": "^(ab)?c$",
+        "subject": "abc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
         "pattern": "a(β)?c",
         "subject": "zaβc",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(β)?c",
+        "subject": "zaβc",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": false,
           "newline": "stop"
@@ -44894,9 +45578,47 @@
     {
       "input": {
         "pattern": "a(b)?c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
         "subject": "zac",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
+        "subject": "zac",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": false,
           "newline": "anchors"
@@ -44932,9 +45654,47 @@
     {
       "input": {
         "pattern": "a(bc)?d",
+        "subject": "zabcd",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
         "subject": "zad",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
+        "subject": "zad",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": false,
           "newline": "anchors"
@@ -44969,10 +45729,48 @@
     },
     {
       "input": {
+        "pattern": "^(ab)?c$",
+        "subject": "abc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
         "pattern": "a(β)?c",
         "subject": "zaβc",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(β)?c",
+        "subject": "zaβc",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": false,
           "newline": "anchors"
@@ -45008,9 +45806,47 @@
     {
       "input": {
         "pattern": "a(b)?c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
         "subject": "zac",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
+        "subject": "zac",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": false,
           "newline": "anchors"
@@ -45046,9 +45882,47 @@
     {
       "input": {
         "pattern": "a(bc)?d",
+        "subject": "zabcd",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
         "subject": "zad",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
+        "subject": "zad",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": false,
           "newline": "anchors"
@@ -45083,10 +45957,48 @@
     },
     {
       "input": {
+        "pattern": "^(ab)?c$",
+        "subject": "abc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
         "pattern": "a(β)?c",
         "subject": "zaβc",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(β)?c",
+        "subject": "zaβc",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": false,
           "newline": "anchors"
@@ -45122,9 +46034,47 @@
     {
       "input": {
         "pattern": "a(b)?c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
         "subject": "zac",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
+        "subject": "zac",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": true,
           "newline": "ordinary"
@@ -45160,9 +46110,47 @@
     {
       "input": {
         "pattern": "a(bc)?d",
+        "subject": "zabcd",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
         "subject": "zad",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
+        "subject": "zad",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": true,
           "newline": "ordinary"
@@ -45197,10 +46185,48 @@
     },
     {
       "input": {
+        "pattern": "^(ab)?c$",
+        "subject": "abc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
         "pattern": "a(β)?c",
         "subject": "zaβc",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(β)?c",
+        "subject": "zaβc",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": true,
           "newline": "ordinary"
@@ -45236,9 +46262,47 @@
     {
       "input": {
         "pattern": "a(b)?c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
         "subject": "zac",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
+        "subject": "zac",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": true,
           "newline": "ordinary"
@@ -45274,9 +46338,47 @@
     {
       "input": {
         "pattern": "a(bc)?d",
+        "subject": "zabcd",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
         "subject": "zad",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
+        "subject": "zad",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": true,
           "newline": "ordinary"
@@ -45311,10 +46413,48 @@
     },
     {
       "input": {
+        "pattern": "^(ab)?c$",
+        "subject": "abc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
         "pattern": "a(β)?c",
         "subject": "zaβc",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(β)?c",
+        "subject": "zaβc",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": true,
           "newline": "ordinary"
@@ -45350,9 +46490,47 @@
     {
       "input": {
         "pattern": "a(b)?c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
         "subject": "zac",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
+        "subject": "zac",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": true,
           "newline": "sensitive"
@@ -45388,9 +46566,47 @@
     {
       "input": {
         "pattern": "a(bc)?d",
+        "subject": "zabcd",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
         "subject": "zad",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
+        "subject": "zad",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": true,
           "newline": "sensitive"
@@ -45425,10 +46641,48 @@
     },
     {
       "input": {
+        "pattern": "^(ab)?c$",
+        "subject": "abc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
         "pattern": "a(β)?c",
         "subject": "zaβc",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(β)?c",
+        "subject": "zaβc",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": true,
           "newline": "sensitive"
@@ -45464,9 +46718,47 @@
     {
       "input": {
         "pattern": "a(b)?c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
         "subject": "zac",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
+        "subject": "zac",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": true,
           "newline": "sensitive"
@@ -45502,9 +46794,47 @@
     {
       "input": {
         "pattern": "a(bc)?d",
+        "subject": "zabcd",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
         "subject": "zad",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
+        "subject": "zad",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": true,
           "newline": "sensitive"
@@ -45539,10 +46869,48 @@
     },
     {
       "input": {
+        "pattern": "^(ab)?c$",
+        "subject": "abc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
         "pattern": "a(β)?c",
         "subject": "zaβc",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(β)?c",
+        "subject": "zaβc",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": true,
           "newline": "sensitive"
@@ -45578,9 +46946,47 @@
     {
       "input": {
         "pattern": "a(b)?c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
         "subject": "zac",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
+        "subject": "zac",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": true,
           "newline": "stop"
@@ -45616,9 +47022,47 @@
     {
       "input": {
         "pattern": "a(bc)?d",
+        "subject": "zabcd",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
         "subject": "zad",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
+        "subject": "zad",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": true,
           "newline": "stop"
@@ -45653,10 +47097,48 @@
     },
     {
       "input": {
+        "pattern": "^(ab)?c$",
+        "subject": "abc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
         "pattern": "a(β)?c",
         "subject": "zaβc",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(β)?c",
+        "subject": "zaβc",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": true,
           "newline": "stop"
@@ -45692,9 +47174,47 @@
     {
       "input": {
         "pattern": "a(b)?c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
         "subject": "zac",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
+        "subject": "zac",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": true,
           "newline": "stop"
@@ -45730,9 +47250,47 @@
     {
       "input": {
         "pattern": "a(bc)?d",
+        "subject": "zabcd",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
         "subject": "zad",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
+        "subject": "zad",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": true,
           "newline": "stop"
@@ -45767,10 +47325,48 @@
     },
     {
       "input": {
+        "pattern": "^(ab)?c$",
+        "subject": "abc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
         "pattern": "a(β)?c",
         "subject": "zaβc",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(β)?c",
+        "subject": "zaβc",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": true,
           "newline": "stop"
@@ -45806,9 +47402,47 @@
     {
       "input": {
         "pattern": "a(b)?c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
         "subject": "zac",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
+        "subject": "zac",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": true,
           "newline": "anchors"
@@ -45844,9 +47478,47 @@
     {
       "input": {
         "pattern": "a(bc)?d",
+        "subject": "zabcd",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
         "subject": "zad",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
+        "subject": "zad",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": true,
           "newline": "anchors"
@@ -45881,10 +47553,48 @@
     },
     {
       "input": {
+        "pattern": "^(ab)?c$",
+        "subject": "abc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
         "pattern": "a(β)?c",
         "subject": "zaβc",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(β)?c",
+        "subject": "zaβc",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": true,
           "expanded": true,
           "newline": "anchors"
@@ -45920,9 +47630,47 @@
     {
       "input": {
         "pattern": "a(b)?c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
         "subject": "zac",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(b)?c",
+        "subject": "zac",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": true,
           "newline": "anchors"
@@ -45958,9 +47706,47 @@
     {
       "input": {
         "pattern": "a(bc)?d",
+        "subject": "zabcd",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
         "subject": "zad",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(bc)?d",
+        "subject": "zad",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": true,
           "newline": "anchors"
@@ -45995,10 +47781,48 @@
     },
     {
       "input": {
+        "pattern": "^(ab)?c$",
+        "subject": "abc",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
         "pattern": "a(β)?c",
         "subject": "zaβc",
         "options": {
           "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(β)?c",
+        "subject": "zaβc",
+        "options": {
+          "syntax": "extended",
           "caseSensitive": false,
           "expanded": true,
           "newline": "anchors"

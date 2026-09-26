@@ -77,7 +77,7 @@ func TestLiteralSlice(t *testing.T) {
 			t.Errorf("unsupported bounded group was accepted: %q", pattern)
 		}
 	}
-	if !SupportsExtendedGroup("(a|ab)b", false) || SupportsExtendedGroup("(a|ab)\\w", false) {
+	if !SupportsExtendedGroup("(a|ab)b", false) || !SupportsExtendedGroup("a(b)?c", false) || SupportsExtendedGroup("(a|ab)\\w", false) {
 		t.Error("extended group support gate changed")
 	}
 	if !SupportsBasicLiteralPunctuation("a+b", false) || SupportsBasicLiteralPunctuation("a\\+b", false) || SupportsBasicLiteralPunctuation("[a+b]", false) {

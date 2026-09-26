@@ -45,6 +45,7 @@ for (const pattern of ['(a|b){2}', '(ab){1,}', '(ab)*', '(a+){2}', '(ab){17}']) 
   assert.equal(generated.supportsBoundedGroup(pattern, false), false)
 }
 assert.equal(generated.supportsExtendedGroup('(a|ab)b', false), true)
+assert.equal(generated.supportsExtendedGroup('a(b)?c', false), true)
 assert.equal(generated.supportsExtendedGroup('(a|ab)\\w', false), false)
 assert.equal(generated.supportsBasicLiteralPunctuation('a+b', false), true)
 assert.equal(generated.supportsBasicLiteralPunctuation('a\\+b', false), false)
