@@ -2164,12 +2164,20 @@ fn noncapture_literal_atoms(pattern: &str, expanded: bool) -> NonCaptureResult {
     if valid {
         position += 3;
         while position < source.len() && source[position] != ')' {
-            if source[position] != '|' && simple_literal_char(source[position]) == false {
+            if source[position] == '\\'
+                && source.len() - position > 1
+                && source[position + 1] == 'w'
+            {
+                branches.push(source[position]);
+                branches.push(source[position + 1]);
+                position += 2;
+            } else if source[position] != '|' && simple_literal_char(source[position]) == false {
                 valid = false;
                 break;
-            }
-            branches.push(source[position]);
-            position += 1;
+            } else {
+                branches.push(source[position]);
+                position += 1;
+            };
         }
         if position == source.len() {
             valid = false;
