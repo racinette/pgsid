@@ -152,7 +152,13 @@ fn choice_capture_repeats_the_chosen_literal() {
 
 #[test]
 fn repeated_choice_explores_literal_alternatives() {
-    for pattern in ["(a|ab)*b", "(ab|a)+b", "(a|ab){1,2}b"] {
+    for pattern in [
+        "(a|ab)*b",
+        "(ab|a)+b",
+        "(a|ab){1,2}b",
+        "(a|aa){2}\\1",
+        "(ab){1,2}\\1",
+    ] {
         assert!(candidate::supports_repeated_choice(pattern, false));
     }
     assert!(!candidate::supports_repeated_choice("(a|ab)+?b", false));
@@ -163,6 +169,18 @@ fn repeated_choice_explores_literal_alternatives() {
     assert!(matches!(
         candidate::find_repeated_choice("(a|ab){1,2}b", "aabb", 0, true, false),
         candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 4 })
+    ));
+    assert!(matches!(
+        candidate::find_repeated_choice("(a|aa){2}\\1", "aaaaaa", 0, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 6 })
+    ));
+    assert!(matches!(
+        candidate::find_repeated_choice("(a|aa){2}\\1", "aaaaa", 0, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 4 })
+    ));
+    assert!(matches!(
+        candidate::find_repeated_choice("(ab){1,2}\\1", "ababab", 0, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 6 })
     ));
 }
 
