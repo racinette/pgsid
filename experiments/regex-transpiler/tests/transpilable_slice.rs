@@ -48,8 +48,20 @@ fn optional_group_gate_requires_one_fixed_literal_member() {
 }
 
 #[test]
-fn fixed_lookbehind_gate_requires_literal_prefix() {
+fn fixed_lookbehind_gate_requires_fixed_width_prefix() {
     assert!(candidate::supports_fixed_lookbehind("(?<=ab)c", false));
+    for pattern in ["(?<=^a)b", "(?<!^a)b", "(?<=.)b", "(?<=..)b*"] {
+        assert!(candidate::supports_fixed_lookbehind(pattern, false));
+    }
+    assert!(candidate::supports_fixed_lookbehind("(?<!\n)b", true));
+    assert!(matches!(
+        candidate::find_fixed_lookbehind("(?<=^a)b", "ab", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 2 })
+    ));
+    assert!(matches!(
+        candidate::find_fixed_lookbehind("(?<!\n)b", "b", 0, true, true, false, true),
+        candidate::MatchOutcome::NoMatch
+    ));
     for pattern in ["(?<=a|b)c", "(?<=a+)c", "(?<=a\\n)b", "(?=a)b"] {
         assert!(!candidate::supports_fixed_lookbehind(pattern, false));
     }
