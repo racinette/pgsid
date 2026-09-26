@@ -250,6 +250,11 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
 				actual = FindFixedLookbehind(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors, input.Options.Expanded)
 				lookbehind++
+			} else if input.Options.Syntax == "advanced" && SupportsAnchorLookbehind(input.Pattern, input.Options.Expanded) {
+				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
+				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
+				actual = FindAnchorLookbehind(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors, input.Options.Expanded)
+				lookbehind++
 			} else if input.Options.Syntax == "advanced" && SupportsLeadingLookahead(input.Pattern, input.Options.Expanded) {
 				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
 				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"

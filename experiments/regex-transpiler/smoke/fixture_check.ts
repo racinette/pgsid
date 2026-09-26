@@ -287,6 +287,22 @@ for (const fixturePath of fixturePaths) {
       coverage.lookbehind++
     } else if (
       options.syntax === 'advanced' &&
+      generated.supportsAnchorLookbehind(pattern, options.expanded)
+    ) {
+      const crossesNewline = options.newline === 'ordinary' || options.newline === 'anchors'
+      const lineAnchors = options.newline === 'sensitive' || options.newline === 'anchors'
+      actual = generated.findAnchorLookbehind(
+        pattern,
+        subject,
+        from,
+        options.caseSensitive,
+        crossesNewline,
+        lineAnchors,
+        options.expanded,
+      )
+      coverage.lookbehind++
+    } else if (
+      options.syntax === 'advanced' &&
       generated.supportsLeadingLookahead(pattern, options.expanded)
     ) {
       const crossesNewline = options.newline === 'ordinary' || options.newline === 'anchors'

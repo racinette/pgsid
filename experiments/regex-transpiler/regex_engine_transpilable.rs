@@ -52,6 +52,12 @@ struct LookbehindResult {
     remainder: Vec<char>,
 }
 
+struct AnchorLookbehindResult {
+    valid: bool,
+    prefix: Vec<char>,
+    remainder: Vec<char>,
+}
+
 struct LookaheadResult {
     valid: bool,
     positive: bool,
@@ -1402,6 +1408,59 @@ fn fixed_lookbehind_atoms(pattern: &str, expanded: bool) -> LookbehindResult {
 
 pub fn supports_fixed_lookbehind(pattern: &str, expanded: bool) -> bool {
     let parsed = fixed_lookbehind_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    supports_atoms(parsed.remainder)
+}
+
+fn anchor_lookbehind_atoms(pattern: &str, expanded: bool) -> AnchorLookbehindResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut prefix: Vec<char> = Vec::new();
+    let mut remainder: Vec<char> = Vec::new();
+    let mut valid = source.len() >= 10;
+    if valid {
+        valid = source[0] == '('
+            && source[1] == '^'
+            && source[2] == '|'
+            && source[3] == '('
+            && source[4] == '?'
+            && source[5] == '<'
+            && source[6] == '=';
+    }
+    let mut position = 7;
+    if valid {
+        while position < source.len() && source[position] != ')' {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            prefix.push(source[position]);
+            position += 1;
+        }
+        if prefix.len() > 8 || source.len() - position < 3 || source[position + 1] != ')' {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 2;
+        while position < source.len() {
+            remainder.push(source[position]);
+            position += 1;
+        }
+        if remainder.len() == 0 {
+            valid = false;
+        }
+    }
+    AnchorLookbehindResult {
+        valid,
+        prefix,
+        remainder,
+    }
+}
+
+pub fn supports_anchor_lookbehind(pattern: &str, expanded: bool) -> bool {
+    let parsed = anchor_lookbehind_atoms(pattern, expanded);
     if parsed.valid == false {
         return false;
     }
@@ -4178,6 +4237,81 @@ pub fn find_fixed_lookbehind(
         start: result.start,
         end: result.end,
     })
+}
+
+pub fn find_anchor_lookbehind(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = anchor_lookbehind_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let haystack: Vec<char> = subject.chars().collect();
+    let mut cursor = from;
+    let mut attempts = 0;
+    while cursor <= haystack.len() {
+        if attempts == MAX_ASSERTION_ATTEMPTS {
+            return MatchOutcome::Uncertain;
+        }
+        attempts += 1;
+        let mut remainder: Vec<char> = Vec::new();
+        let mut index = 0;
+        while index < parsed.remainder.len() {
+            remainder.push(parsed.remainder[index]);
+            index += 1;
+        }
+        let result = search_atoms(
+            remainder,
+            subject,
+            cursor,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+        );
+        if result.kind == 2 {
+            return MatchOutcome::Uncertain;
+        }
+        if result.kind == 1 {
+            return MatchOutcome::NoMatch;
+        }
+        let mut assertion = result.start == 0;
+        if line_anchors && result.start > 0 && haystack[result.start - 1] == '\n' {
+            assertion = true;
+        }
+        if result.start >= parsed.prefix.len() {
+            let mut preceding = true;
+            index = 0;
+            while index < parsed.prefix.len() {
+                let actual = haystack[result.start - parsed.prefix.len() + index];
+                let expected = parsed.prefix[index];
+                if actual != expected
+                    && (case_sensitive
+                        || actual.to_ascii_lowercase() != expected.to_ascii_lowercase())
+                {
+                    preceding = false;
+                    break;
+                }
+                index += 1;
+            }
+            if preceding {
+                assertion = true;
+            }
+        }
+        if assertion {
+            return MatchOutcome::Found(MatchSpan {
+                start: result.start,
+                end: result.end,
+            });
+        }
+        cursor = result.start + 1;
+    }
+    MatchOutcome::NoMatch
 }
 
 pub fn count_fixed_lookbehind(
