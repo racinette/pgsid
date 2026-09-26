@@ -40,6 +40,8 @@ assert.equal(generated.supportsBoundedGroup('(ab){1,3}c', false), true)
 for (const pattern of ['(a|b){2}', '(ab){1,}', '(ab)*', '(a+){2}', '(ab){17}']) {
   assert.equal(generated.supportsBoundedGroup(pattern, false), false)
 }
+assert.equal(generated.supportsExtendedGroup('(a|ab)b', false), true)
+assert.equal(generated.supportsExtendedGroup('(a|ab)\\w', false), false)
 
 assert.deepEqual(generated.findLiteral('😀', 'a😀a', 0, true), {
   kind: 'Found',

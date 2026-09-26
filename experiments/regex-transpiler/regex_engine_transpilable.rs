@@ -1231,6 +1231,20 @@ pub fn supports_bounded_group(pattern: &str, expanded: bool) -> bool {
     parsed.valid
 }
 
+pub fn supports_extended_group(pattern: &str, expanded: bool) -> bool {
+    let source: Vec<char> = pattern.chars().collect();
+    let mut position = 0;
+    while position < source.len() {
+        if source[position] == '\\' {
+            return false;
+        }
+        position += 1;
+    }
+    supports_flat_groups(pattern, expanded)
+        || supports_group_choice(pattern, expanded)
+        || supports_bounded_group(pattern, expanded)
+}
+
 fn search_atoms(
     atoms: Vec<char>,
     subject: &str,
@@ -2905,4 +2919,49 @@ pub fn find_bounded_group(
         start: result.start,
         end: result.end,
     })
+}
+
+pub fn find_extended_group(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    if supports_flat_groups(pattern, expanded) {
+        return find_flat_groups(
+            pattern,
+            subject,
+            from,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+            expanded,
+        );
+    }
+    if supports_group_choice(pattern, expanded) {
+        return find_group_choice(
+            pattern,
+            subject,
+            from,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+            expanded,
+        );
+    }
+    if supports_bounded_group(pattern, expanded) {
+        return find_bounded_group(
+            pattern,
+            subject,
+            from,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+            expanded,
+        );
+    }
+    MatchOutcome::Uncertain
 }
