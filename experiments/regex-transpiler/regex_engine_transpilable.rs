@@ -532,6 +532,82 @@ pub fn definitely_invalid_posix_class(pattern: &str, syntax: char, expanded: boo
     false
 }
 
+pub fn definitely_invalid_backreference(pattern: &str, syntax: char, expanded: bool) -> bool {
+    if syntax != 'a' && syntax != 'b' {
+        return false;
+    }
+    let source = pattern_atoms(pattern, expanded);
+    let mut open: Vec<usize> = Vec::new();
+    let mut closed: Vec<usize> = Vec::new();
+    let mut depth = 0;
+    let mut bracket = false;
+    let mut bracket_members = 0;
+    let mut position = 0;
+    while position < source.len() {
+        let atom = source[position];
+        if bracket {
+            if atom == ']' && bracket_members > 0 {
+                bracket = false;
+            } else {
+                bracket_members += 1;
+            }
+            position += 1;
+        } else if atom == '[' {
+            bracket = true;
+            bracket_members = 0;
+            position += 1;
+        } else if atom == '\\' {
+            if position + 1 >= source.len() {
+                return false;
+            }
+            let escaped = source[position + 1];
+            if syntax == 'b' && escaped == '(' {
+                closed.push(0);
+                if depth == open.len() {
+                    open.push(closed.len());
+                } else {
+                    open[depth] = closed.len();
+                }
+                depth += 1;
+            } else if syntax == 'b' && escaped == ')' {
+                if depth > 0 {
+                    depth = depth - 1;
+                    closed[open[depth] - 1] = 1;
+                }
+            } else if (escaped as u32) >= 49
+                && (escaped as u32) <= 57
+                && (position + 2 == source.len()
+                    || (source[position + 2] as u32) < 48
+                    || (source[position + 2] as u32) > 57)
+            {
+                let reference = ((escaped as u32) - 48) as usize;
+                if reference > closed.len() || closed[reference - 1] == 0 {
+                    return true;
+                }
+            }
+            position += 2;
+        } else if syntax == 'a' && atom == '(' {
+            closed.push(0);
+            if depth == open.len() {
+                open.push(closed.len());
+            } else {
+                open[depth] = closed.len();
+            }
+            depth += 1;
+            position += 1;
+        } else if syntax == 'a' && atom == ')' {
+            if depth > 0 {
+                depth = depth - 1;
+                closed[open[depth] - 1] = 1;
+            }
+            position += 1;
+        } else {
+            position += 1;
+        };
+    }
+    false
+}
+
 fn posix_class_kind(first: char, second: char, third: char, fourth: char, fifth: char) -> usize {
     if first == 'd' && second == 'i' && third == 'g' && fourth == 'i' && fifth == 't' {
         return 1;
