@@ -268,8 +268,12 @@ fn supports_atoms(atoms: Vec<char>) -> bool {
                             let uppercase = first >= 65 && first <= 90 && last >= 65 && last <= 90;
                             let lowercase =
                                 first >= 97 && first <= 122 && last >= 97 && last <= 122;
+                            let unicode = first >= 128 && last >= 128;
                             if first > last
-                                || (digits == false && uppercase == false && lowercase == false)
+                                || (digits == false
+                                    && uppercase == false
+                                    && lowercase == false
+                                    && unicode == false)
                             {
                                 return false;
                             }
@@ -657,8 +661,12 @@ fn search_atoms(
                             let uppercase = first >= 65 && first <= 90 && last >= 65 && last <= 90;
                             let lowercase =
                                 first >= 97 && first <= 122 && last >= 97 && last <= 122;
+                            let unicode = first >= 128 && last >= 128;
                             if first > last
-                                || (digits == false && uppercase == false && lowercase == false)
+                                || (digits == false
+                                    && uppercase == false
+                                    && lowercase == false
+                                    && unicode == false)
                             {
                                 return SearchResult {
                                     kind: 2,
