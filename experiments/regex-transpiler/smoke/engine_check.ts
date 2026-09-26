@@ -41,7 +41,15 @@ for (const pattern of ['a+(?=b)b', 'a(?=[bc])b', '(?=b)b', 'a(?=(b))b']) {
   assert.equal(generated.supportsMiddleLookahead(pattern, false), false)
 }
 assert.equal(generated.supportsBoundedGroup('(ab){1,3}c', false), true)
-for (const pattern of ['(a|b){2}', '(ab){1,}', '(ab)*', '(a+){2}', '(ab){17}']) {
+assert.equal(generated.supportsBoundedGroup('a(ab)*c', false), true)
+assert.equal(generated.supportsBoundedGroup('a(ab)+c', false), true)
+assert.deepEqual(
+  generated.findBoundedGroup('a(b)*c', 'b'.repeat(300), 0, true, true, false, false),
+  {
+    kind: 'Uncertain',
+  },
+)
+for (const pattern of ['(a|b){2}', '(ab){1,}', '(a+){2}', '(ab){17}']) {
   assert.equal(generated.supportsBoundedGroup(pattern, false), false)
 }
 assert.equal(generated.supportsExtendedGroup('(a|ab)b', false), true)
