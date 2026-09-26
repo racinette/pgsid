@@ -230,6 +230,18 @@ struct BasicLiteralResult {
     atoms: Vec<char>,
 }
 
+struct NumericEscapeResult {
+    recognized: bool,
+    valid: bool,
+    value: usize,
+    next: usize,
+}
+
+struct NumericLiteralResult {
+    valid: bool,
+    atoms: Vec<usize>,
+}
+
 struct ExtendedEscapeResult {
     valid: bool,
     atoms: Vec<char>,
@@ -278,6 +290,195 @@ pub fn find_literal(
             offset += 1;
         }
         if offset == needle.len() {
+            return MatchOutcome::Found(MatchSpan {
+                start,
+                end: start + offset,
+            });
+        }
+        if start == haystack.len() {
+            break;
+        }
+        start += 1;
+    }
+    MatchOutcome::NoMatch
+}
+
+fn numeric_hex_digit(atom: char) -> usize {
+    let codepoint = atom as u32;
+    if codepoint >= 48 && codepoint <= 57 {
+        return (codepoint - 48) as usize;
+    }
+    if codepoint >= 65 && codepoint <= 70 {
+        return (codepoint - 55) as usize;
+    }
+    if codepoint >= 97 && codepoint <= 102 {
+        return (codepoint - 87) as usize;
+    }
+    16
+}
+
+fn make_numeric_escape(
+    recognized: bool,
+    valid: bool,
+    value: usize,
+    next: usize,
+) -> NumericEscapeResult {
+    NumericEscapeResult {
+        recognized,
+        valid,
+        value,
+        next,
+    }
+}
+
+fn numeric_escape(pattern: &str, expanded: bool, position: usize) -> NumericEscapeResult {
+    let source = pattern_atoms(pattern, expanded);
+    if position + 1 >= source.len() {
+        return make_numeric_escape(false, false, 0, position + 1);
+    }
+    let marker = source[position + 1];
+    if marker == 'z' {
+        return make_numeric_escape(true, false, 0, position + 1);
+    }
+    if marker == 'c' {
+        if position + 2 < source.len() {
+            let letter = source[position + 2].to_ascii_lowercase() as u32;
+            if letter >= 97 && letter <= 122 {
+                return make_numeric_escape(true, true, (letter - 96) as usize, position + 3);
+            }
+        }
+        return make_numeric_escape(true, false, 0, position + 1);
+    }
+    if marker == 'u' || marker == 'U' || marker == 'x' {
+        let mut next = position + 2;
+        let mut value = 0;
+        let mut digits = 0;
+        let mut required = 8;
+        if marker == 'u' {
+            required = 4;
+        };
+        while next < source.len() && (marker == 'x' || digits < required) {
+            let digit = numeric_hex_digit(source[next]);
+            if digit == 16 {
+                break;
+            }
+            if value > 134217727 {
+                return make_numeric_escape(true, false, 0, position + 1);
+            }
+            let double = value + value;
+            let four = double + double;
+            let eight = four + four;
+            value = eight + eight + digit;
+            digits += 1;
+            next += 1;
+        }
+        if (marker == 'x' && digits > 0 || marker != 'x' && digits == required)
+            && value <= 2147483646
+        {
+            return make_numeric_escape(true, true, value, next);
+        }
+        return make_numeric_escape(true, false, 0, position + 1);
+    }
+    if (marker as u32) >= 48
+        && (marker as u32) <= 55
+        && (marker == '0'
+            || position + 2 < source.len()
+                && (source[position + 2] as u32) >= 48
+                && (source[position + 2] as u32) <= 57)
+    {
+        let mut next = position + 1;
+        let mut value = 0;
+        let mut digits = 0;
+        while next < source.len() && digits < 3 {
+            let codepoint = source[next] as u32;
+            if codepoint < 48 || codepoint > 55 {
+                break;
+            }
+            let double = value + value;
+            let four = double + double;
+            let candidate = four + four + ((codepoint - 48) as usize);
+            if candidate > 255 {
+                break;
+            }
+            value = candidate;
+            digits += 1;
+            next += 1;
+        }
+        return make_numeric_escape(true, true, value, next);
+    }
+    make_numeric_escape(false, false, 0, position + 1)
+}
+
+fn numeric_literal_atoms(pattern: &str, expanded: bool) -> NumericLiteralResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut atoms: Vec<usize> = Vec::new();
+    let mut position = 0;
+    let mut escaped = false;
+    let mut valid = true;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '\\' {
+            let parsed = numeric_escape(pattern, expanded, position);
+            if parsed.recognized == false || parsed.valid == false {
+                valid = false;
+                break;
+            }
+            atoms.push(parsed.value);
+            position = parsed.next;
+            escaped = true;
+        } else if simple_literal_char(atom) {
+            atoms.push((atom as u32) as usize);
+            position += 1;
+        } else {
+            valid = false;
+            break;
+        };
+    }
+    NumericLiteralResult {
+        valid: valid && escaped,
+        atoms,
+    }
+}
+
+pub fn supports_numeric_literal_escape(pattern: &str, expanded: bool) -> bool {
+    let parsed = numeric_literal_atoms(pattern, expanded);
+    parsed.valid
+}
+
+pub fn find_numeric_literal_escape(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = numeric_literal_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let haystack: Vec<char> = subject.chars().collect();
+    if from > haystack.len() {
+        return MatchOutcome::NoMatch;
+    }
+    let mut start = from;
+    while start <= haystack.len() {
+        let mut offset = 0;
+        while offset < parsed.atoms.len() && offset < haystack.len() - start {
+            let actual = haystack[start + offset] as u32;
+            let expected = parsed.atoms[offset];
+            let mut lowered = expected;
+            if expected >= 65 && expected <= 90 {
+                lowered += 32;
+            }
+            if (actual as usize) != expected
+                && (case_sensitive
+                    || ((haystack[start + offset].to_ascii_lowercase() as u32) as usize) != lowered)
+            {
+                break;
+            }
+            offset += 1;
+        }
+        if offset == parsed.atoms.len() {
             return MatchOutcome::Found(MatchSpan {
                 start,
                 end: start + offset,

@@ -826,6 +826,35 @@ fn basic_literal_punctuation_gate_preserves_syntax() {
 }
 
 #[test]
+fn numeric_literal_escapes_match_unicode_scalars() {
+    for (pattern, subject, end) in [
+        ("a\\chb", "a\u{8}b", 3),
+        ("a\\cHb", "a\u{8}b", 3),
+        ("a\\u0008x", "a\u{8}x", 3),
+        ("a\\u00088x", "a\u{8}8x", 4),
+        ("a\\U00000008x", "a\u{8}x", 3),
+        ("a\\x08x", "a\u{8}x", 3),
+        ("a\\010b", "a\u{8}b", 3),
+        ("a\\0070b", "a\u{7}0b", 4),
+        ("a\\07b", "a\u{7}b", 3),
+        ("a\\10b", "a\u{8}b", 3),
+        ("a\\12b", "a\nb", 3),
+        ("a\\701b", "a81b", 4),
+        ("a\\U00001234x", "a\u{1234}x", 3),
+        ("a\\U000012345x", "a\u{1234}5x", 4),
+    ] {
+        assert!(candidate::supports_numeric_literal_escape(pattern, false));
+        assert!(matches!(
+            candidate::find_numeric_literal_escape(pattern, subject, 0, true, false),
+            candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: actual }) if actual == end
+        ));
+    }
+    for pattern in ["a\\u008x", "a\\U0000008x", "a\\xq", "a\\z"] {
+        assert!(!candidate::supports_numeric_literal_escape(pattern, false));
+    }
+}
+
+#[test]
 fn bracket_word_boundaries_match_postgres_spelling() {
     assert!(candidate::supports_bracket_word_boundary("[[:<:]]a", false));
     assert!(candidate::supports_bracket_word_boundary("a[[:>:]]", false));
@@ -1007,6 +1036,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut repeated_choice = 0;
     let mut extended_group = 0;
     let mut extended_escape = 0;
+    let mut numeric_literal = 0;
     let mut basic = 0;
     let mut basic_punctuation = 0;
     let mut basic_escape = 0;
@@ -1619,6 +1649,20 @@ fn supported_search_matches_pglite_fixtures() {
                     newline == "sensitive" || newline == "anchors",
                     options["expanded"].as_bool().unwrap(),
                 )
+            } else if options["syntax"] == "advanced"
+                && candidate::supports_numeric_literal_escape(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                numeric_literal += 1;
+                candidate::find_numeric_literal_escape(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    options["expanded"].as_bool().unwrap(),
+                )
             } else if options["syntax"] == "basic"
                 && candidate::supports_basic_compatible(
                     pattern,
@@ -1799,6 +1843,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(repeated_choice >= 20);
     assert!(extended_group >= 20);
     assert!(extended_escape >= 20);
+    assert!(numeric_literal >= 10);
     assert!(basic >= 50);
     assert!(basic_punctuation >= 20);
     assert!(basic_escape >= 20);
