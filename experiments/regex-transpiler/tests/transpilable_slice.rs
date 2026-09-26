@@ -924,6 +924,16 @@ fn middle_lookbehind_checks_the_character_before_the_assertion() {
 }
 
 #[test]
+fn zero_repetition_of_a_noncapturing_group_consumes_nothing() {
+    assert!(candidate::supports_simple_advanced("a(?:[bc]){0}d"));
+    assert!(matches!(
+        candidate::find_simple_advanced("a(?:[bc]){0}d", "xad", 0, true, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 3 })
+    ));
+    assert!(!candidate::supports_simple_advanced("a(?:[bc){0}d"));
+}
+
+#[test]
 fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
     assert!(candidate::supports_bounded_group("a(ab)*c", false));

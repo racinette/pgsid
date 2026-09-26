@@ -645,7 +645,62 @@ pub fn pattern_atoms(pattern: &str, expanded: bool) -> Vec<char> {
             position += 1;
         };
     }
-    result
+    let mut normalized: Vec<char> = Vec::new();
+    position = 0;
+    while position < result.len() {
+        let mut skipped = false;
+        if result.len() - position >= 7
+            && result[position] == '('
+            && result[position + 1] == '?'
+            && result[position + 2] == ':'
+        {
+            let mut group_end = position + 3;
+            let mut bracket = false;
+            let mut escaped = false;
+            let mut nested = false;
+            while group_end < result.len() {
+                let atom = result[group_end];
+                if escaped {
+                    escaped = false;
+                } else if atom == '\\' {
+                    escaped = true;
+                } else if atom == '[' {
+                    bracket = true;
+                } else if atom == ']' && bracket {
+                    bracket = false;
+                } else if atom == '(' && bracket == false {
+                    nested = true;
+                    break;
+                } else if atom == ')' && bracket == false {
+                    break;
+                };
+                group_end += 1;
+            }
+            if nested == false
+                && result.len() - group_end >= 4
+                && result[group_end] == ')'
+                && result[group_end + 1] == '{'
+                && result[group_end + 2] == '0'
+                && result[group_end + 3] == '}'
+            {
+                let mut member: Vec<char> = Vec::new();
+                let mut index = position + 3;
+                while index < group_end {
+                    member.push(result[index]);
+                    index += 1;
+                }
+                if supports_atoms(member) {
+                    position = group_end + 4;
+                    skipped = true;
+                }
+            }
+        }
+        if skipped == false {
+            normalized.push(result[position]);
+            position += 1;
+        }
+    }
+    normalized
 }
 
 pub fn definitely_invalid_grouping(pattern: &str, syntax: char, expanded: bool) -> bool {
