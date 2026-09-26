@@ -943,6 +943,32 @@ fn hyphen_can_start_a_bracket_range() {
 }
 
 #[test]
+fn basic_groups_without_backreferences_match_their_contents() {
+    for (pattern, subject, expected) in [
+        ("\\(a\\)b", "ab", 2),
+        ("\\(*\\)", "*", 1),
+        ("\\(x$\\)", "x", 1),
+    ] {
+        assert!(candidate::supports_basic_transparent_group(pattern, false));
+        assert!(matches!(
+            candidate::find_basic_transparent_group(pattern, subject, 0, true, true, false, false),
+            candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end }) if end == expected
+        ));
+    }
+    assert!(candidate::supports_basic_transparent_group(
+        "\\(^b\\)", false
+    ));
+    assert!(matches!(
+        candidate::find_basic_transparent_group("\\(^b\\)", "^b", 0, true, true, false, false),
+        candidate::MatchOutcome::NoMatch
+    ));
+    assert!(!candidate::supports_basic_transparent_group(
+        "\\(ab\\)*",
+        false
+    ));
+}
+
+#[test]
 fn bracket_word_boundaries_match_postgres_spelling() {
     assert!(candidate::supports_bracket_word_boundary("[[:<:]]a", false));
     assert!(candidate::supports_bracket_word_boundary("a[[:>:]]", false));
@@ -1132,6 +1158,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut basic_backref = 0;
     let mut bracket_word = 0;
     let mut collating_bracket = 0;
+    let mut basic_transparent_group = 0;
     let mut invalid_grouping = 0;
     let mut invalid_repeat = 0;
     let mut invalid_bound = 0;
@@ -1787,6 +1814,23 @@ fn supported_search_matches_pglite_fixtures() {
                     options["expanded"].as_bool().unwrap(),
                 )
             } else if options["syntax"] == "basic"
+                && candidate::supports_basic_transparent_group(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                basic_transparent_group += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_basic_transparent_group(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "basic"
                 && candidate::supports_basic_compatible(
                     pattern,
                     options["expanded"].as_bool().unwrap(),
@@ -1974,6 +2018,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(basic_backref >= 20);
     assert!(bracket_word >= 10);
     assert!(collating_bracket >= 10);
+    assert!(basic_transparent_group >= 4);
     assert!(invalid_grouping >= 40);
     assert!(invalid_repeat >= 20);
     assert!(invalid_bound >= 20);
