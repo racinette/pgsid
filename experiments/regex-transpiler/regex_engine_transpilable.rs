@@ -5852,7 +5852,91 @@ pub fn supports_inline_advanced(pattern: &str, expanded: bool) -> bool {
     if parsed.valid == false {
         return false;
     }
+    if supports_inline_negative_word(pattern, expanded) {
+        return true;
+    }
     supports_atoms(parsed.atoms)
+}
+
+fn supports_inline_negative_word(pattern: &str, expanded: bool) -> bool {
+    let parsed = inline_atoms(pattern, expanded);
+    if parsed.valid == false || parsed.mode != 'n' {
+        return false;
+    }
+    let source = parsed.atoms;
+    if source.len() < 11
+        || source[0] != '^'
+        || source[1] != '('
+        || source[2] != '?'
+        || source[3] != '!'
+        || source[4] != '['
+    {
+        return false;
+    }
+    let mut position = 5;
+    while position < source.len() && source[position] != ']' {
+        if simple_literal_char(source[position]) == false {
+            return false;
+        }
+        position += 1;
+    }
+    position > 5
+        && source.len() - position == 5
+        && source[position] == ']'
+        && source[position + 1] == ')'
+        && source[position + 2] == '\\'
+        && source[position + 3] == 'S'
+        && source[position + 4] == '+'
+}
+
+fn find_inline_negative_word(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    if supports_inline_negative_word(pattern, expanded) == false {
+        return MatchOutcome::Uncertain;
+    }
+    let source = inline_atoms(pattern, expanded).atoms;
+    let haystack: Vec<char> = subject.chars().collect();
+    let mut start = from;
+    while start < haystack.len() {
+        if start == 0 || haystack[start - 1] == '\n' {
+            let actual = haystack[start];
+            let codepoint = actual as u32;
+            let space = (codepoint >= 9 && codepoint <= 13) || actual == ' ';
+            if space == false {
+                let mut blocked = false;
+                let mut position = 5;
+                while source[position] != ']' {
+                    let excluded = source[position];
+                    if actual == excluded
+                        || (case_sensitive == false
+                            && actual.to_ascii_lowercase() == excluded.to_ascii_lowercase())
+                    {
+                        blocked = true;
+                    }
+                    position += 1;
+                }
+                if blocked == false {
+                    let mut end = start + 1;
+                    while end < haystack.len() {
+                        let next = haystack[end];
+                        let value = next as u32;
+                        if (value >= 9 && value <= 13) || next == ' ' {
+                            break;
+                        }
+                        end += 1;
+                    }
+                    return MatchOutcome::Found(MatchSpan { start, end });
+                }
+            }
+        }
+        start += 1;
+    }
+    MatchOutcome::NoMatch
 }
 
 fn inline_options_atoms(pattern: &str, expanded: bool) -> InlineOptionsResult {
@@ -9926,6 +10010,9 @@ pub fn find_inline_advanced(
     let parsed = inline_atoms(pattern, expanded);
     if parsed.valid == false {
         return MatchOutcome::Uncertain;
+    }
+    if supports_inline_negative_word(pattern, expanded) {
+        return find_inline_negative_word(pattern, subject, from, case_sensitive, expanded);
     }
     let mut sensitive = case_sensitive;
     let mut crosses = dot_crosses_newline;
