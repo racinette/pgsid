@@ -219,6 +219,13 @@ struct ZeroWidthResult {
     matches: bool,
 }
 
+struct LiteralZeroWidthGroup {
+    valid: bool,
+    prefix: Vec<char>,
+    suffix: Vec<char>,
+    boundary: char,
+}
+
 struct TwoChoiceResult {
     valid: bool,
     first_left: Vec<char>,
@@ -2763,6 +2770,118 @@ pub fn find_zero_width_assertions(
             });
         }
         position += 1;
+    }
+    MatchOutcome::NoMatch
+}
+
+fn parse_literal_zero_width_group(pattern: &str, expanded: bool) -> LiteralZeroWidthGroup {
+    let source = pattern_atoms(pattern, expanded);
+    let mut prefix: Vec<char> = Vec::new();
+    let mut suffix: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut valid = true;
+    let mut boundary = ' ';
+    while position < source.len() && source[position] != '(' {
+        if simple_literal_char(source[position]) == false {
+            valid = false;
+            break;
+        }
+        prefix.push(source[position]);
+        position += 1;
+    }
+    if valid && source.len() - position >= 5 && source[position] == '(' {
+        if source[position + 1] == '\\'
+            && (source[position + 2] == 'm' || source[position + 2] == 'Y')
+        {
+            boundary = source[position + 2];
+            position += 3;
+            if boundary == 'Y'
+                && source.len() - position >= 2
+                && source[position] == '\\'
+                && source[position + 1] == 'Y'
+            {
+                position += 2;
+            }
+        } else {
+            valid = false;
+        }
+        if source.len() - position < 2 || source[position] != ')' || source[position + 1] != '+' {
+            valid = false;
+        } else {
+            position += 2;
+        };
+    } else {
+        valid = false;
+    }
+    if valid {
+        while position < source.len() {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            suffix.push(source[position]);
+            position += 1;
+        }
+    }
+    LiteralZeroWidthGroup {
+        valid: valid && prefix.len() > 0,
+        prefix,
+        suffix,
+        boundary,
+    }
+}
+
+pub fn supports_literal_zero_width_group(pattern: &str, expanded: bool) -> bool {
+    parse_literal_zero_width_group(pattern, expanded).valid
+}
+
+pub fn find_literal_zero_width_group(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = parse_literal_zero_width_group(pattern, expanded);
+    if parsed.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let haystack: Vec<char> = subject.chars().collect();
+    let mut cursor = from;
+    while cursor <= haystack.len() {
+        let mut atoms: Vec<char> = Vec::new();
+        let mut position = 0;
+        while position < parsed.prefix.len() {
+            atoms.push(parsed.prefix[position]);
+            position += 1;
+        }
+        position = 0;
+        while position < parsed.suffix.len() {
+            atoms.push(parsed.suffix[position]);
+            position += 1;
+        }
+        let found = search_atoms(atoms, subject, cursor, case_sensitive, true, false);
+        if found.kind == 2 {
+            return MatchOutcome::Uncertain;
+        }
+        if found.kind == 1 {
+            return MatchOutcome::NoMatch;
+        }
+        let assertion_position = found.start + parsed.prefix.len();
+        let before = zero_width_word(haystack[assertion_position - 1]);
+        let mut after = false;
+        if assertion_position < haystack.len() {
+            after = zero_width_word(haystack[assertion_position]);
+        }
+        if (parsed.boundary == 'Y' && before == after)
+            || (parsed.boundary == 'm' && before == false && after)
+        {
+            return MatchOutcome::Found(MatchSpan {
+                start: found.start,
+                end: found.end,
+            });
+        }
+        cursor = found.start + 1;
     }
     MatchOutcome::NoMatch
 }

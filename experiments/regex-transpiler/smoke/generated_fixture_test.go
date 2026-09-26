@@ -466,6 +466,9 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
 				actual = FindZeroWidthAssertions(input.Pattern, input.Subject, from, input.Options.CaseSensitive, lineAnchors, input.Options.Expanded)
 				advanced++
+			} else if input.Options.Syntax == "advanced" && SupportsLiteralZeroWidthGroup(input.Pattern, input.Options.Expanded) {
+				actual = FindLiteralZeroWidthGroup(input.Pattern, input.Subject, from, input.Options.CaseSensitive, input.Options.Expanded)
+				advanced++
 			} else {
 				continue
 			}
