@@ -11,6 +11,14 @@ func TestLiteralSlice(t *testing.T) {
 			t.Errorf("group with changed semantics was accepted: %q", pattern)
 		}
 	}
+	if !SupportsGroupChoice("a(b|bc)", false) {
+		t.Error("single group choice was rejected")
+	}
+	for _, pattern := range []string{"(a|b)+", "((a|b))", "(a|b)\\1", "(?=a|b)c", "a|b(c|d)"} {
+		if SupportsGroupChoice(pattern, false) {
+			t.Errorf("unsupported group choice was accepted: %q", pattern)
+		}
+	}
 	found := FindLiteral("😀", "a😀a", 0, true)
 	if found != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Errorf("literal match = %+v", found)
