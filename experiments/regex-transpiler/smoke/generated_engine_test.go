@@ -19,6 +19,14 @@ func TestLiteralSlice(t *testing.T) {
 			t.Errorf("unsupported group choice was accepted: %q", pattern)
 		}
 	}
+	if !SupportsFixedLookbehind("(?<=ab)c", false) {
+		t.Error("fixed lookbehind was rejected")
+	}
+	for _, pattern := range []string{"(?<=a|b)c", "(?<=a+)c", "(?<=a\\n)b", "(?=a)b"} {
+		if SupportsFixedLookbehind(pattern, false) {
+			t.Errorf("unsupported lookbehind was accepted: %q", pattern)
+		}
+	}
 	found := FindLiteral("😀", "a😀a", 0, true)
 	if found != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Errorf("literal match = %+v", found)

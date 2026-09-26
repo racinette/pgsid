@@ -14,6 +14,10 @@ assert.equal(generated.supportsGroupChoice('a(b|bc)', false), true)
 for (const pattern of ['(a|b)+', '((a|b))', '(a|b)\\1', '(?=a|b)c', 'a|b(c|d)']) {
   assert.equal(generated.supportsGroupChoice(pattern, false), false)
 }
+assert.equal(generated.supportsFixedLookbehind('(?<=ab)c', false), true)
+for (const pattern of ['(?<=a|b)c', '(?<=a+)c', '(?<=a\\n)b', '(?=a)b']) {
+  assert.equal(generated.supportsFixedLookbehind(pattern, false), false)
+}
 
 assert.deepEqual(generated.findLiteral('😀', 'a😀a', 0, true), {
   kind: 'Found',

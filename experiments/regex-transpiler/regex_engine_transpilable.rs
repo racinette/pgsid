@@ -1,4 +1,5 @@
 const MAX_CAPTURE_WORK: usize = 2000000;
+const MAX_LOOKBEHIND_ATTEMPTS: usize = 4096;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct MatchSpan {
@@ -39,6 +40,13 @@ struct GroupChoiceResult {
     valid: bool,
     left: Vec<char>,
     right: Vec<char>,
+}
+
+struct LookbehindResult {
+    valid: bool,
+    positive: bool,
+    prefix: Vec<char>,
+    remainder: Vec<char>,
 }
 
 pub fn charge_work(current: usize, amount: usize) -> WorkOutcome {
@@ -724,6 +732,70 @@ pub fn supports_group_choice(pattern: &str, expanded: bool) -> bool {
         return false;
     }
     supports_atoms(parsed.left) && supports_atoms(parsed.right)
+}
+
+fn fixed_lookbehind_atoms(pattern: &str, expanded: bool) -> LookbehindResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut prefix: Vec<char> = Vec::new();
+    let mut remainder: Vec<char> = Vec::new();
+    let mut valid = source.len() >= 6;
+    let mut positive = true;
+    if valid {
+        valid = source[0] == '('
+            && source[1] == '?'
+            && source[2] == '<'
+            && (source[3] == '=' || source[3] == '!');
+        positive = source[3] == '=';
+    }
+    let mut position = 4;
+    if valid {
+        while position < source.len() && source[position] != ')' {
+            let atom = source[position];
+            if atom == '\\'
+                || atom == '.'
+                || atom == '^'
+                || atom == '$'
+                || atom == '*'
+                || atom == '+'
+                || atom == '?'
+                || atom == '{'
+                || atom == '}'
+                || atom == '['
+                || atom == ']'
+                || atom == '('
+                || atom == '|'
+            {
+                valid = false;
+                break;
+            }
+            prefix.push(atom);
+            position += 1;
+        }
+        if position == source.len() || prefix.len() == 0 || prefix.len() > 8 {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 1;
+        while position < source.len() {
+            remainder.push(source[position]);
+            position += 1;
+        }
+    }
+    LookbehindResult {
+        valid,
+        positive,
+        prefix,
+        remainder,
+    }
+}
+
+pub fn supports_fixed_lookbehind(pattern: &str, expanded: bool) -> bool {
+    let parsed = fixed_lookbehind_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    supports_atoms(parsed.remainder)
 }
 
 fn search_atoms(
@@ -1782,4 +1854,102 @@ pub fn count_group_choice(
         };
     }
     CountOutcome::Count(count)
+}
+
+fn search_fixed_lookbehind(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> SearchResult {
+    let haystack: Vec<char> = subject.chars().collect();
+    let mut cursor = from;
+    let mut attempts = 0;
+    while cursor <= haystack.len() {
+        if attempts == MAX_LOOKBEHIND_ATTEMPTS {
+            return SearchResult {
+                kind: 2,
+                start: 0,
+                end: 0,
+            };
+        }
+        attempts += 1;
+        let parsed = fixed_lookbehind_atoms(pattern, expanded);
+        if parsed.valid == false {
+            return SearchResult {
+                kind: 2,
+                start: 0,
+                end: 0,
+            };
+        }
+        let result = search_atoms(
+            parsed.remainder,
+            subject,
+            cursor,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+        );
+        if result.kind != 0 {
+            return result;
+        }
+        let mut preceding = result.start >= parsed.prefix.len();
+        if preceding {
+            let mut index = 0;
+            while index < parsed.prefix.len() {
+                let actual = haystack[result.start - parsed.prefix.len() + index];
+                let expected = parsed.prefix[index];
+                if actual != expected
+                    && (case_sensitive
+                        || actual.to_ascii_lowercase() != expected.to_ascii_lowercase())
+                {
+                    preceding = false;
+                    break;
+                }
+                index += 1;
+            }
+        }
+        if preceding == parsed.positive {
+            return result;
+        }
+        cursor = result.start + 1;
+    }
+    SearchResult {
+        kind: 1,
+        start: 0,
+        end: 0,
+    }
+}
+
+pub fn find_fixed_lookbehind(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let result = search_fixed_lookbehind(
+        pattern,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        expanded,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
 }
