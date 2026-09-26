@@ -31,7 +31,8 @@ for (const pattern of ['([ab])\\1', '(a+)\\1', '(a)\\2', '(a)|(b)\\1', '(a)*\\1'
   assert.equal(generated.supportsFixedBackref(pattern, false), false)
 }
 assert.equal(generated.supportsSingleCaptureBackref('([ab])\\1', false), true)
-for (const pattern of ['([ab]+)\\1', '([ab])\\2', '([ab])', '((a))\\1']) {
+assert.equal(generated.supportsSingleCaptureBackref('([ab]+)c\\1', false), true)
+for (const pattern of ['([ab]*)\\1', '([ab])\\2', '([ab])', '((a))\\1']) {
   assert.equal(generated.supportsSingleCaptureBackref(pattern, false), false)
 }
 for (const pattern of ['(?i)ab', '(?n)^b', '(?x)a b', '(?t)a b']) {

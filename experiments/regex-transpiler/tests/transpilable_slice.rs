@@ -80,12 +80,20 @@ fn single_capture_gate_requires_one_atom_and_reference() {
     assert!(candidate::supports_single_capture_backref(
         "(\\w)\\1", false
     ));
-    for pattern in ["([ab]+)\\1", "([ab])\\2", "([ab])", "((a))\\1"] {
+    assert!(candidate::supports_single_capture_backref(
+        "([ab]+)c\\1",
+        false
+    ));
+    for pattern in ["([ab]*)\\1", "([ab])\\2", "([ab])", "((a))\\1"] {
         assert!(!candidate::supports_single_capture_backref(pattern, false));
     }
     assert!(matches!(
         candidate::find_single_capture_backref("([ab])\\1", "zaabb", 0, true, true, false, false,),
         candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 3 })
+    ));
+    assert!(matches!(
+        candidate::find_single_capture_backref("([ab]+)c\\1", "abcab", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 5 })
     ));
 }
 
