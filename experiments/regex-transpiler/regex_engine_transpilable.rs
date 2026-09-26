@@ -87,6 +87,11 @@ struct ExtendedEscapeResult {
     atoms: Vec<char>,
 }
 
+struct BasicBoundResult {
+    valid: bool,
+    atoms: Vec<char>,
+}
+
 pub fn charge_work(current: usize, amount: usize) -> WorkOutcome {
     if current > MAX_CAPTURE_WORK {
         return WorkOutcome::Uncertain;
@@ -1401,6 +1406,89 @@ pub fn supports_basic_letter_escape(pattern: &str, expanded: bool) -> bool {
         };
     }
     supports_extended_literal_escape(pattern, expanded)
+}
+
+fn basic_bound_atoms(pattern: &str, expanded: bool) -> BasicBoundResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut atoms: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut bracket = false;
+    let mut valid = true;
+    let mut bounded = false;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '\\' {
+            if source.len() - position <= 1 || bracket {
+                valid = false;
+                break;
+            }
+            let escaped = source[position + 1];
+            if escaped == '{' {
+                if source.len() - position <= 2
+                    || (source[position + 2] as u32) < 48
+                    || (source[position + 2] as u32) > 57
+                {
+                    valid = false;
+                    break;
+                }
+                atoms.push('{');
+                bounded = true;
+            } else if escaped == '}' {
+                atoms.push('}');
+            } else if escaped == '.'
+                || escaped == '^'
+                || escaped == '$'
+                || escaped == '*'
+                || escaped == '+'
+                || escaped == '?'
+                || escaped == '|'
+                || escaped == '['
+                || escaped == ']'
+                || escaped == '\\'
+            {
+                atoms.push(atom);
+                atoms.push(escaped);
+            } else {
+                valid = false;
+                break;
+            }
+            position += 2;
+        } else {
+            if atom == '[' && bracket == false {
+                bracket = true;
+            } else if atom == ']' && bracket {
+                bracket = false;
+            }
+            if bracket == false
+                && (atom == '+'
+                    || atom == '?'
+                    || atom == '|'
+                    || atom == '('
+                    || atom == ')'
+                    || atom == '{'
+                    || atom == '}'
+                    || (atom == '^' && position != 0)
+                    || (atom == '$' && position + 1 != source.len()))
+            {
+                valid = false;
+                break;
+            }
+            atoms.push(atom);
+            position += 1;
+        };
+    }
+    BasicBoundResult {
+        valid: valid && bounded && bracket == false,
+        atoms,
+    }
+}
+
+pub fn supports_basic_escaped_bound(pattern: &str, expanded: bool) -> bool {
+    let parsed = basic_bound_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    supports_atoms(parsed.atoms)
 }
 
 fn search_atoms(
@@ -3208,4 +3296,37 @@ pub fn find_basic_letter_escape(
         line_anchors,
         expanded,
     )
+}
+
+pub fn find_basic_escaped_bound(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = basic_bound_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let result = search_atoms(
+        parsed.atoms,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
 }

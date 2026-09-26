@@ -123,6 +123,17 @@ fn basic_letter_escape_gate_excludes_capture_syntax() {
 }
 
 #[test]
+fn basic_escaped_bound_gate_requires_complete_numeric_bound() {
+    assert!(candidate::supports_basic_escaped_bound(
+        "a\\{2,3\\}b",
+        false
+    ));
+    for pattern in ["a\\{3,1\\}b", "a\\{2,3", "a{2,3}b", "\\(a\\)\\{2\\}"] {
+        assert!(!candidate::supports_basic_escaped_bound(pattern, false));
+    }
+}
+
+#[test]
 fn literal_search_matches_the_live_engine() {
     for case_sensitive in [true, false] {
         for pattern in ["", "a", "A", "😀", "aa", "Å", "å", "K", "k", "\n"] {
@@ -179,6 +190,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut basic = 0;
     let mut basic_punctuation = 0;
     let mut basic_escape = 0;
+    let mut basic_bound = 0;
     let mut dot = 0;
     let mut mixed = 0;
     let mut anchored = 0;
@@ -528,6 +540,23 @@ fn supported_search_matches_pglite_fixtures() {
                     newline == "sensitive" || newline == "anchors",
                     options["expanded"].as_bool().unwrap(),
                 )
+            } else if options["syntax"] == "basic"
+                && candidate::supports_basic_escaped_bound(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                basic_bound += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_basic_escaped_bound(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
             } else {
                 continue;
             };
@@ -566,6 +595,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(basic >= 50);
     assert!(basic_punctuation >= 20);
     assert!(basic_escape >= 20);
+    assert!(basic_bound >= 20);
     assert!(dot >= 20);
     assert!(mixed >= 50);
     assert!(anchored >= 20);
