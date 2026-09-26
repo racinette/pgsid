@@ -84,7 +84,7 @@ func TestLiteralSlice(t *testing.T) {
 	if !SupportsMiddleLookahead("a(?=b)b", false) {
 		t.Error("middle lookahead was rejected")
 	}
-	for _, pattern := range []string{"a+(?=b)b", "a(?=[bc])b", "(?=b)b", "a(?=(b))b"} {
+	for _, pattern := range []string{"a+(?=b)b", "a(?=[bc])b", "(?=b)b", "a(?=(b))\\1"} {
 		if SupportsMiddleLookahead(pattern, false) {
 			t.Errorf("unsupported middle lookahead was accepted: %q", pattern)
 		}

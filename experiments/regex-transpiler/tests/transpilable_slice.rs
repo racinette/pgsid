@@ -900,9 +900,14 @@ fn inline_gate_accepts_supported_prefix_flags() {
 #[test]
 fn middle_lookahead_gate_requires_literal_prefix() {
     assert!(candidate::supports_middle_lookahead("a(?=b)b", false));
-    for pattern in ["a+(?=b)b", "a(?=[bc])b", "(?=b)b", "a(?=(b))b"] {
+    for pattern in ["a+(?=b)b", "a(?=[bc])b", "(?=b)b", "a(?=(b))\\1"] {
         assert!(!candidate::supports_middle_lookahead(pattern, false));
     }
+    assert!(candidate::supports_middle_lookahead("a(?=((bc)))bc", false));
+    assert!(matches!(
+        candidate::find_middle_lookahead("a(?=((bc)))bc", "zabc", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 4 })
+    ));
 }
 
 #[test]
