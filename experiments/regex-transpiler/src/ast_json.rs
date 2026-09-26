@@ -39,7 +39,7 @@ fn check_type(value: &Type, declarations: &BTreeSet<String>) -> Result<()> {
             let name = type_name(value)?;
             if !matches!(
                 name.as_str(),
-                "usize" | "u32" | "i32" | "bool" | "char" | "Vec<char>"
+                "usize" | "u32" | "i32" | "bool" | "char" | "Vec<char>" | "Vec<usize>"
             ) && !declarations.contains(&name)
             {
                 return Err(format!("type {name} is outside the AST contract"));
@@ -236,6 +236,11 @@ fn expr(value: &Expr) -> Result<Value> {
             "left": expr(&node.left)?,
             "right": expr(&node.right)?,
         })),
+        Expr::Assign(node) => Ok(json!({
+            "kind": "assign",
+            "left": expr(&node.left)?,
+            "right": expr(&node.right)?,
+        })),
         Expr::Field(node) => {
             let syn::Member::Named(member) = &node.member else {
                 return Err("tuple field is outside the AST contract".into());
@@ -268,7 +273,7 @@ fn expr(value: &Expr) -> Result<Value> {
                     "kind": "method-call",
                     "receiver": expr(&node.receiver)?,
                     "method": node.method.to_string(),
-                    "arguments": [],
+                    "arguments": node.args.iter().map(expr).collect::<Result<Vec<_>>>()?,
                 }))
             }
         }
@@ -434,6 +439,9 @@ mod tests {
 
     #[test]
     fn serializes_slice_without_losing_tail_or_mutability() {
+        assert_eq!(smoke::stack_probe(3), 6);
+        assert_eq!(smoke::append_position(vec![2], 4), 2);
+        assert_eq!(smoke::overwrite_position(vec![2], 0, 4), 4);
         let value: serde_json::Value =
             serde_json::from_str(&parse(include_str!("../transpiler_smoke.rs")).unwrap()).unwrap();
         assert_eq!(value["schemaVersion"], 1);
@@ -458,6 +466,18 @@ mod tests {
                 .len(),
             1
         );
+        let stack = value["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["name"] == "stack_probe")
+            .unwrap();
+        assert_eq!(
+            stack["body"][0]["type"]["typeArguments"][0]["segments"][0],
+            "usize"
+        );
+        assert_eq!(stack["body"][1]["value"]["arguments"][0]["kind"], "path");
+        assert_eq!(stack["body"][4]["value"]["kind"], "assign");
     }
 
     #[test]
@@ -558,6 +578,23 @@ mod tests {
             "{span} pub fn f(value: Span) -> Span {{ let copy = value; copy.start += 1; copy }}"
         ))
         .is_err());
+    }
+
+    #[test]
+    fn state_operations_require_mutable_index_vectors() {
+        for source in [
+            "pub fn f() -> usize { let positions: Vec<usize> = Vec::new(); positions.push(1); positions.len() }",
+            "pub fn f() -> usize { let positions: Vec<usize> = Vec::new(); positions[0] = 1; positions.len() }",
+            "pub fn f() -> usize { let mut positions: Vec<char> = Vec::new(); positions.len() }",
+            "pub fn f() -> Vec<usize> { Vec::new() }",
+            "pub fn f() -> usize { let mut positions = Vec::new(); positions.push(1); positions.len() }",
+            "pub fn f() -> usize { let mut positions: Vec<usize> = Vec::new(); positions.push(false); positions.len() }",
+            "pub fn f() -> usize { let mut positions: Vec<usize> = Vec::new(); positions[false] = 1; positions.len() }",
+            "pub fn f() -> usize { let mut positions: Vec<usize> = Vec::new(); positions[0] = false; positions.len() }",
+            "pub fn f() -> usize { let mut positions: Vec<usize> = Vec::new(); positions = Vec::new(); positions.len() }",
+        ] {
+            assert!(parse(source).is_err(), "accepted: {source}");
+        }
     }
 
     #[test]

@@ -50,8 +50,8 @@ func TestLiteralSlice(t *testing.T) {
 	if FindSimpleAdvanced("^a$", "\na\n", 0, true, true, false).Kind != MatchOutcomeNoMatch {
 		t.Error("ordinary anchors matched interior line")
 	}
-	if !SupportsSimpleAdvanced("a\\.b") || SupportsSimpleAdvanced("a\\nb") {
-		t.Error("escaped punctuation support classification changed")
+	if !SupportsSimpleAdvanced("a\\.b") || !SupportsSimpleAdvanced("a\\nb") {
+		t.Error("escaped punctuation or control support classification changed")
 	}
 	if FindSimpleAdvanced("a\\.b", "za.b", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 4}}) {
 		t.Error("escaped dot missed literal match")

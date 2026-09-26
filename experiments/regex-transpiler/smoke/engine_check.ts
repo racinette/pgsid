@@ -54,7 +54,7 @@ assert.deepEqual(generated.findSimpleAdvanced('^a$', '\na\n', 0, true, true, fal
   kind: 'NoMatch',
 })
 assert.equal(generated.supportsSimpleAdvanced('a\\.b'), true)
-assert.equal(generated.supportsSimpleAdvanced('a\\nb'), false)
+assert.equal(generated.supportsSimpleAdvanced('a\\nb'), true)
 assert.deepEqual(generated.findSimpleAdvanced('a\\.b', 'za.b', 0, true, true, false), {
   kind: 'Found',
   value: { start: 1, end: 4 },

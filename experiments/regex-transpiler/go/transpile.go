@@ -190,6 +190,10 @@ func (g *generator) inferType(value *node) *node {
 		}
 		return namedType("bool")
 	case "index":
+		base := g.inferType(value.Base)
+		if base != nil && path(base) == "Vec" && len(base.TypeArguments) == 1 && path(base.TypeArguments[0]) == "usize" {
+			return namedType("usize")
+		}
 		return namedType("char")
 	case "method-call":
 		switch value.Method {
@@ -201,6 +205,9 @@ func (g *generator) inferType(value *node) *node {
 			return &node{Kind: "path", Segments: []string{"Vec"}, TypeArguments: []*node{namedType("char")}}
 		}
 	case "call":
+		if value.Callee != nil && len(value.Callee.Segments) == 2 && value.Callee.Segments[0] == "Vec" && value.Callee.Segments[1] == "new" {
+			return &node{Kind: "path", Segments: []string{"Vec"}, TypeArguments: []*node{namedType("usize")}}
+		}
 		if value.Callee != nil && len(value.Callee.Segments) == 2 {
 			return namedType(value.Callee.Segments[0])
 		}

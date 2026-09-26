@@ -13,6 +13,7 @@ type Expr =
   | { kind: 'parenthesized'; inner: Expr }
   | { kind: 'cast'; value: Expr; targetType: TypeNode }
   | { kind: 'binary'; operator: string; left: Expr; right: Expr }
+  | { kind: 'assign'; left: Expr; right: Expr }
   | { kind: 'field'; base: Expr; member: string }
   | { kind: 'index'; base: Expr; index: Expr }
   | { kind: 'method-call'; receiver: Expr; method: string; arguments: Expr[] }
@@ -152,6 +153,8 @@ class Transpiler {
       return f.createKeywordTypeNode(ts.SyntaxKind.StringKeyword)
     if (name === 'Vec<char>')
       return f.createArrayTypeNode(f.createKeywordTypeNode(ts.SyntaxKind.StringKeyword))
+    if (name === 'Vec<usize>')
+      return f.createArrayTypeNode(f.createKeywordTypeNode(ts.SyntaxKind.NumberKeyword))
     if (this.structs.has(name) || this.enums.has(name))
       return f.createTypeReferenceNode(this.names.get(name)!)
     throw new Error(`type outside TypeScript lowering: ${name}`)
@@ -169,6 +172,7 @@ class Transpiler {
     if (name === 'char') return call('checkedChar', value)
     if (name === '&str') return call('checkedString', value)
     if (name === 'Vec<char>') return call('checkedChars', value)
+    if (name === 'Vec<usize>') return call('checkedIndices', value)
     return this.structs.has(name) || this.enums.has(name)
       ? call(`copy${this.names.get(name)!}`, value)
       : value
@@ -211,7 +215,11 @@ class Transpiler {
         return field ? this.path(field.type) : undefined
       }
       case 'index':
-        return this.infer(value.base, locals) === 'Vec<char>' ? 'char' : undefined
+        return this.infer(value.base, locals) === 'Vec<char>'
+          ? 'char'
+          : this.infer(value.base, locals) === 'Vec<usize>'
+            ? 'usize'
+            : undefined
       case 'struct-literal':
         return value.path.join('::')
       case 'method-call':
@@ -223,6 +231,8 @@ class Transpiler {
               ? 'char'
               : undefined
       case 'call':
+        if (value.callee.kind === 'path' && value.callee.segments.join('::') === 'Vec::new')
+          return 'Vec<usize>'
         return value.callee.kind === 'path' && value.callee.segments.length === 2
           ? value.callee.segments[0]
           : undefined
@@ -298,7 +308,7 @@ class Transpiler {
         return member(this.expression(value.base, locals), camelCase(value.member))
       case 'index':
         return call(
-          'indexChar',
+          this.infer(value.base, locals) === 'Vec<usize>' ? 'indexNumber' : 'indexChar',
           this.expression(value.base, locals),
           call('checkedIndex', this.expression(value.index, locals)),
         )
@@ -333,6 +343,12 @@ class Transpiler {
         )
       }
       case 'call': {
+        if (
+          value.callee.kind === 'path' &&
+          value.callee.segments.join('::') === 'Vec::new' &&
+          value.arguments.length === 0
+        )
+          return f.createArrayLiteralExpression()
         if (
           value.callee.kind !== 'path' ||
           value.callee.segments.length !== 2 ||
@@ -387,6 +403,39 @@ class Transpiler {
       if (value.kind === 'return')
         result.push(f.createReturnStatement(this.expression(value.value, locals)))
       else if (value.kind === 'break') result.push(f.createBreakStatement())
+      else if (value.kind === 'assign') {
+        const left =
+          value.left.kind === 'index'
+            ? f.createElementAccessExpression(
+                this.expression(value.left.base, locals),
+                call(
+                  'checkedIndexIn',
+                  this.expression(value.left.base, locals),
+                  this.expression(value.left.index, locals),
+                ),
+              )
+            : this.expression(value.left, locals)
+        const type = this.infer(value.left, locals)
+        if (!type) throw new Error('cannot infer assignment destination')
+        result.push(
+          f.createExpressionStatement(
+            comparison(
+              left,
+              ts.SyntaxKind.EqualsToken,
+              this.detach(this.expression(value.right, locals), type),
+            ),
+          ),
+        )
+      } else if (value.kind === 'method-call' && value.method === 'push')
+        result.push(
+          f.createExpressionStatement(
+            call(
+              'pushIndex',
+              this.expression(value.receiver, locals),
+              this.expression(value.arguments[0]!, locals),
+            ),
+          ),
+        )
       else if (value.kind === 'if')
         result.push(
           f.createIfStatement(

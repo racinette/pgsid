@@ -9,9 +9,13 @@ if (!generatedPath || fixturePaths.length === 0) {
 }
 const generated = await import(pathToFileURL(generatedPath).href)
 const coverage = {
+  find: 0,
+  count: 0,
   literal: 0,
   insensitive: 0,
   advanced: 0,
+  unsupportedAdvanced: 0,
+  otherOptions: 0,
   dot: 0,
   mixed: 0,
   anchored: 0,
@@ -31,7 +35,11 @@ for (const fixturePath of fixturePaths) {
   assert.equal(document.oracle.database, 'PostgreSQL via PGlite')
   let checked = 0
   for (const [index, fixture] of document.fixtures.entries()) {
-    if (fixture.operation && fixture.operation !== 'find') continue
+    if (fixture.operation && fixture.operation !== 'find') {
+      coverage.count++
+      continue
+    }
+    coverage.find++
     const { pattern, subject, options } = fixture.input
     const from = (fixture.input.start ?? 1) - 1
     let actual
@@ -78,6 +86,8 @@ for (const fixturePath of fixturePaths) {
       if (pattern.includes('\\A') || pattern.includes('\\Z')) coverage.absoluteAnchors++
       coverage.newline.add(options.newline)
     } else {
+      if (options.syntax === 'advanced' && !options.expanded) coverage.unsupportedAdvanced++
+      else coverage.otherOptions++
       continue
     }
     if (from > 0) coverage.position++
@@ -107,6 +117,10 @@ assert.ok(coverage.edgePunctuation >= 80)
 assert.ok(coverage.absoluteAnchors >= 50)
 assert.ok(coverage.position >= 6)
 assert.deepEqual(coverage.newline, new Set(['ordinary', 'sensitive', 'stop', 'anchors']))
+assert.equal(
+  coverage.find,
+  coverage.literal + coverage.advanced + coverage.unsupportedAdvanced + coverage.otherOptions,
+)
 process.stdout.write(
-  `TypeScript fixtures: ${coverage.literal} literal, ${coverage.advanced} simple advanced, ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.rangeClasses} ranges, ${coverage.edgePunctuation} class edge cases, ${coverage.absoluteAnchors} absolute anchors, ${coverage.position} positioned\n`,
+  `TypeScript find fixtures: ${coverage.literal + coverage.advanced}/${coverage.find} supported (${coverage.literal} literal, ${coverage.advanced} simple advanced); ${coverage.unsupportedAdvanced} unsupported advanced, ${coverage.otherOptions} other modes, ${coverage.count} count operations. Advanced coverage includes ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.rangeClasses} ranges, ${coverage.edgePunctuation} class edge cases, ${coverage.absoluteAnchors} absolute anchors, and ${coverage.position} positioned.\n`,
 )
