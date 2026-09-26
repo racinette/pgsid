@@ -1115,6 +1115,21 @@ fn a_nested_starred_literal_has_the_same_span_as_one_star() {
 }
 
 #[test]
+fn captured_word_run_can_be_referenced_after_assertions() {
+    for pattern in ["(^\\w+).*\\1", "(^\\w+\\M).*\\1", "(\\w+(?= )).*\\1"] {
+        assert!(candidate::supports_capture_program(pattern, false));
+        assert!(matches!(
+            candidate::find_capture_program(pattern, "abc abcd", 0, true, true, false, false),
+            candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 7 })
+        ));
+    }
+    assert!(matches!(
+        candidate::find_capture_program("(^\\w+\\M).*\\1", "abc abd", 0, true, true, false, false),
+        candidate::MatchOutcome::NoMatch
+    ));
+}
+
+#[test]
 fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
     assert!(candidate::supports_bounded_group("a(ab)*c", false));

@@ -13,6 +13,8 @@ const VM_ACCEPT: usize = 10;
 const VM_JUMP: usize = 11;
 const VM_CLASS: usize = 12;
 const VM_NUMERIC: usize = 13;
+const VM_WORD_END: usize = 14;
+const VM_ASSERT_LITERAL: usize = 15;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct MatchSpan {
@@ -3270,12 +3272,27 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
     let mut position = 0;
     while position < source.len() {
         let atom = source[position];
-        if atom == '^' && position == 0 {
+        if atom == '^' {
             instructions.push(make_capture_step(VM_BEGIN, 0, 0, 0, ' '));
             position += 1;
-        } else if atom == '$' && position + 1 == source.len() {
+        } else if atom == '$' {
             instructions.push(make_capture_step(VM_END, 0, 0, 0, ' '));
             position += 1;
+        } else if atom == '('
+            && source.len() - position >= 5
+            && source[position + 1] == '?'
+            && source[position + 2] == '='
+            && simple_literal_char(source[position + 3])
+            && source[position + 4] == ')'
+        {
+            instructions.push(make_capture_step(
+                VM_ASSERT_LITERAL,
+                0,
+                0,
+                0,
+                source[position + 3],
+            ));
+            position += 5;
         } else if atom == '(' {
             let mut group = 0;
             let mut starred = false;
@@ -3466,6 +3483,8 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
                 position += 2;
                 if escaped == 'w' {
                     operation = VM_WORD;
+                } else if escaped == 'M' {
+                    operation = VM_WORD_END;
                 } else if (escaped as u32) >= 48 && (escaped as u32) <= 57 {
                     reference = ((escaped as u32) - 48) as usize;
                     let mut decimal_digits = 1;
@@ -3628,6 +3647,45 @@ pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
     }
     if forward_choice && forward_valid {
         return true;
+    }
+    if (code.len() == 10 || code.len() == 11) && code[0].operation == VM_OPEN && code[0].group == 1
+    {
+        let mut word_position = 1;
+        let mut anchored = false;
+        if code[word_position].operation == VM_BEGIN {
+            anchored = true;
+            word_position += 1;
+        }
+        if code[word_position].operation == VM_WORD
+            && code[word_position + 1].operation == VM_SPLIT
+            && code[word_position + 1].target == word_position
+            && code[word_position + 1].alternate == word_position + 2
+        {
+            let mut close_position = word_position + 2;
+            let mut asserted = false;
+            if code[close_position].operation == VM_WORD_END
+                || code[close_position].operation == VM_ASSERT_LITERAL
+            {
+                asserted = true;
+                close_position += 1;
+            }
+            if (anchored || asserted)
+                && code.len() == close_position + 6
+                && code[close_position].operation == VM_CLOSE
+                && code[close_position].group == 1
+                && code[close_position + 1].operation == VM_SPLIT
+                && code[close_position + 1].target == close_position + 2
+                && code[close_position + 1].alternate == close_position + 4
+                && code[close_position + 2].operation == VM_ANY
+                && code[close_position + 3].operation == VM_JUMP
+                && code[close_position + 3].target == close_position + 1
+                && code[close_position + 4].operation == VM_BACKREF
+                && code[close_position + 4].group == 1
+                && code[close_position + 5].operation == VM_ACCEPT
+            {
+                return true;
+            }
+        }
     }
     if code.len() == 8
         && code[0].operation == VM_LITERAL
@@ -3905,6 +3963,26 @@ fn run_capture_program(
                 } else if step.operation == VM_END {
                     matched = subject_position == haystack.len()
                         || (line_anchors && haystack[subject_position] == '\n');
+                    instruction += 1;
+                } else if step.operation == VM_WORD_END {
+                    let mut before = false;
+                    let mut after = false;
+                    if subject_position > 0 {
+                        before = zero_width_word(haystack[subject_position - 1]);
+                    }
+                    if subject_position < haystack.len() {
+                        after = zero_width_word(haystack[subject_position]);
+                    }
+                    matched = before && after == false;
+                    instruction += 1;
+                } else if step.operation == VM_ASSERT_LITERAL {
+                    matched = subject_position < haystack.len();
+                    if matched {
+                        let actual = haystack[subject_position];
+                        matched = actual == step.atom
+                            || (case_sensitive == false
+                                && actual.to_ascii_lowercase() == step.atom.to_ascii_lowercase());
+                    }
                     instruction += 1;
                 } else if step.operation == VM_SPLIT {
                     let skipped = CaptureWorkState {
