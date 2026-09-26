@@ -11,6 +11,7 @@ const VM_BEGIN: usize = 8;
 const VM_END: usize = 9;
 const VM_ACCEPT: usize = 10;
 const VM_JUMP: usize = 11;
+const VM_CLASS: usize = 12;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct MatchSpan {
@@ -175,6 +176,7 @@ struct CaptureProgram {
     valid: bool,
     instructions: Vec<CaptureInstruction>,
     noncapturing: usize,
+    atoms: Vec<char>,
 }
 
 #[derive(Clone, Copy)]
@@ -2009,6 +2011,31 @@ fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
             if atom == '.' {
                 operation = VM_ANY;
                 position += 1;
+            } else if atom == '[' {
+                operation = VM_CLASS;
+                reference = position;
+                position += 1;
+                while position < source.len() && source[position] != ']' {
+                    if source[position] == '[' || source[position] == '\\' {
+                        valid = false;
+                        break;
+                    }
+                    position += 1;
+                }
+                if position == source.len() || position == reference + 1 {
+                    valid = false;
+                } else {
+                    position += 1;
+                    let mut member_atoms: Vec<char> = Vec::new();
+                    let mut member_position = reference;
+                    while member_position < position {
+                        member_atoms.push(source[member_position]);
+                        member_position += 1;
+                    }
+                    if supports_atoms(member_atoms) == false {
+                        valid = false;
+                    };
+                };
             } else if atom == '\\' && source.len() - position >= 2 {
                 let escaped = source[position + 1];
                 if escaped == 'w' {
@@ -2059,6 +2086,7 @@ fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
         valid,
         instructions,
         noncapturing,
+        atoms: source,
     }
 }
 
@@ -2102,6 +2130,25 @@ pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
             && code[7].operation == VM_CLOSE
             && code[7].group == 3
             && code[8].operation == VM_ACCEPT;
+    }
+    if code.len() == 10 {
+        return code[0].operation == VM_LITERAL
+            && code[1].operation == VM_OPEN
+            && code[1].group == 1
+            && code[2].operation == VM_LITERAL
+            && code[3].operation == VM_ANY
+            && code[4].operation == VM_SPLIT
+            && code[4].target == 5
+            && code[4].alternate == 7
+            && code[5].operation == VM_CLASS
+            && code[6].operation == VM_JUMP
+            && code[6].target == 4
+            && code[7].operation == VM_CLOSE
+            && code[7].group == 1
+            && code[8].operation == VM_SPLIT
+            && code[8].target == 1
+            && code[8].alternate == 9
+            && code[9].operation == VM_ACCEPT;
     }
     if code.len() != 12 {
         return false;
@@ -2301,6 +2348,39 @@ pub fn find_capture_program(
                                 subject_position += width;
                                 instruction += 1;
                             }
+                        };
+                    };
+                } else if step.operation == VM_CLASS {
+                    if subject_position == haystack.len() {
+                        matched = false;
+                    } else {
+                        let mut member: Vec<char> = Vec::new();
+                        let mut class_position = step.group;
+                        while class_position < program.atoms.len() {
+                            let class_atom = program.atoms[class_position];
+                            member.push(class_atom);
+                            class_position += 1;
+                            if class_atom == ']' {
+                                break;
+                            };
+                        }
+                        let found_member = search_atoms(
+                            member,
+                            subject,
+                            subject_position,
+                            case_sensitive,
+                            dot_crosses_newline,
+                            line_anchors,
+                        );
+                        if found_member.kind == 2 {
+                            return MatchOutcome::Uncertain;
+                        }
+                        matched = found_member.kind == 0
+                            && found_member.start == subject_position
+                            && found_member.end == subject_position + 1;
+                        if matched {
+                            subject_position += 1;
+                            instruction += 1;
                         };
                     };
                 } else {
