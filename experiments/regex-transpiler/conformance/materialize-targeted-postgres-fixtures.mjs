@@ -984,6 +984,12 @@ for (const [pattern, subject, caseSensitive, newline] of [
   ['(\\w+)x\\1', 'zabxab', true, 'ordinary'],
   ['(.+)x\\1', 'zabxab', true, 'ordinary'],
   ['(.+)x\\1', 'z\nax\na', true, 'sensitive'],
+  ['a(b*)c\\1', 'zac', true, 'ordinary'],
+  ['a(b*)c\\1', 'zabbcbb', true, 'ordinary'],
+  ['a(b*)c\\1', 'zabbcb', true, 'ordinary'],
+  ['a([ab]*)c\\1', 'zac', true, 'ordinary'],
+  ['a([ab]*)c\\1', 'zabcab', true, 'ordinary'],
+  ['a(b*)c\\1x', 'zacx', true, 'ordinary'],
 ]) {
   inputs.push({
     pattern,

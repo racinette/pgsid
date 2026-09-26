@@ -65,6 +65,7 @@ struct FixedBackrefResult {
 struct SingleCaptureResult {
     valid: bool,
     repeated: bool,
+    zero_allowed: bool,
     prefix: Vec<char>,
     atom: Vec<char>,
     between: Vec<char>,
@@ -1154,6 +1155,7 @@ fn single_capture_atoms(pattern: &str, expanded: bool) -> SingleCaptureResult {
     let mut position = 0;
     let mut valid = true;
     let mut repeated = false;
+    let mut zero_allowed = false;
     while position < source.len() && source[position] != '(' {
         if simple_literal_char(source[position]) == false {
             valid = false;
@@ -1209,13 +1211,17 @@ fn single_capture_atoms(pattern: &str, expanded: bool) -> SingleCaptureResult {
                     position += 2;
                 };
             };
+        } else if simple_literal_char(source[position]) {
+            atom.push(source[position]);
+            position += 1;
         } else {
             valid = false;
         };
     }
     if valid {
-        if position < source.len() && source[position] == '+' {
+        if position < source.len() && (source[position] == '+' || source[position] == '*') {
             repeated = true;
+            zero_allowed = source[position] == '*';
             position += 1;
         }
     }
@@ -1253,6 +1259,7 @@ fn single_capture_atoms(pattern: &str, expanded: bool) -> SingleCaptureResult {
     SingleCaptureResult {
         valid,
         repeated,
+        zero_allowed,
         prefix,
         atom,
         between,
@@ -3330,6 +3337,17 @@ pub fn find_single_capture_backref(
         return MatchOutcome::Uncertain;
     }
     if parsed.repeated {
+        if parsed.zero_allowed {
+            return find_star_capture_backref(
+                pattern,
+                subject,
+                from,
+                case_sensitive,
+                dot_crosses_newline,
+                line_anchors,
+                expanded,
+            );
+        }
         return find_repeated_capture_backref(
             pattern,
             subject,
@@ -3474,7 +3492,7 @@ pub fn find_single_capture_backref(
     MatchOutcome::NoMatch
 }
 
-fn find_repeated_capture_backref(
+fn search_repeated_capture_backref(
     pattern: &str,
     subject: &str,
     from: usize,
@@ -3482,20 +3500,32 @@ fn find_repeated_capture_backref(
     dot_crosses_newline: bool,
     line_anchors: bool,
     expanded: bool,
-) -> MatchOutcome {
+) -> SearchResult {
     let parsed = single_capture_atoms(pattern, expanded);
     if parsed.valid == false || parsed.repeated == false {
-        return MatchOutcome::Uncertain;
+        return SearchResult {
+            kind: 2,
+            start: 0,
+            end: 0,
+        };
     }
     let haystack: Vec<char> = subject.chars().collect();
     if from > haystack.len() || haystack.len() - from < parsed.prefix.len() {
-        return MatchOutcome::NoMatch;
+        return SearchResult {
+            kind: 1,
+            start: 0,
+            end: 0,
+        };
     }
     let mut search_from = from + parsed.prefix.len();
     let mut work = 0;
     while search_from < haystack.len() {
         if work == MAX_CAPTURE_WORK {
-            return MatchOutcome::Uncertain;
+            return SearchResult {
+                kind: 2,
+                start: 0,
+                end: 0,
+            };
         }
         work += 1;
         let mut atom: Vec<char> = Vec::new();
@@ -3513,13 +3543,21 @@ fn find_repeated_capture_backref(
             line_anchors,
         );
         if first.kind == 2 {
-            return MatchOutcome::Uncertain;
+            return SearchResult {
+                kind: 2,
+                start: 0,
+                end: 0,
+            };
         }
         if first.kind == 1 {
             break;
         }
         if first.end != first.start + 1 {
-            return MatchOutcome::Uncertain;
+            return SearchResult {
+                kind: 2,
+                start: 0,
+                end: 0,
+            };
         }
         let start = first.start - parsed.prefix.len();
         let mut prefix_matches = true;
@@ -3540,7 +3578,11 @@ fn find_repeated_capture_backref(
             let mut atom_matches = true;
             while atom_matches && capture_end < haystack.len() {
                 if work == MAX_CAPTURE_WORK {
-                    return MatchOutcome::Uncertain;
+                    return SearchResult {
+                        kind: 2,
+                        start: 0,
+                        end: 0,
+                    };
                 }
                 work += 1;
                 let mut member: Vec<char> = Vec::new();
@@ -3558,7 +3600,11 @@ fn find_repeated_capture_backref(
                     line_anchors,
                 );
                 if result.kind == 2 {
-                    return MatchOutcome::Uncertain;
+                    return SearchResult {
+                        kind: 2,
+                        start: 0,
+                        end: 0,
+                    };
                 }
                 atom_matches = result.kind == 0
                     && result.start == capture_end
@@ -3600,7 +3646,11 @@ fn find_repeated_capture_backref(
                 while matches && offset < state.capture_end - state.capture {
                     if position == haystack.len() || work == MAX_CAPTURE_WORK {
                         if work == MAX_CAPTURE_WORK {
-                            return MatchOutcome::Uncertain;
+                            return SearchResult {
+                                kind: 2,
+                                start: 0,
+                                end: 0,
+                            };
                         }
                         matches = false;
                         break;
@@ -3637,16 +3687,119 @@ fn find_repeated_capture_backref(
                     index += 1;
                 }
                 if matches {
-                    return MatchOutcome::Found(MatchSpan {
+                    return SearchResult {
+                        kind: 0,
                         start: state.start,
                         end: position,
-                    });
+                    };
                 }
             }
         }
         search_from = first.start + 1;
     }
-    MatchOutcome::NoMatch
+    SearchResult {
+        kind: 1,
+        start: 0,
+        end: 0,
+    }
+}
+
+fn find_repeated_capture_backref(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let result = search_repeated_capture_backref(
+        pattern,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        expanded,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
+}
+
+fn find_star_capture_backref(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = single_capture_atoms(pattern, expanded);
+    if parsed.valid == false || parsed.zero_allowed == false {
+        return MatchOutcome::Uncertain;
+    }
+    let mut empty: Vec<char> = Vec::new();
+    let mut index = 0;
+    while index < parsed.prefix.len() {
+        empty.push(parsed.prefix[index]);
+        index += 1;
+    }
+    index = 0;
+    while index < parsed.between.len() {
+        empty.push(parsed.between[index]);
+        index += 1;
+    }
+    index = 0;
+    while index < parsed.suffix.len() {
+        empty.push(parsed.suffix[index]);
+        index += 1;
+    }
+    let zero = search_atoms(
+        empty,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    );
+    let nonzero = search_repeated_capture_backref(
+        pattern,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        expanded,
+    );
+    if zero.kind == 2 || nonzero.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if zero.kind == 1 && nonzero.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    if nonzero.kind == 1
+        || (zero.kind == 0
+            && (zero.start < nonzero.start
+                || (zero.start == nonzero.start && zero.end >= nonzero.end)))
+    {
+        return MatchOutcome::Found(MatchSpan {
+            start: zero.start,
+            end: zero.end,
+        });
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: nonzero.start,
+        end: nonzero.end,
+    })
 }
 
 pub fn count_fixed_backref(
