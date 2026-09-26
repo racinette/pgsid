@@ -1,5 +1,5 @@
 const MAX_CAPTURE_WORK: usize = 2000000;
-const MAX_LOOKBEHIND_ATTEMPTS: usize = 4096;
+const MAX_ASSERTION_ATTEMPTS: usize = 4096;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct MatchSpan {
@@ -46,6 +46,13 @@ struct LookbehindResult {
     valid: bool,
     positive: bool,
     prefix: Vec<char>,
+    remainder: Vec<char>,
+}
+
+struct LookaheadResult {
+    valid: bool,
+    positive: bool,
+    assertion: Vec<char>,
     remainder: Vec<char>,
 }
 
@@ -796,6 +803,54 @@ pub fn supports_fixed_lookbehind(pattern: &str, expanded: bool) -> bool {
         return false;
     }
     supports_atoms(parsed.remainder)
+}
+
+fn leading_lookahead_atoms(pattern: &str, expanded: bool) -> LookaheadResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut assertion: Vec<char> = Vec::new();
+    let mut remainder: Vec<char> = Vec::new();
+    let mut valid = source.len() >= 4;
+    let mut positive = true;
+    if valid {
+        valid = source[0] == '(' && source[1] == '?' && (source[2] == '=' || source[2] == '!');
+        positive = source[2] == '=';
+    }
+    let mut position = 3;
+    if valid {
+        while position < source.len() && source[position] != ')' {
+            let atom = source[position];
+            if atom == '\\' || atom == '[' || atom == '(' {
+                valid = false;
+                break;
+            }
+            assertion.push(atom);
+            position += 1;
+        }
+        if position == source.len() {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 1;
+        while position < source.len() {
+            remainder.push(source[position]);
+            position += 1;
+        }
+    }
+    LookaheadResult {
+        valid,
+        positive,
+        assertion,
+        remainder,
+    }
+}
+
+pub fn supports_leading_lookahead(pattern: &str, expanded: bool) -> bool {
+    let parsed = leading_lookahead_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    supports_atoms(parsed.assertion) && supports_atoms(parsed.remainder)
 }
 
 fn search_atoms(
@@ -1869,7 +1924,7 @@ fn search_fixed_lookbehind(
     let mut cursor = from;
     let mut attempts = 0;
     while cursor <= haystack.len() {
-        if attempts == MAX_LOOKBEHIND_ATTEMPTS {
+        if attempts == MAX_ASSERTION_ATTEMPTS {
             return SearchResult {
                 kind: 2,
                 start: 0,
@@ -1968,6 +2023,141 @@ pub fn count_fixed_lookbehind(
     let mut count = 0;
     while position <= characters.len() {
         let result = search_fixed_lookbehind(
+            pattern,
+            subject,
+            position,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+            expanded,
+        );
+        if result.kind == 2 {
+            return CountOutcome::Uncertain;
+        }
+        if result.kind == 1 {
+            break;
+        }
+        if count == MAX_CAPTURE_WORK {
+            return CountOutcome::Uncertain;
+        }
+        count += 1;
+        if result.start == result.end {
+            position = result.end + 1;
+        } else {
+            position = result.end;
+        };
+    }
+    CountOutcome::Count(count)
+}
+
+fn search_leading_lookahead(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> SearchResult {
+    let haystack: Vec<char> = subject.chars().collect();
+    let mut cursor = from;
+    let mut attempts = 0;
+    while cursor <= haystack.len() {
+        if attempts == MAX_ASSERTION_ATTEMPTS {
+            return SearchResult {
+                kind: 2,
+                start: 0,
+                end: 0,
+            };
+        }
+        attempts += 1;
+        let parsed = leading_lookahead_atoms(pattern, expanded);
+        if parsed.valid == false {
+            return SearchResult {
+                kind: 2,
+                start: 0,
+                end: 0,
+            };
+        }
+        let result = search_atoms(
+            parsed.remainder,
+            subject,
+            cursor,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+        );
+        if result.kind != 0 {
+            return result;
+        }
+        let assertion = search_atoms(
+            parsed.assertion,
+            subject,
+            result.start,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+        );
+        if assertion.kind == 2 {
+            return assertion;
+        }
+        let holds = assertion.kind == 0 && assertion.start == result.start;
+        if holds == parsed.positive {
+            return result;
+        }
+        cursor = result.start + 1;
+    }
+    SearchResult {
+        kind: 1,
+        start: 0,
+        end: 0,
+    }
+}
+
+pub fn find_leading_lookahead(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let result = search_leading_lookahead(
+        pattern,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        expanded,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
+}
+
+pub fn count_leading_lookahead(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> CountOutcome {
+    let characters: Vec<char> = subject.chars().collect();
+    let mut position = from;
+    let mut count = 0;
+    while position <= characters.len() {
+        let result = search_leading_lookahead(
             pattern,
             subject,
             position,
