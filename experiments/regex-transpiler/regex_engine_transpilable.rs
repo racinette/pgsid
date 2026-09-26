@@ -1,5 +1,15 @@
 const MAX_CAPTURE_WORK: usize = 2000000;
 const MAX_ASSERTION_ATTEMPTS: usize = 4096;
+const VM_LITERAL: usize = 1;
+const VM_ANY: usize = 2;
+const VM_WORD: usize = 3;
+const VM_OPEN: usize = 4;
+const VM_CLOSE: usize = 5;
+const VM_BACKREF: usize = 6;
+const VM_SPLIT: usize = 7;
+const VM_BEGIN: usize = 8;
+const VM_END: usize = 9;
+const VM_ACCEPT: usize = 10;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct MatchSpan {
@@ -149,6 +159,42 @@ struct TwoCaptureResult {
 struct PatternWorkState {
     pattern: usize,
     subject: usize,
+}
+
+#[derive(Clone, Copy)]
+struct CaptureInstruction {
+    operation: usize,
+    target: usize,
+    alternate: usize,
+    group: usize,
+    atom: char,
+}
+
+struct CaptureProgram {
+    valid: bool,
+    instructions: Vec<CaptureInstruction>,
+}
+
+#[derive(Clone, Copy)]
+struct CaptureFrame {
+    group: usize,
+    start: usize,
+}
+
+#[derive(Clone, Copy)]
+struct CaptureEvent {
+    group: usize,
+    start: usize,
+    end: usize,
+    previous: usize,
+    closed: bool,
+}
+
+#[derive(Clone, Copy)]
+struct CaptureWorkState {
+    instruction: usize,
+    subject: usize,
+    capture: usize,
 }
 
 struct TwoChoiceResult {
@@ -1795,9 +1841,6 @@ pub fn find_chained_assertions(
                         positive = source[pattern_position + 3] == '=';
                         expected = source[pattern_position + 4];
                         width = 6;
-                    } else {
-                        positive = source[pattern_position + 2] == '=';
-                        expected = source[pattern_position + 3];
                     };
                     let mut holds = false;
                     if lookbehind && subject_position > 0 {
@@ -1861,6 +1904,340 @@ pub fn find_chained_assertions(
             if matched && (found == false || subject_position > best_end) {
                 found = true;
                 best_end = subject_position;
+            }
+        }
+        if found {
+            return MatchOutcome::Found(MatchSpan {
+                start,
+                end: best_end,
+            });
+        }
+        start += 1;
+    }
+    MatchOutcome::NoMatch
+}
+
+fn make_capture_step(
+    operation: usize,
+    target: usize,
+    alternate: usize,
+    group: usize,
+    atom: char,
+) -> CaptureInstruction {
+    CaptureInstruction {
+        operation,
+        target,
+        alternate,
+        group,
+        atom,
+    }
+}
+
+fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
+    let source = pattern_atoms(pattern, expanded);
+    let mut instructions: Vec<CaptureInstruction> = Vec::new();
+    let mut frames: Vec<CaptureFrame> = Vec::new();
+    let mut frame_count = 0;
+    let mut groups = 0;
+    let mut closed_groups = 0;
+    let mut valid = true;
+    let mut position = 0;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '^' && position == 0 {
+            instructions.push(make_capture_step(VM_BEGIN, 0, 0, 0, ' '));
+            position += 1;
+        } else if atom == '$' && position + 1 == source.len() {
+            instructions.push(make_capture_step(VM_END, 0, 0, 0, ' '));
+            position += 1;
+        } else if atom == '(' {
+            groups += 1;
+            if groups > 2 {
+                valid = false;
+                break;
+            }
+            let frame = CaptureFrame {
+                group: groups,
+                start: instructions.len(),
+            };
+            if frame_count == frames.len() {
+                frames.push(frame);
+            } else {
+                frames[frame_count] = frame;
+            }
+            frame_count += 1;
+            instructions.push(make_capture_step(VM_OPEN, 0, 0, groups, ' '));
+            position += 1;
+        } else if atom == ')' {
+            if frame_count == 0 {
+                valid = false;
+                break;
+            }
+            frame_count = frame_count - 1;
+            let frame = frames[frame_count];
+            closed_groups = frame.group;
+            instructions.push(make_capture_step(VM_CLOSE, 0, 0, frame.group, ' '));
+            position += 1;
+            if position < source.len() && source[position] == '+' {
+                let next = instructions.len() + 1;
+                instructions.push(make_capture_step(VM_SPLIT, frame.start, next, 0, ' '));
+                position += 1;
+            }
+        } else {
+            let mut operation = 0;
+            let mut member = ' ';
+            let mut reference = 0;
+            if atom == '.' {
+                operation = VM_ANY;
+                position += 1;
+            } else if atom == '\\' && source.len() - position >= 2 {
+                let escaped = source[position + 1];
+                if escaped == 'w' {
+                    operation = VM_WORD;
+                } else if (escaped as u32) >= 49 && (escaped as u32) <= 57 {
+                    operation = VM_BACKREF;
+                    reference = ((escaped as u32) - 48) as usize;
+                    if reference > closed_groups {
+                        valid = false;
+                    }
+                } else {
+                    valid = false;
+                }
+                position += 2;
+            } else if simple_literal_char(atom) {
+                operation = VM_LITERAL;
+                member = atom;
+                position += 1;
+            } else {
+                valid = false;
+            }
+            if valid == false {
+                break;
+            }
+            let first = instructions.len();
+            instructions.push(make_capture_step(operation, 0, 0, reference, member));
+            if position < source.len() && source[position] == '+' {
+                let next = instructions.len() + 1;
+                instructions.push(make_capture_step(VM_SPLIT, first, next, 0, ' '));
+                position += 1;
+            }
+        };
+    }
+    if frame_count != 0 {
+        valid = false;
+    }
+    if valid {
+        instructions.push(make_capture_step(VM_ACCEPT, 0, 0, 0, ' '));
+    }
+    CaptureProgram {
+        valid,
+        instructions,
+    }
+}
+
+pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
+    let program = compile_capture_program(pattern, expanded);
+    if program.valid == false || program.instructions.len() != 12 {
+        return false;
+    }
+    let code = program.instructions;
+    code[0].operation == VM_BEGIN
+        && code[1].operation == VM_OPEN
+        && code[1].group == 1
+        && (code[2].operation == VM_WORD || code[2].operation == VM_ANY)
+        && code[3].operation == VM_SPLIT
+        && code[3].target == 2
+        && code[3].alternate == 4
+        && code[4].operation == VM_CLOSE
+        && code[4].group == 1
+        && code[5].operation == VM_OPEN
+        && code[5].group == 2
+        && code[6].operation == VM_LITERAL
+        && code[7].operation == VM_BACKREF
+        && code[7].group == 1
+        && code[8].operation == VM_CLOSE
+        && code[8].group == 2
+        && code[9].operation == VM_SPLIT
+        && code[9].target == 5
+        && code[9].alternate == 10
+        && code[10].operation == VM_END
+        && code[11].operation == VM_ACCEPT
+}
+
+pub fn find_capture_program(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    if supports_capture_program(pattern, expanded) == false {
+        return MatchOutcome::Uncertain;
+    }
+    let program = compile_capture_program(pattern, expanded);
+    let haystack: Vec<char> = subject.chars().collect();
+    if from > haystack.len() {
+        return MatchOutcome::NoMatch;
+    }
+    let mut work = 0;
+    let mut start = from;
+    while start <= haystack.len() {
+        let mut captures: Vec<CaptureEvent> = Vec::new();
+        captures.push(CaptureEvent {
+            group: 0,
+            start: 0,
+            end: 0,
+            previous: 0,
+            closed: false,
+        });
+        let mut stack: Vec<CaptureWorkState> = Vec::new();
+        stack.push(CaptureWorkState {
+            instruction: 0,
+            subject: start,
+            capture: 0,
+        });
+        let mut stack_len = 1;
+        let mut found = false;
+        let mut best_end = start;
+        while stack_len > 0 {
+            stack_len = stack_len - 1;
+            let state = stack[stack_len];
+            let mut instruction = state.instruction;
+            let mut subject_position = state.subject;
+            let mut capture = state.capture;
+            let mut matched = true;
+            while matched {
+                if work == MAX_CAPTURE_WORK {
+                    return MatchOutcome::Uncertain;
+                }
+                work += 1;
+                let step = program.instructions[instruction];
+                if step.operation == VM_ACCEPT {
+                    if found == false || subject_position > best_end {
+                        found = true;
+                        best_end = subject_position;
+                    }
+                    break;
+                } else if step.operation == VM_BEGIN {
+                    matched = subject_position == 0
+                        || (line_anchors && haystack[subject_position - 1] == '\n');
+                    instruction += 1;
+                } else if step.operation == VM_END {
+                    matched = subject_position == haystack.len()
+                        || (line_anchors && haystack[subject_position] == '\n');
+                    instruction += 1;
+                } else if step.operation == VM_SPLIT {
+                    let skipped = CaptureWorkState {
+                        instruction: step.alternate,
+                        subject: subject_position,
+                        capture: capture,
+                    };
+                    if stack_len == stack.len() {
+                        stack.push(skipped);
+                    } else {
+                        stack[stack_len] = skipped;
+                    }
+                    stack_len += 1;
+                    instruction = step.target;
+                } else if step.operation == VM_OPEN {
+                    captures.push(CaptureEvent {
+                        group: step.group,
+                        start: subject_position,
+                        end: subject_position,
+                        previous: capture,
+                        closed: false,
+                    });
+                    capture = captures.len() - 1;
+                    instruction += 1;
+                } else if step.operation == VM_CLOSE || step.operation == VM_BACKREF {
+                    let mut event_index = capture;
+                    let mut located = false;
+                    let mut capture_start = 0;
+                    let mut capture_end = 0;
+                    while event_index > 0 {
+                        if work == MAX_CAPTURE_WORK {
+                            return MatchOutcome::Uncertain;
+                        }
+                        work += 1;
+                        let event = captures[event_index];
+                        if event.group == step.group
+                            && ((step.operation == VM_CLOSE && event.closed == false)
+                                || (step.operation == VM_BACKREF && event.closed))
+                        {
+                            located = true;
+                            capture_start = event.start;
+                            capture_end = event.end;
+                            break;
+                        }
+                        event_index = event.previous;
+                    }
+                    if located == false {
+                        matched = false;
+                    } else if step.operation == VM_CLOSE {
+                        captures.push(CaptureEvent {
+                            group: step.group,
+                            start: capture_start,
+                            end: subject_position,
+                            previous: capture,
+                            closed: true,
+                        });
+                        capture = captures.len() - 1;
+                        instruction += 1;
+                    } else {
+                        let width = capture_end - capture_start;
+                        if width > haystack.len() - subject_position {
+                            matched = false;
+                        } else {
+                            let mut offset = 0;
+                            while offset < width {
+                                if work == MAX_CAPTURE_WORK {
+                                    return MatchOutcome::Uncertain;
+                                }
+                                work += 1;
+                                let actual = haystack[subject_position + offset];
+                                let expected = haystack[capture_start + offset];
+                                if actual != expected
+                                    && (case_sensitive
+                                        || actual.to_ascii_lowercase()
+                                            != expected.to_ascii_lowercase())
+                                {
+                                    matched = false;
+                                    break;
+                                }
+                                offset += 1;
+                            }
+                            if matched {
+                                subject_position += width;
+                                instruction += 1;
+                            }
+                        };
+                    };
+                } else {
+                    if subject_position == haystack.len() {
+                        matched = false;
+                    } else {
+                        let actual = haystack[subject_position];
+                        let codepoint = actual as u32;
+                        let lowercase = actual.to_ascii_lowercase() as u32;
+                        let word = (codepoint >= 48 && codepoint <= 57)
+                            || (lowercase >= 97 && lowercase <= 122)
+                            || actual == '_';
+                        matched = (step.operation == VM_ANY
+                            && (dot_crosses_newline || actual != '\n'))
+                            || (step.operation == VM_WORD && word)
+                            || (step.operation == VM_LITERAL
+                                && (actual == step.atom
+                                    || (case_sensitive == false
+                                        && actual.to_ascii_lowercase()
+                                            == step.atom.to_ascii_lowercase())));
+                        if matched {
+                            subject_position += 1;
+                            instruction += 1;
+                        }
+                    };
+                };
             }
         }
         if found {
