@@ -82,8 +82,9 @@ fn expr(expr: &Expr) -> Result {
         Expr::Paren(node) if node.attrs.is_empty() => self::expr(&node.expr),
         Expr::Group(node) if node.attrs.is_empty() => self::expr(&node.expr),
         Expr::Cast(node) if node.attrs.is_empty() => {
-            if !matches!(&*node.ty, Type::Path(target) if target.path.is_ident("u32")) {
-                return Err("only casts to u32 are in the syntax subset".into());
+            if !matches!(&*node.ty, Type::Path(target) if target.path.is_ident("u32") || target.path.is_ident("usize"))
+            {
+                return Err("cast target is outside the syntax subset".into());
             }
             self::expr(&node.expr)
         }
@@ -385,7 +386,7 @@ mod tests {
             "enum Empty {}",
             "#[allow(dead_code)] const X: usize = 1;",
             "pub fn f() -> usize { let x = 1; unsafe { x } }",
-            "pub fn f(value: char) -> usize { value as usize }",
+            "pub fn f(value: char) -> i32 { value as i32 }",
             "pub fn f(value: bool) -> usize { if value { 1 } else { 2 } }",
             "pub fn f(value: bool) -> usize { let result = if value { 1 } else { 2 }; result }",
         ] {

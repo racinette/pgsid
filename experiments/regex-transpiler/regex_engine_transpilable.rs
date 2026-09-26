@@ -239,7 +239,66 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
                 if atoms.len() - position > 1 && atoms[position + 1] == '?' {
                     position += 1;
                 }
-            }
+            } else if next == '{'
+                && atoms.len() - position > 2
+                && (atoms[position + 2] as u32) >= 48
+                && (atoms[position + 2] as u32) <= 57
+            {
+                let mut bound_position = position + 2;
+                let mut lower = 0;
+                while bound_position < atoms.len()
+                    && (atoms[bound_position] as u32) >= 48
+                    && (atoms[bound_position] as u32) <= 57
+                {
+                    if lower > 25 {
+                        return false;
+                    }
+                    let digit = ((atoms[bound_position] as u32) - 48) as usize;
+                    let double = lower + lower;
+                    let four = double + double;
+                    let eight = four + four;
+                    lower = eight + double + digit;
+                    if lower > 255 {
+                        return false;
+                    }
+                    bound_position += 1;
+                }
+                let mut upper = lower;
+                if bound_position < atoms.len() && atoms[bound_position] == ',' {
+                    bound_position += 1;
+                    upper = MAX_CAPTURE_WORK;
+                    if bound_position < atoms.len()
+                        && (atoms[bound_position] as u32) >= 48
+                        && (atoms[bound_position] as u32) <= 57
+                    {
+                        upper = 0;
+                        while bound_position < atoms.len()
+                            && (atoms[bound_position] as u32) >= 48
+                            && (atoms[bound_position] as u32) <= 57
+                        {
+                            if upper > 25 {
+                                return false;
+                            }
+                            let digit = ((atoms[bound_position] as u32) - 48) as usize;
+                            let double = upper + upper;
+                            let four = double + double;
+                            let eight = four + four;
+                            upper = eight + double + digit;
+                            if upper > 255 {
+                                return false;
+                            }
+                            bound_position += 1;
+                        }
+                    }
+                }
+                if upper < lower || bound_position == atoms.len() || atoms[bound_position] != '}' {
+                    return false;
+                }
+                position = bound_position;
+                if atoms.len() - position > 1 && atoms[position + 1] == '?' {
+                    position += 1;
+                }
+            };
         }
         position += 1;
     }
@@ -423,7 +482,74 @@ pub fn find_simple_advanced(
                     preference_known = true;
                     shortest = lazy;
                 }
-            }
+            } else if next == '{'
+                && atoms.len() - position > 2
+                && (atoms[position + 2] as u32) >= 48
+                && (atoms[position + 2] as u32) <= 57
+            {
+                let mut bound_position = position + 2;
+                let mut lower = 0;
+                while bound_position < atoms.len()
+                    && (atoms[bound_position] as u32) >= 48
+                    && (atoms[bound_position] as u32) <= 57
+                {
+                    if lower > 25 {
+                        return MatchOutcome::Uncertain;
+                    }
+                    let digit = ((atoms[bound_position] as u32) - 48) as usize;
+                    let double = lower + lower;
+                    let four = double + double;
+                    let eight = four + four;
+                    lower = eight + double + digit;
+                    if lower > 255 {
+                        return MatchOutcome::Uncertain;
+                    }
+                    bound_position += 1;
+                }
+                let mut upper = lower;
+                let mut fixed = true;
+                if bound_position < atoms.len() && atoms[bound_position] == ',' {
+                    fixed = false;
+                    bound_position += 1;
+                    upper = MAX_CAPTURE_WORK;
+                    if bound_position < atoms.len()
+                        && (atoms[bound_position] as u32) >= 48
+                        && (atoms[bound_position] as u32) <= 57
+                    {
+                        upper = 0;
+                        while bound_position < atoms.len()
+                            && (atoms[bound_position] as u32) >= 48
+                            && (atoms[bound_position] as u32) <= 57
+                        {
+                            if upper > 25 {
+                                return MatchOutcome::Uncertain;
+                            }
+                            let digit = ((atoms[bound_position] as u32) - 48) as usize;
+                            let double = upper + upper;
+                            let four = double + double;
+                            let eight = four + four;
+                            upper = eight + double + digit;
+                            if upper > 255 {
+                                return MatchOutcome::Uncertain;
+                            }
+                            bound_position += 1;
+                        }
+                    }
+                }
+                if upper < lower || bound_position == atoms.len() || atoms[bound_position] != '}' {
+                    return MatchOutcome::Uncertain;
+                }
+                position = bound_position;
+                let mut lazy = false;
+                if atoms.len() - position > 1 && atoms[position + 1] == '?' {
+                    lazy = true;
+                    position += 1;
+                }
+                if fixed == false && preference_known == false {
+                    preference_known = true;
+                    shortest = lazy;
+                }
+            };
         }
         position += 1;
     }
@@ -642,6 +768,8 @@ pub fn find_simple_advanced(
                     }
                 }
                 let mut repetition = ' ';
+                let mut minimum = 0;
+                let mut maximum = 0;
                 if atom_end < atoms.len() {
                     let next = atoms[atom_end];
                     if next == '*' || next == '+' || next == '?' {
@@ -650,9 +778,46 @@ pub fn find_simple_advanced(
                         if atom_end < atoms.len() && atoms[atom_end] == '?' {
                             atom_end += 1;
                         }
-                    }
+                    } else if next == '{' {
+                        repetition = next;
+                        atom_end += 1;
+                        while (atoms[atom_end] as u32) >= 48 && (atoms[atom_end] as u32) <= 57 {
+                            let digit = ((atoms[atom_end] as u32) - 48) as usize;
+                            let double = minimum + minimum;
+                            let four = double + double;
+                            let eight = four + four;
+                            minimum = eight + double + digit;
+                            atom_end += 1;
+                        }
+                        maximum = minimum;
+                        if atoms[atom_end] == ',' {
+                            atom_end += 1;
+                            maximum = MAX_CAPTURE_WORK;
+                            if atoms[atom_end] != '}' {
+                                maximum = 0;
+                                while (atoms[atom_end] as u32) >= 48
+                                    && (atoms[atom_end] as u32) <= 57
+                                {
+                                    let digit = ((atoms[atom_end] as u32) - 48) as usize;
+                                    let double = maximum + maximum;
+                                    let four = double + double;
+                                    let eight = four + four;
+                                    maximum = eight + double + digit;
+                                    atom_end += 1;
+                                }
+                            }
+                        }
+                        atom_end += 1;
+                        if atom_end < atoms.len() && atoms[atom_end] == '?' {
+                            atom_end += 1;
+                        }
+                    };
                 }
-                if repetition == '*' || repetition == '?' || (repetition == '+' && repeated == 1) {
+                if repetition == '*'
+                    || repetition == '?'
+                    || (repetition == '+' && repeated == 1)
+                    || (repetition == '{' && repeated >= minimum)
+                {
                     queue.push(atom_end);
                     queue.push(subject_position);
                     queue.push(0);
@@ -662,6 +827,12 @@ pub fn find_simple_advanced(
                         queue.push(atom_position);
                         queue.push(subject_position + consumed);
                         queue.push(1);
+                    } else if repetition == '{' {
+                        if repeated < maximum {
+                            queue.push(atom_position);
+                            queue.push(subject_position + consumed);
+                            queue.push(repeated + 1);
+                        }
                     } else {
                         queue.push(atom_end);
                         queue.push(subject_position + consumed);

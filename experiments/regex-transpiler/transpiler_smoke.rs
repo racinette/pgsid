@@ -74,6 +74,14 @@ pub fn char_codepoint(value: char) -> u32 {
     value as u32
 }
 
+pub fn index_from_codepoint(value: char) -> usize {
+    (value as u32) as usize
+}
+
+pub fn index_from_u32(value: u32) -> usize {
+    value as usize
+}
+
 pub fn choose_position(value: usize, limit: usize) -> usize {
     let mut selected = 0;
     if value < limit {
