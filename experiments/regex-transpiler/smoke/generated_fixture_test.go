@@ -43,6 +43,7 @@ type fixtureDocument struct {
 
 func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 	literal := 0
+	quotedLiteral := 0
 	insensitive := 0
 	advanced := 0
 	grouped := 0
@@ -212,7 +213,10 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				from = input.Start - 1
 			}
 			var actual MatchOutcome
-			if input.Options.Syntax == "literal" && !input.Options.Expanded && input.Options.Newline == "ordinary" {
+			if (input.Options.Syntax == "advanced" || input.Options.Syntax == "basic") && SupportsQuotedLiteral(input.Pattern) {
+				actual = FindQuotedLiteral(input.Pattern, input.Subject, from, input.Options.CaseSensitive)
+				quotedLiteral++
+			} else if input.Options.Syntax == "literal" && !input.Options.Expanded && input.Options.Newline == "ordinary" {
 				actual = FindLiteral(input.Pattern, input.Subject, from, input.Options.CaseSensitive)
 				literal++
 				if !input.Options.CaseSensitive {
@@ -457,7 +461,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			t.Errorf("targeted fixtures checked %d of %d", checked, len(document.Fixtures))
 		}
 	}
-	if literal < 40 || insensitive < 7 || advanced < 100 || grouped < 20 || groupChoice < 20 || optionalGroup < 50 || multiOptionalGroup < 4 || lookbehind < 20 || lookahead < 20 || backref < 20 || singleCapture < 50 || repeatedBackref < 8 || captureProgram < 12 || choiceCapture < 10 || twoCapture < 30 || inline < 20 || middleLookahead < 20 || chainedAssertions < 4 || boundedGroup < 20 || extended < 50 || extendedLiteralClose < 10 || extendedGroup < 20 || repeatedChoice < 20 || extendedEscape < 20 || numericLiteral < 10 || basic < 50 || basicPunctuation < 20 || basicEscape < 20 || basicBound < 20 || basicBackref < 20 || bracketWord < 10 || collatingBracket < 10 || basicTransparentGroup < 4 || invalidGrouping < 40 || invalidRepeat < 20 || invalidBound < 20 || invalidPosixClass < 20 || invalidRange < 10 || invalidNumeric < 5 || invalidBackreference < 10 || dot < 20 || mixed < 50 || anchored < 20 || escaped < 40 || classes < 50 || negatedClasses < 40 || rangeClasses < 50 || edgePunctuation < 80 || absoluteAnchors < 50 || positioned < 6 || len(newlineModes) != 4 {
+	if literal < 40 || quotedLiteral < 2 || insensitive < 7 || advanced < 100 || grouped < 20 || groupChoice < 20 || optionalGroup < 50 || multiOptionalGroup < 4 || lookbehind < 20 || lookahead < 20 || backref < 20 || singleCapture < 50 || repeatedBackref < 8 || captureProgram < 12 || choiceCapture < 10 || twoCapture < 30 || inline < 20 || middleLookahead < 20 || chainedAssertions < 4 || boundedGroup < 20 || extended < 50 || extendedLiteralClose < 10 || extendedGroup < 20 || repeatedChoice < 20 || extendedEscape < 20 || numericLiteral < 10 || basic < 50 || basicPunctuation < 20 || basicEscape < 20 || basicBound < 20 || basicBackref < 20 || bracketWord < 10 || collatingBracket < 10 || basicTransparentGroup < 4 || invalidGrouping < 40 || invalidRepeat < 20 || invalidBound < 20 || invalidPosixClass < 20 || invalidRange < 10 || invalidNumeric < 5 || invalidBackreference < 10 || dot < 20 || mixed < 50 || anchored < 20 || escaped < 40 || classes < 50 || negatedClasses < 40 || rangeClasses < 50 || edgePunctuation < 80 || absoluteAnchors < 50 || positioned < 6 || len(newlineModes) != 4 {
 		t.Fatalf("fixture coverage: literal=%d insensitive=%d advanced=%d dot=%d mixed=%d anchored=%d escaped=%d classes=%d negatedClasses=%d rangeClasses=%d edgePunctuation=%d absoluteAnchors=%d positioned=%d newline=%v", literal, insensitive, advanced, dot, mixed, anchored, escaped, classes, negatedClasses, rangeClasses, edgePunctuation, absoluteAnchors, positioned, newlineModes)
 	}
 	if countSupported != 180 || expandedAdvanced < 200 {
