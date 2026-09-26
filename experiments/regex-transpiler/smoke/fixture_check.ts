@@ -17,6 +17,7 @@ const coverage = {
   advanced: 0,
   expandedAdvanced: 0,
   extended: 0,
+  basic: 0,
   unsupportedAdvanced: 0,
   otherOptions: 0,
   dot: 0,
@@ -129,6 +130,22 @@ for (const fixturePath of fixturePaths) {
         options.expanded,
       )
       coverage.extended++
+    } else if (
+      options.syntax === 'basic' &&
+      generated.supportsBasicCompatible(pattern, options.expanded)
+    ) {
+      const crossesNewline = options.newline === 'ordinary' || options.newline === 'anchors'
+      const lineAnchors = options.newline === 'sensitive' || options.newline === 'anchors'
+      actual = generated.findBasicCompatible(
+        pattern,
+        subject,
+        from,
+        options.caseSensitive,
+        crossesNewline,
+        lineAnchors,
+        options.expanded,
+      )
+      coverage.basic++
     } else {
       if (options.syntax === 'advanced') coverage.unsupportedAdvanced++
       else coverage.otherOptions++
@@ -152,6 +169,7 @@ assert.ok(coverage.insensitive >= 7)
 assert.ok(coverage.advanced >= 100)
 assert.ok(coverage.expandedAdvanced >= 200)
 assert.ok(coverage.extended >= 50)
+assert.ok(coverage.basic >= 50)
 assert.ok(coverage.dot >= 20)
 assert.ok(coverage.mixed >= 50)
 assert.ok(coverage.anchored >= 20)
@@ -169,9 +187,10 @@ assert.equal(
   coverage.literal +
     coverage.advanced +
     coverage.extended +
+    coverage.basic +
     coverage.unsupportedAdvanced +
     coverage.otherOptions,
 )
 process.stdout.write(
-  `TypeScript find fixtures: ${coverage.literal + coverage.advanced + coverage.extended}/${coverage.find} supported (${coverage.literal} literal, ${coverage.advanced} advanced including ${coverage.expandedAdvanced} expanded, ${coverage.extended} extended); ${coverage.unsupportedAdvanced} unsupported advanced, ${coverage.otherOptions} other modes. Count fixtures: ${coverage.countSupported}/${coverage.count} supported. Advanced coverage includes ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.rangeClasses} ranges, ${coverage.edgePunctuation} class edge cases, ${coverage.absoluteAnchors} absolute anchors, and ${coverage.position} positioned.\n`,
+  `TypeScript find fixtures: ${coverage.literal + coverage.advanced + coverage.extended + coverage.basic}/${coverage.find} supported (${coverage.literal} literal, ${coverage.advanced} advanced including ${coverage.expandedAdvanced} expanded, ${coverage.extended} extended, ${coverage.basic} basic); ${coverage.unsupportedAdvanced} unsupported advanced, ${coverage.otherOptions} other modes. Count fixtures: ${coverage.countSupported}/${coverage.count} supported. Advanced coverage includes ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.rangeClasses} ranges, ${coverage.edgePunctuation} class edge cases, ${coverage.absoluteAnchors} absolute anchors, and ${coverage.position} positioned.\n`,
 )
