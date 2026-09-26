@@ -45,6 +45,9 @@ assert.equal(generated.supportsExtendedGroup('(a|ab)\\w', false), false)
 assert.equal(generated.supportsBasicLiteralPunctuation('a+b', false), true)
 assert.equal(generated.supportsBasicLiteralPunctuation('a\\+b', false), false)
 assert.equal(generated.supportsBasicLiteralPunctuation('[a+b]', false), false)
+assert.equal(generated.supportsExtendedLiteralEscape('a\\wb', false), true)
+assert.equal(generated.supportsExtendedLiteralEscape('[\\w]', false), false)
+assert.equal(generated.supportsExtendedLiteralEscape('a\\1b', false), false)
 
 assert.deepEqual(generated.findLiteral('😀', 'a😀a', 0, true), {
   kind: 'Found',

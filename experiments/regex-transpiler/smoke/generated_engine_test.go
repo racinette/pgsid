@@ -75,6 +75,9 @@ func TestLiteralSlice(t *testing.T) {
 	if !SupportsBasicLiteralPunctuation("a+b", false) || SupportsBasicLiteralPunctuation("a\\+b", false) || SupportsBasicLiteralPunctuation("[a+b]", false) {
 		t.Error("basic literal punctuation gate changed")
 	}
+	if !SupportsExtendedLiteralEscape("a\\wb", false) || SupportsExtendedLiteralEscape("[\\w]", false) || SupportsExtendedLiteralEscape("a\\1b", false) {
+		t.Error("extended literal escape gate changed")
+	}
 	found := FindLiteral("😀", "a😀a", 0, true)
 	if found != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Errorf("literal match = %+v", found)
