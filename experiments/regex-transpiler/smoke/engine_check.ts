@@ -63,6 +63,14 @@ assert.deepEqual(generated.findSimpleAdvanced('a|b', 'ba', 0, true, true, false)
   kind: 'Found',
   value: { start: 0, end: 1 },
 })
+assert.deepEqual(generated.findSimpleAdvanced('a*?', 'aaa', 0, true, true, false), {
+  kind: 'Found',
+  value: { start: 0, end: 0 },
+})
+assert.deepEqual(generated.findSimpleAdvanced('a+?', 'aaa', 0, true, true, false), {
+  kind: 'Found',
+  value: { start: 0, end: 1 },
+})
 assert.deepEqual(generated.findSimpleAdvanced('^a$', '\na\n', 0, true, false, true), {
   kind: 'Found',
   value: { start: 1, end: 2 },
