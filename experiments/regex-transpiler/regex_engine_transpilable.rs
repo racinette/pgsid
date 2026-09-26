@@ -1352,7 +1352,9 @@ fn supports_atoms(atoms: Vec<char>) -> bool {
                     position += 2;
                 } else {
                     if atoms[position] == '-'
-                        && (atoms.len() - position > 1 && atoms[position + 1] == '-'
+                        && (atoms.len() - position > 1
+                            && atoms[position + 1] == '-'
+                            && position != first_member
                             || (position != first_member
                                 && (atoms.len() - position <= 1 || atoms[position + 1] != ']')))
                     {
@@ -1373,11 +1375,13 @@ fn supports_atoms(atoms: Vec<char>) -> bool {
                             let lowercase =
                                 first >= 97 && first <= 122 && last >= 97 && last <= 122;
                             let unicode = first >= 128 && last >= 128;
+                            let punctuation = first == 45 && last >= 45 && last <= 63;
                             if first > last
                                 || (digits == false
                                     && uppercase == false
                                     && lowercase == false
-                                    && unicode == false)
+                                    && unicode == false
+                                    && punctuation == false)
                             {
                                 return false;
                             }
@@ -1586,15 +1590,16 @@ pub fn supports_basic_compatible(pattern: &str, expanded: bool) -> bool {
             } else if atom == ']' && bracket == true {
                 bracket = false;
             };
-            if atom == '+'
-                || atom == '?'
-                || atom == '|'
-                || atom == '('
-                || atom == ')'
-                || atom == '{'
-                || atom == '}'
-                || (atom == '^' && bracket == false && position != 0)
-                || (atom == '$' && bracket == false && position + 1 != source.len())
+            if bracket == false
+                && (atom == '+'
+                    || atom == '?'
+                    || atom == '|'
+                    || atom == '('
+                    || atom == ')'
+                    || atom == '{'
+                    || atom == '}'
+                    || (atom == '^' && position != 0)
+                    || (atom == '$' && position + 1 != source.len()))
             {
                 return false;
             }
@@ -5368,7 +5373,9 @@ fn search_atoms(
                     position += 2;
                 } else {
                     if atoms[position] == '-'
-                        && (atoms.len() - position > 1 && atoms[position + 1] == '-'
+                        && (atoms.len() - position > 1
+                            && atoms[position + 1] == '-'
+                            && position != first_member
                             || (position != first_member
                                 && (atoms.len() - position <= 1 || atoms[position + 1] != ']')))
                     {
@@ -5401,11 +5408,13 @@ fn search_atoms(
                             let lowercase =
                                 first >= 97 && first <= 122 && last >= 97 && last <= 122;
                             let unicode = first >= 128 && last >= 128;
+                            let punctuation = first == 45 && last >= 45 && last <= 63;
                             if first > last
                                 || (digits == false
                                     && uppercase == false
                                     && lowercase == false
-                                    && unicode == false)
+                                    && unicode == false
+                                    && punctuation == false)
                             {
                                 return SearchResult {
                                     kind: 2,
