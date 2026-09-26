@@ -68,12 +68,12 @@ func TestLiteralSlice(t *testing.T) {
 			t.Errorf("unsupported backreference was accepted: %q", pattern)
 		}
 	}
-	for _, pattern := range []string{"(?i)ab", "(?n)^b", "(?x)a b", "(?t)a b"} {
+	for _, pattern := range []string{"(?i)ab", "(?n)^b", "(?x)a b", "(?t)a b", "(?b)a+b", "(?e)a+b", "(?q)a+b"} {
 		if !SupportsInlineAdvanced(pattern, false) {
 			t.Errorf("supported inline flag was rejected: %q", pattern)
 		}
 	}
-	for _, pattern := range []string{"(?b)a+b", "(?e)a+b", "a(?i)b", "(?z)ab"} {
+	for _, pattern := range []string{"(?e)\\W+", "a(?i)b", "(?z)ab"} {
 		if SupportsInlineAdvanced(pattern, false) {
 			t.Errorf("unsupported inline flag was accepted: %q", pattern)
 		}

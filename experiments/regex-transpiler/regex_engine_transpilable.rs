@@ -1711,12 +1711,17 @@ fn inline_atoms(pattern: &str, expanded: bool) -> InlineResult {
                 || mode == 'p'
                 || mode == 'w'
                 || mode == 'x'
-                || mode == 't');
+                || mode == 't'
+                || mode == 'b'
+                || mode == 'e'
+                || mode == 'q');
     }
     let mut effective_expanded = expanded;
     if mode == 'x' {
         effective_expanded = true;
     } else if mode == 't' {
+        effective_expanded = false;
+    } else if mode == 'q' {
         effective_expanded = false;
     }
     let normalized = pattern_atoms(pattern, effective_expanded);
@@ -1724,7 +1729,40 @@ fn inline_atoms(pattern: &str, expanded: bool) -> InlineResult {
     if valid {
         let mut position = 4;
         while position < normalized.len() {
-            atoms.push(normalized[position]);
+            let atom = normalized[position];
+            if mode == 'e' && atom == '\\'
+                || mode == 'b' && (atom == '\\' || atom == '[' || atom == ']')
+            {
+                valid = false;
+                break;
+            }
+            if mode == 'b'
+                && (atom == '+'
+                    || atom == '?'
+                    || atom == '|'
+                    || atom == '('
+                    || atom == ')'
+                    || atom == '{'
+                    || atom == '}')
+                || mode == 'q'
+                    && (atom == '\\'
+                        || atom == '.'
+                        || atom == '^'
+                        || atom == '$'
+                        || atom == '*'
+                        || atom == '+'
+                        || atom == '?'
+                        || atom == '|'
+                        || atom == '('
+                        || atom == ')'
+                        || atom == '['
+                        || atom == ']'
+                        || atom == '{'
+                        || atom == '}')
+            {
+                atoms.push('\\');
+            }
+            atoms.push(atom);
             position += 1;
         }
     }
