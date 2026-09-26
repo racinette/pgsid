@@ -1045,6 +1045,19 @@ fn repeated_boundaries_between_literals_do_not_consume_text() {
 }
 
 #[test]
+fn middle_lookahead_offset_excludes_word_boundaries() {
+    assert!(candidate::supports_middle_lookahead("a\\Y(?=45)", false));
+    assert!(matches!(
+        candidate::find_middle_lookahead("a\\Y(?=45)", "a45", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 1 })
+    ));
+    assert!(matches!(
+        candidate::find_middle_lookahead("a\\Y(?=45)", "a 45", 0, true, true, false, false),
+        candidate::MatchOutcome::NoMatch
+    ));
+}
+
+#[test]
 fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
     assert!(candidate::supports_bounded_group("a(ab)*c", false));
