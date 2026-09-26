@@ -384,7 +384,28 @@ pub fn supports_extended_compatible(pattern: &str, expanded: bool) -> bool {
     let mut position = 0;
     while position < source.len() {
         if source[position] == '\\' {
-            return false;
+            position += 1;
+            if position == source.len() {
+                return false;
+            }
+            let escaped = source[position];
+            if escaped != '.'
+                && escaped != '+'
+                && escaped != '?'
+                && escaped != '|'
+                && escaped != '^'
+                && escaped != '$'
+                && escaped != '*'
+                && escaped != '['
+                && escaped != ']'
+                && escaped != '('
+                && escaped != ')'
+                && escaped != '{'
+                && escaped != '}'
+                && escaped != '\\'
+            {
+                return false;
+            }
         }
         position += 1;
     }
@@ -400,25 +421,46 @@ pub fn supports_basic_compatible(pattern: &str, expanded: bool) -> bool {
     let mut bracket = false;
     while position < source.len() {
         let atom = source[position];
-        if atom == '[' && bracket == false {
-            bracket = true;
-        } else if atom == ']' && bracket == true {
-            bracket = false;
-        }
-        if atom == '\\'
-            || atom == '+'
-            || atom == '?'
-            || atom == '|'
-            || atom == '('
-            || atom == ')'
-            || atom == '{'
-            || atom == '}'
-            || (atom == '^' && bracket == false && position != 0)
-            || (atom == '$' && bracket == false && position + 1 != source.len())
-        {
-            return false;
-        }
-        position += 1;
+        if atom == '\\' {
+            position += 1;
+            if position == source.len() {
+                return false;
+            }
+            let escaped = source[position];
+            if escaped != '.'
+                && escaped != '+'
+                && escaped != '?'
+                && escaped != '|'
+                && escaped != '^'
+                && escaped != '$'
+                && escaped != '*'
+                && escaped != '['
+                && escaped != ']'
+                && escaped != '\\'
+            {
+                return false;
+            }
+            position += 1;
+        } else {
+            if atom == '[' && bracket == false {
+                bracket = true;
+            } else if atom == ']' && bracket == true {
+                bracket = false;
+            };
+            if atom == '+'
+                || atom == '?'
+                || atom == '|'
+                || atom == '('
+                || atom == ')'
+                || atom == '{'
+                || atom == '}'
+                || (atom == '^' && bracket == false && position != 0)
+                || (atom == '$' && bracket == false && position + 1 != source.len())
+            {
+                return false;
+            }
+            position += 1;
+        };
     }
     if expanded {
         return supports_expanded_advanced(pattern);
