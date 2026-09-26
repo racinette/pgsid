@@ -32,6 +32,10 @@ for (const pattern of ['(?i)ab', '(?n)^b', '(?x)a b', '(?t)a b']) {
 for (const pattern of ['(?b)a+b', '(?e)a+b', 'a(?i)b', '(?z)ab']) {
   assert.equal(generated.supportsInlineAdvanced(pattern, false), false)
 }
+assert.equal(generated.supportsMiddleLookahead('a(?=b)b', false), true)
+for (const pattern of ['a+(?=b)b', 'a(?=[bc])b', '(?=b)b', 'a(?=(b))b']) {
+  assert.equal(generated.supportsMiddleLookahead(pattern, false), false)
+}
 
 assert.deepEqual(generated.findLiteral('😀', 'a😀a', 0, true), {
   kind: 'Found',

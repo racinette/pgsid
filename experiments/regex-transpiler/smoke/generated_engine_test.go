@@ -53,6 +53,14 @@ func TestLiteralSlice(t *testing.T) {
 			t.Errorf("unsupported inline flag was accepted: %q", pattern)
 		}
 	}
+	if !SupportsMiddleLookahead("a(?=b)b", false) {
+		t.Error("middle lookahead was rejected")
+	}
+	for _, pattern := range []string{"a+(?=b)b", "a(?=[bc])b", "(?=b)b", "a(?=(b))b"} {
+		if SupportsMiddleLookahead(pattern, false) {
+			t.Errorf("unsupported middle lookahead was accepted: %q", pattern)
+		}
+	}
 	found := FindLiteral("😀", "a😀a", 0, true)
 	if found != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Errorf("literal match = %+v", found)

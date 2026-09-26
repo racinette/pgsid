@@ -74,6 +74,14 @@ fn inline_gate_accepts_supported_prefix_flags() {
 }
 
 #[test]
+fn middle_lookahead_gate_requires_literal_prefix() {
+    assert!(candidate::supports_middle_lookahead("a(?=b)b", false));
+    for pattern in ["a+(?=b)b", "a(?=[bc])b", "(?=b)b", "a(?=(b))b"] {
+        assert!(!candidate::supports_middle_lookahead(pattern, false));
+    }
+}
+
+#[test]
 fn literal_search_matches_the_live_engine() {
     for case_sensitive in [true, false] {
         for pattern in ["", "a", "A", "😀", "aa", "Å", "å", "K", "k", "\n"] {
@@ -121,6 +129,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut lookahead = 0;
     let mut backref = 0;
     let mut inline = 0;
+    let mut middle_lookahead = 0;
     let mut expanded_advanced = 0;
     let mut extended = 0;
     let mut basic = 0;
@@ -337,6 +346,23 @@ fn supported_search_matches_pglite_fixtures() {
                     newline == "sensitive" || newline == "anchors",
                     options["expanded"].as_bool().unwrap(),
                 )
+            } else if options["syntax"] == "advanced"
+                && candidate::supports_middle_lookahead(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                middle_lookahead += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_middle_lookahead(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
             } else if options["syntax"] == "extended"
                 && candidate::supports_extended_compatible(
                     pattern,
@@ -400,6 +426,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(lookahead >= 20);
     assert!(backref >= 20);
     assert!(inline >= 20);
+    assert!(middle_lookahead >= 20);
     assert!(expanded_advanced >= 200);
     assert!(extended >= 50);
     assert!(basic >= 50);
