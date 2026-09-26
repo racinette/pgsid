@@ -219,6 +219,68 @@ pub fn pattern_atoms(pattern: &str, expanded: bool) -> Vec<char> {
     result
 }
 
+pub fn definitely_invalid_grouping(pattern: &str, syntax: char, expanded: bool) -> bool {
+    if syntax != 'a' && syntax != 'e' && syntax != 'b' {
+        return false;
+    }
+    let source = pattern_atoms(pattern, expanded);
+    let mut depth = 0;
+    let mut bracket = false;
+    let mut bracket_members = 0;
+    let mut negated = false;
+    let mut position = 0;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '\\' {
+            if source.len() - position <= 1 {
+                return true;
+            }
+            let escaped = source[position + 1];
+            if bracket == false && syntax == 'b' && escaped == '(' {
+                depth += 1;
+            } else if bracket == false && syntax == 'b' && escaped == ')' {
+                if depth == 0 {
+                    return true;
+                }
+                depth = depth - 1;
+            }
+            if bracket {
+                bracket_members += 1;
+            }
+            position += 2;
+        } else if bracket {
+            if atom == ']' && bracket_members > 0 && (negated == false || bracket_members > 1) {
+                bracket = false;
+            } else {
+                if atom == '^' && bracket_members == 0 {
+                    negated = true;
+                }
+                bracket_members += 1;
+            }
+            position += 1;
+        } else if atom == '[' {
+            bracket = true;
+            bracket_members = 0;
+            negated = false;
+            position += 1;
+        } else if syntax != 'b' && atom == '(' {
+            depth += 1;
+            position += 1;
+        } else if syntax != 'b' && atom == ')' {
+            if depth == 0 && syntax == 'a' {
+                return true;
+            }
+            if depth > 0 {
+                depth = depth - 1;
+            }
+            position += 1;
+        } else {
+            position += 1;
+        };
+    }
+    bracket || depth > 0
+}
+
 fn posix_class_kind(first: char, second: char, third: char, fourth: char, fifth: char) -> usize {
     if first == 'd' && second == 'i' && third == 'g' && fourth == 'i' && fifth == 't' {
         return 1;
