@@ -470,6 +470,9 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			} else if input.Options.Syntax == "advanced" && SupportsLiteralZeroWidthGroup(input.Pattern, input.Options.Expanded) {
 				actual = FindLiteralZeroWidthGroup(input.Pattern, input.Subject, from, input.Options.CaseSensitive, input.Options.Expanded)
 				advanced++
+			} else if input.Options.Syntax == "advanced" && SupportsUnicodeSimple(input.Pattern, input.Options.Expanded) {
+				actual = FindUnicodeSimple(input.Pattern, input.Subject, from, input.Options.CaseSensitive, input.Options.Expanded)
+				advanced++
 			} else {
 				continue
 			}

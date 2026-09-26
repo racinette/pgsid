@@ -1074,6 +1074,34 @@ fn chained_lookaheads_share_wildcard_and_word_semantics() {
 }
 
 #[test]
+fn unicode_ranges_backtrack_before_numeric_literals() {
+    assert!(candidate::supports_unicode_simple(
+        "a[\\u1234-\\u25ff]+\\u1236\\u1236x",
+        false
+    ));
+    assert!(matches!(
+        candidate::find_unicode_simple(
+            "a[\\u1234-\\u25ff]+\\u1236\\u1236x",
+            "aሴሶሶx",
+            0,
+            true,
+            false
+        ),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 5 })
+    ));
+    assert!(matches!(
+        candidate::find_unicode_simple(
+            "[[:alnum:]]*[[:upper:]]*[\\u1000-\\u2000]*\\u1237",
+            "Aሹ",
+            0,
+            true,
+            false,
+        ),
+        candidate::MatchOutcome::NoMatch
+    ));
+}
+
+#[test]
 fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
     assert!(candidate::supports_bounded_group("a(ab)*c", false));
@@ -2544,6 +2572,20 @@ fn supported_search_matches_pglite_fixtures() {
             {
                 advanced += 1;
                 candidate::find_literal_zero_width_group(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "advanced"
+                && candidate::supports_unicode_simple(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                advanced += 1;
+                candidate::find_unicode_simple(
                     pattern,
                     subject,
                     from,

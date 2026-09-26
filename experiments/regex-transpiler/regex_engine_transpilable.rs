@@ -226,6 +226,19 @@ struct LiteralZeroWidthGroup {
     boundary: char,
 }
 
+#[derive(Clone, Copy)]
+struct UnicodeToken {
+    kind: usize,
+    lower: usize,
+    upper: usize,
+    repeat: bool,
+}
+
+struct UnicodeProgram {
+    valid: bool,
+    tokens: Vec<UnicodeToken>,
+}
+
 struct TwoChoiceResult {
     valid: bool,
     first_left: Vec<char>,
@@ -2927,6 +2940,255 @@ pub fn find_literal_zero_width_group(
             });
         }
         cursor = found.start + 1;
+    }
+    MatchOutcome::NoMatch
+}
+
+fn unicode_hex_step(value: usize, digit: usize) -> usize {
+    let double = value + value;
+    let four = double + double;
+    let eight = four + four;
+    eight + eight + digit
+}
+
+fn unicode_quad(first: char, second: char, third: char, fourth: char) -> usize {
+    let a = numeric_hex_digit(first);
+    let b = numeric_hex_digit(second);
+    let c = numeric_hex_digit(third);
+    let d = numeric_hex_digit(fourth);
+    if a == 16 || b == 16 || c == 16 || d == 16 {
+        return 65536;
+    }
+    let first_pair = unicode_hex_step(a, b);
+    let second_pair = unicode_hex_step(first_pair, c);
+    unicode_hex_step(second_pair, d)
+}
+
+fn parse_unicode_program(pattern: &str, expanded: bool) -> UnicodeProgram {
+    let source = pattern_atoms(pattern, expanded);
+    let mut tokens: Vec<UnicodeToken> = Vec::new();
+    let mut position = 0;
+    let mut seen_numeric = false;
+    let mut valid = true;
+    while position < source.len() {
+        let mut kind = 0;
+        let mut lower = 0;
+        let mut upper = 0;
+        if source[position] == '['
+            && source.len() - position >= 15
+            && source[position + 1] == '\\'
+            && source[position + 2] == 'u'
+            && source[position + 7] == '-'
+            && source[position + 8] == '\\'
+            && source[position + 9] == 'u'
+            && source[position + 14] == ']'
+        {
+            lower = unicode_quad(
+                source[position + 3],
+                source[position + 4],
+                source[position + 5],
+                source[position + 6],
+            );
+            upper = unicode_quad(
+                source[position + 10],
+                source[position + 11],
+                source[position + 12],
+                source[position + 13],
+            );
+            if lower == 65536 || upper == 65536 || lower > upper {
+                valid = false;
+                break;
+            }
+            kind = 2;
+            seen_numeric = true;
+            position += 15;
+        } else if source[position] == '['
+            && source.len() - position >= 10
+            && source[position + 1] == '['
+            && source[position + 2] == ':'
+        {
+            let class_kind = posix_class_kind(
+                source[position + 3],
+                source[position + 4],
+                source[position + 5],
+                source[position + 6],
+                source[position + 7],
+                source[position + 8],
+            );
+            let width = posix_class_width(class_kind);
+            if (class_kind != 3 && class_kind != 5)
+                || source.len() - position < width
+                || source[position + width - 3] != ':'
+                || source[position + width - 2] != ']'
+                || source[position + width - 1] != ']'
+            {
+                valid = false;
+                break;
+            }
+            kind = class_kind + 1;
+            position += width;
+        } else if source[position] == '\\'
+            && source.len() - position >= 6
+            && source[position + 1] == 'u'
+        {
+            lower = unicode_quad(
+                source[position + 2],
+                source[position + 3],
+                source[position + 4],
+                source[position + 5],
+            );
+            if lower == 65536 {
+                valid = false;
+                break;
+            }
+            upper = lower;
+            kind = 1;
+            seen_numeric = true;
+            position += 6;
+        } else if simple_literal_char(source[position]) {
+            lower = (source[position] as u32) as usize;
+            upper = lower;
+            kind = 1;
+            position += 1;
+        } else {
+            valid = false;
+            break;
+        };
+        let mut repeat = false;
+        let mut required = true;
+        if position < source.len() && (source[position] == '*' || source[position] == '+') {
+            required = source[position] == '+';
+            repeat = true;
+            position += 1;
+        }
+        if required {
+            tokens.push(UnicodeToken {
+                kind,
+                lower,
+                upper,
+                repeat: false,
+            });
+        }
+        if repeat {
+            tokens.push(UnicodeToken {
+                kind,
+                lower,
+                upper,
+                repeat: true,
+            });
+        }
+    }
+    UnicodeProgram {
+        valid: valid && seen_numeric && tokens.len() > 0,
+        tokens,
+    }
+}
+
+fn unicode_token_matches(token: UnicodeToken, actual: char, case_sensitive: bool) -> bool {
+    let codepoint = (actual as u32) as usize;
+    if token.kind == 1 {
+        let mut lowered = token.lower;
+        if lowered >= 65 && lowered <= 90 {
+            lowered += 32;
+        }
+        return codepoint == token.lower
+            || (case_sensitive == false
+                && ((actual.to_ascii_lowercase() as u32) as usize) == lowered);
+    }
+    if token.kind == 2 {
+        return codepoint >= token.lower && codepoint <= token.upper;
+    }
+    let upper = codepoint >= 65 && codepoint <= 90;
+    let lower = codepoint >= 97 && codepoint <= 122;
+    if token.kind == 4 {
+        return upper || (case_sensitive == false && lower);
+    }
+    token.kind == 6 && (upper || lower || (codepoint >= 48 && codepoint <= 57))
+}
+
+pub fn supports_unicode_simple(pattern: &str, expanded: bool) -> bool {
+    parse_unicode_program(pattern, expanded).valid
+}
+
+pub fn find_unicode_simple(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let program = parse_unicode_program(pattern, expanded);
+    if program.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let haystack: Vec<char> = subject.chars().collect();
+    if from > haystack.len() {
+        return MatchOutcome::NoMatch;
+    }
+    let mut work = 0;
+    let mut start = from;
+    while start <= haystack.len() {
+        let mut stack: Vec<PatternWorkState> = Vec::new();
+        stack.push(PatternWorkState {
+            pattern: 0,
+            subject: start,
+        });
+        let mut stack_len = 1;
+        let mut found = false;
+        let mut best_end = start;
+        while stack_len > 0 {
+            if work == MAX_CAPTURE_WORK {
+                return MatchOutcome::Uncertain;
+            }
+            work += 1;
+            stack_len = stack_len - 1;
+            let state = stack[stack_len];
+            if state.pattern == program.tokens.len() {
+                if found == false || state.subject > best_end {
+                    found = true;
+                    best_end = state.subject;
+                }
+            } else {
+                let token = program.tokens[state.pattern];
+                if token.repeat {
+                    let skipped = PatternWorkState {
+                        pattern: state.pattern + 1,
+                        subject: state.subject,
+                    };
+                    if stack_len == stack.len() {
+                        stack.push(skipped);
+                    } else {
+                        stack[stack_len] = skipped;
+                    }
+                    stack_len += 1;
+                }
+                if state.subject < haystack.len()
+                    && unicode_token_matches(token, haystack[state.subject], case_sensitive)
+                {
+                    let mut next_pattern = state.pattern;
+                    if token.repeat == false {
+                        next_pattern += 1;
+                    }
+                    let next = PatternWorkState {
+                        pattern: next_pattern,
+                        subject: state.subject + 1,
+                    };
+                    if stack_len == stack.len() {
+                        stack.push(next);
+                    } else {
+                        stack[stack_len] = next;
+                    }
+                    stack_len += 1;
+                }
+            };
+        }
+        if found {
+            return MatchOutcome::Found(MatchSpan {
+                start,
+                end: best_end,
+            });
+        }
+        start += 1;
     }
     MatchOutcome::NoMatch
 }
