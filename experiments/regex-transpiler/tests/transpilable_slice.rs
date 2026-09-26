@@ -65,6 +65,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut literal = 0;
     let mut insensitive = 0;
     let mut advanced = 0;
+    let mut expanded_advanced = 0;
     let mut dot = 0;
     let mut mixed = 0;
     let mut anchored = 0;
@@ -115,23 +116,39 @@ fn supported_search_matches_pglite_fixtures() {
                 }
                 candidate::find_literal(pattern, subject, from, case_sensitive)
             } else if options["syntax"] == "advanced"
-                && options["expanded"] == false
-                && candidate::supports_simple_advanced(pattern)
+                && (options["expanded"] == false && candidate::supports_simple_advanced(pattern)
+                    || options["expanded"] == true
+                        && candidate::supports_expanded_advanced(pattern))
             {
                 advanced += 1;
+                let expanded = options["expanded"] == true;
+                if expanded {
+                    expanded_advanced += 1;
+                }
                 let newline = options["newline"].as_str().unwrap();
                 newline_modes.insert(newline.to_string());
                 let crosses_newline = newline == "ordinary" || newline == "anchors";
                 let line_anchors = newline == "sensitive" || newline == "anchors";
-                let actual = candidate::find_simple_advanced(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    crosses_newline,
-                    line_anchors,
-                );
-                if pattern == "." {
+                let actual = if expanded {
+                    candidate::find_expanded_advanced(
+                        pattern,
+                        subject,
+                        from,
+                        options["caseSensitive"].as_bool().unwrap(),
+                        crosses_newline,
+                        line_anchors,
+                    )
+                } else {
+                    candidate::find_simple_advanced(
+                        pattern,
+                        subject,
+                        from,
+                        options["caseSensitive"].as_bool().unwrap(),
+                        crosses_newline,
+                        line_anchors,
+                    )
+                };
+                if pattern == "." && !expanded {
                     dot += 1;
                     assert!(
                         actual == candidate::find_any_character(subject, from, crosses_newline)
@@ -189,6 +206,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(literal >= 40);
     assert!(insensitive >= 7);
     assert!(advanced >= 100);
+    assert!(expanded_advanced >= 200);
     assert!(dot >= 20);
     assert!(mixed >= 50);
     assert!(anchored >= 20);
@@ -215,20 +233,31 @@ fn supported_count_matches_pglite_fixtures() {
         let options = &input["options"];
         let pattern = input["pattern"].as_str().unwrap();
         if options["syntax"] != "advanced"
-            || options["expanded"] != false
-            || !candidate::supports_simple_advanced(pattern)
+            || !(options["expanded"] == false && candidate::supports_simple_advanced(pattern)
+                || options["expanded"] == true && candidate::supports_expanded_advanced(pattern))
         {
             continue;
         }
         let newline = options["newline"].as_str().unwrap();
-        let outcome = candidate::count_simple_advanced(
-            pattern,
-            input["subject"].as_str().unwrap(),
-            input["start"].as_u64().unwrap() as usize - 1,
-            options["caseSensitive"].as_bool().unwrap(),
-            newline == "ordinary" || newline == "anchors",
-            newline == "sensitive" || newline == "anchors",
-        );
+        let outcome = if options["expanded"] == true {
+            candidate::count_expanded_advanced(
+                pattern,
+                input["subject"].as_str().unwrap(),
+                input["start"].as_u64().unwrap() as usize - 1,
+                options["caseSensitive"].as_bool().unwrap(),
+                newline == "ordinary" || newline == "anchors",
+                newline == "sensitive" || newline == "anchors",
+            )
+        } else {
+            candidate::count_simple_advanced(
+                pattern,
+                input["subject"].as_str().unwrap(),
+                input["start"].as_u64().unwrap() as usize - 1,
+                options["caseSensitive"].as_bool().unwrap(),
+                newline == "ordinary" || newline == "anchors",
+                newline == "sensitive" || newline == "anchors",
+            )
+        };
         let actual = match outcome {
             candidate::CountOutcome::Count(value) => json!({ "kind": "Count", "value": value }),
             candidate::CountOutcome::Uncertain => json!({ "kind": "Uncertain" }),
@@ -236,7 +265,7 @@ fn supported_count_matches_pglite_fixtures() {
         assert_eq!(actual, fixture["expected"], "input={input}");
         checked += 1;
     }
-    assert!(checked >= 50);
+    assert!(checked >= 100);
 }
 
 #[test]
@@ -583,5 +612,70 @@ fn support_classification_matches_search_certainty() {
             candidate::MatchOutcome::Uncertain
         );
         assert_eq!(supported, certain, "pattern={pattern:?}");
+    }
+}
+
+#[test]
+fn expanded_advanced_search_matches_the_live_engine() {
+    assert_eq!(
+        candidate::pattern_atoms("a # comment\nb[ #]c", true),
+        "ab[ #]c".chars().collect::<Vec<_>>()
+    );
+    for case_sensitive in [true, false] {
+        for (newline, dot_crosses_newline, line_anchors) in [
+            (engine::NewlineMode::Ordinary, true, false),
+            (engine::NewlineMode::Sensitive, false, true),
+            (engine::NewlineMode::Stop, false, false),
+            (engine::NewlineMode::Anchors, true, true),
+        ] {
+            for pattern in [
+                "a b c",
+                "a# comment\nb",
+                "a[ #]b",
+                "a\tb",
+                "a|ab",
+                "^ a $",
+                "a+ # comment\nb",
+                "a { 2 , 3 } b",
+            ] {
+                assert!(candidate::supports_expanded_advanced(pattern));
+                let engine::CompileOutcome::Ready(program) = engine::compile(
+                    pattern,
+                    engine::Options {
+                        case_sensitive,
+                        newline,
+                        expanded: true,
+                        ..engine::Options::default()
+                    },
+                ) else {
+                    panic!("expanded pattern did not compile: {pattern:?}");
+                };
+                for subject in ["", "a", "ab", "abc", "za#b", "za b", "aaab", "a\nb"] {
+                    for from in 0..=subject.chars().count() + 1 {
+                        let expected = match program.find(subject, from) {
+                            engine::MatchOutcome::Found(span) => (0, span.start, span.end),
+                            engine::MatchOutcome::NoMatch => (1, 0, 0),
+                            engine::MatchOutcome::Uncertain => (2, 0, 0),
+                        };
+                        let actual = match candidate::find_expanded_advanced(
+                            pattern,
+                            subject,
+                            from,
+                            case_sensitive,
+                            dot_crosses_newline,
+                            line_anchors,
+                        ) {
+                            candidate::MatchOutcome::Found(span) => (0, span.start, span.end),
+                            candidate::MatchOutcome::NoMatch => (1, 0, 0),
+                            candidate::MatchOutcome::Uncertain => (2, 0, 0),
+                        };
+                        assert_eq!(
+                            actual, expected,
+                            "pattern={pattern:?} subject={subject:?} from={from} newline={newline:?}"
+                        );
+                    }
+                }
+            }
+        }
     }
 }

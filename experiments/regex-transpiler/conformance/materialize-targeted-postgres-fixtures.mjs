@@ -538,10 +538,31 @@ for (const newline of ['ordinary', 'sensitive', 'stop', 'anchors']) {
     }
   }
 }
+for (const newline of ['ordinary', 'sensitive', 'stop', 'anchors']) {
+  for (const caseSensitive of [true, false]) {
+    for (const [pattern, subject] of [
+      ['a b c', 'zabc'],
+      ['a# comment\nb', 'ab'],
+      ['a[ #]b', 'za#b'],
+      ['a[ #]b', 'za b'],
+      ['a\tb', 'ab'],
+      ['a|ab', 'ab'],
+      ['^ a $', 'a'],
+      ['a+ # comment\nb', 'aaab'],
+      ['a { 2 , 3 } b', 'aaab'],
+    ]) {
+      inputs.push({
+        pattern,
+        subject,
+        options: { syntax: 'advanced', caseSensitive, expanded: true, newline },
+      })
+    }
+  }
+}
 
 function flags(options) {
   const newline = { ordinary: '', sensitive: 'n', stop: 'p', anchors: 'w' }[options.newline]
-  return `${options.syntax === 'literal' ? 'q' : ''}${options.caseSensitive ? '' : 'i'}${newline}`
+  return `${options.syntax === 'literal' ? 'q' : ''}${options.expanded ? 'x' : ''}${options.caseSensitive ? '' : 'i'}${newline}`
 }
 
 const pg = await PGlite.create()

@@ -96,8 +96,51 @@ pub fn find_any_character(subject: &str, from: usize, dot_crosses_newline: bool)
     MatchOutcome::NoMatch
 }
 
-pub fn supports_simple_advanced(pattern: &str) -> bool {
-    let atoms: Vec<char> = pattern.chars().collect();
+pub fn pattern_atoms(pattern: &str, expanded: bool) -> Vec<char> {
+    let source: Vec<char> = pattern.chars().collect();
+    if expanded == false {
+        return source;
+    }
+    let mut result: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut bracket = false;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '\\' {
+            result.push(atom);
+            position += 1;
+            if position < source.len() {
+                result.push(source[position]);
+                position += 1;
+            }
+        } else if bracket {
+            result.push(atom);
+            if atom == ']' {
+                bracket = false;
+            }
+            position += 1;
+        } else if atom == '[' {
+            result.push(atom);
+            bracket = true;
+            position += 1;
+        } else if atom == '#' {
+            while position < source.len() && source[position] != '\n' {
+                position += 1;
+            }
+            if position < source.len() {
+                position += 1;
+            }
+        } else if atom == ' ' || ((atom as u32) >= 9 && (atom as u32) <= 13) {
+            position += 1;
+        } else {
+            result.push(atom);
+            position += 1;
+        };
+    }
+    result
+}
+
+fn supports_atoms(atoms: Vec<char>) -> bool {
     let mut position = 0;
     let mut after_repeat = false;
     while position < atoms.len() {
@@ -326,15 +369,24 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
     true
 }
 
-fn search_simple_advanced(
-    pattern: &str,
+pub fn supports_simple_advanced(pattern: &str) -> bool {
+    let atoms = pattern_atoms(pattern, false);
+    supports_atoms(atoms)
+}
+
+pub fn supports_expanded_advanced(pattern: &str) -> bool {
+    let atoms = pattern_atoms(pattern, true);
+    supports_atoms(atoms)
+}
+
+fn search_atoms(
+    atoms: Vec<char>,
     subject: &str,
     from: usize,
     case_sensitive: bool,
     dot_crosses_newline: bool,
     line_anchors: bool,
 ) -> SearchResult {
-    let atoms: Vec<char> = pattern.chars().collect();
     let haystack: Vec<char> = subject.chars().collect();
     let mut branch_starts: Vec<usize> = Vec::new();
     branch_starts.push(0);
@@ -983,16 +1035,18 @@ fn search_simple_advanced(
     }
 }
 
-pub fn find_simple_advanced(
+fn find_advanced(
     pattern: &str,
     subject: &str,
     from: usize,
     case_sensitive: bool,
     dot_crosses_newline: bool,
     line_anchors: bool,
+    expanded: bool,
 ) -> MatchOutcome {
-    let result = search_simple_advanced(
-        pattern,
+    let atoms = pattern_atoms(pattern, expanded);
+    let result = search_atoms(
+        atoms,
         subject,
         from,
         case_sensitive,
@@ -1011,20 +1065,22 @@ pub fn find_simple_advanced(
     })
 }
 
-pub fn count_simple_advanced(
+fn count_advanced(
     pattern: &str,
     subject: &str,
     from: usize,
     case_sensitive: bool,
     dot_crosses_newline: bool,
     line_anchors: bool,
+    expanded: bool,
 ) -> CountOutcome {
     let characters: Vec<char> = subject.chars().collect();
     let mut position = from;
     let mut count = 0;
     while position <= characters.len() {
-        let result = search_simple_advanced(
-            pattern,
+        let atoms = pattern_atoms(pattern, expanded);
+        let result = search_atoms(
+            atoms,
             subject,
             position,
             case_sensitive,
@@ -1048,4 +1104,80 @@ pub fn count_simple_advanced(
         };
     }
     CountOutcome::Count(count)
+}
+
+pub fn find_simple_advanced(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+) -> MatchOutcome {
+    find_advanced(
+        pattern,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        false,
+    )
+}
+
+pub fn find_expanded_advanced(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+) -> MatchOutcome {
+    find_advanced(
+        pattern,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        true,
+    )
+}
+
+pub fn count_simple_advanced(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+) -> CountOutcome {
+    count_advanced(
+        pattern,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        false,
+    )
+}
+
+pub fn count_expanded_advanced(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+) -> CountOutcome {
+    count_advanced(
+        pattern,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        true,
+    )
 }

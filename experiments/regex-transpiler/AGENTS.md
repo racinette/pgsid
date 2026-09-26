@@ -18,10 +18,10 @@ reference; expand the transpilable engine only through the shared dialect.
   its value is assigned. Use `if`, `else if`, `else`, `while`, `break`, and
   value-bearing `return` as statements. A function body may end with a tail
   expression. Branches do not produce values.
-- A mutable `Vec<usize>` may be initialized with an explicitly typed
-  `Vec::new()` local, grown with `push`, and read or written by index. Direct
-  `=` assignment is limited to mutable scalar bindings and elements of a
-  mutable `Vec<usize>`. Keep vector indexing within bounds in Rust; the
+- A mutable `Vec<usize>` or `Vec<char>` may be initialized with an explicitly
+  typed `Vec::new()` local, grown with `push`, and read or written by index.
+  Direct `=` assignment is limited to mutable scalar bindings and elements of
+  these mutable vectors. Keep vector indexing within bounds in Rust; the
   generated targets reject out-of-bounds access too.
 - Use the supported arithmetic, comparisons, field access, vector indexing,
   struct literals, enum variants, `char as u32` and checked `u32 as usize`

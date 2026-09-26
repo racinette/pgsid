@@ -601,16 +601,19 @@ mod tests {
         for source in [
             "pub fn f() -> usize { let positions: Vec<usize> = Vec::new(); positions.push(1); positions.len() }",
             "pub fn f() -> usize { let positions: Vec<usize> = Vec::new(); positions[0] = 1; positions.len() }",
-            "pub fn f() -> usize { let mut positions: Vec<char> = Vec::new(); positions.len() }",
             "pub fn f() -> Vec<usize> { Vec::new() }",
             "pub fn f() -> usize { let mut positions = Vec::new(); positions.push(1); positions.len() }",
             "pub fn f() -> usize { let mut positions: Vec<usize> = Vec::new(); positions.push(false); positions.len() }",
             "pub fn f() -> usize { let mut positions: Vec<usize> = Vec::new(); positions[false] = 1; positions.len() }",
             "pub fn f() -> usize { let mut positions: Vec<usize> = Vec::new(); positions[0] = false; positions.len() }",
             "pub fn f() -> usize { let mut positions: Vec<usize> = Vec::new(); positions = Vec::new(); positions.len() }",
+            "pub fn f() -> usize { let characters: Vec<char> = Vec::new(); characters.push('a'); characters.len() }",
+            "pub fn f() -> usize { let mut characters: Vec<char> = Vec::new(); characters.push(1); characters.len() }",
+            "pub fn f() -> usize { let mut characters: Vec<char> = Vec::new(); characters[0] = 1; characters.len() }",
         ] {
             assert!(parse(source).is_err(), "accepted: {source}");
         }
+        assert!(parse("pub fn f() -> usize { let mut characters: Vec<char> = Vec::new(); characters.push('a'); characters.len() }").is_ok());
     }
 
     #[test]
@@ -649,6 +652,7 @@ mod tests {
         );
         assert_eq!(smoke::char_at(vec!['a'], 0), 'a');
         assert_eq!(smoke::forwarded_chars(vec!['a']), vec!['a']);
+        assert_eq!(smoke::char_stack('😀'), vec!['b']);
         assert!(smoke::same_span(
             smoke::forwarded_span(span, 2),
             smoke::Span { start: 3, end: 5 }

@@ -32,6 +32,8 @@ forwarded[0] = 'b'
 assert.deepEqual(characters, ['a'])
 assert.deepEqual(generated.forwardedSpan(input, 2), expected)
 assert.deepEqual(input, { start: 1, end: 3 })
+assert.deepEqual(generated.charStack('😀'), ['b'])
+assert.throws(() => generated.charStack('\ud800'), RangeError)
 
 const bag = { characters: ['a'] }
 const echoedBag = generated.echoBag(bag)

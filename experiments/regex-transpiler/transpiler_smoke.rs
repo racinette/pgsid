@@ -53,6 +53,13 @@ pub fn forwarded_span(span: Span, offset: usize) -> Span {
     shift_span(span, offset)
 }
 
+pub fn char_stack(value: char) -> Vec<char> {
+    let mut characters: Vec<char> = Vec::new();
+    characters.push(value);
+    characters[0] = 'b';
+    characters
+}
+
 pub fn echo_bag(bag: CharBag) -> CharBag {
     bag
 }
