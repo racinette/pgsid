@@ -47,6 +47,8 @@ struct LookbehindResult {
     positive: bool,
     anchored: bool,
     prefix: Vec<char>,
+    alternate: Vec<char>,
+    split: bool,
     remainder: Vec<char>,
 }
 
@@ -1317,10 +1319,12 @@ pub fn supports_optional_group(pattern: &str, expanded: bool) -> bool {
 fn fixed_lookbehind_atoms(pattern: &str, expanded: bool) -> LookbehindResult {
     let source = pattern_atoms(pattern, expanded);
     let mut prefix: Vec<char> = Vec::new();
+    let mut alternate: Vec<char> = Vec::new();
     let mut remainder: Vec<char> = Vec::new();
     let mut valid = source.len() >= 6;
     let mut positive = true;
     let mut anchored = false;
+    let mut split = false;
     if valid {
         valid = source[0] == '('
             && source[1] == '?'
@@ -1336,7 +1340,11 @@ fn fixed_lookbehind_atoms(pattern: &str, expanded: bool) -> LookbehindResult {
         }
         while position < source.len() && source[position] != ')' {
             let atom = source[position];
-            if atom == '\\'
+            if atom == '|' && split == false {
+                split = true;
+                position += 1;
+            } else if atom == '\\'
+                || atom == '|'
                 || atom == '^'
                 || atom == '$'
                 || atom == '*'
@@ -1347,15 +1355,19 @@ fn fixed_lookbehind_atoms(pattern: &str, expanded: bool) -> LookbehindResult {
                 || atom == '['
                 || atom == ']'
                 || atom == '('
-                || atom == '|'
             {
                 valid = false;
                 break;
-            }
-            prefix.push(atom);
-            position += 1;
+            } else if split {
+                alternate.push(atom);
+                position += 1;
+            } else {
+                prefix.push(atom);
+                position += 1;
+            };
         }
-        if position == source.len() || prefix.len() > 8 {
+        if position == source.len() || prefix.len() > 8 || alternate.len() > 8 || split && anchored
+        {
             valid = false;
         }
     }
@@ -1371,6 +1383,8 @@ fn fixed_lookbehind_atoms(pattern: &str, expanded: bool) -> LookbehindResult {
         positive,
         anchored,
         prefix,
+        alternate,
+        split,
         remainder,
     }
 }
@@ -3763,6 +3777,24 @@ fn search_fixed_lookbehind(
             let anchor = result.start - parsed.prefix.len();
             if anchor != 0 && (line_anchors == false || haystack[anchor - 1] != '\n') {
                 preceding = false;
+            }
+        }
+        if parsed.split && preceding == false && result.start >= parsed.alternate.len() {
+            preceding = true;
+            let mut index = 0;
+            while index < parsed.alternate.len() {
+                let actual = haystack[result.start - parsed.alternate.len() + index];
+                let expected = parsed.alternate[index];
+                if expected == '.' && actual == '\n' && dot_crosses_newline == false
+                    || expected != '.'
+                        && actual != expected
+                        && (case_sensitive
+                            || actual.to_ascii_lowercase() != expected.to_ascii_lowercase())
+                {
+                    preceding = false;
+                    break;
+                }
+                index += 1;
             }
         }
         if preceding == parsed.positive {

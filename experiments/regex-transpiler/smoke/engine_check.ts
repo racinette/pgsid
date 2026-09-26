@@ -19,7 +19,8 @@ for (const pattern of ['a([bc])?d', 'a(b+)?c', 'a(b)?c(d)?e', 'a(b)??c']) {
   assert.equal(generated.supportsOptionalGroup(pattern, false), false)
 }
 assert.equal(generated.supportsFixedLookbehind('(?<=ab)c', false), true)
-for (const pattern of ['(?<=a|b)c', '(?<=a+)c', '(?<=a\\n)b', '(?=a)b']) {
+assert.equal(generated.supportsFixedLookbehind('(?<=a|b)c', false), true)
+for (const pattern of ['(?<=a+)c', '(?<=a\\n)b', '(?=a)b']) {
   assert.equal(generated.supportsFixedLookbehind(pattern, false), false)
 }
 assert.equal(generated.supportsLeadingLookahead('(?=ab)a.', false), true)
