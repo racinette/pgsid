@@ -281,6 +281,73 @@ pub fn definitely_invalid_grouping(pattern: &str, syntax: char, expanded: bool) 
     bracket || depth > 0
 }
 
+pub fn definitely_invalid_simple_repeat(pattern: &str, syntax: char, expanded: bool) -> bool {
+    if syntax != 'a' && syntax != 'e' && syntax != 'b' {
+        return false;
+    }
+    let source = pattern_atoms(pattern, expanded);
+    let mut position = 0;
+    if source.len() >= 4 && source[0] == '*' && source[1] == '*' && source[2] == '*' {
+        if source[3] == '=' {
+            return false;
+        }
+        if source[3] == ':' {
+            position = 4;
+        }
+    }
+    let mut bracket = false;
+    let mut bracket_members = 0;
+    let mut previous_repeat = false;
+    let mut previous_lazy = false;
+    let mut after_open = false;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '\\' {
+            if source.len() - position <= 1 {
+                return false;
+            }
+            previous_repeat = false;
+            after_open = false;
+            position += 2;
+        } else if bracket {
+            if atom == ']' && bracket_members > 0 {
+                bracket = false;
+            } else {
+                bracket_members += 1;
+            }
+            position += 1;
+        } else if atom == '[' {
+            bracket = true;
+            bracket_members = 0;
+            previous_repeat = false;
+            after_open = false;
+            position += 1;
+        } else if atom == '(' && syntax != 'b' {
+            previous_repeat = false;
+            after_open = true;
+            position += 1;
+        } else if atom == '*' || syntax != 'b' && (atom == '+' || atom == '?') {
+            if previous_repeat
+                && (syntax != 'b' || position != 1)
+                && (syntax != 'a' || atom != '?' || previous_lazy)
+                || position == 0 && syntax != 'b'
+                || after_open && atom != '?'
+            {
+                return true;
+            }
+            previous_lazy = previous_repeat && atom == '?';
+            previous_repeat = true;
+            after_open = false;
+            position += 1;
+        } else {
+            previous_repeat = false;
+            after_open = false;
+            position += 1;
+        };
+    }
+    false
+}
+
 fn posix_class_kind(first: char, second: char, third: char, fourth: char, fifth: char) -> usize {
     if first == 'd' && second == 'i' && third == 'g' && fourth == 'i' && fifth == 't' {
         return 1;
