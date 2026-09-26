@@ -18,6 +18,10 @@ assert.equal(generated.supportsFixedLookbehind('(?<=ab)c', false), true)
 for (const pattern of ['(?<=a|b)c', '(?<=a+)c', '(?<=a\\n)b', '(?=a)b']) {
   assert.equal(generated.supportsFixedLookbehind(pattern, false), false)
 }
+assert.equal(generated.supportsLeadingLookahead('(?=ab)a.', false), true)
+for (const pattern of ['(?=(ab))a', '(?=[ab])a', 'a(?=b)b', '(?=a\\nb)a']) {
+  assert.equal(generated.supportsLeadingLookahead(pattern, false), false)
+}
 
 assert.deepEqual(generated.findLiteral('😀', 'a😀a', 0, true), {
   kind: 'Found',

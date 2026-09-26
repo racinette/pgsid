@@ -18,6 +18,7 @@ const coverage = {
   grouped: 0,
   groupChoice: 0,
   lookbehind: 0,
+  lookahead: 0,
   expandedAdvanced: 0,
   extended: 0,
   basic: 0,
@@ -50,10 +51,11 @@ for (const fixturePath of fixturePaths) {
         : generated.supportsSimpleAdvanced(pattern)
       const choice = generated.supportsGroupChoice(pattern, options.expanded)
       const lookbehind = generated.supportsFixedLookbehind(pattern, options.expanded)
+      const lookahead = generated.supportsLeadingLookahead(pattern, options.expanded)
       if (
         fixture.operation === 'count' &&
         options.syntax === 'advanced' &&
-        (simple || choice || lookbehind)
+        (simple || choice || lookbehind || lookahead)
       ) {
         const newline = options.newline
         const args = [
@@ -65,13 +67,15 @@ for (const fixturePath of fixturePaths) {
           newline === 'sensitive' || newline === 'anchors',
         ] as const
         assert.deepEqual(
-          lookbehind
-            ? generated.countFixedLookbehind(...args, options.expanded)
-            : choice
-              ? generated.countGroupChoice(...args, options.expanded)
-              : (options.expanded
-                  ? generated.countExpandedAdvanced
-                  : generated.countSimpleAdvanced)(...args),
+          lookahead
+            ? generated.countLeadingLookahead(...args, options.expanded)
+            : lookbehind
+              ? generated.countFixedLookbehind(...args, options.expanded)
+              : choice
+                ? generated.countGroupChoice(...args, options.expanded)
+                : (options.expanded
+                    ? generated.countExpandedAdvanced
+                    : generated.countSimpleAdvanced)(...args),
           fixture.expected,
           `${fixturePath} count fixture ${index}: ${JSON.stringify(fixture.input)}`,
         )
@@ -176,6 +180,22 @@ for (const fixturePath of fixturePaths) {
       )
       coverage.lookbehind++
     } else if (
+      options.syntax === 'advanced' &&
+      generated.supportsLeadingLookahead(pattern, options.expanded)
+    ) {
+      const crossesNewline = options.newline === 'ordinary' || options.newline === 'anchors'
+      const lineAnchors = options.newline === 'sensitive' || options.newline === 'anchors'
+      actual = generated.findLeadingLookahead(
+        pattern,
+        subject,
+        from,
+        options.caseSensitive,
+        crossesNewline,
+        lineAnchors,
+        options.expanded,
+      )
+      coverage.lookahead++
+    } else if (
       options.syntax === 'extended' &&
       generated.supportsExtendedCompatible(pattern, options.expanded)
     ) {
@@ -231,6 +251,7 @@ assert.ok(coverage.advanced >= 100)
 assert.ok(coverage.grouped >= 20)
 assert.ok(coverage.groupChoice >= 20)
 assert.ok(coverage.lookbehind >= 20)
+assert.ok(coverage.lookahead >= 20)
 assert.ok(coverage.expandedAdvanced >= 200)
 assert.ok(coverage.extended >= 50)
 assert.ok(coverage.basic >= 50)
@@ -244,7 +265,7 @@ assert.ok(coverage.rangeClasses >= 50)
 assert.ok(coverage.edgePunctuation >= 80)
 assert.ok(coverage.absoluteAnchors >= 50)
 assert.ok(coverage.position >= 6)
-assert.ok(coverage.countSupported >= 145)
+assert.ok(coverage.countSupported >= 160)
 assert.deepEqual(coverage.newline, new Set(['ordinary', 'sensitive', 'stop', 'anchors']))
 assert.equal(
   coverage.find,
@@ -253,11 +274,12 @@ assert.equal(
     coverage.grouped +
     coverage.groupChoice +
     coverage.lookbehind +
+    coverage.lookahead +
     coverage.extended +
     coverage.basic +
     coverage.unsupportedAdvanced +
     coverage.otherOptions,
 )
 process.stdout.write(
-  `TypeScript find fixtures: ${coverage.literal + coverage.advanced + coverage.grouped + coverage.groupChoice + coverage.lookbehind + coverage.extended + coverage.basic}/${coverage.find} supported (${coverage.literal} literal, ${coverage.advanced} advanced including ${coverage.expandedAdvanced} expanded, ${coverage.grouped} flat groups, ${coverage.groupChoice} group choices, ${coverage.lookbehind} fixed lookbehind, ${coverage.extended} extended, ${coverage.basic} basic); ${coverage.unsupportedAdvanced} unsupported advanced, ${coverage.otherOptions} other modes. Count fixtures: ${coverage.countSupported}/${coverage.count} supported. Advanced coverage includes ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.rangeClasses} ranges, ${coverage.edgePunctuation} class edge cases, ${coverage.absoluteAnchors} absolute anchors, and ${coverage.position} positioned.\n`,
+  `TypeScript find fixtures: ${coverage.literal + coverage.advanced + coverage.grouped + coverage.groupChoice + coverage.lookbehind + coverage.lookahead + coverage.extended + coverage.basic}/${coverage.find} supported (${coverage.literal} literal, ${coverage.advanced} advanced including ${coverage.expandedAdvanced} expanded, ${coverage.grouped} flat groups, ${coverage.groupChoice} group choices, ${coverage.lookbehind} fixed lookbehind, ${coverage.lookahead} leading lookahead, ${coverage.extended} extended, ${coverage.basic} basic); ${coverage.unsupportedAdvanced} unsupported advanced, ${coverage.otherOptions} other modes. Count fixtures: ${coverage.countSupported}/${coverage.count} supported. Advanced coverage includes ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.rangeClasses} ranges, ${coverage.edgePunctuation} class edge cases, ${coverage.absoluteAnchors} absolute anchors, and ${coverage.position} positioned.\n`,
 )
