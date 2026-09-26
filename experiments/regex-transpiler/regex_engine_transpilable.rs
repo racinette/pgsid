@@ -3312,7 +3312,6 @@ fn middle_lookahead_atoms(pattern: &str, expanded: bool) -> LookaheadResult {
     while position < source.len() && source[position] != '(' {
         let atom = source[position];
         if atom == '\\'
-            || atom == '.'
             || atom == '^'
             || atom == '$'
             || atom == '*'
