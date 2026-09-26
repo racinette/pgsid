@@ -72,6 +72,15 @@ struct SingleCaptureResult {
     suffix: Vec<char>,
 }
 
+struct ChoiceCaptureResult {
+    valid: bool,
+    prefix: Vec<char>,
+    first: Vec<char>,
+    second: Vec<char>,
+    between: Vec<char>,
+    suffix: Vec<char>,
+}
+
 #[derive(Clone, Copy)]
 struct CaptureState {
     start: usize,
@@ -1694,6 +1703,93 @@ pub fn supports_single_capture_backref(pattern: &str, expanded: bool) -> bool {
         return false;
     }
     supports_atoms(parsed.atom)
+}
+
+fn choice_capture_atoms(pattern: &str, expanded: bool) -> ChoiceCaptureResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut prefix: Vec<char> = Vec::new();
+    let mut first: Vec<char> = Vec::new();
+    let mut second: Vec<char> = Vec::new();
+    let mut between: Vec<char> = Vec::new();
+    let mut suffix: Vec<char> = Vec::new();
+    let mut valid = true;
+    let mut position = 0;
+    while position < source.len() && source[position] != '(' {
+        if simple_literal_char(source[position]) == false {
+            valid = false;
+            break;
+        }
+        prefix.push(source[position]);
+        position += 1;
+    }
+    if position == source.len() {
+        valid = false;
+    }
+    if valid {
+        position += 1;
+        while position < source.len() && source[position] != '|' {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            first.push(source[position]);
+            position += 1;
+        }
+        if first.len() == 0 || position == source.len() {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 1;
+        while position < source.len() && source[position] != ')' {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            second.push(source[position]);
+            position += 1;
+        }
+        if second.len() == 0 || position == source.len() {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 1;
+        while position < source.len() && source[position] != '\\' {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            between.push(source[position]);
+            position += 1;
+        }
+        if source.len() - position < 2 || source[position + 1] != '1' {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 2;
+        while position < source.len() {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            suffix.push(source[position]);
+            position += 1;
+        }
+    }
+    ChoiceCaptureResult {
+        valid,
+        prefix,
+        first,
+        second,
+        between,
+        suffix,
+    }
+}
+
+pub fn supports_choice_capture_backref(pattern: &str, expanded: bool) -> bool {
+    choice_capture_atoms(pattern, expanded).valid
 }
 
 fn inline_atoms(pattern: &str, expanded: bool) -> InlineResult {
@@ -3950,6 +4046,100 @@ pub fn find_single_capture_backref(
         return MatchOutcome::Uncertain;
     }
     MatchOutcome::NoMatch
+}
+
+fn choice_capture_pattern(pattern: &str, expanded: bool, choose_first: bool) -> Vec<char> {
+    let parsed = choice_capture_atoms(pattern, expanded);
+    let mut atoms: Vec<char> = Vec::new();
+    let mut member: Vec<char> = Vec::new();
+    let mut position = 0;
+    while position < parsed.prefix.len() {
+        atoms.push(parsed.prefix[position]);
+        position += 1;
+    }
+    position = 0;
+    if choose_first {
+        while position < parsed.first.len() {
+            member.push(parsed.first[position]);
+            position += 1;
+        }
+    } else {
+        while position < parsed.second.len() {
+            member.push(parsed.second[position]);
+            position += 1;
+        }
+    };
+    position = 0;
+    while position < member.len() {
+        atoms.push(member[position]);
+        position += 1;
+    }
+    position = 0;
+    while position < parsed.between.len() {
+        atoms.push(parsed.between[position]);
+        position += 1;
+    }
+    position = 0;
+    while position < member.len() {
+        atoms.push(member[position]);
+        position += 1;
+    }
+    position = 0;
+    while position < parsed.suffix.len() {
+        atoms.push(parsed.suffix[position]);
+        position += 1;
+    }
+    atoms
+}
+
+pub fn find_choice_capture_backref(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    if supports_choice_capture_backref(pattern, expanded) == false {
+        return MatchOutcome::Uncertain;
+    }
+    let first = search_atoms(
+        choice_capture_pattern(pattern, expanded, true),
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    );
+    let second = search_atoms(
+        choice_capture_pattern(pattern, expanded, false),
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    );
+    if first.kind == 2 || second.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if first.kind == 1 && second.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    if second.kind == 1
+        || first.kind == 0
+            && (first.start < second.start
+                || first.start == second.start && first.end >= second.end)
+    {
+        return MatchOutcome::Found(MatchSpan {
+            start: first.start,
+            end: first.end,
+        });
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: second.start,
+        end: second.end,
+    })
 }
 
 fn search_repeated_capture_backref(
