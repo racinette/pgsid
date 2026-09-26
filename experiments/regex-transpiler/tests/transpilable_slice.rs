@@ -74,6 +74,10 @@ fn fixed_backref_gate_requires_literal_capture() {
 #[test]
 fn single_capture_gate_requires_one_atom_and_reference() {
     assert!(candidate::supports_single_capture_backref(
+        "([[:digit:]])x\\1",
+        false
+    ));
+    assert!(candidate::supports_single_capture_backref(
         "([ab])\\1",
         false
     ));
@@ -102,6 +106,18 @@ fn single_capture_gate_requires_one_atom_and_reference() {
     assert!(matches!(
         candidate::find_single_capture_backref("a(b*)c\\1", "ac", 0, true, true, false, false),
         candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 2 })
+    ));
+    assert!(matches!(
+        candidate::find_single_capture_backref(
+            "([[:digit:]])x\\1",
+            "z3x3y",
+            0,
+            true,
+            true,
+            false,
+            false
+        ),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 4 })
     ));
 }
 
