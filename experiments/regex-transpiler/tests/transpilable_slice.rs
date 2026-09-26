@@ -1008,6 +1008,27 @@ fn top_level_choice_keeps_branch_specific_captures() {
 }
 
 #[test]
+fn zero_width_groups_preserve_anchor_and_boundary_logic() {
+    assert!(candidate::supports_zero_width_assertions(
+        "(^(?!aa)(?!bb))+",
+        false
+    ));
+    assert!(matches!(
+        candidate::find_zero_width_assertions("(^(?!aa)(?!bb))+", "aa", 0, true, false, false),
+        candidate::MatchOutcome::NoMatch
+    ));
+    assert!(matches!(
+        candidate::find_zero_width_assertions("(^(?!aa)(?!bb))+", "cc", 0, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 0 })
+    ));
+    assert!(matches!(
+        candidate::find_zero_width_assertions("(\\Y)+", "foo", 0, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 1 })
+    ));
+    assert!(!candidate::supports_zero_width_assertions("(a*)*", false));
+}
+
+#[test]
 fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
     assert!(candidate::supports_bounded_group("a(ab)*c", false));
@@ -2450,6 +2471,22 @@ fn supported_search_matches_pglite_fixtures() {
                     newline == "ordinary" || newline == "anchors",
                     newline == "sensitive" || newline == "anchors",
                     syntax.chars().next().unwrap(),
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "advanced"
+                && candidate::supports_zero_width_assertions(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                advanced += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_zero_width_assertions(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "sensitive" || newline == "anchors",
                     options["expanded"].as_bool().unwrap(),
                 )
             } else {

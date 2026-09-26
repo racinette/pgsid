@@ -462,6 +462,10 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
 				actual = FindAngleWord(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors, []rune(input.Options.Syntax)[0], input.Options.Expanded)
 				bracketWord++
+			} else if input.Options.Syntax == "advanced" && SupportsZeroWidthAssertions(input.Pattern, input.Options.Expanded) {
+				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
+				actual = FindZeroWidthAssertions(input.Pattern, input.Subject, from, input.Options.CaseSensitive, lineAnchors, input.Options.Expanded)
+				advanced++
 			} else {
 				continue
 			}

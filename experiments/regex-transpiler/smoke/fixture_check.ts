@@ -901,6 +901,20 @@ for (const fixturePath of fixturePaths) {
         options.expanded,
       )
       coverage.bracketWord++
+    } else if (
+      options.syntax === 'advanced' &&
+      generated.supportsZeroWidthAssertions(pattern, options.expanded)
+    ) {
+      const lineAnchors = options.newline === 'sensitive' || options.newline === 'anchors'
+      actual = generated.findZeroWidthAssertions(
+        pattern,
+        subject,
+        from,
+        options.caseSensitive,
+        lineAnchors,
+        options.expanded,
+      )
+      coverage.advanced++
     } else {
       if (options.syntax === 'advanced') coverage.unsupportedAdvanced++
       else coverage.otherOptions++
