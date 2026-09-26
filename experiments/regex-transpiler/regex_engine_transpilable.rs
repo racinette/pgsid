@@ -2480,10 +2480,6 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
                 groups += 1;
                 group = groups;
                 position += 1;
-                if groups > 3 {
-                    valid = false;
-                    break;
-                }
             }
             let frame = CaptureFrame {
                 group,
@@ -2629,6 +2625,32 @@ pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
             position += 1;
         }
         return valid && literals > 0 && code[code.len() - 1].operation == VM_ACCEPT;
+    }
+    let mut position = 0;
+    if code.len() > 0 && code[0].operation == VM_LITERAL {
+        position = 1;
+    }
+    let mut captures = 0;
+    while code.len() - position >= 3
+        && code[position].operation == VM_OPEN
+        && code[position].group == captures + 1
+        && code[position + 1].operation == VM_LITERAL
+        && code[position + 2].operation == VM_CLOSE
+        && code[position + 2].group == captures + 1
+    {
+        captures += 1;
+        position += 3;
+    }
+    if captures >= 4 && code.len() - position >= 2 {
+        if code[position].operation == VM_BACKREF && code[position].group <= captures {
+            position += 1;
+            if code.len() - position >= 2 && code[position].operation == VM_LITERAL {
+                position += 1;
+            }
+            if code.len() - position == 1 && code[position].operation == VM_ACCEPT {
+                return true;
+            }
+        }
     }
     if code.len() == 7 || code.len() == 8 {
         let prefix = code[0].operation == VM_LITERAL
