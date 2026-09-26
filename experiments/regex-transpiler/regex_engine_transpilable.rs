@@ -10,6 +10,7 @@ const VM_SPLIT: usize = 7;
 const VM_BEGIN: usize = 8;
 const VM_END: usize = 9;
 const VM_ACCEPT: usize = 10;
+const VM_JUMP: usize = 11;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct MatchSpan {
@@ -2017,7 +2018,14 @@ fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
                 break;
             }
             let first = instructions.len();
-            instructions.push(make_capture_step(operation, 0, 0, reference, member));
+            if position < source.len() && source[position] == '*' && operation != VM_BACKREF {
+                instructions.push(make_capture_step(VM_SPLIT, first + 1, first + 3, 0, ' '));
+                instructions.push(make_capture_step(operation, 0, 0, reference, member));
+                instructions.push(make_capture_step(VM_JUMP, first, 0, 0, ' '));
+                position += 1;
+            } else {
+                instructions.push(make_capture_step(operation, 0, 0, reference, member));
+            }
             if position < source.len() && source[position] == '+' {
                 let next = instructions.len() + 1;
                 instructions.push(make_capture_step(VM_SPLIT, first, next, 0, ' '));
@@ -2063,6 +2071,28 @@ pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
     }
     if code.len() != 12 {
         return false;
+    }
+    if code[0].operation == VM_LITERAL {
+        return code[1].operation == VM_OPEN
+            && code[1].group == 1
+            && code[2].operation == VM_LITERAL
+            && code[3].operation == VM_SPLIT
+            && code[3].target == 4
+            && code[3].alternate == 6
+            && code[4].operation == VM_LITERAL
+            && code[5].operation == VM_JUMP
+            && code[5].target == 3
+            && code[6].operation == VM_CLOSE
+            && code[6].group == 1
+            && code[7].operation == VM_SPLIT
+            && code[7].target == 8
+            && code[7].alternate == 10
+            && code[8].operation == VM_ANY
+            && code[9].operation == VM_JUMP
+            && code[9].target == 7
+            && code[10].operation == VM_BACKREF
+            && code[10].group == 1
+            && code[11].operation == VM_ACCEPT;
     }
     code[0].operation == VM_BEGIN
         && code[1].operation == VM_OPEN
@@ -2163,6 +2193,8 @@ pub fn find_capture_program(
                         stack[stack_len] = skipped;
                     }
                     stack_len += 1;
+                    instruction = step.target;
+                } else if step.operation == VM_JUMP {
                     instruction = step.target;
                 } else if step.operation == VM_OPEN {
                     captures.push(CaptureEvent {
