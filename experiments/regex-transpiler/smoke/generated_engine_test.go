@@ -56,6 +56,12 @@ func TestLiteralSlice(t *testing.T) {
 	if FindSimpleAdvanced("a|b", "ba", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
 		t.Error("alternation missed earliest start")
 	}
+	if FindSimpleAdvanced("a*?", "aaa", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 0}}) {
+		t.Error("lazy zero-or-more missed shortest endpoint")
+	}
+	if FindSimpleAdvanced("a+?", "aaa", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
+		t.Error("lazy one-or-more missed shortest endpoint")
+	}
 	if FindSimpleAdvanced("^a$", "\na\n", 0, true, false, true) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Error("line anchors missed interior line")
 	}

@@ -236,6 +236,9 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
             let next = atoms[position + 1];
             if next == '*' || next == '+' || next == '?' {
                 position += 1;
+                if atoms.len() - position > 1 && atoms[position + 1] == '?' {
+                    position += 1;
+                }
             }
         }
         position += 1;
@@ -255,6 +258,9 @@ pub fn find_simple_advanced(
     let haystack: Vec<char> = subject.chars().collect();
     let mut branch_starts: Vec<usize> = Vec::new();
     branch_starts.push(0);
+    let mut shortest = false;
+    let mut preference_known = false;
+    let mut alternation = false;
     let mut position = 0;
     while position < atoms.len() {
         let atom = atoms[position];
@@ -402,14 +408,27 @@ pub fn find_simple_advanced(
         }
         if atom == '|' {
             branch_starts.push(position + 1);
+            alternation = true;
         }
         if repeatable && atoms.len() - position > 1 {
             let next = atoms[position + 1];
             if next == '*' || next == '+' || next == '?' {
                 position += 1;
+                let mut lazy = false;
+                if atoms.len() - position > 1 && atoms[position + 1] == '?' {
+                    lazy = true;
+                    position += 1;
+                }
+                if preference_known == false {
+                    preference_known = true;
+                    shortest = lazy;
+                }
             }
         }
         position += 1;
+    }
+    if alternation {
+        shortest = false;
     }
     if from > haystack.len() {
         return MatchOutcome::NoMatch;
@@ -438,7 +457,10 @@ pub fn find_simple_advanced(
             let repeated = queue[head + 2];
             head += 3;
             if atom_position == atoms.len() || atoms[atom_position] == '|' {
-                if found == false || subject_position > best_end {
+                if found == false
+                    || (shortest && subject_position < best_end)
+                    || (shortest == false && subject_position > best_end)
+                {
                     found = true;
                     best_end = subject_position;
                 }
@@ -625,6 +647,9 @@ pub fn find_simple_advanced(
                     if next == '*' || next == '+' || next == '?' {
                         repetition = next;
                         atom_end += 1;
+                        if atom_end < atoms.len() && atoms[atom_end] == '?' {
+                            atom_end += 1;
+                        }
                     }
                 }
                 if repetition == '*' || repetition == '?' || (repetition == '+' && repeated == 1) {
