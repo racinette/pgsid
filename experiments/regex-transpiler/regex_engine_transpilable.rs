@@ -593,9 +593,6 @@ pub fn find_any_character(subject: &str, from: usize, dot_crosses_newline: bool)
 
 pub fn pattern_atoms(pattern: &str, expanded: bool) -> Vec<char> {
     let source: Vec<char> = pattern.chars().collect();
-    if expanded == false {
-        return source;
-    }
     let mut result: Vec<char> = Vec::new();
     let mut position = 0;
     let mut bracket = false;
@@ -618,14 +615,29 @@ pub fn pattern_atoms(pattern: &str, expanded: bool) -> Vec<char> {
             result.push(atom);
             bracket = true;
             position += 1;
-        } else if atom == '#' {
+        } else if atom == '('
+            && source.len() - position >= 3
+            && source[position + 1] == '?'
+            && source[position + 2] == '#'
+        {
+            let mut comment_end = position + 3;
+            while comment_end < source.len() && source[comment_end] != ')' {
+                comment_end += 1;
+            }
+            if comment_end < source.len() {
+                position = comment_end + 1;
+            } else {
+                result.push(atom);
+                position += 1;
+            };
+        } else if expanded && atom == '#' {
             while position < source.len() && source[position] != '\n' {
                 position += 1;
             }
             if position < source.len() {
                 position += 1;
             }
-        } else if atom == ' ' || ((atom as u32) >= 9 && (atom as u32) <= 13) {
+        } else if expanded && (atom == ' ' || ((atom as u32) >= 9 && (atom as u32) <= 13)) {
             position += 1;
         } else {
             result.push(atom);
