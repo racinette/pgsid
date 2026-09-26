@@ -106,6 +106,30 @@ fn single_capture_gate_requires_one_atom_and_reference() {
 }
 
 #[test]
+fn choice_capture_repeats_the_chosen_literal() {
+    assert!(candidate::supports_choice_capture_backref(
+        "(a|aa)\\1",
+        false
+    ));
+    assert!(candidate::supports_choice_capture_backref(
+        "(a|b)c\\1",
+        true
+    ));
+    assert!(!candidate::supports_choice_capture_backref(
+        "((a|b))\\2",
+        false
+    ));
+    assert!(matches!(
+        candidate::find_choice_capture_backref("(a|aa)\\1", "zaaaay", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 5 })
+    ));
+    assert!(matches!(
+        candidate::find_choice_capture_backref("(a|b)c\\1", "zbcby", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 4 })
+    ));
+}
+
+#[test]
 fn invalid_grouping_gate_only_marks_postgres_errors() {
     assert!(candidate::definitely_invalid_grouping("a(b", 'a', false));
     assert!(candidate::definitely_invalid_grouping("a)b", 'a', false));
@@ -514,6 +538,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut lookahead = 0;
     let mut backref = 0;
     let mut single_capture = 0;
+    let mut choice_capture = 0;
     let mut inline = 0;
     let mut middle_lookahead = 0;
     let mut bounded_group = 0;
@@ -844,6 +869,23 @@ fn supported_search_matches_pglite_fixtures() {
                     options["expanded"].as_bool().unwrap(),
                 )
             } else if options["syntax"] == "advanced"
+                && candidate::supports_choice_capture_backref(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                choice_capture += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_choice_capture_backref(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "advanced"
                 && candidate::supports_inline_advanced(
                     pattern,
                     options["expanded"].as_bool().unwrap(),
@@ -1073,6 +1115,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(lookahead >= 20);
     assert!(backref >= 20);
     assert!(single_capture >= 50);
+    assert!(choice_capture >= 10);
     assert!(inline >= 20);
     assert!(middle_lookahead >= 20);
     assert!(bounded_group >= 20);
