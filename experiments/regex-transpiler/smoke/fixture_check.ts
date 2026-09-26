@@ -21,6 +21,7 @@ const coverage = {
   lookbehind: 0,
   lookahead: 0,
   backref: 0,
+  singleCapture: 0,
   inline: 0,
   middleLookahead: 0,
   boundedGroup: 0,
@@ -243,6 +244,22 @@ for (const fixturePath of fixturePaths) {
       coverage.backref++
     } else if (
       options.syntax === 'advanced' &&
+      generated.supportsSingleCaptureBackref(pattern, options.expanded)
+    ) {
+      const crossesNewline = options.newline === 'ordinary' || options.newline === 'anchors'
+      const lineAnchors = options.newline === 'sensitive' || options.newline === 'anchors'
+      actual = generated.findSingleCaptureBackref(
+        pattern,
+        subject,
+        from,
+        options.caseSensitive,
+        crossesNewline,
+        lineAnchors,
+        options.expanded,
+      )
+      coverage.singleCapture++
+    } else if (
+      options.syntax === 'advanced' &&
       generated.supportsInlineAdvanced(pattern, options.expanded)
     ) {
       const crossesNewline = options.newline === 'ordinary' || options.newline === 'anchors'
@@ -444,6 +461,7 @@ assert.ok(coverage.optionalGroup >= 50)
 assert.ok(coverage.lookbehind >= 20)
 assert.ok(coverage.lookahead >= 20)
 assert.ok(coverage.backref >= 20)
+assert.ok(coverage.singleCapture >= 50)
 assert.ok(coverage.inline >= 20)
 assert.ok(coverage.middleLookahead >= 20)
 assert.ok(coverage.boundedGroup >= 20)
@@ -478,6 +496,7 @@ assert.equal(
     coverage.lookbehind +
     coverage.lookahead +
     coverage.backref +
+    coverage.singleCapture +
     coverage.inline +
     coverage.middleLookahead +
     coverage.boundedGroup +
@@ -493,5 +512,5 @@ assert.equal(
     coverage.otherOptions,
 )
 process.stdout.write(
-  `TypeScript find fixtures: ${coverage.literal + coverage.advanced + coverage.grouped + coverage.groupChoice + coverage.optionalGroup + coverage.lookbehind + coverage.lookahead + coverage.backref + coverage.inline + coverage.middleLookahead + coverage.boundedGroup + coverage.extended + coverage.extendedGroup + coverage.extendedEscape + coverage.basic + coverage.basicPunctuation + coverage.basicEscape + coverage.basicBound + coverage.basicBackref}/${coverage.find} supported (${coverage.literal} literal, ${coverage.advanced} advanced including ${coverage.expandedAdvanced} expanded, ${coverage.grouped} flat groups, ${coverage.groupChoice} group choices, ${coverage.optionalGroup} optional groups, ${coverage.lookbehind} fixed lookbehind, ${coverage.lookahead} leading lookahead, ${coverage.middleLookahead} middle lookahead, ${coverage.boundedGroup} bounded groups, ${coverage.backref} fixed backrefs, ${coverage.inline} inline flags, ${coverage.extended} extended, ${coverage.extendedGroup} extended groups, ${coverage.extendedEscape} extended escapes, ${coverage.basic} basic, ${coverage.basicPunctuation} basic punctuation, ${coverage.basicEscape} basic escapes, ${coverage.basicBound} basic bounds, ${coverage.basicBackref} basic backrefs); ${coverage.unsupportedAdvanced} unsupported advanced, ${coverage.otherOptions} other modes. Count fixtures: ${coverage.countSupported}/${coverage.count} supported. Advanced coverage includes ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.rangeClasses} ranges, ${coverage.edgePunctuation} class edge cases, ${coverage.absoluteAnchors} absolute anchors, and ${coverage.position} positioned.\n`,
+  `TypeScript find fixtures: ${coverage.literal + coverage.advanced + coverage.grouped + coverage.groupChoice + coverage.optionalGroup + coverage.lookbehind + coverage.lookahead + coverage.backref + coverage.singleCapture + coverage.inline + coverage.middleLookahead + coverage.boundedGroup + coverage.extended + coverage.extendedGroup + coverage.extendedEscape + coverage.basic + coverage.basicPunctuation + coverage.basicEscape + coverage.basicBound + coverage.basicBackref}/${coverage.find} supported (${coverage.literal} literal, ${coverage.advanced} advanced including ${coverage.expandedAdvanced} expanded, ${coverage.grouped} flat groups, ${coverage.groupChoice} group choices, ${coverage.optionalGroup} optional groups, ${coverage.lookbehind} fixed lookbehind, ${coverage.lookahead} leading lookahead, ${coverage.middleLookahead} middle lookahead, ${coverage.boundedGroup} bounded groups, ${coverage.backref} fixed backrefs, ${coverage.singleCapture} single captures, ${coverage.inline} inline flags, ${coverage.extended} extended, ${coverage.extendedGroup} extended groups, ${coverage.extendedEscape} extended escapes, ${coverage.basic} basic, ${coverage.basicPunctuation} basic punctuation, ${coverage.basicEscape} basic escapes, ${coverage.basicBound} basic bounds, ${coverage.basicBackref} basic backrefs); ${coverage.unsupportedAdvanced} unsupported advanced, ${coverage.otherOptions} other modes. Count fixtures: ${coverage.countSupported}/${coverage.count} supported. Advanced coverage includes ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.rangeClasses} ranges, ${coverage.edgePunctuation} class edge cases, ${coverage.absoluteAnchors} absolute anchors, and ${coverage.position} positioned.\n`,
 )
