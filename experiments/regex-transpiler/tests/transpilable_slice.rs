@@ -194,6 +194,29 @@ fn single_capture_gate_requires_one_atom_and_reference() {
 }
 
 #[test]
+fn repeated_class_backreferences_use_the_captured_character() {
+    for pattern in ["a([bc])\\1*", "a([bc])\\1{3,4}", "([a-z])\\1+"] {
+        assert!(candidate::supports_repeated_backref(pattern, false));
+    }
+    for pattern in [
+        "a([bc])\\1",
+        "a([bc])\\2*",
+        "a([bc]+)\\1*",
+        "a([bc])\\1{4,3}",
+    ] {
+        assert!(!candidate::supports_repeated_backref(pattern, false));
+    }
+    assert!(matches!(
+        candidate::find_repeated_backref("a([bc])\\1*", "abbb", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 4 })
+    ));
+    assert!(matches!(
+        candidate::find_repeated_backref("a([bc])\\1{3,4}", "abbb", 0, true, true, false, false),
+        candidate::MatchOutcome::NoMatch
+    ));
+}
+
+#[test]
 fn choice_capture_repeats_the_chosen_literal() {
     assert!(candidate::supports_choice_capture_backref(
         "(a|aa)\\1",
@@ -790,6 +813,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut lookahead = 0;
     let mut backref = 0;
     let mut single_capture = 0;
+    let mut repeated_backref = 0;
     let mut choice_capture = 0;
     let mut two_capture = 0;
     let mut inline = 0;
@@ -1172,6 +1196,23 @@ fn supported_search_matches_pglite_fixtures() {
                     options["expanded"].as_bool().unwrap(),
                 )
             } else if options["syntax"] == "advanced"
+                && candidate::supports_repeated_backref(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                repeated_backref += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_repeated_backref(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "advanced"
                 && candidate::supports_choice_capture_backref(
                     pattern,
                     options["expanded"].as_bool().unwrap(),
@@ -1514,6 +1555,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(lookahead >= 20);
     assert!(backref >= 20);
     assert!(single_capture >= 50);
+    assert!(repeated_backref >= 4);
     assert!(choice_capture >= 10);
     assert!(two_capture >= 30);
     assert!(inline >= 20);
