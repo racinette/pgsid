@@ -33,7 +33,10 @@ func TestLiteralSlice(t *testing.T) {
 	if !SupportsFixedLookbehind("(?<=ab)c", false) {
 		t.Error("fixed lookbehind was rejected")
 	}
-	for _, pattern := range []string{"(?<=a|b)c", "(?<=a+)c", "(?<=a\\n)b", "(?=a)b"} {
+	if !SupportsFixedLookbehind("(?<=a|b)c", false) {
+		t.Error("lookbehind alternation was rejected")
+	}
+	for _, pattern := range []string{"(?<=a+)c", "(?<=a\\n)b", "(?=a)b"} {
 		if SupportsFixedLookbehind(pattern, false) {
 			t.Errorf("unsupported lookbehind was accepted: %q", pattern)
 		}
