@@ -341,6 +341,15 @@ fn invalid_backreference_gate_only_marks_postgres_errors() {
 }
 
 #[test]
+fn escaped_space_survives_expanded_patterns() {
+    assert!(candidate::supports_expanded_advanced("a\\ b"));
+    assert!(matches!(
+        candidate::find_expanded_advanced("a\\ b", "xa by", 0, true, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 4 })
+    ));
+}
+
+#[test]
 fn inline_gate_accepts_supported_prefix_flags() {
     for pattern in ["(?i)ab", "(?n)^b", "(?x)a b", "(?t)a b"] {
         assert!(candidate::supports_inline_advanced(pattern, false));
