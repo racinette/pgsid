@@ -361,6 +361,14 @@ fn simple_advanced_search_matches_the_live_engine() {
                 "\\d+",
                 "^a+$",
                 "a*b*",
+                "a|b",
+                "ab|a",
+                "a|ab",
+                "a*|b+",
+                "|a",
+                "a|",
+                "[a|b]|c",
+                "\\||b",
             ] {
                 let engine::CompileOutcome::Ready(program) = engine::compile(
                     pattern,
@@ -408,8 +416,8 @@ fn simple_advanced_search_matches_the_live_engine() {
         }
     }
     for pattern in [
-        "a|b", "[z-a]", "[a-b-c]", "[A-z]", "[--a]", "[a--]", "[---]", "[^]", "[]", "[a",
-        "[\\d-~]", "[a-\\d]", "[\\q]", "(ab)", "a{2}", "a\\", "a**", "a*?", "^*", "\\m+",
+        "[z-a]", "[a-b-c]", "[A-z]", "[--a]", "[a--]", "[---]", "[^]", "[]", "[a", "[\\d-~]",
+        "[a-\\d]", "[\\q]", "(ab)", "a{2}", "a\\", "a**", "a*?", "^*", "\\m+",
     ] {
         assert!(matches!(
             candidate::find_simple_advanced(pattern, "ab", 0, true, true, false),
@@ -433,6 +441,9 @@ fn support_classification_matches_search_certainty() {
         "\\[a\\]",
         "a*",
         "a|b",
+        "a|ab",
+        "|a",
+        "a|",
         "a\\nb",
         "\\B",
         "[ab]",

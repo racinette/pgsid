@@ -90,7 +90,7 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
     let mut position = 0;
     while position < atoms.len() {
         let atom = atoms[position];
-        let mut repeatable = atom != '^' && atom != '$';
+        let mut repeatable = atom != '^' && atom != '$' && atom != '|';
         if atom == '\\' {
             position += 1;
             if position == atoms.len() {
@@ -228,8 +228,7 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
                 || atom == '}'
                 || atom == '*'
                 || atom == '+'
-                || atom == '?'
-                || atom == '|')
+                || atom == '?')
         {
             return false;
         }
@@ -254,10 +253,12 @@ pub fn find_simple_advanced(
 ) -> MatchOutcome {
     let atoms: Vec<char> = pattern.chars().collect();
     let haystack: Vec<char> = subject.chars().collect();
+    let mut branch_starts: Vec<usize> = Vec::new();
+    branch_starts.push(0);
     let mut position = 0;
     while position < atoms.len() {
         let atom = atoms[position];
-        let mut repeatable = atom != '^' && atom != '$';
+        let mut repeatable = atom != '^' && atom != '$' && atom != '|';
         if atom == '\\' {
             position += 1;
             if position == atoms.len() {
@@ -395,10 +396,12 @@ pub fn find_simple_advanced(
                 || atom == '}'
                 || atom == '*'
                 || atom == '+'
-                || atom == '?'
-                || atom == '|')
+                || atom == '?')
         {
             return MatchOutcome::Uncertain;
+        }
+        if atom == '|' {
+            branch_starts.push(position + 1);
         }
         if repeatable && atoms.len() - position > 1 {
             let next = atoms[position + 1];
@@ -415,9 +418,13 @@ pub fn find_simple_advanced(
     let mut work = 0;
     while start <= haystack.len() {
         let mut queue: Vec<usize> = Vec::new();
-        queue.push(0);
-        queue.push(start);
-        queue.push(0);
+        let mut branch = 0;
+        while branch < branch_starts.len() {
+            queue.push(branch_starts[branch]);
+            queue.push(start);
+            queue.push(0);
+            branch += 1;
+        }
         let mut head = 0;
         let mut found = false;
         let mut best_end = start;
@@ -430,7 +437,7 @@ pub fn find_simple_advanced(
             let subject_position = queue[head + 1];
             let repeated = queue[head + 2];
             head += 3;
-            if atom_position == atoms.len() {
+            if atom_position == atoms.len() || atoms[atom_position] == '|' {
                 if found == false || subject_position > best_end {
                     found = true;
                     best_end = subject_position;
