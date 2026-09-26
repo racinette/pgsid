@@ -703,6 +703,26 @@ pub fn pattern_atoms(pattern: &str, expanded: bool) -> Vec<char> {
             && result[position] == '('
             && result[position + 1] == '?'
             && result[position + 2] == ':'
+            && result[position + 3] == '\\'
+            && (result[position + 4] == 'm'
+                || result[position + 4] == 'M'
+                || result[position + 4] == 'y'
+                || result[position + 4] == 'Y'
+                || result[position + 4] == 'A'
+                || result[position + 4] == 'Z')
+            && result[position + 5] == ')'
+            && result[position + 6] == '+'
+        {
+            normalized.push(result[position + 3]);
+            normalized.push(result[position + 4]);
+            position += 7;
+            skipped = true;
+        }
+        if skipped == false
+            && result.len() - position >= 7
+            && result[position] == '('
+            && result[position + 1] == '?'
+            && result[position + 2] == ':'
         {
             let mut group_end = position + 3;
             let mut bracket = false;
