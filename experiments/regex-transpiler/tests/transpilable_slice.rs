@@ -1102,6 +1102,19 @@ fn unicode_ranges_backtrack_before_numeric_literals() {
 }
 
 #[test]
+fn a_nested_starred_literal_has_the_same_span_as_one_star() {
+    assert!(candidate::supports_simple_advanced("(a*)*"));
+    assert!(matches!(
+        candidate::find_simple_advanced("(a*)*", "aaab", 0, true, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 3 })
+    ));
+    assert!(matches!(
+        candidate::find_simple_advanced("(a*)*", "bc", 0, true, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 0 })
+    ));
+}
+
+#[test]
 fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
     assert!(candidate::supports_bounded_group("a(ab)*c", false));
