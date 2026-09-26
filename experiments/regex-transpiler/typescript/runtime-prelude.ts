@@ -54,7 +54,7 @@ function checkedIndices(value: number[]): number[] {
   return Array.from(value, checkedIndex)
 }
 
-function checkedIndexIn(values: number[], index: number): number {
+function checkedIndexIn<T>(values: T[], index: number): number {
   checkedIndex(index)
   if (index >= values.length) throw new RangeError('index out of bounds')
   return index
@@ -67,6 +67,11 @@ function indexNumber(values: number[], index: number): number {
 function pushIndex(values: number[], value: number): void {
   checkedAdd(values.length, 1)
   values.push(checkedIndex(value))
+}
+
+function pushChar(values: string[], value: string): void {
+  checkedAdd(values.length, 1)
+  values.push(checkedChar(value))
 }
 
 function indexChar(values: string[], index: number): string {

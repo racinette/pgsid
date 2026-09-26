@@ -44,6 +44,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 	literal := 0
 	insensitive := 0
 	advanced := 0
+	expandedAdvanced := 0
 	countSupported := 0
 	dot := 0
 	mixed := 0
@@ -72,11 +73,16 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 		for index, fixture := range document.Fixtures {
 			if fixture.Operation == "count" {
 				input := fixture.Input
-				if input.Options.Syntax == "advanced" && !input.Options.Expanded && SupportsSimpleAdvanced(input.Pattern) {
+				if input.Options.Syntax == "advanced" && ((!input.Options.Expanded && SupportsSimpleAdvanced(input.Pattern)) || (input.Options.Expanded && SupportsExpandedAdvanced(input.Pattern))) {
 					from := input.Start - 1
 					crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
 					lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
-					actual := CountSimpleAdvanced(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors)
+					var actual CountOutcome
+					if input.Options.Expanded {
+						actual = CountExpandedAdvanced(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors)
+					} else {
+						actual = CountSimpleAdvanced(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors)
+					}
 					var count int
 					if err := json.Unmarshal(fixture.Expected.Value, &count); err != nil {
 						t.Fatal(err)
@@ -104,10 +110,15 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				if !input.Options.CaseSensitive {
 					insensitive++
 				}
-			} else if input.Options.Syntax == "advanced" && !input.Options.Expanded && SupportsSimpleAdvanced(input.Pattern) {
+			} else if input.Options.Syntax == "advanced" && ((!input.Options.Expanded && SupportsSimpleAdvanced(input.Pattern)) || (input.Options.Expanded && SupportsExpandedAdvanced(input.Pattern))) {
 				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
 				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
-				actual = FindSimpleAdvanced(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors)
+				if input.Options.Expanded {
+					actual = FindExpandedAdvanced(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors)
+					expandedAdvanced++
+				} else {
+					actual = FindSimpleAdvanced(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors)
+				}
 				advanced++
 				if input.Pattern == "." {
 					dot++
@@ -177,7 +188,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 	if literal < 40 || insensitive < 7 || advanced < 100 || dot < 20 || mixed < 50 || anchored < 20 || escaped < 40 || classes < 50 || negatedClasses < 40 || rangeClasses < 50 || edgePunctuation < 80 || absoluteAnchors < 50 || positioned < 6 || len(newlineModes) != 4 {
 		t.Fatalf("fixture coverage: literal=%d insensitive=%d advanced=%d dot=%d mixed=%d anchored=%d escaped=%d classes=%d negatedClasses=%d rangeClasses=%d edgePunctuation=%d absoluteAnchors=%d positioned=%d newline=%v", literal, insensitive, advanced, dot, mixed, anchored, escaped, classes, negatedClasses, rangeClasses, edgePunctuation, absoluteAnchors, positioned, newlineModes)
 	}
-	if countSupported < 50 {
-		t.Fatalf("supported count fixtures: %d", countSupported)
+	if countSupported < 100 || expandedAdvanced < 200 {
+		t.Fatalf("supported count=%d expanded=%d", countSupported, expandedAdvanced)
 	}
 }

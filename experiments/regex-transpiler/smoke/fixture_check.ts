@@ -15,6 +15,7 @@ const coverage = {
   literal: 0,
   insensitive: 0,
   advanced: 0,
+  expandedAdvanced: 0,
   unsupportedAdvanced: 0,
   otherOptions: 0,
   dot: 0,
@@ -42,12 +43,13 @@ for (const fixturePath of fixturePaths) {
       if (
         fixture.operation === 'count' &&
         options.syntax === 'advanced' &&
-        !options.expanded &&
-        generated.supportsSimpleAdvanced(pattern)
+        (options.expanded
+          ? generated.supportsExpandedAdvanced(pattern)
+          : generated.supportsSimpleAdvanced(pattern))
       ) {
         const newline = options.newline
         assert.deepEqual(
-          generated.countSimpleAdvanced(
+          (options.expanded ? generated.countExpandedAdvanced : generated.countSimpleAdvanced)(
             pattern,
             subject,
             (fixture.input.start ?? 1) - 1,
@@ -72,12 +74,13 @@ for (const fixturePath of fixturePaths) {
       if (!options.caseSensitive) coverage.insensitive++
     } else if (
       options.syntax === 'advanced' &&
-      !options.expanded &&
-      generated.supportsSimpleAdvanced(pattern)
+      (options.expanded
+        ? generated.supportsExpandedAdvanced(pattern)
+        : generated.supportsSimpleAdvanced(pattern))
     ) {
       const crossesNewline = options.newline === 'ordinary' || options.newline === 'anchors'
       const lineAnchors = options.newline === 'sensitive' || options.newline === 'anchors'
-      actual = generated.findSimpleAdvanced(
+      actual = (options.expanded ? generated.findExpandedAdvanced : generated.findSimpleAdvanced)(
         pattern,
         subject,
         from,
@@ -86,6 +89,7 @@ for (const fixturePath of fixturePaths) {
         lineAnchors,
       )
       coverage.advanced++
+      if (options.expanded) coverage.expandedAdvanced++
       if (pattern === '.') {
         assert.deepEqual(
           generated.findAnyCharacter(subject, from, crossesNewline),
@@ -109,7 +113,7 @@ for (const fixturePath of fixturePaths) {
       if (pattern.includes('\\A') || pattern.includes('\\Z')) coverage.absoluteAnchors++
       coverage.newline.add(options.newline)
     } else {
-      if (options.syntax === 'advanced' && !options.expanded) coverage.unsupportedAdvanced++
+      if (options.syntax === 'advanced') coverage.unsupportedAdvanced++
       else coverage.otherOptions++
       continue
     }
@@ -129,6 +133,7 @@ for (const fixturePath of fixturePaths) {
 assert.ok(coverage.literal >= 40)
 assert.ok(coverage.insensitive >= 7)
 assert.ok(coverage.advanced >= 100)
+assert.ok(coverage.expandedAdvanced >= 200)
 assert.ok(coverage.dot >= 20)
 assert.ok(coverage.mixed >= 50)
 assert.ok(coverage.anchored >= 20)
@@ -139,12 +144,12 @@ assert.ok(coverage.rangeClasses >= 50)
 assert.ok(coverage.edgePunctuation >= 80)
 assert.ok(coverage.absoluteAnchors >= 50)
 assert.ok(coverage.position >= 6)
-assert.ok(coverage.countSupported >= 50)
+assert.ok(coverage.countSupported >= 100)
 assert.deepEqual(coverage.newline, new Set(['ordinary', 'sensitive', 'stop', 'anchors']))
 assert.equal(
   coverage.find,
   coverage.literal + coverage.advanced + coverage.unsupportedAdvanced + coverage.otherOptions,
 )
 process.stdout.write(
-  `TypeScript find fixtures: ${coverage.literal + coverage.advanced}/${coverage.find} supported (${coverage.literal} literal, ${coverage.advanced} simple advanced); ${coverage.unsupportedAdvanced} unsupported advanced, ${coverage.otherOptions} other modes. Count fixtures: ${coverage.countSupported}/${coverage.count} supported. Advanced coverage includes ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.rangeClasses} ranges, ${coverage.edgePunctuation} class edge cases, ${coverage.absoluteAnchors} absolute anchors, and ${coverage.position} positioned.\n`,
+  `TypeScript find fixtures: ${coverage.literal + coverage.advanced}/${coverage.find} supported (${coverage.literal} literal, ${coverage.advanced} advanced including ${coverage.expandedAdvanced} expanded); ${coverage.unsupportedAdvanced} unsupported advanced, ${coverage.otherOptions} other modes. Count fixtures: ${coverage.countSupported}/${coverage.count} supported. Advanced coverage includes ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.rangeClasses} ranges, ${coverage.edgePunctuation} class edge cases, ${coverage.absoluteAnchors} absolute anchors, and ${coverage.position} positioned.\n`,
 )

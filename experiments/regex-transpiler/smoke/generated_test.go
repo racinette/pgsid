@@ -31,6 +31,10 @@ func TestTranspilerSmoke(t *testing.T) {
 	if ForwardedSpan(input, 2) != expected || input != (Span{Start: 1, End: 3}) {
 		t.Errorf("forwarded_span changed value semantics")
 	}
+	if built := CharStack('😀'); len(built) != 1 || built[0] != 'b' {
+		t.Errorf("char stack changed its contents: %+v", built)
+	}
+	expectPanic(t, func() { CharStack(0xd800) })
 	bag := CharBag{Characters: []rune{'a'}}
 	echoedBag := EchoBag(bag)
 	echoedBag.Characters[0] = 'b'

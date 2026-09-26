@@ -92,6 +92,19 @@ assert.deepEqual(generated.countSimpleAdvanced('a*?', 'aaa', 0, true, true, fals
   kind: 'Count',
   value: 4,
 })
+assert.equal(generated.supportsExpandedAdvanced('a # comment\nb'), true)
+assert.deepEqual(generated.findExpandedAdvanced('a # comment\nb', 'ab', 0, true, true, false), {
+  kind: 'Found',
+  value: { start: 0, end: 2 },
+})
+assert.deepEqual(generated.findExpandedAdvanced('a[ #]b', 'za#b', 0, true, true, false), {
+  kind: 'Found',
+  value: { start: 1, end: 4 },
+})
+assert.deepEqual(generated.countExpandedAdvanced('a *', 'baa', 0, true, true, false), {
+  kind: 'Count',
+  value: 3,
+})
 assert.deepEqual(generated.findSimpleAdvanced('^a$', '\na\n', 0, true, false, true), {
   kind: 'Found',
   value: { start: 1, end: 2 },

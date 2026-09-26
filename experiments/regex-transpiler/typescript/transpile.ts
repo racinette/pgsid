@@ -449,7 +449,7 @@ class Transpiler {
         result.push(
           f.createExpressionStatement(
             call(
-              'pushIndex',
+              this.infer(value.receiver, locals) === 'Vec<char>' ? 'pushChar' : 'pushIndex',
               this.expression(value.receiver, locals),
               this.expression(value.arguments[0]!, locals),
             ),

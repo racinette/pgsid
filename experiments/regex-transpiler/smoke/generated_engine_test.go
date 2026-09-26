@@ -80,6 +80,15 @@ func TestLiteralSlice(t *testing.T) {
 	if CountSimpleAdvanced("a*?", "aaa", 0, true, true, false) != (CountOutcome{Kind: CountOutcomeCount, Count: 4}) {
 		t.Error("lazy count missed empty matches")
 	}
+	if !SupportsExpandedAdvanced("a # comment\nb") || FindExpandedAdvanced("a # comment\nb", "ab", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 2}}) {
+		t.Error("expanded comment was not removed")
+	}
+	if FindExpandedAdvanced("a[ #]b", "za#b", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 4}}) {
+		t.Error("expanded bracket characters were removed")
+	}
+	if CountExpandedAdvanced("a *", "baa", 0, true, true, false) != (CountOutcome{Kind: CountOutcomeCount, Count: 3}) {
+		t.Error("expanded count missed empty matches")
+	}
 	if FindSimpleAdvanced("^a$", "\na\n", 0, true, false, true) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Error("line anchors missed interior line")
 	}

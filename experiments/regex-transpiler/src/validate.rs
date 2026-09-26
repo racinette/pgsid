@@ -377,10 +377,12 @@ fn infer_expr_type(
             Ok(Some("usize".into()))
         }
         Expr::MethodCall(call) if call.method == "push" => {
-            if infer_expr_type(&call.receiver, locals, semantics)?.as_deref() != Some("Vec<usize>")
-                || infer_expr_type(&call.args[0], locals, semantics)?.as_deref() != Some("usize")
+            let receiver = infer_expr_type(&call.receiver, locals, semantics)?;
+            let value = infer_expr_type(&call.args[0], locals, semantics)?;
+            if (receiver.as_deref() != Some("Vec<usize>") || value.as_deref() != Some("usize"))
+                && (receiver.as_deref() != Some("Vec<char>") || value.as_deref() != Some("char"))
             {
-                return Err("push() requires a Vec<usize> and a usize value".into());
+                return Err("push() requires a mutable vector and matching element".into());
             }
             let root = assignment_root(&call.receiver)
                 .ok_or("push() receiver is not an addressable binding")?;
@@ -482,7 +484,7 @@ fn infer_expr_type(
                 .ok_or("assignment source has no shared type")?;
             match &*assign.left {
                 Expr::Path(_) if scalar(&destination) => {}
-                Expr::Index(_) if destination == "usize" => {}
+                Expr::Index(_) if destination == "usize" || destination == "char" => {}
                 _ => {
                     return Err(
                         "assignment target must be a scalar binding or vector element".into(),
@@ -543,10 +545,11 @@ fn check_body_methods(
                             "Vec::new() requires an explicitly typed Vec<usize> local".into()
                         );
                     };
-                    if type_name(&typed.ty)? != "Vec<usize>" {
-                        return Err("Vec::new() is supported only for Vec<usize>".into());
+                    let vector_type = type_name(&typed.ty)?;
+                    if vector_type != "Vec<usize>" && vector_type != "Vec<char>" {
+                        return Err("Vec::new() requires a shared vector type".into());
                     }
-                    "Vec<usize>".into()
+                    vector_type
                 } else {
                     let inferred = infer_expr_type(initializer, locals, semantics)?;
                     if let Pat::Type(typed) = &local.pat {

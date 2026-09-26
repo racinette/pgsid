@@ -23603,6 +23603,1374 @@
           "end": 3
         }
       }
+    },
+    {
+      "input": {
+        "pattern": "a b c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a# comment\nb",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a[ #]b",
+        "subject": "za#b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a[ #]b",
+        "subject": "za b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\tb",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|ab",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "^ a $",
+        "subject": "a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+ # comment\nb",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a { 2 , 3 } b",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a b c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a# comment\nb",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a[ #]b",
+        "subject": "za#b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a[ #]b",
+        "subject": "za b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\tb",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|ab",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "^ a $",
+        "subject": "a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+ # comment\nb",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a { 2 , 3 } b",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a b c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a# comment\nb",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a[ #]b",
+        "subject": "za#b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a[ #]b",
+        "subject": "za b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\tb",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|ab",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "^ a $",
+        "subject": "a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+ # comment\nb",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a { 2 , 3 } b",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a b c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a# comment\nb",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a[ #]b",
+        "subject": "za#b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a[ #]b",
+        "subject": "za b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\tb",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|ab",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "^ a $",
+        "subject": "a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+ # comment\nb",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a { 2 , 3 } b",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a b c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a# comment\nb",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a[ #]b",
+        "subject": "za#b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a[ #]b",
+        "subject": "za b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\tb",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|ab",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "^ a $",
+        "subject": "a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+ # comment\nb",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a { 2 , 3 } b",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a b c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a# comment\nb",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a[ #]b",
+        "subject": "za#b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a[ #]b",
+        "subject": "za b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\tb",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|ab",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "^ a $",
+        "subject": "a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+ # comment\nb",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a { 2 , 3 } b",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a b c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a# comment\nb",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a[ #]b",
+        "subject": "za#b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a[ #]b",
+        "subject": "za b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\tb",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|ab",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "^ a $",
+        "subject": "a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+ # comment\nb",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a { 2 , 3 } b",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a b c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a# comment\nb",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a[ #]b",
+        "subject": "za#b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a[ #]b",
+        "subject": "za b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\tb",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|ab",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "^ a $",
+        "subject": "a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+ # comment\nb",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a { 2 , 3 } b",
+        "subject": "aaab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
     }
   ]
 }
