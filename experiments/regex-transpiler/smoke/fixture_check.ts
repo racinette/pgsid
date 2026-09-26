@@ -594,6 +594,7 @@ for (const fixturePath of fixturePaths) {
         subject,
         from,
         options.caseSensitive,
+        options.newline === 'ordinary' || options.newline === 'anchors',
         options.expanded,
       )
       coverage.chainedAssertions++

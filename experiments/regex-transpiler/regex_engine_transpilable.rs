@@ -2436,11 +2436,19 @@ pub fn supports_chained_assertions(pattern: &str, expanded: bool) -> bool {
                 return false;
             }
             if source[position + 2] == '=' || source[position + 2] == '!' {
-                if simple_literal_char(source[position + 3]) == false || source[position + 4] != ')'
+                if source.len() - position >= 6
+                    && source[position + 3] == '\\'
+                    && source[position + 4] == 'w'
+                    && source[position + 5] == ')'
                 {
+                    position += 6;
+                } else if (simple_literal_char(source[position + 3]) || source[position + 3] == '.')
+                    && source[position + 4] == ')'
+                {
+                    position += 5;
+                } else {
                     return false;
-                }
-                position += 5;
+                };
             } else if source.len() - position >= 6
                 && source[position + 2] == '<'
                 && (source[position + 3] == '=' || source[position + 3] == '!')
@@ -2454,8 +2462,13 @@ pub fn supports_chained_assertions(pattern: &str, expanded: bool) -> bool {
                 return false;
             };
             assertions += 1;
-        } else if simple_literal_char(atom) {
+        } else if simple_literal_char(atom) || atom == '.' {
             position += 1;
+            if position < source.len() && source[position] == '*' {
+                position += 1;
+            }
+        } else if atom == '\\' && source.len() - position >= 2 && source[position + 1] == 'w' {
+            position += 2;
             if position < source.len() && source[position] == '*' {
                 position += 1;
             }
@@ -2471,6 +2484,7 @@ pub fn find_chained_assertions(
     subject: &str,
     from: usize,
     case_sensitive: bool,
+    dot_crosses_newline: bool,
     expanded: bool,
 ) -> MatchOutcome {
     if supports_chained_assertions(pattern, expanded) == false {
@@ -2509,11 +2523,18 @@ pub fn find_chained_assertions(
                     let mut positive = source[pattern_position + 2] == '=';
                     let mut expected = source[pattern_position + 3];
                     let mut width = 5;
+                    let mut any = expected == '.';
+                    let mut word = false;
+                    if expected == '\\' {
+                        word = true;
+                        width = 6;
+                    }
                     if source[pattern_position + 2] == '<' {
                         lookbehind = true;
                         positive = source[pattern_position + 3] == '=';
                         expected = source[pattern_position + 4];
                         width = 6;
+                        any = false;
                     };
                     let mut holds = false;
                     if lookbehind && subject_position > 0 {
@@ -2523,55 +2544,79 @@ pub fn find_chained_assertions(
                                 && actual.to_ascii_lowercase() == expected.to_ascii_lowercase());
                     } else if lookbehind == false && subject_position < haystack.len() {
                         let actual = haystack[subject_position];
-                        holds = actual == expected
-                            || (case_sensitive == false
-                                && actual.to_ascii_lowercase() == expected.to_ascii_lowercase());
+                        holds = (any && (dot_crosses_newline || actual != '\n'))
+                            || (word && zero_width_word(actual))
+                            || (any == false
+                                && word == false
+                                && (actual == expected
+                                    || (case_sensitive == false
+                                        && actual.to_ascii_lowercase()
+                                            == expected.to_ascii_lowercase())));
                     }
                     if holds != positive {
                         matched = false;
                         break;
                     }
                     pattern_position += width;
-                } else if pattern_position + 1 < source.len() && source[pattern_position + 1] == '*'
-                {
-                    let skipped = PatternWorkState {
-                        pattern: pattern_position + 2,
-                        subject: subject_position,
-                    };
-                    if stack_len == stack.len() {
-                        stack.push(skipped);
-                    } else {
-                        stack[stack_len] = skipped;
-                    }
-                    stack_len += 1;
-                    if subject_position == haystack.len() {
-                        matched = false;
-                        break;
-                    }
-                    let actual = haystack[subject_position];
-                    if actual != atom
-                        && (case_sensitive
-                            || actual.to_ascii_lowercase() != atom.to_ascii_lowercase())
-                    {
-                        matched = false;
-                        break;
-                    }
-                    subject_position += 1;
                 } else {
-                    if subject_position == haystack.len() {
-                        matched = false;
-                        break;
+                    let mut atom_width = 1;
+                    let mut word = false;
+                    if atom == '\\' {
+                        atom_width = 2;
+                        word = true;
                     }
-                    let actual = haystack[subject_position];
-                    if actual != atom
-                        && (case_sensitive
-                            || actual.to_ascii_lowercase() != atom.to_ascii_lowercase())
-                    {
-                        matched = false;
-                        break;
-                    }
-                    subject_position += 1;
-                    pattern_position += 1;
+                    let repeated = pattern_position + atom_width < source.len()
+                        && source[pattern_position + atom_width] == '*';
+                    if repeated {
+                        let skipped = PatternWorkState {
+                            pattern: pattern_position + atom_width + 1,
+                            subject: subject_position,
+                        };
+                        if stack_len == stack.len() {
+                            stack.push(skipped);
+                        } else {
+                            stack[stack_len] = skipped;
+                        }
+                        stack_len += 1;
+                        if subject_position == haystack.len() {
+                            matched = false;
+                            break;
+                        }
+                        let actual = haystack[subject_position];
+                        let accepts = (word && zero_width_word(actual))
+                            || (atom == '.' && (dot_crosses_newline || actual != '\n'))
+                            || (word == false
+                                && atom != '.'
+                                && (actual == atom
+                                    || (case_sensitive == false
+                                        && actual.to_ascii_lowercase()
+                                            == atom.to_ascii_lowercase())));
+                        if accepts == false {
+                            matched = false;
+                            break;
+                        }
+                        subject_position += 1;
+                    } else {
+                        if subject_position == haystack.len() {
+                            matched = false;
+                            break;
+                        }
+                        let actual = haystack[subject_position];
+                        let accepts = (word && zero_width_word(actual))
+                            || (atom == '.' && (dot_crosses_newline || actual != '\n'))
+                            || (word == false
+                                && atom != '.'
+                                && (actual == atom
+                                    || (case_sensitive == false
+                                        && actual.to_ascii_lowercase()
+                                            == atom.to_ascii_lowercase())));
+                        if accepts == false {
+                            matched = false;
+                            break;
+                        }
+                        subject_position += 1;
+                        pattern_position += atom_width;
+                    };
                 };
             }
             if matched && (found == false || subject_position > best_end) {
