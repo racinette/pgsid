@@ -64,6 +64,7 @@ struct FixedBackrefResult {
 
 struct SingleCaptureResult {
     valid: bool,
+    repeated: bool,
     prefix: Vec<char>,
     atom: Vec<char>,
     between: Vec<char>,
@@ -74,6 +75,7 @@ struct SingleCaptureResult {
 struct CaptureState {
     start: usize,
     capture: usize,
+    capture_end: usize,
 }
 
 struct InlineResult {
@@ -1151,6 +1153,7 @@ fn single_capture_atoms(pattern: &str, expanded: bool) -> SingleCaptureResult {
     let mut suffix: Vec<char> = Vec::new();
     let mut position = 0;
     let mut valid = true;
+    let mut repeated = false;
     while position < source.len() && source[position] != '(' {
         if simple_literal_char(source[position]) == false {
             valid = false;
@@ -1211,6 +1214,12 @@ fn single_capture_atoms(pattern: &str, expanded: bool) -> SingleCaptureResult {
         };
     }
     if valid {
+        if position < source.len() && source[position] == '+' {
+            repeated = true;
+            position += 1;
+        }
+    }
+    if valid {
         if position == source.len() || source[position] != ')' {
             valid = false;
         } else {
@@ -1243,6 +1252,7 @@ fn single_capture_atoms(pattern: &str, expanded: bool) -> SingleCaptureResult {
     }
     SingleCaptureResult {
         valid,
+        repeated,
         prefix,
         atom,
         between,
@@ -3319,6 +3329,17 @@ pub fn find_single_capture_backref(
     if parsed.valid == false {
         return MatchOutcome::Uncertain;
     }
+    if parsed.repeated {
+        return find_repeated_capture_backref(
+            pattern,
+            subject,
+            from,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+            expanded,
+        );
+    }
     let haystack: Vec<char> = subject.chars().collect();
     if from > haystack.len() {
         return MatchOutcome::NoMatch;
@@ -3370,6 +3391,7 @@ pub fn find_single_capture_backref(
             states.push(CaptureState {
                 start,
                 capture: result.start,
+                capture_end: result.end,
             });
             if states.len() == MAX_CAPTURE_WORK {
                 truncated = true;
@@ -3448,6 +3470,181 @@ pub fn find_single_capture_backref(
     }
     if truncated {
         return MatchOutcome::Uncertain;
+    }
+    MatchOutcome::NoMatch
+}
+
+fn find_repeated_capture_backref(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = single_capture_atoms(pattern, expanded);
+    if parsed.valid == false || parsed.repeated == false {
+        return MatchOutcome::Uncertain;
+    }
+    let haystack: Vec<char> = subject.chars().collect();
+    if from > haystack.len() || haystack.len() - from < parsed.prefix.len() {
+        return MatchOutcome::NoMatch;
+    }
+    let mut search_from = from + parsed.prefix.len();
+    let mut work = 0;
+    while search_from < haystack.len() {
+        if work == MAX_CAPTURE_WORK {
+            return MatchOutcome::Uncertain;
+        }
+        work += 1;
+        let mut atom: Vec<char> = Vec::new();
+        let mut index = 0;
+        while index < parsed.atom.len() {
+            atom.push(parsed.atom[index]);
+            index += 1;
+        }
+        let first = search_atoms(
+            atom,
+            subject,
+            search_from,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+        );
+        if first.kind == 2 {
+            return MatchOutcome::Uncertain;
+        }
+        if first.kind == 1 {
+            break;
+        }
+        if first.end != first.start + 1 {
+            return MatchOutcome::Uncertain;
+        }
+        let start = first.start - parsed.prefix.len();
+        let mut prefix_matches = true;
+        index = 0;
+        while index < parsed.prefix.len() {
+            let actual = haystack[start + index];
+            let expected = parsed.prefix[index];
+            if actual != expected
+                && (case_sensitive || actual.to_ascii_lowercase() != expected.to_ascii_lowercase())
+            {
+                prefix_matches = false;
+            }
+            index += 1;
+        }
+        if prefix_matches {
+            let mut states: Vec<CaptureState> = Vec::new();
+            let mut capture_end = first.start;
+            let mut atom_matches = true;
+            while atom_matches && capture_end < haystack.len() {
+                if work == MAX_CAPTURE_WORK {
+                    return MatchOutcome::Uncertain;
+                }
+                work += 1;
+                let mut member: Vec<char> = Vec::new();
+                index = 0;
+                while index < parsed.atom.len() {
+                    member.push(parsed.atom[index]);
+                    index += 1;
+                }
+                let result = search_atoms(
+                    member,
+                    subject,
+                    capture_end,
+                    case_sensitive,
+                    dot_crosses_newline,
+                    line_anchors,
+                );
+                if result.kind == 2 {
+                    return MatchOutcome::Uncertain;
+                }
+                atom_matches = result.kind == 0
+                    && result.start == capture_end
+                    && result.end == capture_end + 1;
+                if atom_matches {
+                    capture_end += 1;
+                    states.push(CaptureState {
+                        start,
+                        capture: first.start,
+                        capture_end,
+                    });
+                }
+            }
+            let mut cursor = states.len();
+            while cursor > 0 {
+                cursor = cursor - 1;
+                let state = states[cursor];
+                let mut matches = true;
+                let mut position = state.capture_end;
+                index = 0;
+                while index < parsed.between.len() {
+                    if position == haystack.len() {
+                        matches = false;
+                        break;
+                    }
+                    let actual = haystack[position];
+                    let expected = parsed.between[index];
+                    if actual != expected
+                        && (case_sensitive
+                            || actual.to_ascii_lowercase() != expected.to_ascii_lowercase())
+                    {
+                        matches = false;
+                        break;
+                    }
+                    position += 1;
+                    index += 1;
+                }
+                let mut offset = 0;
+                while matches && offset < state.capture_end - state.capture {
+                    if position == haystack.len() || work == MAX_CAPTURE_WORK {
+                        if work == MAX_CAPTURE_WORK {
+                            return MatchOutcome::Uncertain;
+                        }
+                        matches = false;
+                        break;
+                    }
+                    work += 1;
+                    let actual = haystack[position];
+                    let expected = haystack[state.capture + offset];
+                    if actual != expected
+                        && (case_sensitive
+                            || actual.to_ascii_lowercase() != expected.to_ascii_lowercase())
+                    {
+                        matches = false;
+                        break;
+                    }
+                    position += 1;
+                    offset += 1;
+                }
+                index = 0;
+                while matches && index < parsed.suffix.len() {
+                    if position == haystack.len() {
+                        matches = false;
+                        break;
+                    }
+                    let actual = haystack[position];
+                    let expected = parsed.suffix[index];
+                    if actual != expected
+                        && (case_sensitive
+                            || actual.to_ascii_lowercase() != expected.to_ascii_lowercase())
+                    {
+                        matches = false;
+                        break;
+                    }
+                    position += 1;
+                    index += 1;
+                }
+                if matches {
+                    return MatchOutcome::Found(MatchSpan {
+                        start: state.start,
+                        end: position,
+                    });
+                }
+            }
+        }
+        search_from = first.start + 1;
     }
     MatchOutcome::NoMatch
 }

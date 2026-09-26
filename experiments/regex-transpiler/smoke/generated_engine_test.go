@@ -52,7 +52,10 @@ func TestLiteralSlice(t *testing.T) {
 	if !SupportsSingleCaptureBackref("([ab])\\1", false) {
 		t.Error("single capture backreference was rejected")
 	}
-	for _, pattern := range []string{"([ab]+)\\1", "([ab])\\2", "([ab])", "((a))\\1"} {
+	if !SupportsSingleCaptureBackref("([ab]+)c\\1", false) {
+		t.Error("repeated capture backreference was rejected")
+	}
+	for _, pattern := range []string{"([ab]*)\\1", "([ab])\\2", "([ab])", "((a))\\1"} {
 		if SupportsSingleCaptureBackref(pattern, false) {
 			t.Errorf("unsupported single capture was accepted: %q", pattern)
 		}
