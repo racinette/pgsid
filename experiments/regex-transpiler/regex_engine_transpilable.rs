@@ -3947,9 +3947,19 @@ fn middle_lookahead_atoms(pattern: &str, expanded: bool) -> LookaheadResult {
     let mut positive = true;
     let mut behind = false;
     let mut grouped = false;
+    let mut offset = 0;
     while position < source.len() && source[position] != '(' {
         let atom = source[position];
         if atom == '\\'
+            && source.len() - position >= 2
+            && (source[position + 1] == 'Y'
+                || source[position + 1] == 'm'
+                || source[position + 1] == 'M')
+        {
+            remainder.push(atom);
+            remainder.push(source[position + 1]);
+            position += 2;
+        } else if atom == '\\'
             || atom == '^'
             || atom == '$'
             || atom == '*'
@@ -3964,11 +3974,12 @@ fn middle_lookahead_atoms(pattern: &str, expanded: bool) -> LookaheadResult {
         {
             valid = false;
             break;
-        }
-        remainder.push(atom);
-        position += 1;
+        } else {
+            remainder.push(atom);
+            position += 1;
+            offset += 1;
+        };
     }
-    let offset = remainder.len();
     if offset == 0 || source.len() - position < 4 {
         valid = false;
     }
