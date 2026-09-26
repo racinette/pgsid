@@ -1093,6 +1093,42 @@ fn basic_letter_escapes_can_mix_with_literal_punctuation() {
 }
 
 #[test]
+fn basic_repeated_capture_uses_the_captured_phrase() {
+    assert!(candidate::supports_basic_repeated_capture(
+        "a\\(b*\\)c\\1",
+        false
+    ));
+    assert!(matches!(
+        candidate::find_basic_repeated_capture(
+            "a\\(b*\\)c\\1",
+            "abbcbb",
+            0,
+            true,
+            true,
+            false,
+            false
+        ),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 6 })
+    ));
+    assert!(matches!(
+        candidate::find_basic_repeated_capture(
+            "a\\(b*\\)c\\1",
+            "abbcb",
+            0,
+            true,
+            true,
+            false,
+            false
+        ),
+        candidate::MatchOutcome::NoMatch
+    ));
+    assert!(!candidate::supports_basic_repeated_capture(
+        "a\\(bc\\)d\\1",
+        false
+    ));
+}
+
+#[test]
 fn basic_groups_without_backreferences_match_their_contents() {
     for (pattern, subject, expected) in [
         ("\\(a\\)b", "ab", 2),
@@ -1355,6 +1391,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut basic_transparent_group = 0;
     let mut basic_special_bracket = 0;
     let mut basic_literal_escaped_letter = 0;
+    let mut basic_repeated_capture = 0;
     let mut invalid_grouping = 0;
     let mut invalid_repeat = 0;
     let mut invalid_bound = 0;
@@ -2109,6 +2146,23 @@ fn supported_search_matches_pglite_fixtures() {
                     options["expanded"].as_bool().unwrap(),
                 )
             } else if options["syntax"] == "basic"
+                && candidate::supports_basic_repeated_capture(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                basic_repeated_capture += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_basic_repeated_capture(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "basic"
                 && candidate::supports_basic_compatible(
                     pattern,
                     options["expanded"].as_bool().unwrap(),
@@ -2301,6 +2355,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(basic_transparent_group >= 4);
     assert!(basic_special_bracket >= 4);
     assert!(basic_literal_escaped_letter >= 2);
+    assert!(basic_repeated_capture >= 1);
     assert!(invalid_grouping >= 40);
     assert!(invalid_repeat >= 20);
     assert!(invalid_bound >= 20);
