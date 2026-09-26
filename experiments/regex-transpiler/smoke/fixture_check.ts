@@ -50,6 +50,7 @@ const coverage = {
   basicTransparentGroup: 0,
   basicSpecialBracket: 0,
   basicLiteralEscapedLetter: 0,
+  basicRepeatedCapture: 0,
   invalidGrouping: 0,
   invalidRepeat: 0,
   invalidBound: 0,
@@ -745,6 +746,22 @@ for (const fixturePath of fixturePaths) {
       coverage.basicLiteralEscapedLetter++
     } else if (
       options.syntax === 'basic' &&
+      generated.supportsBasicRepeatedCapture(pattern, options.expanded)
+    ) {
+      const crossesNewline = options.newline === 'ordinary' || options.newline === 'anchors'
+      const lineAnchors = options.newline === 'sensitive' || options.newline === 'anchors'
+      actual = generated.findBasicRepeatedCapture(
+        pattern,
+        subject,
+        from,
+        options.caseSensitive,
+        crossesNewline,
+        lineAnchors,
+        options.expanded,
+      )
+      coverage.basicRepeatedCapture++
+    } else if (
+      options.syntax === 'basic' &&
       generated.supportsBasicCompatible(pattern, options.expanded)
     ) {
       const crossesNewline = options.newline === 'ordinary' || options.newline === 'anchors'
@@ -924,6 +941,7 @@ assert.ok(coverage.collatingBracket >= 10)
 assert.ok(coverage.basicTransparentGroup >= 4)
 assert.ok(coverage.basicSpecialBracket >= 4)
 assert.ok(coverage.basicLiteralEscapedLetter >= 2)
+assert.ok(coverage.basicRepeatedCapture >= 1)
 assert.ok(coverage.invalidGrouping >= 40)
 assert.ok(coverage.invalidRepeat >= 20)
 assert.ok(coverage.invalidBound >= 20)
@@ -983,6 +1001,7 @@ assert.equal(
     coverage.basicTransparentGroup +
     coverage.basicSpecialBracket +
     coverage.basicLiteralEscapedLetter +
+    coverage.basicRepeatedCapture +
     coverage.invalidGrouping +
     coverage.invalidRepeat +
     coverage.invalidBound +
@@ -995,5 +1014,5 @@ assert.equal(
     coverage.otherOptions,
 )
 process.stdout.write(
-  `TypeScript find fixtures: ${coverage.literal + coverage.quotedLiteral + coverage.advanced + coverage.grouped + coverage.groupChoice + coverage.optionalGroup + coverage.multiOptionalGroup + coverage.lookbehind + coverage.lookahead + coverage.backref + coverage.singleCapture + coverage.repeatedBackref + coverage.captureProgram + coverage.choiceCapture + coverage.twoCapture + coverage.inline + coverage.inlineOptions + coverage.middleLookahead + coverage.chainedAssertions + coverage.boundedGroup + coverage.extended + coverage.extendedLiteralClose + coverage.extendedGroup + coverage.repeatedChoice + coverage.extendedEscape + coverage.numericLiteral + coverage.basic + coverage.basicPunctuation + coverage.basicEscape + coverage.basicBound + coverage.basicBackref + coverage.bracketWord + coverage.collatingBracket + coverage.basicTransparentGroup + coverage.basicSpecialBracket + coverage.basicLiteralEscapedLetter + coverage.invalidGrouping + coverage.invalidRepeat + coverage.invalidBound + coverage.invalidPosixClass + coverage.invalidRange + coverage.invalidBracketConstruct + coverage.invalidNumeric + coverage.invalidBackreference}/${coverage.find} supported (${coverage.invalidGrouping} invalid grouping, ${coverage.invalidRepeat} invalid repeat, ${coverage.invalidBound} invalid bound, ${coverage.invalidPosixClass} invalid POSIX class, ${coverage.invalidRange} invalid ranges, ${coverage.invalidBracketConstruct} invalid bracket constructs, ${coverage.invalidNumeric} invalid numeric escapes, ${coverage.invalidBackreference} invalid backreference, ${coverage.literal} literal, ${coverage.quotedLiteral} quoted literals, ${coverage.advanced} advanced including ${coverage.expandedAdvanced} expanded, ${coverage.grouped} flat groups, ${coverage.groupChoice} group choices, ${coverage.optionalGroup} optional groups, ${coverage.multiOptionalGroup} multiple optional groups, ${coverage.lookbehind} fixed lookbehind, ${coverage.lookahead} leading lookahead, ${coverage.middleLookahead} middle lookahead, ${coverage.chainedAssertions} chained assertions, ${coverage.boundedGroup} bounded groups, ${coverage.backref} fixed backrefs, ${coverage.singleCapture} single captures, ${coverage.repeatedBackref} repeated backrefs, ${coverage.captureProgram} capture programs, ${coverage.choiceCapture} capture choices, ${coverage.twoCapture} two captures, ${coverage.inline} inline flags, ${coverage.inlineOptions} inline option sequences, ${coverage.extended} extended, ${coverage.extendedLiteralClose} extended literal closing groups, ${coverage.extendedGroup} extended groups, ${coverage.repeatedChoice} repeated choices, ${coverage.extendedEscape} extended escapes, ${coverage.numericLiteral} numeric literals, ${coverage.basic} basic, ${coverage.basicPunctuation} basic punctuation, ${coverage.basicEscape} basic escapes, ${coverage.basicBound} basic bounds, ${coverage.basicBackref} basic backrefs, ${coverage.bracketWord} bracket word boundaries, ${coverage.collatingBracket} collating brackets, ${coverage.basicTransparentGroup} basic transparent groups, ${coverage.basicSpecialBracket} basic special brackets, ${coverage.basicLiteralEscapedLetter} basic escaped literals); ${coverage.unsupportedAdvanced} unsupported advanced, ${coverage.otherOptions} other modes. Count fixtures: ${coverage.countSupported}/${coverage.count} supported. Advanced coverage includes ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.rangeClasses} ranges, ${coverage.edgePunctuation} class edge cases, ${coverage.absoluteAnchors} absolute anchors, and ${coverage.position} positioned.\n`,
+  `TypeScript find fixtures: ${coverage.literal + coverage.quotedLiteral + coverage.advanced + coverage.grouped + coverage.groupChoice + coverage.optionalGroup + coverage.multiOptionalGroup + coverage.lookbehind + coverage.lookahead + coverage.backref + coverage.singleCapture + coverage.repeatedBackref + coverage.captureProgram + coverage.choiceCapture + coverage.twoCapture + coverage.inline + coverage.inlineOptions + coverage.middleLookahead + coverage.chainedAssertions + coverage.boundedGroup + coverage.extended + coverage.extendedLiteralClose + coverage.extendedGroup + coverage.repeatedChoice + coverage.extendedEscape + coverage.numericLiteral + coverage.basic + coverage.basicPunctuation + coverage.basicEscape + coverage.basicBound + coverage.basicBackref + coverage.bracketWord + coverage.collatingBracket + coverage.basicTransparentGroup + coverage.basicSpecialBracket + coverage.basicLiteralEscapedLetter + coverage.basicRepeatedCapture + coverage.invalidGrouping + coverage.invalidRepeat + coverage.invalidBound + coverage.invalidPosixClass + coverage.invalidRange + coverage.invalidBracketConstruct + coverage.invalidNumeric + coverage.invalidBackreference}/${coverage.find} supported (${coverage.invalidGrouping} invalid grouping, ${coverage.invalidRepeat} invalid repeat, ${coverage.invalidBound} invalid bound, ${coverage.invalidPosixClass} invalid POSIX class, ${coverage.invalidRange} invalid ranges, ${coverage.invalidBracketConstruct} invalid bracket constructs, ${coverage.invalidNumeric} invalid numeric escapes, ${coverage.invalidBackreference} invalid backreference, ${coverage.literal} literal, ${coverage.quotedLiteral} quoted literals, ${coverage.advanced} advanced including ${coverage.expandedAdvanced} expanded, ${coverage.grouped} flat groups, ${coverage.groupChoice} group choices, ${coverage.optionalGroup} optional groups, ${coverage.multiOptionalGroup} multiple optional groups, ${coverage.lookbehind} fixed lookbehind, ${coverage.lookahead} leading lookahead, ${coverage.middleLookahead} middle lookahead, ${coverage.chainedAssertions} chained assertions, ${coverage.boundedGroup} bounded groups, ${coverage.backref} fixed backrefs, ${coverage.singleCapture} single captures, ${coverage.repeatedBackref} repeated backrefs, ${coverage.captureProgram} capture programs, ${coverage.choiceCapture} capture choices, ${coverage.twoCapture} two captures, ${coverage.inline} inline flags, ${coverage.inlineOptions} inline option sequences, ${coverage.extended} extended, ${coverage.extendedLiteralClose} extended literal closing groups, ${coverage.extendedGroup} extended groups, ${coverage.repeatedChoice} repeated choices, ${coverage.extendedEscape} extended escapes, ${coverage.numericLiteral} numeric literals, ${coverage.basic} basic, ${coverage.basicPunctuation} basic punctuation, ${coverage.basicEscape} basic escapes, ${coverage.basicBound} basic bounds, ${coverage.basicBackref} basic backrefs, ${coverage.bracketWord} bracket word boundaries, ${coverage.collatingBracket} collating brackets, ${coverage.basicTransparentGroup} basic transparent groups, ${coverage.basicSpecialBracket} basic special brackets, ${coverage.basicLiteralEscapedLetter} basic escaped literals, ${coverage.basicRepeatedCapture} basic repeated captures); ${coverage.unsupportedAdvanced} unsupported advanced, ${coverage.otherOptions} other modes. Count fixtures: ${coverage.countSupported}/${coverage.count} supported. Advanced coverage includes ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.rangeClasses} ranges, ${coverage.edgePunctuation} class edge cases, ${coverage.absoluteAnchors} absolute anchors, and ${coverage.position} positioned.\n`,
 )

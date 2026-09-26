@@ -2451,8 +2451,7 @@ fn make_capture_step(
     }
 }
 
-fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
-    let source = pattern_atoms(pattern, expanded);
+fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
     let mut instructions: Vec<CaptureInstruction> = Vec::new();
     let mut frames: Vec<CaptureFrame> = Vec::new();
     let mut frame_count = 0;
@@ -2604,6 +2603,10 @@ fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
     }
 }
 
+fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
+    compile_capture_program_atoms(pattern_atoms(pattern, expanded))
+}
+
 pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
     let program = compile_capture_program(pattern, expanded);
     if program.valid == false {
@@ -2751,6 +2754,24 @@ pub fn find_capture_program(
         return MatchOutcome::Uncertain;
     }
     let program = compile_capture_program(pattern, expanded);
+    run_capture_program(
+        program,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    )
+}
+
+fn run_capture_program(
+    program: CaptureProgram,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+) -> MatchOutcome {
     let haystack: Vec<char> = subject.chars().collect();
     if from > haystack.len() {
         return MatchOutcome::NoMatch;
@@ -5259,6 +5280,116 @@ pub fn find_basic_literal_escaped_letter(
         start: result.start,
         end: result.end,
     })
+}
+
+fn basic_repeated_capture_atoms(pattern: &str, expanded: bool) -> BasicLiteralResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut atoms: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut valid = true;
+    while position < source.len() && source[position] != '\\' {
+        if simple_literal_char(source[position]) == false {
+            valid = false;
+            break;
+        }
+        atoms.push(source[position]);
+        position += 1;
+    }
+    if source.len() - position < 7 || source[position] != '\\' || source[position + 1] != '(' {
+        valid = false;
+    }
+    if valid {
+        atoms.push('(');
+        position += 2;
+        if simple_literal_char(source[position]) == false {
+            valid = false;
+        } else {
+            atoms.push(source[position]);
+            position += 1;
+        };
+    }
+    if valid {
+        if position == source.len() || source[position] != '*' && source[position] != '+' {
+            valid = false;
+        } else {
+            atoms.push(source[position]);
+            position += 1;
+        };
+    }
+    if valid {
+        if source.len() - position < 2 || source[position] != '\\' || source[position + 1] != ')' {
+            valid = false;
+        } else {
+            atoms.push(')');
+            position += 2;
+        };
+    }
+    if valid {
+        while position < source.len() && source[position] != '\\' {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            atoms.push(source[position]);
+            position += 1;
+        }
+    }
+    if valid {
+        if source.len() - position < 2 || source[position] != '\\' || source[position + 1] != '1' {
+            valid = false;
+        } else {
+            atoms.push('\\');
+            atoms.push('1');
+            position += 2;
+        };
+    }
+    if valid {
+        while position < source.len() {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            atoms.push(source[position]);
+            position += 1;
+        }
+    }
+    BasicLiteralResult { valid, atoms }
+}
+
+pub fn supports_basic_repeated_capture(pattern: &str, expanded: bool) -> bool {
+    let parsed = basic_repeated_capture_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    let program = compile_capture_program_atoms(parsed.atoms);
+    program.valid
+}
+
+pub fn find_basic_repeated_capture(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = basic_repeated_capture_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let program = compile_capture_program_atoms(parsed.atoms);
+    if program.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    run_capture_program(
+        program,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    )
 }
 
 fn collating_bracket_atoms(pattern: &str, expanded: bool) -> BasicLiteralResult {
