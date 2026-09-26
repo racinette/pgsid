@@ -906,6 +906,24 @@ fn middle_lookahead_gate_requires_literal_prefix() {
 }
 
 #[test]
+fn middle_lookbehind_checks_the_character_before_the_assertion() {
+    assert!(candidate::supports_middle_lookbehind("a(?<!b)b*", false));
+    assert!(!candidate::supports_middle_lookbehind("a(?<!bc)b*", false));
+    assert!(matches!(
+        candidate::find_middle_lookbehind("a(?<!b)b*", "a", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 1 })
+    ));
+    assert!(matches!(
+        candidate::find_middle_lookbehind("a(?<!a)b*", "ab", 0, true, true, false, false),
+        candidate::MatchOutcome::NoMatch
+    ));
+    assert!(matches!(
+        candidate::find_middle_lookbehind("a(?<=a)b*", "ab", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 2 })
+    ));
+}
+
+#[test]
 fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
     assert!(candidate::supports_bounded_group("a(ab)*c", false));
@@ -1982,6 +2000,23 @@ fn supported_search_matches_pglite_fixtures() {
                 middle_lookahead += 1;
                 let newline = options["newline"].as_str().unwrap();
                 candidate::find_middle_lookahead(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "advanced"
+                && candidate::supports_middle_lookbehind(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                lookbehind += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_middle_lookbehind(
                     pattern,
                     subject,
                     from,

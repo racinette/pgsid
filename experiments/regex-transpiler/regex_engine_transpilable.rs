@@ -81,6 +81,7 @@ struct AnchorLookbehindResult {
 struct LookaheadResult {
     valid: bool,
     positive: bool,
+    behind: bool,
     offset: usize,
     assertion: Vec<char>,
     remainder: Vec<char>,
@@ -3288,6 +3289,7 @@ fn leading_lookahead_atoms(pattern: &str, expanded: bool) -> LookaheadResult {
     LookaheadResult {
         valid,
         positive,
+        behind: false,
         offset: 0,
         assertion,
         remainder,
@@ -3309,6 +3311,7 @@ fn middle_lookahead_atoms(pattern: &str, expanded: bool) -> LookaheadResult {
     let mut position = 0;
     let mut valid = true;
     let mut positive = true;
+    let mut behind = false;
     while position < source.len() && source[position] != '(' {
         let atom = source[position];
         if atom == '\\'
@@ -3335,11 +3338,21 @@ fn middle_lookahead_atoms(pattern: &str, expanded: bool) -> LookaheadResult {
         valid = false;
     }
     if valid {
-        valid = source[position] == '('
-            && source[position + 1] == '?'
-            && (source[position + 2] == '=' || source[position + 2] == '!');
-        positive = source[position + 2] == '=';
-        position += 3;
+        valid = source[position] == '(' && source[position + 1] == '?';
+        if valid && (source[position + 2] == '=' || source[position + 2] == '!') {
+            positive = source[position + 2] == '=';
+            position += 3;
+        } else if valid
+            && source.len() - position >= 5
+            && source[position + 2] == '<'
+            && (source[position + 3] == '=' || source[position + 3] == '!')
+        {
+            behind = true;
+            positive = source[position + 3] == '=';
+            position += 4;
+        } else {
+            valid = false;
+        };
     }
     if valid {
         while position < source.len() && source[position] != ')' {
@@ -3365,6 +3378,7 @@ fn middle_lookahead_atoms(pattern: &str, expanded: bool) -> LookaheadResult {
     LookaheadResult {
         valid,
         positive,
+        behind,
         offset,
         assertion,
         remainder,
@@ -3373,10 +3387,18 @@ fn middle_lookahead_atoms(pattern: &str, expanded: bool) -> LookaheadResult {
 
 pub fn supports_middle_lookahead(pattern: &str, expanded: bool) -> bool {
     let parsed = middle_lookahead_atoms(pattern, expanded);
-    if parsed.valid == false {
+    if parsed.valid == false || parsed.behind {
         return false;
     }
     supports_atoms(parsed.assertion) && supports_atoms(parsed.remainder)
+}
+
+pub fn supports_middle_lookbehind(pattern: &str, expanded: bool) -> bool {
+    let parsed = middle_lookahead_atoms(pattern, expanded);
+    if parsed.valid == false || parsed.behind == false || parsed.assertion.len() != 1 {
+        return false;
+    }
+    simple_literal_char(parsed.assertion[0]) && supports_atoms(parsed.remainder)
 }
 
 fn fixed_backref_atoms(pattern: &str, expanded: bool) -> FixedBackrefResult {
@@ -7750,7 +7772,11 @@ fn search_middle_lookahead(
         if result.kind != 0 {
             return result;
         }
-        let assertion_start = result.start + parsed.offset;
+        let assertion_position = result.start + parsed.offset;
+        let mut assertion_start = assertion_position;
+        if parsed.behind && assertion_start > 0 {
+            assertion_start = assertion_start - 1;
+        }
         let assertion = search_atoms(
             parsed.assertion,
             subject,
@@ -7762,7 +7788,10 @@ fn search_middle_lookahead(
         if assertion.kind == 2 {
             return assertion;
         }
-        let holds = assertion.kind == 0 && assertion.start == assertion_start;
+        let holds = assertion.kind == 0
+            && assertion.start == assertion_start
+            && (parsed.behind == false
+                || (assertion_position > 0 && assertion.end == assertion_position));
         if holds == parsed.positive {
             return result;
         }
@@ -7803,6 +7832,29 @@ pub fn find_middle_lookahead(
         start: result.start,
         end: result.end,
     })
+}
+
+pub fn find_middle_lookbehind(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    if supports_middle_lookbehind(pattern, expanded) == false {
+        return MatchOutcome::Uncertain;
+    }
+    find_middle_lookahead(
+        pattern,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        expanded,
+    )
 }
 
 fn search_fixed_backref(
