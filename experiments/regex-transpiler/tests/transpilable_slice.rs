@@ -1130,6 +1130,19 @@ fn captured_word_run_can_be_referenced_after_assertions() {
 }
 
 #[test]
+fn repeated_noncapturing_word_end_is_one_assertion() {
+    assert!(candidate::supports_simple_advanced("x|(?:\\M)+"));
+    assert!(matches!(
+        candidate::find_simple_advanced("x|(?:\\M)+", "x", 0, true, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 1 })
+    ));
+    assert!(matches!(
+        candidate::find_simple_advanced("x|(?:\\M)+", "a ", 0, true, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 1 })
+    ));
+}
+
+#[test]
 fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
     assert!(candidate::supports_bounded_group("a(ab)*c", false));
