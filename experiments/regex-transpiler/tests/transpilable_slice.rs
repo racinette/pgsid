@@ -1143,6 +1143,20 @@ fn repeated_noncapturing_word_end_is_one_assertion() {
 }
 
 #[test]
+fn inline_line_mode_checks_negative_class_at_each_line_start() {
+    let pattern = "(?n)^(?![t#])\\S+";
+    assert!(candidate::supports_inline_advanced(pattern, false));
+    assert!(matches!(
+        candidate::find_inline_advanced(pattern, "tk\n\n#\nit0", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 6, end: 9 })
+    ));
+    assert!(matches!(
+        candidate::find_inline_advanced(pattern, "T\nX", 0, false, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 2, end: 3 })
+    ));
+}
+
+#[test]
 fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
     assert!(candidate::supports_bounded_group("a(ab)*c", false));
