@@ -267,6 +267,11 @@ fn capture_program_reuses_the_first_capture_across_repeated_groups() {
     for pattern in ["^(\\w+)( \\2)+$", "^(\\w+)( \\1)*$", "^(\\w+)( \\1)+"] {
         assert!(!candidate::supports_capture_program(pattern, false));
     }
+    assert!(candidate::supports_capture_program("((.))(\\2)", false));
+    assert!(matches!(
+        candidate::find_capture_program("((.))(\\2)", "xyy", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 3 })
+    ));
 }
 
 #[test]
@@ -1666,7 +1671,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(backref >= 20);
     assert!(single_capture >= 50);
     assert!(repeated_backref >= 8);
-    assert!(capture_program >= 6);
+    assert!(capture_program >= 7);
     assert!(choice_capture >= 10);
     assert!(two_capture >= 30);
     assert!(inline >= 20);
