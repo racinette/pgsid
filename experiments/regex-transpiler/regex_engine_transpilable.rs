@@ -681,6 +681,18 @@ pub fn pattern_atoms(pattern: &str, expanded: bool) -> Vec<char> {
             position += 1;
         };
     }
+    if result.len() == 5
+        && result[0] == '('
+        && simple_literal_char(result[1])
+        && result[2] == '*'
+        && result[3] == ')'
+        && result[4] == '*'
+    {
+        let mut flattened: Vec<char> = Vec::new();
+        flattened.push(result[1]);
+        flattened.push('*');
+        return flattened;
+    }
     let mut normalized: Vec<char> = Vec::new();
     position = 0;
     while position < result.len() {
