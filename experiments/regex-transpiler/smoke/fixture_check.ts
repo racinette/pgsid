@@ -126,7 +126,8 @@ for (const fixturePath of fixturePaths) {
     const from = (fixture.input.start ?? 1) - 1
     if (
       options.syntax !== 'literal' &&
-      generated.definitelyInvalidGrouping(pattern, options.syntax[0], options.expanded)
+      (generated.definitelyInvalidGrouping(pattern, options.syntax[0], options.expanded) ||
+        generated.definitelyInvalidInlineOptions(pattern, options.syntax[0]))
     ) {
       assert.deepEqual(
         fixture.expected,

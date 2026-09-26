@@ -154,7 +154,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				continue
 			}
 			input := fixture.Input
-			if input.Options.Syntax != "literal" && DefinitelyInvalidGrouping(input.Pattern, rune(input.Options.Syntax[0]), input.Options.Expanded) {
+			if input.Options.Syntax != "literal" && (DefinitelyInvalidGrouping(input.Pattern, rune(input.Options.Syntax[0]), input.Options.Expanded) || DefinitelyInvalidInlineOptions(input.Pattern, rune(input.Options.Syntax[0]))) {
 				if fixture.Expected.Kind != "InvalidPattern" || fixture.Expected.Sqlstate != "2201B" {
 					t.Errorf("%s fixture %d: input=%+v, expected invalid pattern, got %+v", path, index, input, fixture.Expected)
 				}
