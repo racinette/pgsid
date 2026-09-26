@@ -93,6 +93,7 @@ struct RepeatedBackrefResult {
     prefix: Vec<char>,
     member: Vec<char>,
     suffix: Vec<char>,
+    suffix_anchor: bool,
     lower: usize,
     upper: usize,
 }
@@ -1655,8 +1656,8 @@ pub fn find_chained_assertions(
                 let atom = source[pattern_position];
                 if atom == '(' {
                     let mut lookbehind = false;
-                    let mut positive = false;
-                    let mut expected = ' ';
+                    let mut positive = source[pattern_position + 2] == '=';
+                    let mut expected = source[pattern_position + 3];
                     let mut width = 5;
                     if source[pattern_position + 2] == '<' {
                         lookbehind = true;
@@ -2255,10 +2256,13 @@ fn repeated_backref_atoms(pattern: &str, expanded: bool) -> RepeatedBackrefResul
     let mut suffix: Vec<char> = Vec::new();
     let mut position = 0;
     let mut valid = true;
+    let mut suffix_anchor = false;
     let mut lower = 0;
     let mut upper = 0;
     while position < source.len() && source[position] != '(' {
-        if simple_literal_char(source[position]) == false {
+        if simple_literal_char(source[position]) == false
+            && (source[position] != '^' || position != 0)
+        {
             valid = false;
             break;
         }
@@ -2364,6 +2368,10 @@ fn repeated_backref_atoms(pattern: &str, expanded: bool) -> RepeatedBackrefResul
     }
     if valid {
         while position < source.len() {
+            if source[position] == '$' && position + 1 == source.len() {
+                suffix_anchor = true;
+                break;
+            }
             if simple_literal_char(source[position]) == false {
                 valid = false;
                 break;
@@ -2377,6 +2385,7 @@ fn repeated_backref_atoms(pattern: &str, expanded: bool) -> RepeatedBackrefResul
         prefix,
         member,
         suffix,
+        suffix_anchor,
         lower,
         upper,
     }
@@ -2384,7 +2393,7 @@ fn repeated_backref_atoms(pattern: &str, expanded: bool) -> RepeatedBackrefResul
 
 pub fn supports_repeated_backref(pattern: &str, expanded: bool) -> bool {
     let parsed = repeated_backref_atoms(pattern, expanded);
-    parsed.valid && supports_atoms(parsed.member)
+    parsed.valid && supports_atoms(parsed.prefix) && supports_atoms(parsed.member)
 }
 
 pub fn find_repeated_backref(
@@ -2475,6 +2484,11 @@ pub fn find_repeated_backref(
                                 break;
                             }
                             index += 1;
+                        }
+                        if suffix_matches && parsed.suffix_anchor {
+                            let suffix_end = position + parsed.suffix.len();
+                            suffix_matches = suffix_end == haystack.len()
+                                || (line_anchors && haystack[suffix_end] == '\n');
                         }
                         if suffix_matches {
                             found = true;

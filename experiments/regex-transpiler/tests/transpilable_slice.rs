@@ -213,7 +213,12 @@ fn single_capture_gate_requires_one_atom_and_reference() {
 
 #[test]
 fn repeated_class_backreferences_use_the_captured_character() {
-    for pattern in ["a([bc])\\1*", "a([bc])\\1{3,4}", "([a-z])\\1+"] {
+    for pattern in [
+        "a([bc])\\1*",
+        "a([bc])\\1{3,4}",
+        "([a-z])\\1+",
+        "^([bc])\\1*$",
+    ] {
         assert!(candidate::supports_repeated_backref(pattern, false));
     }
     for pattern in [
@@ -231,6 +236,18 @@ fn repeated_class_backreferences_use_the_captured_character() {
     assert!(matches!(
         candidate::find_repeated_backref("a([bc])\\1{3,4}", "abbb", 0, true, true, false, false),
         candidate::MatchOutcome::NoMatch
+    ));
+    assert!(matches!(
+        candidate::find_repeated_backref("^([bc])\\1*$", "bbb", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 3 })
+    ));
+    assert!(matches!(
+        candidate::find_repeated_backref("^([bc])\\1*$", "bcb", 0, true, true, false, false),
+        candidate::MatchOutcome::NoMatch
+    ));
+    assert!(matches!(
+        candidate::find_repeated_backref("^([bc])\\1*$", "x\nbbb\ny", 0, true, true, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 2, end: 5 })
     ));
 }
 
@@ -1588,7 +1605,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(lookahead >= 20);
     assert!(backref >= 20);
     assert!(single_capture >= 50);
-    assert!(repeated_backref >= 4);
+    assert!(repeated_backref >= 8);
     assert!(choice_capture >= 10);
     assert!(two_capture >= 30);
     assert!(inline >= 20);
