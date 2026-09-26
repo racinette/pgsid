@@ -630,7 +630,13 @@ fn literal_search_matches_the_live_engine() {
 
 #[test]
 fn two_capture_backrefs_preserve_empty_participating_groups() {
-    for pattern in ["(a+)(b+)\\1", "(a?)(b)\\1", "(a*)(a*)\\2\\1"] {
+    for pattern in [
+        "(a+)(b+)\\1",
+        "(a?)(b)\\1",
+        "(a*)(a*)\\2\\1",
+        "(a*?)(a+)\\1",
+        "(a+?)(a+)\\1",
+    ] {
         assert!(candidate::supports_two_capture_backref(pattern, false));
     }
     for pattern in ["(a+)(b+)\\2", "(a|b)(b)\\1", "(a+)(b+)\\1x"] {
@@ -643,6 +649,14 @@ fn two_capture_backrefs_preserve_empty_participating_groups() {
     assert!(matches!(
         candidate::find_two_capture_backref("(a*)(a*)\\2\\1", "aaa", 0, true, false),
         candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 2 })
+    ));
+    assert!(matches!(
+        candidate::find_two_capture_backref("(a*?)(a+)\\1", "aaaa", 0, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 1 })
+    ));
+    assert!(matches!(
+        candidate::find_two_capture_backref("(a+?)(a+)\\1", "aaaa", 0, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 3 })
     ));
 }
 

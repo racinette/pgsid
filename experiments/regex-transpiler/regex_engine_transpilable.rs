@@ -116,6 +116,7 @@ struct TwoCaptureResult {
     valid: bool,
     first: char,
     first_quantifier: char,
+    first_lazy: bool,
     second: char,
     second_quantifier: char,
     second_reference: bool,
@@ -1786,6 +1787,7 @@ fn two_capture_atoms(pattern: &str, expanded: bool) -> TwoCaptureResult {
     let mut first = ' ';
     let mut second = ' ';
     let mut first_quantifier = ' ';
+    let mut first_lazy = false;
     let mut second_quantifier = ' ';
     let mut second_reference = false;
     if source.len() < 8 || source[position] != '(' {
@@ -1804,6 +1806,10 @@ fn two_capture_atoms(pattern: &str, expanded: bool) -> TwoCaptureResult {
         && (source[position] == '?' || source[position] == '*' || source[position] == '+')
     {
         first_quantifier = source[position];
+        position += 1;
+    }
+    if valid && first_quantifier != ' ' && position < source.len() && source[position] == '?' {
+        first_lazy = true;
         position += 1;
     }
     if valid {
@@ -1862,6 +1868,7 @@ fn two_capture_atoms(pattern: &str, expanded: bool) -> TwoCaptureResult {
         valid,
         first,
         first_quantifier,
+        first_lazy,
         second,
         second_quantifier,
         second_reference,
@@ -1989,9 +1996,15 @@ pub fn find_two_capture_backref(
                         }
                     };
                 }
-                if matches && (found == false || position > best_end) {
-                    found = true;
-                    best_end = position;
+                if matches {
+                    let mut preferred = found == false || position > best_end;
+                    if parsed.first_lazy {
+                        preferred = found == false || position < best_end;
+                    }
+                    if preferred {
+                        found = true;
+                        best_end = position;
+                    }
                 }
                 second_length += 1;
             }
