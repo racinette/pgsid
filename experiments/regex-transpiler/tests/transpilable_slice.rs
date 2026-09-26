@@ -543,6 +543,30 @@ fn invalid_posix_class_gate_only_marks_postgres_errors() {
 }
 
 #[test]
+fn all_postgres_named_character_classes_use_their_ascii_ranges() {
+    for name in [
+        "alnum", "alpha", "ascii", "blank", "cntrl", "digit", "graph", "lower", "print", "punct",
+        "space", "upper", "word", "xdigit",
+    ] {
+        let pattern = format!("[[:{name}:]]+");
+        assert!(candidate::supports_simple_advanced(&pattern), "{name}");
+    }
+    assert!(!candidate::supports_simple_advanced("[[:missing:]]+"));
+    assert!(matches!(
+        candidate::find_simple_advanced("[[:word:]]+", "x_*", 0, true, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 2 })
+    ));
+    assert!(matches!(
+        candidate::find_simple_advanced("[[:xdigit:]]+", "xa9Z", 0, true, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 3 })
+    ));
+    assert!(matches!(
+        candidate::find_simple_advanced("[[:cntrl:]]+", "x\u{007f}", 0, true, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 2 })
+    ));
+}
+
+#[test]
 fn invalid_backreference_gate_only_marks_postgres_errors() {
     assert!(candidate::definitely_invalid_backreference(
         "\\1", 'b', false

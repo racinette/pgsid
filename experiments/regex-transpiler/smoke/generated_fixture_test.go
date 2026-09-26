@@ -89,6 +89,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 	absoluteAnchors := 0
 	positioned := 0
 	newlineModes := map[string]bool{}
+	posixNames := map[string]bool{}
 	for _, path := range []string{"postgres-fixtures.json", "stress-fixtures.json", "targeted-postgres-fixtures.json", "stress-position-fixtures.json", "stress-boundary-fixtures.json"} {
 		data, err := os.ReadFile(path)
 		if err != nil {
@@ -219,6 +220,9 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				}
 				if strings.Contains(input.Pattern, "[") {
 					classes++
+				}
+				if strings.HasPrefix(input.Pattern, "[[:") && strings.HasSuffix(input.Pattern, ":]]+") {
+					posixNames[input.Pattern] = true
 				}
 				if strings.Contains(input.Pattern, "[^") {
 					negatedClasses++
@@ -418,5 +422,8 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 	}
 	if countSupported != 180 || expandedAdvanced < 200 {
 		t.Fatalf("supported count=%d expanded=%d", countSupported, expandedAdvanced)
+	}
+	if len(posixNames) != 14 {
+		t.Fatalf("supported POSIX classes=%d", len(posixNames))
 	}
 }
