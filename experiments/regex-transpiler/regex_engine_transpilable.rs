@@ -4597,6 +4597,171 @@ pub fn supports_basic_literal_punctuation(pattern: &str, expanded: bool) -> bool
     supports_atoms(parsed.atoms)
 }
 
+fn collating_bracket_atoms(pattern: &str, expanded: bool) -> BasicLiteralResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut atoms: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut bracket = false;
+    let mut translated = false;
+    let mut valid = true;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '[' && bracket == false {
+            bracket = true;
+            atoms.push(atom);
+            position += 1;
+        } else if atom == '['
+            && bracket
+            && position + 1 < source.len()
+            && (source[position + 1] == '.' || source[position + 1] == '=')
+        {
+            let marker = source[position + 1];
+            let start = position + 2;
+            let mut end = start;
+            while end + 1 < source.len() && (source[end] != marker || source[end + 1] != ']') {
+                end += 1;
+            }
+            if end + 1 >= source.len() || end == start {
+                valid = false;
+                break;
+            }
+            let mut member = source[start];
+            if end == start + 4
+                && source[start] == 'z'
+                && source[start + 1] == 'e'
+                && source[start + 2] == 'r'
+                && source[start + 3] == 'o'
+            {
+                member = '0';
+            } else if end == start + 3
+                && source[start] == 'o'
+                && source[start + 1] == 'n'
+                && source[start + 2] == 'e'
+            {
+                member = '1';
+            } else if end == start + 3
+                && source[start] == 't'
+                && source[start + 1] == 'w'
+                && source[start + 2] == 'o'
+            {
+                member = '2';
+            } else if end == start + 5
+                && source[start] == 't'
+                && source[start + 1] == 'h'
+                && source[start + 2] == 'r'
+                && source[start + 3] == 'e'
+                && source[start + 4] == 'e'
+            {
+                member = '3';
+            } else if end == start + 4
+                && source[start] == 'f'
+                && source[start + 1] == 'o'
+                && source[start + 2] == 'u'
+                && source[start + 3] == 'r'
+            {
+                member = '4';
+            } else if end == start + 4
+                && source[start] == 'f'
+                && source[start + 1] == 'i'
+                && source[start + 2] == 'v'
+                && source[start + 3] == 'e'
+            {
+                member = '5';
+            } else if end == start + 3
+                && source[start] == 's'
+                && source[start + 1] == 'i'
+                && source[start + 2] == 'x'
+            {
+                member = '6';
+            } else if end == start + 5
+                && source[start] == 's'
+                && source[start + 1] == 'e'
+                && source[start + 2] == 'v'
+                && source[start + 3] == 'e'
+                && source[start + 4] == 'n'
+            {
+                member = '7';
+            } else if end == start + 5
+                && source[start] == 'e'
+                && source[start + 1] == 'i'
+                && source[start + 2] == 'g'
+                && source[start + 3] == 'h'
+                && source[start + 4] == 't'
+            {
+                member = '8';
+            } else if end == start + 4
+                && source[start] == 'n'
+                && source[start + 1] == 'i'
+                && source[start + 2] == 'n'
+                && source[start + 3] == 'e'
+            {
+                member = '9';
+            } else if end > start + 1 {
+                valid = false;
+                break;
+            };
+            atoms.push(member);
+            position = end + 2;
+            translated = true;
+        } else if atom == ']' && bracket {
+            bracket = false;
+            atoms.push(atom);
+            position += 1;
+        } else if bracket || simple_literal_char(atom) {
+            atoms.push(atom);
+            position += 1;
+        } else {
+            valid = false;
+            break;
+        };
+    }
+    BasicLiteralResult {
+        valid: valid && translated && bracket == false,
+        atoms,
+    }
+}
+
+pub fn supports_collating_bracket(pattern: &str, expanded: bool) -> bool {
+    let parsed = collating_bracket_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    supports_atoms(parsed.atoms)
+}
+
+pub fn find_collating_bracket(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = collating_bracket_atoms(pattern, expanded);
+    if parsed.valid == false || supports_atoms(parsed.atoms) == false {
+        return MatchOutcome::Uncertain;
+    }
+    let result = search_atoms(
+        collating_bracket_atoms(pattern, expanded).atoms,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
+}
+
 fn bracket_word_atoms(pattern: &str, expanded: bool) -> BasicLiteralResult {
     let source = pattern_atoms(pattern, expanded);
     let mut atoms: Vec<char> = Vec::new();
