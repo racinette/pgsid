@@ -1952,7 +1952,7 @@ fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
             position += 1;
         } else if atom == '(' {
             groups += 1;
-            if groups > 2 {
+            if groups > 3 {
                 valid = false;
                 break;
             }
@@ -1975,7 +1975,9 @@ fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
             }
             frame_count = frame_count - 1;
             let frame = frames[frame_count];
-            closed_groups = frame.group;
+            if frame.group > closed_groups {
+                closed_groups = frame.group;
+            }
             instructions.push(make_capture_step(VM_CLOSE, 0, 0, frame.group, ' '));
             position += 1;
             if position < source.len() && source[position] == '+' {
@@ -2037,10 +2039,31 @@ fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
 
 pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
     let program = compile_capture_program(pattern, expanded);
-    if program.valid == false || program.instructions.len() != 12 {
+    if program.valid == false {
         return false;
     }
     let code = program.instructions;
+    if code.len() == 9 {
+        return code[0].operation == VM_OPEN
+            && code[0].group == 1
+            && code[1].operation == VM_OPEN
+            && code[1].group == 2
+            && code[2].operation == VM_ANY
+            && code[3].operation == VM_CLOSE
+            && code[3].group == 2
+            && code[4].operation == VM_CLOSE
+            && code[4].group == 1
+            && code[5].operation == VM_OPEN
+            && code[5].group == 3
+            && code[6].operation == VM_BACKREF
+            && code[6].group == 2
+            && code[7].operation == VM_CLOSE
+            && code[7].group == 3
+            && code[8].operation == VM_ACCEPT;
+    }
+    if code.len() != 12 {
+        return false;
+    }
     code[0].operation == VM_BEGIN
         && code[1].operation == VM_OPEN
         && code[1].group == 1
