@@ -706,6 +706,22 @@ fn two_capture_backrefs_preserve_empty_participating_groups() {
 }
 
 #[test]
+fn basic_bounded_group_preserves_last_backreference() {
+    assert!(candidate::supports_basic_bounded_backref(
+        "\\(ab\\)\\{1,2\\}\\1",
+        false
+    ));
+    assert!(!candidate::supports_basic_bounded_backref(
+        "\\(ab\\)\\{1,2\\}\\2",
+        false
+    ));
+    assert!(matches!(
+        candidate::find_basic_bounded_backref("\\(ab\\)\\{1,2\\}\\1", "ababab", 0, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 6 })
+    ));
+}
+
+#[test]
 fn supported_search_matches_pglite_fixtures() {
     let mut literal = 0;
     let mut insensitive = 0;
@@ -1327,6 +1343,20 @@ fn supported_search_matches_pglite_fixtures() {
                     options["caseSensitive"].as_bool().unwrap(),
                     newline == "ordinary" || newline == "anchors",
                     newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "basic"
+                && candidate::supports_basic_bounded_backref(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                basic_backref += 1;
+                candidate::find_basic_bounded_backref(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
                     options["expanded"].as_bool().unwrap(),
                 )
             } else if (options["syntax"] == "advanced" || options["syntax"] == "basic")
