@@ -303,6 +303,56 @@ pub fn find_literal(
     MatchOutcome::NoMatch
 }
 
+pub fn supports_quoted_literal(pattern: &str) -> bool {
+    let source: Vec<char> = pattern.chars().collect();
+    source.len() >= 4
+        && source[0] == '*'
+        && source[1] == '*'
+        && source[2] == '*'
+        && source[3] == '='
+}
+
+pub fn find_quoted_literal(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+) -> MatchOutcome {
+    if supports_quoted_literal(pattern) == false {
+        return MatchOutcome::Uncertain;
+    }
+    let needle: Vec<char> = pattern.chars().collect();
+    let haystack: Vec<char> = subject.chars().collect();
+    if from > haystack.len() {
+        return MatchOutcome::NoMatch;
+    }
+    let mut start = from;
+    while start <= haystack.len() {
+        let mut offset = 0;
+        while offset + 4 < needle.len() && offset < haystack.len() - start {
+            let actual = haystack[start + offset];
+            let expected = needle[offset + 4];
+            if actual != expected
+                && (case_sensitive || actual.to_ascii_lowercase() != expected.to_ascii_lowercase())
+            {
+                break;
+            }
+            offset += 1;
+        }
+        if offset + 4 == needle.len() {
+            return MatchOutcome::Found(MatchSpan {
+                start,
+                end: start + offset,
+            });
+        }
+        if start == haystack.len() {
+            break;
+        }
+        start += 1;
+    }
+    MatchOutcome::NoMatch
+}
+
 fn numeric_hex_digit(atom: char) -> usize {
     let codepoint = atom as u32;
     if codepoint >= 48 && codepoint <= 57 {

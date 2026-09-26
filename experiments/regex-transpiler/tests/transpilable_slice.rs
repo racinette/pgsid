@@ -969,6 +969,20 @@ fn basic_groups_without_backreferences_match_their_contents() {
 }
 
 #[test]
+fn quoted_regex_prefix_matches_literal_text() {
+    assert!(candidate::supports_quoted_literal("***=a*b"));
+    assert!(matches!(
+        candidate::find_quoted_literal("***=a*b", "za*b", 0, true),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 4 })
+    ));
+    assert!(matches!(
+        candidate::find_quoted_literal("***=A*B", "za*b", 0, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 4 })
+    ));
+    assert!(!candidate::supports_quoted_literal("***:a*b"));
+}
+
+#[test]
 fn bracket_word_boundaries_match_postgres_spelling() {
     assert!(candidate::supports_bracket_word_boundary("[[:<:]]a", false));
     assert!(candidate::supports_bracket_word_boundary("a[[:>:]]", false));
@@ -1126,6 +1140,7 @@ fn angle_word_escapes_follow_the_selected_syntax() {
 #[test]
 fn supported_search_matches_pglite_fixtures() {
     let mut literal = 0;
+    let mut quoted_literal = 0;
     let mut insensitive = 0;
     let mut advanced = 0;
     let mut grouped = 0;
@@ -1318,7 +1333,17 @@ fn supported_search_matches_pglite_fixtures() {
                 checked += 1;
                 continue;
             }
-            let actual = if options["syntax"] == "literal"
+            let actual = if (options["syntax"] == "advanced" || options["syntax"] == "basic")
+                && candidate::supports_quoted_literal(pattern)
+            {
+                quoted_literal += 1;
+                candidate::find_quoted_literal(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "literal"
                 && options["expanded"] == false
                 && options["newline"] == "ordinary"
             {
@@ -1986,6 +2011,7 @@ fn supported_search_matches_pglite_fixtures() {
         }
     }
     assert!(literal >= 40);
+    assert!(quoted_literal >= 2);
     assert!(insensitive >= 7);
     assert!(advanced >= 100);
     assert!(grouped >= 20);
