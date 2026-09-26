@@ -208,6 +208,17 @@ struct CaptureWorkState {
     capture: usize,
 }
 
+#[derive(Clone, Copy)]
+struct ZeroWidthFrame {
+    alternative: bool,
+    sequence: bool,
+}
+
+struct ZeroWidthResult {
+    valid: bool,
+    matches: bool,
+}
+
 struct TwoChoiceResult {
     valid: bool,
     first_left: Vec<char>,
@@ -2568,6 +2579,190 @@ pub fn find_chained_assertions(
             });
         }
         start += 1;
+    }
+    MatchOutcome::NoMatch
+}
+
+fn zero_width_word(atom: char) -> bool {
+    let codepoint = atom as u32;
+    let lower = atom.to_ascii_lowercase() as u32;
+    (codepoint >= 48 && codepoint <= 57) || (lower >= 97 && lower <= 122) || atom == '_'
+}
+
+fn evaluate_zero_width(
+    pattern: &str,
+    subject: &str,
+    offset: usize,
+    case_sensitive: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> ZeroWidthResult {
+    let source = pattern_atoms(pattern, expanded);
+    let haystack: Vec<char> = subject.chars().collect();
+    if offset > haystack.len() {
+        return ZeroWidthResult {
+            valid: true,
+            matches: false,
+        };
+    }
+    let mut frames: Vec<ZeroWidthFrame> = Vec::new();
+    let mut frame_count = 0;
+    let mut alternative = false;
+    let mut sequence = true;
+    let mut position = 0;
+    let mut assertions = 0;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '(' && source.len() - position >= 6 && source[position + 1] == '?' {
+            let positive = source[position + 2] == '=';
+            if (positive == false && source[position + 2] != '!')
+                || simple_literal_char(source[position + 3]) == false
+                || simple_literal_char(source[position + 4]) == false
+                || source[position + 5] != ')'
+            {
+                return ZeroWidthResult {
+                    valid: false,
+                    matches: false,
+                };
+            }
+            let mut holds = offset + 1 < haystack.len();
+            if holds {
+                let first = haystack[offset];
+                let second = haystack[offset + 1];
+                let expected_first = source[position + 3];
+                let expected_second = source[position + 4];
+                holds = (first == expected_first
+                    || (case_sensitive == false
+                        && first.to_ascii_lowercase() == expected_first.to_ascii_lowercase()))
+                    && (second == expected_second
+                        || (case_sensitive == false
+                            && second.to_ascii_lowercase()
+                                == expected_second.to_ascii_lowercase()));
+            }
+            sequence = sequence && (holds == positive);
+            assertions += 1;
+            position += 6;
+        } else if atom == '(' {
+            let frame = ZeroWidthFrame {
+                alternative,
+                sequence,
+            };
+            if frame_count == frames.len() {
+                frames.push(frame);
+            } else {
+                frames[frame_count] = frame;
+            };
+            frame_count += 1;
+            alternative = false;
+            sequence = true;
+            position += 1;
+        } else if atom == ')' {
+            if frame_count == 0 {
+                return ZeroWidthResult {
+                    valid: false,
+                    matches: false,
+                };
+            }
+            let mut value = alternative || sequence;
+            frame_count = frame_count - 1;
+            let frame = frames[frame_count];
+            alternative = frame.alternative;
+            sequence = frame.sequence;
+            position += 1;
+            if position < source.len() && (source[position] == '*' || source[position] == '?') {
+                value = true;
+                position += 1;
+            } else if position < source.len() && source[position] == '+' {
+                position += 1;
+            };
+            sequence = sequence && value;
+        } else if atom == '|' {
+            alternative = alternative || sequence;
+            sequence = true;
+            position += 1;
+        } else {
+            let mut value = false;
+            if atom == '^' {
+                value = offset == 0 || (line_anchors && haystack[offset - 1] == '\n');
+                position += 1;
+            } else if atom == '$' {
+                value = offset == haystack.len() || (line_anchors && haystack[offset] == '\n');
+                position += 1;
+            } else if atom == '\\' && source.len() - position >= 2 {
+                let boundary = source[position + 1];
+                if boundary != 'Y' && boundary != 'm' && boundary != 'M' {
+                    return ZeroWidthResult {
+                        valid: false,
+                        matches: false,
+                    };
+                }
+                let mut before = false;
+                let mut after = false;
+                if offset > 0 {
+                    before = zero_width_word(haystack[offset - 1]);
+                }
+                if offset < haystack.len() {
+                    after = zero_width_word(haystack[offset]);
+                }
+                value = (boundary == 'Y' && before == after)
+                    || (boundary == 'm' && before == false && after)
+                    || (boundary == 'M' && before && after == false);
+                position += 2;
+            } else {
+                return ZeroWidthResult {
+                    valid: false,
+                    matches: false,
+                };
+            };
+            assertions += 1;
+            if position < source.len() && (source[position] == '*' || source[position] == '?') {
+                value = true;
+                position += 1;
+            } else if position < source.len() && source[position] == '+' {
+                position += 1;
+            };
+            sequence = sequence && value;
+        };
+    }
+    ZeroWidthResult {
+        valid: frame_count == 0 && assertions > 0,
+        matches: alternative || sequence,
+    }
+}
+
+pub fn supports_zero_width_assertions(pattern: &str, expanded: bool) -> bool {
+    evaluate_zero_width(pattern, pattern, 0, true, false, expanded).valid
+}
+
+pub fn find_zero_width_assertions(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let haystack: Vec<char> = subject.chars().collect();
+    let mut position = from;
+    while position <= haystack.len() {
+        let result = evaluate_zero_width(
+            pattern,
+            subject,
+            position,
+            case_sensitive,
+            line_anchors,
+            expanded,
+        );
+        if result.valid == false {
+            return MatchOutcome::Uncertain;
+        }
+        if result.matches {
+            return MatchOutcome::Found(MatchSpan {
+                start: position,
+                end: position,
+            });
+        }
+        position += 1;
     }
     MatchOutcome::NoMatch
 }
