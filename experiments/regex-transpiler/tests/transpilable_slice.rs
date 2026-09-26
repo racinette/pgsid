@@ -72,6 +72,24 @@ fn fixed_lookbehind_gate_requires_fixed_width_prefix() {
 }
 
 #[test]
+fn anchor_or_lookbehind_respects_expanded_whitespace() {
+    assert!(candidate::supports_anchor_lookbehind("(^|(?<=\n))b", false));
+    assert!(candidate::supports_anchor_lookbehind("(^|(?<=\n))b", true));
+    assert!(!candidate::supports_anchor_lookbehind(
+        "(^|(?<=a+))b",
+        false
+    ));
+    assert!(matches!(
+        candidate::find_anchor_lookbehind("(^|(?<=\n))b", "ab", 0, true, false, false, false),
+        candidate::MatchOutcome::NoMatch
+    ));
+    assert!(matches!(
+        candidate::find_anchor_lookbehind("(^|(?<=\n))b", "ab", 0, true, false, false, true),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 2 })
+    ));
+}
+
+#[test]
 fn leading_lookahead_gate_rejects_nested_assertions() {
     assert!(candidate::supports_leading_lookahead("(?=ab)a.", false));
     for pattern in ["(?=(ab))a", "(?=[ab])a", "a(?=b)b", "(?=a\\nb)a"] {
@@ -946,6 +964,23 @@ fn supported_search_matches_pglite_fixtures() {
                 lookbehind += 1;
                 let newline = options["newline"].as_str().unwrap();
                 candidate::find_fixed_lookbehind(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "advanced"
+                && candidate::supports_anchor_lookbehind(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                lookbehind += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_anchor_lookbehind(
                     pattern,
                     subject,
                     from,
