@@ -24,6 +24,14 @@ fn guarded_work_returns_uncertain_at_the_budget() {
 }
 
 #[test]
+fn flat_groups_only_remove_capture_delimiters() {
+    assert!(candidate::supports_flat_groups("a((b)c)", false));
+    for pattern in ["(a|b)c", "(ab)+", "(a)\\1", "(?=a)a", "(ab"] {
+        assert!(!candidate::supports_flat_groups(pattern, false));
+    }
+}
+
+#[test]
 fn literal_search_matches_the_live_engine() {
     for case_sensitive in [true, false] {
         for pattern in ["", "a", "A", "😀", "aa", "Å", "å", "K", "k", "\n"] {
@@ -65,6 +73,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut literal = 0;
     let mut insensitive = 0;
     let mut advanced = 0;
+    let mut grouped = 0;
     let mut expanded_advanced = 0;
     let mut extended = 0;
     let mut basic = 0;
@@ -185,6 +194,20 @@ fn supported_search_matches_pglite_fixtures() {
                     absolute_anchors += 1;
                 }
                 actual
+            } else if options["syntax"] == "advanced"
+                && candidate::supports_flat_groups(pattern, options["expanded"].as_bool().unwrap())
+            {
+                grouped += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_flat_groups(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
             } else if options["syntax"] == "extended"
                 && candidate::supports_extended_compatible(
                     pattern,
@@ -242,6 +265,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(literal >= 40);
     assert!(insensitive >= 7);
     assert!(advanced >= 100);
+    assert!(grouped >= 20);
     assert!(expanded_advanced >= 200);
     assert!(extended >= 50);
     assert!(basic >= 50);
