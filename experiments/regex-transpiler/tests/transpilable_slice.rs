@@ -978,6 +978,19 @@ fn starred_capture_backreference_uses_the_last_iteration() {
 }
 
 #[test]
+fn capture_can_contain_a_starred_backreference() {
+    assert!(candidate::supports_capture_program("a([bc])(\\1*)", false));
+    assert!(matches!(
+        candidate::find_capture_program("a([bc])(\\1*)", "ab", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 2 })
+    ));
+    assert!(matches!(
+        candidate::find_capture_program("a([bc])(\\1*)", "abb", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 3 })
+    ));
+}
+
+#[test]
 fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
     assert!(candidate::supports_bounded_group("a(ab)*c", false));

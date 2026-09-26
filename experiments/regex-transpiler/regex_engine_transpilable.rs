@@ -2848,6 +2848,28 @@ pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
     {
         return true;
     }
+    if code.len() == 10
+        && code[0].operation == VM_LITERAL
+        && code[1].operation == VM_OPEN
+        && code[1].group == 1
+        && code[2].operation == VM_CLASS
+        && code[3].operation == VM_CLOSE
+        && code[3].group == 1
+        && code[4].operation == VM_OPEN
+        && code[4].group == 2
+        && code[5].operation == VM_SPLIT
+        && code[5].target == 6
+        && code[5].alternate == 8
+        && code[6].operation == VM_BACKREF
+        && code[6].group == 1
+        && code[7].operation == VM_JUMP
+        && code[7].target == 5
+        && code[8].operation == VM_CLOSE
+        && code[8].group == 2
+        && code[9].operation == VM_ACCEPT
+    {
+        return true;
+    }
     if noncapturing > 0 {
         let mut position = 0;
         let mut literals = 0;
