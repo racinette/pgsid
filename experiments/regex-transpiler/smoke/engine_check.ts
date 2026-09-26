@@ -6,6 +6,11 @@ if (!generatedPath) throw new Error('usage: engine_check.ts GENERATED_TS')
 
 const generated = await import(pathToFileURL(generatedPath).href)
 
+assert.equal(generated.supportsFlatGroups('a((b)c)', false), true)
+for (const pattern of ['(a|b)c', '(ab)+', '(a)\\1', '(?=a)a', '(ab']) {
+  assert.equal(generated.supportsFlatGroups(pattern, false), false)
+}
+
 assert.deepEqual(generated.findLiteral('😀', 'a😀a', 0, true), {
   kind: 'Found',
   value: { start: 1, end: 2 },

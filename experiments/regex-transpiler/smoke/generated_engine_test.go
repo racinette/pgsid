@@ -3,6 +3,14 @@ package generated
 import "testing"
 
 func TestLiteralSlice(t *testing.T) {
+	if !SupportsFlatGroups("a((b)c)", false) {
+		t.Error("plain nested capture groups were rejected")
+	}
+	for _, pattern := range []string{"(a|b)c", "(ab)+", "(a)\\1", "(?=a)a", "(ab"} {
+		if SupportsFlatGroups(pattern, false) {
+			t.Errorf("group with changed semantics was accepted: %q", pattern)
+		}
+	}
 	found := FindLiteral("😀", "a😀a", 0, true)
 	if found != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Errorf("literal match = %+v", found)

@@ -30,6 +30,11 @@ pub enum CountOutcome {
     Uncertain,
 }
 
+struct FlatGroupResult {
+    valid: bool,
+    atoms: Vec<char>,
+}
+
 pub fn charge_work(current: usize, amount: usize) -> WorkOutcome {
     if current > MAX_CAPTURE_WORK {
         return WorkOutcome::Uncertain;
@@ -505,6 +510,97 @@ pub fn supports_basic_compatible(pattern: &str, expanded: bool) -> bool {
         return supports_expanded_advanced(pattern);
     }
     supports_simple_advanced(pattern)
+}
+
+fn flat_group_atoms(pattern: &str, expanded: bool) -> FlatGroupResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut result: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut depth = 0;
+    let mut bracket = false;
+    let mut grouped = false;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '\\' {
+            if source.len() - position <= 1 {
+                return FlatGroupResult {
+                    valid: false,
+                    atoms: result,
+                };
+            }
+            let escaped = source[position + 1];
+            if (escaped as u32) >= 48 && (escaped as u32) <= 57 {
+                return FlatGroupResult {
+                    valid: false,
+                    atoms: result,
+                };
+            }
+            result.push(atom);
+            result.push(escaped);
+            position += 2;
+        } else if atom == '[' && bracket == false {
+            bracket = true;
+            result.push(atom);
+            position += 1;
+        } else if atom == ']' && bracket {
+            bracket = false;
+            result.push(atom);
+            position += 1;
+        } else if bracket {
+            result.push(atom);
+            position += 1;
+        } else if atom == '(' {
+            if source.len() - position > 1 && source[position + 1] == '?' {
+                return FlatGroupResult {
+                    valid: false,
+                    atoms: result,
+                };
+            }
+            grouped = true;
+            depth += 1;
+            position += 1;
+        } else if atom == ')' {
+            if depth == 0 {
+                return FlatGroupResult {
+                    valid: false,
+                    atoms: result,
+                };
+            }
+            depth = depth - 1;
+            if source.len() - position > 1
+                && (source[position + 1] == '*'
+                    || source[position + 1] == '+'
+                    || source[position + 1] == '?'
+                    || source[position + 1] == '{')
+            {
+                return FlatGroupResult {
+                    valid: false,
+                    atoms: result,
+                };
+            }
+            position += 1;
+        } else if atom == '|' && depth > 0 {
+            return FlatGroupResult {
+                valid: false,
+                atoms: result,
+            };
+        } else {
+            result.push(atom);
+            position += 1;
+        };
+    }
+    FlatGroupResult {
+        valid: grouped && depth == 0 && bracket == false,
+        atoms: result,
+    }
+}
+
+pub fn supports_flat_groups(pattern: &str, expanded: bool) -> bool {
+    let parsed = flat_group_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    supports_atoms(parsed.atoms)
 }
 
 fn search_atoms(
@@ -1407,4 +1503,37 @@ pub fn find_basic_compatible(
         line_anchors,
         expanded,
     )
+}
+
+pub fn find_flat_groups(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = flat_group_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let result = search_atoms(
+        parsed.atoms,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
 }

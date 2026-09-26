@@ -44,6 +44,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 	literal := 0
 	insensitive := 0
 	advanced := 0
+	grouped := 0
 	expandedAdvanced := 0
 	extended := 0
 	basic := 0
@@ -150,6 +151,11 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 					absoluteAnchors++
 				}
 				newlineModes[input.Options.Newline] = true
+			} else if input.Options.Syntax == "advanced" && SupportsFlatGroups(input.Pattern, input.Options.Expanded) {
+				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
+				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
+				actual = FindFlatGroups(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors, input.Options.Expanded)
+				grouped++
 			} else if input.Options.Syntax == "extended" && SupportsExtendedCompatible(input.Pattern, input.Options.Expanded) {
 				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
 				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
@@ -197,7 +203,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			t.Errorf("targeted fixtures checked %d of %d", checked, len(document.Fixtures))
 		}
 	}
-	if literal < 40 || insensitive < 7 || advanced < 100 || extended < 50 || basic < 50 || dot < 20 || mixed < 50 || anchored < 20 || escaped < 40 || classes < 50 || negatedClasses < 40 || rangeClasses < 50 || edgePunctuation < 80 || absoluteAnchors < 50 || positioned < 6 || len(newlineModes) != 4 {
+	if literal < 40 || insensitive < 7 || advanced < 100 || grouped < 20 || extended < 50 || basic < 50 || dot < 20 || mixed < 50 || anchored < 20 || escaped < 40 || classes < 50 || negatedClasses < 40 || rangeClasses < 50 || edgePunctuation < 80 || absoluteAnchors < 50 || positioned < 6 || len(newlineModes) != 4 {
 		t.Fatalf("fixture coverage: literal=%d insensitive=%d advanced=%d dot=%d mixed=%d anchored=%d escaped=%d classes=%d negatedClasses=%d rangeClasses=%d edgePunctuation=%d absoluteAnchors=%d positioned=%d newline=%v", literal, insensitive, advanced, dot, mixed, anchored, escaped, classes, negatedClasses, rangeClasses, edgePunctuation, absoluteAnchors, positioned, newlineModes)
 	}
 	if countSupported < 100 || expandedAdvanced < 200 {
