@@ -1036,6 +1036,40 @@ fn hyphen_can_start_a_bracket_range() {
 }
 
 #[test]
+fn advanced_brackets_accept_escaped_closing_and_opening_punctuation() {
+    for (pattern, subject) in [("a[\\]]b", "a]b"), ("a[\\\\]b", "a\\b"), ("a[[b]c", "a[c")] {
+        assert!(candidate::supports_simple_advanced(pattern), "{pattern}");
+        assert!(matches!(
+            candidate::find_simple_advanced(pattern, subject, 0, true, true, false),
+            candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 3 })
+        ));
+    }
+}
+
+#[test]
+fn basic_brackets_treat_backslash_as_a_member() {
+    for (pattern, subject, start, end) in [
+        ("a[\\]]b", "a\\]b", 0, 4),
+        ("a[\\\\]b", "a\\b", 0, 3),
+        ("a[[b]c", "a[c", 0, 3),
+    ] {
+        assert!(candidate::supports_basic_special_bracket(pattern, false));
+        assert!(matches!(
+            candidate::find_basic_special_bracket(pattern, subject, 0, true, true, false, false),
+            candidate::MatchOutcome::Found(candidate::MatchSpan { start: actual_start, end: actual_end })
+                if actual_start == start && actual_end == end
+        ));
+    }
+    assert!(matches!(
+        candidate::find_basic_special_bracket("a[\\]]b", "a]b", 0, true, true, false, false),
+        candidate::MatchOutcome::NoMatch
+    ));
+    assert!(!candidate::supports_basic_special_bracket(
+        "[[:<:]]a", false
+    ));
+}
+
+#[test]
 fn basic_groups_without_backreferences_match_their_contents() {
     for (pattern, subject, expected) in [
         ("\\(a\\)b", "ab", 2),
@@ -1296,6 +1330,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut bracket_word = 0;
     let mut collating_bracket = 0;
     let mut basic_transparent_group = 0;
+    let mut basic_special_bracket = 0;
     let mut invalid_grouping = 0;
     let mut invalid_repeat = 0;
     let mut invalid_bound = 0;
@@ -2016,6 +2051,23 @@ fn supported_search_matches_pglite_fixtures() {
                     options["expanded"].as_bool().unwrap(),
                 )
             } else if options["syntax"] == "basic"
+                && candidate::supports_basic_special_bracket(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                basic_special_bracket += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_basic_special_bracket(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "basic"
                 && candidate::supports_basic_compatible(
                     pattern,
                     options["expanded"].as_bool().unwrap(),
@@ -2206,6 +2258,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(bracket_word >= 10);
     assert!(collating_bracket >= 10);
     assert!(basic_transparent_group >= 4);
+    assert!(basic_special_bracket >= 4);
     assert!(invalid_grouping >= 40);
     assert!(invalid_repeat >= 20);
     assert!(invalid_bound >= 20);

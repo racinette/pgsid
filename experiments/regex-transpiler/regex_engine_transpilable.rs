@@ -1511,7 +1511,7 @@ fn supports_atoms(atoms: Vec<char>) -> bool {
                 return false;
             }
             while position < atoms.len() && atoms[position] != ']' {
-                if atoms[position] == '[' {
+                if atoms[position] == '[' && position != first_member {
                     return false;
                 }
                 if atoms[position] == '\\' {
@@ -1525,6 +1525,8 @@ fn supports_atoms(atoms: Vec<char>) -> bool {
                         && escaped != 'S'
                         && escaped != 'w'
                         && escaped != 'W'
+                        && escaped != ']'
+                        && escaped != '\\'
                     {
                         return false;
                     }
@@ -5075,6 +5077,96 @@ pub fn find_basic_transparent_group(
     })
 }
 
+fn basic_special_bracket_atoms(pattern: &str, expanded: bool) -> BasicLiteralResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut atoms: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut bracket = false;
+    let mut translated = false;
+    let mut valid = true;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '[' && bracket == false {
+            bracket = true;
+            atoms.push(atom);
+        } else if atom == ']' && bracket {
+            bracket = false;
+            atoms.push(atom);
+        } else if atom == '\\' && bracket {
+            atoms.push('\\');
+            atoms.push('\\');
+            translated = true;
+        } else if atom == ']' && bracket == false {
+            atoms.push('\\');
+            atoms.push(']');
+            translated = true;
+        } else if bracket {
+            if atom == '[' {
+                if position + 1 < source.len()
+                    && (source[position + 1] == ':'
+                        || source[position + 1] == '.'
+                        || source[position + 1] == '=')
+                {
+                    valid = false;
+                    break;
+                }
+                translated = true;
+            };
+            atoms.push(atom);
+        } else if simple_literal_char(atom) {
+            atoms.push(atom);
+        } else {
+            valid = false;
+            break;
+        };
+        position += 1;
+    }
+    BasicLiteralResult {
+        valid: valid && translated && bracket == false,
+        atoms,
+    }
+}
+
+pub fn supports_basic_special_bracket(pattern: &str, expanded: bool) -> bool {
+    let parsed = basic_special_bracket_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    supports_atoms(parsed.atoms)
+}
+
+pub fn find_basic_special_bracket(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    if supports_basic_special_bracket(pattern, expanded) == false {
+        return MatchOutcome::Uncertain;
+    }
+    let result = search_atoms(
+        basic_special_bracket_atoms(pattern, expanded).atoms,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
+}
+
 fn collating_bracket_atoms(pattern: &str, expanded: bool) -> BasicLiteralResult {
     let source = pattern_atoms(pattern, expanded);
     let mut atoms: Vec<char> = Vec::new();
@@ -5804,7 +5896,7 @@ fn search_atoms(
                 };
             }
             while position < atoms.len() && atoms[position] != ']' {
-                if atoms[position] == '[' {
+                if atoms[position] == '[' && position != first_member {
                     return SearchResult {
                         kind: 2,
                         start: 0,
@@ -5826,6 +5918,8 @@ fn search_atoms(
                         && escaped != 'S'
                         && escaped != 'w'
                         && escaped != 'W'
+                        && escaped != ']'
+                        && escaped != '\\'
                     {
                         return SearchResult {
                             kind: 2,
@@ -6186,20 +6280,28 @@ fn search_atoms(
                         while atoms[class_position] != ']' {
                             if atoms[class_position] == '\\' {
                                 let shorthand = atoms[class_position + 1];
-                                let codepoint = actual as u32;
-                                let lowercase = actual.to_ascii_lowercase() as u32;
-                                let digit = codepoint >= 48 && codepoint <= 57;
-                                let space = (codepoint >= 9 && codepoint <= 13) || actual == ' ';
-                                let word =
-                                    digit || (lowercase >= 97 && lowercase <= 122) || actual == '_';
-                                let member = ((shorthand == 'd' || shorthand == 'D') && digit)
-                                    || ((shorthand == 's' || shorthand == 'S') && space)
-                                    || ((shorthand == 'w' || shorthand == 'W') && word);
-                                let complement =
-                                    shorthand == 'D' || shorthand == 'S' || shorthand == 'W';
-                                if member != complement {
-                                    included = true;
-                                }
+                                if shorthand == ']' || shorthand == '\\' {
+                                    if actual == shorthand {
+                                        included = true;
+                                    }
+                                } else {
+                                    let codepoint = actual as u32;
+                                    let lowercase = actual.to_ascii_lowercase() as u32;
+                                    let digit = codepoint >= 48 && codepoint <= 57;
+                                    let space =
+                                        (codepoint >= 9 && codepoint <= 13) || actual == ' ';
+                                    let word = digit
+                                        || (lowercase >= 97 && lowercase <= 122)
+                                        || actual == '_';
+                                    let member = ((shorthand == 'd' || shorthand == 'D') && digit)
+                                        || ((shorthand == 's' || shorthand == 'S') && space)
+                                        || ((shorthand == 'w' || shorthand == 'W') && word);
+                                    let complement =
+                                        shorthand == 'D' || shorthand == 'S' || shorthand == 'W';
+                                    if member != complement {
+                                        included = true;
+                                    }
+                                };
                                 class_position += 2;
                             } else {
                                 let expected = atoms[class_position];
