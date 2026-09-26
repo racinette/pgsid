@@ -319,6 +319,15 @@ fn simple_advanced_search_matches_the_live_engine() {
                 "a\\M",
                 "a\\Y",
                 "\\yA",
+                "\\d",
+                "\\D",
+                "\\s",
+                "\\S",
+                "\\w",
+                "\\W",
+                "a\\db",
+                "a\\Sb",
+                "\\w\\d",
             ] {
                 let engine::CompileOutcome::Ready(program) = engine::compile(
                     pattern,
@@ -331,10 +340,11 @@ fn simple_advanced_search_matches_the_live_engine() {
                     panic!("simple advanced pattern did not compile");
                 };
                 for subject in [
-                    "", "a", "a😀b", "a\nb", "a😀\nb", "\na", "a\n", "Åβ😀", "\na\n", "😀\n",
-                    "a.b", "a+b", "^a", "a$", "a\\b", "(a)", "[a]", "zabd", "zacd", "zaed", "ba",
-                    ".", "^", "β", "\n", "c", "a\nc", "abc", "zac", "B", "5", "y", "m", "a2b", "-",
-                    "]", "za]", "a😀", "a😀\n", "a-", "ab", "éa", "_a", "-a", "5_", "😀a",
+                    "", "a", "a😀b", "a\nb", "a😀\nb", "\na", "a\n", "Åβ😀", "\na\n", "😀\n", "\t",
+                    "\r", "\u{000b}", "a.b", "a+b", "^a", "a$", "a\\b", "(a)", "[a]", "zabd",
+                    "zacd", "zaed", "ba", ".", "^", "β", "\n", "c", "a\nc", "abc", "zac", "B", "5",
+                    "y", "m", "a2b", "-", "]", "za]", "a😀", "a😀\n", "a-", "ab", "éa", "_a", "-a",
+                    "5_", "😀a",
                 ] {
                     for from in 0..=subject.chars().count() + 1 {
                         let expected = match program.find(subject, from) {

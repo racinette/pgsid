@@ -116,6 +116,12 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
                 && escaped != 'M'
                 && escaped != 'y'
                 && escaped != 'Y'
+                && escaped != 'd'
+                && escaped != 'D'
+                && escaped != 's'
+                && escaped != 'S'
+                && escaped != 'w'
+                && escaped != 'W'
             {
                 return false;
             }
@@ -228,6 +234,12 @@ pub fn find_simple_advanced(
                 && escaped != 'M'
                 && escaped != 'y'
                 && escaped != 'Y'
+                && escaped != 'd'
+                && escaped != 'D'
+                && escaped != 's'
+                && escaped != 'S'
+                && escaped != 'w'
+                && escaped != 'W'
             {
                 return MatchOutcome::Uncertain;
             }
@@ -412,13 +424,45 @@ pub fn find_simple_advanced(
                     atom_position += 1;
                 }
             }
+            if escaped
+                && (atom == 'd'
+                    || atom == 'D'
+                    || atom == 's'
+                    || atom == 'S'
+                    || atom == 'w'
+                    || atom == 'W')
+            {
+                if subject_position >= haystack.len() {
+                    break;
+                }
+                let actual = haystack[subject_position];
+                let codepoint = actual as u32;
+                let lowercase = actual.to_ascii_lowercase() as u32;
+                let digit = codepoint >= 48 && codepoint <= 57;
+                let space = (codepoint >= 9 && codepoint <= 13) || actual == ' ';
+                let word = digit || (lowercase >= 97 && lowercase <= 122) || actual == '_';
+                let included = ((atom == 'd' || atom == 'D') && digit)
+                    || ((atom == 's' || atom == 'S') && space)
+                    || ((atom == 'w' || atom == 'W') && word);
+                let negated = atom == 'D' || atom == 'S' || atom == 'W';
+                if included == negated {
+                    break;
+                }
+                subject_position += 1;
+            }
             if (escaped
                 && atom != 'A'
                 && atom != 'Z'
                 && atom != 'm'
                 && atom != 'M'
                 && atom != 'y'
-                && atom != 'Y')
+                && atom != 'Y'
+                && atom != 'd'
+                && atom != 'D'
+                && atom != 's'
+                && atom != 'S'
+                && atom != 'w'
+                && atom != 'W')
                 || (escaped == false && atom != '^' && atom != '$' && atom != '[')
             {
                 if subject_position >= haystack.len() {
