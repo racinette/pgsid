@@ -88,6 +88,15 @@ struct SingleCaptureResult {
     suffix: Vec<char>,
 }
 
+struct RepeatedBackrefResult {
+    valid: bool,
+    prefix: Vec<char>,
+    member: Vec<char>,
+    suffix: Vec<char>,
+    lower: usize,
+    upper: usize,
+}
+
 struct ChoiceCaptureResult {
     valid: bool,
     prefix: Vec<char>,
@@ -2069,6 +2078,265 @@ pub fn supports_single_capture_backref(pattern: &str, expanded: bool) -> bool {
         return false;
     }
     supports_atoms(parsed.atom)
+}
+
+fn repeated_backref_atoms(pattern: &str, expanded: bool) -> RepeatedBackrefResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut prefix: Vec<char> = Vec::new();
+    let mut member: Vec<char> = Vec::new();
+    let mut suffix: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut valid = true;
+    let mut lower = 0;
+    let mut upper = 0;
+    while position < source.len() && source[position] != '(' {
+        if simple_literal_char(source[position]) == false {
+            valid = false;
+            break;
+        }
+        prefix.push(source[position]);
+        position += 1;
+    }
+    if source.len() - position < 6 || source[position] != '(' || source[position + 1] != '[' {
+        valid = false;
+    }
+    if valid {
+        position += 2;
+        member.push('[');
+        while position < source.len() && source[position] != ']' {
+            if source[position] == '[' || source[position] == '\\' {
+                valid = false;
+                break;
+            }
+            member.push(source[position]);
+            position += 1;
+        }
+        if member.len() == 1 || source.len() - position < 4 || source[position] != ']' {
+            valid = false;
+        }
+    }
+    if valid {
+        member.push(']');
+        position += 1;
+        if source[position] != ')' || source[position + 1] != '\\' || source[position + 2] != '1' {
+            valid = false;
+        } else {
+            position += 3;
+        };
+    }
+    if valid && position == source.len() {
+        valid = false;
+    }
+    if valid {
+        if source[position] == '*' || source[position] == '+' || source[position] == '?' {
+            if source[position] == '+' {
+                lower = 1;
+            }
+            if source[position] == '?' {
+                upper = 1;
+            } else {
+                upper = MAX_CAPTURE_WORK;
+            }
+            position += 1;
+        } else if source[position] == '{' {
+            position += 1;
+            let mut digits = 0;
+            while position < source.len()
+                && (source[position] as u32) >= 48
+                && (source[position] as u32) <= 57
+            {
+                let double = lower + lower;
+                let four = double + double;
+                let eight = four + four;
+                lower = eight + double + ((source[position] as u32) - 48) as usize;
+                digits += 1;
+                position += 1;
+                if lower > 16 {
+                    valid = false;
+                    break;
+                }
+            }
+            if digits == 0 || position == source.len() {
+                valid = false;
+            }
+            if valid {
+                upper = lower;
+                if source[position] == ',' {
+                    upper = 0;
+                    digits = 0;
+                    position += 1;
+                    while position < source.len()
+                        && (source[position] as u32) >= 48
+                        && (source[position] as u32) <= 57
+                    {
+                        let double = upper + upper;
+                        let four = double + double;
+                        let eight = four + four;
+                        upper = eight + double + ((source[position] as u32) - 48) as usize;
+                        digits += 1;
+                        position += 1;
+                        if upper > 16 {
+                            valid = false;
+                            break;
+                        }
+                    }
+                    if digits == 0 || upper < lower {
+                        valid = false;
+                    }
+                }
+                if position == source.len() || source[position] != '}' {
+                    valid = false;
+                } else {
+                    position += 1;
+                };
+            };
+        } else {
+            valid = false;
+        };
+    }
+    if valid {
+        while position < source.len() {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            suffix.push(source[position]);
+            position += 1;
+        }
+    }
+    RepeatedBackrefResult {
+        valid,
+        prefix,
+        member,
+        suffix,
+        lower,
+        upper,
+    }
+}
+
+pub fn supports_repeated_backref(pattern: &str, expanded: bool) -> bool {
+    let parsed = repeated_backref_atoms(pattern, expanded);
+    parsed.valid && supports_atoms(parsed.member)
+}
+
+pub fn find_repeated_backref(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    if supports_repeated_backref(pattern, expanded) == false {
+        return MatchOutcome::Uncertain;
+    }
+    let parsed = repeated_backref_atoms(pattern, expanded);
+    let haystack: Vec<char> = subject.chars().collect();
+    let mut search_from = from;
+    let mut work = 0;
+    while search_from <= haystack.len() {
+        if work == MAX_CAPTURE_WORK {
+            return MatchOutcome::Uncertain;
+        }
+        work += 1;
+        let mut prefix: Vec<char> = Vec::new();
+        let mut index = 0;
+        while index < parsed.prefix.len() {
+            prefix.push(parsed.prefix[index]);
+            index += 1;
+        }
+        let first = search_atoms(
+            prefix,
+            subject,
+            search_from,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+        );
+        if first.kind == 2 {
+            return MatchOutcome::Uncertain;
+        }
+        if first.kind == 1 {
+            break;
+        }
+        if first.end < haystack.len() {
+            let mut member: Vec<char> = Vec::new();
+            index = 0;
+            while index < parsed.member.len() {
+                member.push(parsed.member[index]);
+                index += 1;
+            }
+            let captured = search_atoms(
+                member,
+                subject,
+                first.end,
+                case_sensitive,
+                dot_crosses_newline,
+                line_anchors,
+            );
+            if captured.kind == 2 {
+                return MatchOutcome::Uncertain;
+            }
+            if captured.kind == 0 && captured.start == first.end && captured.end == first.end + 1 {
+                let captured_char = haystack[first.end];
+                let mut repetitions = 0;
+                let mut position = captured.end;
+                let mut found = false;
+                let mut best_end = position;
+                while repetitions <= parsed.upper {
+                    if work == MAX_CAPTURE_WORK {
+                        return MatchOutcome::Uncertain;
+                    }
+                    work += 1;
+                    if repetitions >= parsed.lower {
+                        let mut suffix_matches = true;
+                        index = 0;
+                        while index < parsed.suffix.len() {
+                            if index >= haystack.len() - position {
+                                suffix_matches = false;
+                                break;
+                            }
+                            let actual = haystack[position + index];
+                            let expected = parsed.suffix[index];
+                            if actual != expected
+                                && (case_sensitive
+                                    || actual.to_ascii_lowercase() != expected.to_ascii_lowercase())
+                            {
+                                suffix_matches = false;
+                                break;
+                            }
+                            index += 1;
+                        }
+                        if suffix_matches {
+                            found = true;
+                            best_end = position + parsed.suffix.len();
+                        }
+                    }
+                    if position == haystack.len() || repetitions == parsed.upper {
+                        break;
+                    }
+                    let actual = haystack[position];
+                    if actual != captured_char
+                        && (case_sensitive
+                            || actual.to_ascii_lowercase() != captured_char.to_ascii_lowercase())
+                    {
+                        break;
+                    }
+                    repetitions += 1;
+                    position += 1;
+                }
+                if found {
+                    return MatchOutcome::Found(MatchSpan {
+                        start: first.start,
+                        end: best_end,
+                    });
+                };
+            };
+        };
+        search_from = first.start + 1;
+    }
+    MatchOutcome::NoMatch
 }
 
 fn two_capture_atoms(pattern: &str, expanded: bool) -> TwoCaptureResult {
