@@ -394,6 +394,38 @@ pub fn supports_extended_compatible(pattern: &str, expanded: bool) -> bool {
     supports_simple_advanced(pattern)
 }
 
+pub fn supports_basic_compatible(pattern: &str, expanded: bool) -> bool {
+    let source = pattern_atoms(pattern, expanded);
+    let mut position = 0;
+    let mut bracket = false;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '[' && bracket == false {
+            bracket = true;
+        } else if atom == ']' && bracket == true {
+            bracket = false;
+        }
+        if atom == '\\'
+            || atom == '+'
+            || atom == '?'
+            || atom == '|'
+            || atom == '('
+            || atom == ')'
+            || atom == '{'
+            || atom == '}'
+            || (atom == '^' && bracket == false && position != 0)
+            || (atom == '$' && bracket == false && position + 1 != source.len())
+        {
+            return false;
+        }
+        position += 1;
+    }
+    if expanded {
+        return supports_expanded_advanced(pattern);
+    }
+    supports_simple_advanced(pattern)
+}
+
 fn search_atoms(
     atoms: Vec<char>,
     subject: &str,
@@ -1198,6 +1230,26 @@ pub fn count_expanded_advanced(
 }
 
 pub fn find_extended_compatible(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    find_advanced(
+        pattern,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        expanded,
+    )
+}
+
+pub fn find_basic_compatible(
     pattern: &str,
     subject: &str,
     from: usize,
