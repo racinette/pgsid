@@ -291,6 +291,17 @@ fn capture_program_reuses_the_first_capture_across_repeated_groups() {
         candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 5 })
     ));
     assert!(!candidate::supports_capture_program("a(b.[c-b]*)+", false));
+    for pattern in ["a([bc])\\1+", "a([bc])\\1*"] {
+        assert!(candidate::supports_capture_program(pattern, false));
+        assert!(matches!(
+            candidate::find_capture_program(pattern, "abbb", 0, true, true, false, false),
+            candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 4 })
+        ));
+    }
+    assert!(matches!(
+        candidate::find_capture_program("a([bc])\\1*", "ab", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 2 })
+    ));
 }
 
 #[test]
@@ -582,6 +593,54 @@ fn invalid_posix_class_gate_only_marks_postgres_errors() {
         }
     }
     assert!(identified >= 20);
+}
+
+#[test]
+fn invalid_bracket_range_gate_only_marks_postgres_errors() {
+    for pattern in [
+        "a[c-b]",
+        "a[a-b-c]",
+        "[\\w-~]*",
+        "[[:alnum:]-~]*",
+        "a[0-[=x=]]",
+    ] {
+        assert!(candidate::definitely_invalid_bracket_range(
+            pattern, 'a', false
+        ));
+    }
+    for pattern in ["a[--?]b", "a[---]b", "a[0-[.9.]]", "a[[.zero.]-9]"] {
+        assert!(!candidate::definitely_invalid_bracket_range(
+            pattern, 'a', false
+        ));
+    }
+    let mut identified = 0;
+    for source in [
+        include_str!("../conformance/postgres-fixtures.json"),
+        include_str!("../conformance/stress-fixtures.json"),
+        include_str!("../conformance/targeted-postgres-fixtures.json"),
+        include_str!("../conformance/stress-position-fixtures.json"),
+        include_str!("../conformance/stress-boundary-fixtures.json"),
+    ] {
+        let fixtures: Value = serde_json::from_str(source).unwrap();
+        for fixture in fixtures["fixtures"].as_array().unwrap() {
+            let input = &fixture["input"];
+            let syntax = input["options"]["syntax"].as_str().unwrap();
+            if syntax != "literal"
+                && candidate::definitely_invalid_bracket_range(
+                    input["pattern"].as_str().unwrap(),
+                    syntax.chars().next().unwrap(),
+                    input["options"]["expanded"].as_bool().unwrap(),
+                )
+            {
+                assert_eq!(
+                    fixture["expected"]["kind"], "InvalidPattern",
+                    "input={input}"
+                );
+                identified += 1;
+            }
+        }
+    }
+    assert!(identified >= 10);
 }
 
 #[test]
@@ -938,6 +997,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut invalid_repeat = 0;
     let mut invalid_bound = 0;
     let mut invalid_posix_class = 0;
+    let mut invalid_range = 0;
     let mut invalid_backreference = 0;
     let mut dot = 0;
     let mut mixed = 0;
@@ -1040,6 +1100,22 @@ fn supported_search_matches_pglite_fixtures() {
                     "input={input}"
                 );
                 invalid_posix_class += 1;
+                checked += 1;
+                continue;
+            }
+            if syntax != "literal"
+                && candidate::definitely_invalid_bracket_range(
+                    pattern,
+                    syntax.chars().next().unwrap(),
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                assert_eq!(
+                    fixture["expected"],
+                    json!({ "kind": "InvalidPattern", "sqlstate": "2201B" }),
+                    "input={input}"
+                );
+                invalid_range += 1;
                 checked += 1;
                 continue;
             }
@@ -1713,6 +1789,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(invalid_repeat >= 20);
     assert!(invalid_bound >= 20);
     assert!(invalid_posix_class >= 20);
+    assert!(invalid_range >= 10);
     assert!(invalid_backreference >= 10);
     assert!(dot >= 20);
     assert!(mixed >= 50);

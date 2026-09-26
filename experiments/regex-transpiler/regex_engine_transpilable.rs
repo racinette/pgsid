@@ -687,6 +687,94 @@ pub fn definitely_invalid_posix_class(pattern: &str, syntax: char, expanded: boo
     false
 }
 
+pub fn definitely_invalid_bracket_range(pattern: &str, syntax: char, expanded: bool) -> bool {
+    if syntax != 'a' && syntax != 'e' && syntax != 'b' {
+        return false;
+    }
+    let source = pattern_atoms(pattern, expanded);
+    let mut position = 0;
+    let mut bracket = false;
+    let mut first_member = 0;
+    while position < source.len() {
+        let atom = source[position];
+        if bracket == false {
+            if atom == '[' {
+                bracket = true;
+                first_member = position + 1;
+            } else if atom == '\\' && syntax == 'a' {
+                position += 1;
+            };
+        } else if atom == '['
+            && position + 1 < source.len()
+            && (source[position + 1] == ':'
+                || source[position + 1] == '.'
+                || source[position + 1] == '=')
+        {
+            let delimiter = source[position + 1];
+            position += 2;
+            while position + 1 < source.len()
+                && (source[position] != delimiter || source[position + 1] != ']')
+            {
+                position += 1;
+            }
+            if position + 1 < source.len() {
+                position += 1;
+            };
+        } else if atom == ']' && position > first_member {
+            bracket = false;
+        } else if atom == '\\' && syntax == 'a' && position + 1 < source.len() {
+            position += 1;
+        } else if atom == '-'
+            && position > first_member
+            && position + 1 < source.len()
+            && source[position + 1] != ']'
+        {
+            if position >= first_member + 3 && source[position - 2] == '-' {
+                return true;
+            }
+            let left = source[position - 1];
+            let right = source[position + 1];
+            if syntax == 'a'
+                && ((position >= first_member + 2
+                    && source[position - 2] == '\\'
+                    && (left == 'w'
+                        || left == 'W'
+                        || left == 'd'
+                        || left == 'D'
+                        || left == 's'
+                        || left == 'S'))
+                    || (right == '\\'
+                        && position + 2 < source.len()
+                        && (source[position + 2] == 'w'
+                            || source[position + 2] == 'W'
+                            || source[position + 2] == 'd'
+                            || source[position + 2] == 'D'
+                            || source[position + 2] == 's'
+                            || source[position + 2] == 'S')))
+            {
+                return true;
+            }
+            if left == ']' && position >= first_member + 2 {
+                let delimiter = source[position - 2];
+                if delimiter == ':' || delimiter == '=' {
+                    return true;
+                };
+            };
+            if right == '[' && position + 2 < source.len() {
+                let delimiter = source[position + 2];
+                if delimiter == ':' || delimiter == '=' {
+                    return true;
+                };
+            };
+            if left != ']' && right != '[' && right != '\\' && (left as u32) > (right as u32) {
+                return true;
+            };
+        }
+        position += 1;
+    }
+    false
+}
+
 pub fn definitely_invalid_backreference(pattern: &str, syntax: char, expanded: bool) -> bool {
     if syntax != 'a' && syntax != 'b' {
         return false;
@@ -2061,7 +2149,7 @@ fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
                 break;
             }
             let first = instructions.len();
-            if position < source.len() && source[position] == '*' && operation != VM_BACKREF {
+            if position < source.len() && source[position] == '*' {
                 instructions.push(make_capture_step(VM_SPLIT, first + 1, first + 3, 0, ' '));
                 instructions.push(make_capture_step(operation, 0, 0, reference, member));
                 instructions.push(make_capture_step(VM_JUMP, first, 0, 0, ' '));
@@ -2112,6 +2200,32 @@ pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
             position += 1;
         }
         return valid && literals > 0 && code[code.len() - 1].operation == VM_ACCEPT;
+    }
+    if code.len() == 7 || code.len() == 8 {
+        let prefix = code[0].operation == VM_LITERAL
+            && code[1].operation == VM_OPEN
+            && code[1].group == 1
+            && code[2].operation == VM_CLASS
+            && code[3].operation == VM_CLOSE
+            && code[3].group == 1;
+        if code.len() == 7 {
+            return prefix
+                && code[4].operation == VM_BACKREF
+                && code[4].group == 1
+                && code[5].operation == VM_SPLIT
+                && code[5].target == 4
+                && code[5].alternate == 6
+                && code[6].operation == VM_ACCEPT;
+        }
+        return prefix
+            && code[4].operation == VM_SPLIT
+            && code[4].target == 5
+            && code[4].alternate == 7
+            && code[5].operation == VM_BACKREF
+            && code[5].group == 1
+            && code[6].operation == VM_JUMP
+            && code[6].target == 4
+            && code[7].operation == VM_ACCEPT;
     }
     if code.len() == 9 {
         return code[0].operation == VM_OPEN
