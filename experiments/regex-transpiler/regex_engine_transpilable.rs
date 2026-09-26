@@ -1953,3 +1953,44 @@ pub fn find_fixed_lookbehind(
         end: result.end,
     })
 }
+
+pub fn count_fixed_lookbehind(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> CountOutcome {
+    let characters: Vec<char> = subject.chars().collect();
+    let mut position = from;
+    let mut count = 0;
+    while position <= characters.len() {
+        let result = search_fixed_lookbehind(
+            pattern,
+            subject,
+            position,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+            expanded,
+        );
+        if result.kind == 2 {
+            return CountOutcome::Uncertain;
+        }
+        if result.kind == 1 {
+            break;
+        }
+        if count == MAX_CAPTURE_WORK {
+            return CountOutcome::Uncertain;
+        }
+        count += 1;
+        if result.start == result.end {
+            position = result.end + 1;
+        } else {
+            position = result.end;
+        };
+    }
+    CountOutcome::Count(count)
+}

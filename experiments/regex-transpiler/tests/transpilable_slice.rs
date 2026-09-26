@@ -350,11 +350,23 @@ fn supported_count_matches_pglite_fixtures() {
                 || options["expanded"] == true && candidate::supports_expanded_advanced(pattern));
         let choice = options["syntax"] == "advanced"
             && candidate::supports_group_choice(pattern, options["expanded"] == true);
-        if !simple && !choice {
+        let lookbehind = options["syntax"] == "advanced"
+            && candidate::supports_fixed_lookbehind(pattern, options["expanded"] == true);
+        if !simple && !choice && !lookbehind {
             continue;
         }
         let newline = options["newline"].as_str().unwrap();
-        let outcome = if choice {
+        let outcome = if lookbehind {
+            candidate::count_fixed_lookbehind(
+                pattern,
+                input["subject"].as_str().unwrap(),
+                input["start"].as_u64().unwrap() as usize - 1,
+                options["caseSensitive"].as_bool().unwrap(),
+                newline == "ordinary" || newline == "anchors",
+                newline == "sensitive" || newline == "anchors",
+                options["expanded"] == true,
+            )
+        } else if choice {
             candidate::count_group_choice(
                 pattern,
                 input["subject"].as_str().unwrap(),
@@ -390,7 +402,7 @@ fn supported_count_matches_pglite_fixtures() {
         assert_eq!(actual, fixture["expected"], "input={input}");
         checked += 1;
     }
-    assert!(checked >= 130);
+    assert!(checked >= 145);
 }
 
 #[test]
