@@ -77,12 +77,16 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 		for index, fixture := range document.Fixtures {
 			if fixture.Operation == "count" {
 				input := fixture.Input
-				if input.Options.Syntax == "advanced" && ((!input.Options.Expanded && SupportsSimpleAdvanced(input.Pattern)) || (input.Options.Expanded && SupportsExpandedAdvanced(input.Pattern))) {
+				simple := (!input.Options.Expanded && SupportsSimpleAdvanced(input.Pattern)) || (input.Options.Expanded && SupportsExpandedAdvanced(input.Pattern))
+				choice := SupportsGroupChoice(input.Pattern, input.Options.Expanded)
+				if input.Options.Syntax == "advanced" && (simple || choice) {
 					from := input.Start - 1
 					crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
 					lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
 					var actual CountOutcome
-					if input.Options.Expanded {
+					if choice {
+						actual = CountGroupChoice(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors, input.Options.Expanded)
+					} else if input.Options.Expanded {
 						actual = CountExpandedAdvanced(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors)
 					} else {
 						actual = CountSimpleAdvanced(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors)
@@ -212,7 +216,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 	if literal < 40 || insensitive < 7 || advanced < 100 || grouped < 20 || groupChoice < 20 || extended < 50 || basic < 50 || dot < 20 || mixed < 50 || anchored < 20 || escaped < 40 || classes < 50 || negatedClasses < 40 || rangeClasses < 50 || edgePunctuation < 80 || absoluteAnchors < 50 || positioned < 6 || len(newlineModes) != 4 {
 		t.Fatalf("fixture coverage: literal=%d insensitive=%d advanced=%d dot=%d mixed=%d anchored=%d escaped=%d classes=%d negatedClasses=%d rangeClasses=%d edgePunctuation=%d absoluteAnchors=%d positioned=%d newline=%v", literal, insensitive, advanced, dot, mixed, anchored, escaped, classes, negatedClasses, rangeClasses, edgePunctuation, absoluteAnchors, positioned, newlineModes)
 	}
-	if countSupported < 100 || expandedAdvanced < 200 {
+	if countSupported < 130 || expandedAdvanced < 200 {
 		t.Fatalf("supported count=%d expanded=%d", countSupported, expandedAdvanced)
 	}
 }
