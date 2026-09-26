@@ -65,6 +65,11 @@ fn leading_lookahead_gate_rejects_nested_assertions() {
 
 #[test]
 fn fixed_backref_gate_requires_literal_capture() {
+    assert!(candidate::supports_fixed_backref("(a)?b\\1", false));
+    assert!(matches!(
+        candidate::find_fixed_backref("(a)?b\\1", "zabay", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 4 })
+    ));
     assert!(candidate::supports_fixed_backref("(ab)c\\1", false));
     for pattern in ["([ab])\\1", "(a+)\\1", "(a)\\2", "(a)|(b)\\1", "(a)*\\1"] {
         assert!(!candidate::supports_fixed_backref(pattern, false));

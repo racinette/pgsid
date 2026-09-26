@@ -1545,6 +1545,9 @@ fn fixed_backref_atoms(pattern: &str, expanded: bool) -> FixedBackrefResult {
                 break;
             }
             position += 1;
+            if position < source.len() && source[position] == '?' {
+                position += 1;
+            }
             if position < source.len()
                 && (source[position] == '*'
                     || source[position] == '+'
