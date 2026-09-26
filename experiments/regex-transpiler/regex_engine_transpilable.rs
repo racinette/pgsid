@@ -1876,6 +1876,8 @@ fn repeated_choice_atoms(pattern: &str, expanded: bool) -> RepeatedChoiceResult 
     let mut lower = 0;
     let mut upper = 0;
     let mut backref = false;
+    let mut nested = false;
+    let mut reference = '1';
     let mut position = 0;
     while position < source.len() && source[position] != '(' {
         if simple_literal_char(source[position]) == false {
@@ -1890,6 +1892,11 @@ fn repeated_choice_atoms(pattern: &str, expanded: bool) -> RepeatedChoiceResult 
     }
     if valid {
         position += 1;
+        if position < source.len() && source[position] == '(' {
+            nested = true;
+            reference = '2';
+            position += 1;
+        }
         while position < source.len() && source[position] != '|' && source[position] != ')' {
             if simple_literal_char(source[position]) == false {
                 valid = false;
@@ -1987,6 +1994,13 @@ fn repeated_choice_atoms(pattern: &str, expanded: bool) -> RepeatedChoiceResult 
             valid = false;
         };
     }
+    if valid && nested {
+        if position == source.len() || source[position] != ')' {
+            valid = false;
+        } else {
+            position += 1;
+        };
+    }
     if valid {
         while position < source.len() && source[position] != '\\' {
             if simple_literal_char(source[position]) == false {
@@ -1997,15 +2011,12 @@ fn repeated_choice_atoms(pattern: &str, expanded: bool) -> RepeatedChoiceResult 
             position += 1;
         }
         if valid && position < source.len() {
-            if source.len() - position == 2 && source[position + 1] == '1' {
+            if source.len() - position == 2 && source[position + 1] == reference {
                 backref = true;
             } else {
                 valid = false;
             };
         }
-    }
-    if backref && second.len() > 0 && (lower != 2 || upper != 2) {
-        valid = false;
     }
     RepeatedChoiceResult {
         valid,

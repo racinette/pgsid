@@ -161,6 +161,8 @@ fn repeated_choice_explores_literal_alternatives() {
         "(a|ab){1,2}b",
         "(a|aa){2}\\1",
         "(ab){1,2}\\1",
+        "((a|aa)+)\\2",
+        "((a|aa){1,2})\\2",
     ] {
         assert!(candidate::supports_repeated_choice(pattern, false));
     }
@@ -184,6 +186,10 @@ fn repeated_choice_explores_literal_alternatives() {
     assert!(matches!(
         candidate::find_repeated_choice("(ab){1,2}\\1", "ababab", 0, true, false),
         candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 6 })
+    ));
+    assert!(matches!(
+        candidate::find_repeated_choice("((a|aa){1,2})\\2", "aaaaa", 0, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 4 })
     ));
 }
 
