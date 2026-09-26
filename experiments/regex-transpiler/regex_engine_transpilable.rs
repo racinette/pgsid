@@ -93,6 +93,7 @@ struct RepeatedChoiceResult {
     lower: usize,
     upper: usize,
     backref: bool,
+    lazy: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -2134,6 +2135,7 @@ fn repeated_choice_atoms(pattern: &str, expanded: bool) -> RepeatedChoiceResult 
     let mut lower = 0;
     let mut upper = 0;
     let mut backref = false;
+    let mut lazy = false;
     let mut nested = false;
     let mut reference = '1';
     let mut position = 0;
@@ -2252,6 +2254,10 @@ fn repeated_choice_atoms(pattern: &str, expanded: bool) -> RepeatedChoiceResult 
             valid = false;
         };
     }
+    if valid && position < source.len() && source[position] == '?' {
+        lazy = true;
+        position += 1;
+    }
     if valid && nested {
         if position == source.len() || source[position] != ')' {
             valid = false;
@@ -2276,6 +2282,9 @@ fn repeated_choice_atoms(pattern: &str, expanded: bool) -> RepeatedChoiceResult 
             };
         }
     }
+    if lazy && backref {
+        valid = false;
+    }
     RepeatedChoiceResult {
         valid,
         prefix,
@@ -2285,6 +2294,7 @@ fn repeated_choice_atoms(pattern: &str, expanded: bool) -> RepeatedChoiceResult 
         lower,
         upper,
         backref,
+        lazy,
     }
 }
 
@@ -4840,6 +4850,9 @@ pub fn find_repeated_choice(
                     }
                     if suffix_matches {
                         let mut preferred = found == false || candidate_end > best_end;
+                        if parsed.lazy {
+                            preferred = found == false || candidate_end < best_end;
+                        }
                         if parsed.backref {
                             preferred = found == false
                                 || state.position > best_group_end
