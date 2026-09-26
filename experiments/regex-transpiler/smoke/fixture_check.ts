@@ -571,6 +571,22 @@ for (const fixturePath of fixturePaths) {
       coverage.middleLookahead++
     } else if (
       options.syntax === 'advanced' &&
+      generated.supportsMiddleLookbehind(pattern, options.expanded)
+    ) {
+      const crossesNewline = options.newline === 'ordinary' || options.newline === 'anchors'
+      const lineAnchors = options.newline === 'sensitive' || options.newline === 'anchors'
+      actual = generated.findMiddleLookbehind(
+        pattern,
+        subject,
+        from,
+        options.caseSensitive,
+        crossesNewline,
+        lineAnchors,
+        options.expanded,
+      )
+      coverage.lookbehind++
+    } else if (
+      options.syntax === 'advanced' &&
       generated.supportsChainedAssertions(pattern, options.expanded)
     ) {
       actual = generated.findChainedAssertions(
