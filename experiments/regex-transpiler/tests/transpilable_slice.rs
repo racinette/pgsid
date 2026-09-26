@@ -66,6 +66,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut insensitive = 0;
     let mut advanced = 0;
     let mut expanded_advanced = 0;
+    let mut extended = 0;
     let mut dot = 0;
     let mut mixed = 0;
     let mut anchored = 0;
@@ -183,6 +184,23 @@ fn supported_search_matches_pglite_fixtures() {
                     absolute_anchors += 1;
                 }
                 actual
+            } else if options["syntax"] == "extended"
+                && candidate::supports_extended_compatible(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                extended += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_extended_compatible(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
             } else {
                 continue;
             };
@@ -207,6 +225,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(insensitive >= 7);
     assert!(advanced >= 100);
     assert!(expanded_advanced >= 200);
+    assert!(extended >= 50);
     assert!(dot >= 20);
     assert!(mixed >= 50);
     assert!(anchored >= 20);

@@ -559,10 +559,29 @@ for (const newline of ['ordinary', 'sensitive', 'stop', 'anchors']) {
     }
   }
 }
+for (const expanded of [false, true]) {
+  for (const newline of ['ordinary', 'sensitive', 'stop', 'anchors']) {
+    for (const [pattern, subject] of [
+      ['a+b', 'aaab'],
+      ['a|bc', 'xbc'],
+      ['[a-c]+', 'zabc'],
+      ['a.*b', 'a\nb'],
+      ['^a{1,3}b$', 'aab'],
+      ['a b', 'ab'],
+    ]) {
+      inputs.push({
+        pattern,
+        subject,
+        options: { syntax: 'extended', caseSensitive: true, expanded, newline },
+      })
+    }
+  }
+}
 
 function flags(options) {
   const newline = { ordinary: '', sensitive: 'n', stop: 'p', anchors: 'w' }[options.newline]
-  return `${options.syntax === 'literal' ? 'q' : ''}${options.expanded ? 'x' : ''}${options.caseSensitive ? '' : 'i'}${newline}`
+  const syntax = { literal: 'q', basic: 'b', extended: '', advanced: '' }[options.syntax]
+  return `${syntax}${options.expanded ? 'x' : ''}${options.caseSensitive ? '' : 'i'}${newline}`
 }
 
 const pg = await PGlite.create()
@@ -575,9 +594,10 @@ try {
   `
   const fixtures = []
   for (const input of inputs) {
+    const pattern = input.options.syntax === 'extended' ? `(?e)${input.pattern}` : input.pattern
     const result = await pg.query(sql, [
       input.subject,
-      input.pattern,
+      pattern,
       flags(input.options),
       input.start ?? 1,
     ])
