@@ -1757,6 +1757,8 @@ fn choice_capture_atoms(pattern: &str, expanded: bool) -> ChoiceCaptureResult {
     let mut between: Vec<char> = Vec::new();
     let mut suffix: Vec<char> = Vec::new();
     let mut valid = true;
+    let mut nested = false;
+    let mut reference = '1';
     let mut position = 0;
     while position < source.len() && source[position] != '(' {
         if simple_literal_char(source[position]) == false {
@@ -1771,7 +1773,12 @@ fn choice_capture_atoms(pattern: &str, expanded: bool) -> ChoiceCaptureResult {
     }
     if valid {
         position += 1;
-        while position < source.len() && source[position] != '|' {
+        if position < source.len() && source[position] == '(' {
+            nested = true;
+            reference = '2';
+            position += 1;
+        }
+        while position < source.len() && source[position] != '|' && source[position] != ')' {
             if simple_literal_char(source[position]) == false {
                 valid = false;
                 break;
@@ -1783,7 +1790,7 @@ fn choice_capture_atoms(pattern: &str, expanded: bool) -> ChoiceCaptureResult {
             valid = false;
         }
     }
-    if valid {
+    if valid && source[position] == '|' {
         position += 1;
         while position < source.len() && source[position] != ')' {
             if simple_literal_char(source[position]) == false {
@@ -1797,8 +1804,31 @@ fn choice_capture_atoms(pattern: &str, expanded: bool) -> ChoiceCaptureResult {
             valid = false;
         }
     }
+    if valid && second.len() == 0 {
+        let mut index = 0;
+        while index < first.len() {
+            second.push(first[index]);
+            index += 1;
+        }
+    }
     if valid {
         position += 1;
+        if nested {
+            while position < source.len() && source[position] != ')' {
+                if simple_literal_char(source[position]) == false {
+                    valid = false;
+                    break;
+                }
+                between.push(source[position]);
+                position += 1;
+            }
+            if position == source.len() {
+                valid = false;
+            }
+            if valid {
+                position += 1;
+            }
+        }
         while position < source.len() && source[position] != '\\' {
             if simple_literal_char(source[position]) == false {
                 valid = false;
@@ -1807,7 +1837,7 @@ fn choice_capture_atoms(pattern: &str, expanded: bool) -> ChoiceCaptureResult {
             between.push(source[position]);
             position += 1;
         }
-        if source.len() - position < 2 || source[position + 1] != '1' {
+        if source.len() - position < 2 || source[position + 1] != reference {
             valid = false;
         }
     }
