@@ -1365,6 +1365,44 @@ pub fn supports_extended_literal_escape(pattern: &str, expanded: bool) -> bool {
     supports_atoms(parsed.atoms)
 }
 
+pub fn supports_basic_letter_escape(pattern: &str, expanded: bool) -> bool {
+    let source = pattern_atoms(pattern, expanded);
+    let mut position = 0;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '\\' {
+            if source.len() - position <= 1 {
+                return false;
+            }
+            let escaped = source[position + 1];
+            if escaped == '('
+                || escaped == ')'
+                || escaped == '{'
+                || escaped == '}'
+                || ((escaped as u32) >= 48 && (escaped as u32) <= 57)
+            {
+                return false;
+            }
+            position += 2;
+        } else {
+            if atom == '+'
+                || atom == '?'
+                || atom == '|'
+                || atom == '('
+                || atom == ')'
+                || atom == '{'
+                || atom == '}'
+                || (atom == '^' && position != 0)
+                || (atom == '$' && position + 1 != source.len())
+            {
+                return false;
+            }
+            position += 1;
+        };
+    }
+    supports_extended_literal_escape(pattern, expanded)
+}
+
 fn search_atoms(
     atoms: Vec<char>,
     subject: &str,
@@ -3150,4 +3188,24 @@ pub fn find_extended_literal_escape(
         start: result.start,
         end: result.end,
     })
+}
+
+pub fn find_basic_letter_escape(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    find_extended_literal_escape(
+        pattern,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        expanded,
+    )
 }

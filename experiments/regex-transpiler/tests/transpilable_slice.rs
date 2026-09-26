@@ -114,6 +114,15 @@ fn extended_letter_escapes_are_literal() {
 }
 
 #[test]
+fn basic_letter_escape_gate_excludes_capture_syntax() {
+    assert!(candidate::supports_basic_letter_escape("a\\wb", false));
+    assert!(!candidate::supports_basic_letter_escape(
+        "a\\w\\(b\\)",
+        false
+    ));
+}
+
+#[test]
 fn literal_search_matches_the_live_engine() {
     for case_sensitive in [true, false] {
         for pattern in ["", "a", "A", "😀", "aa", "Å", "å", "K", "k", "\n"] {
@@ -169,6 +178,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut extended_escape = 0;
     let mut basic = 0;
     let mut basic_punctuation = 0;
+    let mut basic_escape = 0;
     let mut dot = 0;
     let mut mixed = 0;
     let mut anchored = 0;
@@ -501,6 +511,23 @@ fn supported_search_matches_pglite_fixtures() {
                     newline == "sensitive" || newline == "anchors",
                     options["expanded"].as_bool().unwrap(),
                 )
+            } else if options["syntax"] == "basic"
+                && candidate::supports_basic_letter_escape(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                basic_escape += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_basic_letter_escape(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
             } else {
                 continue;
             };
@@ -538,6 +565,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(extended_escape >= 20);
     assert!(basic >= 50);
     assert!(basic_punctuation >= 20);
+    assert!(basic_escape >= 20);
     assert!(dot >= 20);
     assert!(mixed >= 50);
     assert!(anchored >= 20);

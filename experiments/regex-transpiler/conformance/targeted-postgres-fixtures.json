@@ -41451,6 +41451,918 @@
           "end": 4
         }
       }
+    },
+    {
+      "input": {
+        "pattern": "a\\wb",
+        "subject": "zawb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "zanb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\Ab",
+        "subject": "zaAb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\wb",
+        "subject": "zawb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "zanb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\Ab",
+        "subject": "zaAb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\wb",
+        "subject": "zawb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "zanb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\Ab",
+        "subject": "zaAb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\wb",
+        "subject": "zawb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "zanb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\Ab",
+        "subject": "zaAb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\wb",
+        "subject": "zawb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "zanb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\Ab",
+        "subject": "zaAb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\wb",
+        "subject": "zawb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "zanb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\Ab",
+        "subject": "zaAb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\wb",
+        "subject": "zawb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "zanb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\Ab",
+        "subject": "zaAb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\wb",
+        "subject": "zawb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "zanb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\Ab",
+        "subject": "zaAb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\wb",
+        "subject": "zawb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "zanb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\Ab",
+        "subject": "zaAb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\wb",
+        "subject": "zawb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "zanb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\Ab",
+        "subject": "zaAb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\wb",
+        "subject": "zawb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "zanb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\Ab",
+        "subject": "zaAb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\wb",
+        "subject": "zawb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "zanb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\Ab",
+        "subject": "zaAb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\wb",
+        "subject": "zawb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "zanb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\Ab",
+        "subject": "zaAb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\wb",
+        "subject": "zawb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "zanb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\Ab",
+        "subject": "zaAb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\wb",
+        "subject": "zawb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "zanb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\Ab",
+        "subject": "zaAb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\wb",
+        "subject": "zawb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\nb",
+        "subject": "zanb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a\\Ab",
+        "subject": "zaAb",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
     }
   ]
 }
