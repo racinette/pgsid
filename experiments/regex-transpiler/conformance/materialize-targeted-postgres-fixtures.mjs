@@ -918,11 +918,13 @@ for (const expanded of [false, true]) {
         ['^(ab)?c$', 'abc'],
         ['a(β)?c', 'zaβc'],
       ]) {
-        inputs.push({
-          pattern,
-          subject,
-          options: { syntax: 'advanced', caseSensitive, expanded, newline },
-        })
+        for (const syntax of ['advanced', 'extended']) {
+          inputs.push({
+            pattern,
+            subject,
+            options: { syntax, caseSensitive, expanded, newline },
+          })
+        }
       }
     }
   }

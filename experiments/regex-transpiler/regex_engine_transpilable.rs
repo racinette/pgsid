@@ -1326,6 +1326,7 @@ pub fn supports_extended_group(pattern: &str, expanded: bool) -> bool {
     }
     supports_flat_groups(pattern, expanded)
         || supports_group_choice(pattern, expanded)
+        || supports_optional_group(pattern, expanded)
         || supports_bounded_group(pattern, expanded)
 }
 
@@ -3380,6 +3381,17 @@ pub fn find_extended_group(
     }
     if supports_group_choice(pattern, expanded) {
         return find_group_choice(
+            pattern,
+            subject,
+            from,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+            expanded,
+        );
+    }
+    if supports_optional_group(pattern, expanded) {
+        return find_optional_group(
             pattern,
             subject,
             from,
