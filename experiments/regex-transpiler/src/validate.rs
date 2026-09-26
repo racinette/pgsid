@@ -283,12 +283,14 @@ fn infer_expr_type(
         Expr::Paren(paren) => infer_expr_type(&paren.expr, locals, semantics),
         Expr::Group(group) => infer_expr_type(&group.expr, locals, semantics),
         Expr::Cast(cast) => {
-            if type_name(&cast.ty)? != "u32"
-                || infer_expr_type(&cast.expr, locals, semantics)?.as_deref() != Some("char")
+            let target = type_name(&cast.ty)?;
+            let source = infer_expr_type(&cast.expr, locals, semantics)?;
+            if (target == "u32" && source.as_deref() == Some("char"))
+                || (target == "usize" && source.as_deref() == Some("u32"))
             {
-                return Err("only char to u32 casts have a target lowering".into());
+                return Ok(Some(target));
             }
-            Ok(Some("u32".into()))
+            Err("cast has no target lowering".into())
         }
         Expr::Binary(binary) => {
             let left = infer_expr_type(&binary.left, locals, semantics)?;

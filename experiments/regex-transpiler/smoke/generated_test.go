@@ -44,6 +44,13 @@ func TestTranspilerSmoke(t *testing.T) {
 	if CharCodepoint('😀') != 128512 {
 		t.Error("Unicode scalar cast changed value")
 	}
+	if IndexFromCodepoint('😀') != 128512 {
+		t.Error("checked unsigned cast changed value")
+	}
+	if IndexFromU32(2147483647) != 2147483647 {
+		t.Error("checked unsigned cast changed shared maximum")
+	}
+	expectPanic(t, func() { IndexFromU32(2147483648) })
 	if ChoosePosition(2, 3) != 2 || ChoosePosition(4, 3) != 3 {
 		t.Error("else branch changed the selected position")
 	}

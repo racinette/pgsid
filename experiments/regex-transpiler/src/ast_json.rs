@@ -522,6 +522,8 @@ mod tests {
         );
         assert!(parse("pub fn f(value: usize) -> u32 { value as u32 }").is_err());
         assert!(parse("pub fn f(value: char) -> usize { value as usize }").is_err());
+        assert!(parse("pub fn f(value: u32) -> usize { value as usize }").is_ok());
+        assert!(parse("pub fn f(value: i32) -> usize { value as usize }").is_err());
     }
 
     #[test]
@@ -637,6 +639,8 @@ mod tests {
         assert!(smoke::is_before_first(-1));
         assert_eq!(smoke::char_count("😀"), 1);
         assert_eq!(smoke::char_codepoint('😀'), 128512);
+        assert_eq!(smoke::index_from_codepoint('😀'), 128512);
+        assert_eq!(smoke::index_from_u32(2147483647), 2147483647);
         assert_eq!(smoke::choose_position(2, 3), 2);
         assert_eq!(smoke::choose_position(4, 3), 3);
         assert_eq!(smoke::choose_with_returns(2, 3), 2);

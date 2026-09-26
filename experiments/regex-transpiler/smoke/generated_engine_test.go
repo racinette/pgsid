@@ -62,6 +62,15 @@ func TestLiteralSlice(t *testing.T) {
 	if FindSimpleAdvanced("a+?", "aaa", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
 		t.Error("lazy one-or-more missed shortest endpoint")
 	}
+	if FindSimpleAdvanced("a{2,4}b", "aaaab", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 5}}) {
+		t.Error("bounded repeat missed its upper endpoint")
+	}
+	if FindSimpleAdvanced("a{0}", "bbb", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 0}}) {
+		t.Error("zero fixed repeat missed empty match")
+	}
+	if SupportsSimpleAdvanced("a{256}") {
+		t.Error("out-of-range bound was accepted")
+	}
 	if FindSimpleAdvanced("^a$", "\na\n", 0, true, false, true) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Error("line anchors missed interior line")
 	}

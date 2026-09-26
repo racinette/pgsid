@@ -268,14 +268,17 @@ class Transpiler {
       case 'parenthesized':
         return f.createParenthesizedExpression(this.expression(value.inner, locals))
       case 'cast':
-        if (this.path(value.targetType) !== 'u32') throw new Error('unsupported cast target')
-        return f.createNonNullExpression(
-          f.createCallExpression(
-            member(call('checkedChar', this.expression(value.value, locals)), 'codePointAt'),
-            undefined,
-            [f.createNumericLiteral(0)],
-          ),
-        )
+        if (this.path(value.targetType) === 'u32')
+          return f.createNonNullExpression(
+            f.createCallExpression(
+              member(call('checkedChar', this.expression(value.value, locals)), 'codePointAt'),
+              undefined,
+              [f.createNumericLiteral(0)],
+            ),
+          )
+        if (this.path(value.targetType) === 'usize')
+          return call('checkedIndex', this.expression(value.value, locals))
+        throw new Error('unsupported cast target')
       case 'binary': {
         const left = this.expression(value.left, locals)
         const right = this.expression(value.right, locals)

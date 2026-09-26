@@ -71,6 +71,15 @@ assert.deepEqual(generated.findSimpleAdvanced('a+?', 'aaa', 0, true, true, false
   kind: 'Found',
   value: { start: 0, end: 1 },
 })
+assert.deepEqual(generated.findSimpleAdvanced('a{2,4}b', 'aaaab', 0, true, true, false), {
+  kind: 'Found',
+  value: { start: 0, end: 5 },
+})
+assert.deepEqual(generated.findSimpleAdvanced('a{0}', 'bbb', 0, true, true, false), {
+  kind: 'Found',
+  value: { start: 0, end: 0 },
+})
+assert.equal(generated.supportsSimpleAdvanced('a{256}'), false)
 assert.deepEqual(generated.findSimpleAdvanced('^a$', '\na\n', 0, true, false, true), {
   kind: 'Found',
   value: { start: 1, end: 2 },

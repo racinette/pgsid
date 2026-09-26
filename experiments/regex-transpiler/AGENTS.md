@@ -24,7 +24,8 @@ reference; expand the transpilable engine only through the shared dialect.
   mutable `Vec<usize>`. Keep vector indexing within bounds in Rust; the
   generated targets reject out-of-bounds access too.
 - Use the supported arithmetic, comparisons, field access, vector indexing,
-  struct literals, enum variants, character casts, and methods only where the
+  struct literals, enum variants, `char as u32` and checked `u32 as usize`
+  casts, and methods only where the
   validator can establish a shared meaning. Ordinary function calls are not
   part of the dialect; calls construct single-payload enum variants.
 - Keep literals within the shared numeric range and write integers as

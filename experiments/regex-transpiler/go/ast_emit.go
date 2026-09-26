@@ -154,10 +154,14 @@ func (g *generator) goExpression(value *node) ast.Expr {
 	case "parenthesized":
 		return &ast.ParenExpr{X: g.goExpression(value.Inner)}
 	case "cast":
-		if path(value.TargetType) != "u32" {
+		switch path(value.TargetType) {
+		case "u32":
+			return goCall("int", goCall("checkedChar", g.goExpression(value.Value)))
+		case "usize":
+			return goCall("checkedIndex", g.goExpression(value.Value))
+		default:
 			reject("unsupported cast target")
 		}
-		return goCall("int", goCall("checkedChar", g.goExpression(value.Value)))
 	case "binary":
 		left, right := g.goExpression(value.Left), g.goExpression(value.Right)
 		switch value.Operator {
