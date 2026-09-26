@@ -185,6 +185,7 @@ struct CaptureProgram {
 struct CaptureFrame {
     group: usize,
     start: usize,
+    starred: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -2602,6 +2603,16 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
             position += 1;
         } else if atom == '(' {
             let mut group = 0;
+            let mut starred = false;
+            if source.len() - position >= 7 && source[position + 1] == '[' {
+                let mut closing = position + 2;
+                while closing < source.len() && source[closing] != ']' {
+                    closing += 1;
+                }
+                starred = source.len() - closing >= 3
+                    && source[closing + 1] == ')'
+                    && source[closing + 2] == '*';
+            }
             if source.len() - position >= 3
                 && source[position + 1] == '?'
                 && source[position + 2] == ':'
@@ -2616,6 +2627,7 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
             let frame = CaptureFrame {
                 group,
                 start: instructions.len(),
+                starred,
             };
             if frame_count == frames.len() {
                 frames.push(frame);
@@ -2623,6 +2635,10 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
                 frames[frame_count] = frame;
             }
             frame_count += 1;
+            if starred {
+                let first = instructions.len();
+                instructions.push(make_capture_step(VM_SPLIT, first + 1, 0, 0, ' '));
+            }
             if group > 0 {
                 instructions.push(make_capture_step(VM_OPEN, 0, 0, group, ' '));
             }
@@ -2640,7 +2656,13 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
                 instructions.push(make_capture_step(VM_CLOSE, 0, 0, frame.group, ' '));
             }
             position += 1;
-            if position < source.len() && source[position] == '+' {
+            if frame.starred && position < source.len() && source[position] == '*' {
+                instructions.push(make_capture_step(VM_JUMP, frame.start, 0, 0, ' '));
+                let split = instructions[frame.start];
+                instructions[frame.start] =
+                    make_capture_step(VM_SPLIT, split.target, instructions.len(), 0, ' ');
+                position += 1;
+            } else if position < source.len() && source[position] == '+' {
                 let next = instructions.len() + 1;
                 instructions.push(make_capture_step(VM_SPLIT, frame.start, next, 0, ' '));
                 position += 1;
@@ -2806,6 +2828,24 @@ pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
         zero_position += 1;
     }
     if zero_group && simple_zero_program && noncapturing == 0 {
+        return true;
+    }
+    if code.len() == 8
+        && code[0].operation == VM_LITERAL
+        && code[1].operation == VM_SPLIT
+        && code[1].target == 2
+        && code[1].alternate == 6
+        && code[2].operation == VM_OPEN
+        && code[2].group == 1
+        && code[3].operation == VM_CLASS
+        && code[4].operation == VM_CLOSE
+        && code[4].group == 1
+        && code[5].operation == VM_JUMP
+        && code[5].target == 1
+        && code[6].operation == VM_BACKREF
+        && code[6].group == 1
+        && code[7].operation == VM_ACCEPT
+    {
         return true;
     }
     if noncapturing > 0 {
