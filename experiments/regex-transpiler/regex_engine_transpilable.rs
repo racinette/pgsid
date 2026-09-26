@@ -4602,6 +4602,96 @@ pub fn supports_basic_literal_punctuation(pattern: &str, expanded: bool) -> bool
     supports_atoms(parsed.atoms)
 }
 
+fn basic_transparent_group_atoms(pattern: &str, expanded: bool) -> BasicLiteralResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut atoms: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut depth = 0;
+    let mut grouped = false;
+    let mut valid = true;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '\\' && position + 1 < source.len() && source[position + 1] == '(' {
+            depth += 1;
+            grouped = true;
+            position += 2;
+        } else if atom == '\\' && position + 1 < source.len() && source[position + 1] == ')' {
+            if depth == 0 {
+                valid = false;
+                break;
+            }
+            depth = depth - 1;
+            position += 2;
+            if position < source.len() && source[position] == '*' {
+                valid = false;
+                break;
+            };
+        } else if atom == '*' && (atoms.len() == 0 || atoms[atoms.len() - 1] == '^') {
+            atoms.push('\\');
+            atoms.push('*');
+            position += 1;
+        } else if atom == '\\' || atom == '[' || atom == ']' {
+            valid = false;
+            break;
+        } else if simple_literal_char(atom)
+            || atom == '^'
+            || atom == '$'
+            || atom == '*'
+            || atom == '.'
+        {
+            atoms.push(atom);
+            position += 1;
+        } else {
+            valid = false;
+            break;
+        };
+    }
+    BasicLiteralResult {
+        valid: valid && grouped && depth == 0,
+        atoms,
+    }
+}
+
+pub fn supports_basic_transparent_group(pattern: &str, expanded: bool) -> bool {
+    let parsed = basic_transparent_group_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    supports_atoms(parsed.atoms)
+}
+
+pub fn find_basic_transparent_group(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    if supports_basic_transparent_group(pattern, expanded) == false {
+        return MatchOutcome::Uncertain;
+    }
+    let result = search_atoms(
+        basic_transparent_group_atoms(pattern, expanded).atoms,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
+}
+
 fn collating_bracket_atoms(pattern: &str, expanded: bool) -> BasicLiteralResult {
     let source = pattern_atoms(pattern, expanded);
     let mut atoms: Vec<char> = Vec::new();
