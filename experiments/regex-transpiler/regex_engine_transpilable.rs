@@ -45,6 +45,7 @@ struct GroupChoiceResult {
 struct LookbehindResult {
     valid: bool,
     positive: bool,
+    anchored: bool,
     prefix: Vec<char>,
     remainder: Vec<char>,
 }
@@ -1319,6 +1320,7 @@ fn fixed_lookbehind_atoms(pattern: &str, expanded: bool) -> LookbehindResult {
     let mut remainder: Vec<char> = Vec::new();
     let mut valid = source.len() >= 6;
     let mut positive = true;
+    let mut anchored = false;
     if valid {
         valid = source[0] == '('
             && source[1] == '?'
@@ -1328,10 +1330,13 @@ fn fixed_lookbehind_atoms(pattern: &str, expanded: bool) -> LookbehindResult {
     }
     let mut position = 4;
     if valid {
+        if position < source.len() && source[position] == '^' {
+            anchored = true;
+            position += 1;
+        }
         while position < source.len() && source[position] != ')' {
             let atom = source[position];
             if atom == '\\'
-                || atom == '.'
                 || atom == '^'
                 || atom == '$'
                 || atom == '*'
@@ -1350,7 +1355,7 @@ fn fixed_lookbehind_atoms(pattern: &str, expanded: bool) -> LookbehindResult {
             prefix.push(atom);
             position += 1;
         }
-        if position == source.len() || prefix.len() == 0 || prefix.len() > 8 {
+        if position == source.len() || prefix.len() > 8 {
             valid = false;
         }
     }
@@ -1364,6 +1369,7 @@ fn fixed_lookbehind_atoms(pattern: &str, expanded: bool) -> LookbehindResult {
     LookbehindResult {
         valid,
         positive,
+        anchored,
         prefix,
         remainder,
     }
@@ -3741,14 +3747,22 @@ fn search_fixed_lookbehind(
             while index < parsed.prefix.len() {
                 let actual = haystack[result.start - parsed.prefix.len() + index];
                 let expected = parsed.prefix[index];
-                if actual != expected
-                    && (case_sensitive
-                        || actual.to_ascii_lowercase() != expected.to_ascii_lowercase())
+                if expected == '.' && actual == '\n' && dot_crosses_newline == false
+                    || expected != '.'
+                        && actual != expected
+                        && (case_sensitive
+                            || actual.to_ascii_lowercase() != expected.to_ascii_lowercase())
                 {
                     preceding = false;
                     break;
                 }
                 index += 1;
+            }
+        }
+        if preceding && parsed.anchored {
+            let anchor = result.start - parsed.prefix.len();
+            if anchor != 0 && (line_anchors == false || haystack[anchor - 1] != '\n') {
+                preceding = false;
             }
         }
         if preceding == parsed.positive {
