@@ -206,6 +206,18 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		if value.Callee != nil && len(value.Callee.Segments) == 2 && value.Callee.Segments[0] == "Vec" && value.Callee.Segments[1] == "new" && len(value.Arguments) == 0 {
 			return &ast.CompositeLit{Type: &ast.ArrayType{Elt: goIdent("int")}}
 		}
+		if value.Callee != nil && value.Callee.Kind == "path" && len(value.Callee.Segments) == 1 {
+			name := value.Callee.Segments[0]
+			function := g.functions[name]
+			if function == nil || len(function.Parameters) != len(value.Arguments) {
+				reject("unknown function or wrong argument count " + name)
+			}
+			arguments := make([]ast.Expr, 0, len(value.Arguments))
+			for _, argument := range value.Arguments {
+				arguments = append(arguments, g.goExpression(argument))
+			}
+			return goCall(g.name(name), arguments...)
+		}
 		if value.Callee == nil || value.Callee.Kind != "path" || len(value.Callee.Segments) != 2 || len(value.Arguments) != 1 {
 			reject("unsupported call")
 		}

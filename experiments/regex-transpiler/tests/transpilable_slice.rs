@@ -203,6 +203,43 @@ fn supported_search_matches_pglite_fixtures() {
 }
 
 #[test]
+fn supported_count_matches_pglite_fixtures() {
+    let fixtures: Value =
+        serde_json::from_str(include_str!("../conformance/stress-position-fixtures.json")).unwrap();
+    let mut checked = 0;
+    for fixture in fixtures["fixtures"].as_array().unwrap() {
+        if fixture["operation"] != "count" {
+            continue;
+        }
+        let input = &fixture["input"];
+        let options = &input["options"];
+        let pattern = input["pattern"].as_str().unwrap();
+        if options["syntax"] != "advanced"
+            || options["expanded"] != false
+            || !candidate::supports_simple_advanced(pattern)
+        {
+            continue;
+        }
+        let newline = options["newline"].as_str().unwrap();
+        let outcome = candidate::count_simple_advanced(
+            pattern,
+            input["subject"].as_str().unwrap(),
+            input["start"].as_u64().unwrap() as usize - 1,
+            options["caseSensitive"].as_bool().unwrap(),
+            newline == "ordinary" || newline == "anchors",
+            newline == "sensitive" || newline == "anchors",
+        );
+        let actual = match outcome {
+            candidate::CountOutcome::Count(value) => json!({ "kind": "Count", "value": value }),
+            candidate::CountOutcome::Uncertain => json!({ "kind": "Uncertain" }),
+        };
+        assert_eq!(actual, fixture["expected"], "input={input}");
+        checked += 1;
+    }
+    assert!(checked >= 50);
+}
+
+#[test]
 fn any_character_search_matches_the_live_engine() {
     for (newline, dot_crosses_newline) in [
         (engine::NewlineMode::Ordinary, true),
@@ -385,6 +422,9 @@ fn simple_advanced_search_matches_the_live_engine() {
                 "a{0,2}?b",
                 "\\d{2,3}",
                 "a{0}",
+                "a{foo}",
+                "a{ 1 , 2 }b",
+                "a}",
             ] {
                 let engine::CompileOutcome::Ready(program) = engine::compile(
                     pattern,
@@ -433,7 +473,8 @@ fn simple_advanced_search_matches_the_live_engine() {
     }
     for pattern in [
         "[z-a]", "[a-b-c]", "[A-z]", "[--a]", "[a--]", "[---]", "[^]", "[]", "[a", "[\\d-~]",
-        "[a-\\d]", "[\\q]", "(ab)", "a{256}", "a{3,1}", "a{2,", "a\\", "a**", "a*??", "^*", "\\m+",
+        "[a-\\d]", "[\\q]", "(ab)", "a{256}", "a{3,1}", "a{2,", "a*{foo}", "a{2}{3}", "a\\", "a**",
+        "a*??", "^*", "\\m+", "{2}",
     ] {
         assert!(matches!(
             candidate::find_simple_advanced(pattern, "ab", 0, true, true, false),
@@ -462,6 +503,7 @@ fn support_classification_matches_search_certainty() {
         "a{2}",
         "a{1,3}",
         "a{2,}",
+        "a{foo}",
         "a|b",
         "a|ab",
         "|a",

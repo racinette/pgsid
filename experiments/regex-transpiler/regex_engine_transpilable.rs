@@ -19,6 +19,17 @@ pub enum WorkOutcome {
     Uncertain,
 }
 
+pub struct SearchResult {
+    pub kind: usize,
+    pub start: usize,
+    pub end: usize,
+}
+
+pub enum CountOutcome {
+    Count(usize),
+    Uncertain,
+}
+
 pub fn charge_work(current: usize, amount: usize) -> WorkOutcome {
     if current > MAX_CAPTURE_WORK {
         return WorkOutcome::Uncertain;
@@ -88,8 +99,18 @@ pub fn find_any_character(subject: &str, from: usize, dot_crosses_newline: bool)
 pub fn supports_simple_advanced(pattern: &str) -> bool {
     let atoms: Vec<char> = pattern.chars().collect();
     let mut position = 0;
+    let mut after_repeat = false;
     while position < atoms.len() {
         let atom = atoms[position];
+        if atom == '{'
+            && (after_repeat
+                || (atoms.len() - position > 1
+                    && (atoms[position + 1] as u32) >= 48
+                    && (atoms[position + 1] as u32) <= 57))
+        {
+            return false;
+        }
+        after_repeat = false;
         let mut repeatable = atom != '^' && atom != '$' && atom != '|';
         if atom == '\\' {
             position += 1;
@@ -224,8 +245,6 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
             && (atom == ']'
                 || atom == '('
                 || atom == ')'
-                || atom == '{'
-                || atom == '}'
                 || atom == '*'
                 || atom == '+'
                 || atom == '?')
@@ -235,6 +254,7 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
         if repeatable && atoms.len() - position > 1 {
             let next = atoms[position + 1];
             if next == '*' || next == '+' || next == '?' {
+                after_repeat = true;
                 position += 1;
                 if atoms.len() - position > 1 && atoms[position + 1] == '?' {
                     position += 1;
@@ -244,6 +264,7 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
                 && (atoms[position + 2] as u32) >= 48
                 && (atoms[position + 2] as u32) <= 57
             {
+                after_repeat = true;
                 let mut bound_position = position + 2;
                 let mut lower = 0;
                 while bound_position < atoms.len()
@@ -305,14 +326,14 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
     true
 }
 
-pub fn find_simple_advanced(
+fn search_simple_advanced(
     pattern: &str,
     subject: &str,
     from: usize,
     case_sensitive: bool,
     dot_crosses_newline: bool,
     line_anchors: bool,
-) -> MatchOutcome {
+) -> SearchResult {
     let atoms: Vec<char> = pattern.chars().collect();
     let haystack: Vec<char> = subject.chars().collect();
     let mut branch_starts: Vec<usize> = Vec::new();
@@ -321,13 +342,31 @@ pub fn find_simple_advanced(
     let mut preference_known = false;
     let mut alternation = false;
     let mut position = 0;
+    let mut after_repeat = false;
     while position < atoms.len() {
         let atom = atoms[position];
+        if atom == '{'
+            && (after_repeat
+                || (atoms.len() - position > 1
+                    && (atoms[position + 1] as u32) >= 48
+                    && (atoms[position + 1] as u32) <= 57))
+        {
+            return SearchResult {
+                kind: 2,
+                start: 0,
+                end: 0,
+            };
+        }
+        after_repeat = false;
         let mut repeatable = atom != '^' && atom != '$' && atom != '|';
         if atom == '\\' {
             position += 1;
             if position == atoms.len() {
-                return MatchOutcome::Uncertain;
+                return SearchResult {
+                    kind: 2,
+                    start: 0,
+                    end: 0,
+                };
             }
             let escaped = atoms[position];
             repeatable = escaped != 'A'
@@ -372,7 +411,11 @@ pub fn find_simple_advanced(
                 && escaped != 't'
                 && escaped != 'v'
             {
-                return MatchOutcome::Uncertain;
+                return SearchResult {
+                    kind: 2,
+                    start: 0,
+                    end: 0,
+                };
             }
         }
         if atom == '[' {
@@ -381,22 +424,38 @@ pub fn find_simple_advanced(
                 position += 1;
             }
             if position == atoms.len() {
-                return MatchOutcome::Uncertain;
+                return SearchResult {
+                    kind: 2,
+                    start: 0,
+                    end: 0,
+                };
             }
             let first_member = position;
             if atoms[position] == ']' {
                 position += 1;
             }
             if position == atoms.len() {
-                return MatchOutcome::Uncertain;
+                return SearchResult {
+                    kind: 2,
+                    start: 0,
+                    end: 0,
+                };
             }
             while position < atoms.len() && atoms[position] != ']' {
                 if atoms[position] == '[' {
-                    return MatchOutcome::Uncertain;
+                    return SearchResult {
+                        kind: 2,
+                        start: 0,
+                        end: 0,
+                    };
                 }
                 if atoms[position] == '\\' {
                     if atoms.len() - position <= 1 {
-                        return MatchOutcome::Uncertain;
+                        return SearchResult {
+                            kind: 2,
+                            start: 0,
+                            end: 0,
+                        };
                     }
                     let escaped = atoms[position + 1];
                     if escaped != 'd'
@@ -406,13 +465,21 @@ pub fn find_simple_advanced(
                         && escaped != 'w'
                         && escaped != 'W'
                     {
-                        return MatchOutcome::Uncertain;
+                        return SearchResult {
+                            kind: 2,
+                            start: 0,
+                            end: 0,
+                        };
                     }
                     if atoms.len() - position > 2
                         && atoms[position + 2] == '-'
                         && (atoms.len() - position <= 3 || atoms[position + 3] != ']')
                     {
-                        return MatchOutcome::Uncertain;
+                        return SearchResult {
+                            kind: 2,
+                            start: 0,
+                            end: 0,
+                        };
                     }
                     position += 2;
                 } else {
@@ -421,15 +488,27 @@ pub fn find_simple_advanced(
                             || (position != first_member
                                 && (atoms.len() - position <= 1 || atoms[position + 1] != ']')))
                     {
-                        return MatchOutcome::Uncertain;
+                        return SearchResult {
+                            kind: 2,
+                            start: 0,
+                            end: 0,
+                        };
                     }
                     if atoms.len() - position > 1 && atoms[position + 1] == '-' {
                         if atoms.len() - position <= 2 {
-                            return MatchOutcome::Uncertain;
+                            return SearchResult {
+                                kind: 2,
+                                start: 0,
+                                end: 0,
+                            };
                         }
                         if atoms[position + 2] != ']' {
                             if atoms[position + 2] == '\\' {
-                                return MatchOutcome::Uncertain;
+                                return SearchResult {
+                                    kind: 2,
+                                    start: 0,
+                                    end: 0,
+                                };
                             }
                             let first = atoms[position] as u32;
                             let last = atoms[position + 2] as u32;
@@ -440,7 +519,11 @@ pub fn find_simple_advanced(
                             if first > last
                                 || (digits == false && uppercase == false && lowercase == false)
                             {
-                                return MatchOutcome::Uncertain;
+                                return SearchResult {
+                                    kind: 2,
+                                    start: 0,
+                                    end: 0,
+                                };
                             }
                             position += 2;
                         }
@@ -449,7 +532,11 @@ pub fn find_simple_advanced(
                 };
             }
             if position == atoms.len() {
-                return MatchOutcome::Uncertain;
+                return SearchResult {
+                    kind: 2,
+                    start: 0,
+                    end: 0,
+                };
             }
         }
         if atom != '\\'
@@ -457,13 +544,15 @@ pub fn find_simple_advanced(
             && (atom == ']'
                 || atom == '('
                 || atom == ')'
-                || atom == '{'
-                || atom == '}'
                 || atom == '*'
                 || atom == '+'
                 || atom == '?')
         {
-            return MatchOutcome::Uncertain;
+            return SearchResult {
+                kind: 2,
+                start: 0,
+                end: 0,
+            };
         }
         if atom == '|' {
             branch_starts.push(position + 1);
@@ -472,6 +561,7 @@ pub fn find_simple_advanced(
         if repeatable && atoms.len() - position > 1 {
             let next = atoms[position + 1];
             if next == '*' || next == '+' || next == '?' {
+                after_repeat = true;
                 position += 1;
                 let mut lazy = false;
                 if atoms.len() - position > 1 && atoms[position + 1] == '?' {
@@ -487,6 +577,7 @@ pub fn find_simple_advanced(
                 && (atoms[position + 2] as u32) >= 48
                 && (atoms[position + 2] as u32) <= 57
             {
+                after_repeat = true;
                 let mut bound_position = position + 2;
                 let mut lower = 0;
                 while bound_position < atoms.len()
@@ -494,7 +585,11 @@ pub fn find_simple_advanced(
                     && (atoms[bound_position] as u32) <= 57
                 {
                     if lower > 25 {
-                        return MatchOutcome::Uncertain;
+                        return SearchResult {
+                            kind: 2,
+                            start: 0,
+                            end: 0,
+                        };
                     }
                     let digit = ((atoms[bound_position] as u32) - 48) as usize;
                     let double = lower + lower;
@@ -502,7 +597,11 @@ pub fn find_simple_advanced(
                     let eight = four + four;
                     lower = eight + double + digit;
                     if lower > 255 {
-                        return MatchOutcome::Uncertain;
+                        return SearchResult {
+                            kind: 2,
+                            start: 0,
+                            end: 0,
+                        };
                     }
                     bound_position += 1;
                 }
@@ -522,7 +621,11 @@ pub fn find_simple_advanced(
                             && (atoms[bound_position] as u32) <= 57
                         {
                             if upper > 25 {
-                                return MatchOutcome::Uncertain;
+                                return SearchResult {
+                                    kind: 2,
+                                    start: 0,
+                                    end: 0,
+                                };
                             }
                             let digit = ((atoms[bound_position] as u32) - 48) as usize;
                             let double = upper + upper;
@@ -530,14 +633,22 @@ pub fn find_simple_advanced(
                             let eight = four + four;
                             upper = eight + double + digit;
                             if upper > 255 {
-                                return MatchOutcome::Uncertain;
+                                return SearchResult {
+                                    kind: 2,
+                                    start: 0,
+                                    end: 0,
+                                };
                             }
                             bound_position += 1;
                         }
                     }
                 }
                 if upper < lower || bound_position == atoms.len() || atoms[bound_position] != '}' {
-                    return MatchOutcome::Uncertain;
+                    return SearchResult {
+                        kind: 2,
+                        start: 0,
+                        end: 0,
+                    };
                 }
                 position = bound_position;
                 let mut lazy = false;
@@ -557,7 +668,11 @@ pub fn find_simple_advanced(
         shortest = false;
     }
     if from > haystack.len() {
-        return MatchOutcome::NoMatch;
+        return SearchResult {
+            kind: 1,
+            start: 0,
+            end: 0,
+        };
     }
     let mut start = from;
     let mut work = 0;
@@ -575,7 +690,11 @@ pub fn find_simple_advanced(
         let mut best_end = start;
         while head < queue.len() {
             if work == MAX_CAPTURE_WORK {
-                return MatchOutcome::Uncertain;
+                return SearchResult {
+                    kind: 2,
+                    start: 0,
+                    end: 0,
+                };
             }
             work += 1;
             let atom_position = queue[head];
@@ -778,7 +897,11 @@ pub fn find_simple_advanced(
                         if atom_end < atoms.len() && atoms[atom_end] == '?' {
                             atom_end += 1;
                         }
-                    } else if next == '{' {
+                    } else if next == '{'
+                        && atoms.len() - atom_end > 1
+                        && (atoms[atom_end + 1] as u32) >= 48
+                        && (atoms[atom_end + 1] as u32) <= 57
+                    {
                         repetition = next;
                         atom_end += 1;
                         while (atoms[atom_end] as u32) >= 48 && (atoms[atom_end] as u32) <= 57 {
@@ -842,15 +965,87 @@ pub fn find_simple_advanced(
             };
         }
         if found {
-            return MatchOutcome::Found(MatchSpan {
+            return SearchResult {
+                kind: 0,
                 start,
                 end: best_end,
-            });
+            };
         }
         if start == haystack.len() {
             break;
         }
         start += 1;
     }
-    MatchOutcome::NoMatch
+    SearchResult {
+        kind: 1,
+        start: 0,
+        end: 0,
+    }
+}
+
+pub fn find_simple_advanced(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+) -> MatchOutcome {
+    let result = search_simple_advanced(
+        pattern,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
+}
+
+pub fn count_simple_advanced(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+) -> CountOutcome {
+    let characters: Vec<char> = subject.chars().collect();
+    let mut position = from;
+    let mut count = 0;
+    while position <= characters.len() {
+        let result = search_simple_advanced(
+            pattern,
+            subject,
+            position,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+        );
+        if result.kind == 2 {
+            return CountOutcome::Uncertain;
+        }
+        if result.kind == 1 {
+            break;
+        }
+        if count == MAX_CAPTURE_WORK {
+            return CountOutcome::Uncertain;
+        }
+        count += 1;
+        if result.start == result.end {
+            position = result.end + 1;
+        } else {
+            position = result.end;
+        };
+    }
+    CountOutcome::Count(count)
 }

@@ -200,6 +200,7 @@ struct Semantics {
     fields: BTreeMap<String, BTreeMap<String, String>>,
     equality: BTreeSet<String>,
     variants: BTreeMap<(String, String), Option<String>>,
+    functions: BTreeMap<String, (Vec<String>, String)>,
 }
 
 #[derive(Clone)]
@@ -435,6 +436,35 @@ fn infer_expr_type(
             let Expr::Path(path) = &*call.func else {
                 unreachable!()
             };
+            if path.path.segments.len() == 1 {
+                let name = path.path.segments[0].ident.to_string();
+                let (parameters, result) = semantics
+                    .functions
+                    .get(&name)
+                    .ok_or_else(|| format!("unknown function {name}"))?;
+                if call.args.len() != parameters.len() {
+                    return Err(format!("function {name} has the wrong argument count"));
+                }
+                for (argument, expected) in call.args.iter().zip(parameters) {
+                    let actual = infer_expr_type(argument, locals, semantics)?
+                        .ok_or("argument has no shared type")?;
+                    let numeric_literal = matches!(
+                        argument,
+                        Expr::Lit(syn::ExprLit {
+                            lit: syn::Lit::Int(_),
+                            ..
+                        })
+                    );
+                    if actual != *expected
+                        && !(numeric_literal
+                            && actual == "usize"
+                            && matches!(expected.as_str(), "u32" | "i32"))
+                    {
+                        return Err(format!("function {name} argument type differs"));
+                    }
+                }
+                return Ok(Some(result.clone()));
+            }
             let name = path.path.segments[0].ident.to_string();
             let variant = path.path.segments[1].ident.to_string();
             if !matches!(
@@ -541,6 +571,7 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
         fields: BTreeMap::new(),
         equality: BTreeSet::new(),
         variants: BTreeMap::new(),
+        functions: BTreeMap::new(),
     };
     for item in &file.items {
         match item {
@@ -576,6 +607,24 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
                         .variants
                         .insert((name.clone(), variant.ident.to_string()), payload);
                 }
+            }
+            Item::Fn(function) => {
+                let parameters = function
+                    .sig
+                    .inputs
+                    .iter()
+                    .map(|input| match input {
+                        FnArg::Typed(parameter) => type_name(&parameter.ty),
+                        _ => Err("receiver is outside the subset".into()),
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                let syn::ReturnType::Type(_, return_type) = &function.sig.output else {
+                    return Err("explicit return type is required".into());
+                };
+                semantics.functions.insert(
+                    function.sig.ident.to_string(),
+                    (parameters, type_name(return_type)?),
+                );
             }
             _ => {}
         }
