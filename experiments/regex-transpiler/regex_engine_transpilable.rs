@@ -145,7 +145,7 @@ struct TwoCaptureResult {
 }
 
 #[derive(Clone, Copy)]
-struct OptionalLiteralState {
+struct PatternWorkState {
     pattern: usize,
     subject: usize,
 }
@@ -1503,8 +1503,8 @@ pub fn find_multi_optional_group(
     let mut work = 0;
     let mut start = from;
     while start <= haystack.len() {
-        let mut stack: Vec<OptionalLiteralState> = Vec::new();
-        stack.push(OptionalLiteralState {
+        let mut stack: Vec<PatternWorkState> = Vec::new();
+        stack.push(PatternWorkState {
             pattern: 0,
             subject: start,
         });
@@ -1528,7 +1528,7 @@ pub fn find_multi_optional_group(
                     while source[closing] != ')' {
                         closing += 1;
                     }
-                    let skipped = OptionalLiteralState {
+                    let skipped = PatternWorkState {
                         pattern: closing + 2,
                         subject: subject_position,
                     };
@@ -1541,6 +1541,174 @@ pub fn find_multi_optional_group(
                     pattern_position += 1;
                 } else if atom == ')' {
                     pattern_position += 2;
+                } else {
+                    if subject_position == haystack.len() {
+                        matched = false;
+                        break;
+                    }
+                    let actual = haystack[subject_position];
+                    if actual != atom
+                        && (case_sensitive
+                            || actual.to_ascii_lowercase() != atom.to_ascii_lowercase())
+                    {
+                        matched = false;
+                        break;
+                    }
+                    subject_position += 1;
+                    pattern_position += 1;
+                };
+            }
+            if matched && (found == false || subject_position > best_end) {
+                found = true;
+                best_end = subject_position;
+            }
+        }
+        if found {
+            return MatchOutcome::Found(MatchSpan {
+                start,
+                end: best_end,
+            });
+        }
+        start += 1;
+    }
+    MatchOutcome::NoMatch
+}
+
+pub fn supports_chained_assertions(pattern: &str, expanded: bool) -> bool {
+    let source = pattern_atoms(pattern, expanded);
+    let mut position = 0;
+    let mut assertions = 0;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '(' {
+            if source.len() - position < 5 || source[position + 1] != '?' {
+                return false;
+            }
+            if source[position + 2] == '=' || source[position + 2] == '!' {
+                if simple_literal_char(source[position + 3]) == false || source[position + 4] != ')'
+                {
+                    return false;
+                }
+                position += 5;
+            } else if source.len() - position >= 6
+                && source[position + 2] == '<'
+                && (source[position + 3] == '=' || source[position + 3] == '!')
+            {
+                if simple_literal_char(source[position + 4]) == false || source[position + 5] != ')'
+                {
+                    return false;
+                }
+                position += 6;
+            } else {
+                return false;
+            };
+            assertions += 1;
+        } else if simple_literal_char(atom) {
+            position += 1;
+            if position < source.len() && source[position] == '*' {
+                position += 1;
+            }
+        } else {
+            return false;
+        };
+    }
+    assertions >= 2
+}
+
+pub fn find_chained_assertions(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    if supports_chained_assertions(pattern, expanded) == false {
+        return MatchOutcome::Uncertain;
+    }
+    let source = pattern_atoms(pattern, expanded);
+    let haystack: Vec<char> = subject.chars().collect();
+    if from > haystack.len() {
+        return MatchOutcome::NoMatch;
+    }
+    let mut work = 0;
+    let mut start = from;
+    while start <= haystack.len() {
+        let mut stack: Vec<PatternWorkState> = Vec::new();
+        stack.push(PatternWorkState {
+            pattern: 0,
+            subject: start,
+        });
+        let mut stack_len = 1;
+        let mut found = false;
+        let mut best_end = start;
+        while stack_len > 0 {
+            stack_len = stack_len - 1;
+            let state = stack[stack_len];
+            let mut pattern_position = state.pattern;
+            let mut subject_position = state.subject;
+            let mut matched = true;
+            while pattern_position < source.len() {
+                if work == MAX_CAPTURE_WORK {
+                    return MatchOutcome::Uncertain;
+                }
+                work += 1;
+                let atom = source[pattern_position];
+                if atom == '(' {
+                    let mut lookbehind = false;
+                    let mut positive = false;
+                    let mut expected = ' ';
+                    let mut width = 5;
+                    if source[pattern_position + 2] == '<' {
+                        lookbehind = true;
+                        positive = source[pattern_position + 3] == '=';
+                        expected = source[pattern_position + 4];
+                        width = 6;
+                    } else {
+                        positive = source[pattern_position + 2] == '=';
+                        expected = source[pattern_position + 3];
+                    };
+                    let mut holds = false;
+                    if lookbehind && subject_position > 0 {
+                        let actual = haystack[subject_position - 1];
+                        holds = actual == expected
+                            || (case_sensitive == false
+                                && actual.to_ascii_lowercase() == expected.to_ascii_lowercase());
+                    } else if lookbehind == false && subject_position < haystack.len() {
+                        let actual = haystack[subject_position];
+                        holds = actual == expected
+                            || (case_sensitive == false
+                                && actual.to_ascii_lowercase() == expected.to_ascii_lowercase());
+                    }
+                    if holds != positive {
+                        matched = false;
+                        break;
+                    }
+                    pattern_position += width;
+                } else if pattern_position + 1 < source.len() && source[pattern_position + 1] == '*'
+                {
+                    let skipped = PatternWorkState {
+                        pattern: pattern_position + 2,
+                        subject: subject_position,
+                    };
+                    if stack_len == stack.len() {
+                        stack.push(skipped);
+                    } else {
+                        stack[stack_len] = skipped;
+                    }
+                    stack_len += 1;
+                    if subject_position == haystack.len() {
+                        matched = false;
+                        break;
+                    }
+                    let actual = haystack[subject_position];
+                    if actual != atom
+                        && (case_sensitive
+                            || actual.to_ascii_lowercase() != atom.to_ascii_lowercase())
+                    {
+                        matched = false;
+                        break;
+                    }
+                    subject_position += 1;
                 } else {
                     if subject_position == haystack.len() {
                         matched = false;
