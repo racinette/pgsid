@@ -79,3 +79,12 @@ func checkedIndices(value []int) []int {
 	}
 	return result
 }
+
+func checkedStructs[T any](value []T, copyValue func(T) T) []T {
+	checkedIndex(len(value))
+	result := make([]T, len(value))
+	for index, entry := range value {
+		result[index] = copyValue(entry)
+	}
+	return result
+}

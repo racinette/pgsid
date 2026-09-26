@@ -28,7 +28,11 @@ fn visibility(value: &Visibility) -> Result<&'static str> {
     }
 }
 
-fn check_type(value: &Type, declarations: &BTreeSet<String>) -> Result<()> {
+fn check_type(
+    value: &Type,
+    declarations: &BTreeSet<String>,
+    copy_structs: &BTreeSet<String>,
+) -> Result<()> {
     match value {
         Type::Reference(reference) => {
             if type_name(&reference.elem)? != "str" {
@@ -41,6 +45,10 @@ fn check_type(value: &Type, declarations: &BTreeSet<String>) -> Result<()> {
                 name.as_str(),
                 "usize" | "u32" | "i32" | "bool" | "char" | "Vec<char>" | "Vec<usize>"
             ) && !declarations.contains(&name)
+                && !name
+                    .strip_prefix("Vec<")
+                    .and_then(|element| element.strip_suffix('>'))
+                    .is_some_and(|element| copy_structs.contains(element))
             {
                 return Err(format!("type {name} is outside the AST contract"));
             }
@@ -50,28 +58,42 @@ fn check_type(value: &Type, declarations: &BTreeSet<String>) -> Result<()> {
     Ok(())
 }
 
-fn check_body_types(block: &syn::Block, declarations: &BTreeSet<String>) -> Result<()> {
+fn check_body_types(
+    block: &syn::Block,
+    declarations: &BTreeSet<String>,
+    copy_structs: &BTreeSet<String>,
+) -> Result<()> {
     for statement in &block.stmts {
         match statement {
             Stmt::Local(local) => {
                 if let Pat::Type(typed) = &local.pat {
-                    check_type(&typed.ty, declarations)?;
+                    check_type(&typed.ty, declarations, copy_structs)?;
                 }
             }
-            Stmt::Expr(Expr::If(branch), _) => check_if_body_types(branch, declarations)?,
-            Stmt::Expr(Expr::While(loop_), _) => check_body_types(&loop_.body, declarations)?,
+            Stmt::Expr(Expr::If(branch), _) => {
+                check_if_body_types(branch, declarations, copy_structs)?
+            }
+            Stmt::Expr(Expr::While(loop_), _) => {
+                check_body_types(&loop_.body, declarations, copy_structs)?
+            }
             _ => {}
         }
     }
     Ok(())
 }
 
-fn check_if_body_types(branch: &syn::ExprIf, declarations: &BTreeSet<String>) -> Result<()> {
-    check_body_types(&branch.then_branch, declarations)?;
+fn check_if_body_types(
+    branch: &syn::ExprIf,
+    declarations: &BTreeSet<String>,
+    copy_structs: &BTreeSet<String>,
+) -> Result<()> {
+    check_body_types(&branch.then_branch, declarations, copy_structs)?;
     if let Some((_, alternate)) = &branch.else_branch {
         match &**alternate {
-            Expr::Block(alternate) => check_body_types(&alternate.block, declarations)?,
-            Expr::If(alternate) => check_if_body_types(alternate, declarations)?,
+            Expr::Block(alternate) => {
+                check_body_types(&alternate.block, declarations, copy_structs)?
+            }
+            Expr::If(alternate) => check_if_body_types(alternate, declarations, copy_structs)?,
             _ => unreachable!(),
         }
     }
@@ -88,21 +110,34 @@ fn check_types(file: &syn::File) -> Result<()> {
             _ => None,
         })
         .collect::<BTreeSet<_>>();
+    let copy_structs = file
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Struct(node)
+                if derive_names(&node.attrs)
+                    .is_ok_and(|traits| traits.iter().any(|trait_name| trait_name == "Copy")) =>
+            {
+                Some(node.ident.to_string())
+            }
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
     for item in &file.items {
         match item {
-            Item::Const(node) => check_type(&node.ty, &declarations)?,
+            Item::Const(node) => check_type(&node.ty, &declarations, &copy_structs)?,
             Item::Struct(node) => {
                 let Fields::Named(fields) = &node.fields else {
                     unreachable!()
                 };
                 for field in &fields.named {
-                    check_type(&field.ty, &declarations)?;
+                    check_type(&field.ty, &declarations, &copy_structs)?;
                 }
             }
             Item::Enum(node) => {
                 for variant in &node.variants {
                     if let Fields::Unnamed(fields) = &variant.fields {
-                        check_type(&fields.unnamed[0].ty, &declarations)?;
+                        check_type(&fields.unnamed[0].ty, &declarations, &copy_structs)?;
                     }
                 }
             }
@@ -111,13 +146,13 @@ fn check_types(file: &syn::File) -> Result<()> {
                     let FnArg::Typed(arg) = arg else {
                         unreachable!()
                     };
-                    check_type(&arg.ty, &declarations)?;
+                    check_type(&arg.ty, &declarations, &copy_structs)?;
                 }
                 let ReturnType::Type(_, output) = &node.sig.output else {
                     unreachable!()
                 };
-                check_type(output, &declarations)?;
-                check_body_types(&node.block, &declarations)?;
+                check_type(output, &declarations, &copy_structs)?;
+                check_body_types(&node.block, &declarations, &copy_structs)?;
             }
             _ => unreachable!(),
         }
@@ -440,8 +475,19 @@ mod tests {
     #[test]
     fn serializes_slice_without_losing_tail_or_mutability() {
         assert_eq!(smoke::stack_probe(3), 6);
+        assert!(smoke::echo_bool(true));
         assert_eq!(smoke::append_position(vec![2], 4), 2);
         assert_eq!(smoke::overwrite_position(vec![2], 0, 4), 4);
+        assert!(
+            smoke::span_stack(smoke::Span { start: 1, end: 2 })[0]
+                == smoke::Span { start: 2, end: 2 }
+        );
+        assert!(
+            smoke::span_stack_at(
+                smoke::shift_span_stack(vec![smoke::Span { start: 1, end: 2 }], 0, 2),
+                0,
+            ) == smoke::Span { start: 3, end: 2 }
+        );
         let value: serde_json::Value =
             serde_json::from_str(&parse(include_str!("../transpiler_smoke.rs")).unwrap()).unwrap();
         assert_eq!(value["schemaVersion"], 1);
@@ -614,6 +660,27 @@ mod tests {
             assert!(parse(source).is_err(), "accepted: {source}");
         }
         assert!(parse("pub fn f() -> usize { let mut characters: Vec<char> = Vec::new(); characters.push('a'); characters.len() }").is_ok());
+    }
+
+    #[test]
+    fn struct_vectors_require_copy_records_and_matching_elements() {
+        let record = "#[derive(Clone, Copy)] struct State { position: usize }";
+        assert!(parse(&format!(
+            "{record} pub fn f() -> usize {{ let mut states: Vec<State> = Vec::new(); states.push(State {{ position: 1 }}); states[0] = State {{ position: 2 }}; states[0].position }}"
+        ))
+        .is_ok());
+        assert!(parse(
+            "struct State { position: usize } pub fn f(states: Vec<State>) -> usize { states.len() }"
+        )
+        .is_err());
+        assert!(parse(&format!(
+            "{record} pub fn f() -> usize {{ let mut states: Vec<State> = Vec::new(); states.push(1); states.len() }}"
+        ))
+        .is_err());
+        assert!(parse(&format!(
+            "{record} pub fn f() -> usize {{ let states: Vec<State> = Vec::new(); states.len() }}"
+        ))
+        .is_ok());
     }
 
     #[test]

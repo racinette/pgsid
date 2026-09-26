@@ -147,6 +147,10 @@ class Transpiler {
     return this.typeName(this.path(type))
   }
 
+  private vectorElement(name: string): string | undefined {
+    return name.startsWith('Vec<') && name.endsWith('>') ? name.slice(4, -1) : undefined
+  }
+
   private typeName(name: string): ts.TypeNode {
     if (['usize', 'u32', 'i32'].includes(name))
       return f.createKeywordTypeNode(ts.SyntaxKind.NumberKeyword)
@@ -157,6 +161,8 @@ class Transpiler {
       return f.createArrayTypeNode(f.createKeywordTypeNode(ts.SyntaxKind.StringKeyword))
     if (name === 'Vec<usize>')
       return f.createArrayTypeNode(f.createKeywordTypeNode(ts.SyntaxKind.NumberKeyword))
+    const element = this.vectorElement(name)
+    if (element && this.structs.has(element)) return f.createArrayTypeNode(this.typeName(element))
     if (this.structs.has(name) || this.enums.has(name))
       return f.createTypeReferenceNode(this.names.get(name)!)
     throw new Error(`type outside TypeScript lowering: ${name}`)
@@ -171,10 +177,14 @@ class Transpiler {
     const name = typeof type === 'string' ? type : this.path(type)
     if (name === 'usize' || name === 'u32') return call('checkedIndex', value)
     if (name === 'i32') return call('checkedI32', value)
+    if (name === 'bool') return call('checkedBool', value)
     if (name === 'char') return call('checkedChar', value)
     if (name === '&str') return call('checkedString', value)
     if (name === 'Vec<char>') return call('checkedChars', value)
     if (name === 'Vec<usize>') return call('checkedIndices', value)
+    const element = this.vectorElement(name)
+    if (element && this.structs.has(element))
+      return call('checkedStructs', value, identifier('copy' + this.names.get(element)!))
     return this.structs.has(name) || this.enums.has(name)
       ? call(`copy${this.names.get(name)!}`, value)
       : value
@@ -216,12 +226,10 @@ class Transpiler {
           : undefined
         return field ? this.path(field.type) : undefined
       }
-      case 'index':
-        return this.infer(value.base, locals) === 'Vec<char>'
-          ? 'char'
-          : this.infer(value.base, locals) === 'Vec<usize>'
-            ? 'usize'
-            : undefined
+      case 'index': {
+        const base = this.infer(value.base, locals)
+        return base ? this.vectorElement(base) : undefined
+      }
       case 'struct-literal':
         return value.path.join('::')
       case 'method-call':
@@ -315,12 +323,14 @@ class Transpiler {
       }
       case 'field':
         return member(this.expression(value.base, locals), camelCase(value.member))
-      case 'index':
-        return call(
-          this.infer(value.base, locals) === 'Vec<usize>' ? 'indexNumber' : 'indexChar',
-          this.expression(value.base, locals),
-          call('checkedIndex', this.expression(value.index, locals)),
-        )
+      case 'index': {
+        const element = this.vectorElement(this.infer(value.base, locals) ?? '')
+        const values = this.expression(value.base, locals)
+        const index = call('checkedIndex', this.expression(value.index, locals))
+        if (element && this.structs.has(element))
+          return call('indexStruct', values, index, identifier('copy' + this.names.get(element)!))
+        return call(element === 'usize' ? 'indexNumber' : 'indexChar', values, index)
+      }
       case 'method-call':
         if (value.method === 'len' && value.arguments.length === 0)
           return member(this.expression(value.receiver, locals), 'length')
@@ -445,17 +455,25 @@ class Transpiler {
             ),
           ),
         )
-      } else if (value.kind === 'method-call' && value.method === 'push')
+      } else if (value.kind === 'method-call' && value.method === 'push') {
+        const element = this.vectorElement(this.infer(value.receiver, locals) ?? '')
         result.push(
           f.createExpressionStatement(
-            call(
-              this.infer(value.receiver, locals) === 'Vec<char>' ? 'pushChar' : 'pushIndex',
-              this.expression(value.receiver, locals),
-              this.expression(value.arguments[0]!, locals),
-            ),
+            element && this.structs.has(element)
+              ? call(
+                  'pushStruct',
+                  this.expression(value.receiver, locals),
+                  this.expression(value.arguments[0]!, locals),
+                  identifier('copy' + this.names.get(element)!),
+                )
+              : call(
+                  element === 'char' ? 'pushChar' : 'pushIndex',
+                  this.expression(value.receiver, locals),
+                  this.expression(value.arguments[0]!, locals),
+                ),
           ),
         )
-      else if (value.kind === 'if')
+      } else if (value.kind === 'if')
         result.push(
           f.createIfStatement(
             this.expression(value.condition, locals),

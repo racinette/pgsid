@@ -198,9 +198,22 @@ pub fn inspect(file: &syn::File) -> Result<()> {
 
 struct Semantics {
     fields: BTreeMap<String, BTreeMap<String, String>>,
+    copy: BTreeSet<String>,
     equality: BTreeSet<String>,
     variants: BTreeMap<(String, String), Option<String>>,
     functions: BTreeMap<String, (Vec<String>, String)>,
+}
+
+fn shared_vector_element(name: &str, semantics: &Semantics) -> Option<String> {
+    let element = name.strip_prefix("Vec<")?.strip_suffix('>')?;
+    if element == "char"
+        || element == "usize"
+        || (semantics.fields.contains_key(element) && semantics.copy.contains(element))
+    {
+        Some(element.to_string())
+    } else {
+        None
+    }
 }
 
 #[derive(Clone)]
@@ -360,17 +373,17 @@ fn infer_expr_type(
             if infer_expr_type(&index.index, locals, semantics)?.as_deref() != Some("usize") {
                 return Err("vector index must be usize".into());
             }
-            if base.as_deref() == Some("Vec<char>") {
-                Ok(Some("char".into()))
-            } else if base.as_deref() == Some("Vec<usize>") {
-                Ok(Some("usize".into()))
-            } else {
-                Err("indexing is supported only on shared vectors".into())
-            }
+            base.as_deref()
+                .and_then(|name| shared_vector_element(name, semantics))
+                .map(Some)
+                .ok_or_else(|| "indexing is supported only on shared vectors".into())
         }
         Expr::MethodCall(call) if call.method == "len" => {
             let receiver = infer_expr_type(&call.receiver, locals, semantics)?;
-            if receiver.as_deref() != Some("Vec<char>") && receiver.as_deref() != Some("Vec<usize>")
+            if receiver
+                .as_deref()
+                .and_then(|name| shared_vector_element(name, semantics))
+                .is_none()
             {
                 return Err("len() is supported only on shared vectors".into());
             }
@@ -379,8 +392,10 @@ fn infer_expr_type(
         Expr::MethodCall(call) if call.method == "push" => {
             let receiver = infer_expr_type(&call.receiver, locals, semantics)?;
             let value = infer_expr_type(&call.args[0], locals, semantics)?;
-            if (receiver.as_deref() != Some("Vec<usize>") || value.as_deref() != Some("usize"))
-                && (receiver.as_deref() != Some("Vec<char>") || value.as_deref() != Some("char"))
+            if receiver
+                .as_deref()
+                .and_then(|name| shared_vector_element(name, semantics))
+                != value
             {
                 return Err("push() requires a mutable vector and matching element".into());
             }
@@ -484,7 +499,11 @@ fn infer_expr_type(
                 .ok_or("assignment source has no shared type")?;
             match &*assign.left {
                 Expr::Path(_) if scalar(&destination) => {}
-                Expr::Index(_) if destination == "usize" || destination == "char" => {}
+                Expr::Index(_)
+                    if destination == "usize"
+                        || destination == "char"
+                        || (semantics.fields.contains_key(&destination)
+                            && semantics.copy.contains(&destination)) => {}
                 _ => {
                     return Err(
                         "assignment target must be a scalar binding or vector element".into(),
@@ -546,7 +565,7 @@ fn check_body_methods(
                         );
                     };
                     let vector_type = type_name(&typed.ty)?;
-                    if vector_type != "Vec<usize>" && vector_type != "Vec<char>" {
+                    if shared_vector_element(&vector_type, semantics).is_none() {
                         return Err("Vec::new() requires a shared vector type".into());
                     }
                     vector_type
@@ -572,6 +591,7 @@ fn check_body_methods(
 pub fn check_operations(file: &syn::File) -> Result<()> {
     let mut semantics = Semantics {
         fields: BTreeMap::new(),
+        copy: BTreeSet::new(),
         equality: BTreeSet::new(),
         variants: BTreeMap::new(),
         functions: BTreeMap::new(),
@@ -580,7 +600,11 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
         match item {
             Item::Struct(structure) => {
                 let name = structure.ident.to_string();
-                if derives(&structure.attrs)?.contains("PartialEq") {
+                let traits = derives(&structure.attrs)?;
+                if traits.contains("Copy") {
+                    semantics.copy.insert(name.clone());
+                }
+                if traits.contains("PartialEq") {
                     semantics.equality.insert(name.clone());
                 }
                 let Fields::Named(fields) = &structure.fields else {

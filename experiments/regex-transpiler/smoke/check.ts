@@ -34,6 +34,17 @@ assert.deepEqual(generated.forwardedSpan(input, 2), expected)
 assert.deepEqual(input, { start: 1, end: 3 })
 assert.deepEqual(generated.charStack('😀'), ['b'])
 assert.throws(() => generated.charStack('\ud800'), RangeError)
+assert.deepEqual(generated.spanStack({ start: 1, end: 2 }), [{ start: 2, end: 2 }])
+const spanStack = [{ start: 1, end: 2 }]
+const shiftedSpanStack = generated.shiftSpanStack(spanStack, 0, 2)
+assert.deepEqual(shiftedSpanStack, [{ start: 3, end: 2 }])
+spanStack[0]!.start = 9
+assert.deepEqual(shiftedSpanStack, [{ start: 3, end: 2 }])
+assert.deepEqual(generated.spanStackAt(shiftedSpanStack, 0), { start: 3, end: 2 })
+assert.throws(() => generated.spanStackAt(shiftedSpanStack, 1), RangeError)
+assert.throws(() => generated.shiftSpanStack([{ start: -1, end: 2 }], 0, 2), RangeError)
+assert.equal(generated.echoBool(true), true)
+assert.throws(() => generated.echoBool('false' as never), TypeError)
 
 const bag = { characters: ['a'] }
 const echoedBag = generated.echoBag(bag)
