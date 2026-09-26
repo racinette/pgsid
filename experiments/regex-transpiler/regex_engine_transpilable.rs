@@ -409,6 +409,31 @@ fn numeric_escape(pattern: &str, expanded: bool, position: usize) -> NumericEsca
     make_numeric_escape(false, false, 0, position + 1)
 }
 
+pub fn definitely_invalid_numeric_escape(pattern: &str, syntax: char, expanded: bool) -> bool {
+    if syntax != 'a' {
+        return false;
+    }
+    let source = pattern_atoms(pattern, expanded);
+    let mut position = 0;
+    while position < source.len() {
+        if source[position] == '\\' && position + 1 < source.len() {
+            let marker = source[position + 1];
+            if marker == 'u' || marker == 'U' || marker == 'x' || marker == 'z' {
+                let parsed = numeric_escape(pattern, expanded, position);
+                if parsed.valid == false {
+                    return true;
+                }
+                position = parsed.next;
+            } else {
+                position += 2;
+            };
+        } else {
+            position += 1;
+        };
+    }
+    false
+}
+
 fn numeric_literal_atoms(pattern: &str, expanded: bool) -> NumericLiteralResult {
     let source = pattern_atoms(pattern, expanded);
     let mut atoms: Vec<usize> = Vec::new();
