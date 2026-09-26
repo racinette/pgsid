@@ -89,12 +89,16 @@ struct RepeatedChoiceResult {
     suffix: Vec<char>,
     lower: usize,
     upper: usize,
+    backref: bool,
 }
 
 #[derive(Clone, Copy)]
 struct RepeatedChoiceState {
     position: usize,
     repetitions: usize,
+    capture_start: usize,
+    capture_end: usize,
+    first_length: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -1841,6 +1845,7 @@ fn repeated_choice_atoms(pattern: &str, expanded: bool) -> RepeatedChoiceResult 
     let mut valid = true;
     let mut lower = 0;
     let mut upper = 0;
+    let mut backref = false;
     let mut position = 0;
     while position < source.len() && source[position] != '(' {
         if simple_literal_char(source[position]) == false {
@@ -1855,7 +1860,7 @@ fn repeated_choice_atoms(pattern: &str, expanded: bool) -> RepeatedChoiceResult 
     }
     if valid {
         position += 1;
-        while position < source.len() && source[position] != '|' {
+        while position < source.len() && source[position] != '|' && source[position] != ')' {
             if simple_literal_char(source[position]) == false {
                 valid = false;
                 break;
@@ -1867,7 +1872,7 @@ fn repeated_choice_atoms(pattern: &str, expanded: bool) -> RepeatedChoiceResult 
             valid = false;
         }
     }
-    if valid {
+    if valid && source[position] == '|' {
         position += 1;
         while position < source.len() && source[position] != ')' {
             if simple_literal_char(source[position]) == false {
@@ -1953,7 +1958,7 @@ fn repeated_choice_atoms(pattern: &str, expanded: bool) -> RepeatedChoiceResult 
         };
     }
     if valid {
-        while position < source.len() {
+        while position < source.len() && source[position] != '\\' {
             if simple_literal_char(source[position]) == false {
                 valid = false;
                 break;
@@ -1961,6 +1966,16 @@ fn repeated_choice_atoms(pattern: &str, expanded: bool) -> RepeatedChoiceResult 
             suffix.push(source[position]);
             position += 1;
         }
+        if valid && position < source.len() {
+            if source.len() - position == 2 && source[position + 1] == '1' {
+                backref = true;
+            } else {
+                valid = false;
+            };
+        }
+    }
+    if backref && second.len() > 0 && (lower != 2 || upper != 2) {
+        valid = false;
     }
     RepeatedChoiceResult {
         valid,
@@ -1970,6 +1985,7 @@ fn repeated_choice_atoms(pattern: &str, expanded: bool) -> RepeatedChoiceResult 
         suffix,
         lower,
         upper,
+        backref,
     }
 }
 
@@ -4359,10 +4375,15 @@ pub fn find_repeated_choice(
             queue.push(RepeatedChoiceState {
                 position: start + parsed.prefix.len(),
                 repetitions: 0,
+                capture_start: 0,
+                capture_end: 0,
+                first_length: 0,
             });
             let mut head = 0;
             let mut found = false;
             let mut best_end = start;
+            let mut best_group_end = start;
+            let mut best_first_length = 0;
             while head < queue.len() {
                 if work == MAX_CAPTURE_WORK {
                     return MatchOutcome::Uncertain;
@@ -4383,11 +4404,49 @@ pub fn find_repeated_choice(
                         }
                         index += 1;
                     }
-                    if suffix_matches
-                        && (found == false || state.position + parsed.suffix.len() > best_end)
-                    {
-                        found = true;
-                        best_end = state.position + parsed.suffix.len();
+                    let mut candidate_end = state.position + parsed.suffix.len();
+                    if suffix_matches && parsed.backref {
+                        if state.repetitions == 0
+                            || state.capture_end - state.capture_start
+                                > haystack.len() - candidate_end
+                        {
+                            suffix_matches = false;
+                        } else {
+                            index = 0;
+                            while suffix_matches && index < state.capture_end - state.capture_start
+                            {
+                                if work == MAX_CAPTURE_WORK {
+                                    return MatchOutcome::Uncertain;
+                                }
+                                work += 1;
+                                let actual = haystack[candidate_end + index];
+                                let expected = haystack[state.capture_start + index];
+                                if actual != expected
+                                    && (case_sensitive
+                                        || actual.to_ascii_lowercase()
+                                            != expected.to_ascii_lowercase())
+                                {
+                                    suffix_matches = false;
+                                }
+                                index += 1;
+                            }
+                            candidate_end += state.capture_end - state.capture_start;
+                        };
+                    }
+                    if suffix_matches {
+                        let mut preferred = found == false || candidate_end > best_end;
+                        if parsed.backref {
+                            preferred = found == false
+                                || state.position > best_group_end
+                                || state.position == best_group_end
+                                    && state.first_length > best_first_length;
+                        }
+                        if preferred {
+                            found = true;
+                            best_end = candidate_end;
+                            best_group_end = state.position;
+                            best_first_length = state.first_length;
+                        }
                     }
                 }
                 if state.repetitions < parsed.upper {
@@ -4404,12 +4463,20 @@ pub fn find_repeated_choice(
                         index += 1;
                     }
                     if first_matches {
+                        let mut first_length = state.first_length;
+                        if state.repetitions == 0 {
+                            first_length = parsed.first.len();
+                        }
                         queue.push(RepeatedChoiceState {
                             position: state.position + parsed.first.len(),
                             repetitions: state.repetitions + 1,
+                            capture_start: state.position,
+                            capture_end: state.position + parsed.first.len(),
+                            first_length,
                         });
                     }
-                    let mut second_matches = parsed.second.len() <= haystack.len() - state.position;
+                    let mut second_matches = parsed.second.len() > 0
+                        && parsed.second.len() <= haystack.len() - state.position;
                     index = 0;
                     while second_matches && index < parsed.second.len() {
                         if haystack[state.position + index] != parsed.second[index]
@@ -4422,9 +4489,16 @@ pub fn find_repeated_choice(
                         index += 1;
                     }
                     if second_matches {
+                        let mut first_length = state.first_length;
+                        if state.repetitions == 0 {
+                            first_length = parsed.second.len();
+                        }
                         queue.push(RepeatedChoiceState {
                             position: state.position + parsed.second.len(),
                             repetitions: state.repetitions + 1,
+                            capture_start: state.position,
+                            capture_end: state.position + parsed.second.len(),
+                            first_length,
                         });
                     }
                 }
