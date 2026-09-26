@@ -44,23 +44,26 @@ for (const fixturePath of fixturePaths) {
     if (fixture.operation && fixture.operation !== 'find') {
       coverage.count++
       const { pattern, subject, options } = fixture.input
-      if (
-        fixture.operation === 'count' &&
-        options.syntax === 'advanced' &&
-        (options.expanded
-          ? generated.supportsExpandedAdvanced(pattern)
-          : generated.supportsSimpleAdvanced(pattern))
-      ) {
+      const simple = options.expanded
+        ? generated.supportsExpandedAdvanced(pattern)
+        : generated.supportsSimpleAdvanced(pattern)
+      const choice = generated.supportsGroupChoice(pattern, options.expanded)
+      if (fixture.operation === 'count' && options.syntax === 'advanced' && (simple || choice)) {
         const newline = options.newline
+        const args = [
+          pattern,
+          subject,
+          (fixture.input.start ?? 1) - 1,
+          options.caseSensitive,
+          newline === 'ordinary' || newline === 'anchors',
+          newline === 'sensitive' || newline === 'anchors',
+        ] as const
         assert.deepEqual(
-          (options.expanded ? generated.countExpandedAdvanced : generated.countSimpleAdvanced)(
-            pattern,
-            subject,
-            (fixture.input.start ?? 1) - 1,
-            options.caseSensitive,
-            newline === 'ordinary' || newline === 'anchors',
-            newline === 'sensitive' || newline === 'anchors',
-          ),
+          choice
+            ? generated.countGroupChoice(...args, options.expanded)
+            : (options.expanded ? generated.countExpandedAdvanced : generated.countSimpleAdvanced)(
+                ...args,
+              ),
           fixture.expected,
           `${fixturePath} count fixture ${index}: ${JSON.stringify(fixture.input)}`,
         )
@@ -216,7 +219,7 @@ assert.ok(coverage.rangeClasses >= 50)
 assert.ok(coverage.edgePunctuation >= 80)
 assert.ok(coverage.absoluteAnchors >= 50)
 assert.ok(coverage.position >= 6)
-assert.ok(coverage.countSupported >= 100)
+assert.ok(coverage.countSupported >= 130)
 assert.deepEqual(coverage.newline, new Set(['ordinary', 'sensitive', 'stop', 'anchors']))
 assert.equal(
   coverage.find,

@@ -318,14 +318,26 @@ fn supported_count_matches_pglite_fixtures() {
         let input = &fixture["input"];
         let options = &input["options"];
         let pattern = input["pattern"].as_str().unwrap();
-        if options["syntax"] != "advanced"
-            || !(options["expanded"] == false && candidate::supports_simple_advanced(pattern)
-                || options["expanded"] == true && candidate::supports_expanded_advanced(pattern))
-        {
+        let simple = options["syntax"] == "advanced"
+            && (options["expanded"] == false && candidate::supports_simple_advanced(pattern)
+                || options["expanded"] == true && candidate::supports_expanded_advanced(pattern));
+        let choice = options["syntax"] == "advanced"
+            && candidate::supports_group_choice(pattern, options["expanded"] == true);
+        if !simple && !choice {
             continue;
         }
         let newline = options["newline"].as_str().unwrap();
-        let outcome = if options["expanded"] == true {
+        let outcome = if choice {
+            candidate::count_group_choice(
+                pattern,
+                input["subject"].as_str().unwrap(),
+                input["start"].as_u64().unwrap() as usize - 1,
+                options["caseSensitive"].as_bool().unwrap(),
+                newline == "ordinary" || newline == "anchors",
+                newline == "sensitive" || newline == "anchors",
+                options["expanded"] == true,
+            )
+        } else if options["expanded"] == true {
             candidate::count_expanded_advanced(
                 pattern,
                 input["subject"].as_str().unwrap(),
@@ -351,7 +363,7 @@ fn supported_count_matches_pglite_fixtures() {
         assert_eq!(actual, fixture["expected"], "input={input}");
         checked += 1;
     }
-    assert!(checked >= 100);
+    assert!(checked >= 130);
 }
 
 #[test]

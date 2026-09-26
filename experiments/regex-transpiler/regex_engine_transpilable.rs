@@ -1661,7 +1661,7 @@ pub fn find_flat_groups(
     })
 }
 
-pub fn find_group_choice(
+fn search_group_choice(
     pattern: &str,
     subject: &str,
     from: usize,
@@ -1669,10 +1669,14 @@ pub fn find_group_choice(
     dot_crosses_newline: bool,
     line_anchors: bool,
     expanded: bool,
-) -> MatchOutcome {
+) -> SearchResult {
     let parsed = group_choice_atoms(pattern, expanded);
     if parsed.valid == false {
-        return MatchOutcome::Uncertain;
+        return SearchResult {
+            kind: 2,
+            start: 0,
+            end: 0,
+        };
     }
     let left = search_atoms(
         parsed.left,
@@ -1691,22 +1695,91 @@ pub fn find_group_choice(
         line_anchors,
     );
     if left.kind == 2 || right.kind == 2 {
-        return MatchOutcome::Uncertain;
+        return SearchResult {
+            kind: 2,
+            start: 0,
+            end: 0,
+        };
     }
     if left.kind == 1 && right.kind == 1 {
-        return MatchOutcome::NoMatch;
+        return left;
     }
     if right.kind == 1
         || (left.kind == 0
             && (left.start < right.start || (left.start == right.start && left.end >= right.end)))
     {
-        return MatchOutcome::Found(MatchSpan {
-            start: left.start,
-            end: left.end,
-        });
+        return left;
+    }
+    right
+}
+
+pub fn find_group_choice(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let result = search_group_choice(
+        pattern,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        expanded,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
     }
     MatchOutcome::Found(MatchSpan {
-        start: right.start,
-        end: right.end,
+        start: result.start,
+        end: result.end,
     })
+}
+
+pub fn count_group_choice(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> CountOutcome {
+    let characters: Vec<char> = subject.chars().collect();
+    let mut position = from;
+    let mut count = 0;
+    while position <= characters.len() {
+        let result = search_group_choice(
+            pattern,
+            subject,
+            position,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+            expanded,
+        );
+        if result.kind == 2 {
+            return CountOutcome::Uncertain;
+        }
+        if result.kind == 1 {
+            break;
+        }
+        if count == MAX_CAPTURE_WORK {
+            return CountOutcome::Uncertain;
+        }
+        count += 1;
+        if result.start == result.end {
+            position = result.end + 1;
+        } else {
+            position = result.end;
+        };
+    }
+    CountOutcome::Count(count)
 }
