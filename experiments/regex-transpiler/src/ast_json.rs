@@ -58,9 +58,21 @@ fn check_body_types(block: &syn::Block, declarations: &BTreeSet<String>) -> Resu
                     check_type(&typed.ty, declarations)?;
                 }
             }
-            Stmt::Expr(Expr::If(branch), _) => check_body_types(&branch.then_branch, declarations)?,
+            Stmt::Expr(Expr::If(branch), _) => check_if_body_types(branch, declarations)?,
             Stmt::Expr(Expr::While(loop_), _) => check_body_types(&loop_.body, declarations)?,
             _ => {}
+        }
+    }
+    Ok(())
+}
+
+fn check_if_body_types(branch: &syn::ExprIf, declarations: &BTreeSet<String>) -> Result<()> {
+    check_body_types(&branch.then_branch, declarations)?;
+    if let Some((_, alternate)) = &branch.else_branch {
+        match &**alternate {
+            Expr::Block(alternate) => check_body_types(&alternate.block, declarations)?,
+            Expr::If(alternate) => check_if_body_types(alternate, declarations)?,
+            _ => unreachable!(),
         }
     }
     Ok(())
@@ -180,6 +192,26 @@ fn operator(value: &BinOp) -> Result<&'static str> {
     }
 }
 
+fn if_expr(node: &syn::ExprIf) -> Result<Value> {
+    let mut value = json!({
+        "kind": "if",
+        "condition": expr(&node.cond)?,
+        "body": block(&node.then_branch)?,
+    });
+    if let Some((_, alternate)) = &node.else_branch {
+        value["elseBody"] = match &**alternate {
+            Expr::Block(alternate) => json!(block(&alternate.block)?),
+            Expr::If(alternate) => json!([{
+                "kind": "expression",
+                "semicolon": false,
+                "value": if_expr(alternate)?,
+            }]),
+            _ => unreachable!(),
+        };
+    }
+    Ok(value)
+}
+
 fn expr(value: &Expr) -> Result<Value> {
     match value {
         Expr::Path(node) => Ok(json!({ "kind": "path", "segments": segments(&node.path) })),
@@ -262,11 +294,7 @@ fn expr(value: &Expr) -> Result<Value> {
             "callee": expr(&node.func)?,
             "arguments": node.args.iter().map(expr).collect::<Result<Vec<_>>>()?,
         })),
-        Expr::If(node) => Ok(json!({
-            "kind": "if",
-            "condition": expr(&node.cond)?,
-            "body": block(&node.then_branch)?,
-        })),
+        Expr::If(node) => if_expr(node),
         Expr::While(node) => Ok(json!({
             "kind": "while",
             "condition": expr(&node.cond)?,
@@ -417,6 +445,19 @@ mod tests {
             .unwrap();
         assert_eq!(shift["body"][0]["binding"]["mutable"], true);
         assert_eq!(shift["body"][3]["semicolon"], false);
+        let choice = value["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["name"] == "choose_position")
+            .unwrap();
+        assert_eq!(
+            choice["body"][1]["value"]["elseBody"]
+                .as_array()
+                .unwrap()
+                .len(),
+            1
+        );
     }
 
     #[test]
@@ -472,6 +513,12 @@ mod tests {
     #[test]
     fn rejects_string_length_with_different_target_units() {
         assert!(parse("pub fn f(value: &str) -> usize { value.len() }").is_err());
+    }
+
+    #[test]
+    fn checks_else_branches_against_the_same_operation_rules() {
+        assert!(parse("pub fn f(value: &str, flag: bool) -> usize { if flag { return 1; } else { let length = value.len(); return length; } }").is_err());
+        assert!(parse("pub fn f(value: &str, first: bool, second: bool) -> usize { if first { return 1; } else if second { let length = value.len(); return length; } else { return 3; } }").is_err());
     }
 
     #[test]
@@ -553,5 +600,18 @@ mod tests {
         assert!(smoke::is_before_first(-1));
         assert_eq!(smoke::char_count("😀"), 1);
         assert_eq!(smoke::char_codepoint('😀'), 128512);
+        assert_eq!(smoke::choose_position(2, 3), 2);
+        assert_eq!(smoke::choose_position(4, 3), 3);
+        assert_eq!(smoke::choose_with_returns(2, 3), 2);
+        assert_eq!(smoke::choose_with_returns(4, 3), 3);
+        assert_eq!(smoke::classify_position(2, 3), 1);
+        assert_eq!(smoke::classify_position(3, 3), 2);
+        assert_eq!(smoke::classify_position(4, 3), 3);
+        assert!(smoke::below_default_limit(2));
+        assert!(!smoke::below_default_limit(3));
+        assert_eq!(
+            smoke::named_position(smoke::NamedSpan { from_position: 2 }),
+            2
+        );
     }
 }

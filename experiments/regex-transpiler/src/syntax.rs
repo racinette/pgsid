@@ -172,8 +172,61 @@ fn expr(expr: &Expr) -> Result {
     }
 }
 
-fn block(block: &syn::Block) -> Result {
-    for statement in &block.stmts {
+fn returns_from_both_branches(branch: &syn::ExprIf) -> bool {
+    let Some((_, alternate)) = &branch.else_branch else {
+        return false;
+    };
+    let alternate_returns = match &**alternate {
+        Expr::Block(alternate) => returns_from_block(&alternate.block),
+        Expr::If(alternate) => returns_from_both_branches(alternate),
+        _ => false,
+    };
+    returns_from_block(&branch.then_branch) && alternate_returns
+}
+
+fn returns_from_block(block: &syn::Block) -> bool {
+    match block.stmts.last() {
+        Some(Stmt::Expr(Expr::Return(_), _)) => true,
+        Some(Stmt::Expr(Expr::If(branch), _)) => returns_from_both_branches(branch),
+        _ => false,
+    }
+}
+
+fn if_statement(branch: &syn::ExprIf) -> Result {
+    no_attrs(&branch.attrs)?;
+    expr(&branch.cond)?;
+    block(&branch.then_branch, false)?;
+    if let Some((_, alternate)) = &branch.else_branch {
+        match &**alternate {
+            Expr::Block(alternate) => {
+                no_attrs(&alternate.attrs)?;
+                block(&alternate.block, false)?;
+            }
+            Expr::If(alternate) => if_statement(alternate)?,
+            _ => return Err("else branch must be a block or if".into()),
+        }
+    }
+    Ok(())
+}
+
+fn block(block: &syn::Block, function_body: bool) -> Result {
+    for (index, statement) in block.stmts.iter().enumerate() {
+        if index + 1 == block.stmts.len() {
+            if let Stmt::Expr(value, None) = statement {
+                if matches!(value, Expr::If(branch) if branch.else_branch.is_some() && !returns_from_both_branches(branch))
+                {
+                    return Err("expression-valued if is outside the syntax subset".into());
+                }
+                if !function_body
+                    && !matches!(
+                        value,
+                        Expr::Return(_) | Expr::Break(_) | Expr::If(_) | Expr::While(_)
+                    )
+                {
+                    return Err("branch tail value is outside the syntax subset".into());
+                }
+            }
+        }
         match statement {
             Stmt::Local(local) => {
                 no_attrs(&local.attrs)?;
@@ -194,15 +247,10 @@ fn block(block: &syn::Block) -> Result {
             }
             Stmt::Expr(Expr::Break(node), _)
                 if node.attrs.is_empty() && node.label.is_none() && node.expr.is_none() => {}
-            Stmt::Expr(Expr::If(node), _)
-                if node.attrs.is_empty() && node.else_branch.is_none() =>
-            {
-                expr(&node.cond)?;
-                self::block(&node.then_branch)?;
-            }
+            Stmt::Expr(Expr::If(node), _) => if_statement(node)?,
             Stmt::Expr(Expr::While(node), _) if node.attrs.is_empty() && node.label.is_none() => {
                 expr(&node.cond)?;
-                self::block(&node.body)?;
+                self::block(&node.body, false)?;
             }
             Stmt::Expr(Expr::Binary(node), _)
                 if node.attrs.is_empty() && matches!(node.op, BinOp::AddAssign(_)) =>
@@ -286,7 +334,7 @@ pub fn check(file: &syn::File) -> Result {
                     return Err("explicit return type is required".into());
                 };
                 ty(output)?;
-                block(&node.block)?;
+                block(&node.block, true)?;
             }
             _ => return Err("top-level item is outside the syntax subset".into()),
         }
@@ -318,6 +366,8 @@ mod tests {
             "#[allow(dead_code)] const X: usize = 1;",
             "pub fn f() -> usize { let x = 1; unsafe { x } }",
             "pub fn f(value: char) -> usize { value as usize }",
+            "pub fn f(value: bool) -> usize { if value { 1 } else { 2 } }",
+            "pub fn f(value: bool) -> usize { let result = if value { 1 } else { 2 }; result }",
         ] {
             let file = syn::parse_file(source).unwrap();
             assert!(check(&file).is_err(), "accepted: {source}");

@@ -79,15 +79,15 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			}
 			var actual MatchOutcome
 			if input.Options.Syntax == "literal" && !input.Options.Expanded && input.Options.Newline == "ordinary" {
-				actual = find_literal(input.Pattern, input.Subject, from, input.Options.CaseSensitive)
+				actual = FindLiteral(input.Pattern, input.Subject, from, input.Options.CaseSensitive)
 				literal++
 				if !input.Options.CaseSensitive {
 					insensitive++
 				}
-			} else if input.Options.Syntax == "advanced" && !input.Options.Expanded && supports_simple_advanced(input.Pattern) {
+			} else if input.Options.Syntax == "advanced" && !input.Options.Expanded && SupportsSimpleAdvanced(input.Pattern) {
 				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
 				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
-				actual = find_simple_advanced(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors)
+				actual = FindSimpleAdvanced(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors)
 				advanced++
 				if input.Pattern == "." {
 					dot++
@@ -133,9 +133,9 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				if err := json.Unmarshal(fixture.Expected.Value, &span); err != nil {
 					t.Fatal(err)
 				}
-				expected = MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: span.Start, end: span.End}}
+				expected = MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: span.Start, End: span.End}}
 			case "NoMatch":
-				expected = MatchOutcome{kind: MatchOutcomeNoMatch}
+				expected = MatchOutcome{Kind: MatchOutcomeNoMatch}
 			default:
 				t.Fatalf("unsupported expected outcome in %s fixture %d: %s", path, index, fixture.Expected.Kind)
 			}
@@ -145,7 +145,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			checked++
 			if input.Options.Syntax == "advanced" && input.Pattern == "." {
 				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
-				if found := find_any_character(input.Subject, from, crossesNewline); found != expected {
+				if found := FindAnyCharacter(input.Subject, from, crossesNewline); found != expected {
 					t.Errorf("%s fixture %d: dot atom expected=%+v, actual=%+v", path, index, expected, found)
 				}
 			}

@@ -36,17 +36,17 @@ for (const fixturePath of fixturePaths) {
     const from = (fixture.input.start ?? 1) - 1
     let actual
     if (options.syntax === 'literal' && !options.expanded && options.newline === 'ordinary') {
-      actual = generated.find_literal(pattern, subject, from, options.caseSensitive)
+      actual = generated.findLiteral(pattern, subject, from, options.caseSensitive)
       coverage.literal++
       if (!options.caseSensitive) coverage.insensitive++
     } else if (
       options.syntax === 'advanced' &&
       !options.expanded &&
-      generated.supports_simple_advanced(pattern)
+      generated.supportsSimpleAdvanced(pattern)
     ) {
       const crossesNewline = options.newline === 'ordinary' || options.newline === 'anchors'
       const lineAnchors = options.newline === 'sensitive' || options.newline === 'anchors'
-      actual = generated.find_simple_advanced(
+      actual = generated.findSimpleAdvanced(
         pattern,
         subject,
         from,
@@ -57,7 +57,7 @@ for (const fixturePath of fixturePaths) {
       coverage.advanced++
       if (pattern === '.') {
         assert.deepEqual(
-          generated.find_any_character(subject, from, crossesNewline),
+          generated.findAnyCharacter(subject, from, crossesNewline),
           fixture.expected,
         )
         coverage.dot++

@@ -322,6 +322,42 @@ for (const [pattern, subject, start, newline, caseSensitive] of [
     options: { syntax: 'advanced', caseSensitive, expanded: false, newline },
   })
 }
+for (const [pattern, subject, start, newline] of [
+  ['\\m', '', 1, 'ordinary'],
+  ['\\Y', '', 1, 'ordinary'],
+  ['\\y', 'a', 1, 'ordinary'],
+  ['\\y', 'a', 2, 'ordinary'],
+  ['\\Y', 'ab', 2, 'ordinary'],
+  ['\\ma', 'éa', 1, 'ordinary'],
+  ['\\ma', 'ba', 2, 'ordinary'],
+  ['\\ma', '_a', 1, 'ordinary'],
+  ['\\M', 'a_', 1, 'ordinary'],
+  ['\\M', 'aé', 1, 'ordinary'],
+  ['\\M', 'ab', 2, 'ordinary'],
+  ['\\Y', 'é', 1, 'ordinary'],
+  ['\\y', 'é', 1, 'ordinary'],
+  ['\\M', 'a\n', 1, 'sensitive'],
+  ['\\m', '\na', 2, 'anchors'],
+  ['a\\M', 'a\n', 1, 'stop'],
+  ['a\\Y', 'ab', 1, 'ordinary'],
+  ['a\\Y', 'a-', 1, 'ordinary'],
+  ['\\yA', '_A', 1, 'ordinary'],
+  ['\\yA', '-A', 1, 'ordinary'],
+  ['\\m5', 'x5', 1, 'ordinary'],
+  ['\\m5', '-5', 1, 'ordinary'],
+  ['\\M', '5-', 1, 'ordinary'],
+  ['\\M', '5_', 1, 'ordinary'],
+  ['\\Y', '😀', 1, 'ordinary'],
+  ['\\ma', '😀a', 1, 'ordinary'],
+  ['\\ma', '😀a', 2, 'ordinary'],
+]) {
+  inputs.push({
+    pattern,
+    subject,
+    start,
+    options: { syntax: 'advanced', caseSensitive: true, expanded: false, newline },
+  })
+}
 
 function flags(options) {
   const newline = { ordinary: '', sensitive: 'n', stop: 'p', anchors: 'w' }[options.newline]

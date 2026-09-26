@@ -112,6 +112,10 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
                 && escaped != '\\'
                 && escaped != 'A'
                 && escaped != 'Z'
+                && escaped != 'm'
+                && escaped != 'M'
+                && escaped != 'y'
+                && escaped != 'Y'
             {
                 return false;
             }
@@ -220,6 +224,10 @@ pub fn find_simple_advanced(
                 && escaped != '\\'
                 && escaped != 'A'
                 && escaped != 'Z'
+                && escaped != 'm'
+                && escaped != 'M'
+                && escaped != 'y'
+                && escaped != 'Y'
             {
                 return MatchOutcome::Uncertain;
             }
@@ -323,6 +331,27 @@ pub fn find_simple_advanced(
             if escaped && atom == 'Z' && subject_position != haystack.len() {
                 break;
             }
+            if escaped && (atom == 'm' || atom == 'M' || atom == 'y' || atom == 'Y') {
+                let left_word = subject_position > 0
+                    && (((haystack[subject_position - 1].to_ascii_lowercase() as u32) >= 97
+                        && (haystack[subject_position - 1].to_ascii_lowercase() as u32) <= 122)
+                        || ((haystack[subject_position - 1] as u32) >= 48
+                            && (haystack[subject_position - 1] as u32) <= 57)
+                        || haystack[subject_position - 1] == '_');
+                let right_word = subject_position < haystack.len()
+                    && (((haystack[subject_position].to_ascii_lowercase() as u32) >= 97
+                        && (haystack[subject_position].to_ascii_lowercase() as u32) <= 122)
+                        || ((haystack[subject_position] as u32) >= 48
+                            && (haystack[subject_position] as u32) <= 57)
+                        || haystack[subject_position] == '_');
+                if (atom == 'm' && (left_word || right_word == false))
+                    || (atom == 'M' && (left_word == false || right_word))
+                    || (atom == 'y' && left_word == right_word)
+                    || (atom == 'Y' && left_word != right_word)
+                {
+                    break;
+                }
+            }
             if escaped == false && atom == '[' {
                 if subject_position >= haystack.len() {
                     break;
@@ -383,7 +412,13 @@ pub fn find_simple_advanced(
                     atom_position += 1;
                 }
             }
-            if (escaped && atom != 'A' && atom != 'Z')
+            if (escaped
+                && atom != 'A'
+                && atom != 'Z'
+                && atom != 'm'
+                && atom != 'M'
+                && atom != 'y'
+                && atom != 'Y')
                 || (escaped == false && atom != '^' && atom != '$' && atom != '[')
             {
                 if subject_position >= haystack.len() {
