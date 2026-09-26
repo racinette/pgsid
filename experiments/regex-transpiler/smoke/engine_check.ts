@@ -26,6 +26,12 @@ assert.equal(generated.supportsFixedBackref('(ab)c\\1', false), true)
 for (const pattern of ['([ab])\\1', '(a+)\\1', '(a)\\2', '(a)|(b)\\1', '(a)*\\1']) {
   assert.equal(generated.supportsFixedBackref(pattern, false), false)
 }
+for (const pattern of ['(?i)ab', '(?n)^b', '(?x)a b', '(?t)a b']) {
+  assert.equal(generated.supportsInlineAdvanced(pattern, false), true)
+}
+for (const pattern of ['(?b)a+b', '(?e)a+b', 'a(?i)b', '(?z)ab']) {
+  assert.equal(generated.supportsInlineAdvanced(pattern, false), false)
+}
 
 assert.deepEqual(generated.findLiteral('😀', 'a😀a', 0, true), {
   kind: 'Found',

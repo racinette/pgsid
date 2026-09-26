@@ -61,6 +61,12 @@ struct FixedBackrefResult {
     atoms: Vec<char>,
 }
 
+struct InlineResult {
+    valid: bool,
+    mode: char,
+    atoms: Vec<char>,
+}
+
 pub fn charge_work(current: usize, amount: usize) -> WorkOutcome {
     if current > MAX_CAPTURE_WORK {
         return WorkOutcome::Uncertain;
@@ -944,6 +950,49 @@ fn fixed_backref_atoms(pattern: &str, expanded: bool) -> FixedBackrefResult {
 
 pub fn supports_fixed_backref(pattern: &str, expanded: bool) -> bool {
     let parsed = fixed_backref_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    supports_atoms(parsed.atoms)
+}
+
+fn inline_atoms(pattern: &str, expanded: bool) -> InlineResult {
+    let source: Vec<char> = pattern.chars().collect();
+    let mut valid = source.len() >= 4;
+    let mut mode = ' ';
+    if valid {
+        mode = source[2];
+        valid = source[0] == '('
+            && source[1] == '?'
+            && source[3] == ')'
+            && (mode == 'i'
+                || mode == 'c'
+                || mode == 'n'
+                || mode == 'p'
+                || mode == 'w'
+                || mode == 'x'
+                || mode == 't');
+    }
+    let mut effective_expanded = expanded;
+    if mode == 'x' {
+        effective_expanded = true;
+    } else if mode == 't' {
+        effective_expanded = false;
+    }
+    let normalized = pattern_atoms(pattern, effective_expanded);
+    let mut atoms: Vec<char> = Vec::new();
+    if valid {
+        let mut position = 4;
+        while position < normalized.len() {
+            atoms.push(normalized[position]);
+            position += 1;
+        }
+    }
+    InlineResult { valid, mode, atoms }
+}
+
+pub fn supports_inline_advanced(pattern: &str, expanded: bool) -> bool {
+    let parsed = inline_atoms(pattern, expanded);
     if parsed.valid == false {
         return false;
     }
@@ -2378,4 +2427,47 @@ pub fn count_fixed_backref(
         };
     }
     CountOutcome::Count(count)
+}
+
+pub fn find_inline_advanced(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = inline_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let mut sensitive = case_sensitive;
+    let mut crosses = dot_crosses_newline;
+    let mut anchors = line_anchors;
+    if parsed.mode == 'i' {
+        sensitive = false;
+    } else if parsed.mode == 'c' {
+        sensitive = true;
+    } else if parsed.mode == 'n' {
+        crosses = false;
+        anchors = true;
+    } else if parsed.mode == 'p' {
+        crosses = false;
+        anchors = false;
+    } else if parsed.mode == 'w' {
+        crosses = true;
+        anchors = true;
+    }
+    let result = search_atoms(parsed.atoms, subject, from, sensitive, crosses, anchors);
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
 }

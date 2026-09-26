@@ -64,6 +64,16 @@ fn fixed_backref_gate_requires_literal_capture() {
 }
 
 #[test]
+fn inline_gate_accepts_supported_prefix_flags() {
+    for pattern in ["(?i)ab", "(?n)^b", "(?x)a b", "(?t)a b"] {
+        assert!(candidate::supports_inline_advanced(pattern, false));
+    }
+    for pattern in ["(?b)a+b", "(?e)a+b", "a(?i)b", "(?z)ab"] {
+        assert!(!candidate::supports_inline_advanced(pattern, false));
+    }
+}
+
+#[test]
 fn literal_search_matches_the_live_engine() {
     for case_sensitive in [true, false] {
         for pattern in ["", "a", "A", "😀", "aa", "Å", "å", "K", "k", "\n"] {
@@ -110,6 +120,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut lookbehind = 0;
     let mut lookahead = 0;
     let mut backref = 0;
+    let mut inline = 0;
     let mut expanded_advanced = 0;
     let mut extended = 0;
     let mut basic = 0;
@@ -309,6 +320,23 @@ fn supported_search_matches_pglite_fixtures() {
                     newline == "sensitive" || newline == "anchors",
                     options["expanded"].as_bool().unwrap(),
                 )
+            } else if options["syntax"] == "advanced"
+                && candidate::supports_inline_advanced(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                inline += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_inline_advanced(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
             } else if options["syntax"] == "extended"
                 && candidate::supports_extended_compatible(
                     pattern,
@@ -371,6 +399,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(lookbehind >= 20);
     assert!(lookahead >= 20);
     assert!(backref >= 20);
+    assert!(inline >= 20);
     assert!(expanded_advanced >= 200);
     assert!(extended >= 50);
     assert!(basic >= 50);
