@@ -1122,6 +1122,70 @@ pub fn definitely_invalid_bracket_construct(pattern: &str, syntax: char, expande
     false
 }
 
+pub fn definitely_invalid_inline_options(pattern: &str, syntax: char) -> bool {
+    if syntax != 'a' {
+        return false;
+    }
+    let source: Vec<char> = pattern.chars().collect();
+    let mut position = 0;
+    if source.len() >= 4
+        && source[0] == '*'
+        && source[1] == '*'
+        && source[2] == '*'
+        && source[3] == ':'
+    {
+        position = 4;
+    }
+    if source.len() - position < 3 || source[position] != '(' || source[position + 1] != '?' {
+        return false;
+    }
+    position += 2;
+    let mut options = 0;
+    let mut mode = 'a';
+    while position < source.len() {
+        let option = source[position];
+        let codepoint = option as u32;
+        if (codepoint < 65 || codepoint > 90) && (codepoint < 97 || codepoint > 122) {
+            break;
+        }
+        if option != 'b'
+            && option != 'e'
+            && option != 'q'
+            && option != 'c'
+            && option != 'i'
+            && option != 't'
+            && option != 'x'
+            && option != 'm'
+            && option != 'n'
+            && option != 'p'
+            && option != 'w'
+            && option != 's'
+        {
+            return true;
+        }
+        if option == 'b' || option == 'e' || option == 'q' {
+            mode = option;
+        };
+        options += 1;
+        position += 1;
+    }
+    if options == 0 || position == source.len() || source[position] != ')' {
+        return false;
+    }
+    position += 1;
+    if mode == 'a'
+        && source.len() - position >= 4
+        && source[position] == '('
+        && source[position + 1] == '?'
+    {
+        let next = source[position + 2] as u32;
+        if (next >= 65 && next <= 90) || (next >= 97 && next <= 122) {
+            return true;
+        }
+    }
+    false
+}
+
 pub fn definitely_invalid_backreference(pattern: &str, syntax: char, expanded: bool) -> bool {
     if syntax != 'a' && syntax != 'b' {
         return false;
