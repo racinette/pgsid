@@ -275,6 +275,11 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
 				actual = FindChoiceCaptureBackref(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors, input.Options.Expanded)
 				choiceCapture++
+			} else if input.Options.Syntax == "advanced" && SupportsTwoChoiceBackref(input.Pattern, input.Options.Expanded) {
+				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
+				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
+				actual = FindTwoChoiceBackref(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors, input.Options.Expanded)
+				choiceCapture++
 			} else if input.Options.Syntax == "advanced" && SupportsTwoCaptureBackref(input.Pattern, input.Options.Expanded) {
 				actual = FindTwoCaptureBackref(input.Pattern, input.Subject, from, input.Options.CaseSensitive, input.Options.Expanded)
 				twoCapture++
