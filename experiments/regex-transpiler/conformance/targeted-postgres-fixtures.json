@@ -27947,6 +27947,614 @@
           "end": 4
         }
       }
+    },
+    {
+      "input": {
+        "pattern": "[[:digit:]]{1,2}a",
+        "subject": "z12a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:alpha:]]+[0-9]",
+        "subject": "zAb2",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a-z][[:upper:]]",
+        "subject": "aB",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:space:]]a",
+        "subject": "\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:digit:]]{1,2}a",
+        "subject": "z12a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:alpha:]]+[0-9]",
+        "subject": "zAb2",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a-z][[:upper:]]",
+        "subject": "aB",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:space:]]a",
+        "subject": "\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:digit:]]{1,2}a",
+        "subject": "z12a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:alpha:]]+[0-9]",
+        "subject": "zAb2",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a-z][[:upper:]]",
+        "subject": "aB",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:space:]]a",
+        "subject": "\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:digit:]]{1,2}a",
+        "subject": "z12a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:alpha:]]+[0-9]",
+        "subject": "zAb2",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a-z][[:upper:]]",
+        "subject": "aB",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:space:]]a",
+        "subject": "\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:digit:]]{1,2}a",
+        "subject": "z12a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:alpha:]]+[0-9]",
+        "subject": "zAb2",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a-z][[:upper:]]",
+        "subject": "aB",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:space:]]a",
+        "subject": "\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:digit:]]{1,2}a",
+        "subject": "z12a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:alpha:]]+[0-9]",
+        "subject": "zAb2",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a-z][[:upper:]]",
+        "subject": "aB",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:space:]]a",
+        "subject": "\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:digit:]]{1,2}a",
+        "subject": "z12a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:alpha:]]+[0-9]",
+        "subject": "zAb2",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a-z][[:upper:]]",
+        "subject": "aB",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:space:]]a",
+        "subject": "\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:digit:]]{1,2}a",
+        "subject": "z12a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:alpha:]]+[0-9]",
+        "subject": "zAb2",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[a-z][[:upper:]]",
+        "subject": "aB",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "[[:space:]]a",
+        "subject": "\na",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
     }
   ]
 }
