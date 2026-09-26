@@ -301,11 +301,19 @@ fn invalid_grouping_gate_only_marks_postgres_errors() {
 
 #[test]
 fn invalid_repeat_gate_only_marks_postgres_errors() {
-    for pattern in ["*", "a**", "a*+", "a?*", "(*)"] {
+    for pattern in ["*", "a**", "a*+", "a?*", "(*)", "^*", "$*", "\\A*", "\\y*"] {
         assert!(candidate::definitely_invalid_simple_repeat(
             pattern, 'a', false
         ));
     }
+    for pattern in ["\\<*", "\\>*"] {
+        assert!(candidate::definitely_invalid_simple_repeat(
+            pattern, 'b', false
+        ));
+    }
+    assert!(!candidate::definitely_invalid_simple_repeat(
+        "^*", 'b', false
+    ));
     assert!(!candidate::definitely_invalid_simple_repeat(
         "(?=a)b", 'a', false
     ));
