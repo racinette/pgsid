@@ -923,6 +923,37 @@ pub fn supports_extended_compatible(pattern: &str, expanded: bool) -> bool {
     supports_simple_advanced(pattern)
 }
 
+pub fn supports_extended_literal_closing_group(pattern: &str, expanded: bool) -> bool {
+    let source = pattern_atoms(pattern, expanded);
+    let raw: Vec<char> = pattern.chars().collect();
+    if source.len() != raw.len() {
+        return false;
+    }
+    let mut closing = false;
+    let mut position = 0;
+    while position < source.len() {
+        if source[position] == ')' {
+            closing = true;
+        } else if simple_literal_char(source[position]) == false {
+            return false;
+        }
+        position += 1;
+    }
+    closing
+}
+
+pub fn find_extended_literal_closing_group(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+) -> MatchOutcome {
+    if supports_extended_literal_closing_group(pattern, false) == false {
+        return MatchOutcome::Uncertain;
+    }
+    find_literal(pattern, subject, from, case_sensitive)
+}
+
 pub fn supports_basic_compatible(pattern: &str, expanded: bool) -> bool {
     let source = pattern_atoms(pattern, expanded);
     let mut position = 0;

@@ -350,6 +350,20 @@ fn escaped_space_survives_expanded_patterns() {
 }
 
 #[test]
+fn unmatched_extended_closing_group_is_literal() {
+    assert!(candidate::supports_extended_literal_closing_group(
+        "ab)", true
+    ));
+    assert!(candidate::supports_extended_literal_closing_group(
+        "ab)", false
+    ));
+    assert!(matches!(
+        candidate::find_extended_literal_closing_group("ab)", "xab)y", 0, true),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 4 })
+    ));
+}
+
+#[test]
 fn inline_gate_accepts_supported_prefix_flags() {
     for pattern in ["(?i)ab", "(?n)^b", "(?x)a b", "(?t)a b"] {
         assert!(candidate::supports_inline_advanced(pattern, false));
@@ -491,6 +505,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut bounded_group = 0;
     let mut expanded_advanced = 0;
     let mut extended = 0;
+    let mut extended_literal_close = 0;
     let mut extended_group = 0;
     let mut extended_escape = 0;
     let mut basic = 0;
@@ -883,6 +898,19 @@ fn supported_search_matches_pglite_fixtures() {
                     options["expanded"].as_bool().unwrap(),
                 )
             } else if options["syntax"] == "extended"
+                && candidate::supports_extended_literal_closing_group(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                extended_literal_close += 1;
+                candidate::find_extended_literal_closing_group(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "extended"
                 && candidate::supports_extended_group(
                     pattern,
                     options["expanded"].as_bool().unwrap(),
@@ -1036,6 +1064,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(bounded_group >= 20);
     assert!(expanded_advanced >= 200);
     assert!(extended >= 50);
+    assert!(extended_literal_close >= 10);
     assert!(extended_group >= 20);
     assert!(extended_escape >= 20);
     assert!(basic >= 50);
