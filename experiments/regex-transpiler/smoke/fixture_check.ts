@@ -255,6 +255,22 @@ for (const fixturePath of fixturePaths) {
       coverage.groupChoice++
     } else if (
       options.syntax === 'advanced' &&
+      generated.supportsNoncaptureLiteral(pattern, options.expanded)
+    ) {
+      const crossesNewline = options.newline === 'ordinary' || options.newline === 'anchors'
+      const lineAnchors = options.newline === 'sensitive' || options.newline === 'anchors'
+      actual = generated.findNoncaptureLiteral(
+        pattern,
+        subject,
+        from,
+        options.caseSensitive,
+        crossesNewline,
+        lineAnchors,
+        options.expanded,
+      )
+      coverage.grouped++
+    } else if (
+      options.syntax === 'advanced' &&
       generated.supportsOptionalGroup(pattern, options.expanded)
     ) {
       const crossesNewline = options.newline === 'ordinary' || options.newline === 'anchors'

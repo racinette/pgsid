@@ -240,6 +240,11 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
 				actual = FindGroupChoice(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors, input.Options.Expanded)
 				groupChoice++
+			} else if input.Options.Syntax == "advanced" && SupportsNoncaptureLiteral(input.Pattern, input.Options.Expanded) {
+				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
+				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
+				actual = FindNoncaptureLiteral(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors, input.Options.Expanded)
+				grouped++
 			} else if input.Options.Syntax == "advanced" && SupportsOptionalGroup(input.Pattern, input.Options.Expanded) {
 				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
 				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
