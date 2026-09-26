@@ -797,6 +797,26 @@ fn extended_group_gate_excludes_advanced_escapes() {
 #[test]
 fn basic_literal_punctuation_gate_preserves_syntax() {
     assert!(candidate::supports_basic_literal_punctuation("a+b", false));
+    for (pattern, subject, end) in [
+        ("*", "*", 1),
+        ("**", "***", 3),
+        ("^*", "*", 1),
+        ("x^", "x^", 2),
+        ("x$y", "x$y", 3),
+        ("^^", "^", 1),
+        ("$$", "$", 1),
+        ("$^", "$^", 2),
+    ] {
+        assert!(candidate::supports_basic_literal_punctuation(
+            pattern, false
+        ));
+        assert!(matches!(
+            candidate::find_basic_literal_punctuation(
+                pattern, subject, 0, true, true, false, false
+            ),
+            candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: actual }) if actual == end
+        ));
+    }
     assert!(!candidate::supports_basic_literal_punctuation(
         "a\\+b", false
     ));
