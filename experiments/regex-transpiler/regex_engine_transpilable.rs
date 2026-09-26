@@ -90,12 +90,19 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
     let mut position = 0;
     while position < atoms.len() {
         let atom = atoms[position];
+        let mut repeatable = atom != '^' && atom != '$';
         if atom == '\\' {
             position += 1;
             if position == atoms.len() {
                 return false;
             }
             let escaped = atoms[position];
+            repeatable = escaped != 'A'
+                && escaped != 'Z'
+                && escaped != 'm'
+                && escaped != 'M'
+                && escaped != 'y'
+                && escaped != 'Y';
             if escaped != '.'
                 && escaped != '^'
                 && escaped != '$'
@@ -226,6 +233,12 @@ pub fn supports_simple_advanced(pattern: &str) -> bool {
         {
             return false;
         }
+        if repeatable && atoms.len() - position > 1 {
+            let next = atoms[position + 1];
+            if next == '*' || next == '+' || next == '?' {
+                position += 1;
+            }
+        }
         position += 1;
     }
     true
@@ -244,12 +257,19 @@ pub fn find_simple_advanced(
     let mut position = 0;
     while position < atoms.len() {
         let atom = atoms[position];
+        let mut repeatable = atom != '^' && atom != '$';
         if atom == '\\' {
             position += 1;
             if position == atoms.len() {
                 return MatchOutcome::Uncertain;
             }
             let escaped = atoms[position];
+            repeatable = escaped != 'A'
+                && escaped != 'Z'
+                && escaped != 'm'
+                && escaped != 'M'
+                && escaped != 'y'
+                && escaped != 'Y';
             if escaped != '.'
                 && escaped != '^'
                 && escaped != '$'
@@ -380,242 +400,248 @@ pub fn find_simple_advanced(
         {
             return MatchOutcome::Uncertain;
         }
+        if repeatable && atoms.len() - position > 1 {
+            let next = atoms[position + 1];
+            if next == '*' || next == '+' || next == '?' {
+                position += 1;
+            }
+        }
         position += 1;
     }
     if from > haystack.len() {
         return MatchOutcome::NoMatch;
     }
     let mut start = from;
+    let mut work = 0;
     while start <= haystack.len() {
-        let mut atom_position = 0;
-        let mut subject_position = start;
-        while atom_position < atoms.len() {
-            let escaped = atoms[atom_position] == '\\';
-            if escaped {
-                atom_position += 1;
+        let mut queue: Vec<usize> = Vec::new();
+        queue.push(0);
+        queue.push(start);
+        queue.push(0);
+        let mut head = 0;
+        let mut found = false;
+        let mut best_end = start;
+        while head < queue.len() {
+            if work == MAX_CAPTURE_WORK {
+                return MatchOutcome::Uncertain;
             }
-            let atom = atoms[atom_position];
-            if escaped == false
-                && atom == '^'
-                && subject_position != 0
-                && (line_anchors == false || haystack[subject_position - 1] != '\n')
-            {
-                break;
-            }
-            if escaped == false
-                && atom == '$'
-                && subject_position != haystack.len()
-                && (line_anchors == false || haystack[subject_position] != '\n')
-            {
-                break;
-            }
-            if escaped && atom == 'A' && subject_position != 0 {
-                break;
-            }
-            if escaped && atom == 'Z' && subject_position != haystack.len() {
-                break;
-            }
-            if escaped && (atom == 'm' || atom == 'M' || atom == 'y' || atom == 'Y') {
-                let left_word = subject_position > 0
-                    && (((haystack[subject_position - 1].to_ascii_lowercase() as u32) >= 97
-                        && (haystack[subject_position - 1].to_ascii_lowercase() as u32) <= 122)
-                        || ((haystack[subject_position - 1] as u32) >= 48
-                            && (haystack[subject_position - 1] as u32) <= 57)
-                        || haystack[subject_position - 1] == '_');
-                let right_word = subject_position < haystack.len()
-                    && (((haystack[subject_position].to_ascii_lowercase() as u32) >= 97
-                        && (haystack[subject_position].to_ascii_lowercase() as u32) <= 122)
-                        || ((haystack[subject_position] as u32) >= 48
-                            && (haystack[subject_position] as u32) <= 57)
-                        || haystack[subject_position] == '_');
-                if (atom == 'm' && (left_word || right_word == false))
-                    || (atom == 'M' && (left_word == false || right_word))
-                    || (atom == 'y' && left_word == right_word)
-                    || (atom == 'Y' && left_word != right_word)
+            work += 1;
+            let atom_position = queue[head];
+            let subject_position = queue[head + 1];
+            let repeated = queue[head + 2];
+            head += 3;
+            if atom_position == atoms.len() {
+                if found == false || subject_position > best_end {
+                    found = true;
+                    best_end = subject_position;
+                }
+            } else {
+                let escaped = atoms[atom_position] == '\\';
+                let mut atom_end = atom_position + 1;
+                let mut atom = atoms[atom_position];
+                if escaped {
+                    atom = atoms[atom_end];
+                    atom_end += 1;
+                }
+                let mut matched = false;
+                let mut consumed = 0;
+                if escaped == false && atom == '^' {
+                    matched = subject_position == 0
+                        || (line_anchors && haystack[subject_position - 1] == '\n');
+                } else if escaped == false && atom == '$' {
+                    matched = subject_position == haystack.len()
+                        || (line_anchors && haystack[subject_position] == '\n');
+                } else if escaped && atom == 'A' {
+                    matched = subject_position == 0;
+                } else if escaped && atom == 'Z' {
+                    matched = subject_position == haystack.len();
+                } else if escaped && (atom == 'm' || atom == 'M' || atom == 'y' || atom == 'Y') {
+                    let left_word = subject_position > 0
+                        && (((haystack[subject_position - 1].to_ascii_lowercase() as u32) >= 97
+                            && (haystack[subject_position - 1].to_ascii_lowercase() as u32)
+                                <= 122)
+                            || ((haystack[subject_position - 1] as u32) >= 48
+                                && (haystack[subject_position - 1] as u32) <= 57)
+                            || haystack[subject_position - 1] == '_');
+                    let right_word = subject_position < haystack.len()
+                        && (((haystack[subject_position].to_ascii_lowercase() as u32) >= 97
+                            && (haystack[subject_position].to_ascii_lowercase() as u32) <= 122)
+                            || ((haystack[subject_position] as u32) >= 48
+                                && (haystack[subject_position] as u32) <= 57)
+                            || haystack[subject_position] == '_');
+                    matched = (atom == 'm' && left_word == false && right_word)
+                        || (atom == 'M' && left_word && right_word == false)
+                        || (atom == 'y' && left_word != right_word)
+                        || (atom == 'Y' && left_word == right_word);
+                } else if escaped == false && atom == '[' {
+                    let mut class_position = atom_end;
+                    let negated = atoms[class_position] == '^';
+                    if negated {
+                        class_position += 1;
+                    }
+                    let leading_closing = atoms[class_position] == ']';
+                    if leading_closing {
+                        class_position += 1;
+                    }
+                    let mut included = false;
+                    if subject_position < haystack.len() {
+                        let actual = haystack[subject_position];
+                        if leading_closing && actual == ']' {
+                            included = true;
+                        }
+                        while atoms[class_position] != ']' {
+                            if atoms[class_position] == '\\' {
+                                let shorthand = atoms[class_position + 1];
+                                let codepoint = actual as u32;
+                                let lowercase = actual.to_ascii_lowercase() as u32;
+                                let digit = codepoint >= 48 && codepoint <= 57;
+                                let space = (codepoint >= 9 && codepoint <= 13) || actual == ' ';
+                                let word =
+                                    digit || (lowercase >= 97 && lowercase <= 122) || actual == '_';
+                                let member = ((shorthand == 'd' || shorthand == 'D') && digit)
+                                    || ((shorthand == 's' || shorthand == 'S') && space)
+                                    || ((shorthand == 'w' || shorthand == 'W') && word);
+                                let complement =
+                                    shorthand == 'D' || shorthand == 'S' || shorthand == 'W';
+                                if member != complement {
+                                    included = true;
+                                }
+                                class_position += 2;
+                            } else {
+                                let expected = atoms[class_position];
+                                let ranged = atoms[class_position + 1] == '-'
+                                    && atoms[class_position + 2] != ']';
+                                if ranged {
+                                    let upper = atoms[class_position + 2];
+                                    if (case_sensitive
+                                        && (actual as u32) >= (expected as u32)
+                                        && (actual as u32) <= (upper as u32))
+                                        || (case_sensitive == false
+                                            && (actual.to_ascii_lowercase() as u32)
+                                                >= (expected.to_ascii_lowercase() as u32)
+                                            && (actual.to_ascii_lowercase() as u32)
+                                                <= (upper.to_ascii_lowercase() as u32))
+                                    {
+                                        included = true;
+                                    }
+                                    class_position += 2;
+                                } else if actual == expected
+                                    || (case_sensitive == false
+                                        && actual.to_ascii_lowercase()
+                                            == expected.to_ascii_lowercase())
+                                {
+                                    included = true;
+                                }
+                                class_position += 1;
+                            };
+                        }
+                        matched = included != negated
+                            && (negated == false || actual != '\n' || dot_crosses_newline);
+                        if matched {
+                            consumed = 1;
+                        }
+                    } else {
+                        while atoms[class_position] != ']' {
+                            if atoms[class_position] == '\\' {
+                                class_position += 1;
+                            }
+                            class_position += 1;
+                        }
+                    }
+                    atom_end = class_position + 1;
+                } else if escaped
+                    && (atom == 'd'
+                        || atom == 'D'
+                        || atom == 's'
+                        || atom == 'S'
+                        || atom == 'w'
+                        || atom == 'W')
                 {
-                    break;
-                }
-            }
-            if escaped == false && atom == '[' {
-                if subject_position >= haystack.len() {
-                    break;
-                }
-                let actual = haystack[subject_position];
-                let mut class_position = atom_position + 1;
-                let negated = atoms[class_position] == '^';
-                if negated {
-                    class_position += 1;
-                }
-                let leading_closing = atoms[class_position] == ']';
-                if leading_closing {
-                    class_position += 1;
-                }
-                while atoms[class_position] != ']' {
-                    if atoms[class_position] == '\\' {
-                        let shorthand = atoms[class_position + 1];
+                    if subject_position < haystack.len() {
+                        let actual = haystack[subject_position];
                         let codepoint = actual as u32;
                         let lowercase = actual.to_ascii_lowercase() as u32;
                         let digit = codepoint >= 48 && codepoint <= 57;
                         let space = (codepoint >= 9 && codepoint <= 13) || actual == ' ';
                         let word = digit || (lowercase >= 97 && lowercase <= 122) || actual == '_';
-                        let member = ((shorthand == 'd' || shorthand == 'D') && digit)
-                            || ((shorthand == 's' || shorthand == 'S') && space)
-                            || ((shorthand == 'w' || shorthand == 'W') && word);
-                        let complement = shorthand == 'D' || shorthand == 'S' || shorthand == 'W';
-                        if member != complement {
-                            break;
+                        let included = ((atom == 'd' || atom == 'D') && digit)
+                            || ((atom == 's' || atom == 'S') && space)
+                            || ((atom == 'w' || atom == 'W') && word);
+                        let negated = atom == 'D' || atom == 'S' || atom == 'W';
+                        matched = included != negated;
+                        if matched {
+                            consumed = 1;
                         }
-                        class_position += 2;
+                    }
+                } else if escaped
+                    && (atom == 'a'
+                        || atom == 'b'
+                        || atom == 'B'
+                        || atom == 'e'
+                        || atom == 'f'
+                        || atom == 'n'
+                        || atom == 'r'
+                        || atom == 't'
+                        || atom == 'v')
+                {
+                    if subject_position < haystack.len() {
+                        let actual = haystack[subject_position];
+                        matched = (atom == 'a' && actual == '\u{0007}')
+                            || (atom == 'b' && actual == '\u{0008}')
+                            || (atom == 'B' && actual == '\\')
+                            || (atom == 'e' && actual == '\u{001b}')
+                            || (atom == 'f' && actual == '\u{000c}')
+                            || (atom == 'n' && actual == '\n')
+                            || (atom == 'r' && actual == '\r')
+                            || (atom == 't' && actual == '\t')
+                            || (atom == 'v' && actual == '\u{000b}');
+                        if matched {
+                            consumed = 1;
+                        }
+                    }
+                } else if subject_position < haystack.len() {
+                    let actual = haystack[subject_position];
+                    matched = (escaped == false
+                        && atom == '.'
+                        && (dot_crosses_newline || actual != '\n'))
+                        || (atom != '.' || escaped)
+                            && (actual == atom
+                                || (case_sensitive == false
+                                    && actual.to_ascii_lowercase() == atom.to_ascii_lowercase()));
+                    if matched {
+                        consumed = 1;
+                    }
+                }
+                let mut repetition = ' ';
+                if atom_end < atoms.len() {
+                    let next = atoms[atom_end];
+                    if next == '*' || next == '+' || next == '?' {
+                        repetition = next;
+                        atom_end += 1;
+                    }
+                }
+                if repetition == '*' || repetition == '?' || (repetition == '+' && repeated == 1) {
+                    queue.push(atom_end);
+                    queue.push(subject_position);
+                    queue.push(0);
+                }
+                if matched {
+                    if repetition == '*' || repetition == '+' {
+                        queue.push(atom_position);
+                        queue.push(subject_position + consumed);
+                        queue.push(1);
                     } else {
-                        let expected = atoms[class_position];
-                        let ranged =
-                            atoms[class_position + 1] == '-' && atoms[class_position + 2] != ']';
-                        if ranged {
-                            let upper = atoms[class_position + 2];
-                            if (case_sensitive
-                                && (actual as u32) >= (expected as u32)
-                                && (actual as u32) <= (upper as u32))
-                                || (case_sensitive == false
-                                    && (actual.to_ascii_lowercase() as u32)
-                                        >= (expected.to_ascii_lowercase() as u32)
-                                    && (actual.to_ascii_lowercase() as u32)
-                                        <= (upper.to_ascii_lowercase() as u32))
-                            {
-                                break;
-                            }
-                            class_position += 2;
-                        }
-                        if ranged == false
-                            && (actual == expected
-                                || (case_sensitive == false
-                                    && actual.to_ascii_lowercase()
-                                        == expected.to_ascii_lowercase()))
-                        {
-                            break;
-                        }
-                        class_position += 1;
+                        queue.push(atom_end);
+                        queue.push(subject_position + consumed);
+                        queue.push(0);
                     };
-                }
-                let included = (leading_closing && actual == ']') || atoms[class_position] != ']';
-                if included == negated
-                    || (negated && actual == '\n' && dot_crosses_newline == false)
-                {
-                    break;
-                }
-                subject_position += 1;
-                atom_position += 1;
-                if atoms[atom_position] == '^' {
-                    atom_position += 1;
-                }
-                if atoms[atom_position] == ']' {
-                    atom_position += 1;
-                }
-                while atoms[atom_position] != ']' {
-                    atom_position += 1;
-                }
-            }
-            if escaped
-                && (atom == 'd'
-                    || atom == 'D'
-                    || atom == 's'
-                    || atom == 'S'
-                    || atom == 'w'
-                    || atom == 'W')
-            {
-                if subject_position >= haystack.len() {
-                    break;
-                }
-                let actual = haystack[subject_position];
-                let codepoint = actual as u32;
-                let lowercase = actual.to_ascii_lowercase() as u32;
-                let digit = codepoint >= 48 && codepoint <= 57;
-                let space = (codepoint >= 9 && codepoint <= 13) || actual == ' ';
-                let word = digit || (lowercase >= 97 && lowercase <= 122) || actual == '_';
-                let included = ((atom == 'd' || atom == 'D') && digit)
-                    || ((atom == 's' || atom == 'S') && space)
-                    || ((atom == 'w' || atom == 'W') && word);
-                let negated = atom == 'D' || atom == 'S' || atom == 'W';
-                if included == negated {
-                    break;
-                }
-                subject_position += 1;
-            }
-            if escaped
-                && (atom == 'a'
-                    || atom == 'b'
-                    || atom == 'B'
-                    || atom == 'e'
-                    || atom == 'f'
-                    || atom == 'n'
-                    || atom == 'r'
-                    || atom == 't'
-                    || atom == 'v')
-            {
-                if subject_position >= haystack.len() {
-                    break;
-                }
-                let actual = haystack[subject_position];
-                if ((atom == 'a' && actual == '\u{0007}')
-                    || (atom == 'b' && actual == '\u{0008}')
-                    || (atom == 'B' && actual == '\\')
-                    || (atom == 'e' && actual == '\u{001b}')
-                    || (atom == 'f' && actual == '\u{000c}')
-                    || (atom == 'n' && actual == '\n')
-                    || (atom == 'r' && actual == '\r')
-                    || (atom == 't' && actual == '\t')
-                    || (atom == 'v' && actual == '\u{000b}'))
-                    == false
-                {
-                    break;
-                }
-                subject_position += 1;
-            }
-            if (escaped
-                && atom != 'A'
-                && atom != 'Z'
-                && atom != 'm'
-                && atom != 'M'
-                && atom != 'y'
-                && atom != 'Y'
-                && atom != 'd'
-                && atom != 'D'
-                && atom != 's'
-                && atom != 'S'
-                && atom != 'w'
-                && atom != 'W'
-                && atom != 'a'
-                && atom != 'b'
-                && atom != 'B'
-                && atom != 'e'
-                && atom != 'f'
-                && atom != 'n'
-                && atom != 'r'
-                && atom != 't'
-                && atom != 'v')
-                || (escaped == false && atom != '^' && atom != '$' && atom != '[')
-            {
-                if subject_position >= haystack.len() {
-                    break;
-                }
-                let actual = haystack[subject_position];
-                if escaped == false && atom == '.' && actual == '\n' && dot_crosses_newline == false
-                {
-                    break;
-                }
-                if (escaped || atom != '.')
-                    && actual != atom
-                    && (case_sensitive || actual.to_ascii_lowercase() != atom.to_ascii_lowercase())
-                {
-                    break;
-                }
-                subject_position += 1;
-            }
-            atom_position += 1;
+                };
+            };
         }
-        if atom_position == atoms.len() {
+        if found {
             return MatchOutcome::Found(MatchSpan {
                 start,
-                end: subject_position,
+                end: best_end,
             });
         }
         if start == haystack.len() {

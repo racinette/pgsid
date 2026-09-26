@@ -350,6 +350,17 @@ fn simple_advanced_search_matches_the_live_engine() {
                 "[\\d\\w]",
                 "[\\d-]",
                 "[^\\d\\D]",
+                "a*",
+                "a+",
+                "a?",
+                "a*b",
+                "a+b",
+                "a?b",
+                "a.*b",
+                "[ab]*c",
+                "\\d+",
+                "^a+$",
+                "a*b*",
             ] {
                 let engine::CompileOutcome::Ready(program) = engine::compile(
                     pattern,
@@ -366,7 +377,8 @@ fn simple_advanced_search_matches_the_live_engine() {
                     "\r", "\u{000b}", "\u{0007}", "\u{0008}", "\u{001b}", "\u{000c}", "a.b", "a+b",
                     "^a", "a$", "a\\b", "(a)", "[a]", "zabd", "zacd", "zaed", "ba", ".", "^", "β",
                     "\n", "c", "a\nc", "abc", "zac", "B", "5", "y", "m", "a2b", "-", "]", "za]",
-                    "a😀", "a😀\n", "a-", "ab", "éa", "_a", "-a", "5_", "😀a",
+                    "a😀", "a😀\n", "a-", "ab", "éa", "_a", "-a", "5_", "😀a", "aa", "aaa", "aaab",
+                    "aabb", "aaac", "abbc", "a1b",
                 ] {
                     for from in 0..=subject.chars().count() + 1 {
                         let expected = match program.find(subject, from) {
@@ -396,8 +408,8 @@ fn simple_advanced_search_matches_the_live_engine() {
         }
     }
     for pattern in [
-        "a*", "a|b", "[z-a]", "[a-b-c]", "[A-z]", "[--a]", "[a--]", "[---]", "[^]", "[]", "[a",
-        "[\\d-~]", "[a-\\d]", "[\\q]", "(ab)", "a{2}", "a?", "a\\",
+        "a|b", "[z-a]", "[a-b-c]", "[A-z]", "[--a]", "[a--]", "[---]", "[^]", "[]", "[a",
+        "[\\d-~]", "[a-\\d]", "[\\q]", "(ab)", "a{2}", "a\\", "a**", "a*?", "^*", "\\m+",
     ] {
         assert!(matches!(
             candidate::find_simple_advanced(pattern, "ab", 0, true, true, false),
