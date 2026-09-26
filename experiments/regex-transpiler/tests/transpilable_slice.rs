@@ -1157,6 +1157,16 @@ fn inline_line_mode_checks_negative_class_at_each_line_start() {
 }
 
 #[test]
+fn nested_capture_choices_require_consuming_cycles() {
+    assert!(candidate::supports_capture_program("a((b|c)d+)+", false));
+    assert!(matches!(
+        candidate::find_capture_program("a((b|c)d+)+", "abacdbd", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 2, end: 7 })
+    ));
+    assert!(!candidate::supports_capture_program("((a|)+)+", false));
+}
+
+#[test]
 fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
     assert!(candidate::supports_bounded_group("a(ab)*c", false));

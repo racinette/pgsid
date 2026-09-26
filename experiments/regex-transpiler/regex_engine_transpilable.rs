@@ -3668,6 +3668,87 @@ pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
     if forward_choice && forward_valid {
         return true;
     }
+    let mut nested_consuming = true;
+    let mut nested_open = 0;
+    let mut nested_choice = false;
+    let mut nested_position = 0;
+    while nested_position < code.len() {
+        let operation = code[nested_position].operation;
+        if operation == VM_OPEN {
+            nested_open += 1;
+        } else if operation == VM_SPLIT {
+            nested_choice = true;
+        } else if operation != VM_LITERAL
+            && operation != VM_ANY
+            && operation != VM_WORD
+            && operation != VM_CLASS
+            && operation != VM_NUMERIC
+            && operation != VM_CLOSE
+            && operation != VM_JUMP
+            && operation != VM_END
+            && operation != VM_ACCEPT
+        {
+            nested_consuming = false;
+        }
+        nested_position += 1;
+    }
+    if nested_consuming && nested_open >= 2 && nested_choice {
+        let mut epsilon_cycle = false;
+        let mut edge_position = 0;
+        while edge_position < code.len() && epsilon_cycle == false {
+            let edge = code[edge_position];
+            let mut arm = 0;
+            while arm < 2 && epsilon_cycle == false {
+                let mut target = code.len();
+                if edge.operation == VM_JUMP && arm == 0 && edge.target <= edge_position {
+                    target = edge.target;
+                } else if edge.operation == VM_SPLIT && arm == 0 && edge.target <= edge_position {
+                    target = edge.target;
+                } else if edge.operation == VM_SPLIT && arm == 1 && edge.alternate <= edge_position
+                {
+                    target = edge.alternate;
+                }
+                if target < code.len() {
+                    let mut visited: Vec<usize> = Vec::new();
+                    let mut fill = 0;
+                    while fill < code.len() {
+                        visited.push(0);
+                        fill += 1;
+                    }
+                    let mut queue: Vec<usize> = Vec::new();
+                    queue.push(target);
+                    let mut head = 0;
+                    while head < queue.len() && epsilon_cycle == false {
+                        let node = queue[head];
+                        head += 1;
+                        if node == edge_position {
+                            epsilon_cycle = true;
+                        } else if node < code.len() && visited[node] == 0 {
+                            visited[node] = 1;
+                            let step = code[node];
+                            if step.operation == VM_SPLIT {
+                                queue.push(step.target);
+                                queue.push(step.alternate);
+                            } else if step.operation == VM_JUMP {
+                                queue.push(step.target);
+                            } else if step.operation == VM_OPEN
+                                || step.operation == VM_CLOSE
+                                || step.operation == VM_BEGIN
+                                || step.operation == VM_END
+                            {
+                                queue.push(node + 1);
+                            };
+                        };
+                    }
+                };
+                arm += 1;
+            }
+            edge_position += 1;
+        }
+        if epsilon_cycle == false {
+            return true;
+        };
+    }
     if (code.len() == 10 || code.len() == 11) && code[0].operation == VM_OPEN && code[0].group == 1
     {
         let mut word_position = 1;
