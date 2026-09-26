@@ -35371,6 +35371,1222 @@
           "end": 4
         }
       }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b)b",
+        "subject": "zab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?!b).",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b|bc)bc",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "ab(?=c)c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b)b",
+        "subject": "zab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?!b).",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b|bc)bc",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "ab(?=c)c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b)b",
+        "subject": "zab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?!b).",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b|bc)bc",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "ab(?=c)c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b)b",
+        "subject": "zab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?!b).",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b|bc)bc",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "ab(?=c)c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b)b",
+        "subject": "zab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?!b).",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b|bc)bc",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "ab(?=c)c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b)b",
+        "subject": "zab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?!b).",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b|bc)bc",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "ab(?=c)c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b)b",
+        "subject": "zab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?!b).",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b|bc)bc",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "ab(?=c)c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b)b",
+        "subject": "zab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?!b).",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b|bc)bc",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "ab(?=c)c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b)b",
+        "subject": "zab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?!b).",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b|bc)bc",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "ab(?=c)c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b)b",
+        "subject": "zab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?!b).",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b|bc)bc",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "ab(?=c)c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b)b",
+        "subject": "zab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?!b).",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b|bc)bc",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "ab(?=c)c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b)b",
+        "subject": "zab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?!b).",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b|bc)bc",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "ab(?=c)c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b)b",
+        "subject": "zab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?!b).",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b|bc)bc",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "ab(?=c)c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b)b",
+        "subject": "zab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?!b).",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b|bc)bc",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "ab(?=c)c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b)b",
+        "subject": "zab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?!b).",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b|bc)bc",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "ab(?=c)c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b)b",
+        "subject": "zab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?!b).",
+        "subject": "zac",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a(?=b|bc)bc",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "ab(?=c)c",
+        "subject": "zabc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
     }
   ]
 }

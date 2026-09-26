@@ -21,6 +21,7 @@ const coverage = {
   lookahead: 0,
   backref: 0,
   inline: 0,
+  middleLookahead: 0,
   expandedAdvanced: 0,
   extended: 0,
   basic: 0,
@@ -233,6 +234,22 @@ for (const fixturePath of fixturePaths) {
       )
       coverage.inline++
     } else if (
+      options.syntax === 'advanced' &&
+      generated.supportsMiddleLookahead(pattern, options.expanded)
+    ) {
+      const crossesNewline = options.newline === 'ordinary' || options.newline === 'anchors'
+      const lineAnchors = options.newline === 'sensitive' || options.newline === 'anchors'
+      actual = generated.findMiddleLookahead(
+        pattern,
+        subject,
+        from,
+        options.caseSensitive,
+        crossesNewline,
+        lineAnchors,
+        options.expanded,
+      )
+      coverage.middleLookahead++
+    } else if (
       options.syntax === 'extended' &&
       generated.supportsExtendedCompatible(pattern, options.expanded)
     ) {
@@ -291,6 +308,7 @@ assert.ok(coverage.lookbehind >= 20)
 assert.ok(coverage.lookahead >= 20)
 assert.ok(coverage.backref >= 20)
 assert.ok(coverage.inline >= 20)
+assert.ok(coverage.middleLookahead >= 20)
 assert.ok(coverage.expandedAdvanced >= 200)
 assert.ok(coverage.extended >= 50)
 assert.ok(coverage.basic >= 50)
@@ -316,11 +334,12 @@ assert.equal(
     coverage.lookahead +
     coverage.backref +
     coverage.inline +
+    coverage.middleLookahead +
     coverage.extended +
     coverage.basic +
     coverage.unsupportedAdvanced +
     coverage.otherOptions,
 )
 process.stdout.write(
-  `TypeScript find fixtures: ${coverage.literal + coverage.advanced + coverage.grouped + coverage.groupChoice + coverage.lookbehind + coverage.lookahead + coverage.backref + coverage.inline + coverage.extended + coverage.basic}/${coverage.find} supported (${coverage.literal} literal, ${coverage.advanced} advanced including ${coverage.expandedAdvanced} expanded, ${coverage.grouped} flat groups, ${coverage.groupChoice} group choices, ${coverage.lookbehind} fixed lookbehind, ${coverage.lookahead} leading lookahead, ${coverage.backref} fixed backrefs, ${coverage.inline} inline flags, ${coverage.extended} extended, ${coverage.basic} basic); ${coverage.unsupportedAdvanced} unsupported advanced, ${coverage.otherOptions} other modes. Count fixtures: ${coverage.countSupported}/${coverage.count} supported. Advanced coverage includes ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.rangeClasses} ranges, ${coverage.edgePunctuation} class edge cases, ${coverage.absoluteAnchors} absolute anchors, and ${coverage.position} positioned.\n`,
+  `TypeScript find fixtures: ${coverage.literal + coverage.advanced + coverage.grouped + coverage.groupChoice + coverage.lookbehind + coverage.lookahead + coverage.backref + coverage.inline + coverage.middleLookahead + coverage.extended + coverage.basic}/${coverage.find} supported (${coverage.literal} literal, ${coverage.advanced} advanced including ${coverage.expandedAdvanced} expanded, ${coverage.grouped} flat groups, ${coverage.groupChoice} group choices, ${coverage.lookbehind} fixed lookbehind, ${coverage.lookahead} leading lookahead, ${coverage.middleLookahead} middle lookahead, ${coverage.backref} fixed backrefs, ${coverage.inline} inline flags, ${coverage.extended} extended, ${coverage.basic} basic); ${coverage.unsupportedAdvanced} unsupported advanced, ${coverage.otherOptions} other modes. Count fixtures: ${coverage.countSupported}/${coverage.count} supported. Advanced coverage includes ${coverage.anchored} anchored, ${coverage.escaped} escaped, ${coverage.classes} classes, ${coverage.negatedClasses} negated classes, ${coverage.rangeClasses} ranges, ${coverage.edgePunctuation} class edge cases, ${coverage.absoluteAnchors} absolute anchors, and ${coverage.position} positioned.\n`,
 )

@@ -52,6 +52,7 @@ struct LookbehindResult {
 struct LookaheadResult {
     valid: bool,
     positive: bool,
+    offset: usize,
     assertion: Vec<char>,
     remainder: Vec<char>,
 }
@@ -851,6 +852,7 @@ fn leading_lookahead_atoms(pattern: &str, expanded: bool) -> LookaheadResult {
     LookaheadResult {
         valid,
         positive,
+        offset: 0,
         assertion,
         remainder,
     }
@@ -858,6 +860,84 @@ fn leading_lookahead_atoms(pattern: &str, expanded: bool) -> LookaheadResult {
 
 pub fn supports_leading_lookahead(pattern: &str, expanded: bool) -> bool {
     let parsed = leading_lookahead_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    supports_atoms(parsed.assertion) && supports_atoms(parsed.remainder)
+}
+
+fn middle_lookahead_atoms(pattern: &str, expanded: bool) -> LookaheadResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut assertion: Vec<char> = Vec::new();
+    let mut remainder: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut valid = true;
+    let mut positive = true;
+    while position < source.len() && source[position] != '(' {
+        let atom = source[position];
+        if atom == '\\'
+            || atom == '.'
+            || atom == '^'
+            || atom == '$'
+            || atom == '*'
+            || atom == '+'
+            || atom == '?'
+            || atom == '{'
+            || atom == '}'
+            || atom == '['
+            || atom == ']'
+            || atom == ')'
+            || atom == '|'
+        {
+            valid = false;
+            break;
+        }
+        remainder.push(atom);
+        position += 1;
+    }
+    let offset = remainder.len();
+    if offset == 0 || source.len() - position < 4 {
+        valid = false;
+    }
+    if valid {
+        valid = source[position] == '('
+            && source[position + 1] == '?'
+            && (source[position + 2] == '=' || source[position + 2] == '!');
+        positive = source[position + 2] == '=';
+        position += 3;
+    }
+    if valid {
+        while position < source.len() && source[position] != ')' {
+            let atom = source[position];
+            if atom == '\\' || atom == '[' || atom == '(' {
+                valid = false;
+                break;
+            }
+            assertion.push(atom);
+            position += 1;
+        }
+        if position == source.len() {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 1;
+        while position < source.len() {
+            remainder.push(source[position]);
+            position += 1;
+        }
+    }
+    LookaheadResult {
+        valid,
+        positive,
+        offset,
+        assertion,
+        remainder,
+    }
+}
+
+pub fn supports_middle_lookahead(pattern: &str, expanded: bool) -> bool {
+    let parsed = middle_lookahead_atoms(pattern, expanded);
     if parsed.valid == false {
         return false;
     }
@@ -2329,6 +2409,101 @@ pub fn count_leading_lookahead(
         };
     }
     CountOutcome::Count(count)
+}
+
+fn search_middle_lookahead(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> SearchResult {
+    let haystack: Vec<char> = subject.chars().collect();
+    let mut cursor = from;
+    let mut attempts = 0;
+    while cursor <= haystack.len() {
+        if attempts == MAX_ASSERTION_ATTEMPTS {
+            return SearchResult {
+                kind: 2,
+                start: 0,
+                end: 0,
+            };
+        }
+        attempts += 1;
+        let parsed = middle_lookahead_atoms(pattern, expanded);
+        if parsed.valid == false {
+            return SearchResult {
+                kind: 2,
+                start: 0,
+                end: 0,
+            };
+        }
+        let result = search_atoms(
+            parsed.remainder,
+            subject,
+            cursor,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+        );
+        if result.kind != 0 {
+            return result;
+        }
+        let assertion_start = result.start + parsed.offset;
+        let assertion = search_atoms(
+            parsed.assertion,
+            subject,
+            assertion_start,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+        );
+        if assertion.kind == 2 {
+            return assertion;
+        }
+        let holds = assertion.kind == 0 && assertion.start == assertion_start;
+        if holds == parsed.positive {
+            return result;
+        }
+        cursor = result.start + 1;
+    }
+    SearchResult {
+        kind: 1,
+        start: 0,
+        end: 0,
+    }
+}
+
+pub fn find_middle_lookahead(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let result = search_middle_lookahead(
+        pattern,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        expanded,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
 }
 
 fn search_fixed_backref(
