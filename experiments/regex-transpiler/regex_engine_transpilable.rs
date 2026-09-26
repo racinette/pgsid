@@ -1491,6 +1491,77 @@ pub fn supports_basic_escaped_bound(pattern: &str, expanded: bool) -> bool {
     supports_atoms(parsed.atoms)
 }
 
+fn basic_fixed_backref_atoms(pattern: &str, expanded: bool) -> FixedBackrefResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut atoms: Vec<char> = Vec::new();
+    let mut capture: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut grouped = false;
+    let mut referenced = false;
+    let mut valid = true;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '\\' {
+            if source.len() - position <= 1 {
+                valid = false;
+                break;
+            }
+            let escaped = source[position + 1];
+            if escaped == '(' && grouped == false {
+                grouped = true;
+                position += 2;
+                while position < source.len() {
+                    if source[position] == '\\'
+                        && source.len() - position > 1
+                        && source[position + 1] == ')'
+                    {
+                        break;
+                    }
+                    if simple_literal_char(source[position]) == false {
+                        valid = false;
+                        break;
+                    }
+                    capture.push(source[position]);
+                    atoms.push(source[position]);
+                    position += 1;
+                }
+                if valid == false || source.len() - position <= 1 || capture.len() == 0 {
+                    valid = false;
+                    break;
+                }
+                position += 2;
+            } else if escaped == '1' && grouped && referenced == false {
+                referenced = true;
+                let mut index = 0;
+                while index < capture.len() {
+                    atoms.push(capture[index]);
+                    index += 1;
+                }
+                position += 2;
+            } else {
+                valid = false;
+                break;
+            };
+        } else {
+            if simple_literal_char(atom) == false {
+                valid = false;
+                break;
+            }
+            atoms.push(atom);
+            position += 1;
+        };
+    }
+    FixedBackrefResult {
+        valid: valid && grouped && referenced,
+        atoms,
+    }
+}
+
+pub fn supports_basic_fixed_backref(pattern: &str, expanded: bool) -> bool {
+    let parsed = basic_fixed_backref_atoms(pattern, expanded);
+    parsed.valid
+}
+
 fn search_atoms(
     atoms: Vec<char>,
     subject: &str,
@@ -3308,6 +3379,39 @@ pub fn find_basic_escaped_bound(
     expanded: bool,
 ) -> MatchOutcome {
     let parsed = basic_bound_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let result = search_atoms(
+        parsed.atoms,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
+}
+
+pub fn find_basic_fixed_backref(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = basic_fixed_backref_atoms(pattern, expanded);
     if parsed.valid == false {
         return MatchOutcome::Uncertain;
     }
