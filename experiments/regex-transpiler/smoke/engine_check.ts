@@ -44,9 +44,10 @@ for (const pattern of ['(?e)\\W+', 'a(?i)b', '(?z)ab']) {
   assert.equal(generated.supportsInlineAdvanced(pattern, false), false)
 }
 assert.equal(generated.supportsMiddleLookahead('a(?=b)b', false), true)
-for (const pattern of ['a+(?=b)b', 'a(?=[bc])b', '(?=b)b', 'a(?=(b))b']) {
+for (const pattern of ['a+(?=b)b', 'a(?=[bc])b', '(?=b)b', 'a(?=(b))\\1']) {
   assert.equal(generated.supportsMiddleLookahead(pattern, false), false)
 }
+assert.equal(generated.supportsMiddleLookahead('a(?=((bc)))bc', false), true)
 assert.equal(generated.supportsBoundedGroup('(ab){1,3}c', false), true)
 assert.equal(generated.supportsBoundedGroup('a(ab)*c', false), true)
 assert.equal(generated.supportsBoundedGroup('a(ab)+c', false), true)

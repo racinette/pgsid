@@ -3367,6 +3367,7 @@ fn middle_lookahead_atoms(pattern: &str, expanded: bool) -> LookaheadResult {
     let mut valid = true;
     let mut positive = true;
     let mut behind = false;
+    let mut grouped = false;
     while position < source.len() && source[position] != '(' {
         let atom = source[position];
         if atom == '\\'
@@ -3410,14 +3411,32 @@ fn middle_lookahead_atoms(pattern: &str, expanded: bool) -> LookaheadResult {
         };
     }
     if valid {
-        while position < source.len() && source[position] != ')' {
+        let mut group_depth = 0;
+        while position < source.len() {
             let atom = source[position];
-            if atom == '\\' || atom == '[' || atom == '(' {
+            if atom == ')' {
+                if group_depth == 0 {
+                    break;
+                }
+                group_depth = group_depth - 1;
+                position += 1;
+            } else if atom == '(' {
+                grouped = true;
+                group_depth += 1;
+                position += 1;
+            } else if atom == '\\'
+                || atom == '['
+                || (group_depth > 0 && simple_literal_char(atom) == false)
+            {
                 valid = false;
                 break;
-            }
-            assertion.push(atom);
-            position += 1;
+            } else {
+                assertion.push(atom);
+                position += 1;
+            };
+        }
+        if group_depth > 0 {
+            valid = false;
         }
         if position == source.len() {
             valid = false;
@@ -3426,6 +3445,14 @@ fn middle_lookahead_atoms(pattern: &str, expanded: bool) -> LookaheadResult {
     if valid {
         position += 1;
         while position < source.len() {
+            if grouped
+                && source[position] == '\\'
+                && source.len() - position > 1
+                && (source[position + 1] as u32) >= 48
+                && (source[position + 1] as u32) <= 57
+            {
+                valid = false;
+            }
             remainder.push(source[position]);
             position += 1;
         }
