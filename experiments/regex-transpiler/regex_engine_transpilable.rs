@@ -364,6 +364,22 @@ pub fn definitely_invalid_simple_repeat(pattern: &str, syntax: char, expanded: b
             if source.len() - position <= 1 {
                 return false;
             }
+            if source.len() - position > 2
+                && (source[position + 2] == '*'
+                    || syntax == 'a'
+                        && (source[position + 2] == '+' || source[position + 2] == '?'))
+                && (syntax == 'a'
+                    && (source[position + 1] == 'A'
+                        || source[position + 1] == 'Z'
+                        || source[position + 1] == 'm'
+                        || source[position + 1] == 'M'
+                        || source[position + 1] == 'y'
+                        || source[position + 1] == 'Y')
+                    || syntax == 'b'
+                        && (source[position + 1] == '<' || source[position + 1] == '>'))
+            {
+                return true;
+            }
             previous_repeat = false;
             after_open = false;
             position += 2;
@@ -380,6 +396,14 @@ pub fn definitely_invalid_simple_repeat(pattern: &str, syntax: char, expanded: b
             previous_repeat = false;
             after_open = false;
             position += 1;
+        } else if syntax == 'a'
+            && (atom == '^' || atom == '$')
+            && source.len() - position > 1
+            && (source[position + 1] == '*'
+                || source[position + 1] == '+'
+                || source[position + 1] == '?')
+        {
+            return true;
         } else if atom == '(' && syntax != 'b' {
             previous_repeat = false;
             after_open = true;
