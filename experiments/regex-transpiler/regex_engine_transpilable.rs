@@ -140,6 +140,22 @@ pub fn pattern_atoms(pattern: &str, expanded: bool) -> Vec<char> {
     result
 }
 
+fn posix_class_kind(first: char, second: char, third: char, fourth: char, fifth: char) -> usize {
+    if first == 'd' && second == 'i' && third == 'g' && fourth == 'i' && fifth == 't' {
+        return 1;
+    }
+    if first == 'a' && second == 'l' && third == 'p' && fourth == 'h' && fifth == 'a' {
+        return 2;
+    }
+    if first == 'u' && second == 'p' && third == 'p' && fourth == 'e' && fifth == 'r' {
+        return 3;
+    }
+    if first == 's' && second == 'p' && third == 'a' && fourth == 'c' && fifth == 'e' {
+        return 4;
+    }
+    0
+}
+
 fn supports_atoms(atoms: Vec<char>) -> bool {
     let mut position = 0;
     let mut after_repeat = false;
@@ -206,7 +222,26 @@ fn supports_atoms(atoms: Vec<char>) -> bool {
                 return false;
             }
         }
-        if atom == '[' {
+        if atom == '['
+            && atoms.len() - position >= 11
+            && atoms[position + 1] == '['
+            && atoms[position + 2] == ':'
+            && atoms[position + 8] == ':'
+            && atoms[position + 9] == ']'
+            && atoms[position + 10] == ']'
+        {
+            if posix_class_kind(
+                atoms[position + 3],
+                atoms[position + 4],
+                atoms[position + 5],
+                atoms[position + 6],
+                atoms[position + 7],
+            ) == 0
+            {
+                return false;
+            }
+            position += 10;
+        } else if atom == '[' {
             position += 1;
             if position < atoms.len() && atoms[position] == '^' {
                 position += 1;
@@ -563,7 +598,30 @@ fn search_atoms(
                 };
             }
         }
-        if atom == '[' {
+        if atom == '['
+            && atoms.len() - position >= 11
+            && atoms[position + 1] == '['
+            && atoms[position + 2] == ':'
+            && atoms[position + 8] == ':'
+            && atoms[position + 9] == ']'
+            && atoms[position + 10] == ']'
+        {
+            if posix_class_kind(
+                atoms[position + 3],
+                atoms[position + 4],
+                atoms[position + 5],
+                atoms[position + 6],
+                atoms[position + 7],
+            ) == 0
+            {
+                return SearchResult {
+                    kind: 2,
+                    start: 0,
+                    end: 0,
+                };
+            }
+            position += 10;
+        } else if atom == '[' {
             position += 1;
             if position < atoms.len() && atoms[position] == '^' {
                 position += 1;
@@ -896,6 +954,38 @@ fn search_atoms(
                         || (atom == 'M' && left_word && right_word == false)
                         || (atom == 'y' && left_word != right_word)
                         || (atom == 'Y' && left_word == right_word);
+                } else if escaped == false
+                    && atom == '['
+                    && atoms.len() - atom_position >= 11
+                    && atoms[atom_position + 1] == '['
+                    && atoms[atom_position + 2] == ':'
+                    && atoms[atom_position + 8] == ':'
+                    && atoms[atom_position + 9] == ']'
+                    && atoms[atom_position + 10] == ']'
+                {
+                    let kind = posix_class_kind(
+                        atoms[atom_position + 3],
+                        atoms[atom_position + 4],
+                        atoms[atom_position + 5],
+                        atoms[atom_position + 6],
+                        atoms[atom_position + 7],
+                    );
+                    if subject_position < haystack.len() {
+                        let actual = haystack[subject_position];
+                        let codepoint = actual as u32;
+                        let digit = codepoint >= 48 && codepoint <= 57;
+                        let upper = codepoint >= 65 && codepoint <= 90;
+                        let lower = codepoint >= 97 && codepoint <= 122;
+                        let space = (codepoint >= 9 && codepoint <= 13) || actual == ' ';
+                        matched = (kind == 1 && digit)
+                            || (kind == 2 && (upper || lower))
+                            || (kind == 3 && (upper || (case_sensitive == false && lower)))
+                            || (kind == 4 && space);
+                        if matched {
+                            consumed = 1;
+                        }
+                    };
+                    atom_end = atom_position + 11;
                 } else if escaped == false && atom == '[' {
                     let mut class_position = atom_end;
                     let negated = atoms[class_position] == '^';
