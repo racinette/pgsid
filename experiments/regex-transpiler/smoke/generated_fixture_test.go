@@ -368,7 +368,8 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				actual = FindMiddleLookbehind(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors, input.Options.Expanded)
 				lookbehind++
 			} else if input.Options.Syntax == "advanced" && SupportsChainedAssertions(input.Pattern, input.Options.Expanded) {
-				actual = FindChainedAssertions(input.Pattern, input.Subject, from, input.Options.CaseSensitive, input.Options.Expanded)
+				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
+				actual = FindChainedAssertions(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, input.Options.Expanded)
 				chainedAssertions++
 			} else if input.Options.Syntax == "advanced" && SupportsBoundedGroup(input.Pattern, input.Options.Expanded) {
 				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"

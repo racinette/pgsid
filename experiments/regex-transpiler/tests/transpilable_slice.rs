@@ -139,11 +139,11 @@ fn chained_single_character_assertions_match_with_literal_repetition() {
         assert!(!candidate::supports_chained_assertions(pattern, false));
     }
     assert!(matches!(
-        candidate::find_chained_assertions("a(?=b)b*(?=c)c*", "abc", 0, true, false),
+        candidate::find_chained_assertions("a(?=b)b*(?=c)c*", "abc", 0, true, true, false),
         candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 3 })
     ));
     assert!(matches!(
-        candidate::find_chained_assertions("(?<=a)b*(?<=b)c*", "abc", 0, true, false),
+        candidate::find_chained_assertions("(?<=a)b*(?<=b)c*", "abc", 0, true, true, false),
         candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 3 })
     ));
 }
@@ -1053,6 +1053,22 @@ fn middle_lookahead_offset_excludes_word_boundaries() {
     ));
     assert!(matches!(
         candidate::find_middle_lookahead("a\\Y(?=45)", "a 45", 0, true, true, false, false),
+        candidate::MatchOutcome::NoMatch
+    ));
+}
+
+#[test]
+fn chained_lookaheads_share_wildcard_and_word_semantics() {
+    assert!(candidate::supports_chained_assertions(
+        "a(?=\\w)\\w*(?=.).*",
+        false
+    ));
+    assert!(matches!(
+        candidate::find_chained_assertions("a(?=\\w)\\w*(?=.).*", "az3%", 0, true, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 4 })
+    ));
+    assert!(matches!(
+        candidate::find_chained_assertions("a(?=.).*(?=3)3*", "a\n3", 0, true, false, false),
         candidate::MatchOutcome::NoMatch
     ));
 }
@@ -2166,11 +2182,13 @@ fn supported_search_matches_pglite_fixtures() {
                 )
             {
                 chained_assertions += 1;
+                let newline = options["newline"].as_str().unwrap();
                 candidate::find_chained_assertions(
                     pattern,
                     subject,
                     from,
                     options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
                     options["expanded"].as_bool().unwrap(),
                 )
             } else if options["syntax"] == "advanced"
