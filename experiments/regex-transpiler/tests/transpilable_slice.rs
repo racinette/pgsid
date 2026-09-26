@@ -40,6 +40,14 @@ fn group_choice_gate_rejects_unsupported_precedence() {
 }
 
 #[test]
+fn optional_group_gate_requires_one_fixed_literal_member() {
+    assert!(candidate::supports_optional_group("a(b)?c", false));
+    for pattern in ["a([bc])?d", "a(b+)?c", "a(b)?c(d)?e", "a(b)??c"] {
+        assert!(!candidate::supports_optional_group(pattern, false));
+    }
+}
+
+#[test]
 fn fixed_lookbehind_gate_requires_literal_prefix() {
     assert!(candidate::supports_fixed_lookbehind("(?<=ab)c", false));
     for pattern in ["(?<=a|b)c", "(?<=a+)c", "(?<=a\\n)b", "(?=a)b"] {
@@ -188,6 +196,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut advanced = 0;
     let mut grouped = 0;
     let mut group_choice = 0;
+    let mut optional_group = 0;
     let mut lookbehind = 0;
     let mut lookahead = 0;
     let mut backref = 0;
@@ -340,6 +349,23 @@ fn supported_search_matches_pglite_fixtures() {
                 group_choice += 1;
                 let newline = options["newline"].as_str().unwrap();
                 candidate::find_group_choice(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "advanced"
+                && candidate::supports_optional_group(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                optional_group += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_optional_group(
                     pattern,
                     subject,
                     from,
@@ -611,6 +637,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(advanced >= 100);
     assert!(grouped >= 20);
     assert!(group_choice >= 20);
+    assert!(optional_group >= 50);
     assert!(lookbehind >= 20);
     assert!(lookahead >= 20);
     assert!(backref >= 20);

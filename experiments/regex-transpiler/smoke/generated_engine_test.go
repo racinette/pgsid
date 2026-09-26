@@ -14,6 +14,14 @@ func TestLiteralSlice(t *testing.T) {
 	if !SupportsGroupChoice("a(b|bc)", false) {
 		t.Error("single group choice was rejected")
 	}
+	if !SupportsOptionalGroup("a(b)?c", false) {
+		t.Error("optional fixed literal group was rejected")
+	}
+	for _, pattern := range []string{"a([bc])?d", "a(b+)?c", "a(b)?c(d)?e", "a(b)??c"} {
+		if SupportsOptionalGroup(pattern, false) {
+			t.Errorf("unsupported optional group was accepted: %q", pattern)
+		}
+	}
 	for _, pattern := range []string{"(a|b)+", "((a|b))", "(a|b)\\1", "(?=a|b)c", "a|b(c|d)"} {
 		if SupportsGroupChoice(pattern, false) {
 			t.Errorf("unsupported group choice was accepted: %q", pattern)

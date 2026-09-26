@@ -777,6 +777,75 @@ pub fn supports_group_choice(pattern: &str, expanded: bool) -> bool {
     supports_atoms(parsed.left) && supports_atoms(parsed.right)
 }
 
+fn optional_group_atoms(pattern: &str, expanded: bool) -> GroupChoiceResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut included: Vec<char> = Vec::new();
+    let mut omitted: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut valid = true;
+    while position < source.len() && source[position] != '(' {
+        let atom = source[position];
+        if simple_literal_char(atom) == false && (atom != '^' || position != 0) {
+            valid = false;
+            break;
+        }
+        included.push(atom);
+        omitted.push(atom);
+        position += 1;
+    }
+    if position == source.len() {
+        valid = false;
+    }
+    if valid {
+        position += 1;
+        let mut members = 0;
+        while position < source.len() && source[position] != ')' {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            included.push(source[position]);
+            members += 1;
+            position += 1;
+        }
+        if members == 0 || position == source.len() {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 1;
+        if position == source.len() || source[position] != '?' {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 1;
+        while position < source.len() {
+            let atom = source[position];
+            if simple_literal_char(atom) == false && (atom != '$' || position + 1 != source.len()) {
+                valid = false;
+                break;
+            }
+            included.push(atom);
+            omitted.push(atom);
+            position += 1;
+        }
+    }
+    GroupChoiceResult {
+        valid,
+        left: included,
+        right: omitted,
+    }
+}
+
+pub fn supports_optional_group(pattern: &str, expanded: bool) -> bool {
+    let parsed = optional_group_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    supports_atoms(parsed.left) && supports_atoms(parsed.right)
+}
+
 fn fixed_lookbehind_atoms(pattern: &str, expanded: bool) -> LookbehindResult {
     let source = pattern_atoms(pattern, expanded);
     let mut prefix: Vec<char> = Vec::new();
@@ -2507,6 +2576,24 @@ fn search_group_choice(
     expanded: bool,
 ) -> SearchResult {
     let parsed = group_choice_atoms(pattern, expanded);
+    search_two_arms(
+        parsed,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    )
+}
+
+fn search_two_arms(
+    parsed: GroupChoiceResult,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+) -> SearchResult {
     if parsed.valid == false {
         return SearchResult {
             kind: 2,
@@ -2547,6 +2634,39 @@ fn search_group_choice(
         return left;
     }
     right
+}
+
+pub fn find_optional_group(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = optional_group_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let result = search_two_arms(
+        parsed,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
 }
 
 pub fn find_group_choice(
