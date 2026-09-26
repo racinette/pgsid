@@ -40,6 +40,18 @@ fn group_choice_gate_rejects_unsupported_precedence() {
 }
 
 #[test]
+fn noncapturing_literal_groups_compare_all_branches() {
+    for pattern in ["a(?:b)c", "a(?:)b", "a(?:b|b)c", "a(?:b|c|d)n"] {
+        assert!(candidate::supports_noncapture_literal(pattern, false));
+    }
+    assert!(!candidate::supports_noncapture_literal("a(?:(b))c", false));
+    assert!(matches!(
+        candidate::find_noncapture_literal("a(?:b|bc)c", "abcc", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 4 })
+    ));
+}
+
+#[test]
 fn optional_group_gate_requires_one_fixed_literal_member() {
     assert!(candidate::supports_optional_group("a(b)?c", false));
     for pattern in ["a([bc])?d", "a(b+)?c", "a(b)?c(d)?e", "a(b)??c"] {
@@ -996,6 +1008,23 @@ fn supported_search_matches_pglite_fixtures() {
                 group_choice += 1;
                 let newline = options["newline"].as_str().unwrap();
                 candidate::find_group_choice(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "advanced"
+                && candidate::supports_noncapture_literal(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                grouped += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_noncapture_literal(
                     pattern,
                     subject,
                     from,

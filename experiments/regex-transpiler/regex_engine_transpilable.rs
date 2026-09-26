@@ -42,6 +42,13 @@ struct GroupChoiceResult {
     right: Vec<char>,
 }
 
+struct NonCaptureResult {
+    valid: bool,
+    prefix: Vec<char>,
+    branches: Vec<char>,
+    suffix: Vec<char>,
+}
+
 struct LookbehindResult {
     valid: bool,
     positive: bool,
@@ -1295,6 +1302,65 @@ pub fn supports_group_choice(pattern: &str, expanded: bool) -> bool {
         return false;
     }
     supports_atoms(parsed.left) && supports_atoms(parsed.right)
+}
+
+fn noncapture_literal_atoms(pattern: &str, expanded: bool) -> NonCaptureResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut prefix: Vec<char> = Vec::new();
+    let mut branches: Vec<char> = Vec::new();
+    let mut suffix: Vec<char> = Vec::new();
+    let mut valid = true;
+    let mut position = 0;
+    while position < source.len() && source[position] != '(' {
+        if simple_literal_char(source[position]) == false {
+            valid = false;
+            break;
+        }
+        prefix.push(source[position]);
+        position += 1;
+    }
+    if source.len() - position < 4
+        || source[position] != '('
+        || source[position + 1] != '?'
+        || source[position + 2] != ':'
+    {
+        valid = false;
+    }
+    if valid {
+        position += 3;
+        while position < source.len() && source[position] != ')' {
+            if source[position] != '|' && simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            branches.push(source[position]);
+            position += 1;
+        }
+        if position == source.len() {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 1;
+        while position < source.len() {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            suffix.push(source[position]);
+            position += 1;
+        }
+    }
+    NonCaptureResult {
+        valid,
+        prefix,
+        branches,
+        suffix,
+    }
+}
+
+pub fn supports_noncapture_literal(pattern: &str, expanded: bool) -> bool {
+    noncapture_literal_atoms(pattern, expanded).valid
 }
 
 fn optional_group_atoms(pattern: &str, expanded: bool) -> GroupChoiceResult {
@@ -4415,6 +4481,78 @@ pub fn find_group_choice(
         start: result.start,
         end: result.end,
     })
+}
+
+pub fn find_noncapture_literal(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = noncapture_literal_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let mut found = false;
+    let mut best_start = 0;
+    let mut best_end = 0;
+    let mut branch_start = 0;
+    while branch_start <= parsed.branches.len() {
+        let mut branch_end = branch_start;
+        while branch_end < parsed.branches.len() && parsed.branches[branch_end] != '|' {
+            branch_end += 1;
+        }
+        let mut atoms: Vec<char> = Vec::new();
+        let mut index = 0;
+        while index < parsed.prefix.len() {
+            atoms.push(parsed.prefix[index]);
+            index += 1;
+        }
+        index = branch_start;
+        while index < branch_end {
+            atoms.push(parsed.branches[index]);
+            index += 1;
+        }
+        index = 0;
+        while index < parsed.suffix.len() {
+            atoms.push(parsed.suffix[index]);
+            index += 1;
+        }
+        let result = search_atoms(
+            atoms,
+            subject,
+            from,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+        );
+        if result.kind == 2 {
+            return MatchOutcome::Uncertain;
+        }
+        if result.kind == 0
+            && (found == false
+                || result.start < best_start
+                || result.start == best_start && result.end > best_end)
+        {
+            found = true;
+            best_start = result.start;
+            best_end = result.end;
+        }
+        if branch_end == parsed.branches.len() {
+            break;
+        }
+        branch_start = branch_end + 1;
+    }
+    if found {
+        return MatchOutcome::Found(MatchSpan {
+            start: best_start,
+            end: best_end,
+        });
+    }
+    MatchOutcome::NoMatch
 }
 
 pub fn count_group_choice(
