@@ -344,6 +344,9 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
 				actual = FindBasicFixedBackref(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors, input.Options.Expanded)
 				basicBackref++
+			} else if input.Options.Syntax == "basic" && SupportsBasicBoundedBackref(input.Pattern, input.Options.Expanded) {
+				actual = FindBasicBoundedBackref(input.Pattern, input.Subject, from, input.Options.CaseSensitive, input.Options.Expanded)
+				basicBackref++
 			} else if (input.Options.Syntax == "advanced" || input.Options.Syntax == "basic") && SupportsBracketWordBoundary(input.Pattern, input.Options.Expanded) {
 				crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
 				lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"

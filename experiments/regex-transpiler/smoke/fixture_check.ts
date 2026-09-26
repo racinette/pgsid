@@ -593,6 +593,18 @@ for (const fixturePath of fixturePaths) {
       )
       coverage.basicBackref++
     } else if (
+      options.syntax === 'basic' &&
+      generated.supportsBasicBoundedBackref(pattern, options.expanded)
+    ) {
+      actual = generated.findBasicBoundedBackref(
+        pattern,
+        subject,
+        from,
+        options.caseSensitive,
+        options.expanded,
+      )
+      coverage.basicBackref++
+    } else if (
       (options.syntax === 'advanced' || options.syntax === 'basic') &&
       generated.supportsBracketWordBoundary(pattern, options.expanded)
     ) {

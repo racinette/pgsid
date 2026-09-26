@@ -2488,6 +2488,133 @@ pub fn supports_repeated_choice(pattern: &str, expanded: bool) -> bool {
     repeated_choice_atoms(pattern, expanded).valid
 }
 
+fn basic_bounded_backref_atoms(pattern: &str, expanded: bool) -> RepeatedChoiceResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut prefix: Vec<char> = Vec::new();
+    let mut first: Vec<char> = Vec::new();
+    let second: Vec<char> = Vec::new();
+    let mut suffix: Vec<char> = Vec::new();
+    let mut valid = true;
+    let mut position = 0;
+    while position < source.len() && source[position] != '\\' {
+        if simple_literal_char(source[position]) == false {
+            valid = false;
+            break;
+        }
+        prefix.push(source[position]);
+        position += 1;
+    }
+    if source.len() - position < 3 || source[position + 1] != '(' {
+        valid = false;
+    }
+    if valid {
+        position += 2;
+        while position < source.len() && source[position] != '\\' {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            first.push(source[position]);
+            position += 1;
+        }
+        if first.len() == 0 || source.len() - position < 2 || source[position + 1] != ')' {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 2;
+        if source.len() - position < 4 || source[position] != '\\' || source[position + 1] != '{' {
+            valid = false;
+        }
+    }
+    let mut lower = 0;
+    let mut upper = 0;
+    if valid {
+        position += 2;
+        let mut digits = 0;
+        while position < source.len()
+            && (source[position] as u32) >= 48
+            && (source[position] as u32) <= 57
+        {
+            let double = lower + lower;
+            let four = double + double;
+            let eight = four + four;
+            lower = eight + double + ((source[position] as u32) - 48) as usize;
+            position += 1;
+            digits += 1;
+            if lower > 16 {
+                valid = false;
+                break;
+            }
+        }
+        if digits == 0 {
+            valid = false;
+        }
+    }
+    if valid {
+        upper = lower;
+        if position < source.len() && source[position] == ',' {
+            position += 1;
+            let mut digits = 0;
+            upper = 0;
+            while position < source.len()
+                && (source[position] as u32) >= 48
+                && (source[position] as u32) <= 57
+            {
+                let double = upper + upper;
+                let four = double + double;
+                let eight = four + four;
+                upper = eight + double + ((source[position] as u32) - 48) as usize;
+                position += 1;
+                digits += 1;
+                if upper > 16 {
+                    valid = false;
+                    break;
+                }
+            }
+            if digits == 0 {
+                valid = false;
+            }
+        }
+        if upper < lower
+            || source.len() - position < 2
+            || source[position] != '\\'
+            || source[position + 1] != '}'
+        {
+            valid = false;
+        }
+    }
+    if valid {
+        position += 2;
+        while position < source.len() && source[position] != '\\' {
+            if simple_literal_char(source[position]) == false {
+                valid = false;
+                break;
+            }
+            suffix.push(source[position]);
+            position += 1;
+        }
+        if source.len() - position != 2 || source[position] != '\\' || source[position + 1] != '1' {
+            valid = false;
+        }
+    }
+    RepeatedChoiceResult {
+        valid,
+        prefix,
+        first,
+        second,
+        suffix,
+        lower,
+        upper,
+        backref: true,
+        lazy: false,
+    }
+}
+
+pub fn supports_basic_bounded_backref(pattern: &str, expanded: bool) -> bool {
+    basic_bounded_backref_atoms(pattern, expanded).valid
+}
+
 fn inline_atoms(pattern: &str, expanded: bool) -> InlineResult {
     let source: Vec<char> = pattern.chars().collect();
     let mut valid = source.len() >= 4;
@@ -5129,6 +5256,15 @@ pub fn find_repeated_choice(
     expanded: bool,
 ) -> MatchOutcome {
     let parsed = repeated_choice_atoms(pattern, expanded);
+    find_repeated_choice_parsed(parsed, subject, from, case_sensitive)
+}
+
+fn find_repeated_choice_parsed(
+    parsed: RepeatedChoiceResult,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+) -> MatchOutcome {
     if parsed.valid == false {
         return MatchOutcome::Uncertain;
     }
@@ -5294,6 +5430,17 @@ pub fn find_repeated_choice(
         start += 1;
     }
     MatchOutcome::NoMatch
+}
+
+pub fn find_basic_bounded_backref(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = basic_bounded_backref_atoms(pattern, expanded);
+    find_repeated_choice_parsed(parsed, subject, from, case_sensitive)
 }
 
 fn search_repeated_capture_backref(
