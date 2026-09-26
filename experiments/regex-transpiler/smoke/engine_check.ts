@@ -36,10 +36,10 @@ assert.equal(generated.supportsSingleCaptureBackref('a(b*)c\\1', false), true)
 for (const pattern of ['([ab]?)\\1', '([ab])\\2', '([ab])', '((a))\\1']) {
   assert.equal(generated.supportsSingleCaptureBackref(pattern, false), false)
 }
-for (const pattern of ['(?i)ab', '(?n)^b', '(?x)a b', '(?t)a b']) {
+for (const pattern of ['(?i)ab', '(?n)^b', '(?x)a b', '(?t)a b', '(?b)a+b', '(?e)a+b', '(?q)a+b']) {
   assert.equal(generated.supportsInlineAdvanced(pattern, false), true)
 }
-for (const pattern of ['(?b)a+b', '(?e)a+b', 'a(?i)b', '(?z)ab']) {
+for (const pattern of ['(?e)\\W+', 'a(?i)b', '(?z)ab']) {
   assert.equal(generated.supportsInlineAdvanced(pattern, false), false)
 }
 assert.equal(generated.supportsMiddleLookahead('a(?=b)b', false), true)

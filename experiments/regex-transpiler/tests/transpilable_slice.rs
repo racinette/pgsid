@@ -365,12 +365,26 @@ fn unmatched_extended_closing_group_is_literal() {
 
 #[test]
 fn inline_gate_accepts_supported_prefix_flags() {
-    for pattern in ["(?i)ab", "(?n)^b", "(?x)a b", "(?t)a b"] {
+    for pattern in [
+        "(?i)ab", "(?n)^b", "(?x)a b", "(?t)a b", "(?b)a+b", "(?e)a+b", "(?q)a+b",
+    ] {
         assert!(candidate::supports_inline_advanced(pattern, false));
     }
-    for pattern in ["(?b)a+b", "(?e)a+b", "a(?i)b", "(?z)ab"] {
+    for pattern in ["(?e)\\W+", "a(?i)b", "(?z)ab"] {
         assert!(!candidate::supports_inline_advanced(pattern, false));
     }
+    assert!(matches!(
+        candidate::find_inline_advanced("(?b)a+b", "xa+by", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 4 })
+    ));
+    assert!(matches!(
+        candidate::find_inline_advanced("(?e)a+b", "xaaaby", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 5 })
+    ));
+    assert!(matches!(
+        candidate::find_inline_advanced("(?q)a+b", "xa+by", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 4 })
+    ));
 }
 
 #[test]
