@@ -1620,21 +1620,42 @@ fn single_capture_atoms(pattern: &str, expanded: bool) -> SingleCaptureResult {
         } else if source[position] == '[' {
             atom.push('[');
             position += 1;
-            while position < source.len() && source[position] != ']' {
-                if source[position] == '\\' || source[position] == '[' {
-                    valid = false;
-                    break;
+            if source.len() - position > 1 && source[position] == '[' && source[position + 1] == ':'
+            {
+                while position < source.len()
+                    && (source.len() - position < 3
+                        || source[position] != ':'
+                        || source[position + 1] != ']'
+                        || source[position + 2] != ']')
+                {
+                    atom.push(source[position]);
+                    position += 1;
                 }
-                atom.push(source[position]);
-                position += 1;
-            }
-            if position == source.len() || atom.len() == 1 {
-                valid = false;
-            }
-            if valid {
-                atom.push(']');
-                position += 1;
-            }
+                if source.len() - position < 3 {
+                    valid = false;
+                } else {
+                    atom.push(':');
+                    atom.push(']');
+                    atom.push(']');
+                    position += 3;
+                };
+            } else {
+                while position < source.len() && source[position] != ']' {
+                    if source[position] == '\\' || source[position] == '[' {
+                        valid = false;
+                        break;
+                    }
+                    atom.push(source[position]);
+                    position += 1;
+                }
+                if position == source.len() || atom.len() == 1 {
+                    valid = false;
+                }
+                if valid {
+                    atom.push(']');
+                    position += 1;
+                }
+            };
         } else if source[position] == '.' {
             atom.push('.');
             position += 1;
