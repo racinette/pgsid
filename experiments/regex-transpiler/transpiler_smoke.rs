@@ -73,3 +73,48 @@ pub fn char_count(input: &str) -> usize {
 pub fn char_codepoint(value: char) -> u32 {
     value as u32
 }
+
+pub fn choose_position(value: usize, limit: usize) -> usize {
+    let mut selected = 0;
+    if value < limit {
+        selected += value;
+    } else {
+        selected += limit;
+    }
+    selected
+}
+
+pub fn choose_with_returns(value: usize, limit: usize) -> usize {
+    if value < limit {
+        return value;
+    } else {
+        return limit;
+    }
+}
+
+pub fn classify_position(value: usize, limit: usize) -> usize {
+    let mut category = 0;
+    if value < limit {
+        category += 1;
+    } else if value == limit {
+        category += 2;
+    } else {
+        category += 3;
+    }
+    category
+}
+
+const POSITION_LIMIT: usize = 3;
+
+pub fn below_default_limit(value: usize) -> bool {
+    value < POSITION_LIMIT
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct NamedSpan {
+    pub from_position: usize,
+}
+
+pub fn named_position(value: NamedSpan) -> usize {
+    value.from_position
+}

@@ -229,6 +229,21 @@ fn checked_arithmetic(name: &str) -> bool {
     matches!(name, "usize" | "u32")
 }
 
+fn check_if_methods(branch: &syn::ExprIf, locals: &Bindings, semantics: &Semantics) -> Result<()> {
+    infer_expr_type(&branch.cond, locals, semantics)?;
+    check_body_methods(&branch.then_branch, &mut locals.clone(), semantics)?;
+    if let Some((_, alternate)) = &branch.else_branch {
+        match &**alternate {
+            Expr::Block(alternate) => {
+                check_body_methods(&alternate.block, &mut locals.clone(), semantics)?;
+            }
+            Expr::If(alternate) => check_if_methods(alternate, locals, semantics)?,
+            _ => unreachable!(),
+        }
+    }
+    Ok(())
+}
+
 fn infer_expr_type(
     value: &Expr,
     locals: &Bindings,
@@ -398,8 +413,7 @@ fn infer_expr_type(
             Ok(Some(name))
         }
         Expr::If(branch) => {
-            infer_expr_type(&branch.cond, locals, semantics)?;
-            check_body_methods(&branch.then_branch, &mut locals.clone(), semantics)?;
+            check_if_methods(branch, locals, semantics)?;
             Ok(None)
         }
         Expr::While(loop_) => {

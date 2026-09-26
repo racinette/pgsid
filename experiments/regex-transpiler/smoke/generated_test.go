@@ -3,48 +3,63 @@ package generated
 import "testing"
 
 func TestTranspilerSmoke(t *testing.T) {
-	input := Span{start: 1, end: 3}
-	actual := shift_span(input, 2)
-	expected := Span{start: 3, end: 5}
-	if !same_span(actual, expected) || input != (Span{start: 1, end: 3}) {
-		t.Errorf("shift_span(%+v, 2) = %+v", input, actual)
+	input := Span{Start: 1, End: 3}
+	actual := ShiftSpan(input, 2)
+	expected := Span{Start: 3, End: 5}
+	if !SameSpan(actual, expected) || input != (Span{Start: 1, End: 3}) {
+		t.Errorf("ShiftSpan(%+v, 2) = %+v", input, actual)
 	}
-	parameter := Span{start: 1, end: 3}
-	if shifted := shift_parameter(parameter, 2); shifted != (Span{start: 3, end: 3}) || parameter != (Span{start: 1, end: 3}) {
-		t.Errorf("shift_parameter(%+v, 2) = %+v", parameter, shifted)
+	parameter := Span{Start: 1, End: 3}
+	if shifted := ShiftParameter(parameter, 2); shifted != (Span{Start: 3, End: 3}) || parameter != (Span{Start: 1, End: 3}) {
+		t.Errorf("ShiftParameter(%+v, 2) = %+v", parameter, shifted)
 	}
-	snapshotInput := Span{start: 1, end: 3}
-	if snapshot := snapshot_before_shift(snapshotInput, 2); snapshot != (Snapshot{before: Span{start: 1, end: 3}, after: Span{start: 3, end: 3}}) || snapshotInput != (Span{start: 1, end: 3}) {
-		t.Errorf("snapshot_before_shift(%+v, 2) = %+v", snapshotInput, snapshot)
+	snapshotInput := Span{Start: 1, End: 3}
+	if snapshot := SnapshotBeforeShift(snapshotInput, 2); snapshot != (Snapshot{Before: Span{Start: 1, End: 3}, After: Span{Start: 3, End: 3}}) || snapshotInput != (Span{Start: 1, End: 3}) {
+		t.Errorf("SnapshotBeforeShift(%+v, 2) = %+v", snapshotInput, snapshot)
 	}
 	characters := []rune{'a'}
-	echoed := echo_chars(characters)
+	echoed := EchoChars(characters)
 	echoed[0] = 'b'
 	if characters[0] != 'a' {
 		t.Errorf("echo_chars shared backing storage with its input")
 	}
-	bag := CharBag{characters: []rune{'a'}}
-	echoedBag := echo_bag(bag)
-	echoedBag.characters[0] = 'b'
-	if bag.characters[0] != 'a' {
+	bag := CharBag{Characters: []rune{'a'}}
+	echoedBag := EchoBag(bag)
+	echoedBag.Characters[0] = 'b'
+	if bag.Characters[0] != 'a' {
 		t.Errorf("echo_bag shared backing storage with its input")
 	}
-	if character := char_at([]rune{'a'}, 0); character != 'a' {
+	if character := CharAt([]rune{'a'}, 0); character != 'a' {
 		t.Errorf("char_at returned %q", character)
 	}
-	if add_positions(2, 3) != 5 || subtract_positions(5, 3) != 2 {
+	if AddPositions(2, 3) != 5 || SubtractPositions(5, 3) != 2 {
 		t.Error("position arithmetic changed its result")
 	}
-	expectPanic(t, func() { add_positions(2147483647, 1) })
-	expectPanic(t, func() { subtract_positions(0, 1) })
-	expectPanic(t, func() { echo_chars([]rune{0xd800}) })
-	if !is_before_first(-1) || char_count("😀") != 1 {
+	expectPanic(t, func() { AddPositions(2147483647, 1) })
+	expectPanic(t, func() { SubtractPositions(0, 1) })
+	expectPanic(t, func() { EchoChars([]rune{0xd800}) })
+	if !IsBeforeFirst(-1) || CharCount("😀") != 1 {
 		t.Error("numeric or Unicode input changed its result")
 	}
-	if char_codepoint('😀') != 128512 {
+	if CharCodepoint('😀') != 128512 {
 		t.Error("Unicode scalar cast changed value")
 	}
-	expectPanic(t, func() { char_count(string([]byte{0xff})) })
+	if ChoosePosition(2, 3) != 2 || ChoosePosition(4, 3) != 3 {
+		t.Error("else branch changed the selected position")
+	}
+	if ChooseWithReturns(2, 3) != 2 || ChooseWithReturns(4, 3) != 3 {
+		t.Error("else branch changed the selected return")
+	}
+	if ClassifyPosition(2, 3) != 1 || ClassifyPosition(3, 3) != 2 || ClassifyPosition(4, 3) != 3 {
+		t.Error("else-if chain changed the selected branch")
+	}
+	if !BelowDefaultLimit(2) || BelowDefaultLimit(3) {
+		t.Error("private constant changed the default limit")
+	}
+	if NamedPosition(NamedSpan{FromPosition: 2}) != 2 {
+		t.Error("named field changed its position")
+	}
+	expectPanic(t, func() { CharCount(string([]byte{0xff})) })
 }
 
 func expectPanic(t *testing.T, run func()) {

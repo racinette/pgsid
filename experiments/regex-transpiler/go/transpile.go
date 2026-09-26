@@ -2,12 +2,17 @@ package transpiler
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/json"
 	"fmt"
+	"go/ast"
 	"go/format"
+	"go/parser"
+	"go/token"
 	"io"
-	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 type node struct {
@@ -37,6 +42,7 @@ type node struct {
 	Variants      []variant   `json:"variants"`
 	Parameters    []parameter `json:"parameters"`
 	Body          []*node     `json:"body"`
+	ElseBody      []*node     `json:"elseBody"`
 	Arguments     []*node     `json:"arguments"`
 	Segments      []string    `json:"segments"`
 	Path          []string    `json:"path"`
@@ -82,21 +88,162 @@ func reject(message string) {
 	panic(contractError(message))
 }
 
-type writer struct {
-	text   strings.Builder
-	indent int
-}
-
-func (w *writer) line(value string) {
-	w.text.WriteString(strings.Repeat("\t", w.indent))
-	w.text.WriteString(value)
-	w.text.WriteByte('\n')
-}
+//go:embed runtime/prelude.go
+var runtimeSource string
 
 type generator struct {
-	writer writer
-	enums  map[string][]variant
-	types  map[string]bool
+	enums      map[string][]variant
+	structs    map[string]*node
+	types      map[string]bool
+	names      map[string]string
+	constants  map[string]*node
+	publicEnum map[string]bool
+	locals     map[string]string
+	localTypes map[string]*node
+}
+
+func casedName(name string, exported bool) string {
+	parts := strings.Split(name, "_")
+	for index, part := range parts {
+		if part != "" {
+			if strings.ToUpper(part) == part {
+				part = strings.ToLower(part)
+			}
+			first, size := utf8.DecodeRuneInString(part)
+			parts[index] = string(unicode.ToUpper(first)) + part[size:]
+		}
+	}
+	result := strings.Join(parts, "")
+	if !exported && result != "" {
+		first, size := utf8.DecodeRuneInString(result)
+		result = string(unicode.ToLower(first)) + result[size:]
+	}
+	return result
+}
+
+func (g *generator) name(name string) string {
+	if generated, ok := g.names[name]; ok {
+		return generated
+	}
+	return name
+}
+
+func (g *generator) fieldName(owner, name string) string {
+	structure := g.structs[owner]
+	if structure != nil {
+		for _, field := range structure.Fields {
+			if field.Name == name {
+				return casedName(name, field.Visibility == "public")
+			}
+		}
+	}
+	reject("unknown struct field " + owner + "." + name)
+	return ""
+}
+
+func namedType(name string) *node {
+	return &node{Kind: "path", Segments: []string{name}}
+}
+
+func (g *generator) inferType(value *node) *node {
+	if value == nil {
+		return nil
+	}
+	switch value.Kind {
+	case "path":
+		if len(value.Segments) == 1 {
+			if local := g.localTypes[value.Segments[0]]; local != nil {
+				return local
+			}
+			return g.constants[value.Segments[0]]
+		}
+		if len(value.Segments) == 2 {
+			return namedType(value.Segments[0])
+		}
+	case "parenthesized":
+		return g.inferType(value.Inner)
+	case "struct-literal":
+		return namedType(strings.Join(value.Path, "::"))
+	case "field":
+		base := g.inferType(value.Base)
+		if base != nil && base.Kind == "path" {
+			structure := g.structs[path(base)]
+			if structure != nil {
+				for _, field := range structure.Fields {
+					if field.Name == value.Member {
+						return field.Type
+					}
+				}
+			}
+		}
+	case "integer":
+		return namedType("usize")
+	case "character":
+		return namedType("char")
+	case "boolean":
+		return namedType("bool")
+	case "cast":
+		return value.TargetType
+	case "binary":
+		if value.Operator == "add" || value.Operator == "subtract" {
+			return g.inferType(value.Left)
+		}
+		return namedType("bool")
+	case "index":
+		return namedType("char")
+	case "method-call":
+		switch value.Method {
+		case "len":
+			return namedType("usize")
+		case "to_ascii_lowercase":
+			return namedType("char")
+		case "collect":
+			return &node{Kind: "path", Segments: []string{"Vec"}, TypeArguments: []*node{namedType("char")}}
+		}
+	case "call":
+		if value.Callee != nil && len(value.Callee.Segments) == 2 {
+			return namedType(value.Callee.Segments[0])
+		}
+	}
+	return nil
+}
+
+func (g *generator) fieldOwner(value *node) string {
+	valueType := g.inferType(value)
+	if valueType == nil || valueType.Kind != "path" {
+		reject("cannot resolve struct field owner")
+	}
+	return path(valueType)
+}
+
+func cloneTypes(types map[string]*node) map[string]*node {
+	copy := make(map[string]*node, len(types))
+	for name, value := range types {
+		copy[name] = value
+	}
+	return copy
+}
+
+func (g *generator) enumKindField(name string) string {
+	if g.publicEnum[name] {
+		return "Kind"
+	}
+	return "kind"
+}
+
+func (g *generator) enumPayloadField(name, variant string) string {
+	if g.publicEnum[name] {
+		return casedName(variant, true)
+	}
+	return casedName(variant, false)
+}
+
+func cloneLocals(locals map[string]string) map[string]string {
+	copy := make(map[string]string, len(locals))
+	for name, generated := range locals {
+		copy[name] = generated
+	}
+	return copy
 }
 
 func path(value *node) string {
@@ -107,343 +254,6 @@ func path(value *node) string {
 		reject("expected path")
 	}
 	return strings.Join(value.Segments, "::")
-}
-
-func (g *generator) typeName(value *node) string {
-	if value == nil {
-		reject("missing type")
-	}
-	if value.Kind == "reference" {
-		if path(value.Inner) != "str" {
-			reject("unsupported reference type")
-		}
-		return "string"
-	}
-	if value.Kind != "path" {
-		reject("unsupported type kind " + value.Kind)
-	}
-	name := path(value)
-	if len(value.TypeArguments) != 0 {
-		if name != "Vec" || len(value.TypeArguments) != 1 || path(value.TypeArguments[0]) != "char" {
-			reject("unsupported generic type")
-		}
-		return "[]rune"
-	}
-	switch name {
-	case "usize", "u32", "i32":
-		return "int"
-	case "bool":
-		return "bool"
-	case "char":
-		return "rune"
-	case "str":
-		return "string"
-	default:
-		if g.types[name] {
-			return name
-		}
-		reject("unsupported type " + name)
-		return ""
-	}
-}
-
-func (g *generator) detach(value string, valueType *node) string {
-	if valueType.Kind == "reference" {
-		return "checkedString(" + value + ")"
-	}
-	name := path(valueType)
-	switch name {
-	case "usize", "u32":
-		return "checkedIndex(" + value + ")"
-	case "i32":
-		return "checkedI32(" + value + ")"
-	case "char":
-		return "checkedChar(" + value + ")"
-	}
-	if name == "Vec" {
-		return "checkedChars(" + value + ")"
-	}
-	if g.types[name] {
-		return "copy" + name + "(" + value + ")"
-	}
-	return value
-}
-
-func (g *generator) expression(value *node) string {
-	if value == nil {
-		reject("missing expression")
-	}
-	switch value.Kind {
-	case "path":
-		if len(value.Segments) == 1 {
-			return value.Segments[0]
-		}
-		if len(value.Segments) == 2 {
-			name, variantName := value.Segments[0], value.Segments[1]
-			for _, variant := range g.enums[name] {
-				if variant.Name == variantName && variant.Payload == nil {
-					return fmt.Sprintf("%s{kind: %s%s}", name, name, variantName)
-				}
-			}
-		}
-		reject("unknown path " + strings.Join(value.Segments, "::"))
-	case "integer":
-		return value.Digits
-	case "character":
-		characters := []rune(value.Scalar)
-		if len(characters) != 1 {
-			reject("character literal must be one Unicode scalar")
-		}
-		return strconv.QuoteRune(characters[0])
-	case "boolean":
-		return strconv.FormatBool(value.Boolean)
-	case "parenthesized":
-		return "(" + g.expression(value.Inner) + ")"
-	case "cast":
-		if path(value.TargetType) != "u32" {
-			reject("unsupported cast target")
-		}
-		return "int(checkedChar(" + g.expression(value.Value) + "))"
-	case "binary":
-		left, right := g.expression(value.Left), g.expression(value.Right)
-		switch value.Operator {
-		case "add":
-			return "checkedAdd(" + left + ", " + right + ")"
-		case "subtract":
-			return "checkedSubtract(" + left + ", " + right + ")"
-		case "add-assign":
-			return left + " = checkedAdd(" + left + ", " + right + ")"
-		}
-		operators := map[string]string{
-			"less-than": "<", "less-or-equal": "<=",
-			"greater-than": ">", "greater-or-equal": ">=", "equal": "==",
-			"not-equal": "!=", "and": "&&", "or": "||",
-		}
-		operator, ok := operators[value.Operator]
-		if !ok {
-			reject("unknown operator " + value.Operator)
-		}
-		return left + " " + operator + " " + right
-	case "field":
-		return g.expression(value.Base) + "." + value.Member
-	case "index":
-		return g.expression(value.Base) + "[" + g.expression(value.Index) + "]"
-	case "method-call":
-		if value.Method == "len" && len(value.Arguments) == 0 {
-			return "len(" + g.expression(value.Receiver) + ")"
-		}
-		if value.Method == "to_ascii_lowercase" && len(value.Arguments) == 0 {
-			return "asciiLowercase(" + g.expression(value.Receiver) + ")"
-		}
-		if value.Method == "collect" && len(value.Arguments) == 0 && value.Receiver != nil && value.Receiver.Kind == "method-call" && value.Receiver.Method == "chars" && len(value.Receiver.Arguments) == 0 {
-			return "[]rune(" + g.expression(value.Receiver.Receiver) + ")"
-		}
-		reject("unsupported method " + value.Method)
-	case "struct-literal":
-		fields := make([]string, 0, len(value.Fields))
-		for _, field := range value.Fields {
-			fields = append(fields, field.Name+": "+g.expression(field.Value))
-		}
-		return strings.Join(value.Path, "::") + "{" + strings.Join(fields, ", ") + "}"
-	case "call":
-		if value.Callee == nil || value.Callee.Kind != "path" || len(value.Callee.Segments) != 2 || len(value.Arguments) != 1 {
-			reject("unsupported call")
-		}
-		name, variantName := value.Callee.Segments[0], value.Callee.Segments[1]
-		for _, variant := range g.enums[name] {
-			if variant.Name == variantName && variant.Payload != nil {
-				return fmt.Sprintf("%s{kind: %s%s, %s: %s}", name, name, variantName, strings.ToLower(variantName), g.expression(value.Arguments[0]))
-			}
-		}
-		reject("unknown payload variant " + name + "::" + variantName)
-	default:
-		reject("expression needs statement lowering: " + value.Kind)
-	}
-	return ""
-}
-
-func (g *generator) statements(statements []*node) {
-	for index, statement := range statements {
-		if statement == nil {
-			reject("missing statement")
-		}
-		if statement.Kind == "local" {
-			g.writer.line(statement.Binding.Name + " := " + g.expression(statement.Initializer))
-			continue
-		}
-		if statement.Kind != "expression" || statement.Value == nil {
-			reject("unsupported statement")
-		}
-		value := statement.Value
-		switch value.Kind {
-		case "return":
-			g.writer.line("return " + g.expression(value.Value))
-		case "break":
-			g.writer.line("break")
-		case "if", "while":
-			condition := g.expression(value.Condition)
-			if value.Kind == "if" {
-				g.writer.line("if " + condition + " {")
-			} else {
-				g.writer.line("for " + condition + " {")
-			}
-			g.writer.indent++
-			g.statements(value.Body)
-			g.writer.indent--
-			g.writer.line("}")
-		default:
-			result := g.expression(value)
-			if index == len(statements)-1 && !statement.Semicolon {
-				g.writer.line("return " + result)
-			} else {
-				g.writer.line(result)
-			}
-		}
-	}
-}
-
-func (g *generator) prelude() {
-	g.writer.line("const maxSharedIndex = 2147483647")
-	g.writer.line("func checkedIndex(value int) int {")
-	g.writer.indent++
-	g.writer.line("if value < 0 || value > maxSharedIndex { panic(\"index outside shared numeric range\") }")
-	g.writer.line("return value")
-	g.writer.indent--
-	g.writer.line("}")
-	g.writer.line("func checkedI32(value int) int {")
-	g.writer.indent++
-	g.writer.line("if value < -2147483648 || value > maxSharedIndex { panic(\"signed integer outside shared numeric range\") }")
-	g.writer.line("return value")
-	g.writer.indent--
-	g.writer.line("}")
-	g.writer.line("func checkedAdd(left int, right int) int {")
-	g.writer.indent++
-	g.writer.line("checkedIndex(left); checkedIndex(right)")
-	g.writer.line("if right > maxSharedIndex-left { panic(\"shared numeric overflow\") }")
-	g.writer.line("return left + right")
-	g.writer.indent--
-	g.writer.line("}")
-	g.writer.line("func checkedSubtract(left int, right int) int {")
-	g.writer.indent++
-	g.writer.line("checkedIndex(left); checkedIndex(right)")
-	g.writer.line("if right > left { panic(\"shared numeric underflow\") }")
-	g.writer.line("return left - right")
-	g.writer.indent--
-	g.writer.line("}")
-	g.writer.line("func checkedChar(value rune) rune {")
-	g.writer.indent++
-	g.writer.line("if value < 0 || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff) { panic(\"invalid Unicode scalar\") }")
-	g.writer.line("return value")
-	g.writer.indent--
-	g.writer.line("}")
-	g.writer.line("func asciiLowercase(value rune) rune {")
-	g.writer.indent++
-	g.writer.line("checkedChar(value)")
-	g.writer.line("if value >= 'A' && value <= 'Z' { return value + ('a' - 'A') }")
-	g.writer.line("return value")
-	g.writer.indent--
-	g.writer.line("}")
-	g.writer.line("func checkedString(value string) string {")
-	g.writer.indent++
-	g.writer.line("if len(value) > maxSharedIndex || !utf8.ValidString(value) { panic(\"invalid or oversized string\") }")
-	g.writer.line("return value")
-	g.writer.indent--
-	g.writer.line("}")
-	g.writer.line("func checkedChars(value []rune) []rune {")
-	g.writer.indent++
-	g.writer.line("if len(value) > maxSharedIndex { panic(\"vector outside shared numeric range\") }")
-	g.writer.line("result := make([]rune, len(value))")
-	g.writer.line("for index, character := range value { result[index] = checkedChar(character) }")
-	g.writer.line("return result")
-	g.writer.indent--
-	g.writer.line("}")
-	g.writer.line("")
-}
-
-func (g *generator) item(value *node) {
-	if value == nil {
-		reject("missing item")
-	}
-	switch value.Kind {
-	case "constant":
-		g.writer.line("const " + value.Name + " = " + g.expression(value.Value))
-	case "struct":
-		g.writer.line("type " + value.Name + " struct {")
-		g.writer.indent++
-		for _, field := range value.Fields {
-			g.writer.line(field.Name + " " + g.typeName(field.Type))
-		}
-		g.writer.indent--
-		g.writer.line("}")
-		g.writer.line("func copy" + value.Name + "(value " + value.Name + ") " + value.Name + " {")
-		g.writer.indent++
-		fields := make([]string, 0, len(value.Fields))
-		for _, field := range value.Fields {
-			fields = append(fields, field.Name+": "+g.detach("value."+field.Name, field.Type))
-		}
-		g.writer.line("return " + value.Name + "{" + strings.Join(fields, ", ") + "}")
-		g.writer.indent--
-		g.writer.line("}")
-	case "enum":
-		g.enums[value.Name] = value.Variants
-		g.writer.line("type " + value.Name + "Kind uint8")
-		g.writer.line("const (")
-		g.writer.indent++
-		for index, variant := range value.Variants {
-			line := value.Name + variant.Name
-			if index == 0 {
-				line += " " + value.Name + "Kind = iota"
-			}
-			g.writer.line(line)
-		}
-		g.writer.indent--
-		g.writer.line(")")
-		g.writer.line("type " + value.Name + " struct {")
-		g.writer.indent++
-		g.writer.line("kind " + value.Name + "Kind")
-		for _, variant := range value.Variants {
-			if variant.Payload != nil {
-				g.writer.line(strings.ToLower(variant.Name) + " " + g.typeName(variant.Payload))
-			}
-		}
-		g.writer.indent--
-		g.writer.line("}")
-		g.writer.line("func copy" + value.Name + "(value " + value.Name + ") " + value.Name + " {")
-		g.writer.indent++
-		g.writer.line("switch value.kind {")
-		g.writer.indent++
-		for _, variant := range value.Variants {
-			fields := "kind: " + value.Name + variant.Name
-			if variant.Payload != nil {
-				name := strings.ToLower(variant.Name)
-				fields += ", " + name + ": " + g.detach("value."+name, variant.Payload)
-			}
-			g.writer.line("case " + value.Name + variant.Name + ": return " + value.Name + "{" + fields + "}")
-		}
-		g.writer.indent--
-		g.writer.line("}")
-		g.writer.line("panic(\"unknown enum variant\")")
-		g.writer.indent--
-		g.writer.line("}")
-	case "function":
-		parameters := make([]string, 0, len(value.Parameters))
-		for _, parameter := range value.Parameters {
-			parameters = append(parameters, parameter.Name+" "+g.typeName(parameter.Type))
-		}
-		g.writer.line(fmt.Sprintf("func %s(%s) %s {", value.Name, strings.Join(parameters, ", "), g.typeName(value.ReturnType)))
-		g.writer.indent++
-		for _, parameter := range value.Parameters {
-			if detached := g.detach(parameter.Name, parameter.Type); detached != parameter.Name {
-				g.writer.line(parameter.Name + " = " + detached)
-			}
-		}
-		g.statements(value.Body)
-		g.writer.indent--
-		g.writer.line("}")
-	default:
-		reject("unknown item kind " + value.Kind)
-	}
-	g.writer.line("")
 }
 
 func Transpile(input []byte) (output []byte, err error) {
@@ -470,22 +280,43 @@ func Transpile(input []byte) (output []byte, err error) {
 	if document.SchemaVersion != 1 {
 		return nil, fmt.Errorf("unsupported AST version %d", document.SchemaVersion)
 	}
-	generator := generator{enums: make(map[string][]variant), types: make(map[string]bool)}
-	generator.writer.line("package generated")
-	generator.writer.line("")
-	generator.writer.line("import \"unicode/utf8\"")
-	generator.writer.line("")
-	generator.prelude()
+	generator := generator{
+		enums: make(map[string][]variant), structs: make(map[string]*node),
+		types: make(map[string]bool), names: make(map[string]string),
+		constants:  make(map[string]*node),
+		publicEnum: make(map[string]bool),
+	}
 	for _, item := range document.Items {
+		if item == nil {
+			continue
+		}
+		generator.names[item.Name] = casedName(item.Name, item.Visibility == "public")
+		if item.Kind == "constant" {
+			generator.constants[item.Name] = item.Type
+		}
 		if item != nil && item.Kind == "enum" {
 			generator.enums[item.Name] = item.Variants
+			generator.publicEnum[item.Name] = item.Visibility == "public"
 		}
 		if item != nil && (item.Kind == "enum" || item.Kind == "struct") {
 			generator.types[item.Name] = true
 		}
+		if item.Kind == "struct" {
+			generator.structs[item.Name] = item
+		}
 	}
+	fset := token.NewFileSet()
+	runtime, parseError := parser.ParseFile(fset, "runtime/prelude.go", runtimeSource, 0)
+	if parseError != nil {
+		return nil, parseError
+	}
+	file := &ast.File{Name: ast.NewIdent("generated"), Decls: append([]ast.Decl(nil), runtime.Decls...)}
 	for _, item := range document.Items {
-		generator.item(item)
+		file.Decls = append(file.Decls, generator.goItem(item)...)
 	}
-	return format.Source([]byte(generator.writer.text.String()))
+	var outputBuffer bytes.Buffer
+	if formatError := format.Node(&outputBuffer, fset, file); formatError != nil {
+		return nil, formatError
+	}
+	return outputBuffer.Bytes(), nil
 }

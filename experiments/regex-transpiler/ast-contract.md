@@ -4,6 +4,8 @@ The Rust parser accepts source text and returns a JSON syntax tree. Validation
 happens before serialization. The same tree is consumed by the Go and TypeScript
 transpilers; neither target parses Rust or applies a target-specific allowlist.
 The tree describes the accepted Rust syntax, not generated-language operations.
+Identifiers retain their Rust spelling in the tree. Each target assigns its own
+casing when emitting declarations and references.
 
 The envelope has `schemaVersion` and source-ordered `items`. Every node has a
 `kind` discriminator. A new kind or field changes the contract and requires both
@@ -121,6 +123,8 @@ kinds are `integer`, `character`, `boolean`, `path`, `parenthesized`, `cast`, `b
 `method-call` preserves its receiver, name, and ordered arguments; `call`
 preserves its callee and ordered arguments. The validator admits only the
 specific methods and constructors in the supported Rust dialect.
+An `if` statement may carry an `elseBody` list. An `else if` appears as a nested
+`if` statement in that list. Branches do not yield values.
 
 Integer literals are decimal strings, not JSON numbers, to avoid precision
 loss at the JavaScript boundary. Character literals carry one Unicode scalar

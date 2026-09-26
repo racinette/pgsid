@@ -1,0 +1,56 @@
+const MAX_SHARED_INDEX = 2147483647
+
+function checkedIndex(value: number): number {
+  if (!Number.isInteger(value) || value < 0 || value > MAX_SHARED_INDEX)
+    throw new RangeError('index outside shared numeric range')
+  return value
+}
+
+function checkedI32(value: number): number {
+  if (!Number.isInteger(value) || value < -2147483648 || value > MAX_SHARED_INDEX)
+    throw new RangeError('signed integer outside shared numeric range')
+  return value
+}
+
+function checkedAdd(left: number, right: number): number {
+  checkedIndex(left)
+  checkedIndex(right)
+  if (right > MAX_SHARED_INDEX - left) throw new RangeError('shared numeric overflow')
+  return left + right
+}
+
+function checkedSubtract(left: number, right: number): number {
+  checkedIndex(left)
+  checkedIndex(right)
+  if (right > left) throw new RangeError('shared numeric underflow')
+  return left - right
+}
+
+function checkedChar(value: string): string {
+  const points = Array.from(value)
+  if (points.length !== 1 || (value.codePointAt(0)! >= 0xd800 && value.codePointAt(0)! <= 0xdfff))
+    throw new RangeError('invalid Unicode scalar')
+  return value
+}
+
+function asciiLowercase(value: string): string {
+  const codepoint = checkedChar(value).codePointAt(0)!
+  return codepoint >= 65 && codepoint <= 90 ? String.fromCodePoint(codepoint + 32) : value
+}
+
+function checkedString(value: string): string {
+  if (value.length > MAX_SHARED_INDEX) throw new RangeError('string outside shared numeric range')
+  for (const character of value) checkedChar(character)
+  return value
+}
+
+function checkedChars(value: string[]): string[] {
+  if (value.length > MAX_SHARED_INDEX) throw new RangeError('vector outside shared numeric range')
+  return Array.from(value, checkedChar)
+}
+
+function indexChar(values: string[], index: number): string {
+  if (!Number.isSafeInteger(index) || index < 0 || index >= values.length)
+    throw new RangeError('index out of bounds')
+  return values[index]!
+}

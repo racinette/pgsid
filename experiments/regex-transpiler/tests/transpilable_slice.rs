@@ -311,6 +311,14 @@ fn simple_advanced_search_matches_the_live_engine() {
                 "\\A😀\\Z",
                 "\\A^a",
                 "a$\\Z",
+                "\\m",
+                "\\M",
+                "\\y",
+                "\\Y",
+                "\\ma",
+                "a\\M",
+                "a\\Y",
+                "\\yA",
             ] {
                 let engine::CompileOutcome::Ready(program) = engine::compile(
                     pattern,
@@ -326,7 +334,7 @@ fn simple_advanced_search_matches_the_live_engine() {
                     "", "a", "a😀b", "a\nb", "a😀\nb", "\na", "a\n", "Åβ😀", "\na\n", "😀\n",
                     "a.b", "a+b", "^a", "a$", "a\\b", "(a)", "[a]", "zabd", "zacd", "zaed", "ba",
                     ".", "^", "β", "\n", "c", "a\nc", "abc", "zac", "B", "5", "y", "m", "a2b", "-",
-                    "]", "za]", "a😀", "a😀\n",
+                    "]", "za]", "a😀", "a😀\n", "a-", "ab", "éa", "_a", "-a", "5_", "😀a",
                 ] {
                     for from in 0..=subject.chars().count() + 1 {
                         let expected = match program.find(subject, from) {
@@ -416,6 +424,14 @@ fn support_classification_matches_search_certainty() {
         "\\Aa",
         "a\\Z",
         "\\A😀\\Z",
+        "\\m",
+        "\\M",
+        "\\y",
+        "\\Y",
+        "\\ma",
+        "a\\M",
+        "a\\Y",
+        "\\yA",
         "[--a]",
         "[a--]",
         "[---]",

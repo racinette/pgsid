@@ -5,6 +5,7 @@ experiment_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 repo_dir=$(cd "$experiment_dir/../.." && pwd)
 target_dir=/tmp/pgsid-regex-transpiler-target
 artifact_dir="$repo_dir/artifacts/regex-transpiler-spike"
+smoke_dir="$artifact_dir/smoke"
 wasm_lib_dir=$(rustc --print target-libdir --target wasm32-unknown-unknown)
 
 if [[ ! -d "$wasm_lib_dir" ]]; then
@@ -20,7 +21,7 @@ cd "$repo_dir"
 node --import tsx "$experiment_dir/typescript/rust-wasm.ts" \
   "$target_dir/wasm32-unknown-unknown/release/regex_transpiler_spike.wasm" \
   "$experiment_dir/transpiler_smoke.rs" \
-  "$artifact_dir/from-rust-wasm.ast.json"
+  "$smoke_dir/from-rust-wasm.ast.json"
 
 node -e 'const fs = require("node:fs"); const a = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); const b = JSON.parse(fs.readFileSync(process.argv[2], "utf8")); if (JSON.stringify(a) !== JSON.stringify(b)) process.exit(1)' \
-  "$artifact_dir/smoke.ast.json" "$artifact_dir/from-rust-wasm.ast.json"
+  "$smoke_dir/engine.ast.json" "$smoke_dir/from-rust-wasm.ast.json"

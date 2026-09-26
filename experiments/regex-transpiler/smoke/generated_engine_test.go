@@ -3,114 +3,114 @@ package generated
 import "testing"
 
 func TestLiteralSlice(t *testing.T) {
-	found := find_literal("😀", "a😀a", 0, true)
-	if found != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 2}}) {
+	found := FindLiteral("😀", "a😀a", 0, true)
+	if found != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Errorf("literal match = %+v", found)
 	}
-	empty := find_literal("", "a😀a", 3, true)
-	if empty != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 3, end: 3}}) {
+	empty := FindLiteral("", "a😀a", 3, true)
+	if empty != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 3, End: 3}}) {
 		t.Errorf("empty literal match = %+v", empty)
 	}
-	if find_literal("a", "a😀a", 4, true).kind != MatchOutcomeNoMatch {
+	if FindLiteral("a", "a😀a", 4, true).Kind != MatchOutcomeNoMatch {
 		t.Error("out-of-range start matched")
 	}
-	if find_literal("a", "bA", 0, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 2}}) {
+	if FindLiteral("a", "bA", 0, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Error("ASCII case folding missed match")
 	}
-	if find_literal("Z", "z", 0, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 0, end: 1}}) {
+	if FindLiteral("Z", "z", 0, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
 		t.Error("ASCII case folding missed range endpoint")
 	}
-	if find_literal("a", "A", 0, true).kind != MatchOutcomeNoMatch {
+	if FindLiteral("a", "A", 0, true).Kind != MatchOutcomeNoMatch {
 		t.Error("case sensitive search matched different case")
 	}
-	if find_literal("Å", "å", 0, false).kind != MatchOutcomeNoMatch || find_literal("K", "K", 0, false).kind != MatchOutcomeNoMatch {
+	if FindLiteral("Å", "å", 0, false).Kind != MatchOutcomeNoMatch || FindLiteral("K", "K", 0, false).Kind != MatchOutcomeNoMatch {
 		t.Error("non-ASCII case folding changed match")
 	}
-	if find_any_character("\n😀", 0, true) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 0, end: 1}}) {
+	if FindAnyCharacter("\n😀", 0, true) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
 		t.Error("ordinary dot skipped newline")
 	}
-	if find_any_character("\n😀", 0, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 2}}) {
+	if FindAnyCharacter("\n😀", 0, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Error("newline-sensitive dot missed Unicode scalar")
 	}
-	if find_any_character("\n", 0, false).kind != MatchOutcomeNoMatch || find_any_character("😀", 1, true).kind != MatchOutcomeNoMatch {
+	if FindAnyCharacter("\n", 0, false).Kind != MatchOutcomeNoMatch || FindAnyCharacter("😀", 1, true).Kind != MatchOutcomeNoMatch {
 		t.Error("dot matched outside the allowed position range")
 	}
-	if find_simple_advanced("a.b", "za😀b", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 4}}) {
+	if FindSimpleAdvanced("a.b", "za😀b", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 4}}) {
 		t.Error("simple sequence missed Unicode wildcard")
 	}
-	if find_simple_advanced("a.b", "a\nb", 0, true, false, true).kind != MatchOutcomeNoMatch {
+	if FindSimpleAdvanced("a.b", "a\nb", 0, true, false, true).Kind != MatchOutcomeNoMatch {
 		t.Error("simple sequence crossed excluded newline")
 	}
-	if find_simple_advanced("a*", "aaa", 0, true, true, false).kind != MatchOutcomeUncertain {
+	if FindSimpleAdvanced("a*", "aaa", 0, true, true, false).Kind != MatchOutcomeUncertain {
 		t.Error("unsupported regex operator stayed definite")
 	}
-	if find_simple_advanced("^a$", "\na\n", 0, true, false, true) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 2}}) {
+	if FindSimpleAdvanced("^a$", "\na\n", 0, true, false, true) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Error("line anchors missed interior line")
 	}
-	if find_simple_advanced("^a$", "\na\n", 0, true, true, false).kind != MatchOutcomeNoMatch {
+	if FindSimpleAdvanced("^a$", "\na\n", 0, true, true, false).Kind != MatchOutcomeNoMatch {
 		t.Error("ordinary anchors matched interior line")
 	}
-	if !supports_simple_advanced("a\\.b") || supports_simple_advanced("a\\nb") {
+	if !SupportsSimpleAdvanced("a\\.b") || SupportsSimpleAdvanced("a\\nb") {
 		t.Error("escaped punctuation support classification changed")
 	}
-	if find_simple_advanced("a\\.b", "za.b", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 4}}) {
+	if FindSimpleAdvanced("a\\.b", "za.b", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 4}}) {
 		t.Error("escaped dot missed literal match")
 	}
-	if find_simple_advanced("\\^a", "z^a", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 3}}) {
+	if FindSimpleAdvanced("\\^a", "z^a", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 3}}) {
 		t.Error("escaped anchor changed position")
 	}
-	if !supports_simple_advanced("a[bc]d") || !supports_simple_advanced("a[b-d]") {
+	if !SupportsSimpleAdvanced("a[bc]d") || !SupportsSimpleAdvanced("a[b-d]") {
 		t.Error("literal class support classification changed")
 	}
-	if find_simple_advanced("a[bc]d", "zacd", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 4}}) {
+	if FindSimpleAdvanced("a[bc]d", "zacd", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 4}}) {
 		t.Error("literal class missed sequence match")
 	}
-	if find_simple_advanced("[A]", "a", 0, false, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 0, end: 1}}) {
+	if FindSimpleAdvanced("[A]", "a", 0, false, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
 		t.Error("literal class missed ASCII case fold")
 	}
-	if !supports_simple_advanced("[^ab]") || !supports_simple_advanced("[^a-z]") {
+	if !SupportsSimpleAdvanced("[^ab]") || !SupportsSimpleAdvanced("[^a-z]") {
 		t.Error("negated class support classification changed")
 	}
-	if find_simple_advanced("[^a]", "\n", 0, true, false, false).kind != MatchOutcomeNoMatch {
+	if FindSimpleAdvanced("[^a]", "\n", 0, true, false, false).Kind != MatchOutcomeNoMatch {
 		t.Error("newline-sensitive negated class matched newline")
 	}
-	if find_simple_advanced("[^a]", "\n", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 0, end: 1}}) {
+	if FindSimpleAdvanced("[^a]", "\n", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
 		t.Error("ordinary negated class missed newline")
 	}
-	if !supports_simple_advanced("[a-c]") || supports_simple_advanced("[z-a]") {
+	if !SupportsSimpleAdvanced("[a-c]") || SupportsSimpleAdvanced("[z-a]") {
 		t.Error("range support classification changed")
 	}
-	if find_simple_advanced("[A-C]", "b", 0, false, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 0, end: 1}}) {
+	if FindSimpleAdvanced("[A-C]", "b", 0, false, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
 		t.Error("case insensitive range missed ASCII letter")
 	}
-	if find_simple_advanced("[0-9]", "😀", 0, true, true, false).kind != MatchOutcomeNoMatch {
+	if FindSimpleAdvanced("[0-9]", "😀", 0, true, true, false).Kind != MatchOutcomeNoMatch {
 		t.Error("ASCII range matched supplementary Unicode scalar")
 	}
-	if !supports_simple_advanced("[-a]") || !supports_simple_advanced("[]a]") || supports_simple_advanced("[--a]") {
+	if !SupportsSimpleAdvanced("[-a]") || !SupportsSimpleAdvanced("[]a]") || SupportsSimpleAdvanced("[--a]") {
 		t.Error("class edge punctuation support classification changed")
 	}
-	if find_simple_advanced("[-a]", "-", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 0, end: 1}}) {
+	if FindSimpleAdvanced("[-a]", "-", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
 		t.Error("leading hyphen missed literal match")
 	}
-	if find_simple_advanced("[]a]", "z]", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 1, end: 2}}) {
+	if FindSimpleAdvanced("[]a]", "z]", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Error("leading closing bracket missed literal match")
 	}
-	if !supports_simple_advanced("\\A😀\\Z") {
+	if !SupportsSimpleAdvanced("\\A😀\\Z") {
 		t.Error("absolute anchors were rejected")
 	}
-	if find_simple_advanced("\\Aa", "\na", 0, true, true, true).kind != MatchOutcomeNoMatch {
+	if FindSimpleAdvanced("\\Aa", "\na", 0, true, true, true).Kind != MatchOutcomeNoMatch {
 		t.Error("absolute start anchor matched after newline")
 	}
-	if find_simple_advanced("\\Z", "a\n", 0, true, true, false) != (MatchOutcome{kind: MatchOutcomeFound, found: MatchSpan{start: 2, end: 2}}) {
+	if FindSimpleAdvanced("\\Z", "a\n", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 2, End: 2}}) {
 		t.Error("absolute end anchor matched before final newline")
 	}
-	if find_simple_advanced("\\A", "a", 1, true, true, false).kind != MatchOutcomeNoMatch {
+	if FindSimpleAdvanced("\\A", "a", 1, true, true, false).Kind != MatchOutcomeNoMatch {
 		t.Error("absolute start anchor ignored search offset")
 	}
-	if charge_work(1999999, 1) != (WorkOutcome{kind: WorkOutcomeReady, ready: 2000000}) {
+	if ChargeWork(1999999, 1) != (WorkOutcome{Kind: WorkOutcomeReady, Ready: 2000000}) {
 		t.Error("work charge at budget changed result")
 	}
-	if charge_work(2000000, 1).kind != WorkOutcomeUncertain {
+	if ChargeWork(2000000, 1).Kind != WorkOutcomeUncertain {
 		t.Error("work charge over budget stayed definite")
 	}
 }

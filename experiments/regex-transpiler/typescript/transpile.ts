@@ -1,4 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs'
+import ts from 'typescript'
 
 type TypeNode =
   | { kind: 'path'; segments: string[]; typeArguments?: TypeNode[] }
@@ -17,7 +18,8 @@ type Expr =
   | { kind: 'method-call'; receiver: Expr; method: string; arguments: Expr[] }
   | { kind: 'struct-literal'; path: string[]; fields: { name: string; value: Expr }[] }
   | { kind: 'call'; callee: Expr; arguments: Expr[] }
-  | { kind: 'if' | 'while'; condition: Expr; body: Stmt[] }
+  | { kind: 'if'; condition: Expr; body: Stmt[]; elseBody?: Stmt[] }
+  | { kind: 'while'; condition: Expr; body: Stmt[] }
   | { kind: 'return'; value: Expr }
   | { kind: 'break' }
 
@@ -57,24 +59,56 @@ type Item =
 
 type Document = { schemaVersion: number; items: Item[] }
 
-class Writer {
-  readonly lines: string[] = []
-  indent = 0
-
-  line(value = ''): void {
-    this.lines.push(`${'  '.repeat(this.indent)}${value}`)
-  }
-
-  text(): string {
-    return `${this.lines.join('\n')}\n`
-  }
+function pascalCase(name: string): string {
+  return name
+    .split('_')
+    .filter(Boolean)
+    .map((part) => {
+      const word = part.toUpperCase() === part ? part.toLowerCase() : part
+      return word[0]!.toUpperCase() + word.slice(1)
+    })
+    .join('')
 }
 
+function camelCase(name: string): string {
+  const result = pascalCase(name)
+  return result[0]!.toLowerCase() + result.slice(1)
+}
+
+const f = ts.factory
+const identifier = (name: string): ts.Identifier => f.createIdentifier(name)
+const call = (name: string, ...args: ts.Expression[]): ts.Expression =>
+  f.createCallExpression(identifier(name), undefined, args)
+const member = (base: ts.Expression, name: string): ts.Expression =>
+  f.createPropertyAccessExpression(base, name)
+const object = (fields: [string, ts.Expression][]): ts.Expression =>
+  f.createObjectLiteralExpression(
+    fields.map(([name, value]) => f.createPropertyAssignment(name, value)),
+  )
+const parameter = (name: string, type: ts.TypeNode): ts.ParameterDeclaration =>
+  f.createParameterDeclaration(undefined, undefined, name, undefined, type)
+const exported = (visibility: string): ts.Modifier[] | undefined =>
+  visibility === 'public' ? [f.createModifier(ts.SyntaxKind.ExportKeyword)] : undefined
+const comparison = (
+  left: ts.Expression,
+  operator: ts.BinaryOperator,
+  right: ts.Expression,
+): ts.Expression => f.createBinaryExpression(left, operator, right)
+const andAll = (values: ts.Expression[]): ts.Expression =>
+  values.length === 0
+    ? f.createTrue()
+    : values
+        .slice(1)
+        .reduce(
+          (left, right) => comparison(left, ts.SyntaxKind.AmpersandAmpersandToken, right),
+          values[0]!,
+        )
+
 class Transpiler {
-  private readonly writer = new Writer()
   private readonly structs = new Map<string, Extract<Item, { kind: 'struct' }>>()
   private readonly enums = new Map<string, Extract<Item, { kind: 'enum' }>>()
   private readonly constants = new Map<string, string>()
+  private readonly names = new Map<string, string>()
   private readonly copy = new Set<string>()
   private readonly equality = new Set<string>()
 
@@ -82,6 +116,12 @@ class Transpiler {
     if (document.schemaVersion !== 1)
       throw new Error(`unsupported AST version ${document.schemaVersion}`)
     for (const item of document.items) {
+      this.names.set(
+        item.name,
+        item.kind === 'struct' || item.kind === 'enum'
+          ? pascalCase(item.name)
+          : camelCase(item.name),
+      )
       if (item.kind === 'constant') this.constants.set(item.name, this.path(item.type))
       if (item.kind === 'struct' || item.kind === 'enum') {
         if (item.kind === 'struct') this.structs.set(item.name, item)
@@ -95,50 +135,57 @@ class Transpiler {
   private path(type: TypeNode): string {
     if (type.kind === 'reference') return `&${this.path(type.inner)}`
     const name = type.segments.join('::')
-    if (type.typeArguments)
-      return `${name}<${type.typeArguments.map((item) => this.path(item)).join(',')}>`
-    return name
+    return type.typeArguments
+      ? `${name}<${type.typeArguments.map((item) => this.path(item)).join(',')}>`
+      : name
   }
 
-  private type(type: TypeNode): string {
+  private type(type: TypeNode): ts.TypeNode {
     return this.typeName(this.path(type))
   }
 
-  private typeName(name: string): string {
-    if (['usize', 'u32', 'i32'].includes(name)) return 'number'
-    if (name === 'bool') return 'boolean'
-    if (['char', 'str', '&str'].includes(name)) return 'string'
-    if (name === 'Vec<char>') return 'string[]'
-    if (this.structs.has(name) || this.enums.has(name)) return name
+  private typeName(name: string): ts.TypeNode {
+    if (['usize', 'u32', 'i32'].includes(name))
+      return f.createKeywordTypeNode(ts.SyntaxKind.NumberKeyword)
+    if (name === 'bool') return f.createKeywordTypeNode(ts.SyntaxKind.BooleanKeyword)
+    if (['char', 'str', '&str'].includes(name))
+      return f.createKeywordTypeNode(ts.SyntaxKind.StringKeyword)
+    if (name === 'Vec<char>')
+      return f.createArrayTypeNode(f.createKeywordTypeNode(ts.SyntaxKind.StringKeyword))
+    if (this.structs.has(name) || this.enums.has(name))
+      return f.createTypeReferenceNode(this.names.get(name)!)
     throw new Error(`type outside TypeScript lowering: ${name}`)
   }
 
-  private clone(value: string, type: TypeNode | string): string {
+  private clone(value: ts.Expression, type: TypeNode | string): ts.Expression {
     const name = typeof type === 'string' ? type : this.path(type)
-    return this.copy.has(name) ? `copy${name}(${value})` : value
+    return this.copy.has(name) ? call(`copy${this.names.get(name)!}`, value) : value
   }
 
-  private detach(value: string, type: TypeNode | string): string {
+  private detach(value: ts.Expression, type: TypeNode | string): ts.Expression {
     const name = typeof type === 'string' ? type : this.path(type)
-    if (name === 'usize' || name === 'u32') return `checkedIndex(${value})`
-    if (name === 'i32') return `checkedI32(${value})`
-    if (name === 'char') return `checkedChar(${value})`
-    if (name === '&str') return `checkedString(${value})`
-    if (name === 'Vec<char>') return `checkedChars(${value})`
-    return this.structs.has(name) || this.enums.has(name) ? `copy${name}(${value})` : value
+    if (name === 'usize' || name === 'u32') return call('checkedIndex', value)
+    if (name === 'i32') return call('checkedI32', value)
+    if (name === 'char') return call('checkedChar', value)
+    if (name === '&str') return call('checkedString', value)
+    if (name === 'Vec<char>') return call('checkedChars', value)
+    return this.structs.has(name) || this.enums.has(name)
+      ? call(`copy${this.names.get(name)!}`, value)
+      : value
   }
 
-  private equal(left: string, right: string, type: TypeNode | string): string {
+  private equal(left: ts.Expression, right: ts.Expression, type: TypeNode | string): ts.Expression {
     const name = typeof type === 'string' ? type : this.path(type)
-    return this.equality.has(name) ? `equal${name}(${left}, ${right})` : `${left} === ${right}`
+    return this.equality.has(name)
+      ? call(`equal${this.names.get(name)!}`, left, right)
+      : comparison(left, ts.SyntaxKind.EqualsEqualsEqualsToken, right)
   }
 
   private infer(value: Expr, locals: Map<string, string>): string | undefined {
     switch (value.kind) {
       case 'path':
-        if (value.segments.length === 2 && this.enums.has(value.segments[0]!)) {
+        if (value.segments.length === 2 && this.enums.has(value.segments[0]!))
           return value.segments[0]
-        }
         return (
           locals.get(value.segments.join('::')) ?? this.constants.get(value.segments.join('::'))
         )
@@ -153,9 +200,8 @@ class Transpiler {
       case 'cast':
         return this.path(value.targetType)
       case 'binary':
-        if (value.operator === 'add' || value.operator === 'subtract') {
+        if (value.operator === 'add' || value.operator === 'subtract')
           return this.infer(value.left, locals)
-        }
         return value.operator === 'add-assign' ? undefined : 'bool'
       case 'field': {
         const base = this.infer(value.base, locals)
@@ -185,82 +231,106 @@ class Transpiler {
     }
   }
 
-  private expression(value: Expr, locals: Map<string, string>): string {
+  private expression(value: Expr, locals: Map<string, string>): ts.Expression {
     switch (value.kind) {
       case 'path': {
-        if (value.segments.length === 1) return value.segments[0]!
-        const [enumName, variant] = value.segments
-        const item = this.enums.get(enumName!)
-        if (!item?.variants.some((candidate) => candidate.name === variant && !candidate.payload)) {
-          throw new Error(`unknown unit variant ${value.segments.join('::')}`)
+        if (value.segments.length === 1) {
+          const name = value.segments[0]!
+          return identifier(
+            locals.has(name) ? camelCase(name) : (this.names.get(name) ?? camelCase(name)),
+          )
         }
-        return `{ kind: '${variant}' }`
+        const [enumName, variant] = value.segments
+        if (
+          !this.enums
+            .get(enumName!)
+            ?.variants.some((candidate) => candidate.name === variant && !candidate.payload)
+        )
+          throw new Error(`unknown unit variant ${value.segments.join('::')}`)
+        return object([['kind', f.createStringLiteral(variant!)]])
       }
       case 'integer':
-        return value.digits
+        return f.createNumericLiteral(value.digits)
       case 'character':
-        return JSON.stringify(value.scalar)
+        return f.createStringLiteral(value.scalar)
       case 'boolean':
-        return value.state ? 'true' : 'false'
+        return value.state ? f.createTrue() : f.createFalse()
       case 'parenthesized':
-        return `(${this.expression(value.inner, locals)})`
+        return f.createParenthesizedExpression(this.expression(value.inner, locals))
       case 'cast':
         if (this.path(value.targetType) !== 'u32') throw new Error('unsupported cast target')
-        return `checkedChar(${this.expression(value.value, locals)}).codePointAt(0)!`
+        return f.createNonNullExpression(
+          f.createCallExpression(
+            member(call('checkedChar', this.expression(value.value, locals)), 'codePointAt'),
+            undefined,
+            [f.createNumericLiteral(0)],
+          ),
+        )
       case 'binary': {
         const left = this.expression(value.left, locals)
         const right = this.expression(value.right, locals)
-        if (value.operator === 'add') return `checkedAdd(${left}, ${right})`
-        if (value.operator === 'subtract') return `checkedSubtract(${left}, ${right})`
-        if (value.operator === 'add-assign') return `${left} = checkedAdd(${left}, ${right})`
+        if (value.operator === 'add') return call('checkedAdd', left, right)
+        if (value.operator === 'subtract') return call('checkedSubtract', left, right)
+        if (value.operator === 'add-assign')
+          return comparison(left, ts.SyntaxKind.EqualsToken, call('checkedAdd', left, right))
         if (value.operator === 'equal' || value.operator === 'not-equal') {
           const equality = this.equal(left, right, this.infer(value.left, locals) ?? '')
-          return value.operator === 'equal' ? equality : `!(${equality})`
+          return value.operator === 'equal'
+            ? equality
+            : f.createPrefixUnaryExpression(
+                ts.SyntaxKind.ExclamationToken,
+                f.createParenthesizedExpression(equality),
+              )
         }
-        const symbols: Record<string, string> = {
-          'less-than': '<',
-          'less-or-equal': '<=',
-          'greater-than': '>',
-          'greater-or-equal': '>=',
-          and: '&&',
-          or: '||',
+        const symbols: Record<string, ts.BinaryOperator> = {
+          'less-than': ts.SyntaxKind.LessThanToken,
+          'less-or-equal': ts.SyntaxKind.LessThanEqualsToken,
+          'greater-than': ts.SyntaxKind.GreaterThanToken,
+          'greater-or-equal': ts.SyntaxKind.GreaterThanEqualsToken,
+          and: ts.SyntaxKind.AmpersandAmpersandToken,
+          or: ts.SyntaxKind.BarBarToken,
         }
         const operator = symbols[value.operator]
-        if (!operator) throw new Error(`unknown operator ${value.operator}`)
-        return `${left} ${operator} ${right}`
+        if (operator === undefined) throw new Error(`unknown operator ${value.operator}`)
+        return comparison(left, operator, right)
       }
       case 'field':
-        return `${this.expression(value.base, locals)}.${value.member}`
+        return member(this.expression(value.base, locals), camelCase(value.member))
       case 'index':
-        return `indexChar(${this.expression(value.base, locals)}, checkedIndex(${this.expression(value.index, locals)}))`
-      case 'method-call': {
-        if (value.method === 'len' && value.arguments.length === 0) {
-          return `${this.expression(value.receiver, locals)}.length`
-        }
-        if (value.method === 'to_ascii_lowercase' && value.arguments.length === 0) {
-          return `asciiLowercase(${this.expression(value.receiver, locals)})`
-        }
+        return call(
+          'indexChar',
+          this.expression(value.base, locals),
+          call('checkedIndex', this.expression(value.index, locals)),
+        )
+      case 'method-call':
+        if (value.method === 'len' && value.arguments.length === 0)
+          return member(this.expression(value.receiver, locals), 'length')
+        if (value.method === 'to_ascii_lowercase' && value.arguments.length === 0)
+          return call('asciiLowercase', this.expression(value.receiver, locals))
         if (
           value.method === 'collect' &&
           value.arguments.length === 0 &&
           value.receiver.kind === 'method-call' &&
           value.receiver.method === 'chars' &&
           value.receiver.arguments.length === 0
-        ) {
-          return `Array.from(${this.expression(value.receiver.receiver, locals)})`
-        }
+        )
+          return f.createCallExpression(member(identifier('Array'), 'from'), undefined, [
+            this.expression(value.receiver.receiver, locals),
+          ])
         throw new Error(`unsupported method ${value.method}`)
-      }
       case 'struct-literal': {
         const item = this.structs.get(value.path.join('::'))
         if (!item) throw new Error(`unknown struct ${value.path.join('::')}`)
-        return `{ ${value.fields
-          .map((field) => {
+        return object(
+          value.fields.map((field) => {
             const declaration = item.fields.find((candidate) => candidate.name === field.name)
             if (!declaration) throw new Error(`unknown field ${item.name}.${field.name}`)
-            return `${field.name}: ${this.clone(this.expression(field.value, locals), declaration.type)}`
-          })
-          .join(', ')} }`
+            return [
+              camelCase(field.name),
+              this.clone(this.expression(field.value, locals), declaration.type),
+            ]
+          }),
+        )
       }
       case 'call': {
         if (
@@ -274,231 +344,300 @@ class Transpiler {
           .get(enumName!)
           ?.variants.find((candidate) => candidate.name === variant)?.payload
         if (!payload) throw new Error(`unknown payload variant ${enumName}::${variant}`)
-        return `{ kind: '${variant}', value: ${this.clone(this.expression(value.arguments[0]!, locals), payload)} }`
+        return object([
+          ['kind', f.createStringLiteral(variant!)],
+          ['value', this.clone(this.expression(value.arguments[0]!, locals), payload)],
+        ])
       }
       default:
         throw new Error(`expression ${value.kind} needs statement lowering`)
     }
   }
 
-  private statements(statements: Stmt[], locals: Map<string, string>): void {
+  private statements(statements: Stmt[], locals: Map<string, string>): ts.Statement[] {
+    const result: ts.Statement[] = []
     for (const [index, statement] of statements.entries()) {
       if (statement.kind === 'local') {
-        const name = statement.binding.name
+        const rustName = statement.binding.name
         const type = statement.type
           ? this.path(statement.type)
           : this.infer(statement.initializer, locals)
-        if (!type) throw new Error(`cannot infer ${name}`)
+        if (!type) throw new Error(`cannot infer ${rustName}`)
         const value = this.clone(this.expression(statement.initializer, locals), type)
-        this.writer.line(
-          `${statement.binding.mutable ? 'let' : 'const'} ${name}: ${this.typeName(type)} = ${value};`,
+        result.push(
+          f.createVariableStatement(
+            undefined,
+            f.createVariableDeclarationList(
+              [
+                f.createVariableDeclaration(
+                  camelCase(rustName),
+                  undefined,
+                  this.typeName(type),
+                  value,
+                ),
+              ],
+              statement.binding.mutable ? ts.NodeFlags.Let : ts.NodeFlags.Const,
+            ),
+          ),
         )
-        locals.set(name, type)
+        locals.set(rustName, type)
         continue
       }
       const value = statement.value
-      if (value.kind === 'return') {
-        this.writer.line(`return ${this.expression(value.value, locals)};`)
-      } else if (value.kind === 'break') {
-        this.writer.line('break;')
-      } else if (value.kind === 'if' || value.kind === 'while') {
-        const condition = this.expression(value.condition, locals)
-        this.writer.line(`${value.kind} (${condition}) {`)
-        this.writer.indent++
-        this.statements(value.body, new Map(locals))
-        this.writer.indent--
-        this.writer.line('}')
-      } else {
-        const result = this.expression(value, locals)
-        this.writer.line(
+      if (value.kind === 'return')
+        result.push(f.createReturnStatement(this.expression(value.value, locals)))
+      else if (value.kind === 'break') result.push(f.createBreakStatement())
+      else if (value.kind === 'if')
+        result.push(
+          f.createIfStatement(
+            this.expression(value.condition, locals),
+            f.createBlock(this.statements(value.body, new Map(locals)), true),
+            value.elseBody
+              ? f.createBlock(this.statements(value.elseBody, new Map(locals)), true)
+              : undefined,
+          ),
+        )
+      else if (value.kind === 'while')
+        result.push(
+          f.createWhileStatement(
+            this.expression(value.condition, locals),
+            f.createBlock(this.statements(value.body, new Map(locals)), true),
+          ),
+        )
+      else {
+        const expression = this.expression(value, locals)
+        result.push(
           index === statements.length - 1 && !statement.semicolon
-            ? `return ${result};`
-            : `${result};`,
+            ? f.createReturnStatement(expression)
+            : f.createExpressionStatement(expression),
         )
       }
     }
+    return result
   }
 
-  private emitStruct(item: Extract<Item, { kind: 'struct' }>): void {
-    this.writer.line(`${item.visibility === 'public' ? 'export ' : ''}interface ${item.name} {`)
-    this.writer.indent++
-    for (const field of item.fields) this.writer.line(`${field.name}: ${this.type(field.type)};`)
-    this.writer.indent--
-    this.writer.line('}')
-    this.writer.line(`function copy${item.name}(value: ${item.name}): ${item.name} {`)
-    this.writer.indent++
-    this.writer.line(
-      `return { ${item.fields.map((field) => `${field.name}: ${this.detach(`value.${field.name}`, field.type)}`).join(', ')} };`,
+  private function(
+    name: string,
+    params: ts.ParameterDeclaration[],
+    result: ts.TypeNode,
+    body: ts.Statement[],
+    visibility = 'private',
+  ): ts.FunctionDeclaration {
+    return f.createFunctionDeclaration(
+      exported(visibility),
+      undefined,
+      name,
+      undefined,
+      params,
+      result,
+      f.createBlock(body, true),
     )
-    this.writer.indent--
-    this.writer.line('}')
-    if (this.equality.has(item.name)) {
-      this.writer.line(
-        `function equal${item.name}(left: ${item.name}, right: ${item.name}): boolean {`,
-      )
-      this.writer.indent++
-      this.writer.line(
-        `return ${item.fields.map((field) => this.equal(`left.${field.name}`, `right.${field.name}`, field.type)).join(' && ')};`,
-      )
-      this.writer.indent--
-      this.writer.line('}')
-    }
   }
 
-  private emitEnum(item: Extract<Item, { kind: 'enum' }>): void {
-    this.writer.line(`${item.visibility === 'public' ? 'export ' : ''}type ${item.name} =`)
-    this.writer.indent++
-    item.variants.forEach((variant, index) =>
-      this.writer.line(
-        `| { kind: '${variant.name}'${variant.payload ? `; value: ${this.type(variant.payload)}` : ''} }${index === item.variants.length - 1 ? ';' : ''}`,
+  private emitStruct(item: Extract<Item, { kind: 'struct' }>): ts.Statement[] {
+    const name = this.names.get(item.name)!
+    const fields = item.fields.map((field) =>
+      f.createPropertySignature(undefined, camelCase(field.name), undefined, this.type(field.type)),
+    )
+    const declarations: ts.Statement[] = [
+      f.createInterfaceDeclaration(exported(item.visibility), name, undefined, undefined, fields),
+    ]
+    const nameType = f.createTypeReferenceNode(name)
+    declarations.push(
+      this.function(`copy${name}`, [parameter('value', nameType)], nameType, [
+        f.createReturnStatement(
+          object(
+            item.fields.map((field) => [
+              camelCase(field.name),
+              this.detach(member(identifier('value'), camelCase(field.name)), field.type),
+            ]),
+          ),
+        ),
+      ]),
+    )
+    if (this.equality.has(item.name))
+      declarations.push(
+        this.function(
+          `equal${name}`,
+          [parameter('left', nameType), parameter('right', nameType)],
+          f.createKeywordTypeNode(ts.SyntaxKind.BooleanKeyword),
+          [
+            f.createReturnStatement(
+              andAll(
+                item.fields.map((field) =>
+                  this.equal(
+                    member(identifier('left'), camelCase(field.name)),
+                    member(identifier('right'), camelCase(field.name)),
+                    field.type,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      )
+    return declarations
+  }
+
+  private emitEnum(item: Extract<Item, { kind: 'enum' }>): ts.Statement[] {
+    const name = this.names.get(item.name)!
+    const nameType = f.createTypeReferenceNode(name)
+    const union = f.createUnionTypeNode(
+      item.variants.map((variant) =>
+        f.createTypeLiteralNode([
+          f.createPropertySignature(
+            undefined,
+            'kind',
+            undefined,
+            f.createLiteralTypeNode(f.createStringLiteral(variant.name)),
+          ),
+          ...(variant.payload
+            ? [f.createPropertySignature(undefined, 'value', undefined, this.type(variant.payload))]
+            : []),
+        ]),
       ),
     )
-    this.writer.indent--
-    this.writer.line(`function copy${item.name}(value: ${item.name}): ${item.name} {`)
-    this.writer.indent++
-    this.writer.line('switch (value.kind) {')
-    this.writer.indent++
-    for (const variant of item.variants) {
-      this.writer.line(
-        `case '${variant.name}': return ${variant.payload ? `{ kind: '${variant.name}', value: ${this.detach('value.value', variant.payload)} }` : `{ kind: '${variant.name}' }`};`,
-      )
-    }
-    this.writer.indent--
-    this.writer.line('}')
-    this.writer.indent--
-    this.writer.line('}')
+    const declarations: ts.Statement[] = [
+      f.createTypeAliasDeclaration(exported(item.visibility), name, undefined, union),
+    ]
+    const clauses = item.variants.map((variant) =>
+      f.createCaseClause(f.createStringLiteral(variant.name), [
+        f.createReturnStatement(
+          object([
+            ['kind', f.createStringLiteral(variant.name)],
+            ...(variant.payload
+              ? [
+                  ['value', this.detach(member(identifier('value'), 'value'), variant.payload)] as [
+                    string,
+                    ts.Expression,
+                  ],
+                ]
+              : []),
+          ]),
+        ),
+      ]),
+    )
+    declarations.push(
+      this.function(`copy${name}`, [parameter('value', nameType)], nameType, [
+        f.createSwitchStatement(member(identifier('value'), 'kind'), f.createCaseBlock(clauses)),
+      ]),
+    )
     if (this.equality.has(item.name)) {
-      this.writer.line(
-        `function equal${item.name}(left: ${item.name}, right: ${item.name}): boolean {`,
-      )
-      this.writer.indent++
-      this.writer.line('if (left.kind !== right.kind) return false;')
-      for (const variant of item.variants) {
+      const body: ts.Statement[] = [
+        f.createIfStatement(
+          comparison(
+            member(identifier('left'), 'kind'),
+            ts.SyntaxKind.ExclamationEqualsEqualsToken,
+            member(identifier('right'), 'kind'),
+          ),
+          f.createReturnStatement(f.createFalse()),
+        ),
+      ]
+      for (const variant of item.variants)
         if (variant.payload)
-          this.writer.line(
-            `if (left.kind === '${variant.name}' && right.kind === '${variant.name}') return ${this.equal('left.value', 'right.value', variant.payload)};`,
+          body.push(
+            f.createIfStatement(
+              comparison(
+                comparison(
+                  member(identifier('left'), 'kind'),
+                  ts.SyntaxKind.EqualsEqualsEqualsToken,
+                  f.createStringLiteral(variant.name),
+                ),
+                ts.SyntaxKind.AmpersandAmpersandToken,
+                comparison(
+                  member(identifier('right'), 'kind'),
+                  ts.SyntaxKind.EqualsEqualsEqualsToken,
+                  f.createStringLiteral(variant.name),
+                ),
+              ),
+              f.createReturnStatement(
+                this.equal(
+                  member(identifier('left'), 'value'),
+                  member(identifier('right'), 'value'),
+                  variant.payload,
+                ),
+              ),
+            ),
           )
-      }
-      this.writer.line('return true;')
-      this.writer.indent--
-      this.writer.line('}')
+      body.push(f.createReturnStatement(f.createTrue()))
+      declarations.push(
+        this.function(
+          `equal${name}`,
+          [parameter('left', nameType), parameter('right', nameType)],
+          f.createKeywordTypeNode(ts.SyntaxKind.BooleanKeyword),
+          body,
+        ),
+      )
     }
+    return declarations
   }
 
   transpile(): string {
-    this.writer.line('const MAX_SHARED_INDEX = 2147483647;')
-    this.writer.line('function checkedIndex(value: number): number {')
-    this.writer.indent++
-    this.writer.line(
-      "if (!Number.isInteger(value) || value < 0 || value > MAX_SHARED_INDEX) throw new RangeError('index outside shared numeric range');",
+    const source = ts.createSourceFile(
+      'runtime-prelude.ts',
+      readFileSync(new URL('./runtime-prelude.ts', import.meta.url), 'utf8'),
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS,
     )
-    this.writer.line('return value;')
-    this.writer.indent--
-    this.writer.line('}')
-    this.writer.line('function checkedI32(value: number): number {')
-    this.writer.indent++
-    this.writer.line(
-      "if (!Number.isInteger(value) || value < -2147483648 || value > MAX_SHARED_INDEX) throw new RangeError('signed integer outside shared numeric range');",
-    )
-    this.writer.line('return value;')
-    this.writer.indent--
-    this.writer.line('}')
-    this.writer.line('function checkedAdd(left: number, right: number): number {')
-    this.writer.indent++
-    this.writer.line('checkedIndex(left); checkedIndex(right);')
-    this.writer.line(
-      "if (right > MAX_SHARED_INDEX - left) throw new RangeError('shared numeric overflow');",
-    )
-    this.writer.line('return left + right;')
-    this.writer.indent--
-    this.writer.line('}')
-    this.writer.line('function checkedSubtract(left: number, right: number): number {')
-    this.writer.indent++
-    this.writer.line('checkedIndex(left); checkedIndex(right);')
-    this.writer.line("if (right > left) throw new RangeError('shared numeric underflow');")
-    this.writer.line('return left - right;')
-    this.writer.indent--
-    this.writer.line('}')
-    this.writer.line('function checkedChar(value: string): string {')
-    this.writer.indent++
-    this.writer.line('const points = Array.from(value);')
-    this.writer.line(
-      "if (points.length !== 1 || (value.codePointAt(0)! >= 0xd800 && value.codePointAt(0)! <= 0xdfff)) throw new RangeError('invalid Unicode scalar');",
-    )
-    this.writer.line('return value;')
-    this.writer.indent--
-    this.writer.line('}')
-    this.writer.line('function asciiLowercase(value: string): string {')
-    this.writer.indent++
-    this.writer.line('const codepoint = checkedChar(value).codePointAt(0)!;')
-    this.writer.line(
-      'return codepoint >= 65 && codepoint <= 90 ? String.fromCodePoint(codepoint + 32) : value;',
-    )
-    this.writer.indent--
-    this.writer.line('}')
-    this.writer.line('function checkedString(value: string): string {')
-    this.writer.indent++
-    this.writer.line(
-      "if (value.length > MAX_SHARED_INDEX) throw new RangeError('string outside shared numeric range');",
-    )
-    this.writer.line('for (const character of value) checkedChar(character);')
-    this.writer.line('return value;')
-    this.writer.indent--
-    this.writer.line('}')
-    this.writer.line('function checkedChars(value: string[]): string[] {')
-    this.writer.indent++
-    this.writer.line(
-      "if (value.length > MAX_SHARED_INDEX) throw new RangeError('vector outside shared numeric range');",
-    )
-    this.writer.line('return Array.from(value, checkedChar);')
-    this.writer.indent--
-    this.writer.line('}')
-    this.writer.line()
-    this.writer.line('function indexChar(values: string[], index: number): string {')
-    this.writer.indent++
-    this.writer.line(
-      "if (!Number.isSafeInteger(index) || index < 0 || index >= values.length) throw new RangeError('index out of bounds');",
-    )
-    this.writer.line('return values[index]!;')
-    this.writer.indent--
-    this.writer.line('}')
-    this.writer.line()
+    const declarations: ts.Statement[] = [...source.statements]
     for (const item of this.document.items) {
       switch (item.kind) {
         case 'constant':
-          this.writer.line(
-            `${item.visibility === 'public' ? 'export ' : ''}const ${item.name} = ${this.expression(item.value, new Map())};`,
+          declarations.push(
+            f.createVariableStatement(
+              exported(item.visibility),
+              f.createVariableDeclarationList(
+                [
+                  f.createVariableDeclaration(
+                    this.names.get(item.name)!,
+                    undefined,
+                    undefined,
+                    this.expression(item.value, new Map()),
+                  ),
+                ],
+                ts.NodeFlags.Const,
+              ),
+            ),
           )
           break
         case 'struct':
-          this.emitStruct(item)
+          declarations.push(...this.emitStruct(item))
           break
         case 'enum':
-          this.emitEnum(item)
+          declarations.push(...this.emitEnum(item))
           break
         case 'function': {
-          this.writer.line(
-            `${item.visibility === 'public' ? 'export ' : ''}function ${item.name}(${item.parameters.map((parameter) => `${parameter.name}: ${this.type(parameter.type)}`).join(', ')}): ${this.type(item.returnType)} {`,
-          )
-          this.writer.indent++
           const locals = new Map(
             item.parameters.map((parameter) => [parameter.name, this.path(parameter.type)]),
           )
+          const body: ts.Statement[] = []
           for (const parameter of item.parameters) {
-            const detached = this.detach(parameter.name, parameter.type)
-            if (detached !== parameter.name) this.writer.line(`${parameter.name} = ${detached};`)
+            const name = camelCase(parameter.name)
+            const detached = this.detach(identifier(name), parameter.type)
+            if (detached.kind !== ts.SyntaxKind.Identifier)
+              body.push(
+                f.createExpressionStatement(
+                  comparison(identifier(name), ts.SyntaxKind.EqualsToken, detached),
+                ),
+              )
           }
-          this.statements(item.body, locals)
-          this.writer.indent--
-          this.writer.line('}')
+          body.push(...this.statements(item.body, locals))
+          declarations.push(
+            this.function(
+              this.names.get(item.name)!,
+              item.parameters.map((item) => parameter(camelCase(item.name), this.type(item.type))),
+              this.type(item.returnType),
+              body,
+              item.visibility,
+            ),
+          )
           break
         }
-        default:
-          throw new Error('unknown item kind')
       }
-      this.writer.line()
     }
-    return this.writer.text()
+    const output = f.updateSourceFile(source, declarations)
+    return ts.createPrinter({ newLine: ts.NewLineKind.LineFeed }).printFile(output)
   }
 }
 

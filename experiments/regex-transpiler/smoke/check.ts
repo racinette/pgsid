@@ -7,42 +7,52 @@ if (!generatedPath) throw new Error('usage: check.ts GENERATED_TS')
 const generated = await import(pathToFileURL(generatedPath).href)
 const input = { start: 1, end: 3 }
 const expected = { start: 3, end: 5 }
-const actual = generated.shift_span(input, 2)
+const actual = generated.shiftSpan(input, 2)
 assert.deepEqual(actual, expected)
 assert.deepEqual(input, { start: 1, end: 3 })
-assert.equal(generated.same_span(actual, expected), true)
+assert.equal(generated.sameSpan(actual, expected), true)
 
 const parameter = { start: 1, end: 3 }
-assert.deepEqual(generated.shift_parameter(parameter, 2), { start: 3, end: 3 })
+assert.deepEqual(generated.shiftParameter(parameter, 2), { start: 3, end: 3 })
 assert.deepEqual(parameter, { start: 1, end: 3 })
 
 const snapshotInput = { start: 1, end: 3 }
-assert.deepEqual(generated.snapshot_before_shift(snapshotInput, 2), {
+assert.deepEqual(generated.snapshotBeforeShift(snapshotInput, 2), {
   before: { start: 1, end: 3 },
   after: { start: 3, end: 3 },
 })
 assert.deepEqual(snapshotInput, { start: 1, end: 3 })
 
 const characters = ['a']
-const echoed = generated.echo_chars(characters)
+const echoed = generated.echoChars(characters)
 echoed[0] = 'b'
 assert.deepEqual(characters, ['a'])
 
 const bag = { characters: ['a'] }
-const echoedBag = generated.echo_bag(bag)
+const echoedBag = generated.echoBag(bag)
 echoedBag.characters[0] = 'b'
 assert.deepEqual(bag.characters, ['a'])
-assert.equal(generated.char_at(['a'], 0), 'a')
-assert.throws(() => generated.char_at(['a'], 1), RangeError)
-assert.equal(generated.add_positions(2, 3), 5)
-assert.equal(generated.subtract_positions(5, 3), 2)
-assert.throws(() => generated.add_positions(2147483647, 1), RangeError)
-assert.throws(() => generated.subtract_positions(0, 1), RangeError)
-assert.throws(() => generated.add_positions(0.5, 1), RangeError)
-assert.throws(() => generated.echo_chars(['ab']), RangeError)
-assert.equal(generated.is_before_first(-1), true)
-assert.throws(() => generated.is_before_first(2147483648), RangeError)
-assert.equal(generated.char_count('😀'), 1)
-assert.throws(() => generated.char_count('\ud800'), RangeError)
-assert.equal(generated.char_codepoint('😀'), 128512)
-assert.throws(() => generated.char_codepoint('\ud800'), RangeError)
+assert.equal(generated.charAt(['a'], 0), 'a')
+assert.throws(() => generated.charAt(['a'], 1), RangeError)
+assert.equal(generated.addPositions(2, 3), 5)
+assert.equal(generated.subtractPositions(5, 3), 2)
+assert.throws(() => generated.addPositions(2147483647, 1), RangeError)
+assert.throws(() => generated.subtractPositions(0, 1), RangeError)
+assert.throws(() => generated.addPositions(0.5, 1), RangeError)
+assert.throws(() => generated.echoChars(['ab']), RangeError)
+assert.equal(generated.isBeforeFirst(-1), true)
+assert.throws(() => generated.isBeforeFirst(2147483648), RangeError)
+assert.equal(generated.charCount('😀'), 1)
+assert.throws(() => generated.charCount('\ud800'), RangeError)
+assert.equal(generated.charCodepoint('😀'), 128512)
+assert.throws(() => generated.charCodepoint('\ud800'), RangeError)
+assert.equal(generated.choosePosition(2, 3), 2)
+assert.equal(generated.choosePosition(4, 3), 3)
+assert.equal(generated.chooseWithReturns(2, 3), 2)
+assert.equal(generated.chooseWithReturns(4, 3), 3)
+assert.equal(generated.classifyPosition(2, 3), 1)
+assert.equal(generated.classifyPosition(3, 3), 2)
+assert.equal(generated.classifyPosition(4, 3), 3)
+assert.equal(generated.belowDefaultLimit(2), true)
+assert.equal(generated.belowDefaultLimit(3), false)
+assert.equal(generated.namedPosition({ fromPosition: 2 }), 2)
