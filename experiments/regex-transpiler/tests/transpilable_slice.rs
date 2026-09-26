@@ -1033,6 +1033,34 @@ fn quoted_regex_prefix_matches_literal_text() {
 }
 
 #[test]
+fn inline_option_sequences_apply_in_order() {
+    for (pattern, subject, start, end) in [
+        ("***:(?b)a+b", "a+b", 0, 3),
+        ("***:\\w+", "ab", 0, 2),
+        ("(?e)\\W+", "WW", 0, 2),
+        ("(?m)^b", "a\nb", 2, 3),
+        ("(?s)a.b", "a\nb", 0, 3),
+        ("(?ici)a+", "Aa", 0, 2),
+        ("(?qe)a+", "a", 0, 1),
+        ("(?qx)a b", "a b", 0, 3),
+        ("(?qi)ab", "Ab", 0, 2),
+    ] {
+        assert!(candidate::supports_inline_options(pattern, false));
+        assert!(matches!(
+            candidate::find_inline_options(pattern, subject, 0, true, true, false, false),
+            candidate::MatchOutcome::Found(candidate::MatchSpan { start: actual_start, end: actual_end })
+                if actual_start == start && actual_end == end
+        ));
+    }
+    assert!(matches!(
+        candidate::find_inline_options("(?m)a.b", "a\nb", 0, true, true, false, false),
+        candidate::MatchOutcome::NoMatch
+    ));
+    assert!(!candidate::supports_inline_options("(?z)ab", false));
+    assert!(!candidate::supports_inline_options("(?i)(?q)a+", false));
+}
+
+#[test]
 fn bracket_word_boundaries_match_postgres_spelling() {
     assert!(candidate::supports_bracket_word_boundary("[[:<:]]a", false));
     assert!(candidate::supports_bracket_word_boundary("a[[:>:]]", false));
@@ -1206,6 +1234,7 @@ fn supported_search_matches_pglite_fixtures() {
     let mut choice_capture = 0;
     let mut two_capture = 0;
     let mut inline = 0;
+    let mut inline_options = 0;
     let mut middle_lookahead = 0;
     let mut chained_assertions = 0;
     let mut bounded_group = 0;
@@ -1748,6 +1777,24 @@ fn supported_search_matches_pglite_fixtures() {
                     newline == "sensitive" || newline == "anchors",
                     options["expanded"].as_bool().unwrap(),
                 )
+            } else if (options["syntax"] == "advanced"
+                || options["syntax"] == "basic" && pattern.starts_with("***:"))
+                && candidate::supports_inline_options(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                inline_options += 1;
+                let newline = options["newline"].as_str().unwrap();
+                candidate::find_inline_options(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
+                    newline == "ordinary" || newline == "anchors",
+                    newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
             } else if options["syntax"] == "advanced"
                 && candidate::supports_middle_lookahead(
                     pattern,
@@ -2094,6 +2141,7 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(choice_capture >= 10);
     assert!(two_capture >= 30);
     assert!(inline >= 20);
+    assert!(inline_options >= 10);
     assert!(middle_lookahead >= 20);
     assert!(chained_assertions >= 4);
     assert!(bounded_group >= 20);

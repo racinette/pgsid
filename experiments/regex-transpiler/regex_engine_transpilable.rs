@@ -242,6 +242,14 @@ struct NumericLiteralResult {
     atoms: Vec<usize>,
 }
 
+struct InlineOptionsResult {
+    valid: bool,
+    syntax: char,
+    case_mode: char,
+    newline_mode: char,
+    atoms: Vec<char>,
+}
+
 struct ExtendedEscapeResult {
     valid: bool,
     atoms: Vec<char>,
@@ -4502,6 +4510,204 @@ pub fn supports_inline_advanced(pattern: &str, expanded: bool) -> bool {
         return false;
     }
     supports_atoms(parsed.atoms)
+}
+
+fn inline_options_atoms(pattern: &str, expanded: bool) -> InlineOptionsResult {
+    let source: Vec<char> = pattern.chars().collect();
+    let mut position = 0;
+    let mut valid = true;
+    let mut prefixed = false;
+    let mut syntax = 'a';
+    let mut case_mode = ' ';
+    let mut newline_mode = ' ';
+    let mut effective_expanded = expanded;
+    if source.len() >= 4
+        && source[0] == '*'
+        && source[1] == '*'
+        && source[2] == '*'
+        && source[3] == ':'
+    {
+        prefixed = true;
+        position = 4;
+    }
+    if source.len() - position >= 3 && source[position] == '(' && source[position + 1] == '?' {
+        position += 2;
+        let mut options = 0;
+        while position < source.len() {
+            let option = source[position];
+            let codepoint = option as u32;
+            if codepoint < 65 || codepoint > 90 && codepoint < 97 || codepoint > 122 {
+                break;
+            }
+            if option == 'b' || option == 'e' || option == 'q' {
+                syntax = option;
+            } else if option == 'i' || option == 'c' {
+                case_mode = option;
+            } else if option == 'n'
+                || option == 'm'
+                || option == 'p'
+                || option == 'w'
+                || option == 's'
+            {
+                newline_mode = option;
+            } else if option == 'x' {
+                effective_expanded = true;
+            } else if option == 't' {
+                effective_expanded = false;
+            } else {
+                valid = false;
+                break;
+            };
+            options += 1;
+            position += 1;
+        }
+        if options == 0 || position == source.len() || source[position] != ')' {
+            valid = false;
+        } else {
+            position += 1;
+        };
+    } else if prefixed == false {
+        valid = false;
+    }
+    if syntax == 'q' {
+        effective_expanded = false;
+        newline_mode = 's';
+    }
+    let normalized = pattern_atoms(pattern, effective_expanded);
+    let mut atoms: Vec<char> = Vec::new();
+    if valid {
+        while position < normalized.len() {
+            let atom = normalized[position];
+            if (syntax == 'b' || syntax == 'e') && atom == '\\' {
+                if position + 1 == normalized.len() {
+                    valid = false;
+                    break;
+                }
+                let escaped = normalized[position + 1];
+                if syntax == 'b'
+                    && (escaped == '(' || escaped == ')' || escaped == '{' || escaped == '}')
+                {
+                    valid = false;
+                    break;
+                }
+                if simple_literal_char(escaped) == false {
+                    atoms.push('\\');
+                }
+                atoms.push(escaped);
+                position += 2;
+            } else {
+                if syntax == 'b'
+                    && (atom == '+'
+                        || atom == '?'
+                        || atom == '|'
+                        || atom == '('
+                        || atom == ')'
+                        || atom == '{'
+                        || atom == '}')
+                {
+                    atoms.push('\\');
+                }
+                atoms.push(atom);
+                position += 1;
+            };
+        }
+    }
+    InlineOptionsResult {
+        valid,
+        syntax,
+        case_mode,
+        newline_mode,
+        atoms,
+    }
+}
+
+pub fn supports_inline_options(pattern: &str, expanded: bool) -> bool {
+    let parsed = inline_options_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    if parsed.syntax == 'q' {
+        return true;
+    }
+    supports_atoms(parsed.atoms)
+}
+
+pub fn find_inline_options(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    if supports_inline_options(pattern, expanded) == false {
+        return MatchOutcome::Uncertain;
+    }
+    let parsed = inline_options_atoms(pattern, expanded);
+    let mut sensitive = case_sensitive;
+    let mut crosses = dot_crosses_newline;
+    let mut anchors = line_anchors;
+    if parsed.case_mode == 'i' {
+        sensitive = false;
+    } else if parsed.case_mode == 'c' {
+        sensitive = true;
+    }
+    if parsed.newline_mode == 'm' || parsed.newline_mode == 'n' {
+        crosses = false;
+        anchors = true;
+    } else if parsed.newline_mode == 'p' {
+        crosses = false;
+        anchors = false;
+    } else if parsed.newline_mode == 'w' {
+        crosses = true;
+        anchors = true;
+    } else if parsed.newline_mode == 's' {
+        crosses = true;
+        anchors = false;
+    }
+    if parsed.syntax == 'q' {
+        let haystack: Vec<char> = subject.chars().collect();
+        if from > haystack.len() {
+            return MatchOutcome::NoMatch;
+        }
+        let mut start = from;
+        while start <= haystack.len() {
+            let mut offset = 0;
+            while offset < parsed.atoms.len() && offset < haystack.len() - start {
+                let actual = haystack[start + offset];
+                let expected = parsed.atoms[offset];
+                if actual != expected
+                    && (sensitive || actual.to_ascii_lowercase() != expected.to_ascii_lowercase())
+                {
+                    break;
+                }
+                offset += 1;
+            }
+            if offset == parsed.atoms.len() {
+                return MatchOutcome::Found(MatchSpan {
+                    start,
+                    end: start + offset,
+                });
+            }
+            if start == haystack.len() {
+                break;
+            }
+            start += 1;
+        }
+        return MatchOutcome::NoMatch;
+    }
+    let result = search_atoms(parsed.atoms, subject, from, sensitive, crosses, anchors);
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
 }
 
 fn simple_literal_char(atom: char) -> bool {
