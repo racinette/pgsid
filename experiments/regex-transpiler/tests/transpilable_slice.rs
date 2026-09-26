@@ -1029,6 +1029,22 @@ fn zero_width_groups_preserve_anchor_and_boundary_logic() {
 }
 
 #[test]
+fn repeated_boundaries_between_literals_do_not_consume_text() {
+    assert!(candidate::supports_literal_zero_width_group(
+        "abc(\\Y\\Y)+d",
+        false
+    ));
+    assert!(matches!(
+        candidate::find_literal_zero_width_group("abc(\\Y\\Y)+d", "abcd", 0, true, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 4 })
+    ));
+    assert!(matches!(
+        candidate::find_literal_zero_width_group("abc(\\m)+d", "abcd", 0, true, false),
+        candidate::MatchOutcome::NoMatch
+    ));
+}
+
+#[test]
 fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
     assert!(candidate::supports_bounded_group("a(ab)*c", false));
@@ -2487,6 +2503,20 @@ fn supported_search_matches_pglite_fixtures() {
                     from,
                     options["caseSensitive"].as_bool().unwrap(),
                     newline == "sensitive" || newline == "anchors",
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "advanced"
+                && candidate::supports_literal_zero_width_group(
+                    pattern,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                advanced += 1;
+                candidate::find_literal_zero_width_group(
+                    pattern,
+                    subject,
+                    from,
+                    options["caseSensitive"].as_bool().unwrap(),
                     options["expanded"].as_bool().unwrap(),
                 )
             } else {

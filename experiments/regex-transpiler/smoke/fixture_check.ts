@@ -915,6 +915,18 @@ for (const fixturePath of fixturePaths) {
         options.expanded,
       )
       coverage.advanced++
+    } else if (
+      options.syntax === 'advanced' &&
+      generated.supportsLiteralZeroWidthGroup(pattern, options.expanded)
+    ) {
+      actual = generated.findLiteralZeroWidthGroup(
+        pattern,
+        subject,
+        from,
+        options.caseSensitive,
+        options.expanded,
+      )
+      coverage.advanced++
     } else {
       if (options.syntax === 'advanced') coverage.unsupportedAdvanced++
       else coverage.otherOptions++
