@@ -77,6 +77,11 @@ struct BoundedGroupResult {
     upper: usize,
 }
 
+struct BasicLiteralResult {
+    valid: bool,
+    atoms: Vec<char>,
+}
+
 pub fn charge_work(current: usize, amount: usize) -> WorkOutcome {
     if current > MAX_CAPTURE_WORK {
         return WorkOutcome::Uncertain;
@@ -1243,6 +1248,51 @@ pub fn supports_extended_group(pattern: &str, expanded: bool) -> bool {
     supports_flat_groups(pattern, expanded)
         || supports_group_choice(pattern, expanded)
         || supports_bounded_group(pattern, expanded)
+}
+
+fn basic_literal_atoms(pattern: &str, expanded: bool) -> BasicLiteralResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut atoms: Vec<char> = Vec::new();
+    let mut position = 0;
+    let mut valid = true;
+    let mut translated = false;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '\\'
+            || atom == '['
+            || atom == ']'
+            || (atom == '^' && position != 0)
+            || (atom == '$' && position + 1 != source.len())
+        {
+            valid = false;
+            break;
+        }
+        if atom == '+'
+            || atom == '?'
+            || atom == '|'
+            || atom == '('
+            || atom == ')'
+            || atom == '{'
+            || atom == '}'
+        {
+            atoms.push('\\');
+            translated = true;
+        }
+        atoms.push(atom);
+        position += 1;
+    }
+    BasicLiteralResult {
+        valid: valid && translated,
+        atoms,
+    }
+}
+
+pub fn supports_basic_literal_punctuation(pattern: &str, expanded: bool) -> bool {
+    let parsed = basic_literal_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    supports_atoms(parsed.atoms)
 }
 
 fn search_atoms(
@@ -2964,4 +3014,37 @@ pub fn find_extended_group(
         );
     }
     MatchOutcome::Uncertain
+}
+
+pub fn find_basic_literal_punctuation(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    expanded: bool,
+) -> MatchOutcome {
+    let parsed = basic_literal_atoms(pattern, expanded);
+    if parsed.valid == false {
+        return MatchOutcome::Uncertain;
+    }
+    let result = search_atoms(
+        parsed.atoms,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+    );
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
 }

@@ -72,6 +72,9 @@ func TestLiteralSlice(t *testing.T) {
 	if !SupportsExtendedGroup("(a|ab)b", false) || SupportsExtendedGroup("(a|ab)\\w", false) {
 		t.Error("extended group support gate changed")
 	}
+	if !SupportsBasicLiteralPunctuation("a+b", false) || SupportsBasicLiteralPunctuation("a\\+b", false) || SupportsBasicLiteralPunctuation("[a+b]", false) {
+		t.Error("basic literal punctuation gate changed")
+	}
 	found := FindLiteral("😀", "a😀a", 0, true)
 	if found != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Errorf("literal match = %+v", found)

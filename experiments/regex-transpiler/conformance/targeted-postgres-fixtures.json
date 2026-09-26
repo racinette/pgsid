@@ -38715,6 +38715,1526 @@
           "end": 4
         }
       }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "za+b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a?b",
+        "subject": "za?b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|b",
+        "subject": "za|b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "(ab)",
+        "subject": "z(ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a{2}b",
+        "subject": "za{2}b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 6
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "za+b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a?b",
+        "subject": "za?b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|b",
+        "subject": "za|b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "(ab)",
+        "subject": "z(ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a{2}b",
+        "subject": "za{2}b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 6
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "za+b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a?b",
+        "subject": "za?b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|b",
+        "subject": "za|b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "(ab)",
+        "subject": "z(ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a{2}b",
+        "subject": "za{2}b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 6
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "za+b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a?b",
+        "subject": "za?b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|b",
+        "subject": "za|b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "(ab)",
+        "subject": "z(ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a{2}b",
+        "subject": "za{2}b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 6
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "za+b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a?b",
+        "subject": "za?b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|b",
+        "subject": "za|b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "(ab)",
+        "subject": "z(ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a{2}b",
+        "subject": "za{2}b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 6
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "za+b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a?b",
+        "subject": "za?b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|b",
+        "subject": "za|b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "(ab)",
+        "subject": "z(ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a{2}b",
+        "subject": "za{2}b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 6
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "za+b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a?b",
+        "subject": "za?b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|b",
+        "subject": "za|b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "(ab)",
+        "subject": "z(ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a{2}b",
+        "subject": "za{2}b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 6
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "za+b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a?b",
+        "subject": "za?b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|b",
+        "subject": "za|b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "(ab)",
+        "subject": "z(ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a{2}b",
+        "subject": "za{2}b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 6
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "za+b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a?b",
+        "subject": "za?b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|b",
+        "subject": "za|b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "(ab)",
+        "subject": "z(ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a{2}b",
+        "subject": "za{2}b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 6
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "za+b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a?b",
+        "subject": "za?b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|b",
+        "subject": "za|b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "(ab)",
+        "subject": "z(ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a{2}b",
+        "subject": "za{2}b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 6
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "za+b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a?b",
+        "subject": "za?b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|b",
+        "subject": "za|b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "(ab)",
+        "subject": "z(ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a{2}b",
+        "subject": "za{2}b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 6
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "za+b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a?b",
+        "subject": "za?b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|b",
+        "subject": "za|b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "(ab)",
+        "subject": "z(ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a{2}b",
+        "subject": "za{2}b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 6
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "za+b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a?b",
+        "subject": "za?b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|b",
+        "subject": "za|b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "(ab)",
+        "subject": "z(ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a{2}b",
+        "subject": "za{2}b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 6
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "za+b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a?b",
+        "subject": "za?b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|b",
+        "subject": "za|b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "(ab)",
+        "subject": "z(ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a{2}b",
+        "subject": "za{2}b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 6
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "za+b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a?b",
+        "subject": "za?b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|b",
+        "subject": "za|b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "(ab)",
+        "subject": "z(ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a{2}b",
+        "subject": "za{2}b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 6
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a+b",
+        "subject": "za+b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a?b",
+        "subject": "za?b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a|b",
+        "subject": "za|b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 4
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "(ab)",
+        "subject": "z(ab)",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "input": {
+        "pattern": "a{2}b",
+        "subject": "za{2}b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": false,
+          "expanded": true,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 6
+        }
+      }
     }
   ]
 }
