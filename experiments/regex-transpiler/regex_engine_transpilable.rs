@@ -1228,6 +1228,14 @@ pub fn definitely_invalid_backreference(pattern: &str, syntax: char, expanded: b
                     depth = depth - 1;
                     closed[open[depth] - 1] = 1;
                 }
+            } else if syntax == 'b'
+                && (escaped as u32) >= 49
+                && (escaped as u32) <= 57
+                && position + 2 < source.len()
+                && (source[position + 2] as u32) >= 48
+                && (source[position + 2] as u32) <= 57
+            {
+                return true;
             } else if (escaped as u32) >= 49
                 && (escaped as u32) <= 57
                 && (position + 2 == source.len()

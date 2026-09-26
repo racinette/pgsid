@@ -766,6 +766,9 @@ fn invalid_backreference_gate_only_marks_postgres_errors() {
         "\\1", 'b', false
     ));
     assert!(candidate::definitely_invalid_backreference(
+        "a\\12b", 'b', false
+    ));
+    assert!(candidate::definitely_invalid_backreference(
         "a(b)c\\2", 'a', false
     ));
     assert!(candidate::definitely_invalid_backreference(
