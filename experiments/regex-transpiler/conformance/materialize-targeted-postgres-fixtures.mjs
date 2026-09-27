@@ -1510,6 +1510,15 @@ for (const [syntax, pattern, subject, overrides] of [
   ['advanced', '[a-[=z=]]', 'az', {}],
   ['advanced', '[[=a=]-[=z=]]', 'az', {}],
   ['advanced', '[[.z.]-[.a.]]', 'az', {}],
+  ['advanced', '{2}', 'ab', {}],
+  ['advanced', '{0,1}', 'ab', {}],
+  ['advanced', 'a|{2}', 'a', {}],
+  ['advanced', '({2})', 'ab', {}],
+  ['extended', '{2}', 'ab', {}],
+  ['literal', '{2}', '{2}', {}],
+  ['basic', '{2}', '{2}', {}],
+  ['advanced', '\\{2}', '{2}', {}],
+  ['advanced', '{x}', '{x}', {}],
 ]) {
   inputs.push({
     family: 'api',

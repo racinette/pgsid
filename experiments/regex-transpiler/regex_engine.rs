@@ -924,6 +924,9 @@ fn parse_atom<'a>(
             Expression::Literal(escaped as u32)
         }
         '*' | '+' | '?' => return Err(ParseIssue::Invalid),
+        '{' if cursor.peek().is_some_and(|next| next.is_ascii_digit()) => {
+            return Err(ParseIssue::Invalid);
+        }
         '{' | ']' | '}' => Expression::Literal(character as u32),
         _ => Expression::Literal(character as u32),
     };

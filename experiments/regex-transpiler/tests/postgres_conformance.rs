@@ -1733,3 +1733,25 @@ fn rust_targeted_count_matches_postgres() {
     }
     assert!(checked > 0);
 }
+
+#[test]
+fn rust_composition_results_match_postgres() {
+    let document: Value = serde_json::from_str(include_str!(
+        "../conformance/targeted-postgres-fixtures.json"
+    ))
+    .unwrap();
+    let mut checked = 0;
+    for fixture in document["fixtures"].as_array().unwrap() {
+        if fixture["family"] != "composition" {
+            continue;
+        }
+        assert_eq!(
+            evaluate(&fixture["input"]).as_ref(),
+            Some(&fixture["expected"]),
+            "composition: {}",
+            fixture["input"]
+        );
+        checked += 1;
+    }
+    assert!(checked > 0);
+}
