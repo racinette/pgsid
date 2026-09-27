@@ -72505,6 +72505,449 @@
         "kind": "InvalidPattern",
         "sqlstate": "2201B"
       }
+    },
+    {
+      "family": "api-captures-all",
+      "operation": "captures_all",
+      "input": {
+        "pattern": "(a)+",
+        "subject": "aa aa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": {
+          "groupsPerMatch": 2,
+          "groups": [
+            {
+              "matched": true,
+              "start": 0,
+              "end": 2
+            },
+            {
+              "matched": true,
+              "start": 1,
+              "end": 2
+            },
+            {
+              "matched": true,
+              "start": 3,
+              "end": 5
+            },
+            {
+              "matched": true,
+              "start": 4,
+              "end": 5
+            }
+          ]
+        }
+      }
+    },
+    {
+      "family": "api-captures-all",
+      "operation": "captures_all",
+      "input": {
+        "pattern": "(a)?()",
+        "subject": "aa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": {
+          "groupsPerMatch": 3,
+          "groups": [
+            {
+              "matched": true,
+              "start": 0,
+              "end": 1
+            },
+            {
+              "matched": true,
+              "start": 0,
+              "end": 1
+            },
+            {
+              "matched": true,
+              "start": 1,
+              "end": 1
+            },
+            {
+              "matched": true,
+              "start": 1,
+              "end": 2
+            },
+            {
+              "matched": true,
+              "start": 1,
+              "end": 2
+            },
+            {
+              "matched": true,
+              "start": 2,
+              "end": 2
+            },
+            {
+              "matched": true,
+              "start": 2,
+              "end": 2
+            },
+            {
+              "matched": false,
+              "start": 0,
+              "end": 0
+            },
+            {
+              "matched": true,
+              "start": 2,
+              "end": 2
+            }
+          ]
+        }
+      }
+    },
+    {
+      "family": "api-captures-all",
+      "operation": "captures_all",
+      "input": {
+        "pattern": "(a)\\1",
+        "subject": "aa aa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": {
+          "groupsPerMatch": 2,
+          "groups": [
+            {
+              "matched": true,
+              "start": 0,
+              "end": 2
+            },
+            {
+              "matched": true,
+              "start": 0,
+              "end": 1
+            },
+            {
+              "matched": true,
+              "start": 3,
+              "end": 5
+            },
+            {
+              "matched": true,
+              "start": 3,
+              "end": 4
+            }
+          ]
+        }
+      }
+    },
+    {
+      "family": "api-captures-all",
+      "operation": "captures_all",
+      "input": {
+        "pattern": "(?<=a)(b*)",
+        "subject": "abb ab",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": {
+          "groupsPerMatch": 2,
+          "groups": [
+            {
+              "matched": true,
+              "start": 1,
+              "end": 3
+            },
+            {
+              "matched": true,
+              "start": 1,
+              "end": 3
+            },
+            {
+              "matched": true,
+              "start": 5,
+              "end": 6
+            },
+            {
+              "matched": true,
+              "start": 5,
+              "end": 6
+            }
+          ]
+        }
+      }
+    },
+    {
+      "family": "api-captures-all",
+      "operation": "captures_all",
+      "input": {
+        "pattern": "(?=a)",
+        "subject": "aa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": {
+          "groupsPerMatch": 1,
+          "groups": [
+            {
+              "matched": true,
+              "start": 0,
+              "end": 0
+            },
+            {
+              "matched": true,
+              "start": 1,
+              "end": 1
+            }
+          ]
+        }
+      }
+    },
+    {
+      "family": "api-captures-all",
+      "operation": "captures_all",
+      "input": {
+        "pattern": "a*?",
+        "subject": "aa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": {
+          "groupsPerMatch": 1,
+          "groups": [
+            {
+              "matched": true,
+              "start": 0,
+              "end": 0
+            },
+            {
+              "matched": true,
+              "start": 1,
+              "end": 1
+            },
+            {
+              "matched": true,
+              "start": 2,
+              "end": 2
+            }
+          ]
+        }
+      }
+    },
+    {
+      "family": "api-captures-all",
+      "operation": "captures_all",
+      "input": {
+        "pattern": ".",
+        "subject": "😀a",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": {
+          "groupsPerMatch": 1,
+          "groups": [
+            {
+              "matched": true,
+              "start": 0,
+              "end": 1
+            },
+            {
+              "matched": true,
+              "start": 1,
+              "end": 2
+            }
+          ]
+        }
+      }
+    },
+    {
+      "family": "api-captures-all",
+      "operation": "captures_all",
+      "input": {
+        "pattern": "(a)|(b)",
+        "subject": "aba",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": {
+          "groupsPerMatch": 3,
+          "groups": [
+            {
+              "matched": true,
+              "start": 0,
+              "end": 1
+            },
+            {
+              "matched": true,
+              "start": 0,
+              "end": 1
+            },
+            {
+              "matched": false,
+              "start": 0,
+              "end": 0
+            },
+            {
+              "matched": true,
+              "start": 1,
+              "end": 2
+            },
+            {
+              "matched": false,
+              "start": 0,
+              "end": 0
+            },
+            {
+              "matched": true,
+              "start": 1,
+              "end": 2
+            },
+            {
+              "matched": true,
+              "start": 2,
+              "end": 3
+            },
+            {
+              "matched": true,
+              "start": 2,
+              "end": 3
+            },
+            {
+              "matched": false,
+              "start": 0,
+              "end": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "family": "api-captures-all",
+      "operation": "captures_all",
+      "input": {
+        "pattern": "z",
+        "subject": "aaa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": {
+          "groupsPerMatch": 1,
+          "groups": []
+        }
+      }
+    },
+    {
+      "family": "api-captures-all",
+      "operation": "captures_all",
+      "input": {
+        "pattern": "a",
+        "subject": "aaa",
+        "start": 2,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": {
+          "groupsPerMatch": 1,
+          "groups": [
+            {
+              "matched": true,
+              "start": 1,
+              "end": 2
+            },
+            {
+              "matched": true,
+              "start": 2,
+              "end": 3
+            }
+          ]
+        }
+      }
+    },
+    {
+      "family": "api-captures-all",
+      "operation": "captures_all",
+      "input": {
+        "pattern": "[",
+        "subject": "abc",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
     }
   ]
 }

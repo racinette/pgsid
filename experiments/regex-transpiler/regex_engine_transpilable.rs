@@ -170,6 +170,27 @@ pub fn captures_compiled(program: &CompiledRegex, subject: &str, from: usize) ->
     CaptureOutcome::Found(result.groups)
 }
 
+pub struct CaptureBatch {
+    pub groups_per_match: usize,
+    pub groups: Vec<CaptureSpan>,
+}
+
+pub enum CaptureListOutcome {
+    Matches(CaptureBatch),
+    InvalidPattern,
+    Uncertain,
+}
+
+pub fn captures_all_compiled(
+    program: &CompiledRegex,
+    subject: &str,
+    from: usize,
+) -> CaptureListOutcome {
+    capture_list_outcome(execute_compiled_pattern(
+        program, subject, from, true, true, true,
+    ))
+}
+
 #[derive(Clone, Copy)]
 pub struct CaptureSpan {
     pub matched: bool,
@@ -203,6 +224,30 @@ pub fn captures(
     CaptureOutcome::Found(result.groups)
 }
 
+pub fn captures_all(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    options: RegexOptions,
+) -> CaptureListOutcome {
+    capture_list_outcome(execute_pattern(
+        pattern, subject, from, options, true, true, true,
+    ))
+}
+
+fn capture_list_outcome(result: CaptureRunResult) -> CaptureListOutcome {
+    if result.kind == 2 {
+        return CaptureListOutcome::Uncertain;
+    }
+    if result.kind == 3 {
+        return CaptureListOutcome::InvalidPattern;
+    }
+    CaptureListOutcome::Matches(CaptureBatch {
+        groups_per_match: result.group_width,
+        groups: result.groups,
+    })
+}
+
 struct CaptureRunResult {
     kind: usize,
     start: usize,
@@ -210,6 +255,8 @@ struct CaptureRunResult {
     count: usize,
     groups: Vec<CaptureSpan>,
     matches: Vec<MatchSpan>,
+    group_width: usize,
+    work: usize,
 }
 
 fn make_capture_run_result(
@@ -227,11 +274,17 @@ fn make_capture_run_result(
         count,
         groups,
         matches,
+        group_width: 0,
+        work: 0,
     }
 }
 
-fn complete_match_list_result(count: usize, matches: Vec<MatchSpan>) -> CaptureRunResult {
-    let groups: Vec<CaptureSpan> = Vec::new();
+fn complete_search_result(
+    count: usize,
+    groups: Vec<CaptureSpan>,
+    matches: Vec<MatchSpan>,
+    work: usize,
+) -> CaptureRunResult {
     CaptureRunResult {
         kind: 1,
         start: 0,
@@ -239,6 +292,23 @@ fn complete_match_list_result(count: usize, matches: Vec<MatchSpan>) -> CaptureR
         count,
         groups,
         matches,
+        group_width: 0,
+        work,
+    }
+}
+
+fn capture_tree_result(kind: usize, count: usize, work: usize) -> CaptureRunResult {
+    let groups: Vec<CaptureSpan> = Vec::new();
+    let matches: Vec<MatchSpan> = Vec::new();
+    CaptureRunResult {
+        kind,
+        start: 0,
+        end: 0,
+        count,
+        groups,
+        matches,
+        group_width: 0,
+        work,
     }
 }
 
@@ -293,7 +363,7 @@ fn execute_compiled_pattern(
     if program.valid == false {
         return make_capture_run_result(3, 0, 0, 0);
     }
-    execute_capture_program(
+    let result = execute_capture_program(
         program,
         subject,
         from,
@@ -303,7 +373,20 @@ fn execute_compiled_pattern(
         counting,
         capturing,
         collecting,
-    )
+    );
+    if capturing && collecting {
+        return CaptureRunResult {
+            kind: result.kind,
+            start: result.start,
+            end: result.end,
+            count: result.count,
+            groups: result.groups,
+            matches: result.matches,
+            group_width: program.captures + 1,
+            work: result.work,
+        };
+    }
+    result
 }
 
 fn compile_pattern_source(pattern: &str, options: RegexOptions, capturing: bool) -> CompiledRegex {
@@ -3226,20 +3309,34 @@ fn execute_capture_tree(
     counting: bool,
     capturing: bool,
     collecting: bool,
+    start_work: usize,
+    batch: Vec<MatchSpan>,
+    batch_mode: bool,
 ) -> CaptureRunResult {
     let mut count = 0;
+    let mut all_groups: Vec<CaptureSpan> = Vec::new();
     let mut matches: Vec<MatchSpan> = Vec::new();
     let haystack: Vec<char> = subject.chars().collect();
     let mut width = 0;
     if program.backreferences || capturing {
         width = program.captures + 1;
     }
-    let mut work = 0;
+    let mut work = start_work;
     let mut start = from;
+    let mut batch_index = 0;
+    if batch_mode {
+        if batch.len() == 0 {
+            return complete_search_result(count, all_groups, matches, work);
+        }
+        start = batch[0].start;
+    }
     while start <= haystack.len() {
         let mut next_start = start + 1;
         if program.minimums[program.root] > haystack.len() - start {
-            return complete_match_list_result(count, matches);
+            if batch_mode {
+                return capture_tree_result(2, 0, work);
+            }
+            return complete_search_result(count, all_groups, matches, work);
         }
         let mut minimum_end = start + program.minimums[program.root];
         let mut maximum_end = haystack.len();
@@ -3250,11 +3347,16 @@ fn execute_capture_tree(
             minimum_end = exact_end;
             maximum_end = exact_end;
         }
+        if batch_mode {
+            minimum_end = batch[batch_index].end;
+            maximum_end = minimum_end;
+        }
         let mut match_end = maximum_end;
         if program.shortest {
             match_end = minimum_end;
         }
         let mut searching = true;
+        let mut found_match = false;
         while searching {
             let mut captures: Vec<CaptureRegister> = Vec::new();
             let mut group = 0;
@@ -3287,7 +3389,7 @@ fn execute_capture_tree(
             let mut returned = 0;
             while depth > 0 {
                 if work == MAX_CAPTURE_WORK {
-                    return make_capture_run_result(2, 0, 0, 0);
+                    return capture_tree_result(2, 0, work);
                 }
                 work += 1;
                 let frame = frames[depth - 1];
@@ -3509,7 +3611,7 @@ fn execute_capture_tree(
                                     let mut offset = 0;
                                     while matched && offset < length {
                                         if work == MAX_CAPTURE_WORK {
-                                            return make_capture_run_result(2, 0, 0, 0);
+                                            return capture_tree_result(2, 0, work);
                                         }
                                         work += 1;
                                         let actual = haystack[end + offset];
@@ -3533,7 +3635,7 @@ fn execute_capture_tree(
                                 let mut included = false;
                                 while program.class_members[class_position].kind > 0 {
                                     if work == MAX_CAPTURE_WORK {
-                                        return make_capture_run_result(2, 0, 0, 0);
+                                        return capture_tree_result(2, 0, work);
                                     }
                                     work += 1;
                                     if capture_class_member_matches(
@@ -3608,7 +3710,7 @@ fn execute_capture_tree(
                         group = 0;
                         while group < width {
                             if work == MAX_CAPTURE_WORK {
-                                return make_capture_run_result(2, 0, 0, 0);
+                                return capture_tree_result(2, 0, work);
                             }
                             work += 1;
                             if group == node.group {
@@ -3781,7 +3883,7 @@ fn execute_capture_tree(
                             choosing = false;
                         } else {
                             if work == MAX_CAPTURE_WORK {
-                                return make_capture_run_result(2, 0, 0, 0);
+                                return capture_tree_result(2, 0, work);
                             }
                             work += 1;
                             if ascending {
@@ -3843,7 +3945,7 @@ fn execute_capture_tree(
                             group = 0;
                             while group < width {
                                 if work == MAX_CAPTURE_WORK {
-                                    return make_capture_run_result(2, 0, 0, 0);
+                                    return capture_tree_result(2, 0, work);
                                 }
                                 work += 1;
                                 if group >= node.first && group <= node.last {
@@ -3876,6 +3978,7 @@ fn execute_capture_tree(
                 };
             }
             if success {
+                found_match = true;
                 if capturing {
                     let mut groups: Vec<CaptureSpan> = Vec::new();
                     groups.push(CaptureSpan {
@@ -3886,7 +3989,7 @@ fn execute_capture_tree(
                     group = 1;
                     while group < width {
                         if work == MAX_CAPTURE_WORK {
-                            return make_capture_run_result(2, 0, 0, 0);
+                            return capture_tree_result(2, 0, work);
                         }
                         work += 1;
                         let register = captures[returned + group];
@@ -3897,20 +4000,33 @@ fn execute_capture_tree(
                         });
                         group += 1;
                     }
-                    return CaptureRunResult {
-                        kind: 0,
-                        start,
-                        end: match_end,
-                        count: 1,
-                        groups,
-                        matches,
-                    };
+                    if counting == false {
+                        return CaptureRunResult {
+                            kind: 0,
+                            start,
+                            end: match_end,
+                            count: 1,
+                            groups,
+                            matches,
+                            group_width: 0,
+                            work,
+                        };
+                    }
+                    let mut group_index = 0;
+                    while group_index < groups.len() {
+                        if work == MAX_CAPTURE_WORK {
+                            return capture_tree_result(2, 0, work);
+                        }
+                        work += 1;
+                        all_groups.push(groups[group_index]);
+                        group_index += 1;
+                    }
                 }
                 if counting == false {
                     return make_capture_run_result(0, start, match_end, 1);
                 }
                 count += 1;
-                if collecting {
+                if collecting && capturing == false {
                     matches.push(MatchSpan {
                         start,
                         end: match_end,
@@ -3919,7 +4035,7 @@ fn execute_capture_tree(
                 next_start = match_end;
                 if match_end == start {
                     if match_end == haystack.len() {
-                        return complete_match_list_result(count, matches);
+                        return complete_search_result(count, all_groups, matches, work);
                     }
                     next_start += 1;
                 }
@@ -3938,11 +4054,88 @@ fn execute_capture_tree(
             };
         }
         if exact_match {
-            return make_capture_run_result(2, 0, 0, 0);
+            return capture_tree_result(2, 0, work);
         }
-        start = next_start;
+        if batch_mode {
+            if found_match == false {
+                return capture_tree_result(2, 0, work);
+            }
+            batch_index += 1;
+            if batch_index == batch.len() {
+                return complete_search_result(count, all_groups, matches, work);
+            }
+            start = batch[batch_index].start;
+        } else {
+            start = next_start;
+        };
     }
-    complete_match_list_result(count, matches)
+    complete_search_result(count, all_groups, matches, work)
+}
+
+fn execute_capture_tree_search(
+    program: &CompiledRegex,
+    subject: &str,
+    from: usize,
+    exact_end: usize,
+    exact_match: bool,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    counting: bool,
+    capturing: bool,
+    collecting: bool,
+    start_work: usize,
+) -> CaptureRunResult {
+    let batch: Vec<MatchSpan> = Vec::new();
+    execute_capture_tree(
+        program,
+        subject,
+        from,
+        exact_end,
+        exact_match,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        counting,
+        capturing,
+        collecting,
+        start_work,
+        batch,
+        false,
+    )
+}
+
+fn complete_program_search(
+    program: &CompiledRegex,
+    subject: &str,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    count: usize,
+    matches: Vec<MatchSpan>,
+    work: usize,
+    capture_all: bool,
+) -> CaptureRunResult {
+    if capture_all {
+        return execute_capture_tree(
+            program,
+            subject,
+            0,
+            0,
+            false,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+            true,
+            true,
+            true,
+            work,
+            matches,
+            true,
+        );
+    }
+    let groups: Vec<CaptureSpan> = Vec::new();
+    complete_search_result(count, groups, matches, work)
 }
 
 fn execute_capture_program(
@@ -3975,7 +4168,7 @@ fn execute_capture_program(
         line_anchors = false;
     }
     if program.interpreted && program.prefilter == false {
-        return execute_capture_tree(
+        return execute_capture_tree_search(
             program,
             subject,
             from,
@@ -3987,14 +4180,26 @@ fn execute_capture_program(
             counting,
             capturing,
             collecting,
+            0,
         );
     }
     let mut count = 0;
     let mut matches: Vec<MatchSpan> = Vec::new();
+    let mut work = 0;
     let projected = program.regular == false;
     let haystack: Vec<char> = subject.chars().collect();
     if from > haystack.len() {
-        return complete_match_list_result(count, matches);
+        return complete_program_search(
+            program,
+            subject,
+            case_sensitive,
+            dot_crosses_newline,
+            line_anchors,
+            count,
+            matches,
+            work,
+            capturing && collecting,
+        );
     };
     let mut seen_epochs: Vec<usize> = Vec::new();
     let mut seen_starts: Vec<usize> = Vec::new();
@@ -4004,7 +4209,6 @@ fn execute_capture_program(
         seen_starts.push(0);
         instruction_index += 1;
     }
-    let mut work = 0;
     let mut search_from = from;
     let mut epoch = 0;
     while search_from <= haystack.len() {
@@ -4035,7 +4239,7 @@ fn execute_capture_program(
                 let state = stack[stack_len];
                 if work == MAX_CAPTURE_WORK {
                     if projected {
-                        return execute_capture_tree(
+                        return execute_capture_tree_search(
                             program,
                             subject,
                             from,
@@ -4047,6 +4251,7 @@ fn execute_capture_program(
                             counting,
                             capturing,
                             collecting,
+                            0,
                         );
                     }
                     return make_capture_run_result(2, 0, 0, 0);
@@ -4060,7 +4265,7 @@ fn execute_capture_program(
                     let step = program.instructions[instruction];
                     if step.operation == VM_ACCEPT {
                         if projected {
-                            return execute_capture_tree(
+                            return execute_capture_tree_search(
                                 program,
                                 subject,
                                 from,
@@ -4072,6 +4277,7 @@ fn execute_capture_program(
                                 counting,
                                 capturing,
                                 collecting,
+                                0,
                             );
                         }
                         if found == false
@@ -4182,7 +4388,7 @@ fn execute_capture_program(
                             while program.class_members[class_position].kind > 0 {
                                 if work == MAX_CAPTURE_WORK {
                                     if projected {
-                                        return execute_capture_tree(
+                                        return execute_capture_tree_search(
                                             program,
                                             subject,
                                             from,
@@ -4194,6 +4400,7 @@ fn execute_capture_program(
                                             counting,
                                             capturing,
                                             collecting,
+                                            0,
                                         );
                                     }
                                     return make_capture_run_result(2, 0, 0, 0);
@@ -4305,7 +4512,7 @@ fn execute_capture_program(
         if found {
             if counting == false {
                 if capturing {
-                    return execute_capture_tree(
+                    return execute_capture_tree_search(
                         program,
                         subject,
                         best_start,
@@ -4317,6 +4524,7 @@ fn execute_capture_program(
                         false,
                         true,
                         false,
+                        work,
                     );
                 }
                 return make_capture_run_result(0, best_start, best_end, 1);
@@ -4331,15 +4539,45 @@ fn execute_capture_program(
             search_from = best_end;
             if best_end == best_start {
                 if best_end == haystack.len() {
-                    return complete_match_list_result(count, matches);
+                    return complete_program_search(
+                        program,
+                        subject,
+                        case_sensitive,
+                        dot_crosses_newline,
+                        line_anchors,
+                        count,
+                        matches,
+                        work,
+                        capturing && collecting,
+                    );
                 }
                 search_from += 1;
             };
         } else {
-            return complete_match_list_result(count, matches);
+            return complete_program_search(
+                program,
+                subject,
+                case_sensitive,
+                dot_crosses_newline,
+                line_anchors,
+                count,
+                matches,
+                work,
+                capturing && collecting,
+            );
         };
     }
-    complete_match_list_result(count, matches)
+    complete_program_search(
+        program,
+        subject,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        count,
+        matches,
+        work,
+        capturing && collecting,
+    )
 }
 
 fn simple_literal_char(atom: char) -> bool {

@@ -1952,6 +1952,30 @@ for (const [pattern, subject, start] of [
   })
 }
 
+for (const [pattern, subject, start, captureGroups] of [
+  ['(a)+', 'aa aa', 1, 1],
+  ['(a)?()', 'aa', 1, 2],
+  [String.raw`(a)\1`, 'aa aa', 1, 1],
+  ['(?<=a)(b*)', 'abb ab', 1, 1],
+  ['(?=a)', 'aa', 1, 0],
+  ['a*?', 'aa', 1, 0],
+  ['.', '😀a', 1, 0],
+  ['(a)|(b)', 'aba', 1, 2],
+  ['z', 'aaa', 1, 0],
+  ['a', 'aaa', 2, 0],
+  ['[', 'abc', 1, 0],
+]) {
+  inputs.push({
+    operation: 'captures_all',
+    family: 'api-captures-all',
+    pattern,
+    subject,
+    start,
+    options: { syntax: 'advanced', caseSensitive: true, expanded: false, newline: 'ordinary' },
+    captureGroups,
+  })
+}
+
 function flags(options) {
   const newline = { ordinary: '', sensitive: 'n', stop: 'p', anchors: 'w' }[options.newline]
   const syntax = { literal: 'q', basic: 'b', extended: '', advanced: '' }[options.syntax]
@@ -1973,6 +1997,15 @@ try {
     from generate_series(1, regexp_count(($1::text collate "C"), $2::text, $4::int, $3::text)) as occurrence
     order by occurrence
   `
+  const captureAllSql = `
+    select occurrence, subexpression,
+      regexp_instr(($1::text collate "C"), $2::text, $4::int, occurrence, 0, $3::text, subexpression) as match_start,
+      regexp_instr(($1::text collate "C"), $2::text, $4::int, occurrence, 1, $3::text, subexpression) as match_end,
+      regexp_substr(($1::text collate "C"), $2::text, $4::int, occurrence, $3::text, subexpression) as matched_text
+    from generate_series(1, regexp_count(($1::text collate "C"), $2::text, $4::int, $3::text)) as occurrence
+      cross join generate_series(0, $5::int) as subexpression
+    order by occurrence, subexpression
+  `
   const captureSql = `
     select subexpression,
       regexp_instr(($1::text collate "C"), $2::text, $4::int, 1, 0, $3::text, subexpression) as match_start,
@@ -1990,7 +2023,33 @@ try {
         : input.pattern
     let expected
     try {
-      if (operation === 'find_all') {
+      if (operation === 'captures_all') {
+        const { rows } = await pg.query(captureAllSql, [
+          input.subject,
+          pattern,
+          flags(input.options),
+          input.start ?? 1,
+          captureGroups,
+        ])
+        if (rows.length % (captureGroups + 1) !== 0)
+          throw new Error('global capture row count mismatch')
+        const characters = Array.from(input.subject)
+        expected = {
+          kind: 'Matches',
+          value: {
+            groupsPerMatch: captureGroups + 1,
+            groups: rows.map(({ match_start: start, match_end: end, matched_text: text }) => {
+              const matched = start !== 0
+              if (text !== (matched ? characters.slice(start - 1, end - 1).join('') : null)) {
+                throw new Error(
+                  `global capture text differs from span for ${JSON.stringify(input)}`,
+                )
+              }
+              return { matched, start: matched ? start - 1 : 0, end: matched ? end - 1 : 0 }
+            }),
+          },
+        }
+      } else if (operation === 'find_all') {
         const { rows } = await pg.query(findAllSql, [
           input.subject,
           pattern,

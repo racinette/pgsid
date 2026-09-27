@@ -55,6 +55,8 @@ func checkCompiledResult(t *testing.T, operation string, input fixtureInput, fro
 			actual = CapturesCompiled(&compiled.Compiled, input.Subject, from)
 		case "find_all":
 			actual = FindAllCompiled(&compiled.Compiled, input.Subject, from)
+		case "captures_all":
+			actual = CapturesAllCompiled(&compiled.Compiled, input.Subject, from)
 		default:
 			actual = FindCompiled(&compiled.Compiled, input.Subject, from)
 		}
@@ -66,6 +68,8 @@ func checkCompiledResult(t *testing.T, operation string, input fixtureInput, fro
 			actual = CaptureOutcome{Kind: CaptureOutcomeInvalidPattern}
 		case "find_all":
 			actual = MatchListOutcome{Kind: MatchListOutcomeInvalidPattern}
+		case "captures_all":
+			actual = CaptureListOutcome{Kind: CaptureListOutcomeInvalidPattern}
 		default:
 			actual = MatchOutcome{Kind: MatchOutcomeInvalidPattern}
 		}
@@ -77,6 +81,8 @@ func checkCompiledResult(t *testing.T, operation string, input fixtureInput, fro
 			actual = CaptureOutcome{Kind: CaptureOutcomeUncertain}
 		case "find_all":
 			actual = MatchListOutcome{Kind: MatchListOutcomeUncertain}
+		case "captures_all":
+			actual = CaptureListOutcome{Kind: CaptureListOutcomeUncertain}
 		default:
 			actual = MatchOutcome{Kind: MatchOutcomeUncertain}
 		}
@@ -93,6 +99,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 	countFixtures := 0
 	captureFixtures := 0
 	listFixtures := 0
+	globalCaptureFixtures := 0
 	syntaxKinds := map[string]Syntax{
 		"advanced": {Kind: SyntaxAdvanced}, "basic": {Kind: SyntaxBasic},
 		"extended": {Kind: SyntaxExtended}, "literal": {Kind: SyntaxLiteral},
@@ -114,7 +121,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			t.Fatalf("unexpected fixture document: %s", path)
 		}
 		for index, fixture := range document.Fixtures {
-			if fixture.Operation != "" && fixture.Operation != "find" && fixture.Operation != "count" && fixture.Operation != "captures" && fixture.Operation != "find_all" {
+			if fixture.Operation != "" && fixture.Operation != "find" && fixture.Operation != "count" && fixture.Operation != "captures" && fixture.Operation != "find_all" && fixture.Operation != "captures_all" {
 				t.Fatalf("unknown operation: %s", fixture.Operation)
 			}
 			input := fixture.Input
@@ -131,6 +138,34 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				from = input.Start - 1
 			}
 			options := RegexOptions{Syntax: syntax, Newline: newline, CaseSensitive: input.Options.CaseSensitive, Expanded: input.Options.Expanded}
+			if fixture.Operation == "captures_all" {
+				actual := CapturesAll(input.Pattern, input.Subject, from, options)
+				var expected CaptureListOutcome
+				switch fixture.Expected.Kind {
+				case "Matches":
+					var batch CaptureBatch
+					if err := json.Unmarshal(fixture.Expected.Value, &batch); err != nil {
+						t.Fatal(err)
+					}
+					if batch.Groups == nil {
+						batch.Groups = []CaptureSpan{}
+					}
+					expected = CaptureListOutcome{Kind: CaptureListOutcomeMatches, Matches: batch}
+				case "InvalidPattern":
+					if fixture.Expected.Sqlstate != "2201B" {
+						t.Fatalf("unexpected SQLSTATE: %s", fixture.Expected.Sqlstate)
+					}
+					expected = CaptureListOutcome{Kind: CaptureListOutcomeInvalidPattern}
+				default:
+					t.Fatalf("unexpected global-capture outcome: %s", fixture.Expected.Kind)
+				}
+				if !reflect.DeepEqual(actual, expected) {
+					t.Errorf("%s global-capture fixture %d: input=%+v, expected=%+v, actual=%+v", path, index, input, expected, actual)
+				}
+				checkCompiledResult(t, fixture.Operation, input, from, options, actual)
+				globalCaptureFixtures++
+				continue
+			}
 			if fixture.Operation == "find_all" {
 				actual := FindAll(input.Pattern, input.Subject, from, options)
 				var expected MatchListOutcome
@@ -237,5 +272,5 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			findFixtures++
 		}
 	}
-	t.Logf("unified operations: %d find and %d count and %d capture and %d find-all PostgreSQL fixtures; zero skipped", findFixtures, countFixtures, captureFixtures, listFixtures)
+	t.Logf("unified operations: %d find and %d count and %d capture and %d find-all and %d global-capture PostgreSQL fixtures; zero skipped", findFixtures, countFixtures, captureFixtures, listFixtures, globalCaptureFixtures)
 }

@@ -1670,6 +1670,10 @@ fn unified_operations_preserve_uncertainty_at_resource_limits() {
             candidate::find_all(&pattern, "a", 0, options),
             candidate::MatchListOutcome::Uncertain
         ));
+        assert!(matches!(
+            candidate::captures_all(&pattern, "a", 0, options),
+            candidate::CaptureListOutcome::Uncertain
+        ));
     }
     let subject = "a".repeat(250000);
     assert!(matches!(
@@ -1683,6 +1687,10 @@ fn unified_operations_preserve_uncertainty_at_resource_limits() {
     assert!(matches!(
         candidate::find_all("(?=a)(?=a)", &subject, 0, options),
         candidate::MatchListOutcome::Uncertain
+    ));
+    assert!(matches!(
+        candidate::captures_all("(?=a)(?=a)", &subject, 0, options),
+        candidate::CaptureListOutcome::Uncertain
     ));
     assert!(matches!(
         candidate::count("[", "", 100, options),
@@ -1718,6 +1726,7 @@ fn unified_operations_match_every_postgres_fixture() {
     let mut counts = 0;
     let mut captures = 0;
     let mut lists = 0;
+    let mut global_captures = 0;
     for source in [
         include_str!("../conformance/postgres-fixtures.json"),
         include_str!("../conformance/stress-fixtures.json"),
@@ -1773,6 +1782,17 @@ fn unified_operations_match_every_postgres_fixture() {
                     }
                     candidate::MatchListOutcome::Uncertain => json!({"kind":"Uncertain"}),
                 }
+            } else if fixture["operation"] == "captures_all" {
+                global_captures += 1;
+                match candidate::captures_all(pattern, subject, from, options) {
+                    candidate::CaptureListOutcome::Matches(batch) => {
+                        json!({"kind":"Matches", "value":{"groupsPerMatch":batch.groups_per_match,"groups":batch.groups.iter().map(|group| json!({"matched":group.matched,"start":group.start,"end":group.end})).collect::<Vec<_>>()}})
+                    }
+                    candidate::CaptureListOutcome::InvalidPattern => {
+                        json!({"kind":"InvalidPattern", "sqlstate":"2201B"})
+                    }
+                    candidate::CaptureListOutcome::Uncertain => json!({"kind":"Uncertain"}),
+                }
             } else if fixture["operation"] == "captures" {
                 captures += 1;
                 match candidate::captures(pattern, subject, from, options) {
@@ -1827,6 +1847,16 @@ fn unified_operations_match_every_postgres_fixture() {
                             }
                             candidate::MatchListOutcome::Uncertain => json!({"kind":"Uncertain"}),
                         }
+                    } else if fixture["operation"] == "captures_all" {
+                        match candidate::captures_all_compiled(&program, subject, from) {
+                            candidate::CaptureListOutcome::Matches(batch) => {
+                                json!({"kind":"Matches", "value":{"groupsPerMatch":batch.groups_per_match,"groups":batch.groups.iter().map(|group| json!({"matched":group.matched,"start":group.start,"end":group.end})).collect::<Vec<_>>()}})
+                            }
+                            candidate::CaptureListOutcome::InvalidPattern => {
+                                json!({"kind":"InvalidPattern", "sqlstate":"2201B"})
+                            }
+                            candidate::CaptureListOutcome::Uncertain => json!({"kind":"Uncertain"}),
+                        }
                     } else if fixture["operation"] == "captures" {
                         match candidate::captures_compiled(&program, subject, from) {
                             candidate::CaptureOutcome::Found(groups) => {
@@ -1858,8 +1888,8 @@ fn unified_operations_match_every_postgres_fixture() {
             );
         }
     }
-    assert!(finds > 0 && counts > 0 && captures > 0 && lists > 0);
-    eprintln!("unified operations: {finds} find and {counts} count and {captures} capture and {lists} find-all PostgreSQL fixtures");
+    assert!(finds > 0 && counts > 0 && captures > 0 && lists > 0 && global_captures > 0);
+    eprintln!("unified operations: {finds} find and {counts} count and {captures} capture and {lists} find-all and {global_captures} global-capture PostgreSQL fixtures");
 }
 
 #[test]
@@ -1952,4 +1982,22 @@ fn compiled_pattern_can_be_reused_across_operations_and_subjects() {
         candidate::compile("(a{255}){255}", options),
         candidate::CompileOutcome::Uncertain
     ));
+}
+
+#[test]
+fn global_captures_handle_many_short_matches_with_one_work_budget() {
+    let options = test_options(candidate::Syntax::Advanced, true, true, false, false);
+    let subject = "a ".repeat(8192);
+    let candidate::CaptureListOutcome::Matches(batch) =
+        candidate::captures_all("(a)+", &subject, 0, options)
+    else {
+        panic!("expected global captures");
+    };
+    assert_eq!(batch.groups_per_match, 2);
+    assert_eq!(batch.groups.len(), 16384);
+    assert_eq!((batch.groups[0].start, batch.groups[0].end), (0, 1));
+    assert_eq!(
+        (batch.groups[16382].start, batch.groups[16382].end),
+        (16382, 16383)
+    );
 }

@@ -88,6 +88,14 @@ func TestReusableCompiledEngine(t *testing.T) {
 	if captures.Kind != generated.CaptureOutcomeFound || len(captures.Found) != 2 || captures.Found[1] != (generated.CaptureSpan{Matched: true, Start: 3, End: 4}) {
 		t.Fatalf("unexpected compiled captures: %+v", captures)
 	}
+	global := generated.CapturesAllCompiled(program, "aa aa", 0)
+	if global.Kind != generated.CaptureListOutcomeMatches || global.Matches.GroupsPerMatch != 2 || len(global.Matches.Groups) != 4 || global.Matches.Groups[1] != (generated.CaptureSpan{Matched: true, Start: 1, End: 2}) || global.Matches.Groups[3] != (generated.CaptureSpan{Matched: true, Start: 4, End: 5}) {
+		t.Fatalf("unexpected compiled global captures: %+v", global)
+	}
+	many := generated.CapturesAllCompiled(program, strings.Repeat("a ", 2048), 0)
+	if many.Kind != generated.CaptureListOutcomeMatches || len(many.Matches.Groups) != 4096 || many.Matches.Groups[4094] != (generated.CaptureSpan{Matched: true, Start: 4094, End: 4095}) {
+		t.Fatalf("unexpected many-match capture batch: kind=%v, groups=%d", many.Kind, len(many.Matches.Groups))
+	}
 	if generated.FindCompiled(&generated.CompiledRegex{}, "a", 0).Kind != generated.MatchOutcomeInvalidPattern {
 		t.Fatal("zero-value program should not execute")
 	}
@@ -96,5 +104,23 @@ func TestReusableCompiledEngine(t *testing.T) {
 	}
 	if generated.Compile("(a{255}){255}", options).Kind != generated.CompileOutcomeUncertain {
 		t.Fatal("compilation work limit lost its status")
+	}
+}
+
+func TestExportedGlobalCapturesAreIndependent(t *testing.T) {
+	options := generated.RegexOptions{Syntax: generated.Syntax{Kind: generated.SyntaxAdvanced}, CaseSensitive: true, Newline: generated.NewlineMode{Kind: generated.NewlineModeOrdinary}}
+	result := generated.CapturesAll("(a)", "aa", 0, options)
+	if result.Kind != generated.CaptureListOutcomeMatches || result.Matches.GroupsPerMatch != 2 || len(result.Matches.Groups) != 4 {
+		t.Fatalf("unexpected global captures: %+v", result)
+	}
+	result.Matches.Groups[0].End = 99
+	if result.Matches.Groups[2].End != 2 || generated.CapturesAll("(a)", "aa", 0, options).Matches.Groups[0].End != 1 {
+		t.Fatal("global capture results share mutable storage")
+	}
+	if generated.CapturesAll("[", "", 100, options).Kind != generated.CaptureListOutcomeInvalidPattern {
+		t.Fatal("invalid pattern lost its status")
+	}
+	if generated.CapturesAll("(?=a)(?=a)", strings.Repeat("a", 250000), 0, options).Kind != generated.CaptureListOutcomeUncertain {
+		t.Fatal("global capture work limit lost its status")
 	}
 }

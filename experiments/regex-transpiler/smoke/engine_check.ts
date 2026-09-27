@@ -335,6 +335,36 @@ assert.deepEqual(generated.capturesCompiled(program, 'baaa', 0), {
     { matched: true, start: 3, end: 4 },
   ],
 })
+assert.deepEqual(generated.capturesAllCompiled(program, 'aa aa', 0), {
+  kind: 'Matches',
+  value: {
+    groupsPerMatch: 2,
+    groups: [
+      { matched: true, start: 0, end: 2 },
+      { matched: true, start: 1, end: 2 },
+      { matched: true, start: 3, end: 5 },
+      { matched: true, start: 4, end: 5 },
+    ],
+  },
+})
+const globalCaptures = generated.capturesAll('(a)', 'aa', 0, unifiedOptions)
+assert.equal(globalCaptures.kind, 'Matches')
+assert.equal(globalCaptures.value.groupsPerMatch, 2)
+assert.equal(globalCaptures.value.groups.length, 4)
+globalCaptures.value.groups[0].end = 99
+assert.equal(globalCaptures.value.groups[2].end, 2)
+assert.equal(generated.capturesAll('(a)', 'aa', 0, unifiedOptions).value.groups[0].end, 1)
+const manyCaptures = generated.capturesAllCompiled(program, 'a '.repeat(2048), 0)
+assert.equal(manyCaptures.kind, 'Matches')
+assert.equal(manyCaptures.value.groups.length, 4096)
+assert.deepEqual(manyCaptures.value.groups[4094], {
+  matched: true,
+  start: 4094,
+  end: 4095,
+})
+assert.deepEqual(generated.capturesAll('[', '', 100, unifiedOptions), {
+  kind: 'InvalidPattern',
+})
 assert.equal(Object.isFrozen(program), true)
 assert.equal(Object.isFrozen(program.nodes), true)
 assert.throws(() => {
@@ -369,6 +399,9 @@ assert.deepEqual(generated.count('(?=a)(?=a)', repeatedSubject, 0, unifiedOption
   kind: 'Uncertain',
 })
 assert.deepEqual(generated.findAll('(?=a)(?=a)', repeatedSubject, 0, unifiedOptions), {
+  kind: 'Uncertain',
+})
+assert.deepEqual(generated.capturesAll('(?=a)(?=a)', repeatedSubject, 0, unifiedOptions), {
   kind: 'Uncertain',
 })
 assert.deepEqual(generated.find('a', 'a'.repeat(500000), 0, unifiedOptions), {
