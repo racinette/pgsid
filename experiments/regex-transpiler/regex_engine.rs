@@ -1181,7 +1181,14 @@ fn parse_repetition<'a>(mut cursor: Cursor<'a>, atom: Expression, syntax: Syntax
         false
     };
     match cursor.peek() {
-        Some('{') => return Err(ParseIssue::Unsupported),
+        Some('{')
+            if cursor
+                .characters
+                .get(cursor.position + 1)
+                .is_some_and(char::is_ascii_digit) =>
+        {
+            return Err(ParseIssue::Invalid)
+        }
         Some('*') | Some('+') => return Err(ParseIssue::Invalid),
         _ => {}
     }

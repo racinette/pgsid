@@ -508,7 +508,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				actual = FindWidthRejected(input.Pattern, input.Subject, from, input.Options.Expanded)
 				advanced++
 			} else {
-				continue
+				t.Fatalf("unsupported find fixture: %s fixture %d: %+v", path, index, input)
 			}
 			if from > 0 {
 				positioned++
