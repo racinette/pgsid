@@ -42,6 +42,52 @@ type fixtureDocument struct {
 	Fixtures []fixture `json:"fixtures"`
 }
 
+func checkCompiledResult(t *testing.T, operation string, input fixtureInput, from int, options RegexOptions, direct any) {
+	t.Helper()
+	compiled := Compile(input.Pattern, options)
+	var actual any
+	switch compiled.Kind {
+	case CompileOutcomeCompiled:
+		switch operation {
+		case "count":
+			actual = CountCompiled(&compiled.Compiled, input.Subject, from)
+		case "captures":
+			actual = CapturesCompiled(&compiled.Compiled, input.Subject, from)
+		case "find_all":
+			actual = FindAllCompiled(&compiled.Compiled, input.Subject, from)
+		default:
+			actual = FindCompiled(&compiled.Compiled, input.Subject, from)
+		}
+	case CompileOutcomeInvalidPattern:
+		switch operation {
+		case "count":
+			actual = CountOutcome{Kind: CountOutcomeInvalidPattern}
+		case "captures":
+			actual = CaptureOutcome{Kind: CaptureOutcomeInvalidPattern}
+		case "find_all":
+			actual = MatchListOutcome{Kind: MatchListOutcomeInvalidPattern}
+		default:
+			actual = MatchOutcome{Kind: MatchOutcomeInvalidPattern}
+		}
+	case CompileOutcomeUncertain:
+		switch operation {
+		case "count":
+			actual = CountOutcome{Kind: CountOutcomeUncertain}
+		case "captures":
+			actual = CaptureOutcome{Kind: CaptureOutcomeUncertain}
+		case "find_all":
+			actual = MatchListOutcome{Kind: MatchListOutcomeUncertain}
+		default:
+			actual = MatchOutcome{Kind: MatchOutcomeUncertain}
+		}
+	default:
+		t.Fatalf("unexpected compile result: %+v", compiled)
+	}
+	if !reflect.DeepEqual(actual, direct) {
+		t.Errorf("compiled %s differs from one-shot result: input=%+v, compiled=%+v, direct=%+v", operation, input, actual, direct)
+	}
+}
+
 func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 	findFixtures := 0
 	countFixtures := 0
@@ -109,6 +155,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				if !reflect.DeepEqual(actual, expected) {
 					t.Errorf("%s find-all fixture %d: input=%+v, expected=%+v, actual=%+v", path, index, input, expected, actual)
 				}
+				checkCompiledResult(t, fixture.Operation, input, from, options, actual)
 				listFixtures++
 				continue
 			}
@@ -133,6 +180,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				if actual != expected {
 					t.Errorf("%s count fixture %d: input=%+v, expected=%+v, actual=%+v", path, index, input, expected, actual)
 				}
+				checkCompiledResult(t, fixture.Operation, input, from, options, actual)
 				countFixtures++
 				continue
 			}
@@ -159,6 +207,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				if !reflect.DeepEqual(actual, expected) {
 					t.Errorf("%s capture fixture %d: input=%+v, expected=%+v, actual=%+v", path, index, input, expected, actual)
 				}
+				checkCompiledResult(t, fixture.Operation, input, from, options, actual)
 				captureFixtures++
 				continue
 			}
@@ -184,6 +233,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			if actual != expected {
 				t.Errorf("%s fixture %d: input=%+v, expected=%+v, actual=%+v", path, index, input, expected, actual)
 			}
+			checkCompiledResult(t, fixture.Operation, input, from, options, actual)
 			findFixtures++
 		}
 	}

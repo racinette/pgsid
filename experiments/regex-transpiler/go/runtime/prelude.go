@@ -2,6 +2,21 @@ package generated
 
 import "unicode/utf8"
 
+func checkedOpaqueBorrow[T any](value *T) *T {
+	if value == nil {
+		panic("nil borrowed value")
+	}
+	return value
+}
+
+func checkedBorrowed[T any](value *T, copyValue func(T) T) *T {
+	if value == nil {
+		panic("nil borrowed value")
+	}
+	copied := copyValue(*value)
+	return &copied
+}
+
 const maxSharedIndex = 2147483647
 
 func checkedIndex(value int) int {

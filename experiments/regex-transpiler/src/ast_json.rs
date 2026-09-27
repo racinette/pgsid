@@ -31,12 +31,16 @@ fn visibility(value: &Visibility) -> Result<&'static str> {
 fn check_type(
     value: &Type,
     declarations: &BTreeSet<String>,
+    structs: &BTreeSet<String>,
     copy_structs: &BTreeSet<String>,
 ) -> Result<()> {
     match value {
         Type::Reference(reference) => {
-            if type_name(&reference.elem)? != "str" {
-                return Err("only &str references are in the AST contract".into());
+            let inner = type_name(&reference.elem)?;
+            if inner != "str" && !structs.contains(&inner) {
+                return Err(
+                    "only &str and declared struct references are in the AST contract".into(),
+                );
             }
         }
         Type::Path(_) => {
@@ -58,23 +62,34 @@ fn check_type(
     Ok(())
 }
 
+fn reject_stored_struct_borrow(value: &Type) -> Result<()> {
+    if let Type::Reference(reference) = value {
+        if type_name(&reference.elem)? != "str" {
+            return Err("struct borrows are supported only as function parameters".into());
+        }
+    }
+    Ok(())
+}
+
 fn check_body_types(
     block: &syn::Block,
     declarations: &BTreeSet<String>,
+    structs: &BTreeSet<String>,
     copy_structs: &BTreeSet<String>,
 ) -> Result<()> {
     for statement in &block.stmts {
         match statement {
             Stmt::Local(local) => {
                 if let Pat::Type(typed) = &local.pat {
-                    check_type(&typed.ty, declarations, copy_structs)?;
+                    reject_stored_struct_borrow(&typed.ty)?;
+                    check_type(&typed.ty, declarations, structs, copy_structs)?;
                 }
             }
             Stmt::Expr(Expr::If(branch), _) => {
-                check_if_body_types(branch, declarations, copy_structs)?
+                check_if_body_types(branch, declarations, structs, copy_structs)?
             }
             Stmt::Expr(Expr::While(loop_), _) => {
-                check_body_types(&loop_.body, declarations, copy_structs)?
+                check_body_types(&loop_.body, declarations, structs, copy_structs)?
             }
             _ => {}
         }
@@ -85,15 +100,18 @@ fn check_body_types(
 fn check_if_body_types(
     branch: &syn::ExprIf,
     declarations: &BTreeSet<String>,
+    structs: &BTreeSet<String>,
     copy_structs: &BTreeSet<String>,
 ) -> Result<()> {
-    check_body_types(&branch.then_branch, declarations, copy_structs)?;
+    check_body_types(&branch.then_branch, declarations, structs, copy_structs)?;
     if let Some((_, alternate)) = &branch.else_branch {
         match &**alternate {
             Expr::Block(alternate) => {
-                check_body_types(&alternate.block, declarations, copy_structs)?
+                check_body_types(&alternate.block, declarations, structs, copy_structs)?
             }
-            Expr::If(alternate) => check_if_body_types(alternate, declarations, copy_structs)?,
+            Expr::If(alternate) => {
+                check_if_body_types(alternate, declarations, structs, copy_structs)?
+            }
             _ => unreachable!(),
         }
     }
@@ -107,6 +125,14 @@ fn check_types(file: &syn::File) -> Result<()> {
         .filter_map(|item| match item {
             Item::Struct(node) => Some(node.ident.to_string()),
             Item::Enum(node) => Some(node.ident.to_string()),
+            _ => None,
+        })
+        .collect::<BTreeSet<_>>();
+    let structs = file
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Struct(node) => Some(node.ident.to_string()),
             _ => None,
         })
         .collect::<BTreeSet<_>>();
@@ -125,19 +151,29 @@ fn check_types(file: &syn::File) -> Result<()> {
         .collect::<BTreeSet<_>>();
     for item in &file.items {
         match item {
-            Item::Const(node) => check_type(&node.ty, &declarations, &copy_structs)?,
+            Item::Const(node) => {
+                reject_stored_struct_borrow(&node.ty)?;
+                check_type(&node.ty, &declarations, &structs, &copy_structs)?;
+            }
             Item::Struct(node) => {
                 let Fields::Named(fields) = &node.fields else {
                     unreachable!()
                 };
                 for field in &fields.named {
-                    check_type(&field.ty, &declarations, &copy_structs)?;
+                    reject_stored_struct_borrow(&field.ty)?;
+                    check_type(&field.ty, &declarations, &structs, &copy_structs)?;
                 }
             }
             Item::Enum(node) => {
                 for variant in &node.variants {
                     if let Fields::Unnamed(fields) = &variant.fields {
-                        check_type(&fields.unnamed[0].ty, &declarations, &copy_structs)?;
+                        reject_stored_struct_borrow(&fields.unnamed[0].ty)?;
+                        check_type(
+                            &fields.unnamed[0].ty,
+                            &declarations,
+                            &structs,
+                            &copy_structs,
+                        )?;
                     }
                 }
             }
@@ -146,13 +182,16 @@ fn check_types(file: &syn::File) -> Result<()> {
                     let FnArg::Typed(arg) = arg else {
                         unreachable!()
                     };
-                    check_type(&arg.ty, &declarations, &copy_structs)?;
+                    check_type(&arg.ty, &declarations, &structs, &copy_structs)?;
                 }
                 let ReturnType::Type(_, output) = &node.sig.output else {
                     unreachable!()
                 };
-                check_type(output, &declarations, &copy_structs)?;
-                check_body_types(&node.block, &declarations, &copy_structs)?;
+                if matches!(&**output, Type::Reference(_)) {
+                    return Err("borrowed return types are outside the AST contract".into());
+                }
+                check_type(output, &declarations, &structs, &copy_structs)?;
+                check_body_types(&node.block, &declarations, &structs, &copy_structs)?;
             }
             _ => unreachable!(),
         }
@@ -260,6 +299,7 @@ fn expr(value: &Expr) -> Result<Value> {
         },
         Expr::Paren(node) => Ok(json!({ "kind": "parenthesized", "inner": expr(&node.expr)? })),
         Expr::Group(node) => expr(&node.expr),
+        Expr::Reference(node) => Ok(json!({ "kind": "borrow", "value": expr(&node.expr)? })),
         Expr::Cast(node) => Ok(json!({
             "kind": "cast",
             "value": expr(&node.expr)?,
@@ -576,6 +616,31 @@ mod tests {
     fn rejects_types_without_target_mappings() {
         assert!(parse("pub fn f(value: Vec<i32>) -> i32 { 1 }").is_err());
         assert!(parse("pub fn f(value: &char) -> bool { 1 == 1 }").is_err());
+    }
+
+    #[test]
+    fn immutable_struct_borrows_have_a_narrow_boundary() {
+        let record = "struct State { position: usize }";
+        let accepted = format!(
+            "{record} fn read(value: &State) -> usize {{ value.position }} pub fn f(value: State) -> usize {{ read(&value) }}"
+        );
+        let tree: serde_json::Value = serde_json::from_str(&parse(&accepted).unwrap()).unwrap();
+        assert_eq!(
+            tree["items"][2]["body"][0]["value"]["arguments"][0]["kind"],
+            "borrow"
+        );
+        assert!(parse(&format!(
+            "{record} pub fn f(value: &mut State) -> usize {{ value.position }}"
+        ))
+        .is_err());
+        assert!(parse(&format!(
+            "{record} pub fn f(value: &State) -> &State {{ value }}"
+        ))
+        .is_err());
+        assert!(parse(&format!("{record} pub fn f(value: State) -> usize {{ let borrowed = &value; borrowed.position }}")).is_err());
+        assert!(parse(&format!("{record} pub fn f(value: State) -> usize {{ let borrowed: &State = &value; borrowed.position }}")).is_err());
+        assert!(parse("pub fn f(value: &Vec<usize>) -> usize { value.len() }").is_err());
+        assert!(parse("enum State { Ready } pub fn f(value: &State) -> bool { true }").is_err());
     }
 
     #[test]

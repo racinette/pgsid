@@ -50,10 +50,13 @@ func (g *generator) goType(value *node) ast.Expr {
 		reject("missing type")
 	}
 	if value.Kind == "reference" {
-		if path(value.Inner) != "str" {
-			reject("unsupported reference type")
+		if path(value.Inner) == "str" {
+			return goIdent("string")
 		}
-		return goIdent("string")
+		if g.structs[path(value.Inner)] != nil {
+			return &ast.StarExpr{X: g.goType(value.Inner)}
+		}
+		reject("unsupported reference type")
 	}
 	if value.Kind != "path" {
 		reject("unsupported type kind " + value.Kind)
@@ -96,7 +99,18 @@ func (g *generator) goType(value *node) ast.Expr {
 
 func (g *generator) goDetach(value ast.Expr, valueType *node) ast.Expr {
 	if valueType.Kind == "reference" {
-		return goCall("checkedString", value)
+		name := path(valueType.Inner)
+		if name == "str" {
+			return goCall("checkedString", value)
+		}
+		structure := g.structs[name]
+		if structure == nil {
+			reject("unsupported borrowed type")
+		}
+		if opaqueStruct(structure) {
+			return goCall("checkedOpaqueBorrow", value)
+		}
+		return goCall("checkedBorrowed", value, goIdent("copy"+g.name(name)))
 	}
 	name := path(valueType)
 	switch name {
@@ -163,6 +177,8 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		return goIdent("false")
 	case "parenthesized":
 		return &ast.ParenExpr{X: g.goExpression(value.Inner)}
+	case "borrow":
+		return &ast.UnaryExpr{Op: token.AND, X: g.goExpression(value.Value)}
 	case "cast":
 		switch path(value.TargetType) {
 		case "u32":

@@ -9,6 +9,14 @@ func TestTranspilerSmoke(t *testing.T) {
 	if !SameSpan(actual, expected) || input != (Span{Start: 1, End: 3}) {
 		t.Errorf("ShiftSpan(%+v, 2) = %+v", input, actual)
 	}
+	if SpanStart(&input) != 1 || BorrowedSpanStart(input) != 1 {
+		t.Fatal("borrowed struct read differed")
+	}
+	expectPanic(t, func() { SpanStart(&Span{Start: -1, End: 2}) })
+	token := MakeToken(7)
+	if TokenValue(&token) != 7 {
+		t.Fatal("opaque borrowed struct differed")
+	}
 	parameter := Span{Start: 1, End: 3}
 	if shifted := ShiftParameter(parameter, 2); shifted != (Span{Start: 3, End: 3}) || parameter != (Span{Start: 1, End: 3}) {
 		t.Errorf("ShiftParameter(%+v, 2) = %+v", parameter, shifted)

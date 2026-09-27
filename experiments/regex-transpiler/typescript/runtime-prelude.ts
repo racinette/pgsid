@@ -98,3 +98,23 @@ function pushStruct<T>(values: T[], value: T, copyValue: (entry: T) => T): void 
   checkedAdd(values.length, 1)
   values.push(copyValue(value))
 }
+const opaqueValues = new WeakSet<object>()
+
+function freezeDeep(value: object): void {
+  for (const child of Object.values(value)) {
+    if (typeof child === 'object' && child !== null) freezeDeep(child)
+  }
+  Object.freeze(value)
+}
+
+function sealOpaque<T extends object>(value: T): T {
+  freezeDeep(value)
+  opaqueValues.add(value)
+  return value
+}
+
+function checkedOpaque<T extends object>(value: T): T {
+  if (typeof value !== 'object' || value === null || !opaqueValues.has(value))
+    throw new TypeError('invalid borrowed handle')
+  return value
+}

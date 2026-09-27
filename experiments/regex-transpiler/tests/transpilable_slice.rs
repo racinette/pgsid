@@ -1800,6 +1800,62 @@ fn unified_operations_match_every_postgres_fixture() {
                 }
             };
             assert_eq!(actual, fixture["expected"], "unified operation: {input}");
+            let compiled = candidate::compile(pattern, options);
+            let compiled_actual = match compiled {
+                candidate::CompileOutcome::InvalidPattern => {
+                    json!({"kind":"InvalidPattern", "sqlstate":"2201B"})
+                }
+                candidate::CompileOutcome::Uncertain => json!({"kind":"Uncertain"}),
+                candidate::CompileOutcome::Compiled(program) => {
+                    if fixture["operation"] == "count" {
+                        match candidate::count_compiled(&program, subject, from) {
+                            candidate::CountOutcome::Count(value) => {
+                                json!({"kind":"Count", "value":value})
+                            }
+                            candidate::CountOutcome::InvalidPattern => {
+                                json!({"kind":"InvalidPattern", "sqlstate":"2201B"})
+                            }
+                            candidate::CountOutcome::Uncertain => json!({"kind":"Uncertain"}),
+                        }
+                    } else if fixture["operation"] == "find_all" {
+                        match candidate::find_all_compiled(&program, subject, from) {
+                            candidate::MatchListOutcome::Matches(spans) => {
+                                json!({"kind":"Matches", "value":spans.iter().map(|span| json!({"start":span.start,"end":span.end})).collect::<Vec<_>>()})
+                            }
+                            candidate::MatchListOutcome::InvalidPattern => {
+                                json!({"kind":"InvalidPattern", "sqlstate":"2201B"})
+                            }
+                            candidate::MatchListOutcome::Uncertain => json!({"kind":"Uncertain"}),
+                        }
+                    } else if fixture["operation"] == "captures" {
+                        match candidate::captures_compiled(&program, subject, from) {
+                            candidate::CaptureOutcome::Found(groups) => {
+                                json!({"kind":"Found", "value":groups.iter().map(|group| json!({"matched":group.matched,"start":group.start,"end":group.end})).collect::<Vec<_>>()})
+                            }
+                            candidate::CaptureOutcome::NoMatch => json!({"kind":"NoMatch"}),
+                            candidate::CaptureOutcome::InvalidPattern => {
+                                json!({"kind":"InvalidPattern", "sqlstate":"2201B"})
+                            }
+                            candidate::CaptureOutcome::Uncertain => json!({"kind":"Uncertain"}),
+                        }
+                    } else {
+                        match candidate::find_compiled(&program, subject, from) {
+                            candidate::MatchOutcome::Found(span) => {
+                                json!({"kind":"Found", "value":{"start":span.start,"end":span.end}})
+                            }
+                            candidate::MatchOutcome::NoMatch => json!({"kind":"NoMatch"}),
+                            candidate::MatchOutcome::InvalidPattern => {
+                                json!({"kind":"InvalidPattern", "sqlstate":"2201B"})
+                            }
+                            candidate::MatchOutcome::Uncertain => json!({"kind":"Uncertain"}),
+                        }
+                    }
+                }
+            };
+            assert_eq!(
+                compiled_actual, fixture["expected"],
+                "compiled operation: {input}"
+            );
         }
     }
     assert!(finds > 0 && counts > 0 && captures > 0 && lists > 0);
@@ -1850,5 +1906,50 @@ fn captures_preserve_outcome_status_and_detached_group_spans() {
             options
         ),
         candidate::CaptureOutcome::Uncertain
+    ));
+}
+
+#[test]
+fn compiled_pattern_can_be_reused_across_operations_and_subjects() {
+    let options = test_options(candidate::Syntax::Advanced, true, true, false, false);
+    let candidate::CompileOutcome::Compiled(program) = candidate::compile("(a)+", options) else {
+        panic!("expected a compiled pattern");
+    };
+    assert!(matches!(
+        candidate::find_compiled(&program, "baaa", 0),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 1, end: 4 })
+    ));
+    assert!(matches!(
+        candidate::count_compiled(&program, "aa aa", 0),
+        candidate::CountOutcome::Count(2)
+    ));
+    let candidate::MatchListOutcome::Matches(spans) =
+        candidate::find_all_compiled(&program, "aa aa", 0)
+    else {
+        panic!("expected a match list");
+    };
+    assert!(
+        spans
+            == vec![
+                candidate::MatchSpan { start: 0, end: 2 },
+                candidate::MatchSpan { start: 3, end: 5 }
+            ]
+    );
+    let candidate::CaptureOutcome::Found(groups) =
+        candidate::captures_compiled(&program, "baaa", 0)
+    else {
+        panic!("expected captures");
+    };
+    assert_eq!(
+        (groups[1].matched, groups[1].start, groups[1].end),
+        (true, 3, 4)
+    );
+    assert!(matches!(
+        candidate::compile("[", options),
+        candidate::CompileOutcome::InvalidPattern
+    ));
+    assert!(matches!(
+        candidate::compile("(a{255}){255}", options),
+        candidate::CompileOutcome::Uncertain
     ));
 }

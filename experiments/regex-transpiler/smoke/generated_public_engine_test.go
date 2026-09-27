@@ -66,3 +66,35 @@ func TestExportedFindAll(t *testing.T) {
 		t.Fatal("lookaround depth must respect the work limit")
 	}
 }
+
+func TestReusableCompiledEngine(t *testing.T) {
+	options := generated.RegexOptions{Syntax: generated.Syntax{Kind: generated.SyntaxAdvanced}, CaseSensitive: true, Newline: generated.NewlineMode{Kind: generated.NewlineModeOrdinary}}
+	compiled := generated.Compile("(a)+", options)
+	if compiled.Kind != generated.CompileOutcomeCompiled {
+		t.Fatalf("unexpected compilation: %+v", compiled)
+	}
+	program := &compiled.Compiled
+	if actual := generated.FindCompiled(program, "baaa", 0); actual != (generated.MatchOutcome{Kind: generated.MatchOutcomeFound, Found: generated.MatchSpan{Start: 1, End: 4}}) {
+		t.Fatalf("unexpected compiled find: %+v", actual)
+	}
+	if actual := generated.CountCompiled(program, "aa aa", 0); actual != (generated.CountOutcome{Kind: generated.CountOutcomeCount, Count: 2}) {
+		t.Fatalf("unexpected compiled count: %+v", actual)
+	}
+	all := generated.FindAllCompiled(program, "aa aa", 0)
+	if all.Kind != generated.MatchListOutcomeMatches || len(all.Matches) != 2 || all.Matches[0] != (generated.MatchSpan{Start: 0, End: 2}) || all.Matches[1] != (generated.MatchSpan{Start: 3, End: 5}) {
+		t.Fatalf("unexpected compiled find all: %+v", all)
+	}
+	captures := generated.CapturesCompiled(program, "baaa", 0)
+	if captures.Kind != generated.CaptureOutcomeFound || len(captures.Found) != 2 || captures.Found[1] != (generated.CaptureSpan{Matched: true, Start: 3, End: 4}) {
+		t.Fatalf("unexpected compiled captures: %+v", captures)
+	}
+	if generated.FindCompiled(&generated.CompiledRegex{}, "a", 0).Kind != generated.MatchOutcomeInvalidPattern {
+		t.Fatal("zero-value program should not execute")
+	}
+	if generated.Compile("[", options).Kind != generated.CompileOutcomeInvalidPattern {
+		t.Fatal("invalid pattern should fail compilation")
+	}
+	if generated.Compile("(a{255}){255}", options).Kind != generated.CompileOutcomeUncertain {
+		t.Fatal("compilation work limit lost its status")
+	}
+}

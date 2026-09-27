@@ -81,6 +81,13 @@ fn expr(expr: &Expr) -> Result {
         }
         Expr::Paren(node) if node.attrs.is_empty() => self::expr(&node.expr),
         Expr::Group(node) if node.attrs.is_empty() => self::expr(&node.expr),
+        Expr::Reference(node)
+            if node.attrs.is_empty()
+                && node.mutability.is_none()
+                && matches!(&*node.expr, Expr::Path(path) if path.path.segments.len() == 1) =>
+        {
+            self::expr(&node.expr)
+        }
         Expr::Cast(node) if node.attrs.is_empty() => {
             if !matches!(&*node.ty, Type::Path(target) if target.path.is_ident("u32") || target.path.is_ident("usize"))
             {

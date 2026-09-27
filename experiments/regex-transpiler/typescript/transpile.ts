@@ -11,6 +11,7 @@ type Expr =
   | { kind: 'character'; scalar: string }
   | { kind: 'boolean'; state: boolean }
   | { kind: 'parenthesized'; inner: Expr }
+  | { kind: 'borrow'; value: Expr }
   | { kind: 'cast'; value: Expr; targetType: TypeNode }
   | { kind: 'binary'; operator: string; left: Expr; right: Expr }
   | { kind: 'assign'; left: Expr; right: Expr }
@@ -113,6 +114,8 @@ class Transpiler {
   private readonly names = new Map<string, string>()
   private readonly copy = new Set<string>()
   private readonly equality = new Set<string>()
+  private readonly opaque = new Set<string>()
+  private returningOpaque = false
 
   constructor(private readonly document: Document) {
     if (document.schemaVersion !== 1)
@@ -127,8 +130,15 @@ class Transpiler {
       if (item.kind === 'constant') this.constants.set(item.name, this.path(item.type))
       if (item.kind === 'function') this.functions.set(item.name, item)
       if (item.kind === 'struct' || item.kind === 'enum') {
-        if (item.kind === 'struct') this.structs.set(item.name, item)
-        else this.enums.set(item.name, item)
+        if (item.kind === 'struct') {
+          this.structs.set(item.name, item)
+          if (
+            item.visibility === 'public' &&
+            item.fields.length > 0 &&
+            item.fields.every((field) => field.visibility === 'private')
+          )
+            this.opaque.add(item.name)
+        } else this.enums.set(item.name, item)
         if (item.derives.includes('Copy')) this.copy.add(item.name)
         if (item.derives.includes('PartialEq')) this.equality.add(item.name)
       }
@@ -157,6 +167,7 @@ class Transpiler {
     if (name === 'bool') return f.createKeywordTypeNode(ts.SyntaxKind.BooleanKeyword)
     if (['char', 'str', '&str'].includes(name))
       return f.createKeywordTypeNode(ts.SyntaxKind.StringKeyword)
+    if (name.startsWith('&') && this.structs.has(name.slice(1))) return this.typeName(name.slice(1))
     if (name === 'Vec<char>')
       return f.createArrayTypeNode(f.createKeywordTypeNode(ts.SyntaxKind.StringKeyword))
     if (name === 'Vec<usize>')
@@ -180,6 +191,12 @@ class Transpiler {
     if (name === 'bool') return call('checkedBool', value)
     if (name === 'char') return call('checkedChar', value)
     if (name === '&str') return call('checkedString', value)
+    if (name.startsWith('&') && this.structs.has(name.slice(1))) {
+      const inner = name.slice(1)
+      return this.opaque.has(inner)
+        ? call('checkedOpaque', value)
+        : call(`copy${this.names.get(inner)!}`, value)
+    }
     if (name === 'Vec<char>') return call('checkedChars', value)
     if (name === 'Vec<usize>') return call('checkedIndices', value)
     const element = this.vectorElement(name)
@@ -213,6 +230,10 @@ class Transpiler {
         return 'bool'
       case 'parenthesized':
         return this.infer(value.inner, locals)
+      case 'borrow': {
+        const inner = this.infer(value.value, locals)
+        return inner ? `&${inner}` : undefined
+      }
       case 'cast':
         return this.path(value.targetType)
       case 'binary':
@@ -222,7 +243,9 @@ class Transpiler {
       case 'field': {
         const base = this.infer(value.base, locals)
         const field = base
-          ? this.structs.get(base)?.fields.find((candidate) => candidate.name === value.member)
+          ? this.structs
+              .get(base.startsWith('&') ? base.slice(1) : base)
+              ?.fields.find((candidate) => candidate.name === value.member)
           : undefined
         return field ? this.path(field.type) : undefined
       }
@@ -281,6 +304,8 @@ class Transpiler {
         return value.state ? f.createTrue() : f.createFalse()
       case 'parenthesized':
         return f.createParenthesizedExpression(this.expression(value.inner, locals))
+      case 'borrow':
+        return this.expression(value.value, locals)
       case 'cast':
         if (this.path(value.targetType) === 'u32')
           return f.createNonNullExpression(
@@ -389,9 +414,14 @@ class Transpiler {
           .get(enumName!)
           ?.variants.find((candidate) => candidate.name === variant)?.payload
         if (!payload) throw new Error(`unknown payload variant ${enumName}::${variant}`)
+        const argument = this.expression(value.arguments[0]!, locals)
+        const payloadValue =
+          payload.kind === 'path' && this.opaque.has(payload.segments.join('::'))
+            ? call('sealOpaque', argument)
+            : this.clone(argument, payload)
         return object([
           ['kind', f.createStringLiteral(variant!)],
-          ['value', this.clone(this.expression(value.arguments[0]!, locals), payload)],
+          ['value', payloadValue],
         ])
       }
       default:
@@ -430,7 +460,13 @@ class Transpiler {
       }
       const value = statement.value
       if (value.kind === 'return')
-        result.push(f.createReturnStatement(this.expression(value.value, locals)))
+        result.push(
+          f.createReturnStatement(
+            this.returningOpaque
+              ? call('sealOpaque', this.expression(value.value, locals))
+              : this.expression(value.value, locals),
+          ),
+        )
       else if (value.kind === 'break') result.push(f.createBreakStatement())
       else if (value.kind === 'assign') {
         const left =
@@ -494,7 +530,9 @@ class Transpiler {
         const expression = this.expression(value, locals)
         result.push(
           index === statements.length - 1 && !statement.semicolon
-            ? f.createReturnStatement(expression)
+            ? f.createReturnStatement(
+                this.returningOpaque ? call('sealOpaque', expression) : expression,
+              )
             : f.createExpressionStatement(expression),
         )
       }
@@ -523,7 +561,12 @@ class Transpiler {
   private emitStruct(item: Extract<Item, { kind: 'struct' }>): ts.Statement[] {
     const name = this.names.get(item.name)!
     const fields = item.fields.map((field) =>
-      f.createPropertySignature(undefined, camelCase(field.name), undefined, this.type(field.type)),
+      f.createPropertySignature(
+        this.opaque.has(item.name) ? [f.createModifier(ts.SyntaxKind.ReadonlyKeyword)] : undefined,
+        camelCase(field.name),
+        undefined,
+        this.type(field.type),
+      ),
     )
     const declarations: ts.Statement[] = [
       f.createInterfaceDeclaration(exported(item.visibility), name, undefined, undefined, fields),
@@ -532,12 +575,14 @@ class Transpiler {
     declarations.push(
       this.function(`copy${name}`, [parameter('value', nameType)], nameType, [
         f.createReturnStatement(
-          object(
-            item.fields.map((field) => [
-              camelCase(field.name),
-              this.detach(member(identifier('value'), camelCase(field.name)), field.type),
-            ]),
-          ),
+          this.opaque.has(item.name)
+            ? call('checkedOpaque', identifier('value'))
+            : object(
+                item.fields.map((field) => [
+                  camelCase(field.name),
+                  this.detach(member(identifier('value'), camelCase(field.name)), field.type),
+                ]),
+              ),
         ),
       ]),
     )
@@ -700,6 +745,12 @@ class Transpiler {
           const body: ts.Statement[] = []
           for (const parameter of item.parameters) {
             const name = camelCase(parameter.name)
+            if (
+              item.visibility !== 'public' &&
+              parameter.type.kind === 'reference' &&
+              this.opaque.has(this.path(parameter.type.inner))
+            )
+              continue
             const detached = this.detach(identifier(name), parameter.type)
             if (detached.kind !== ts.SyntaxKind.Identifier)
               body.push(
@@ -708,7 +759,10 @@ class Transpiler {
                 ),
               )
           }
+          this.returningOpaque =
+            item.visibility === 'public' && this.opaque.has(this.path(item.returnType))
           body.push(...this.statements(item.body, locals))
+          this.returningOpaque = false
           declarations.push(
             this.function(
               this.names.get(item.name)!,
