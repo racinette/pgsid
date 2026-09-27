@@ -1728,6 +1728,8 @@ fn supports_atoms(atoms: Vec<char>) -> bool {
                         && escaped != 'S'
                         && escaped != 'w'
                         && escaped != 'W'
+                        && escaped != 'n'
+                        && escaped != 'r'
                         && escaped != ']'
                         && escaped != '\\'
                     {
@@ -3519,11 +3521,17 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
                 reference = position;
                 position += 1;
                 while position < source.len() && source[position] != ']' {
-                    if source[position] == '[' || source[position] == '\\' {
+                    if source[position] == '\\'
+                        && source.len() - position >= 2
+                        && (source[position + 1] == 'n' || source[position + 1] == 'r')
+                    {
+                        position += 2;
+                    } else if source[position] == '[' || source[position] == '\\' {
                         valid = false;
                         break;
-                    }
-                    position += 1;
+                    } else {
+                        position += 1;
+                    };
                 }
                 if position == source.len() || position == reference + 1 {
                     valid = false;
@@ -3547,6 +3555,14 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
                     operation = VM_WORD;
                 } else if escaped == 'M' {
                     operation = VM_WORD_END;
+                } else if escaped == 'n' || escaped == 'r' || escaped == '.' || escaped == '?' {
+                    operation = VM_LITERAL;
+                    member = escaped;
+                    if escaped == 'n' {
+                        member = '\n';
+                    } else if escaped == 'r' {
+                        member = '\r';
+                    };
                 } else if (escaped as u32) >= 48 && (escaped as u32) <= 57 {
                     reference = ((escaped as u32) - 48) as usize;
                     let mut decimal_digits = 1;
@@ -3823,6 +3839,39 @@ pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
             return true;
         };
     }
+    let source: Vec<char> = pattern.chars().collect();
+    let mut control_escape = false;
+    let mut source_position = 0;
+    while source_position + 1 < source.len() {
+        if source[source_position] == '\\'
+            && (source[source_position + 1] == 'n' || source[source_position + 1] == 'r')
+        {
+            control_escape = true;
+        }
+        source_position += 1;
+    }
+    let mut control_valid = control_escape && nested_choice;
+    let mut control_position = 0;
+    while control_position < code.len() {
+        let operation = code[control_position].operation;
+        if operation != VM_LITERAL
+            && operation != VM_ANY
+            && operation != VM_CLASS
+            && operation != VM_BEGIN
+            && operation != VM_END
+            && operation != VM_OPEN
+            && operation != VM_CLOSE
+            && operation != VM_SPLIT
+            && operation != VM_JUMP
+            && operation != VM_ACCEPT
+        {
+            control_valid = false;
+        }
+        control_position += 1;
+    }
+    if control_valid {
+        return true;
+    }
     if (code.len() == 10 || code.len() == 11) && code[0].operation == VM_OPEN && code[0].group == 1
     {
         let mut word_position = 1;
@@ -4092,9 +4141,28 @@ fn run_capture_program(
     if from > haystack.len() {
         return MatchOutcome::NoMatch;
     }
+    let mut dedup = false;
+    let mut program_position = 0;
+    while program_position + 1 < program.atoms.len() {
+        if program.atoms[program_position] == '\\'
+            && (program.atoms[program_position + 1] == 'n'
+                || program.atoms[program_position + 1] == 'r')
+        {
+            dedup = true;
+        }
+        program_position += 1;
+    }
+    program_position = 0;
+    while program_position < program.instructions.len() {
+        if program.instructions[program_position].operation == VM_BACKREF {
+            dedup = false;
+        }
+        program_position += 1;
+    }
     let mut work = 0;
     let mut start = from;
     while start <= haystack.len() {
+        let mut seen: Vec<PatternWorkState> = Vec::new();
         let mut captures: Vec<CaptureEvent> = Vec::new();
         captures.push(CaptureEvent {
             group: 0,
@@ -4120,6 +4188,24 @@ fn run_capture_program(
             let mut capture = state.capture;
             let mut matched = true;
             while matched {
+                if dedup {
+                    let mut seen_position = 0;
+                    while seen_position < seen.len() {
+                        let prior = seen[seen_position];
+                        if prior.pattern == instruction && prior.subject == subject_position {
+                            matched = false;
+                            break;
+                        }
+                        seen_position += 1;
+                    }
+                    if matched == false {
+                        break;
+                    }
+                    seen.push(PatternWorkState {
+                        pattern: instruction,
+                        subject: subject_position,
+                    });
+                }
                 if work == MAX_CAPTURE_WORK {
                     return MatchOutcome::Uncertain;
                 }
@@ -7632,6 +7718,8 @@ fn search_atoms(
                         && escaped != 'S'
                         && escaped != 'w'
                         && escaped != 'W'
+                        && escaped != 'n'
+                        && escaped != 'r'
                         && escaped != ']'
                         && escaped != '\\'
                     {
@@ -7994,8 +8082,15 @@ fn search_atoms(
                         while atoms[class_position] != ']' {
                             if atoms[class_position] == '\\' {
                                 let shorthand = atoms[class_position + 1];
-                                if shorthand == ']' || shorthand == '\\' {
-                                    if actual == shorthand {
+                                if shorthand == ']'
+                                    || shorthand == '\\'
+                                    || shorthand == 'n'
+                                    || shorthand == 'r'
+                                {
+                                    if (shorthand != 'n' && shorthand != 'r' && actual == shorthand)
+                                        || (shorthand == 'n' && actual == '\n')
+                                        || (shorthand == 'r' && actual == '\r')
+                                    {
                                         included = true;
                                     }
                                 } else {

@@ -1191,6 +1191,31 @@ fn anchored_optional_paths_keep_capture_backreferences() {
 }
 
 #[test]
+fn repeated_anchor_or_newline_choices_advance_without_zero_loops() {
+    assert!(candidate::supports_capture_program("(^|\\n)+\\.*b", false));
+    assert!(matches!(
+        candidate::find_capture_program("(^|\\n)+\\.*b", "\n.b", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 3 })
+    ));
+    assert!(candidate::supports_capture_program(
+        "(^|[\\n\\r]+)\\.*\\?<.*?(\\n|\\r)+",
+        false
+    ));
+    assert!(matches!(
+        candidate::find_capture_program(
+            "(^|[\\n\\r]+)\\.*\\?<.*?(\\n|\\r)+",
+            "TQ\r\n.?<5000267>Test already stopped\r\n",
+            0,
+            true,
+            true,
+            false,
+            false,
+        ),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 2, end: 37 })
+    ));
+}
+
+#[test]
 fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
     assert!(candidate::supports_bounded_group("a(ab)*c", false));
