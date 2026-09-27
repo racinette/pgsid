@@ -1,12 +1,74 @@
-#[path = "../regex_engine.rs"]
+#[path = "../regex_engine_transpilable.rs"]
 mod engine;
 
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashSet};
 
-fn options(input: &Value) -> engine::Options {
+fn default_options() -> engine::RegexOptions {
+    engine::RegexOptions {
+        syntax: engine::Syntax::Advanced,
+        case_sensitive: true,
+        expanded: false,
+        newline: engine::NewlineMode::Ordinary,
+    }
+}
+
+fn evaluate_count(input: &Value) -> Value {
+    let from = input["start"].as_u64().unwrap_or(1) as usize - 1;
+    match engine::count(
+        input["pattern"].as_str().unwrap(),
+        input["subject"].as_str().unwrap(),
+        from,
+        options(input),
+    ) {
+        engine::CountOutcome::Count(value) => json!({"kind":"Count", "value":value}),
+        engine::CountOutcome::InvalidPattern => {
+            json!({"kind":"InvalidPattern", "sqlstate":"2201B"})
+        }
+        engine::CountOutcome::Uncertain => json!({"kind":"Uncertain"}),
+    }
+}
+
+impl std::fmt::Debug for engine::MatchOutcome {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Found(span) => f
+                .debug_struct("Found")
+                .field("start", &span.start)
+                .field("end", &span.end)
+                .finish(),
+            Self::NoMatch => f.write_str("NoMatch"),
+            Self::InvalidPattern => f.write_str("InvalidPattern"),
+            Self::Uncertain => f.write_str("Uncertain"),
+        }
+    }
+}
+
+impl std::fmt::Debug for engine::Syntax {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Advanced => "Advanced",
+            Self::Basic => "Basic",
+            Self::Extended => "Extended",
+            Self::Literal => "Literal",
+        })
+    }
+}
+
+impl std::fmt::Debug for engine::NewlineMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Ordinary => "Ordinary",
+            Self::Sensitive => "Sensitive",
+            Self::Stop => "Stop",
+            Self::Anchors => "Anchors",
+        })
+    }
+}
+
+fn options(input: &Value) -> engine::RegexOptions {
     let options = &input["options"];
-    engine::Options {
+    engine::RegexOptions {
         syntax: match options["syntax"].as_str().unwrap() {
             "advanced" => engine::Syntax::Advanced,
             "extended" => engine::Syntax::Extended,
@@ -29,18 +91,16 @@ fn options(input: &Value) -> engine::Options {
 fn evaluate(input: &Value) -> Option<Value> {
     let pattern = input["pattern"].as_str().unwrap();
     let subject = input["subject"].as_str().unwrap();
-    match engine::compile(pattern, options(input)) {
-        engine::CompileOutcome::Uncertain => None,
-        engine::CompileOutcome::InvalidPattern => {
-            Some(json!({ "kind": "InvalidPattern", "sqlstate": "2201B" }))
+    let from = input["start"].as_u64().unwrap_or(1) as usize - 1;
+    match engine::find(pattern, subject, from, options(input)) {
+        engine::MatchOutcome::Found(span) => {
+            Some(json!({"kind":"Found", "value":{"start":span.start,"end":span.end}}))
         }
-        engine::CompileOutcome::Ready(program) => match program.find(subject, 0) {
-            engine::MatchOutcome::Found(span) => {
-                Some(json!({ "kind": "Found", "value": { "start": span.start, "end": span.end } }))
-            }
-            engine::MatchOutcome::NoMatch => Some(json!({ "kind": "NoMatch" })),
-            engine::MatchOutcome::Uncertain => None,
-        },
+        engine::MatchOutcome::NoMatch => Some(json!({"kind":"NoMatch"})),
+        engine::MatchOutcome::InvalidPattern => {
+            Some(json!({"kind":"InvalidPattern", "sqlstate":"2201B"}))
+        }
+        engine::MatchOutcome::Uncertain => None,
     }
 }
 
@@ -65,8 +125,8 @@ fn rust_definite_results_match_postgres() {
         definite += 1;
         if actual != *expected {
             mismatches.push(format!(
-                "fixture {index}: pattern={pattern:?}, subject={subject:?}, options={:?}, expected={expected}, actual={actual}",
-                options(input)
+                "fixture {index}: pattern={pattern:?}, subject={subject:?}, options={}, expected={expected}, actual={actual}",
+                input["options"]
             ));
         }
     }
@@ -282,13 +342,8 @@ fn repeated_capture_backreferences_follow_postgres_path_preference() {
         (r"((a|aa){1,2})\2", "aaaaa", 4),
         (r"((a|aa)+)\2", "aaaaa", 5),
     ] {
-        let engine::CompileOutcome::Ready(program) =
-            engine::compile(pattern, engine::Options::default())
-        else {
-            panic!("capture pattern {pattern:?} did not compile");
-        };
         assert_eq!(
-            program.find(subject, 0),
+            engine::find(pattern, subject, 0, default_options()),
             engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end }),
             "{pattern:?} on {subject:?}"
         );
@@ -311,23 +366,21 @@ fn expanded_basic_and_extended_patterns_are_definite() {
             engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 3 }),
         ),
     ] {
-        let options = engine::Options {
+        let options = engine::RegexOptions {
             syntax,
             expanded: true,
-            ..engine::Options::default()
+            ..default_options()
         };
-        let engine::CompileOutcome::Ready(program) = engine::compile(pattern, options) else {
-            panic!("expanded {syntax:?} pattern was not definite");
-        };
-        assert_eq!(program.find(subject, 0), expected);
+
+        assert_eq!(engine::find(pattern, subject, 0, options), expected);
     }
-    let options = engine::Options {
+    let options = engine::RegexOptions {
         expanded: true,
-        ..engine::Options::default()
+        ..default_options()
     };
     assert!(matches!(
-        engine::compile("[a-", options),
-        engine::CompileOutcome::InvalidPattern
+        engine::find("[a-", "", 0, options),
+        engine::MatchOutcome::InvalidPattern
     ));
 }
 
@@ -352,30 +405,10 @@ fn rust_position_results_match_postgres() {
             serde_json::to_string(input).unwrap()
         )));
         *operation_counts.entry(operation).or_insert(0usize) += 1;
-        let pattern = input["pattern"].as_str().unwrap();
-        let subject = input["subject"].as_str().unwrap();
-        let start = input["start"].as_i64().unwrap() as i32;
-        let actual = match engine::compile(pattern, options(input)) {
-            engine::CompileOutcome::InvalidPattern => {
-                Some(json!({ "kind": "InvalidPattern", "sqlstate": "2201B" }))
-            }
-            engine::CompileOutcome::Uncertain => None,
-            engine::CompileOutcome::Ready(program) => match operation {
-                "find" => match program.find(subject, (start - 1) as usize) {
-                    engine::MatchOutcome::Found(span) => Some(
-                        json!({ "kind": "Found", "value": { "start": span.start, "end": span.end } }),
-                    ),
-                    engine::MatchOutcome::NoMatch => Some(json!({ "kind": "NoMatch" })),
-                    engine::MatchOutcome::Uncertain => None,
-                },
-                "count" => match program.count(subject, start) {
-                    engine::CountOutcome::Count(value) => {
-                        Some(json!({ "kind": "Count", "value": value }))
-                    }
-                    engine::CountOutcome::InvalidStart | engine::CountOutcome::Uncertain => None,
-                },
-                other => panic!("unknown operation {other}"),
-            },
+        let actual = match operation {
+            "find" => evaluate(input),
+            "count" => Some(evaluate_count(input)),
+            other => panic!("unknown operation {other}"),
         };
         if actual.as_ref() != Some(&fixture["expected"]) {
             mismatches.push(format!(
@@ -508,36 +541,34 @@ fn absolute_anchors_ignore_newline_mode_and_search_offset() {
         engine::NewlineMode::Stop,
         engine::NewlineMode::Anchors,
     ] {
-        let options = engine::Options {
+        let options = engine::RegexOptions {
             newline,
-            ..engine::Options::default()
+            ..default_options()
         };
-        let engine::CompileOutcome::Ready(beginning) = engine::compile("\\A", options) else {
-            panic!("absolute beginning did not compile");
-        };
+
         assert_eq!(
-            beginning.find("a\nb", 0),
+            engine::find("\\A", "a\nb", 0, options),
             engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 0 })
         );
-        assert_eq!(beginning.find("a\nb", 1), engine::MatchOutcome::NoMatch);
-
-        let engine::CompileOutcome::Ready(end) = engine::compile("\\Z", options) else {
-            panic!("absolute end did not compile");
-        };
         assert_eq!(
-            end.find("a\nb", 0),
+            engine::find("\\A", "a\nb", 1, options),
+            engine::MatchOutcome::NoMatch
+        );
+
+        assert_eq!(
+            engine::find("\\Z", "a\nb", 0, options),
             engine::MatchOutcome::Found(engine::MatchSpan { start: 3, end: 3 })
         );
         assert_eq!(
-            end.find("a\nb", 2),
+            engine::find("\\Z", "a\nb", 2, options),
             engine::MatchOutcome::Found(engine::MatchSpan { start: 3, end: 3 })
         );
     }
     for pattern in ["\\A*", "\\Z+", "\\A{2}", "\\Z?"] {
         assert!(
             matches!(
-                engine::compile(pattern, engine::Options::default()),
-                engine::CompileOutcome::InvalidPattern
+                engine::find(pattern, "", 0, default_options()),
+                engine::MatchOutcome::InvalidPattern
             ),
             "bare absolute-anchor repetition {pattern:?}"
         );
@@ -546,14 +577,12 @@ fn absolute_anchors_ignore_newline_mode_and_search_offset() {
 
 #[test]
 fn long_patterns_remain_definite() {
-    let default_options = engine::Options::default();
+    let default_options = default_options();
     for length in [3072, 3073] {
-        let engine::CompileOutcome::Ready(program) =
-            engine::compile(&"a".repeat(length), default_options)
-        else {
-            panic!("long pattern of {length} scalars was not definite");
-        };
-        assert_eq!(program.find("", 0), engine::MatchOutcome::NoMatch);
+        assert_eq!(
+            engine::find(&"a".repeat(length), "", 0, default_options),
+            engine::MatchOutcome::NoMatch
+        );
     }
 
     let fixtures: Value =
@@ -582,102 +611,96 @@ fn long_patterns_remain_definite() {
     }));
     for fixture in oversized {
         let pattern = fixture["input"]["pattern"].as_str().unwrap();
-        let engine::CompileOutcome::Ready(program) =
-            engine::compile(pattern, options(&fixture["input"]))
-        else {
-            panic!("long extracted pattern was not definite");
-        };
-        assert_eq!(program.find("", 0), engine::MatchOutcome::NoMatch);
+
+        assert_eq!(
+            engine::find(pattern, "", 0, options(&fixture["input"])),
+            engine::MatchOutcome::NoMatch
+        );
     }
 }
 
 #[test]
 fn sequential_captures_without_backreferences_remain_definite() {
-    let options = engine::Options::default();
+    let options = default_options();
     for length in [128, 129] {
-        let engine::CompileOutcome::Ready(program) =
-            engine::compile(&"(a)".repeat(length), options)
-        else {
-            panic!("{length} sequential captures were not definite");
-        };
-        assert_eq!(program.find("", 0), engine::MatchOutcome::NoMatch);
+        assert_eq!(
+            engine::find(&"(a)".repeat(length), "", 0, options),
+            engine::MatchOutcome::NoMatch
+        );
     }
 }
 
 #[test]
 fn deeply_nested_groups_parse_and_match_without_recursion() {
     let advanced = format!("{}a{}", "(".repeat(512), ")".repeat(512));
-    let engine::CompileOutcome::Ready(program) =
-        engine::compile(&advanced, engine::Options::default())
-    else {
-        panic!("deeply nested Advanced groups were not definite");
-    };
+
     assert_eq!(
-        program.find("a", 0),
+        engine::find(&advanced, "a", 0, default_options()),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 1 })
     );
 
     let basic = format!("{}a{}", "\\(".repeat(512), "\\)".repeat(512));
-    let options = engine::Options {
+    let options = engine::RegexOptions {
         syntax: engine::Syntax::Basic,
-        ..engine::Options::default()
+        ..default_options()
     };
-    let engine::CompileOutcome::Ready(program) = engine::compile(&basic, options) else {
-        panic!("deeply nested Basic groups were not definite");
-    };
+
     assert_eq!(
-        program.find("a", 0),
+        engine::find(&basic, "a", 0, options),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 1 })
     );
 
     assert!(matches!(
-        engine::compile(&"(".repeat(8192), engine::Options::default()),
-        engine::CompileOutcome::InvalidPattern
+        engine::find(&"(".repeat(8192), "", 0, default_options()),
+        engine::MatchOutcome::InvalidPattern
     ));
     assert!(matches!(
-        engine::compile(
+        engine::find(
             &format!("{}a{}[", "(".repeat(8192), ")".repeat(8192)),
-            engine::Options::default()
+            "",
+            0,
+            default_options()
         ),
-        engine::CompileOutcome::InvalidPattern
+        engine::MatchOutcome::InvalidPattern
     ));
     assert!(matches!(
-        engine::compile(
+        engine::find(
             &format!("{}a{}\\1", "(".repeat(65), ")".repeat(65)),
-            engine::Options::default()
+            "aa",
+            0,
+            default_options()
         ),
-        engine::CompileOutcome::Uncertain
+        engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 2 })
     ));
     assert!(matches!(
-        engine::compile(
+        engine::find(
             &format!("{}a{}", "(?=".repeat(65), ")".repeat(65)),
-            engine::Options::default()
+            "",
+            0,
+            default_options()
         ),
-        engine::CompileOutcome::Uncertain
+        engine::MatchOutcome::Uncertain
     ));
 }
 
 #[test]
 fn nested_bounds_that_expand_beyond_the_automaton_budget_are_uncertain() {
     assert!(matches!(
-        engine::compile("((a{255}){255}){255}", engine::Options::default()),
-        engine::CompileOutcome::Uncertain
+        engine::find("((a{255}){255}){255}", "", 0, default_options()),
+        engine::MatchOutcome::Uncertain
     ));
 }
 
 #[test]
 fn bracket_leading_punctuation_and_missing_closure_follow_postgres() {
     for syntax in [engine::Syntax::Advanced, engine::Syntax::Basic] {
-        let options = engine::Options {
+        let options = engine::RegexOptions {
             syntax,
-            ..engine::Options::default()
+            ..default_options()
         };
         for (pattern, subject) in [("a[--?]b", "a?b"), ("a[---]b", "a-b"), ("a[]b]c", "a]c")] {
-            let engine::CompileOutcome::Ready(program) = engine::compile(pattern, options) else {
-                panic!("bracket pattern {pattern:?} did not compile");
-            };
             assert_eq!(
-                program.find(subject, 0),
+                engine::find(pattern, subject, 0, options),
                 engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 3 }),
                 "{pattern:?} in {syntax:?}"
             );
@@ -685,8 +708,8 @@ fn bracket_leading_punctuation_and_missing_closure_follow_postgres() {
         for pattern in ["a[", "a[b", "a[b-", "a[b-c", "a[a-b-c]"] {
             assert!(
                 matches!(
-                    engine::compile(pattern, options),
-                    engine::CompileOutcome::InvalidPattern
+                    engine::find(pattern, "", 0, options),
+                    engine::MatchOutcome::InvalidPattern
                 ),
                 "malformed bracket {pattern:?} in {syntax:?}"
             );
@@ -697,9 +720,9 @@ fn bracket_leading_punctuation_and_missing_closure_follow_postgres() {
 #[test]
 fn c_collation_collating_elements_and_equivalence_classes() {
     for syntax in [engine::Syntax::Advanced, engine::Syntax::Basic] {
-        let options = engine::Options {
+        let options = engine::RegexOptions {
             syntax,
-            ..engine::Options::default()
+            ..default_options()
         };
         for (pattern, subject) in [
             ("a[[.-.]]", "a-"),
@@ -708,11 +731,8 @@ fn c_collation_collating_elements_and_equivalence_classes() {
             ("a[0-[.9.]]", "a5"),
             ("a[[b]c", "a[c"),
         ] {
-            let engine::CompileOutcome::Ready(program) = engine::compile(pattern, options) else {
-                panic!("collating element {pattern:?} did not compile in {syntax:?}");
-            };
             assert_eq!(
-                program.find(subject, 0),
+                engine::find(pattern, subject, 0, options),
                 engine::MatchOutcome::Found(engine::MatchSpan {
                     start: 0,
                     end: subject.chars().count(),
@@ -721,16 +741,13 @@ fn c_collation_collating_elements_and_equivalence_classes() {
             );
         }
         for case_sensitive in [true, false] {
-            let options = engine::Options {
+            let options = engine::RegexOptions {
                 case_sensitive,
                 ..options
             };
-            let engine::CompileOutcome::Ready(program) = engine::compile("a[[=Y=]]", options)
-            else {
-                panic!("equivalence class did not compile in {syntax:?}");
-            };
+
             assert_eq!(
-                program.find("ay", 0),
+                engine::find("a[[=Y=]]", "ay", 0, options),
                 if case_sensitive {
                     engine::MatchOutcome::NoMatch
                 } else {
@@ -748,81 +765,68 @@ fn c_collation_collating_elements_and_equivalence_classes() {
         ] {
             assert!(
                 matches!(
-                    engine::compile(pattern, options),
-                    engine::CompileOutcome::InvalidPattern
+                    engine::find(pattern, "", 0, options),
+                    engine::MatchOutcome::InvalidPattern
                 ),
                 "malformed collating element {pattern:?} in {syntax:?}"
             );
         }
     }
     assert!(matches!(
-        engine::compile("[[.unknown-name.]]", engine::Options::default()),
-        engine::CompileOutcome::InvalidPattern
+        engine::find("[[.unknown-name.]]", "", 0, default_options()),
+        engine::MatchOutcome::InvalidPattern
     ));
 }
 
 #[test]
 fn bracket_backslashes_follow_syntax_mode() {
-    let advanced = engine::Options::default();
-    let basic = engine::Options {
+    let advanced = default_options();
+    let basic = engine::RegexOptions {
         syntax: engine::Syntax::Basic,
         ..advanced
     };
-    let engine::CompileOutcome::Ready(program) = engine::compile(r"a[\]]b", advanced) else {
-        panic!("advanced escaped bracket did not compile");
-    };
+
     assert_eq!(
-        program.find("a]b", 0),
+        engine::find(r"a[\]]b", "a]b", 0, advanced),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 3 })
     );
-    let engine::CompileOutcome::Ready(program) = engine::compile(r"a[\]]b", basic) else {
-        panic!("basic bracket backslash did not compile");
-    };
+
     assert_eq!(
-        program.find("a\\]b", 0),
+        engine::find(r"a[\]]b", "a\\]b", 0, basic),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 4 })
     );
-    let engine::CompileOutcome::Ready(program) = engine::compile(r"[\cH]", advanced) else {
-        panic!("bracket control escape did not compile");
-    };
+
     assert_eq!(
-        program.find("\u{0008}", 0),
+        engine::find(r"[\cH]", "\u{0008}", 0, advanced),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 1 })
     );
     assert!(matches!(
-        engine::compile(r"a[\Z]b", advanced),
-        engine::CompileOutcome::InvalidPattern
+        engine::find(r"a[\Z]b", "", 0, advanced),
+        engine::MatchOutcome::InvalidPattern
     ));
     assert!(matches!(
-        engine::compile(r"[\D-a]", advanced),
-        engine::CompileOutcome::InvalidPattern
+        engine::find(r"[\D-a]", "", 0, advanced),
+        engine::MatchOutcome::InvalidPattern
     ));
 }
 
 #[test]
 fn literal_syntax_keeps_a_pattern_prefix_literal() {
-    let options = engine::Options {
+    let options = engine::RegexOptions {
         syntax: engine::Syntax::Literal,
-        ..engine::Options::default()
+        ..default_options()
     };
-    let engine::CompileOutcome::Ready(program) = engine::compile("***=a*b", options) else {
-        panic!("literal pattern did not compile");
-    };
+
     assert_eq!(
-        program.find("***=a*b", 0),
+        engine::find("***=a*b", "***=a*b", 0, options),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 7 })
     );
 }
 
 #[test]
 fn grouped_anchor_can_be_repeated() {
-    let engine::CompileOutcome::Ready(program) =
-        engine::compile("(^)+^", engine::Options::default())
-    else {
-        panic!("grouped anchor did not compile");
-    };
     assert_eq!(
-        program.find("x", 0),
+        engine::find("(^)+^", "x", 0, default_options()),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 0 })
     );
 }
@@ -840,13 +844,8 @@ fn noncapturing_groups_and_lookahead_preserve_constraint_position() {
         ("((?=a))*a", "a", Some((0, 1))),
     ];
     for (pattern, subject, span) in cases {
-        let engine::CompileOutcome::Ready(program) =
-            engine::compile(pattern, engine::Options::default())
-        else {
-            panic!("group or lookahead {pattern:?} did not compile");
-        };
         assert_eq!(
-            program.find(subject, 0),
+            engine::find(pattern, subject, 0, default_options()),
             match span {
                 Some((start, end)) => {
                     engine::MatchOutcome::Found(engine::MatchSpan { start, end })
@@ -860,8 +859,8 @@ fn noncapturing_groups_and_lookahead_preserve_constraint_position() {
     for pattern in ["(?=a)*", "(?=a)?", "(?=a){0}", "(?!a)+"] {
         assert!(
             matches!(
-                engine::compile(pattern, engine::Options::default()),
-                engine::CompileOutcome::InvalidPattern
+                engine::find(pattern, "", 0, default_options()),
+                engine::MatchOutcome::InvalidPattern
             ),
             "bare lookahead repetition {pattern:?}"
         );
@@ -885,13 +884,8 @@ fn lookbehind_uses_prior_positions_without_losing_subject_context() {
         ("((?<=a))*b", "ab", Some((1, 2))),
     ];
     for (pattern, subject, span) in cases {
-        let engine::CompileOutcome::Ready(program) =
-            engine::compile(pattern, engine::Options::default())
-        else {
-            panic!("lookbehind {pattern:?} did not compile");
-        };
         assert_eq!(
-            program.find(subject, 0),
+            engine::find(pattern, subject, 0, default_options()),
             match span {
                 Some((start, end)) => {
                     engine::MatchOutcome::Found(engine::MatchSpan { start, end })
@@ -904,62 +898,45 @@ fn lookbehind_uses_prior_positions_without_losing_subject_context() {
 
     for pattern in ["(?<=a)*b", "(?<=(a))\\1", "(a)(?<=\\1)b"] {
         assert!(matches!(
-            engine::compile(pattern, engine::Options::default()),
-            engine::CompileOutcome::InvalidPattern
+            engine::find(pattern, "", 0, default_options()),
+            engine::MatchOutcome::InvalidPattern
         ));
     }
 
-    let engine::CompileOutcome::Ready(program) =
-        engine::compile("(?<=a)b", engine::Options::default())
-    else {
-        panic!("lookbehind did not compile");
-    };
     let long_subject = "a".repeat(256) + "b";
     assert_eq!(
-        program.find(&long_subject, 0),
+        engine::find("(?<=a)b", &long_subject, 0, default_options()),
         engine::MatchOutcome::Found(engine::MatchSpan {
             start: 256,
             end: 257,
         })
     );
-    assert_eq!(
-        program.count(&long_subject, 1),
-        engine::CountOutcome::Count(1)
+    assert!(
+        matches!(engine::count("(?<=a)b", &long_subject, 0, default_options()), engine::CountOutcome::Count(value) if value == 1)
     );
 
     let longer_subject = "a".repeat(8192) + "b";
     assert_eq!(
-        program.find(&longer_subject, 0),
+        engine::find("(?<=a)b", &longer_subject, 0, default_options()),
         engine::MatchOutcome::Found(engine::MatchSpan {
             start: 8192,
             end: 8193,
         })
     );
-    assert_eq!(
-        program.count(&longer_subject, 1),
-        engine::CountOutcome::Count(1)
+    assert!(
+        matches!(engine::count("(?<=a)b", &longer_subject, 0, default_options()), engine::CountOutcome::Count(value) if value == 1)
     );
 
-    let engine::CompileOutcome::Ready(nested) =
-        engine::compile("(?<=(?<=a)b)c", engine::Options::default())
-    else {
-        panic!("nested lookbehind did not compile");
-    };
     assert_eq!(
-        nested.find("abc", 0),
+        engine::find("(?<=(?<=a)b)c", "abc", 0, default_options()),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 2, end: 3 })
     );
 }
 
 #[test]
-fn count_reuses_a_compiled_automaton_across_many_matches() {
-    let engine::CompileOutcome::Ready(program) = engine::compile("a", engine::Options::default())
-    else {
-        panic!("literal did not compile");
-    };
-    assert_eq!(
-        program.count(&"a".repeat(8192), 1),
-        engine::CountOutcome::Count(8192)
+fn count_handles_many_matches() {
+    assert!(
+        matches!(engine::count("a", &"a".repeat(8192), 0, default_options()), engine::CountOutcome::Count(value) if value == 8192)
     );
 }
 
@@ -987,13 +964,8 @@ fn capture_paths_and_backreferences_match_postgres() {
         (r"((a)?b)*\2", "ababaa", Some((0, 5)), 1),
     ];
     for (pattern, subject, span, count) in cases {
-        let engine::CompileOutcome::Ready(program) =
-            engine::compile(pattern, engine::Options::default())
-        else {
-            panic!("backreference {pattern:?} did not compile");
-        };
         assert_eq!(
-            program.find(subject, 0),
+            engine::find(pattern, subject, 0, default_options()),
             match span {
                 Some((start, end)) => {
                     engine::MatchOutcome::Found(engine::MatchSpan { start, end })
@@ -1002,56 +974,46 @@ fn capture_paths_and_backreferences_match_postgres() {
             },
             "backreference {pattern:?} on {subject:?}"
         );
-        assert_eq!(
-            program.count(subject, 1),
-            engine::CountOutcome::Count(count),
+        assert!(
+            matches!(engine::count(pattern, subject, 0, default_options()), engine::CountOutcome::Count(value) if value == count),
             "backreference count {pattern:?} on {subject:?}"
         );
     }
 
-    let options = engine::Options {
+    let options = engine::RegexOptions {
         case_sensitive: false,
-        ..engine::Options::default()
+        ..default_options()
     };
-    let engine::CompileOutcome::Ready(program) = engine::compile(r"(A)\1", options) else {
-        panic!("case-insensitive backreference did not compile");
-    };
+
     assert_eq!(
-        program.find("Aa", 0),
+        engine::find(r"(A)\1", "Aa", 0, options),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 2 })
     );
 }
 
 #[test]
-fn count_uses_one_based_start_positions() {
-    let engine::CompileOutcome::Ready(program) = engine::compile("a", engine::Options::default())
-    else {
-        panic!("literal atom did not compile");
-    };
-    assert_eq!(program.count("aaa", 1), engine::CountOutcome::Count(3));
-    assert_eq!(program.count("aaa", 2), engine::CountOutcome::Count(2));
-    assert_eq!(program.count("aaa", 0), engine::CountOutcome::InvalidStart);
+fn count_uses_scalar_offsets() {
+    let options = default_options();
+    assert!(
+        matches!(engine::count("a", "aaa", 0, options), engine::CountOutcome::Count(value) if value == 3)
+    );
+    assert!(
+        matches!(engine::count("a", "aaa", 1, options), engine::CountOutcome::Count(value) if value == 2)
+    );
+    assert!(
+        matches!(engine::count("a", "aaa", 4, options), engine::CountOutcome::Count(value) if value == 0)
+    );
 }
 
 #[test]
 fn ascii_class_ranges_and_shorthand_match() {
-    let engine::CompileOutcome::Ready(range) =
-        engine::compile("[a-c]+", engine::Options::default())
-    else {
-        panic!("range did not compile");
-    };
     assert_eq!(
-        range.find("zabc", 0),
+        engine::find("[a-c]+", "zabc", 0, default_options()),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 1, end: 4 })
     );
 
-    let engine::CompileOutcome::Ready(shorthand) =
-        engine::compile(r"\w+\s\d", engine::Options::default())
-    else {
-        panic!("shorthand classes did not compile");
-    };
     assert_eq!(
-        shorthand.find("éA_ 3", 0),
+        engine::find(r"\w+\s\d", "éA_ 3", 0, default_options()),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 1, end: 5 })
     );
 }
@@ -1065,15 +1027,13 @@ fn newline_modes_control_dot_and_line_anchors_independently() {
         (engine::NewlineMode::Anchors, true, true),
     ];
     for (newline, dot_crosses_newline, anchors_match_lines) in cases {
-        let options = engine::Options {
+        let options = engine::RegexOptions {
             newline,
-            ..engine::Options::default()
+            ..default_options()
         };
-        let engine::CompileOutcome::Ready(dot) = engine::compile("a.b", options) else {
-            panic!("dot pattern did not compile for {newline:?}");
-        };
+
         assert_eq!(
-            dot.find("a\nb", 0),
+            engine::find("a.b", "a\nb", 0, options),
             if dot_crosses_newline {
                 engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 3 })
             } else {
@@ -1082,11 +1042,8 @@ fn newline_modes_control_dot_and_line_anchors_independently() {
             "dot behavior for {newline:?}"
         );
 
-        let engine::CompileOutcome::Ready(beginning) = engine::compile("^b", options) else {
-            panic!("beginning anchor did not compile for {newline:?}");
-        };
         assert_eq!(
-            beginning.find("a\nb", 0),
+            engine::find("^b", "a\nb", 0, options),
             if anchors_match_lines {
                 engine::MatchOutcome::Found(engine::MatchSpan { start: 2, end: 3 })
             } else {
@@ -1095,11 +1052,8 @@ fn newline_modes_control_dot_and_line_anchors_independently() {
             "beginning anchor behavior for {newline:?}"
         );
 
-        let engine::CompileOutcome::Ready(end) = engine::compile("a$", options) else {
-            panic!("end anchor did not compile for {newline:?}");
-        };
         assert_eq!(
-            end.find("a\nb", 0),
+            engine::find("a$", "a\nb", 0, options),
             if anchors_match_lines {
                 engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 1 })
             } else {
@@ -1112,20 +1066,18 @@ fn newline_modes_control_dot_and_line_anchors_independently() {
 
 #[test]
 fn newline_stop_excludes_negated_brackets_but_not_complement_shorthand() {
-    let options = engine::Options {
+    let options = engine::RegexOptions {
         newline: engine::NewlineMode::Stop,
-        ..engine::Options::default()
+        ..default_options()
     };
-    let engine::CompileOutcome::Ready(bracket) = engine::compile("[^0-9]", options) else {
-        panic!("negated bracket did not compile");
-    };
-    assert_eq!(bracket.find("\n", 0), engine::MatchOutcome::NoMatch);
 
-    let engine::CompileOutcome::Ready(shorthand) = engine::compile(r"\D", options) else {
-        panic!("complement shorthand did not compile");
-    };
     assert_eq!(
-        shorthand.find("\n", 0),
+        engine::find("[^0-9]", "\n", 0, options),
+        engine::MatchOutcome::NoMatch
+    );
+
+    assert_eq!(
+        engine::find(r"\D", "\n", 0, options),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 1 })
     );
 }
@@ -1138,44 +1090,38 @@ fn bracket_shorthands_union_before_outer_negation() {
         (r"[\s\S]+", "a\nb", 0, 3),
     ];
     for (pattern, subject, start, end) in cases {
-        let engine::CompileOutcome::Ready(program) =
-            engine::compile(pattern, engine::Options::default())
-        else {
-            panic!("bracket shorthand {pattern:?} did not compile");
-        };
         assert_eq!(
-            program.find(subject, 0),
+            engine::find(pattern, subject, 0, default_options()),
             engine::MatchOutcome::Found(engine::MatchSpan { start, end }),
             "bracket shorthand {pattern:?}"
         );
     }
 
-    let options = engine::Options {
+    let options = engine::RegexOptions {
         newline: engine::NewlineMode::Stop,
-        ..engine::Options::default()
+        ..default_options()
     };
-    let engine::CompileOutcome::Ready(program) = engine::compile(r"[^\d]", options) else {
-        panic!("negated bracket shorthand did not compile");
-    };
-    assert_eq!(program.find("\n", 0), engine::MatchOutcome::NoMatch);
+
+    assert_eq!(
+        engine::find(r"[^\d]", "\n", 0, options),
+        engine::MatchOutcome::NoMatch
+    );
 
     assert!(matches!(
-        engine::compile(r"[\w-~]", engine::Options::default()),
-        engine::CompileOutcome::InvalidPattern
+        engine::find(r"[\w-~]", "", 0, default_options()),
+        engine::MatchOutcome::InvalidPattern
     ));
 }
 
 #[test]
 fn literal_pattern_prefix_resets_newline_mode() {
-    let options = engine::Options {
+    let options = engine::RegexOptions {
         newline: engine::NewlineMode::Sensitive,
-        ..engine::Options::default()
+        ..default_options()
     };
-    let engine::CompileOutcome::Ready(program) = engine::compile("***=a.b", options) else {
-        panic!("literal pattern prefix did not compile");
-    };
+
     assert_eq!(
-        program.find("a.b", 0),
+        engine::find("***=a.b", "a.b", 0, options),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 3 })
     );
 }
@@ -1196,13 +1142,8 @@ fn advanced_control_escapes_match_postgres_characters() {
         (r"\v", '\u{000b}'),
     ];
     for (pattern, character) in cases {
-        let engine::CompileOutcome::Ready(program) =
-            engine::compile(pattern, engine::Options::default())
-        else {
-            panic!("control escape {pattern:?} did not compile");
-        };
         assert_eq!(
-            program.find(&character.to_string(), 0),
+            engine::find(pattern, &character.to_string(), 0, default_options()),
             engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 1 }),
             "control escape {pattern:?}"
         );
@@ -1214,8 +1155,8 @@ fn advanced_escape_and_group_errors_match_postgres() {
     for pattern in ["a\\", r"a\z", r"\c", "(?i)(?q)a+", "a(?q)b"] {
         assert!(
             matches!(
-                engine::compile(pattern, engine::Options::default()),
-                engine::CompileOutcome::InvalidPattern
+                engine::find(pattern, "", 0, default_options()),
+                engine::MatchOutcome::InvalidPattern
             ),
             "invalid advanced pattern {pattern:?}"
         );
@@ -1225,23 +1166,20 @@ fn advanced_escape_and_group_errors_match_postgres() {
 #[test]
 fn advanced_inline_comments_skip_through_the_first_closing_parenthesis() {
     for (pattern, options, subject, end) in [
-        ("a(?#skip)b", engine::Options::default(), "ab", 2),
-        ("a(?#skip", engine::Options::default(), "ab", 1),
+        ("a(?#skip)b", default_options(), "ab", 2),
+        ("a(?#skip", default_options(), "ab", 1),
         (
             "a(?# space # inside)b",
-            engine::Options {
+            engine::RegexOptions {
                 expanded: true,
-                ..engine::Options::default()
+                ..default_options()
             },
             "ab",
             2,
         ),
     ] {
-        let engine::CompileOutcome::Ready(program) = engine::compile(pattern, options) else {
-            panic!("inline comment {pattern:?} did not compile");
-        };
         assert_eq!(
-            program.find(subject, 0),
+            engine::find(pattern, subject, 0, options),
             engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end }),
             "inline comment {pattern:?}"
         );
@@ -1259,13 +1197,8 @@ fn numeric_escapes_follow_postgres_digit_consumption() {
         (r"a[\u00fe-\u0507]b", "aĂb"),
     ];
     for (pattern, subject) in cases {
-        let engine::CompileOutcome::Ready(program) =
-            engine::compile(pattern, engine::Options::default())
-        else {
-            panic!("numeric escape {pattern:?} did not compile");
-        };
         assert_eq!(
-            program.find(subject, 0),
+            engine::find(pattern, subject, 0, default_options()),
             engine::MatchOutcome::Found(engine::MatchSpan {
                 start: 0,
                 end: subject.chars().count(),
@@ -1277,21 +1210,20 @@ fn numeric_escapes_follow_postgres_digit_consumption() {
     for pattern in [r"\u008x", r"\U0001234x", r"\xq"] {
         assert!(
             matches!(
-                engine::compile(pattern, engine::Options::default()),
-                engine::CompileOutcome::InvalidPattern
+                engine::find(pattern, "", 0, default_options()),
+                engine::MatchOutcome::InvalidPattern
             ),
             "short or malformed numeric escape {pattern:?}"
         );
     }
-    let engine::CompileOutcome::Ready(program) =
-        engine::compile(r"\uD800", engine::Options::default())
-    else {
-        panic!("non-scalar escape did not compile");
-    };
-    assert_eq!(program.find("x", 0), engine::MatchOutcome::NoMatch);
+
+    assert_eq!(
+        engine::find(r"\uD800", "x", 0, default_options()),
+        engine::MatchOutcome::NoMatch
+    );
     assert!(matches!(
-        engine::compile(r"\1", engine::Options::default()),
-        engine::CompileOutcome::InvalidPattern
+        engine::find(r"\1", "", 0, default_options()),
+        engine::MatchOutcome::InvalidPattern
     ));
 }
 
@@ -1305,13 +1237,8 @@ fn bounded_repetition_covers_exact_ranged_and_open_bounds() {
         ("a{1,100}b", "aaab", 0, 4),
     ];
     for (pattern, subject, start, end) in cases {
-        let engine::CompileOutcome::Ready(program) =
-            engine::compile(pattern, engine::Options::default())
-        else {
-            panic!("bounded pattern {pattern:?} did not compile");
-        };
         assert_eq!(
-            program.find(subject, 0),
+            engine::find(pattern, subject, 0, default_options()),
             engine::MatchOutcome::Found(engine::MatchSpan { start, end }),
             "bounded pattern {pattern:?}"
         );
@@ -1337,23 +1264,16 @@ fn non_greedy_quantifiers_follow_postgres_match_preference() {
         ("a*a*?", "aaa", 3),
     ];
     for (pattern, subject, end) in cases {
-        let engine::CompileOutcome::Ready(program) =
-            engine::compile(pattern, engine::Options::default())
-        else {
-            panic!("non-greedy pattern {pattern:?} did not compile");
-        };
         assert_eq!(
-            program.find(subject, 0),
+            engine::find(pattern, subject, 0, default_options()),
             engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end }),
             "non-greedy pattern {pattern:?}"
         );
     }
 
-    let engine::CompileOutcome::Ready(program) = engine::compile("a*?", engine::Options::default())
-    else {
-        panic!("non-greedy count pattern did not compile");
-    };
-    assert_eq!(program.count("aa", 1), engine::CountOutcome::Count(3));
+    assert!(
+        matches!(engine::count("a*?", "aa", 0, default_options()), engine::CountOutcome::Count(value) if value == 3)
+    );
 }
 
 #[test]
@@ -1361,19 +1281,15 @@ fn malformed_bounds_are_invalid_and_non_numeric_braces_are_literal() {
     for pattern in ["a{1", "a{1n}", "a{1,0}", "a{1,2,3}", "a{256}"] {
         assert!(
             matches!(
-                engine::compile(pattern, engine::Options::default()),
-                engine::CompileOutcome::InvalidPattern
+                engine::find(pattern, "", 0, default_options()),
+                engine::MatchOutcome::InvalidPattern
             ),
             "malformed bound {pattern:?}"
         );
     }
-    let engine::CompileOutcome::Ready(program) =
-        engine::compile("a{b}", engine::Options::default())
-    else {
-        panic!("non-numeric brace did not compile as a literal");
-    };
+
     assert_eq!(
-        program.find("a{b}", 0),
+        engine::find("a{b}", "a{b}", 0, default_options()),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 4 })
     );
 }
@@ -1398,18 +1314,14 @@ fn c_collation_posix_classes_match_their_defined_ranges() {
     ];
     for (name, matching, nonmatching) in cases {
         let pattern = format!("^[[:{name}:]]$");
-        let engine::CompileOutcome::Ready(program) =
-            engine::compile(&pattern, engine::Options::default())
-        else {
-            panic!("POSIX class {name:?} did not compile");
-        };
+
         assert_eq!(
-            program.find(&matching.to_string(), 0),
+            engine::find(&pattern, &matching.to_string(), 0, default_options()),
             engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 1 }),
             "POSIX class {name:?} matching character"
         );
         assert_eq!(
-            program.find(&nonmatching.to_string(), 0),
+            engine::find(&pattern, &nonmatching.to_string(), 0, default_options()),
             engine::MatchOutcome::NoMatch,
             "POSIX class {name:?} nonmatching character"
         );
@@ -1421,8 +1333,8 @@ fn malformed_posix_classes_are_invalid() {
     for pattern in ["[[:woopsie:]]", "[[:a", "[[:alnum:]-~]", "[0-[:digit:]]"] {
         assert!(
             matches!(
-                engine::compile(pattern, engine::Options::default()),
-                engine::CompileOutcome::InvalidPattern
+                engine::find(pattern, "", 0, default_options()),
+                engine::MatchOutcome::InvalidPattern
             ),
             "malformed POSIX class {pattern:?}"
         );
@@ -1431,9 +1343,9 @@ fn malformed_posix_classes_are_invalid() {
 
 #[test]
 fn basic_syntax_uses_escaped_groups_bounds_and_contextual_anchors() {
-    let options = engine::Options {
+    let options = engine::RegexOptions {
         syntax: engine::Syntax::Basic,
-        ..engine::Options::default()
+        ..default_options()
     };
     let cases = [
         (r"\(ab\)\{2\}", "zabab", 1, 5),
@@ -1445,11 +1357,8 @@ fn basic_syntax_uses_escaped_groups_bounds_and_contextual_anchors() {
         ("a+b|c", "a+b|c", 0, 5),
     ];
     for (pattern, subject, start, end) in cases {
-        let engine::CompileOutcome::Ready(program) = engine::compile(pattern, options) else {
-            panic!("basic pattern {pattern:?} did not compile");
-        };
         assert_eq!(
-            program.find(subject, 0),
+            engine::find(pattern, subject, 0, options),
             engine::MatchOutcome::Found(engine::MatchSpan { start, end }),
             "basic pattern {pattern:?}"
         );
@@ -1457,23 +1366,23 @@ fn basic_syntax_uses_escaped_groups_bounds_and_contextual_anchors() {
     for pattern in [r"a\(b", r"a\)b", r"a\{0,1", "a**", "***", "a\\"] {
         assert!(
             matches!(
-                engine::compile(pattern, options),
-                engine::CompileOutcome::InvalidPattern
+                engine::find(pattern, "", 0, options),
+                engine::MatchOutcome::InvalidPattern
             ),
             "invalid basic pattern {pattern:?}"
         );
     }
     assert!(matches!(
-        engine::compile(r"a\1", options),
-        engine::CompileOutcome::InvalidPattern
+        engine::find(r"a\1", "", 0, options),
+        engine::MatchOutcome::InvalidPattern
     ));
 }
 
 #[test]
 fn extended_syntax_keeps_escapes_literal() {
-    let options = engine::Options {
+    let options = engine::RegexOptions {
         syntax: engine::Syntax::Extended,
-        ..engine::Options::default()
+        ..default_options()
     };
     for (pattern, subject, end) in [
         (r"a\wb", "awb", 3),
@@ -1481,42 +1390,31 @@ fn extended_syntax_keeps_escapes_literal() {
         (r"a\<b", "a<b", 3),
         ("a)b", "a)b", 3),
     ] {
-        let engine::CompileOutcome::Ready(program) = engine::compile(pattern, options) else {
-            panic!("extended pattern {pattern:?} did not compile");
-        };
         assert_eq!(
-            program.find(subject, 0),
+            engine::find(pattern, subject, 0, options),
             engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end })
         );
     }
     assert!(matches!(
-        engine::compile("a(?:b)c", options),
-        engine::CompileOutcome::InvalidPattern
+        engine::find("a(?:b)c", "", 0, options),
+        engine::MatchOutcome::InvalidPattern
     ));
 
-    let engine::CompileOutcome::Ready(program) =
-        engine::compile("(?e)a+", engine::Options::default())
-    else {
-        panic!("embedded extended option did not compile");
-    };
     assert_eq!(
-        program.find("aaa", 0),
+        engine::find("(?e)a+", "aaa", 0, default_options()),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 3 })
     );
 }
 
 #[test]
 fn c_collation_case_insensitive_matching_folds_ascii_only() {
-    let options = engine::Options {
+    let options = engine::RegexOptions {
         case_sensitive: false,
-        ..engine::Options::default()
+        ..default_options()
     };
     for (pattern, subject) in [("Ab", "aB"), ("[B-D]", "c"), ("[[:upper:]]", "a")] {
-        let engine::CompileOutcome::Ready(program) = engine::compile(pattern, options) else {
-            panic!("case-insensitive pattern {pattern:?} did not compile");
-        };
         assert_eq!(
-            program.find(subject, 0),
+            engine::find(pattern, subject, 0, options),
             engine::MatchOutcome::Found(engine::MatchSpan {
                 start: 0,
                 end: subject.chars().count()
@@ -1524,18 +1422,18 @@ fn c_collation_case_insensitive_matching_folds_ascii_only() {
         );
     }
     for (pattern, subject) in [("[^b-d]", "C"), ("é", "É")] {
-        let engine::CompileOutcome::Ready(program) = engine::compile(pattern, options) else {
-            panic!("case-insensitive pattern {pattern:?} did not compile");
-        };
-        assert_eq!(program.find(subject, 0), engine::MatchOutcome::NoMatch);
+        assert_eq!(
+            engine::find(pattern, subject, 0, options),
+            engine::MatchOutcome::NoMatch
+        );
     }
 }
 
 #[test]
 fn expanded_syntax_skips_comments_but_preserves_escapes_and_brackets() {
-    let options = engine::Options {
+    let options = engine::RegexOptions {
         expanded: true,
-        ..engine::Options::default()
+        ..default_options()
     };
     let cases = [
         ("a # skip\n b", "ab"),
@@ -1544,11 +1442,8 @@ fn expanded_syntax_skips_comments_but_preserves_escapes_and_brackets() {
         ("ab{ 1 , 2 }c", "abc"),
     ];
     for (pattern, subject) in cases {
-        let engine::CompileOutcome::Ready(program) = engine::compile(pattern, options) else {
-            panic!("expanded pattern {pattern:?} did not compile");
-        };
         assert_eq!(
-            program.find(subject, 0),
+            engine::find(pattern, subject, 0, options),
             engine::MatchOutcome::Found(engine::MatchSpan {
                 start: 0,
                 end: subject.chars().count()
@@ -1559,62 +1454,48 @@ fn expanded_syntax_skips_comments_but_preserves_escapes_and_brackets() {
 
 #[test]
 fn leading_embedded_options_override_compile_options() {
-    let expanded = engine::Options {
+    let expanded = engine::RegexOptions {
         expanded: true,
-        ..engine::Options::default()
+        ..default_options()
     };
     for pattern in ["(?q)a b", "(?t)a b"] {
-        let engine::CompileOutcome::Ready(program) = engine::compile(pattern, expanded) else {
-            panic!("embedded option pattern {pattern:?} did not compile");
-        };
         assert_eq!(
-            program.find("a b", 0),
+            engine::find(pattern, "a b", 0, expanded),
             engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 3 })
         );
-        assert_eq!(program.find("ab", 0), engine::MatchOutcome::NoMatch);
+        assert_eq!(
+            engine::find(pattern, "ab", 0, expanded),
+            engine::MatchOutcome::NoMatch
+        );
     }
 
-    let insensitive = engine::Options {
+    let insensitive = engine::RegexOptions {
         case_sensitive: false,
-        ..engine::Options::default()
+        ..default_options()
     };
-    let engine::CompileOutcome::Ready(sensitive) = engine::compile("(?c)a", insensitive) else {
-        panic!("embedded case-sensitive option did not compile");
-    };
-    assert_eq!(sensitive.find("A", 0), engine::MatchOutcome::NoMatch);
 
-    let engine::CompileOutcome::Ready(insensitive) =
-        engine::compile("(?i)a", engine::Options::default())
-    else {
-        panic!("embedded case-insensitive option did not compile");
-    };
     assert_eq!(
-        insensitive.find("A", 0),
+        engine::find("(?c)a", "A", 0, insensitive),
+        engine::MatchOutcome::NoMatch
+    );
+
+    assert_eq!(
+        engine::find("(?i)a", "A", 0, default_options()),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 1 })
     );
 
-    let engine::CompileOutcome::Ready(multiline) =
-        engine::compile("(?n)^b", engine::Options::default())
-    else {
-        panic!("embedded newline option did not compile");
-    };
     assert_eq!(
-        multiline.find("a\nb", 0),
+        engine::find("(?n)^b", "a\nb", 0, default_options()),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 2, end: 3 })
     );
 
-    let engine::CompileOutcome::Ready(basic) =
-        engine::compile("(?b)a+b", engine::Options::default())
-    else {
-        panic!("embedded basic option did not compile");
-    };
     assert_eq!(
-        basic.find("a+b", 0),
+        engine::find("(?b)a+b", "a+b", 0, default_options()),
         engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 3 })
     );
     assert!(matches!(
-        engine::compile("(?z)abc", engine::Options::default()),
-        engine::CompileOutcome::InvalidPattern
+        engine::find("(?z)abc", "", 0, default_options()),
+        engine::MatchOutcome::InvalidPattern
     ));
 }
 
@@ -1634,13 +1515,8 @@ fn word_assertions_follow_c_collation_word_membership() {
         (r"a\<b", "a<b", Some((0, 3))),
     ];
     for (pattern, subject, expected) in cases {
-        let engine::CompileOutcome::Ready(program) =
-            engine::compile(pattern, engine::Options::default())
-        else {
-            panic!("word assertion {pattern:?} did not compile");
-        };
         assert_eq!(
-            program.find(subject, 0),
+            engine::find(pattern, subject, 0, default_options()),
             match expected {
                 Some((start, end)) => {
                     engine::MatchOutcome::Found(engine::MatchSpan { start, end })
@@ -1653,29 +1529,26 @@ fn word_assertions_follow_c_collation_word_membership() {
     for pattern in [r"\m*", r"\y*", "[[:<:]]*", "[[:>:]]*"] {
         assert!(
             matches!(
-                engine::compile(pattern, engine::Options::default()),
-                engine::CompileOutcome::InvalidPattern
+                engine::find(pattern, "", 0, default_options()),
+                engine::MatchOutcome::InvalidPattern
             ),
             "repeated word assertion {pattern:?}"
         );
     }
-    let basic = engine::Options {
+    let basic = engine::RegexOptions {
         syntax: engine::Syntax::Basic,
-        ..engine::Options::default()
+        ..default_options()
     };
     for pattern in [r"\<a", "[[:<:]]a"] {
-        let engine::CompileOutcome::Ready(program) = engine::compile(pattern, basic) else {
-            panic!("basic word assertion {pattern:?} did not compile");
-        };
         assert_eq!(
-            program.find("a", 0),
+            engine::find(pattern, "a", 0, basic),
             engine::MatchOutcome::Found(engine::MatchSpan { start: 0, end: 1 })
         );
     }
     for pattern in [r"\<*", r"\>*"] {
         assert!(matches!(
-            engine::compile(pattern, basic),
-            engine::CompileOutcome::InvalidPattern
+            engine::find(pattern, "", 0, basic),
+            engine::MatchOutcome::InvalidPattern
         ));
     }
 }
@@ -1715,19 +1588,7 @@ fn rust_targeted_count_matches_postgres() {
             continue;
         }
         let input = &fixture["input"];
-        let actual = match engine::compile(input["pattern"].as_str().unwrap(), options(input)) {
-            engine::CompileOutcome::InvalidPattern => {
-                json!({"kind":"InvalidPattern", "sqlstate":"2201B"})
-            }
-            engine::CompileOutcome::Uncertain => json!({"kind":"Uncertain"}),
-            engine::CompileOutcome::Ready(program) => match program.count(
-                input["subject"].as_str().unwrap(),
-                input["start"].as_i64().unwrap() as i32,
-            ) {
-                engine::CountOutcome::Count(value) => json!({"kind":"Count", "value":value}),
-                other => panic!("unexpected count outcome: {other:?}"),
-            },
-        };
+        let actual = evaluate_count(input);
         assert_eq!(actual, fixture["expected"], "targeted count: {input}");
         checked += 1;
     }

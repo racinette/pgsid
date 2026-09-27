@@ -43,7 +43,8 @@ node --import tsx "$experiment_dir/smoke/fixture_check.ts" "$artifact_dir/engine
   "$experiment_dir/conformance/stress-fixtures.json" \
   "$experiment_dir/conformance/targeted-postgres-fixtures.json" \
   "$experiment_dir/conformance/stress-position-fixtures.json" \
-  "$experiment_dir/conformance/stress-boundary-fixtures.json"
+  "$experiment_dir/conformance/stress-boundary-fixtures.json" \
+  "$experiment_dir/conformance/stress-classification-fixtures.json"
 
 cp "$artifact_dir/engine.go" "$test_dir/engine.go"
 cp "$experiment_dir/smoke/generated_engine_test.go" "$test_dir/engine_test.go"
@@ -54,4 +55,5 @@ cp "$experiment_dir/conformance/stress-fixtures.json" "$test_dir/stress-fixtures
 cp "$experiment_dir/conformance/targeted-postgres-fixtures.json" "$test_dir/targeted-postgres-fixtures.json"
 cp "$experiment_dir/conformance/stress-position-fixtures.json" "$test_dir/stress-position-fixtures.json"
 cp "$experiment_dir/conformance/stress-boundary-fixtures.json" "$test_dir/stress-boundary-fixtures.json"
+cp "$experiment_dir/conformance/stress-classification-fixtures.json" "$test_dir/stress-classification-fixtures.json"
 (cd "$test_dir" && GOCACHE="$go_cache" "$go_bin" test .)
