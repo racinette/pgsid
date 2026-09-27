@@ -1679,3 +1679,26 @@ fn word_assertions_follow_c_collation_word_membership() {
         ));
     }
 }
+
+#[test]
+fn rust_api_options_match_postgres() {
+    let document: Value = serde_json::from_str(include_str!(
+        "../conformance/targeted-postgres-fixtures.json"
+    ))
+    .unwrap();
+    let fixtures: Vec<_> = document["fixtures"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|fixture| fixture["family"] == "api")
+        .collect();
+    assert!(!fixtures.is_empty());
+    for fixture in fixtures {
+        assert_eq!(
+            evaluate(&fixture["input"]).as_ref(),
+            Some(&fixture["expected"]),
+            "API options: {}",
+            fixture["input"]
+        );
+    }
+}

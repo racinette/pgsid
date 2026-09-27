@@ -287,3 +287,15 @@ func TestLiteralSlice(t *testing.T) {
 		t.Error("work charge over budget stayed definite")
 	}
 }
+
+func TestUnifiedFindResourceLimits(t *testing.T) {
+	options := RegexOptions{Syntax: Syntax{Kind: SyntaxAdvanced}, Newline: NewlineMode{Kind: NewlineModeOrdinary}, CaseSensitive: true}
+	for _, pattern := range []string{"(a{255}){255}", strings.Repeat("(?=", 65) + "a" + strings.Repeat(")", 65)} {
+		if actual := Find(pattern, "a", 0, options); actual.Kind != MatchOutcomeUncertain {
+			t.Errorf("resource limit returned %+v", actual)
+		}
+	}
+	if actual := Find("[", "", 100, options); actual.Kind != MatchOutcomeInvalidPattern {
+		t.Errorf("invalid pattern beyond subject returned %+v", actual)
+	}
+}

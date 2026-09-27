@@ -117,3 +117,9 @@ func expectPanic(t *testing.T, run func()) {
 	}()
 	run()
 }
+
+func TestCompositeLiteralsInConditions(t *testing.T) {
+	if ConditionLiterals(ConditionMode{Kind: ConditionModeRun}) != 1 || ConditionLiterals(ConditionMode{Kind: ConditionModeStop}) != 0 {
+		t.Fatal("enum literal comparison changed branch or loop behavior")
+	}
+}

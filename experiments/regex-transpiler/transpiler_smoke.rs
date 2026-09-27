@@ -190,3 +190,27 @@ pub fn overwrite_position(mut positions: Vec<usize>, at: usize, next: usize) -> 
     positions[at] = next;
     positions[at]
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum ConditionMode {
+    Run,
+    Stop,
+}
+
+pub fn condition_literals(mode: ConditionMode) -> usize {
+    let mut visits = 0;
+    if mode == ConditionMode::Stop {
+        return visits;
+    }
+    while ConditionMode::Run == mode {
+        if (Span {
+            start: visits,
+            end: 1,
+        }) == (Span { start: 0, end: 1 })
+        {
+            visits += 1;
+        }
+        break;
+    }
+    visits
+}

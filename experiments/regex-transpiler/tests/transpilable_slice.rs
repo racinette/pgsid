@@ -2,7 +2,6 @@
 mod candidate;
 
 use serde_json::{json, Value};
-use std::collections::BTreeSet;
 #[path = "../regex_engine.rs"]
 #[allow(dead_code)]
 mod engine;
@@ -1656,6 +1655,7 @@ fn literal_search_matches_the_live_engine() {
                             candidate::MatchOutcome::Found(span) => (0, span.start, span.end),
                             candidate::MatchOutcome::NoMatch => (1, 0, 0),
                             candidate::MatchOutcome::Uncertain => (2, 0, 0),
+                            candidate::MatchOutcome::InvalidPattern => (3, 0, 0),
                         };
                     assert_eq!(
                         actual, expected,
@@ -1886,6 +1886,9 @@ fn capture_compiler_matches_every_fixture_it_accepts() {
                 }
                 candidate::MatchOutcome::NoMatch => json!({"kind": "NoMatch"}),
                 candidate::MatchOutcome::Uncertain => json!({"kind": "Uncertain"}),
+                candidate::MatchOutcome::InvalidPattern => {
+                    json!({"kind": "InvalidPattern", "sqlstate": "2201B"})
+                }
             };
             assert_eq!(
                 actual, fixture["expected"],
@@ -1899,1109 +1902,85 @@ fn capture_compiler_matches_every_fixture_it_accepts() {
 }
 
 #[test]
-fn supported_search_matches_pglite_fixtures() {
-    let mut literal = 0;
-    let mut quoted_literal = 0;
-    let mut insensitive = 0;
-    let mut advanced = 0;
-    let mut grouped = 0;
-    let mut group_choice = 0;
-    let mut optional_group = 0;
-    let mut multi_optional_group = 0;
-    let mut lookbehind = 0;
-    let mut lookahead = 0;
-    let mut backref = 0;
-    let mut single_capture = 0;
-    let mut repeated_backref = 0;
-    let mut capture_program = 0;
-    let mut choice_capture = 0;
-    let mut two_capture = 0;
-    let mut inline = 0;
-    let mut inline_options = 0;
-    let mut middle_lookahead = 0;
-    let mut chained_assertions = 0;
-    let mut bounded_group = 0;
-    let mut expanded_advanced = 0;
-    let mut extended = 0;
-    let mut extended_literal_close = 0;
-    let mut repeated_choice = 0;
-    let mut extended_group = 0;
-    let mut extended_escape = 0;
-    let mut numeric_literal = 0;
-    let mut basic = 0;
-    let mut basic_punctuation = 0;
-    let mut basic_escape = 0;
-    let mut basic_bound = 0;
-    let mut basic_backref = 0;
-    let mut bracket_word = 0;
-    let mut collating_bracket = 0;
-    let mut basic_transparent_group = 0;
-    let mut basic_special_bracket = 0;
-    let mut basic_literal_escaped_letter = 0;
-    let mut basic_repeated_capture = 0;
-    let mut invalid_grouping = 0;
-    let mut invalid_repeat = 0;
-    let mut invalid_bound = 0;
-    let mut invalid_posix_class = 0;
-    let mut invalid_range = 0;
-    let mut invalid_bracket_construct = 0;
-    let mut invalid_numeric = 0;
-    let mut invalid_backreference = 0;
-    let mut dot = 0;
-    let mut mixed = 0;
-    let mut anchored = 0;
-    let mut escaped = 0;
-    let mut classes = 0;
-    let mut negated_classes = 0;
-    let mut range_classes = 0;
-    let mut edge_punctuation = 0;
-    let mut absolute_anchors = 0;
-    let mut positioned = 0;
-    let mut newline_modes = BTreeSet::new();
-    for (source, required) in [
-        (include_str!("../conformance/postgres-fixtures.json"), false),
-        (include_str!("../conformance/stress-fixtures.json"), false),
-        (
-            include_str!("../conformance/targeted-postgres-fixtures.json"),
-            true,
-        ),
-        (
-            include_str!("../conformance/stress-position-fixtures.json"),
-            false,
-        ),
-        (
-            include_str!("../conformance/stress-boundary-fixtures.json"),
-            false,
-        ),
+fn unified_find_preserves_uncertainty_at_resource_limits() {
+    let options = candidate::RegexOptions {
+        syntax: candidate::Syntax::Advanced,
+        newline: candidate::NewlineMode::Ordinary,
+        case_sensitive: true,
+        expanded: false,
+    };
+    for pattern in [
+        "(a{255}){255}".to_owned(),
+        format!("{}a{}", "(?=".repeat(65), ")".repeat(65)),
     ] {
-        let fixtures: Value = serde_json::from_str(source).unwrap();
-        assert_eq!(fixtures["oracle"]["database"], "PostgreSQL via PGlite");
-        let mut checked = 0;
-        for fixture in fixtures["fixtures"].as_array().unwrap() {
+        assert!(matches!(
+            candidate::find(&pattern, "a", 0, options),
+            candidate::MatchOutcome::Uncertain
+        ));
+    }
+    assert!(matches!(
+        candidate::find("[", "", 100, options),
+        candidate::MatchOutcome::InvalidPattern
+    ));
+}
+
+#[test]
+fn unified_find_matches_every_postgres_fixture() {
+    let mut checked = 0;
+    for source in [
+        include_str!("../conformance/postgres-fixtures.json"),
+        include_str!("../conformance/stress-fixtures.json"),
+        include_str!("../conformance/targeted-postgres-fixtures.json"),
+        include_str!("../conformance/stress-position-fixtures.json"),
+        include_str!("../conformance/stress-boundary-fixtures.json"),
+    ] {
+        let document: Value = serde_json::from_str(source).unwrap();
+        for fixture in document["fixtures"].as_array().unwrap() {
             if fixture["operation"] == "count" {
                 continue;
             }
             let input = &fixture["input"];
             let options = &input["options"];
-            let pattern = input["pattern"].as_str().unwrap();
-            let subject = input["subject"].as_str().unwrap();
-            let from = input["start"].as_u64().unwrap_or(1) as usize - 1;
-            let syntax = options["syntax"].as_str().unwrap();
-            if syntax != "literal"
-                && (candidate::definitely_invalid_grouping(
-                    pattern,
-                    syntax.chars().next().unwrap(),
-                    options["expanded"].as_bool().unwrap(),
-                ) || candidate::definitely_invalid_inline_options(
-                    pattern,
-                    syntax.chars().next().unwrap(),
-                ))
-            {
-                assert_eq!(
-                    fixture["expected"],
-                    json!({ "kind": "InvalidPattern", "sqlstate": "2201B" }),
-                    "input={input}"
-                );
-                invalid_grouping += 1;
-                checked += 1;
-                continue;
-            }
-            if syntax != "literal"
-                && candidate::definitely_invalid_simple_repeat(
-                    pattern,
-                    syntax.chars().next().unwrap(),
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                assert_eq!(
-                    fixture["expected"],
-                    json!({ "kind": "InvalidPattern", "sqlstate": "2201B" }),
-                    "input={input}"
-                );
-                invalid_repeat += 1;
-                checked += 1;
-                continue;
-            }
-            if syntax != "literal"
-                && candidate::definitely_invalid_bound(
-                    pattern,
-                    syntax.chars().next().unwrap(),
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                assert_eq!(
-                    fixture["expected"],
-                    json!({ "kind": "InvalidPattern", "sqlstate": "2201B" }),
-                    "input={input}"
-                );
-                invalid_bound += 1;
-                checked += 1;
-                continue;
-            }
-            if syntax != "literal"
-                && candidate::definitely_invalid_posix_class(
-                    pattern,
-                    syntax.chars().next().unwrap(),
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                assert_eq!(
-                    fixture["expected"],
-                    json!({ "kind": "InvalidPattern", "sqlstate": "2201B" }),
-                    "input={input}"
-                );
-                invalid_posix_class += 1;
-                checked += 1;
-                continue;
-            }
-            if syntax != "literal"
-                && candidate::definitely_invalid_bracket_range(
-                    pattern,
-                    syntax.chars().next().unwrap(),
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                assert_eq!(
-                    fixture["expected"],
-                    json!({ "kind": "InvalidPattern", "sqlstate": "2201B" }),
-                    "input={input}"
-                );
-                invalid_range += 1;
-                checked += 1;
-                continue;
-            }
-            if syntax != "literal"
-                && candidate::definitely_invalid_bracket_construct(
-                    pattern,
-                    syntax.chars().next().unwrap(),
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                assert_eq!(
-                    fixture["expected"],
-                    json!({ "kind": "InvalidPattern", "sqlstate": "2201B" }),
-                    "input={input}"
-                );
-                invalid_bracket_construct += 1;
-                checked += 1;
-                continue;
-            }
-            if syntax != "literal"
-                && candidate::definitely_invalid_numeric_escape(
-                    pattern,
-                    syntax.chars().next().unwrap(),
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                assert_eq!(
-                    fixture["expected"],
-                    json!({ "kind": "InvalidPattern", "sqlstate": "2201B" }),
-                    "input={input}"
-                );
-                invalid_numeric += 1;
-                checked += 1;
-                continue;
-            }
-            if syntax != "literal"
-                && candidate::definitely_invalid_backreference(
-                    pattern,
-                    syntax.chars().next().unwrap(),
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                assert_eq!(
-                    fixture["expected"],
-                    json!({ "kind": "InvalidPattern", "sqlstate": "2201B" }),
-                    "input={input}"
-                );
-                invalid_backreference += 1;
-                checked += 1;
-                continue;
-            }
-            let actual = if (options["syntax"] == "advanced" || options["syntax"] == "basic")
-                && candidate::supports_quoted_literal(pattern)
-            {
-                quoted_literal += 1;
-                candidate::find_quoted_literal(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "literal"
-                && options["expanded"] == false
-                && options["newline"] == "ordinary"
-            {
-                literal += 1;
-                let case_sensitive = options["caseSensitive"].as_bool().unwrap();
-                if !case_sensitive {
-                    insensitive += 1;
-                }
-                candidate::find_literal(pattern, subject, from, case_sensitive)
-            } else if options["syntax"] == "advanced"
-                && (options["expanded"] == false && candidate::supports_simple_advanced(pattern)
-                    || options["expanded"] == true
-                        && candidate::supports_expanded_advanced(pattern))
-            {
-                advanced += 1;
-                let expanded = options["expanded"] == true;
-                if expanded {
-                    expanded_advanced += 1;
-                }
-                let newline = options["newline"].as_str().unwrap();
-                newline_modes.insert(newline.to_string());
-                let crosses_newline = newline == "ordinary" || newline == "anchors";
-                let line_anchors = newline == "sensitive" || newline == "anchors";
-                let actual = if expanded {
-                    candidate::find_expanded_advanced(
-                        pattern,
-                        subject,
-                        from,
-                        options["caseSensitive"].as_bool().unwrap(),
-                        crosses_newline,
-                        line_anchors,
-                    )
-                } else {
-                    candidate::find_simple_advanced(
-                        pattern,
-                        subject,
-                        from,
-                        options["caseSensitive"].as_bool().unwrap(),
-                        crosses_newline,
-                        line_anchors,
-                    )
-                };
-                if pattern == "." && !expanded {
-                    dot += 1;
-                    assert!(
-                        actual == candidate::find_any_character(subject, from, crosses_newline)
-                    );
-                }
-                if pattern != "." && pattern.contains('.') {
-                    mixed += 1;
-                }
-                if pattern.contains('^') || pattern.contains('$') {
-                    anchored += 1;
-                }
-                if pattern.contains('\\') {
-                    escaped += 1;
-                }
-                if pattern.contains('[') {
-                    classes += 1;
-                }
-                if pattern.contains("[^") {
-                    negated_classes += 1;
-                }
-                if pattern.contains('[') && pattern.contains('-') {
-                    range_classes += 1;
-                }
-                if pattern.contains("[-")
-                    || pattern.contains("-]")
-                    || pattern.contains("[]")
-                    || pattern.contains("[^]")
-                {
-                    edge_punctuation += 1;
-                }
-                if pattern.contains("\\A") || pattern.contains("\\Z") {
-                    absolute_anchors += 1;
-                }
-                actual
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_flat_groups(pattern, options["expanded"].as_bool().unwrap())
-            {
-                grouped += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_flat_groups(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_group_choice(pattern, options["expanded"].as_bool().unwrap())
-            {
-                group_choice += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_group_choice(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_noncapture_literal(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                grouped += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_noncapture_literal(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_optional_group(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                optional_group += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_optional_group(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_multi_optional_group(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                multi_optional_group += 1;
-                candidate::find_multi_optional_group(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_fixed_lookbehind(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                lookbehind += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_fixed_lookbehind(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_anchor_lookbehind(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                lookbehind += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_anchor_lookbehind(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_leading_lookahead(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                lookahead += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_leading_lookahead(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_fixed_backref(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                backref += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_fixed_backref(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_single_capture_backref(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                single_capture += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_single_capture_backref(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_repeated_backref(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                repeated_backref += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_repeated_backref(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_capture_program(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                capture_program += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_capture_program(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_choice_capture_backref(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                choice_capture += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_choice_capture_backref(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_two_choice_backref(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                choice_capture += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_two_choice_backref(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_two_capture_backref(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                two_capture += 1;
-                candidate::find_two_capture_backref(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_inline_advanced(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                inline += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_inline_advanced(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if (options["syntax"] == "advanced"
-                || options["syntax"] == "basic" && pattern.starts_with("***:"))
-                && candidate::supports_inline_options(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                inline_options += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_inline_options(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_middle_lookahead(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                middle_lookahead += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_middle_lookahead(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_middle_lookbehind(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                lookbehind += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_middle_lookbehind(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_chained_assertions(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                chained_assertions += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_chained_assertions(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_bounded_group(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                bounded_group += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_bounded_group(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "extended"
-                && candidate::supports_extended_compatible(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                extended += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_extended_compatible(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "extended"
-                && candidate::supports_extended_literal_closing_group(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                extended_literal_close += 1;
-                candidate::find_extended_literal_closing_group(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "extended"
-                && candidate::supports_extended_group(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                extended_group += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_extended_group(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if (options["syntax"] == "advanced" || options["syntax"] == "extended")
-                && candidate::supports_repeated_choice(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                repeated_choice += 1;
-                candidate::find_repeated_choice(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "extended"
-                && candidate::supports_extended_literal_escape(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                extended_escape += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_extended_literal_escape(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_numeric_literal_escape(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                numeric_literal += 1;
-                candidate::find_numeric_literal_escape(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if (options["syntax"] == "advanced" || options["syntax"] == "basic")
-                && candidate::supports_collating_bracket(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                collating_bracket += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_collating_bracket(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "basic"
-                && candidate::supports_basic_transparent_group(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                basic_transparent_group += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_basic_transparent_group(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "basic"
-                && candidate::supports_basic_special_bracket(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                basic_special_bracket += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_basic_special_bracket(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "basic"
-                && candidate::supports_basic_literal_escaped_letter(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                basic_literal_escaped_letter += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_basic_literal_escaped_letter(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "basic"
-                && candidate::supports_basic_repeated_capture(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                basic_repeated_capture += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_basic_repeated_capture(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "basic"
-                && candidate::supports_basic_compatible(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                basic += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_basic_compatible(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "basic"
-                && candidate::supports_basic_literal_punctuation(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                basic_punctuation += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_basic_literal_punctuation(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "basic"
-                && candidate::supports_basic_letter_escape(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                basic_escape += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_basic_letter_escape(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "basic"
-                && candidate::supports_basic_escaped_bound(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                basic_bound += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_basic_escaped_bound(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "basic"
-                && candidate::supports_basic_fixed_backref(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                basic_backref += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_basic_fixed_backref(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "basic"
-                && candidate::supports_basic_bounded_backref(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                basic_backref += 1;
-                candidate::find_basic_bounded_backref(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if (options["syntax"] == "advanced" || options["syntax"] == "basic")
-                && candidate::supports_bracket_word_boundary(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                bracket_word += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_bracket_word_boundary(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if (options["syntax"] == "advanced" || options["syntax"] == "basic")
-                && candidate::supports_angle_word(
-                    pattern,
-                    syntax.chars().next().unwrap(),
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                bracket_word += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_angle_word(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "ordinary" || newline == "anchors",
-                    newline == "sensitive" || newline == "anchors",
-                    syntax.chars().next().unwrap(),
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_zero_width_assertions(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                advanced += 1;
-                let newline = options["newline"].as_str().unwrap();
-                candidate::find_zero_width_assertions(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    newline == "sensitive" || newline == "anchors",
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_literal_zero_width_group(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                advanced += 1;
-                candidate::find_literal_zero_width_group(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::supports_unicode_simple(
-                    pattern,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                advanced += 1;
-                candidate::find_unicode_simple(
-                    pattern,
-                    subject,
-                    from,
-                    options["caseSensitive"].as_bool().unwrap(),
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else if options["syntax"] == "advanced"
-                && candidate::definitely_no_match_by_width(
-                    pattern,
-                    subject,
-                    from,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            {
-                advanced += 1;
-                candidate::find_width_rejected(
-                    pattern,
-                    subject,
-                    from,
-                    options["expanded"].as_bool().unwrap(),
-                )
-            } else {
-                panic!("unsupported find fixture: {input}");
+            let syntax = match options["syntax"].as_str().unwrap() {
+                "advanced" => candidate::Syntax::Advanced,
+                "basic" => candidate::Syntax::Basic,
+                "extended" => candidate::Syntax::Extended,
+                "literal" => candidate::Syntax::Literal,
+                other => panic!("unexpected syntax: {other}"),
             };
-            if from > 0 {
-                positioned += 1;
-            }
-            let actual = match actual {
+            let newline = match options["newline"].as_str().unwrap() {
+                "ordinary" => candidate::NewlineMode::Ordinary,
+                "sensitive" => candidate::NewlineMode::Sensitive,
+                "stop" => candidate::NewlineMode::Stop,
+                "anchors" => candidate::NewlineMode::Anchors,
+                other => panic!("unexpected newline mode: {other}"),
+            };
+            let outcome = candidate::find(
+                input["pattern"].as_str().unwrap(),
+                input["subject"].as_str().unwrap(),
+                input["start"].as_u64().unwrap_or(1) as usize - 1,
+                candidate::RegexOptions {
+                    syntax,
+                    newline,
+                    case_sensitive: options["caseSensitive"].as_bool().unwrap(),
+                    expanded: options["expanded"].as_bool().unwrap(),
+                },
+            );
+            let actual = match outcome {
                 candidate::MatchOutcome::Found(span) => {
-                    json!({ "kind": "Found", "value": { "start": span.start, "end": span.end } })
+                    json!({"kind":"Found", "value":{"start":span.start, "end":span.end}})
                 }
-                candidate::MatchOutcome::NoMatch => json!({ "kind": "NoMatch" }),
-                candidate::MatchOutcome::Uncertain => json!({ "kind": "Uncertain" }),
+                candidate::MatchOutcome::NoMatch => json!({"kind":"NoMatch"}),
+                candidate::MatchOutcome::InvalidPattern => {
+                    json!({"kind":"InvalidPattern", "sqlstate":"2201B"})
+                }
+                candidate::MatchOutcome::Uncertain => json!({"kind":"Uncertain"}),
             };
-            assert_eq!(actual, fixture["expected"], "input={input}");
+            assert_eq!(actual, fixture["expected"], "unified find: {input}");
             checked += 1;
         }
-        if required {
-            assert_eq!(checked, fixtures["fixtures"].as_array().unwrap().len());
-        }
     }
-    assert!(literal >= 40);
-    assert!(quoted_literal >= 2);
-    assert!(insensitive >= 7);
-    assert!(advanced >= 100);
-    assert!(grouped >= 20);
-    assert!(group_choice >= 20);
-    assert!(optional_group >= 50);
-    assert!(multi_optional_group >= 4);
-    assert!(lookbehind >= 20);
-    assert!(lookahead >= 20);
-    assert!(backref >= 20);
-    assert!(single_capture >= 50);
-    assert!(repeated_backref >= 8);
-    assert!(
-        capture_program
-            + choice_capture
-            + two_capture
-            + bounded_group
-            + repeated_choice
-            + numeric_literal
-            + middle_lookahead
-            + chained_assertions
-            + inline
-            + inline_options
-            >= 156
-    );
-    assert!(expanded_advanced >= 200);
-    assert!(extended >= 50);
-    assert!(extended_literal_close >= 10);
-    assert!(extended_group >= 20);
-    assert!(extended_escape >= 20);
-    assert!(basic >= 50);
-    assert!(basic_punctuation >= 20);
-    assert!(basic_escape >= 20);
-    assert!(basic_bound >= 20);
-    assert!(basic_backref >= 20);
-    assert!(bracket_word >= 10);
-    assert!(basic_transparent_group >= 4);
-    assert!(basic_special_bracket >= 4);
-    assert!(basic_literal_escaped_letter >= 2);
-    assert!(basic_repeated_capture >= 1);
-    assert!(invalid_grouping >= 40);
-    assert!(invalid_repeat >= 20);
-    assert!(invalid_bound >= 20);
-    assert!(invalid_posix_class >= 20);
-    assert!(invalid_range >= 10);
-    assert!(invalid_bracket_construct >= 7);
-    assert!(invalid_numeric >= 5);
-    assert!(invalid_backreference >= 10);
-    assert!(dot >= 20);
-    assert!(mixed >= 50);
-    assert!(anchored >= 20);
-    assert!(escaped >= 40);
-    assert!(classes >= 50);
-    assert!(negated_classes >= 40);
-    assert!(range_classes >= 50);
-    assert!(edge_punctuation >= 80);
-    assert!(absolute_anchors >= 50);
-    assert!(positioned >= 6);
-    assert_eq!(newline_modes.len(), 4);
+    eprintln!("unified find: {checked} PostgreSQL fixtures");
 }
 
 #[test]
@@ -3129,6 +2108,7 @@ fn any_character_search_matches_the_live_engine() {
                     candidate::MatchOutcome::Found(span) => (0, span.start, span.end),
                     candidate::MatchOutcome::NoMatch => (1, 0, 0),
                     candidate::MatchOutcome::Uncertain => (2, 0, 0),
+                    candidate::MatchOutcome::InvalidPattern => (3, 0, 0),
                 };
                 assert_eq!(
                     actual, expected,
@@ -3322,6 +2302,7 @@ fn simple_advanced_search_matches_the_live_engine() {
                             candidate::MatchOutcome::Found(span) => (0, span.start, span.end),
                             candidate::MatchOutcome::NoMatch => (1, 0, 0),
                             candidate::MatchOutcome::Uncertain => (2, 0, 0),
+                            candidate::MatchOutcome::InvalidPattern => (3, 0, 0),
                         };
                         assert_eq!(
                             actual, expected,
@@ -3500,6 +2481,7 @@ fn expanded_advanced_search_matches_the_live_engine() {
                             candidate::MatchOutcome::Found(span) => (0, span.start, span.end),
                             candidate::MatchOutcome::NoMatch => (1, 0, 0),
                             candidate::MatchOutcome::Uncertain => (2, 0, 0),
+                            candidate::MatchOutcome::InvalidPattern => (3, 0, 0),
                         };
                         assert_eq!(
                             actual, expected,

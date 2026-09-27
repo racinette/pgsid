@@ -63777,6 +63777,648 @@
       "expected": {
         "kind": "NoMatch"
       }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "(?i)A",
+        "subject": "(?i)A",
+        "options": {
+          "syntax": "literal",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 5
+        }
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "***=a+b",
+        "subject": "***=a+b",
+        "options": {
+          "syntax": "literal",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 7
+        }
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "a # b",
+        "subject": "a # b",
+        "options": {
+          "syntax": "literal",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "A\nB",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "literal",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "(?i)a",
+        "subject": "(?i)a",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 5
+        }
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "(?i)a",
+        "subject": "a",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "***:^(ab|cd)+$",
+        "subject": "abcd",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "***:^(ab|cd)+$",
+        "subject": "abcd",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "***=a+b",
+        "subject": "a+b",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "***=a+b",
+        "subject": "a+b",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "***:(?i)^(ab|cd)+$",
+        "subject": "ABcd",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "***:(?b)^\\(ab\\)*$",
+        "subject": "abab",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "(?c)a",
+        "subject": "A",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "(?i)a",
+        "subject": "A",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "(?t)a b",
+        "subject": "a b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "(?x)a b",
+        "subject": "ab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "(?s)^a.b$",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "(?n)^a$",
+        "subject": "x\na\nx",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "[a",
+        "subject": "[a",
+        "options": {
+          "syntax": "literal",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "[a",
+        "subject": "a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "***?",
+        "subject": "***?",
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "***?",
+        "subject": "***?",
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "***?",
+        "subject": "***?",
+        "options": {
+          "syntax": "literal",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "[[..]]",
+        "subject": "az",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "[[==]]",
+        "subject": "az",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "[[.missing.]]",
+        "subject": "az",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "[[=missing=]]",
+        "subject": "az",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "[[.Zero.]]",
+        "subject": "az",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "[[.ab.]]",
+        "subject": "az",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "[[.a=]]",
+        "subject": "az",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "[[.a.]",
+        "subject": "az",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "[[=a=]-z]",
+        "subject": "az",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "[a-[=z=]]",
+        "subject": "az",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "[[=a=]-[=z=]]",
+        "subject": "az",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "api",
+      "input": {
+        "pattern": "[[.z.]-[.a.]]",
+        "subject": "az",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
     }
   ]
 }
