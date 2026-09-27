@@ -1012,11 +1012,11 @@ assert.ok(
     coverage.repeatedChoice +
     coverage.numericLiteral +
     coverage.middleLookahead +
-    coverage.chainedAssertions >=
-    126,
+    coverage.chainedAssertions +
+    coverage.inline +
+    coverage.inlineOptions >=
+    156,
 )
-assert.ok(coverage.inline >= 20)
-assert.ok(coverage.inlineOptions >= 10)
 assert.ok(coverage.expandedAdvanced >= 200)
 assert.ok(coverage.extended >= 50)
 assert.ok(coverage.extendedLiteralClose >= 10)

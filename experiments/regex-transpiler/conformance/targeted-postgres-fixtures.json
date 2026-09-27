@@ -55677,6 +55677,1198 @@
           "end": 2
         }
       }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?i)^(ab|cd)+$",
+        "subject": "aBcD",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?i)^(ab|cd)+$",
+        "subject": "aBcE",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?ic)^(ab|cd)+$",
+        "subject": "AB",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?ci)^(ab|cd)+$",
+        "subject": "AB",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?i)^([[:lower:]]{2})\\1$",
+        "subject": "aBAb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?c)^([[:lower:]]{2})\\1$",
+        "subject": "aBAb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?i)(?<=ab)(cd|ef)+",
+        "subject": "zABcDEf",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 3,
+          "end": 7
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?i)(?<!ab)(cd|ef)+",
+        "subject": "zABcDEf",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 5,
+          "end": 7
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?n)^(a|b)+$",
+        "subject": "x\nab\nz",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 4
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?p)^(a|b)+$",
+        "subject": "x\nab\nz",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?w)^(a.b)+$",
+        "subject": "x\na\nb\nz",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 5
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?n)^(a.b)+$",
+        "subject": "x\na\nb\nz",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?ns)^(a.b)+$",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?sn)^(a.b)+$",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?m)^([^[:digit:]]+)$",
+        "subject": "12\nab\n34",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 3,
+          "end": 5
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?s)^([^[:digit:]]+)$",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?n)^([^[:digit:]]+)$",
+        "subject": "a\nb",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 1
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?x) ^ ( [[:alpha:] #]+ ) \\1 $ # final",
+        "subject": "a#a#",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?x) ^ ( []#[:alpha:]]+ ) \\1 $ ",
+        "subject": "]#a]#a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 6
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?xt)^(a b)+$",
+        "subject": "a ba b",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 6
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?tx)^ (a b)+ $",
+        "subject": "abab",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "***:(?i)^(ab|cd)+$",
+        "subject": "ABcd",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "***:^(ab|cd)+$",
+        "subject": "abcd",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?i)(a+?)\\1",
+        "subject": "AaAa",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?i)^(a)(?=A)\\1$",
+        "subject": "aA",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "([[:digit:]]{2})\\1",
+        "subject": "x1212",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 1,
+          "end": 5
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "([[:digit:]]{2})\\1",
+        "subject": "x1234",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([[:alpha:][:digit:]_]+)$",
+        "subject": "Ab19_",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 5
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([[:alpha:][:digit:]_]+)$",
+        "subject": "Ab19-",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([a-c[:digit:]_]+)$",
+        "subject": "abc19_",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 6
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([a-c[:digit:]_]+)$",
+        "subject": "d",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([^[:alpha:]0-9]+)$",
+        "subject": "!_😀",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([^[:alpha:]0-9]+)$",
+        "subject": "!a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?=[[:xdigit:]]{4}$)([[:digit:]]|[a-f])+",
+        "subject": "ab19",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?=[[:xdigit:]]{4}$)([[:digit:]]|[a-f])+",
+        "subject": "ab1g",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?<=[[:alpha:]]{2})([[:digit:]]+)",
+        "subject": "ab123",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 2,
+          "end": 5
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?<![[:alpha:]]{2})([[:digit:]]+)",
+        "subject": "ab123",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 3,
+          "end": 5
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "([[:space:]]+)\\1",
+        "subject": "\t \t ",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([[:ascii:]]+)$",
+        "subject": "a",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([[:ascii:]]+)$",
+        "subject": "é",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([[:cntrl:]]+)$",
+        "subject": "",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([[:blank:]]+)$",
+        "subject": " \t",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([[:blank:]]+)$",
+        "subject": "\n",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([[:graph:]]+)$",
+        "subject": "a!",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([[:print:]]+)$",
+        "subject": "a! ",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([[:punct:]]+)$",
+        "subject": "!_[]",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 4
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([[:word:]]+)$",
+        "subject": "a9_",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([[:alnum:]]+)$",
+        "subject": "a9_",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?i)^([[:upper:]]+)$",
+        "subject": "abc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?c)^([[:upper:]]+)$",
+        "subject": "abc",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?i)^([[:lower:]]+)$",
+        "subject": "ABC",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?c)^([[:lower:]]+)$",
+        "subject": "ABC",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?i)^([A-z]+)$",
+        "subject": "_aZ",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "(?i)^([Z-a]+)$",
+        "subject": "_Az",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([]-]+)$",
+        "subject": "]-]",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([\\]\\-]+)$",
+        "subject": "]-]",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([\\d_]+)$",
+        "subject": "19_",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([\\D_]+)$",
+        "subject": "ab_",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([^\\D_]+)$",
+        "subject": "123",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([^\\D_]+)$",
+        "subject": "_",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "NoMatch"
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([[:alpha:]\\s]+)$",
+        "subject": "a \t",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([\\W]+)$",
+        "subject": "!😀",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 2
+        }
+      }
+    },
+    {
+      "family": "composition",
+      "input": {
+        "pattern": "^([\\t-\\r]+)$",
+        "subject": "\t\n\r",
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Found",
+        "value": {
+          "start": 0,
+          "end": 3
+        }
+      }
     }
   ]
 }
