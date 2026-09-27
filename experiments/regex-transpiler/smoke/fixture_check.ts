@@ -974,9 +974,9 @@ for (const fixturePath of fixturePaths) {
       actual = generated.findWidthRejected(pattern, subject, from, options.expanded)
       coverage.advanced++
     } else {
-      if (options.syntax === 'advanced') coverage.unsupportedAdvanced++
-      else coverage.otherOptions++
-      continue
+      assert.fail(
+        `unsupported find fixture: ${fixturePath} fixture ${index}: ${JSON.stringify(fixture.input)}`,
+      )
     }
     if (from > 0) coverage.position++
     assert.deepEqual(

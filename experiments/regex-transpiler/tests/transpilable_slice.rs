@@ -1732,7 +1732,30 @@ fn angle_word_escapes_follow_the_selected_syntax() {
 
 #[test]
 fn capture_compiler_leaves_unlowered_features_uncertain() {
-    for pattern in ["(?q)a", "[[.a.]]", "(a)(?=\\1)"] {
+    for pattern in ["(?z)a", "[[.a.]]", "(a)(?=\\1)"] {
+        assert!(
+            !candidate::supports_capture_program(pattern, false),
+            "{pattern}"
+        );
+        assert!(matches!(
+            candidate::find_capture_program(pattern, "aaaa", 0, true, true, false, false),
+            candidate::MatchOutcome::Uncertain
+        ));
+    }
+}
+
+#[test]
+fn capture_compiler_obeys_syntax_switch_restrictions() {
+    for pattern in [
+        "(?e)a+?",
+        "(?e)(?:a)",
+        "(?e)(?=a)",
+        "(?b)\\(a",
+        "(?b)a\\{2,1\\}",
+        "(?b)a\\1",
+        "(?b)\\(a\\1\\)",
+        "(?e)[z-a]",
+    ] {
         assert!(
             !candidate::supports_capture_program(pattern, false),
             "{pattern}"
@@ -2836,7 +2859,7 @@ fn supported_search_matches_pglite_fixtures() {
                     options["expanded"].as_bool().unwrap(),
                 )
             } else {
-                continue;
+                panic!("unsupported find fixture: {input}");
             };
             if from > 0 {
                 positioned += 1;

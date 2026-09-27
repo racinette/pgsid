@@ -14,6 +14,7 @@ const VM_JUMP: usize = 11;
 const VM_CLASS: usize = 12;
 const VM_NUMERIC: usize = 13;
 const VM_WORD_END: usize = 14;
+const VM_WORD_BEGIN: usize = 26;
 const CAPTURE_CLASS_RANGE: usize = 15;
 const NODE_SEQUENCE: usize = 16;
 const NODE_ALTERNATIVE: usize = 17;
@@ -585,7 +586,13 @@ fn numeric_escape(pattern: &str, expanded: bool, position: usize) -> NumericEsca
     make_numeric_escape(false, false, 0, position + 1)
 }
 
-pub fn definitely_invalid_numeric_escape(pattern: &str, syntax: char, expanded: bool) -> bool {
+pub fn definitely_invalid_numeric_escape(
+    pattern: &str,
+    requested_syntax: char,
+    expanded: bool,
+) -> bool {
+    let parsed = validation_pattern_source(pattern, requested_syntax, expanded);
+    let syntax = parsed.syntax;
     if syntax != 'a' {
         return false;
     }
@@ -851,11 +858,13 @@ pub fn pattern_atoms(pattern: &str, expanded: bool) -> Vec<char> {
     normalized
 }
 
-pub fn definitely_invalid_grouping(pattern: &str, syntax: char, expanded: bool) -> bool {
+pub fn definitely_invalid_grouping(pattern: &str, requested_syntax: char, expanded: bool) -> bool {
+    let parsed = validation_pattern_source(pattern, requested_syntax, expanded);
+    let syntax = parsed.syntax;
     if syntax != 'a' && syntax != 'e' && syntax != 'b' {
         return false;
     }
-    let source = pattern_atoms(pattern, expanded);
+    let source = parsed.atoms;
     let mut depth = 0;
     let mut bracket = false;
     let mut bracket_members = 0;
@@ -863,7 +872,7 @@ pub fn definitely_invalid_grouping(pattern: &str, syntax: char, expanded: bool) 
     let mut position = 0;
     while position < source.len() {
         let atom = source[position];
-        if atom == '\\' {
+        if atom == '\\' && (bracket == false || syntax == 'a') {
             if source.len() - position <= 1 {
                 return true;
             }
@@ -913,28 +922,27 @@ pub fn definitely_invalid_grouping(pattern: &str, syntax: char, expanded: bool) 
     bracket || depth > 0
 }
 
-pub fn definitely_invalid_simple_repeat(pattern: &str, syntax: char, expanded: bool) -> bool {
+pub fn definitely_invalid_simple_repeat(
+    pattern: &str,
+    requested_syntax: char,
+    expanded: bool,
+) -> bool {
+    let parsed = validation_pattern_source(pattern, requested_syntax, expanded);
+    let syntax = parsed.syntax;
     if syntax != 'a' && syntax != 'e' && syntax != 'b' {
         return false;
     }
-    let source = pattern_atoms(pattern, expanded);
+    let source = parsed.atoms;
     let mut position = 0;
-    if source.len() >= 4 && source[0] == '*' && source[1] == '*' && source[2] == '*' {
-        if source[3] == '=' {
-            return false;
-        }
-        if source[3] == ':' {
-            position = 4;
-        }
-    }
     let mut bracket = false;
     let mut bracket_members = 0;
     let mut previous_repeat = false;
     let mut previous_lazy = false;
     let mut after_open = false;
+    let mut basic_star_literal = true;
     while position < source.len() {
         let atom = source[position];
-        if atom == '\\' {
+        if atom == '\\' && (bracket == false || syntax == 'a') {
             if source.len() - position <= 1 {
                 return false;
             }
@@ -956,6 +964,7 @@ pub fn definitely_invalid_simple_repeat(pattern: &str, syntax: char, expanded: b
             }
             previous_repeat = false;
             after_open = false;
+            basic_star_literal = syntax == 'b' && source[position + 1] == '(';
             position += 2;
         } else if bracket {
             if atom == ']' && bracket_members > 0 {
@@ -965,6 +974,7 @@ pub fn definitely_invalid_simple_repeat(pattern: &str, syntax: char, expanded: b
             }
             position += 1;
         } else if atom == '[' {
+            basic_star_literal = false;
             bracket = true;
             bracket_members = 0;
             previous_repeat = false;
@@ -982,10 +992,12 @@ pub fn definitely_invalid_simple_repeat(pattern: &str, syntax: char, expanded: b
             previous_repeat = false;
             after_open = true;
             position += 1;
+        } else if syntax == 'b' && atom == '*' && basic_star_literal {
+            basic_star_literal = false;
+            previous_repeat = false;
+            position += 1;
         } else if atom == '*' || syntax != 'b' && (atom == '+' || atom == '?') {
-            if previous_repeat
-                && (syntax != 'b' || position != 1)
-                && (syntax != 'a' || atom != '?' || previous_lazy)
+            if previous_repeat && (syntax != 'a' || atom != '?' || previous_lazy)
                 || position == 0 && syntax != 'b'
                 || after_open && atom != '?'
             {
@@ -996,6 +1008,7 @@ pub fn definitely_invalid_simple_repeat(pattern: &str, syntax: char, expanded: b
             after_open = false;
             position += 1;
         } else {
+            basic_star_literal = basic_star_literal && atom == '^';
             previous_repeat = false;
             after_open = false;
             position += 1;
@@ -1004,19 +1017,13 @@ pub fn definitely_invalid_simple_repeat(pattern: &str, syntax: char, expanded: b
     false
 }
 
-pub fn definitely_invalid_bound(pattern: &str, syntax: char, expanded: bool) -> bool {
+pub fn definitely_invalid_bound(pattern: &str, requested_syntax: char, expanded: bool) -> bool {
+    let parsed = validation_pattern_source(pattern, requested_syntax, expanded);
+    let syntax = parsed.syntax;
     if syntax != 'a' && syntax != 'e' && syntax != 'b' {
         return false;
     }
-    let source = pattern_atoms(pattern, expanded);
-    if source.len() >= 4
-        && source[0] == '*'
-        && source[1] == '*'
-        && source[2] == '*'
-        && source[3] == '='
-    {
-        return false;
-    }
+    let source = parsed.atoms;
     let mut position = 0;
     let mut bracket = false;
     let mut bracket_members = 0;
@@ -1146,11 +1153,17 @@ fn known_posix_class_name(name: Vec<char>) -> bool {
         || name[0] == 'u' && name[1] == 'p' && name[2] == 'p' && name[3] == 'e' && name[4] == 'r'
 }
 
-pub fn definitely_invalid_posix_class(pattern: &str, syntax: char, expanded: bool) -> bool {
+pub fn definitely_invalid_posix_class(
+    pattern: &str,
+    requested_syntax: char,
+    expanded: bool,
+) -> bool {
+    let parsed = validation_pattern_source(pattern, requested_syntax, expanded);
+    let syntax = parsed.syntax;
     if syntax != 'a' && syntax != 'e' && syntax != 'b' {
         return false;
     }
-    let source = pattern_atoms(pattern, expanded);
+    let source = parsed.atoms;
     let mut bracket = false;
     let mut position = 0;
     while position < source.len() {
@@ -1188,11 +1201,17 @@ pub fn definitely_invalid_posix_class(pattern: &str, syntax: char, expanded: boo
     false
 }
 
-pub fn definitely_invalid_bracket_range(pattern: &str, syntax: char, expanded: bool) -> bool {
+pub fn definitely_invalid_bracket_range(
+    pattern: &str,
+    requested_syntax: char,
+    expanded: bool,
+) -> bool {
+    let parsed = validation_pattern_source(pattern, requested_syntax, expanded);
+    let syntax = parsed.syntax;
     if syntax != 'a' && syntax != 'e' && syntax != 'b' {
         return false;
     }
-    let source = pattern_atoms(pattern, expanded);
+    let source = parsed.atoms;
     let mut position = 0;
     let mut bracket = false;
     let mut first_member = 0;
@@ -1276,11 +1295,17 @@ pub fn definitely_invalid_bracket_range(pattern: &str, syntax: char, expanded: b
     false
 }
 
-pub fn definitely_invalid_bracket_construct(pattern: &str, syntax: char, expanded: bool) -> bool {
+pub fn definitely_invalid_bracket_construct(
+    pattern: &str,
+    requested_syntax: char,
+    expanded: bool,
+) -> bool {
+    let parsed = validation_pattern_source(pattern, requested_syntax, expanded);
+    let syntax = parsed.syntax;
     if syntax != 'a' && syntax != 'e' && syntax != 'b' {
         return false;
     }
-    let source = pattern_atoms(pattern, expanded);
+    let source = parsed.atoms;
     let mut position = 0;
     let mut bracket = false;
     while position < source.len() {
@@ -1403,11 +1428,17 @@ pub fn definitely_invalid_inline_options(pattern: &str, syntax: char) -> bool {
     false
 }
 
-pub fn definitely_invalid_backreference(pattern: &str, syntax: char, expanded: bool) -> bool {
+pub fn definitely_invalid_backreference(
+    pattern: &str,
+    requested_syntax: char,
+    expanded: bool,
+) -> bool {
+    let parsed = validation_pattern_source(pattern, requested_syntax, expanded);
+    let syntax = parsed.syntax;
     if syntax != 'a' && syntax != 'b' {
         return false;
     }
-    let source = pattern_atoms(pattern, expanded);
+    let source = parsed.atoms;
     let mut open: Vec<usize> = Vec::new();
     let mut closed: Vec<usize> = Vec::new();
     let mut depth = 0;
@@ -1457,14 +1488,6 @@ pub fn definitely_invalid_backreference(pattern: &str, syntax: char, expanded: b
                     depth = depth - 1;
                     closed[open[depth] - 1] = 1;
                 }
-            } else if syntax == 'b'
-                && (escaped as u32) >= 49
-                && (escaped as u32) <= 57
-                && position + 2 < source.len()
-                && (source[position + 2] as u32) >= 48
-                && (source[position + 2] as u32) <= 57
-            {
-                return true;
             } else if syntax == 'a'
                 && (escaped as u32) >= 49
                 && (escaped as u32) <= 57
@@ -1492,7 +1515,8 @@ pub fn definitely_invalid_backreference(pattern: &str, syntax: char, expanded: b
                 }
             } else if (escaped as u32) >= 49
                 && (escaped as u32) <= 57
-                && (position + 2 == source.len()
+                && (syntax == 'b'
+                    || position + 2 == source.len()
                     || (source[position + 2] as u32) < 48
                     || (source[position + 2] as u32) > 57)
             {
@@ -3713,7 +3737,7 @@ struct CaptureClassAtom {
     complement: bool,
 }
 
-fn parse_capture_class_atom(source: Vec<char>) -> CaptureClassAtom {
+fn parse_capture_class_atom(source: Vec<char>, syntax: char) -> CaptureClassAtom {
     let position = 0;
     let mut valid = position < source.len();
     let mut end = position;
@@ -3745,7 +3769,7 @@ fn parse_capture_class_atom(source: Vec<char>) -> CaptureClassAtom {
                     valid = end <= source.len() && source[end - 2] == ':' && source[end - 1] == ']';
                 };
             };
-        } else if atom == '\\' {
+        } else if atom == '\\' && syntax == 'a' {
             valid = end < source.len();
             if valid {
                 let escaped = source[end];
@@ -3796,7 +3820,7 @@ fn parse_capture_class_atom(source: Vec<char>) -> CaptureClassAtom {
     }
 }
 
-fn parse_capture_class(source: Vec<char>) -> CaptureClass {
+fn parse_capture_class(source: Vec<char>, syntax: char) -> CaptureClass {
     let mut position = 1;
     let mut negated = false;
     if position < source.len() && source[position] == '^' {
@@ -3824,7 +3848,7 @@ fn parse_capture_class(source: Vec<char>) -> CaptureClass {
             lookahead.push(source[look]);
             look += 1;
         }
-        let atom = parse_capture_class_atom(lookahead);
+        let atom = parse_capture_class_atom(lookahead, syntax);
         if atom.valid == false {
             break;
         };
@@ -3837,7 +3861,7 @@ fn parse_capture_class(source: Vec<char>) -> CaptureClass {
                 lookahead.push(source[look]);
                 look += 1;
             }
-            let bound = parse_capture_class_atom(lookahead);
+            let bound = parse_capture_class_atom(lookahead, syntax);
             if bound.valid == false
                 || atom.kind != CAPTURE_CLASS_RANGE
                 || bound.kind != CAPTURE_CLASS_RANGE
@@ -3912,10 +3936,30 @@ fn capture_class_member_matches(member: CaptureClassMember, actual: char, sensit
     matched != member.complement
 }
 
+fn validation_pattern_source(pattern: &str, syntax: char, expanded: bool) -> InlineOptionsResult {
+    let source: Vec<char> = pattern.chars().collect();
+    let prefixed = source.len() >= 4
+        && source[0] == '*'
+        && source[1] == '*'
+        && source[2] == '*'
+        && (source[3] == ':' || source[3] == '=');
+    if syntax == 'a' || ((syntax == 'b' || syntax == 'e') && prefixed) {
+        return capture_pattern_source(pattern, expanded);
+    }
+    InlineOptionsResult {
+        valid: true,
+        syntax,
+        case_mode: ' ',
+        newline_mode: ' ',
+        atoms: pattern_atoms(pattern, expanded),
+    }
+}
+
 fn capture_pattern_source(pattern: &str, expanded: bool) -> InlineOptionsResult {
     let source: Vec<char> = pattern.chars().collect();
     let mut position = 0;
     let mut valid = true;
+    let mut syntax = 'a';
     let mut case_mode = ' ';
     let mut newline_mode = ' ';
     let mut effective_expanded = expanded;
@@ -3923,11 +3967,15 @@ fn capture_pattern_source(pattern: &str, expanded: bool) -> InlineOptionsResult 
         && source[0] == '*'
         && source[1] == '*'
         && source[2] == '*'
-        && source[3] == ':'
+        && (source[3] == ':' || source[3] == '=')
     {
         position = 4;
+        if source[3] == '=' {
+            syntax = 'q';
+        }
     };
-    if source.len() - position >= 3
+    if syntax != 'q'
+        && source.len() - position >= 3
         && source[position] == '('
         && source[position + 1] == '?'
         && (((source[position + 2] as u32) >= 65 && (source[position + 2] as u32) <= 90)
@@ -3936,7 +3984,9 @@ fn capture_pattern_source(pattern: &str, expanded: bool) -> InlineOptionsResult 
         position += 2;
         while position < source.len() && source[position] != ')' {
             let option = source[position];
-            if option == 'i' || option == 'c' {
+            if option == 'b' || option == 'e' || option == 'q' {
+                syntax = option;
+            } else if option == 'i' || option == 'c' {
                 case_mode = option;
             } else if option == 'n'
                 || option == 'm'
@@ -3961,10 +4011,17 @@ fn capture_pattern_source(pattern: &str, expanded: bool) -> InlineOptionsResult 
             position += 1;
         };
     };
+    if syntax == 'q' {
+        effective_expanded = false;
+        newline_mode = 's';
+    }
     let mut atoms: Vec<char> = Vec::new();
     while valid && position < source.len() {
         let atom = source[position];
-        if atom == '[' {
+        if syntax == 'q' {
+            atoms.push(atom);
+            position += 1;
+        } else if atom == '[' {
             atoms.push(atom);
             position += 1;
             if position < source.len() && source[position] == '^' {
@@ -3977,7 +4034,7 @@ fn capture_pattern_source(pattern: &str, expanded: bool) -> InlineOptionsResult 
                 let current = source[position];
                 atoms.push(current);
                 position += 1;
-                if current == '\\' && position < source.len() {
+                if syntax == 'a' && current == '\\' && position < source.len() {
                     atoms.push(source[position]);
                     position += 1;
                 } else if special != ' ' {
@@ -4004,7 +4061,8 @@ fn capture_pattern_source(pattern: &str, expanded: bool) -> InlineOptionsResult 
                 atoms.push(source[position]);
                 position += 1;
             };
-        } else if atom == '('
+        } else if syntax == 'a'
+            && atom == '('
             && source.len() - position >= 3
             && source[position + 1] == '?'
             && source[position + 2] == '#'
@@ -4032,7 +4090,7 @@ fn capture_pattern_source(pattern: &str, expanded: bool) -> InlineOptionsResult 
     }
     InlineOptionsResult {
         valid,
-        syntax: 'a',
+        syntax,
         case_mode,
         newline_mode,
         atoms,
@@ -4041,6 +4099,7 @@ fn capture_pattern_source(pattern: &str, expanded: bool) -> InlineOptionsResult 
 
 fn compile_capture_program_atoms(
     source: Vec<char>,
+    syntax: char,
     mut valid: bool,
     case_mode: char,
     newline_mode: char,
@@ -4065,16 +4124,68 @@ fn compile_capture_program_atoms(
     let mut assertions = false;
     let mut assertion_depth = 0;
     let mut position = 0;
+    let mut basic_star_literal = true;
     while position < source.len() && valid {
-        let atom = source[position];
+        let mut atom = source[position];
+        let mut literal = syntax == 'q';
+        if syntax == 'b' {
+            if atom == '\\'
+                && source.len() - position >= 2
+                && (source[position + 1] == '(' || source[position + 1] == ')')
+            {
+                position += 1;
+                atom = source[position];
+            } else if atom == '+'
+                || atom == '?'
+                || atom == '|'
+                || atom == '('
+                || atom == ')'
+                || atom == '{'
+                || atom == '}'
+            {
+                literal = true;
+            } else if atom == '^' && frames[frame_count - 1].sequence > 0 {
+                literal = true;
+            } else if atom == '$'
+                && position + 1 < source.len()
+                && (source.len() - position < 3
+                    || source[position + 1] != '\\'
+                    || source[position + 2] != ')')
+            {
+                literal = true;
+            } else if atom == '*' && basic_star_literal {
+                literal = true;
+            };
+        }
+        if syntax == 'e' && atom == ')' && frame_count == 1 {
+            literal = true;
+        }
+        if atom == ']'
+            || atom == '}'
+            || (atom == '{'
+                && (source.len() - position < 2
+                    || (source[position + 1] as u32) < 48
+                    || (source[position + 1] as u32) > 57))
+        {
+            literal = true;
+        }
         let mut node = 0;
         let mut has_atom = false;
-        if atom == '(' {
+        if literal {
+            node = nodes.len();
+            nodes.push(make_capture_node(VM_LITERAL, 0, 0, 0, atom, 0, 1, 0));
+            position += 1;
+            has_atom = true;
+        } else if atom == '(' {
+            basic_star_literal = true;
             let mut group = 0;
             let first = groups + 1;
             let mut operation = NODE_GROUP;
             position += 1;
-            if position < source.len() && source[position] == '?' {
+            if syntax != 'b' && position < source.len() && source[position] == '?' {
+                if syntax != 'a' {
+                    valid = false;
+                }
                 position += 1;
                 if position < source.len() && source[position] == ':' {
                     position += 1;
@@ -4225,7 +4336,7 @@ fn compile_capture_program_atoms(
                     let current = source[position];
                     class_atoms.push(current);
                     position += 1;
-                    if current == '\\' && position < source.len() {
+                    if syntax == 'a' && current == '\\' && position < source.len() {
                         class_atoms.push(source[position]);
                         position += 1;
                     } else if special != ' ' {
@@ -4246,7 +4357,7 @@ fn compile_capture_program_atoms(
                         break;
                     };
                 }
-                let parsed_class = parse_capture_class(class_atoms);
+                let parsed_class = parse_capture_class(class_atoms, syntax);
                 valid = parsed_class.valid;
                 if parsed_class.negated {
                     member = '^';
@@ -4260,11 +4371,32 @@ fn compile_capture_program_atoms(
                 let escaped = source[position + 1];
                 let escape_start = position;
                 position += 2;
-                if escaped == 'w' {
+                if syntax == 'e'
+                    || (syntax == 'b'
+                        && escaped != '<'
+                        && escaped != '>'
+                        && ((escaped as u32) < 49 || (escaped as u32) > 57))
+                {
+                    operation = VM_LITERAL;
+                    member = escaped;
+                    if syntax == 'b' && escaped == '{' {
+                        valid = false;
+                    }
+                } else if syntax == 'b' && (escaped == '<' || escaped == '>') {
+                    operation = VM_WORD_BEGIN;
+                    if escaped == '>' {
+                        operation = VM_WORD_END;
+                    }
+                } else if escaped == 'w' {
                     operation = VM_WORD;
                 } else if escaped == 'M' {
                     operation = VM_WORD_END;
-                } else if escaped == 'n' || escaped == 'r' || escaped == '.' || escaped == '?' {
+                } else if escaped == 'n'
+                    || escaped == 'r'
+                    || ((escaped as u32) < 48 || (escaped as u32) > 57)
+                        && ((escaped as u32) < 65 || (escaped as u32) > 90)
+                        && ((escaped as u32) < 97 || (escaped as u32) > 122)
+                {
                     operation = VM_LITERAL;
                     member = escaped;
                     if escaped == 'n' {
@@ -4275,7 +4407,8 @@ fn compile_capture_program_atoms(
                 } else if (escaped as u32) >= 48 && (escaped as u32) <= 57 {
                     reference = ((escaped as u32) - 48) as usize;
                     let mut decimal_digits = 1;
-                    while position < source.len()
+                    while syntax == 'a'
+                        && position < source.len()
                         && (source[position] as u32) >= 48
                         && (source[position] as u32) <= 57
                         && decimal_digits < 3
@@ -4344,14 +4477,26 @@ fn compile_capture_program_atoms(
             has_atom = true;
         };
         if has_atom && valid {
+            basic_star_literal = nodes[node].operation == VM_BEGIN;
             let mut repeated = false;
             let mut lower = 0;
             let mut upper = 0;
             let mut unbounded = false;
             let mut fixed = false;
-            if position < source.len() {
+            if syntax != 'q' && position < source.len() {
+                let mut basic_bound = false;
+                if syntax == 'b'
+                    && source.len() - position >= 2
+                    && source[position] == '\\'
+                    && source[position + 1] == '{'
+                {
+                    basic_bound = true;
+                    position += 1;
+                }
                 let quantifier = source[position];
-                if quantifier == '*' || quantifier == '+' || quantifier == '?' {
+                if (quantifier == '*' && (syntax != 'b' || basic_star_literal == false))
+                    || (syntax != 'b' && (quantifier == '+' || quantifier == '?'))
+                {
                     repeated = true;
                     unbounded = quantifier != '?';
                     upper = 1;
@@ -4359,7 +4504,8 @@ fn compile_capture_program_atoms(
                         lower = 1;
                     };
                     position += 1;
-                } else if quantifier == '{'
+                } else if (syntax != 'b' || basic_bound)
+                    && quantifier == '{'
                     && source.len() - position >= 2
                     && (source[position + 1] as u32) >= 48
                     && (source[position + 1] as u32) <= 57
@@ -4402,6 +4548,11 @@ fn compile_capture_program_atoms(
                             };
                         }
                     };
+                    if basic_bound && position < source.len() && source[position] == '\\' {
+                        position += 1;
+                    } else if basic_bound {
+                        valid = false;
+                    };
                     if position == source.len()
                         || source[position] != '}'
                         || (unbounded == false && upper < lower)
@@ -4411,18 +4562,22 @@ fn compile_capture_program_atoms(
                         position += 1;
                     };
                 };
+                if basic_bound && repeated == false {
+                    valid = false;
+                }
             };
             if repeated && valid {
                 let inner = nodes[node];
                 if inner.operation == VM_BEGIN
                     || inner.operation == VM_END
                     || inner.operation == VM_WORD_END
+                    || inner.operation == VM_WORD_BEGIN
                     || (inner.operation >= NODE_LOOKAHEAD && inner.operation <= NODE_NOT_LOOKBEHIND)
                 {
                     valid = false;
                 };
                 let mut preference = 1;
-                if position < source.len() && source[position] == '?' {
+                if syntax == 'a' && position < source.len() && source[position] == '?' {
                     preference = 2;
                     position += 1;
                 };
@@ -4743,6 +4898,7 @@ fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
     let parsed = capture_pattern_source(pattern, expanded);
     compile_capture_program_atoms(
         parsed.atoms,
+        parsed.syntax,
         parsed.valid,
         parsed.case_mode,
         parsed.newline_mode,
@@ -4973,7 +5129,7 @@ fn run_capture_tree(
                         } else if node.operation == VM_END {
                             matched =
                                 end == haystack.len() || (line_anchors && haystack[end] == '\n');
-                        } else if node.operation == VM_WORD_END {
+                        } else if node.operation == VM_WORD_END || node.operation == VM_WORD_BEGIN {
                             let mut before = false;
                             let mut after = false;
                             if end > 0 {
@@ -4982,7 +5138,8 @@ fn run_capture_tree(
                             if end < haystack.len() {
                                 after = zero_width_word(haystack[end]);
                             }
-                            matched = before && after == false;
+                            matched = (node.operation == VM_WORD_END && before && after == false)
+                                || (node.operation == VM_WORD_BEGIN && before == false && after);
                         } else if node.operation == VM_BACKREF {
                             let register = captures[frame.capture + node.group];
                             let length = register.end - register.start;
@@ -5418,7 +5575,7 @@ fn run_capture_program(
                     matched = subject_position == haystack.len()
                         || (line_anchors && haystack[subject_position] == '\n');
                     instruction += 1;
-                } else if step.operation == VM_WORD_END {
+                } else if step.operation == VM_WORD_END || step.operation == VM_WORD_BEGIN {
                     let mut before = false;
                     let mut after = false;
                     if subject_position > 0 {
@@ -5427,7 +5584,8 @@ fn run_capture_program(
                     if subject_position < haystack.len() {
                         after = zero_width_word(haystack[subject_position]);
                     };
-                    matched = before && after == false;
+                    matched = (step.operation == VM_WORD_END && before && after == false)
+                        || (step.operation == VM_WORD_BEGIN && before == false && after);
                     instruction += 1;
                 } else if step.operation == VM_SPLIT {
                     let skipped = PatternWorkState {
@@ -8046,7 +8204,7 @@ pub fn supports_basic_repeated_capture(pattern: &str, expanded: bool) -> bool {
     if parsed.valid == false {
         return false;
     }
-    let program = compile_capture_program_atoms(parsed.atoms, parsed.valid, ' ', ' ');
+    let program = compile_capture_program_atoms(parsed.atoms, 'a', parsed.valid, ' ', ' ');
     program.valid
 }
 
@@ -8063,7 +8221,7 @@ pub fn find_basic_repeated_capture(
     if parsed.valid == false {
         return MatchOutcome::Uncertain;
     }
-    let program = compile_capture_program_atoms(parsed.atoms, parsed.valid, ' ', ' ');
+    let program = compile_capture_program_atoms(parsed.atoms, 'a', parsed.valid, ' ', ' ');
     if program.valid == false {
         return MatchOutcome::Uncertain;
     }
