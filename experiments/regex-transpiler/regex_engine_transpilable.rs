@@ -106,6 +106,70 @@ pub fn find_all(
     MatchListOutcome::Matches(result.matches)
 }
 
+pub enum CompileOutcome {
+    Compiled(CompiledRegex),
+    InvalidPattern,
+    Uncertain,
+}
+
+pub fn compile(pattern: &str, options: RegexOptions) -> CompileOutcome {
+    if options.syntax == Syntax::Literal
+        && (options.expanded || options.newline != NewlineMode::Ordinary)
+    {
+        return CompileOutcome::InvalidPattern;
+    }
+    let program = compile_pattern_source(pattern, options, true);
+    if program.limited {
+        return CompileOutcome::Uncertain;
+    }
+    if program.valid == false {
+        return CompileOutcome::InvalidPattern;
+    }
+    CompileOutcome::Compiled(program)
+}
+
+pub fn find_compiled(program: &CompiledRegex, subject: &str, from: usize) -> MatchOutcome {
+    capture_match_outcome(execute_compiled_pattern(
+        program, subject, from, false, false, false,
+    ))
+}
+
+pub fn count_compiled(program: &CompiledRegex, subject: &str, from: usize) -> CountOutcome {
+    let result = execute_compiled_pattern(program, subject, from, true, false, false);
+    if result.kind == 2 {
+        return CountOutcome::Uncertain;
+    }
+    if result.kind == 3 {
+        return CountOutcome::InvalidPattern;
+    }
+    CountOutcome::Count(result.count)
+}
+
+pub fn find_all_compiled(program: &CompiledRegex, subject: &str, from: usize) -> MatchListOutcome {
+    let result = execute_compiled_pattern(program, subject, from, true, false, true);
+    if result.kind == 2 {
+        return MatchListOutcome::Uncertain;
+    }
+    if result.kind == 3 {
+        return MatchListOutcome::InvalidPattern;
+    }
+    MatchListOutcome::Matches(result.matches)
+}
+
+pub fn captures_compiled(program: &CompiledRegex, subject: &str, from: usize) -> CaptureOutcome {
+    let result = execute_compiled_pattern(program, subject, from, false, true, false);
+    if result.kind == 2 {
+        return CaptureOutcome::Uncertain;
+    }
+    if result.kind == 3 {
+        return CaptureOutcome::InvalidPattern;
+    }
+    if result.kind == 1 {
+        return CaptureOutcome::NoMatch;
+    }
+    CaptureOutcome::Found(result.groups)
+}
+
 #[derive(Clone, Copy)]
 pub struct CaptureSpan {
     pub matched: bool,
@@ -208,6 +272,41 @@ fn execute_pattern(
     {
         return make_capture_run_result(3, 0, 0, 0);
     }
+    let program = compile_pattern_source(pattern, options, capturing);
+    if program.limited {
+        return make_capture_run_result(2, 0, 0, 0);
+    }
+    if program.valid == false {
+        return make_capture_run_result(3, 0, 0, 0);
+    }
+    execute_compiled_pattern(&program, subject, from, counting, capturing, collecting)
+}
+
+fn execute_compiled_pattern(
+    program: &CompiledRegex,
+    subject: &str,
+    from: usize,
+    counting: bool,
+    capturing: bool,
+    collecting: bool,
+) -> CaptureRunResult {
+    if program.valid == false {
+        return make_capture_run_result(3, 0, 0, 0);
+    }
+    execute_capture_program(
+        program,
+        subject,
+        from,
+        program.case_sensitive,
+        program.dot_crosses_newline,
+        program.line_anchors,
+        counting,
+        capturing,
+        collecting,
+    )
+}
+
+fn compile_pattern_source(pattern: &str, options: RegexOptions, capturing: bool) -> CompiledRegex {
     let mut syntax = 'a';
     if options.syntax == Syntax::Basic {
         syntax = 'b';
@@ -217,7 +316,7 @@ fn execute_pattern(
         syntax = 'q';
     }
     let parsed = capture_pattern_source(pattern, syntax, options.expanded);
-    let program = compile_capture_program_atoms(
+    compile_capture_program_atoms(
         parsed.atoms,
         parsed.token_ends,
         parsed.syntax,
@@ -225,23 +324,9 @@ fn execute_pattern(
         parsed.case_mode,
         parsed.newline_mode,
         capturing,
-    );
-    if program.limited {
-        return make_capture_run_result(2, 0, 0, 0);
-    }
-    if program.valid == false {
-        return make_capture_run_result(3, 0, 0, 0);
-    }
-    execute_capture_program(
-        program,
-        subject,
-        from,
         options.case_sensitive,
         options.newline == NewlineMode::Ordinary || options.newline == NewlineMode::Anchors,
         options.newline == NewlineMode::Sensitive || options.newline == NewlineMode::Anchors,
-        counting,
-        capturing,
-        collecting,
     )
 }
 
@@ -280,7 +365,7 @@ struct CaptureInstruction {
     atom: char,
 }
 
-struct CaptureProgram {
+pub struct CompiledRegex {
     valid: bool,
     limited: bool,
     nodes: Vec<CaptureNode>,
@@ -300,6 +385,9 @@ struct CaptureProgram {
     shortest: bool,
     captures: usize,
     backreferences: bool,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -2147,7 +2235,10 @@ fn compile_capture_program_atoms(
     case_mode: char,
     newline_mode: char,
     capturing: bool,
-) -> CaptureProgram {
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+) -> CompiledRegex {
     let mut limited = false;
     let mut class_members: Vec<CaptureClassMember> = Vec::new();
     let mut nodes: Vec<CaptureNode> = Vec::new();
@@ -3044,7 +3135,7 @@ fn compile_capture_program_atoms(
             valid = false;
         }
     }
-    CaptureProgram {
+    CompiledRegex {
         valid,
         limited,
         nodes,
@@ -3064,6 +3155,9 @@ fn compile_capture_program_atoms(
         shortest,
         captures: groups,
         backreferences,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
     }
 }
 
@@ -3121,7 +3215,7 @@ fn capture_boundary_matches(expected: usize, actual: char, case_sensitive: bool)
 }
 
 fn execute_capture_tree(
-    program: CaptureProgram,
+    program: &CompiledRegex,
     subject: &str,
     from: usize,
     exact_end: usize,
@@ -3852,7 +3946,7 @@ fn execute_capture_tree(
 }
 
 fn execute_capture_program(
-    program: CaptureProgram,
+    program: &CompiledRegex,
     subject: &str,
     from: usize,
     mut case_sensitive: bool,

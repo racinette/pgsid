@@ -11,6 +11,13 @@ const actual = generated.shiftSpan(input, 2)
 assert.deepEqual(actual, expected)
 assert.deepEqual(input, { start: 1, end: 3 })
 assert.equal(generated.sameSpan(actual, expected), true)
+assert.equal(generated.spanStart(input), 1)
+assert.equal(generated.borrowedSpanStart(input), 1)
+assert.throws(() => generated.spanStart({ start: -1, end: 2 }), RangeError)
+const token = generated.makeToken(7)
+assert.equal(generated.tokenValue(token), 7)
+assert.equal(Object.isFrozen(token), true)
+assert.throws(() => generated.tokenValue({ ...token }), TypeError)
 
 const parameter = { start: 1, end: 3 }
 assert.deepEqual(generated.shiftParameter(parameter, 2), { start: 3, end: 3 })

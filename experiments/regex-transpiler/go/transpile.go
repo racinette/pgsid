@@ -103,6 +103,18 @@ type generator struct {
 	localTypes map[string]*node
 }
 
+func opaqueStruct(value *node) bool {
+	if value == nil || value.Kind != "struct" || value.Visibility != "public" || len(value.Fields) == 0 {
+		return false
+	}
+	for _, field := range value.Fields {
+		if field.Visibility != "private" {
+			return false
+		}
+	}
+	return true
+}
+
 func casedName(name string, exported bool) string {
 	parts := strings.Split(name, "_")
 	for index, part := range parts {
@@ -163,10 +175,15 @@ func (g *generator) inferType(value *node) *node {
 		}
 	case "parenthesized":
 		return g.inferType(value.Inner)
+	case "borrow":
+		return &node{Kind: "reference", Inner: g.inferType(value.Value)}
 	case "struct-literal":
 		return namedType(strings.Join(value.Path, "::"))
 	case "field":
 		base := g.inferType(value.Base)
+		if base != nil && base.Kind == "reference" {
+			base = base.Inner
+		}
 		if base != nil && base.Kind == "path" {
 			structure := g.structs[path(base)]
 			if structure != nil {
@@ -223,6 +240,9 @@ func (g *generator) inferType(value *node) *node {
 
 func (g *generator) fieldOwner(value *node) string {
 	valueType := g.inferType(value)
+	if valueType != nil && valueType.Kind == "reference" {
+		valueType = valueType.Inner
+	}
 	if valueType == nil || valueType.Kind != "path" {
 		reject("cannot resolve struct field owner")
 	}

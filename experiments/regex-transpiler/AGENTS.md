@@ -12,7 +12,10 @@ behavioral oracle. Expand the engine only through the shared dialect.
   `PartialEq`, and `Eq`; use `Clone` and `Copy` together, and pair `Eq` with
   `PartialEq`.
 - Use `usize`, `u32`, `i32`, `bool`, `char`, `&str`, shared vectors, or a
-  declared struct or enum. Other references, generic types, and custom type parameters
+  declared struct or enum. Immutable `&DeclaredStruct` parameters can read
+  fields and indexed vector elements; direct calls can borrow a local struct
+  with `&name`. Borrowed structs cannot be stored or returned. Mutable
+  references, other references, generic types, and custom type parameters
   need a lowering rule before they can enter this dialect.
 - Use initialized local bindings. Mark a binding or parameter `mut` only when
   its value is assigned. Use `if`, `else if`, `else`, `while`, `break`, and
@@ -93,6 +96,12 @@ checks.
   and use checked arithmetic where Rust values would otherwise leave the
   shared range. A change to copying or equality needs behavioral coverage in
   both targets.
+- Public structs with only private fields act as opaque handles in generated
+  targets. Go exposes their type while keeping fields private. TypeScript
+  seals instances when they enter an enum payload or return directly from a
+  public function, and checks their identity when a public function borrows
+  one. Ordinary borrowed structs are copied and checked at the function
+  boundary.
 - Keep generated artifacts in the producer's bytes. Change an emitter or its
   maintained prelude, then regenerate; do not hand-edit or reformat generated
   output.

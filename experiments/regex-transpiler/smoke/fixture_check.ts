@@ -41,17 +41,33 @@ for (const fixturePath of fixturePaths) {
     assert.ok(newline, 'unknown newline option')
     const operation = fixture.operation ?? 'find'
     const functionName = operation === 'find_all' ? 'findAll' : operation
-    const outcome = generated[functionName](pattern, subject, (fixture.input.start ?? 1) - 1, {
+    const from = (fixture.input.start ?? 1) - 1
+    const settings = {
       syntax: { kind: syntax },
       newline: { kind: newline },
       caseSensitive: options.caseSensitive,
       expanded: options.expanded,
-    })
+    }
+    const outcome = generated[functionName](pattern, subject, from, settings)
     const actual = outcome.kind === 'InvalidPattern' ? { ...outcome, sqlstate: '2201B' } : outcome
     assert.deepEqual(
       actual,
       fixture.expected,
       `${fixturePath} fixture ${index}: ${JSON.stringify(fixture.input)}`,
+    )
+    const compiled = generated.compile(pattern, settings)
+    const compiledOutcome =
+      compiled.kind === 'Compiled'
+        ? generated[`${functionName}Compiled`](compiled.value, subject, from)
+        : { kind: compiled.kind }
+    const compiledActual =
+      compiledOutcome.kind === 'InvalidPattern'
+        ? { ...compiledOutcome, sqlstate: '2201B' }
+        : compiledOutcome
+    assert.deepEqual(
+      compiledActual,
+      fixture.expected,
+      `${fixturePath} compiled fixture ${index}: ${JSON.stringify(fixture.input)}`,
     )
     coverage[operation as keyof typeof coverage]++
   }

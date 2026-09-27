@@ -313,6 +313,36 @@ const unifiedOptions = {
   caseSensitive: true,
   expanded: false,
 }
+const compilation = generated.compile('(a)+', unifiedOptions)
+assert.equal(compilation.kind, 'Compiled')
+const program = compilation.value
+assert.deepEqual(generated.findCompiled(program, 'baaa', 0), {
+  kind: 'Found',
+  value: { start: 1, end: 4 },
+})
+assert.deepEqual(generated.countCompiled(program, 'aa aa', 0), { kind: 'Count', value: 2 })
+assert.deepEqual(generated.findAllCompiled(program, 'aa aa', 0), {
+  kind: 'Matches',
+  value: [
+    { start: 0, end: 2 },
+    { start: 3, end: 5 },
+  ],
+})
+assert.deepEqual(generated.capturesCompiled(program, 'baaa', 0), {
+  kind: 'Found',
+  value: [
+    { matched: true, start: 1, end: 4 },
+    { matched: true, start: 3, end: 4 },
+  ],
+})
+assert.equal(Object.isFrozen(program), true)
+assert.equal(Object.isFrozen(program.nodes), true)
+assert.throws(() => {
+  program.nodes[0].operation = 0
+}, TypeError)
+assert.throws(() => generated.findCompiled({ ...program }, 'baaa', 0), TypeError)
+assert.deepEqual(generated.compile('[', unifiedOptions), { kind: 'InvalidPattern' })
+assert.deepEqual(generated.compile('(a{255}){255}', unifiedOptions), { kind: 'Uncertain' })
 for (const pattern of ['(a{255}){255}', `${'(?='.repeat(65)}a${')'.repeat(65)}`]) {
   assert.deepEqual(generated.find(pattern, 'a', 0, unifiedOptions), { kind: 'Uncertain' })
   assert.deepEqual(generated.count(pattern, 'a', 0, unifiedOptions), { kind: 'Uncertain' })

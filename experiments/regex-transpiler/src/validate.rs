@@ -296,6 +296,14 @@ fn infer_expr_type(
         }) => Ok(Some("bool".into())),
         Expr::Paren(paren) => infer_expr_type(&paren.expr, locals, semantics),
         Expr::Group(group) => infer_expr_type(&group.expr, locals, semantics),
+        Expr::Reference(reference) => {
+            let inner = infer_expr_type(&reference.expr, locals, semantics)?
+                .ok_or("borrowed value has no shared type")?;
+            if !semantics.fields.contains_key(&inner) {
+                return Err("only declared structs can be borrowed".into());
+            }
+            Ok(Some(format!("&{inner}")))
+        }
         Expr::Cast(cast) => {
             let target = type_name(&cast.ty)?;
             let source = infer_expr_type(&cast.expr, locals, semantics)?;
@@ -360,9 +368,10 @@ fn infer_expr_type(
             let syn::Member::Named(member) = &field.member else {
                 return Err("tuple field is outside the subset".into());
             };
+            let owner = base.strip_prefix('&').unwrap_or(&base);
             semantics
                 .fields
-                .get(&base)
+                .get(owner)
                 .and_then(|fields| fields.get(&member.to_string()))
                 .cloned()
                 .map(Some)
@@ -558,6 +567,9 @@ fn check_body_methods(
             Stmt::Local(local) => {
                 let (name, mutable) = pattern_ident(&local.pat)?;
                 let initializer = &local.init.as_ref().unwrap().expr;
+                if matches!(&**initializer, Expr::Reference(_)) {
+                    return Err("borrowed references cannot be stored in locals".into());
+                }
                 let ty = if is_new_index_vector(initializer) {
                     let Pat::Type(typed) = &local.pat else {
                         return Err(
@@ -577,6 +589,9 @@ fn check_body_methods(
                         inferred.ok_or_else(|| format!("cannot infer type of {name}"))?
                     }
                 };
+                if ty.starts_with('&') && ty != "&str" {
+                    return Err("borrowed structs cannot be stored in locals".into());
+                }
                 locals.insert(name, Binding { ty, mutable });
             }
             Stmt::Expr(value, _) => {

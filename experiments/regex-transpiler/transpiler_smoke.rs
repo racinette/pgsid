@@ -13,6 +13,18 @@ pub struct CharBag {
     pub characters: Vec<char>,
 }
 
+pub struct Token {
+    value: usize,
+}
+
+pub fn make_token(value: usize) -> Token {
+    Token { value }
+}
+
+pub fn token_value(token: &Token) -> usize {
+    token.value
+}
+
 pub fn shift_span(span: Span, offset: usize) -> Span {
     let mut shifted = span;
     shifted.start += offset;
@@ -22,6 +34,14 @@ pub fn shift_span(span: Span, offset: usize) -> Span {
 
 pub fn same_span(left: Span, right: Span) -> bool {
     left == right
+}
+
+pub fn span_start(span: &Span) -> usize {
+    span.start
+}
+
+pub fn borrowed_span_start(span: Span) -> usize {
+    span_start(&span)
 }
 
 pub fn echo_bool(value: bool) -> bool {
