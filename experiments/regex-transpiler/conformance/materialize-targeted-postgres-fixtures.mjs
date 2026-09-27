@@ -1898,6 +1898,37 @@ for (const [pattern, subject, captureGroups, start, overrides] of [
   })
 }
 
+for (const [pattern, subject, captureGroups] of [
+  [String.raw`^(\w+)( \1)+$`, 'abc abc abc', 2],
+  [String.raw`^(\w+)( \1)+$`, 'abc abd abc', 2],
+  [String.raw`^(.+)( \1)+$`, 'abc abc abc', 2],
+  [String.raw`^(.+)( \1)+$`, 'abc abd abc', 2],
+  [String.raw` TO (([a-z0-9._]+|"([^"]+|"")+")+)`, 'asd TO foo', 3],
+  [String.raw` TO (([a-z0-9._]+|"([^"]+|"")+")+)`, 'asd TO "hi"', 3],
+  [String.raw`((a))+`, 'aaa', 2],
+  [String.raw`((a)+)`, 'aaa', 2],
+  [String.raw`a(?=b)(b*)`, 'abbb', 1],
+  [String.raw`a(?=b)b*(?=c)(c*)`, 'abbbc', 1],
+  [String.raw`(?<=a)(b*)`, 'abb', 1],
+  [String.raw`a(?<=a)(b*)`, 'abb', 1],
+  [String.raw`a*(?<!a)(b+)`, 'abbb', 1],
+  [String.raw`((.)){0}(\2){0}`, 'xyz', 3],
+  [String.raw`($|^)*`, 'a', 1],
+  [String.raw`(^)+^`, 'a', 1],
+  [String.raw`(^(?!aa)(?!bb)(?!cc))+`, 'dd x', 1],
+  [String.raw`((a|b)+)`, 'abba', 2],
+]) {
+  inputs.push({
+    operation: 'captures',
+    family: 'postgres-regression-captures',
+    pattern,
+    subject,
+    start: 1,
+    options: { syntax: 'advanced', caseSensitive: true, expanded: false, newline: 'ordinary' },
+    captureGroups,
+  })
+}
+
 function flags(options) {
   const newline = { ordinary: '', sensitive: 'n', stop: 'p', anchors: 'w' }[options.newline]
   const syntax = { literal: 'q', basic: 'b', extended: '', advanced: '' }[options.syntax]
