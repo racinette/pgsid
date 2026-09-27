@@ -15,6 +15,10 @@ const VM_CLASS: usize = 12;
 const VM_NUMERIC: usize = 13;
 const VM_WORD_END: usize = 14;
 const VM_WORD_BEGIN: usize = 26;
+const VM_ABSOLUTE_BEGIN: usize = 27;
+const VM_ABSOLUTE_END: usize = 28;
+const VM_BOUNDARY: usize = 29;
+const VM_NOT_BOUNDARY: usize = 30;
 const CAPTURE_CLASS_RANGE: usize = 15;
 const NODE_SEQUENCE: usize = 16;
 const NODE_ALTERNATIVE: usize = 17;
@@ -591,22 +595,43 @@ pub fn definitely_invalid_numeric_escape(
     requested_syntax: char,
     expanded: bool,
 ) -> bool {
-    let parsed = validation_pattern_source(pattern, requested_syntax, expanded);
-    let syntax = parsed.syntax;
-    if syntax != 'a' {
+    let selected = validation_pattern_source(pattern, requested_syntax, expanded);
+    if selected.syntax != 'a' {
         return false;
     }
-    let source = pattern_atoms(pattern, expanded);
+    let parsed = capture_pattern_source(pattern, expanded);
+    let source = parsed.atoms;
     let mut position = 0;
+    let mut escape_index = 0;
     while position < source.len() {
         if source[position] == '\\' && position + 1 < source.len() {
             let marker = source[position + 1];
-            if marker == 'u' || marker == 'U' || marker == 'x' || marker == 'z' {
-                let parsed = numeric_escape(pattern, expanded, position);
-                if parsed.valid == false {
+            if marker == 'z' {
+                return true;
+            }
+            if marker == 'u' || marker == 'U' || marker == 'x' || marker == 'c' {
+                while escape_index < parsed.escape_ends.len()
+                    && parsed.escape_ends[escape_index] < position
+                {
+                    escape_index += 2;
+                }
+                let mut limit = source.len();
+                if escape_index < parsed.escape_ends.len()
+                    && parsed.escape_ends[escape_index] == position
+                {
+                    limit = parsed.escape_ends[escape_index + 1];
+                }
+                let mut window: Vec<char> = Vec::new();
+                let mut next = position;
+                while next < limit && next - position < 257 {
+                    window.push(source[next]);
+                    next += 1;
+                }
+                let numeric = parse_capture_numeric(window, 0, false);
+                if numeric.valid == false {
                     return true;
                 }
-                position = parsed.next;
+                position += numeric.end;
             } else {
                 position += 2;
             };
@@ -872,7 +897,16 @@ pub fn definitely_invalid_grouping(pattern: &str, requested_syntax: char, expand
     let mut position = 0;
     while position < source.len() {
         let atom = source[position];
-        if atom == '\\' && (bracket == false || syntax == 'a') {
+        if syntax == 'a'
+            && atom == '\\'
+            && source.len() - position >= 3
+            && source[position + 1] == 'c'
+        {
+            if bracket {
+                bracket_members += 1;
+            }
+            position += 3;
+        } else if atom == '\\' && (bracket == false || syntax == 'a') {
             if source.len() - position <= 1 {
                 return true;
             }
@@ -942,7 +976,18 @@ pub fn definitely_invalid_simple_repeat(
     let mut basic_star_literal = true;
     while position < source.len() {
         let atom = source[position];
-        if atom == '\\' && (bracket == false || syntax == 'a') {
+        if syntax == 'a'
+            && atom == '\\'
+            && source.len() - position >= 3
+            && source[position + 1] == 'c'
+        {
+            if bracket {
+                bracket_members += 1;
+            }
+            previous_repeat = false;
+            after_open = false;
+            position += 3;
+        } else if atom == '\\' && (bracket == false || syntax == 'a') {
             if source.len() - position <= 1 {
                 return false;
             }
@@ -1029,7 +1074,16 @@ pub fn definitely_invalid_bound(pattern: &str, requested_syntax: char, expanded:
     let mut bracket_members = 0;
     while position < source.len() {
         let atom = source[position];
-        if bracket {
+        if syntax == 'a'
+            && atom == '\\'
+            && source.len() - position >= 3
+            && source[position + 1] == 'c'
+        {
+            if bracket {
+                bracket_members += 1;
+            }
+            position += 3;
+        } else if bracket {
             if atom == ']' && bracket_members > 0 {
                 bracket = false;
             } else {
@@ -1168,7 +1222,13 @@ pub fn definitely_invalid_posix_class(
     let mut position = 0;
     while position < source.len() {
         let atom = source[position];
-        if atom == '[' && bracket == false {
+        if syntax == 'a'
+            && atom == '\\'
+            && source.len() - position >= 3
+            && source[position + 1] == 'c'
+        {
+            position += 3;
+        } else if atom == '[' && bracket == false {
             bracket = true;
             position += 1;
         } else if atom == '['
@@ -1217,7 +1277,13 @@ pub fn definitely_invalid_bracket_range(
     let mut first_member = 0;
     while position < source.len() {
         let atom = source[position];
-        if bracket == false {
+        if syntax == 'a'
+            && atom == '\\'
+            && source.len() - position >= 3
+            && source[position + 1] == 'c'
+        {
+            position += 2;
+        } else if bracket == false {
             if atom == '[' {
                 bracket = true;
                 first_member = position + 1;
@@ -1310,7 +1376,13 @@ pub fn definitely_invalid_bracket_construct(
     let mut bracket = false;
     while position < source.len() {
         let atom = source[position];
-        if atom == '[' && bracket == false {
+        if syntax == 'a'
+            && atom == '\\'
+            && source.len() - position >= 3
+            && source[position + 1] == 'c'
+        {
+            position += 2;
+        } else if atom == '[' && bracket == false {
             bracket = true;
             if source.len() - position >= 8
                 && source[position + 1] == '['
@@ -1449,7 +1521,16 @@ pub fn definitely_invalid_backreference(
     let mut position = 0;
     while position < source.len() {
         let atom = source[position];
-        if bracket {
+        if syntax == 'a'
+            && atom == '\\'
+            && source.len() - position >= 3
+            && source[position + 1] == 'c'
+        {
+            if bracket {
+                bracket_members += 1;
+            }
+            position += 3;
+        } else if bracket {
             if atom == ']' && bracket_members > 0 {
                 bracket = false;
             } else {
@@ -3737,7 +3818,192 @@ struct CaptureClassAtom {
     complement: bool,
 }
 
-fn parse_capture_class_atom(source: Vec<char>, syntax: char) -> CaptureClassAtom {
+struct CaptureSource {
+    valid: bool,
+    syntax: char,
+    case_mode: char,
+    newline_mode: char,
+    atoms: Vec<char>,
+    escape_ends: Vec<usize>,
+}
+
+struct CaptureNumeric {
+    valid: bool,
+    backreference: bool,
+    value: u32,
+    end: usize,
+}
+
+fn capture_digit_value(atom: char) -> u32 {
+    let value = atom as u32;
+    if value >= 48 && value <= 57 {
+        return value - 48;
+    }
+    if value >= 65 && value <= 70 {
+        return value - 55;
+    }
+    if value >= 97 && value <= 102 {
+        return value - 87;
+    }
+    16
+}
+
+struct CaptureInteger {
+    value: u32,
+    high: bool,
+}
+
+fn capture_wrapping_digit(value: u32, base: usize, digit: u32) -> CaptureInteger {
+    let maximum: u32 = 2147483647;
+    let mut result: u32 = 0;
+    let mut high = false;
+    let mut count = 0;
+    while count < base {
+        if value > maximum - result {
+            result = value - (maximum - result) - 1;
+            high = high == false;
+        } else {
+            result += value;
+        };
+        count += 1;
+    }
+    if digit > maximum - result {
+        result = digit - (maximum - result) - 1;
+        high = high == false;
+    } else {
+        result += digit;
+    };
+    CaptureInteger {
+        value: result,
+        high,
+    }
+}
+
+fn parse_capture_numeric(source: Vec<char>, groups: usize, basic: bool) -> CaptureNumeric {
+    let marker = source[1];
+    let mut value: u32 = 0;
+    let mut high = false;
+    let mut end = 2;
+    let mut valid = source.len() > 2;
+    let mut backreference = false;
+    if marker == 'c' {
+        if valid {
+            value = source[2] as u32;
+            while value >= 32 {
+                let mut chunk: u32 = 32;
+                while chunk + chunk <= value {
+                    chunk += chunk;
+                }
+                value = value - chunk;
+            }
+            end = 3;
+        }
+    } else if marker == 'x' || marker == 'u' || marker == 'U' {
+        let mut digits = 0;
+        let mut limit = 255;
+        if marker == 'u' {
+            limit = 4;
+        } else if marker == 'U' {
+            limit = 8;
+        };
+        while end < source.len() && digits < limit {
+            let digit = capture_digit_value(source[end]);
+            if digit == 16 {
+                break;
+            }
+            let number = capture_wrapping_digit(value, 16, digit);
+            value = number.value;
+            high = number.high;
+            end += 1;
+            digits += 1;
+        }
+        valid = high == false
+            && value <= 2147483646
+            && digits > 0
+            && (marker == 'x' || digits == limit);
+    } else {
+        let mut digits = 0;
+        end = 1;
+        if marker != '0' {
+            while end < source.len() && digits < 255 {
+                let digit = capture_digit_value(source[end]);
+                if digit > 9 || (basic && digits == 1) {
+                    break;
+                }
+                let number = capture_wrapping_digit(value, 10, digit);
+                value = number.value;
+                high = number.high;
+                end += 1;
+                digits += 1;
+            }
+            backreference = digits == 1
+                || (high == false
+                    && value > 0
+                    && value <= 2147483646
+                    && (value as usize) <= groups);
+        }
+        if backreference {
+            valid = high == false && value > 0 && value <= 2147483646 && (value as usize) <= groups;
+        } else {
+            end = 1;
+            digits = 0;
+            value = 0;
+            while end < source.len() && digits < 3 {
+                let digit = capture_digit_value(source[end]);
+                if digit > 7 {
+                    break;
+                }
+                let candidate = capture_wrapping_digit(value, 8, digit).value;
+                if candidate > 255 {
+                    break;
+                }
+                value = candidate;
+                end += 1;
+                digits += 1;
+            }
+            valid = digits > 0;
+        };
+    };
+    CaptureNumeric {
+        valid,
+        backreference,
+        value,
+        end,
+    }
+}
+
+fn capture_assertion(operation: usize) -> bool {
+    operation == VM_BEGIN
+        || operation == VM_END
+        || operation == VM_WORD_BEGIN
+        || operation == VM_WORD_END
+        || operation == VM_ABSOLUTE_BEGIN
+        || operation == VM_ABSOLUTE_END
+        || operation == VM_BOUNDARY
+        || operation == VM_NOT_BOUNDARY
+}
+
+fn capture_assertion_matches(
+    operation: usize,
+    position: usize,
+    length: usize,
+    before: bool,
+    after: bool,
+    previous_newline: bool,
+    next_newline: bool,
+    line_anchors: bool,
+) -> bool {
+    (operation == VM_BEGIN && (position == 0 || (line_anchors && previous_newline)))
+        || (operation == VM_END && (position == length || (line_anchors && next_newline)))
+        || (operation == VM_ABSOLUTE_BEGIN && position == 0)
+        || (operation == VM_ABSOLUTE_END && position == length)
+        || (operation == VM_WORD_BEGIN && before == false && after)
+        || (operation == VM_WORD_END && before && after == false)
+        || (operation == VM_BOUNDARY && before != after)
+        || (operation == VM_NOT_BOUNDARY && before == after)
+}
+
+fn parse_capture_class_atom(source: Vec<char>, syntax: char, groups: usize) -> CaptureClassAtom {
     let position = 0;
     let mut valid = position < source.len();
     let mut end = position;
@@ -3775,7 +4041,17 @@ fn parse_capture_class_atom(source: Vec<char>, syntax: char) -> CaptureClassAtom
                 let escaped = source[end];
                 end += 1;
                 value = escaped as u32;
-                if escaped == 'd' || escaped == 'D' {
+                if escaped == 'x'
+                    || escaped == 'u'
+                    || escaped == 'U'
+                    || escaped == 'c'
+                    || (value >= 48 && value <= 57)
+                {
+                    let numeric = parse_capture_numeric(source, groups, false);
+                    valid = numeric.valid && numeric.backreference == false;
+                    value = numeric.value;
+                    end = numeric.end;
+                } else if escaped == 'd' || escaped == 'D' {
                     kind = 1;
                     complement = escaped == 'D';
                 } else if escaped == 's' || escaped == 'S' {
@@ -3820,7 +4096,7 @@ fn parse_capture_class_atom(source: Vec<char>, syntax: char) -> CaptureClassAtom
     }
 }
 
-fn parse_capture_class(source: Vec<char>, syntax: char) -> CaptureClass {
+fn parse_capture_class(source: Vec<char>, syntax: char, groups: usize) -> CaptureClass {
     let mut position = 1;
     let mut negated = false;
     if position < source.len() && source[position] == '^' {
@@ -3844,11 +4120,11 @@ fn parse_capture_class(source: Vec<char>, syntax: char) -> CaptureClass {
         };
         let mut lookahead: Vec<char> = Vec::new();
         let mut look = position;
-        while look < source.len() && look - position < 10 {
+        while look < source.len() && look - position < 257 {
             lookahead.push(source[look]);
             look += 1;
         }
-        let atom = parse_capture_class_atom(lookahead, syntax);
+        let atom = parse_capture_class_atom(lookahead, syntax, groups);
         if atom.valid == false {
             break;
         };
@@ -3857,11 +4133,11 @@ fn parse_capture_class(source: Vec<char>, syntax: char) -> CaptureClass {
         if source.len() - position >= 2 && source[position] == '-' && source[position + 1] != ']' {
             let mut lookahead: Vec<char> = Vec::new();
             let mut look = position + 1;
-            while look < source.len() && look - position < 11 {
+            while look < source.len() && look - position < 258 {
                 lookahead.push(source[look]);
                 look += 1;
             }
-            let bound = parse_capture_class_atom(lookahead, syntax);
+            let bound = parse_capture_class_atom(lookahead, syntax, groups);
             if bound.valid == false
                 || atom.kind != CAPTURE_CLASS_RANGE
                 || bound.kind != CAPTURE_CLASS_RANGE
@@ -3944,7 +4220,14 @@ fn validation_pattern_source(pattern: &str, syntax: char, expanded: bool) -> Inl
         && source[2] == '*'
         && (source[3] == ':' || source[3] == '=');
     if syntax == 'a' || ((syntax == 'b' || syntax == 'e') && prefixed) {
-        return capture_pattern_source(pattern, expanded);
+        let parsed = capture_pattern_source(pattern, expanded);
+        return InlineOptionsResult {
+            valid: parsed.valid,
+            syntax: parsed.syntax,
+            case_mode: parsed.case_mode,
+            newline_mode: parsed.newline_mode,
+            atoms: parsed.atoms,
+        };
     }
     InlineOptionsResult {
         valid: true,
@@ -3955,7 +4238,7 @@ fn validation_pattern_source(pattern: &str, syntax: char, expanded: bool) -> Inl
     }
 }
 
-fn capture_pattern_source(pattern: &str, expanded: bool) -> InlineOptionsResult {
+fn capture_pattern_source(pattern: &str, expanded: bool) -> CaptureSource {
     let source: Vec<char> = pattern.chars().collect();
     let mut position = 0;
     let mut valid = true;
@@ -4016,6 +4299,7 @@ fn capture_pattern_source(pattern: &str, expanded: bool) -> InlineOptionsResult 
         newline_mode = 's';
     }
     let mut atoms: Vec<char> = Vec::new();
+    let mut escape_ends: Vec<usize> = Vec::new();
     while valid && position < source.len() {
         let atom = source[position];
         if syntax == 'q' {
@@ -4035,8 +4319,13 @@ fn capture_pattern_source(pattern: &str, expanded: bool) -> InlineOptionsResult 
                 atoms.push(current);
                 position += 1;
                 if syntax == 'a' && current == '\\' && position < source.len() {
-                    atoms.push(source[position]);
+                    let marker = source[position];
+                    atoms.push(marker);
                     position += 1;
+                    if marker == 'c' && position < source.len() {
+                        atoms.push(source[position]);
+                        position += 1;
+                    }
                 } else if special != ' ' {
                     if current == special && position < source.len() && source[position] == ']' {
                         atoms.push(']');
@@ -4055,12 +4344,44 @@ fn capture_pattern_source(pattern: &str, expanded: bool) -> InlineOptionsResult 
                 };
             }
         } else if atom == '\\' {
+            let escape_start = atoms.len();
             atoms.push(atom);
             position += 1;
             if position < source.len() {
-                atoms.push(source[position]);
+                let marker = source[position];
+                atoms.push(marker);
                 position += 1;
+                if syntax == 'a' && marker == 'c' && position < source.len() {
+                    atoms.push(source[position]);
+                    position += 1;
+                } else if syntax == 'a'
+                    && (marker == 'x'
+                        || marker == 'u'
+                        || marker == 'U'
+                        || ((marker as u32) >= 48 && (marker as u32) <= 57))
+                {
+                    let mut limit = 255;
+                    if marker == 'u' {
+                        limit = 4;
+                    } else if marker == 'U' {
+                        limit = 8;
+                    };
+                    let mut digits = 0;
+                    while position < source.len() && digits < limit {
+                        let digit = capture_digit_value(source[position]);
+                        if digit == 16
+                            || ((marker as u32) >= 48 && (marker as u32) <= 57 && digit > 9)
+                        {
+                            break;
+                        }
+                        atoms.push(source[position]);
+                        position += 1;
+                        digits += 1;
+                    }
+                };
             };
+            escape_ends.push(escape_start);
+            escape_ends.push(atoms.len());
         } else if syntax == 'a'
             && atom == '('
             && source.len() - position >= 3
@@ -4088,17 +4409,19 @@ fn capture_pattern_source(pattern: &str, expanded: bool) -> InlineOptionsResult 
             position += 1;
         };
     }
-    InlineOptionsResult {
+    CaptureSource {
         valid,
         syntax,
         case_mode,
         newline_mode,
         atoms,
+        escape_ends,
     }
 }
 
 fn compile_capture_program_atoms(
     source: Vec<char>,
+    escape_ends: Vec<usize>,
     syntax: char,
     mut valid: bool,
     case_mode: char,
@@ -4124,6 +4447,7 @@ fn compile_capture_program_atoms(
     let mut assertions = false;
     let mut assertion_depth = 0;
     let mut position = 0;
+    let mut escape_index = 0;
     let mut basic_star_literal = true;
     while position < source.len() && valid {
         let mut atom = source[position];
@@ -4320,6 +4644,20 @@ fn compile_capture_program_atoms(
             if atom == '.' {
                 operation = VM_ANY;
                 position += 1;
+            } else if atom == '['
+                && source.len() - position >= 7
+                && source[position + 1] == '['
+                && source[position + 2] == ':'
+                && (source[position + 3] == '<' || source[position + 3] == '>')
+                && source[position + 4] == ':'
+                && source[position + 5] == ']'
+                && source[position + 6] == ']'
+            {
+                operation = VM_WORD_BEGIN;
+                if source[position + 3] == '>' {
+                    operation = VM_WORD_END;
+                }
+                position += 7;
             } else if atom == '[' {
                 operation = VM_CLASS;
                 reference = class_members.len();
@@ -4337,8 +4675,13 @@ fn compile_capture_program_atoms(
                     class_atoms.push(current);
                     position += 1;
                     if syntax == 'a' && current == '\\' && position < source.len() {
-                        class_atoms.push(source[position]);
+                        let marker = source[position];
+                        class_atoms.push(marker);
                         position += 1;
+                        if marker == 'c' && position < source.len() {
+                            class_atoms.push(source[position]);
+                            position += 1;
+                        }
                     } else if special != ' ' {
                         if current == special && position < source.len() && source[position] == ']'
                         {
@@ -4357,7 +4700,7 @@ fn compile_capture_program_atoms(
                         break;
                     };
                 }
-                let parsed_class = parse_capture_class(class_atoms, syntax);
+                let parsed_class = parse_capture_class(class_atoms, syntax, groups);
                 valid = parsed_class.valid;
                 if parsed_class.negated {
                     member = '^';
@@ -4387,6 +4730,71 @@ fn compile_capture_program_atoms(
                     if escaped == '>' {
                         operation = VM_WORD_END;
                     }
+                } else if escaped == 'A'
+                    || escaped == 'Z'
+                    || escaped == 'm'
+                    || escaped == 'y'
+                    || escaped == 'Y'
+                {
+                    operation = VM_ABSOLUTE_BEGIN;
+                    if escaped == 'Z' {
+                        operation = VM_ABSOLUTE_END;
+                    } else if escaped == 'm' {
+                        operation = VM_WORD_BEGIN;
+                    } else if escaped == 'y' {
+                        operation = VM_BOUNDARY;
+                    } else if escaped == 'Y' {
+                        operation = VM_NOT_BOUNDARY;
+                    };
+                } else if escaped == 'd'
+                    || escaped == 'D'
+                    || escaped == 's'
+                    || escaped == 'S'
+                    || escaped == 'W'
+                {
+                    operation = VM_CLASS;
+                    reference = class_members.len();
+                    let mut kind = 14;
+                    if escaped == 'd' || escaped == 'D' {
+                        kind = 1;
+                    } else if escaped == 's' || escaped == 'S' {
+                        kind = 4;
+                    };
+                    class_members.push(CaptureClassMember {
+                        kind,
+                        lower: 0,
+                        upper: 0,
+                        complement: escaped == 'D' || escaped == 'S' || escaped == 'W',
+                    });
+                    class_members.push(CaptureClassMember {
+                        kind: 0,
+                        lower: 0,
+                        upper: 0,
+                        complement: false,
+                    });
+                } else if escaped == 'a'
+                    || escaped == 'b'
+                    || escaped == 'B'
+                    || escaped == 'e'
+                    || escaped == 'f'
+                    || escaped == 't'
+                    || escaped == 'v'
+                {
+                    operation = VM_NUMERIC;
+                    reference = 7;
+                    if escaped == 'b' {
+                        reference = 8;
+                    } else if escaped == 'B' {
+                        reference = 92;
+                    } else if escaped == 'e' {
+                        reference = 27;
+                    } else if escaped == 'f' {
+                        reference = 12;
+                    } else if escaped == 't' {
+                        reference = 9;
+                    } else if escaped == 'v' {
+                        reference = 11;
+                    };
                 } else if escaped == 'w' {
                     operation = VM_WORD;
                 } else if escaped == 'M' {
@@ -4404,52 +4812,39 @@ fn compile_capture_program_atoms(
                     } else if escaped == 'r' {
                         member = '\r';
                     };
-                } else if (escaped as u32) >= 48 && (escaped as u32) <= 57 {
-                    reference = ((escaped as u32) - 48) as usize;
-                    let mut decimal_digits = 1;
-                    while syntax == 'a'
-                        && position < source.len()
-                        && (source[position] as u32) >= 48
-                        && (source[position] as u32) <= 57
-                        && decimal_digits < 3
+                } else if escaped == 'c'
+                    || escaped == 'x'
+                    || escaped == 'u'
+                    || escaped == 'U'
+                    || ((escaped as u32) >= 48 && (escaped as u32) <= 57)
+                {
+                    while escape_index < escape_ends.len()
+                        && escape_ends[escape_index] < escape_start
                     {
-                        let double = reference + reference;
-                        let four = double + double;
-                        let eight = four + four;
-                        reference = eight + double + ((source[position] as u32) - 48) as usize;
-                        position += 1;
-                        decimal_digits += 1;
+                        escape_index += 2;
                     }
-                    if escaped != '0' && reference < closed.len() {
-                        operation = VM_BACKREF;
-                        if closed[reference] == 0 {
-                            valid = false;
-                        }
-                    } else if (escaped as u32) <= 55 && (escaped == '0' || decimal_digits > 1) {
-                        let mut octal_position = escape_start + 1;
-                        let mut octal = 0;
-                        let mut octal_digits = 0;
-                        while octal_position < source.len() && octal_digits < 3 {
-                            let codepoint = source[octal_position] as u32;
-                            if codepoint < 48 || codepoint > 55 {
-                                break;
-                            };
-                            let double = octal + octal;
-                            let four = double + double;
-                            let candidate = four + four + ((codepoint - 48) as usize);
-                            if candidate > 255 {
-                                break;
-                            };
-                            octal = candidate;
-                            octal_position += 1;
-                            octal_digits += 1;
-                        }
+                    let mut limit = source.len();
+                    if escape_index < escape_ends.len() && escape_ends[escape_index] == escape_start
+                    {
+                        limit = escape_ends[escape_index + 1];
+                    }
+                    let mut window: Vec<char> = Vec::new();
+                    let mut next = escape_start;
+                    while next < limit && next - escape_start < 257 {
+                        window.push(source[next]);
+                        next += 1;
+                    }
+                    let numeric = parse_capture_numeric(window, groups, syntax == 'b');
+                    valid = numeric.valid;
+                    if valid {
+                        reference = numeric.value as usize;
+                        position = escape_start + numeric.end;
                         operation = VM_NUMERIC;
-                        reference = octal;
-                        position = octal_position;
-                    } else {
-                        valid = false;
-                    };
+                        if numeric.backreference {
+                            operation = VM_BACKREF;
+                            valid = reference < closed.len() && closed[reference] > 0;
+                        }
+                    }
                 } else {
                     valid = false;
                 };
@@ -4568,10 +4963,7 @@ fn compile_capture_program_atoms(
             };
             if repeated && valid {
                 let inner = nodes[node];
-                if inner.operation == VM_BEGIN
-                    || inner.operation == VM_END
-                    || inner.operation == VM_WORD_END
-                    || inner.operation == VM_WORD_BEGIN
+                if capture_assertion(inner.operation)
                     || (inner.operation >= NODE_LOOKAHEAD && inner.operation <= NODE_NOT_LOOKBEHIND)
                 {
                     valid = false;
@@ -4898,6 +5290,7 @@ fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
     let parsed = capture_pattern_source(pattern, expanded);
     compile_capture_program_atoms(
         parsed.atoms,
+        parsed.escape_ends,
         parsed.syntax,
         parsed.valid,
         parsed.case_mode,
@@ -5124,22 +5517,21 @@ fn run_capture_tree(
                         let mut end = frame.begin;
                         if node.operation == NODE_EMPTY {
                             matched = true;
-                        } else if node.operation == VM_BEGIN {
-                            matched = end == 0 || (line_anchors && haystack[end - 1] == '\n');
-                        } else if node.operation == VM_END {
-                            matched =
-                                end == haystack.len() || (line_anchors && haystack[end] == '\n');
-                        } else if node.operation == VM_WORD_END || node.operation == VM_WORD_BEGIN {
-                            let mut before = false;
-                            let mut after = false;
-                            if end > 0 {
-                                before = zero_width_word(haystack[end - 1]);
-                            }
-                            if end < haystack.len() {
-                                after = zero_width_word(haystack[end]);
-                            }
-                            matched = (node.operation == VM_WORD_END && before && after == false)
-                                || (node.operation == VM_WORD_BEGIN && before == false && after);
+                        } else if capture_assertion(node.operation) {
+                            let before = end > 0 && zero_width_word(haystack[end - 1]);
+                            let after = end < haystack.len() && zero_width_word(haystack[end]);
+                            let previous_newline = end > 0 && haystack[end - 1] == '\n';
+                            let next_newline = end < haystack.len() && haystack[end] == '\n';
+                            matched = capture_assertion_matches(
+                                node.operation,
+                                end,
+                                haystack.len(),
+                                before,
+                                after,
+                                previous_newline,
+                                next_newline,
+                                line_anchors,
+                            );
                         } else if node.operation == VM_BACKREF {
                             let register = captures[frame.capture + node.group];
                             let length = register.end - register.start;
@@ -5567,25 +5959,25 @@ fn run_capture_program(
                         best_end = subject_position;
                     };
                     break;
-                } else if step.operation == VM_BEGIN {
-                    matched = subject_position == 0
-                        || (line_anchors && haystack[subject_position - 1] == '\n');
-                    instruction += 1;
-                } else if step.operation == VM_END {
-                    matched = subject_position == haystack.len()
-                        || (line_anchors && haystack[subject_position] == '\n');
-                    instruction += 1;
-                } else if step.operation == VM_WORD_END || step.operation == VM_WORD_BEGIN {
-                    let mut before = false;
-                    let mut after = false;
-                    if subject_position > 0 {
-                        before = zero_width_word(haystack[subject_position - 1]);
-                    };
-                    if subject_position < haystack.len() {
-                        after = zero_width_word(haystack[subject_position]);
-                    };
-                    matched = (step.operation == VM_WORD_END && before && after == false)
-                        || (step.operation == VM_WORD_BEGIN && before == false && after);
+                } else if capture_assertion(step.operation) {
+                    let before =
+                        subject_position > 0 && zero_width_word(haystack[subject_position - 1]);
+                    let after = subject_position < haystack.len()
+                        && zero_width_word(haystack[subject_position]);
+                    let previous_newline =
+                        subject_position > 0 && haystack[subject_position - 1] == '\n';
+                    let next_newline =
+                        subject_position < haystack.len() && haystack[subject_position] == '\n';
+                    matched = capture_assertion_matches(
+                        step.operation,
+                        subject_position,
+                        haystack.len(),
+                        before,
+                        after,
+                        previous_newline,
+                        next_newline,
+                        line_anchors,
+                    );
                     instruction += 1;
                 } else if step.operation == VM_SPLIT {
                     let skipped = PatternWorkState {
@@ -6061,6 +6453,9 @@ fn fixed_backref_atoms(pattern: &str, expanded: bool) -> FixedBackrefResult {
         } else if atom == '\\' {
             if source.len() - position <= 1
                 || source[position + 1] != '1'
+                || (source.len() - position > 2
+                    && (source[position + 2] as u32) >= 48
+                    && (source[position + 2] as u32) <= 57)
                 || grouped == false
                 || referenced
             {
@@ -6212,7 +6607,12 @@ fn single_capture_atoms(pattern: &str, expanded: bool) -> SingleCaptureResult {
             between.push(source[position]);
             position += 1;
         }
-        if source.len() - position < 2 || source[position + 1] != '1' {
+        if source.len() - position < 2
+            || source[position + 1] != '1'
+            || (source.len() - position > 2
+                && (source[position + 2] as u32) >= 48
+                && (source[position + 2] as u32) <= 57)
+        {
             valid = false;
         }
     }
@@ -8204,7 +8604,9 @@ pub fn supports_basic_repeated_capture(pattern: &str, expanded: bool) -> bool {
     if parsed.valid == false {
         return false;
     }
-    let program = compile_capture_program_atoms(parsed.atoms, 'a', parsed.valid, ' ', ' ');
+    let escape_ends: Vec<usize> = Vec::new();
+    let program =
+        compile_capture_program_atoms(parsed.atoms, escape_ends, 'a', parsed.valid, ' ', ' ');
     program.valid
 }
 
@@ -8221,7 +8623,9 @@ pub fn find_basic_repeated_capture(
     if parsed.valid == false {
         return MatchOutcome::Uncertain;
     }
-    let program = compile_capture_program_atoms(parsed.atoms, 'a', parsed.valid, ' ', ' ');
+    let escape_ends: Vec<usize> = Vec::new();
+    let program =
+        compile_capture_program_atoms(parsed.atoms, escape_ends, 'a', parsed.valid, ' ', ' ');
     if program.valid == false {
         return MatchOutcome::Uncertain;
     }
