@@ -3812,6 +3812,7 @@ struct CaptureClass {
 
 struct CaptureClassAtom {
     valid: bool,
+    range_endpoint: bool,
     end: usize,
     kind: usize,
     value: u32,
@@ -4003,8 +4004,889 @@ fn capture_assertion_matches(
         || (operation == VM_NOT_BOUNDARY && before == after)
 }
 
+fn capture_collating_value(name: Vec<char>) -> u32 {
+    if name.len() == 1 {
+        return name[0] as u32;
+    }
+    if name.len() == 3 && name[0] == 'N' && name[1] == 'U' && name[2] == 'L' {
+        return 0;
+    }
+    if name.len() == 3 && name[0] == 'S' && name[1] == 'O' && name[2] == 'H' {
+        return 1;
+    }
+    if name.len() == 3 && name[0] == 'S' && name[1] == 'T' && name[2] == 'X' {
+        return 2;
+    }
+    if name.len() == 3 && name[0] == 'E' && name[1] == 'T' && name[2] == 'X' {
+        return 3;
+    }
+    if name.len() == 3 && name[0] == 'E' && name[1] == 'O' && name[2] == 'T' {
+        return 4;
+    }
+    if name.len() == 3 && name[0] == 'E' && name[1] == 'N' && name[2] == 'Q' {
+        return 5;
+    }
+    if name.len() == 3 && name[0] == 'A' && name[1] == 'C' && name[2] == 'K' {
+        return 6;
+    }
+    if name.len() == 3 && name[0] == 'B' && name[1] == 'E' && name[2] == 'L' {
+        return 7;
+    }
+    if name.len() == 5
+        && name[0] == 'a'
+        && name[1] == 'l'
+        && name[2] == 'e'
+        && name[3] == 'r'
+        && name[4] == 't'
+    {
+        return 7;
+    }
+    if name.len() == 2 && name[0] == 'B' && name[1] == 'S' {
+        return 8;
+    }
+    if name.len() == 9
+        && name[0] == 'b'
+        && name[1] == 'a'
+        && name[2] == 'c'
+        && name[3] == 'k'
+        && name[4] == 's'
+        && name[5] == 'p'
+        && name[6] == 'a'
+        && name[7] == 'c'
+        && name[8] == 'e'
+    {
+        return 8;
+    }
+    if name.len() == 2 && name[0] == 'H' && name[1] == 'T' {
+        return 9;
+    }
+    if name.len() == 3 && name[0] == 't' && name[1] == 'a' && name[2] == 'b' {
+        return 9;
+    }
+    if name.len() == 2 && name[0] == 'L' && name[1] == 'F' {
+        return 10;
+    }
+    if name.len() == 7
+        && name[0] == 'n'
+        && name[1] == 'e'
+        && name[2] == 'w'
+        && name[3] == 'l'
+        && name[4] == 'i'
+        && name[5] == 'n'
+        && name[6] == 'e'
+    {
+        return 10;
+    }
+    if name.len() == 2 && name[0] == 'V' && name[1] == 'T' {
+        return 11;
+    }
+    if name.len() == 12
+        && name[0] == 'v'
+        && name[1] == 'e'
+        && name[2] == 'r'
+        && name[3] == 't'
+        && name[4] == 'i'
+        && name[5] == 'c'
+        && name[6] == 'a'
+        && name[7] == 'l'
+        && name[8] == '-'
+        && name[9] == 't'
+        && name[10] == 'a'
+        && name[11] == 'b'
+    {
+        return 11;
+    }
+    if name.len() == 2 && name[0] == 'F' && name[1] == 'F' {
+        return 12;
+    }
+    if name.len() == 9
+        && name[0] == 'f'
+        && name[1] == 'o'
+        && name[2] == 'r'
+        && name[3] == 'm'
+        && name[4] == '-'
+        && name[5] == 'f'
+        && name[6] == 'e'
+        && name[7] == 'e'
+        && name[8] == 'd'
+    {
+        return 12;
+    }
+    if name.len() == 2 && name[0] == 'C' && name[1] == 'R' {
+        return 13;
+    }
+    if name.len() == 15
+        && name[0] == 'c'
+        && name[1] == 'a'
+        && name[2] == 'r'
+        && name[3] == 'r'
+        && name[4] == 'i'
+        && name[5] == 'a'
+        && name[6] == 'g'
+        && name[7] == 'e'
+        && name[8] == '-'
+        && name[9] == 'r'
+        && name[10] == 'e'
+        && name[11] == 't'
+        && name[12] == 'u'
+        && name[13] == 'r'
+        && name[14] == 'n'
+    {
+        return 13;
+    }
+    if name.len() == 2 && name[0] == 'S' && name[1] == 'O' {
+        return 14;
+    }
+    if name.len() == 2 && name[0] == 'S' && name[1] == 'I' {
+        return 15;
+    }
+    if name.len() == 3 && name[0] == 'D' && name[1] == 'L' && name[2] == 'E' {
+        return 16;
+    }
+    if name.len() == 3 && name[0] == 'D' && name[1] == 'C' && name[2] == '1' {
+        return 17;
+    }
+    if name.len() == 3 && name[0] == 'D' && name[1] == 'C' && name[2] == '2' {
+        return 18;
+    }
+    if name.len() == 3 && name[0] == 'D' && name[1] == 'C' && name[2] == '3' {
+        return 19;
+    }
+    if name.len() == 3 && name[0] == 'D' && name[1] == 'C' && name[2] == '4' {
+        return 20;
+    }
+    if name.len() == 3 && name[0] == 'N' && name[1] == 'A' && name[2] == 'K' {
+        return 21;
+    }
+    if name.len() == 3 && name[0] == 'S' && name[1] == 'Y' && name[2] == 'N' {
+        return 22;
+    }
+    if name.len() == 3 && name[0] == 'E' && name[1] == 'T' && name[2] == 'B' {
+        return 23;
+    }
+    if name.len() == 3 && name[0] == 'C' && name[1] == 'A' && name[2] == 'N' {
+        return 24;
+    }
+    if name.len() == 2 && name[0] == 'E' && name[1] == 'M' {
+        return 25;
+    }
+    if name.len() == 3 && name[0] == 'S' && name[1] == 'U' && name[2] == 'B' {
+        return 26;
+    }
+    if name.len() == 3 && name[0] == 'E' && name[1] == 'S' && name[2] == 'C' {
+        return 27;
+    }
+    if name.len() == 3 && name[0] == 'I' && name[1] == 'S' && name[2] == '4' {
+        return 28;
+    }
+    if name.len() == 2 && name[0] == 'F' && name[1] == 'S' {
+        return 28;
+    }
+    if name.len() == 3 && name[0] == 'I' && name[1] == 'S' && name[2] == '3' {
+        return 29;
+    }
+    if name.len() == 2 && name[0] == 'G' && name[1] == 'S' {
+        return 29;
+    }
+    if name.len() == 3 && name[0] == 'I' && name[1] == 'S' && name[2] == '2' {
+        return 30;
+    }
+    if name.len() == 2 && name[0] == 'R' && name[1] == 'S' {
+        return 30;
+    }
+    if name.len() == 3 && name[0] == 'I' && name[1] == 'S' && name[2] == '1' {
+        return 31;
+    }
+    if name.len() == 2 && name[0] == 'U' && name[1] == 'S' {
+        return 31;
+    }
+    if name.len() == 5
+        && name[0] == 's'
+        && name[1] == 'p'
+        && name[2] == 'a'
+        && name[3] == 'c'
+        && name[4] == 'e'
+    {
+        return 32;
+    }
+    if name.len() == 16
+        && name[0] == 'e'
+        && name[1] == 'x'
+        && name[2] == 'c'
+        && name[3] == 'l'
+        && name[4] == 'a'
+        && name[5] == 'm'
+        && name[6] == 'a'
+        && name[7] == 't'
+        && name[8] == 'i'
+        && name[9] == 'o'
+        && name[10] == 'n'
+        && name[11] == '-'
+        && name[12] == 'm'
+        && name[13] == 'a'
+        && name[14] == 'r'
+        && name[15] == 'k'
+    {
+        return 33;
+    }
+    if name.len() == 14
+        && name[0] == 'q'
+        && name[1] == 'u'
+        && name[2] == 'o'
+        && name[3] == 't'
+        && name[4] == 'a'
+        && name[5] == 't'
+        && name[6] == 'i'
+        && name[7] == 'o'
+        && name[8] == 'n'
+        && name[9] == '-'
+        && name[10] == 'm'
+        && name[11] == 'a'
+        && name[12] == 'r'
+        && name[13] == 'k'
+    {
+        return 34;
+    }
+    if name.len() == 11
+        && name[0] == 'n'
+        && name[1] == 'u'
+        && name[2] == 'm'
+        && name[3] == 'b'
+        && name[4] == 'e'
+        && name[5] == 'r'
+        && name[6] == '-'
+        && name[7] == 's'
+        && name[8] == 'i'
+        && name[9] == 'g'
+        && name[10] == 'n'
+    {
+        return 35;
+    }
+    if name.len() == 11
+        && name[0] == 'd'
+        && name[1] == 'o'
+        && name[2] == 'l'
+        && name[3] == 'l'
+        && name[4] == 'a'
+        && name[5] == 'r'
+        && name[6] == '-'
+        && name[7] == 's'
+        && name[8] == 'i'
+        && name[9] == 'g'
+        && name[10] == 'n'
+    {
+        return 36;
+    }
+    if name.len() == 12
+        && name[0] == 'p'
+        && name[1] == 'e'
+        && name[2] == 'r'
+        && name[3] == 'c'
+        && name[4] == 'e'
+        && name[5] == 'n'
+        && name[6] == 't'
+        && name[7] == '-'
+        && name[8] == 's'
+        && name[9] == 'i'
+        && name[10] == 'g'
+        && name[11] == 'n'
+    {
+        return 37;
+    }
+    if name.len() == 9
+        && name[0] == 'a'
+        && name[1] == 'm'
+        && name[2] == 'p'
+        && name[3] == 'e'
+        && name[4] == 'r'
+        && name[5] == 's'
+        && name[6] == 'a'
+        && name[7] == 'n'
+        && name[8] == 'd'
+    {
+        return 38;
+    }
+    if name.len() == 10
+        && name[0] == 'a'
+        && name[1] == 'p'
+        && name[2] == 'o'
+        && name[3] == 's'
+        && name[4] == 't'
+        && name[5] == 'r'
+        && name[6] == 'o'
+        && name[7] == 'p'
+        && name[8] == 'h'
+        && name[9] == 'e'
+    {
+        return 39;
+    }
+    if name.len() == 16
+        && name[0] == 'l'
+        && name[1] == 'e'
+        && name[2] == 'f'
+        && name[3] == 't'
+        && name[4] == '-'
+        && name[5] == 'p'
+        && name[6] == 'a'
+        && name[7] == 'r'
+        && name[8] == 'e'
+        && name[9] == 'n'
+        && name[10] == 't'
+        && name[11] == 'h'
+        && name[12] == 'e'
+        && name[13] == 's'
+        && name[14] == 'i'
+        && name[15] == 's'
+    {
+        return 40;
+    }
+    if name.len() == 17
+        && name[0] == 'r'
+        && name[1] == 'i'
+        && name[2] == 'g'
+        && name[3] == 'h'
+        && name[4] == 't'
+        && name[5] == '-'
+        && name[6] == 'p'
+        && name[7] == 'a'
+        && name[8] == 'r'
+        && name[9] == 'e'
+        && name[10] == 'n'
+        && name[11] == 't'
+        && name[12] == 'h'
+        && name[13] == 'e'
+        && name[14] == 's'
+        && name[15] == 'i'
+        && name[16] == 's'
+    {
+        return 41;
+    }
+    if name.len() == 8
+        && name[0] == 'a'
+        && name[1] == 's'
+        && name[2] == 't'
+        && name[3] == 'e'
+        && name[4] == 'r'
+        && name[5] == 'i'
+        && name[6] == 's'
+        && name[7] == 'k'
+    {
+        return 42;
+    }
+    if name.len() == 9
+        && name[0] == 'p'
+        && name[1] == 'l'
+        && name[2] == 'u'
+        && name[3] == 's'
+        && name[4] == '-'
+        && name[5] == 's'
+        && name[6] == 'i'
+        && name[7] == 'g'
+        && name[8] == 'n'
+    {
+        return 43;
+    }
+    if name.len() == 5
+        && name[0] == 'c'
+        && name[1] == 'o'
+        && name[2] == 'm'
+        && name[3] == 'm'
+        && name[4] == 'a'
+    {
+        return 44;
+    }
+    if name.len() == 6
+        && name[0] == 'h'
+        && name[1] == 'y'
+        && name[2] == 'p'
+        && name[3] == 'h'
+        && name[4] == 'e'
+        && name[5] == 'n'
+    {
+        return 45;
+    }
+    if name.len() == 12
+        && name[0] == 'h'
+        && name[1] == 'y'
+        && name[2] == 'p'
+        && name[3] == 'h'
+        && name[4] == 'e'
+        && name[5] == 'n'
+        && name[6] == '-'
+        && name[7] == 'm'
+        && name[8] == 'i'
+        && name[9] == 'n'
+        && name[10] == 'u'
+        && name[11] == 's'
+    {
+        return 45;
+    }
+    if name.len() == 6
+        && name[0] == 'p'
+        && name[1] == 'e'
+        && name[2] == 'r'
+        && name[3] == 'i'
+        && name[4] == 'o'
+        && name[5] == 'd'
+    {
+        return 46;
+    }
+    if name.len() == 9
+        && name[0] == 'f'
+        && name[1] == 'u'
+        && name[2] == 'l'
+        && name[3] == 'l'
+        && name[4] == '-'
+        && name[5] == 's'
+        && name[6] == 't'
+        && name[7] == 'o'
+        && name[8] == 'p'
+    {
+        return 46;
+    }
+    if name.len() == 5
+        && name[0] == 's'
+        && name[1] == 'l'
+        && name[2] == 'a'
+        && name[3] == 's'
+        && name[4] == 'h'
+    {
+        return 47;
+    }
+    if name.len() == 7
+        && name[0] == 's'
+        && name[1] == 'o'
+        && name[2] == 'l'
+        && name[3] == 'i'
+        && name[4] == 'd'
+        && name[5] == 'u'
+        && name[6] == 's'
+    {
+        return 47;
+    }
+    if name.len() == 4 && name[0] == 'z' && name[1] == 'e' && name[2] == 'r' && name[3] == 'o' {
+        return 48;
+    }
+    if name.len() == 3 && name[0] == 'o' && name[1] == 'n' && name[2] == 'e' {
+        return 49;
+    }
+    if name.len() == 3 && name[0] == 't' && name[1] == 'w' && name[2] == 'o' {
+        return 50;
+    }
+    if name.len() == 5
+        && name[0] == 't'
+        && name[1] == 'h'
+        && name[2] == 'r'
+        && name[3] == 'e'
+        && name[4] == 'e'
+    {
+        return 51;
+    }
+    if name.len() == 4 && name[0] == 'f' && name[1] == 'o' && name[2] == 'u' && name[3] == 'r' {
+        return 52;
+    }
+    if name.len() == 4 && name[0] == 'f' && name[1] == 'i' && name[2] == 'v' && name[3] == 'e' {
+        return 53;
+    }
+    if name.len() == 3 && name[0] == 's' && name[1] == 'i' && name[2] == 'x' {
+        return 54;
+    }
+    if name.len() == 5
+        && name[0] == 's'
+        && name[1] == 'e'
+        && name[2] == 'v'
+        && name[3] == 'e'
+        && name[4] == 'n'
+    {
+        return 55;
+    }
+    if name.len() == 5
+        && name[0] == 'e'
+        && name[1] == 'i'
+        && name[2] == 'g'
+        && name[3] == 'h'
+        && name[4] == 't'
+    {
+        return 56;
+    }
+    if name.len() == 4 && name[0] == 'n' && name[1] == 'i' && name[2] == 'n' && name[3] == 'e' {
+        return 57;
+    }
+    if name.len() == 5
+        && name[0] == 'c'
+        && name[1] == 'o'
+        && name[2] == 'l'
+        && name[3] == 'o'
+        && name[4] == 'n'
+    {
+        return 58;
+    }
+    if name.len() == 9
+        && name[0] == 's'
+        && name[1] == 'e'
+        && name[2] == 'm'
+        && name[3] == 'i'
+        && name[4] == 'c'
+        && name[5] == 'o'
+        && name[6] == 'l'
+        && name[7] == 'o'
+        && name[8] == 'n'
+    {
+        return 59;
+    }
+    if name.len() == 14
+        && name[0] == 'l'
+        && name[1] == 'e'
+        && name[2] == 's'
+        && name[3] == 's'
+        && name[4] == '-'
+        && name[5] == 't'
+        && name[6] == 'h'
+        && name[7] == 'a'
+        && name[8] == 'n'
+        && name[9] == '-'
+        && name[10] == 's'
+        && name[11] == 'i'
+        && name[12] == 'g'
+        && name[13] == 'n'
+    {
+        return 60;
+    }
+    if name.len() == 11
+        && name[0] == 'e'
+        && name[1] == 'q'
+        && name[2] == 'u'
+        && name[3] == 'a'
+        && name[4] == 'l'
+        && name[5] == 's'
+        && name[6] == '-'
+        && name[7] == 's'
+        && name[8] == 'i'
+        && name[9] == 'g'
+        && name[10] == 'n'
+    {
+        return 61;
+    }
+    if name.len() == 17
+        && name[0] == 'g'
+        && name[1] == 'r'
+        && name[2] == 'e'
+        && name[3] == 'a'
+        && name[4] == 't'
+        && name[5] == 'e'
+        && name[6] == 'r'
+        && name[7] == '-'
+        && name[8] == 't'
+        && name[9] == 'h'
+        && name[10] == 'a'
+        && name[11] == 'n'
+        && name[12] == '-'
+        && name[13] == 's'
+        && name[14] == 'i'
+        && name[15] == 'g'
+        && name[16] == 'n'
+    {
+        return 62;
+    }
+    if name.len() == 13
+        && name[0] == 'q'
+        && name[1] == 'u'
+        && name[2] == 'e'
+        && name[3] == 's'
+        && name[4] == 't'
+        && name[5] == 'i'
+        && name[6] == 'o'
+        && name[7] == 'n'
+        && name[8] == '-'
+        && name[9] == 'm'
+        && name[10] == 'a'
+        && name[11] == 'r'
+        && name[12] == 'k'
+    {
+        return 63;
+    }
+    if name.len() == 13
+        && name[0] == 'c'
+        && name[1] == 'o'
+        && name[2] == 'm'
+        && name[3] == 'm'
+        && name[4] == 'e'
+        && name[5] == 'r'
+        && name[6] == 'c'
+        && name[7] == 'i'
+        && name[8] == 'a'
+        && name[9] == 'l'
+        && name[10] == '-'
+        && name[11] == 'a'
+        && name[12] == 't'
+    {
+        return 64;
+    }
+    if name.len() == 19
+        && name[0] == 'l'
+        && name[1] == 'e'
+        && name[2] == 'f'
+        && name[3] == 't'
+        && name[4] == '-'
+        && name[5] == 's'
+        && name[6] == 'q'
+        && name[7] == 'u'
+        && name[8] == 'a'
+        && name[9] == 'r'
+        && name[10] == 'e'
+        && name[11] == '-'
+        && name[12] == 'b'
+        && name[13] == 'r'
+        && name[14] == 'a'
+        && name[15] == 'c'
+        && name[16] == 'k'
+        && name[17] == 'e'
+        && name[18] == 't'
+    {
+        return 91;
+    }
+    if name.len() == 9
+        && name[0] == 'b'
+        && name[1] == 'a'
+        && name[2] == 'c'
+        && name[3] == 'k'
+        && name[4] == 's'
+        && name[5] == 'l'
+        && name[6] == 'a'
+        && name[7] == 's'
+        && name[8] == 'h'
+    {
+        return 92;
+    }
+    if name.len() == 15
+        && name[0] == 'r'
+        && name[1] == 'e'
+        && name[2] == 'v'
+        && name[3] == 'e'
+        && name[4] == 'r'
+        && name[5] == 's'
+        && name[6] == 'e'
+        && name[7] == '-'
+        && name[8] == 's'
+        && name[9] == 'o'
+        && name[10] == 'l'
+        && name[11] == 'i'
+        && name[12] == 'd'
+        && name[13] == 'u'
+        && name[14] == 's'
+    {
+        return 92;
+    }
+    if name.len() == 20
+        && name[0] == 'r'
+        && name[1] == 'i'
+        && name[2] == 'g'
+        && name[3] == 'h'
+        && name[4] == 't'
+        && name[5] == '-'
+        && name[6] == 's'
+        && name[7] == 'q'
+        && name[8] == 'u'
+        && name[9] == 'a'
+        && name[10] == 'r'
+        && name[11] == 'e'
+        && name[12] == '-'
+        && name[13] == 'b'
+        && name[14] == 'r'
+        && name[15] == 'a'
+        && name[16] == 'c'
+        && name[17] == 'k'
+        && name[18] == 'e'
+        && name[19] == 't'
+    {
+        return 93;
+    }
+    if name.len() == 10
+        && name[0] == 'c'
+        && name[1] == 'i'
+        && name[2] == 'r'
+        && name[3] == 'c'
+        && name[4] == 'u'
+        && name[5] == 'm'
+        && name[6] == 'f'
+        && name[7] == 'l'
+        && name[8] == 'e'
+        && name[9] == 'x'
+    {
+        return 94;
+    }
+    if name.len() == 17
+        && name[0] == 'c'
+        && name[1] == 'i'
+        && name[2] == 'r'
+        && name[3] == 'c'
+        && name[4] == 'u'
+        && name[5] == 'm'
+        && name[6] == 'f'
+        && name[7] == 'l'
+        && name[8] == 'e'
+        && name[9] == 'x'
+        && name[10] == '-'
+        && name[11] == 'a'
+        && name[12] == 'c'
+        && name[13] == 'c'
+        && name[14] == 'e'
+        && name[15] == 'n'
+        && name[16] == 't'
+    {
+        return 94;
+    }
+    if name.len() == 10
+        && name[0] == 'u'
+        && name[1] == 'n'
+        && name[2] == 'd'
+        && name[3] == 'e'
+        && name[4] == 'r'
+        && name[5] == 's'
+        && name[6] == 'c'
+        && name[7] == 'o'
+        && name[8] == 'r'
+        && name[9] == 'e'
+    {
+        return 95;
+    }
+    if name.len() == 8
+        && name[0] == 'l'
+        && name[1] == 'o'
+        && name[2] == 'w'
+        && name[3] == '-'
+        && name[4] == 'l'
+        && name[5] == 'i'
+        && name[6] == 'n'
+        && name[7] == 'e'
+    {
+        return 95;
+    }
+    if name.len() == 12
+        && name[0] == 'g'
+        && name[1] == 'r'
+        && name[2] == 'a'
+        && name[3] == 'v'
+        && name[4] == 'e'
+        && name[5] == '-'
+        && name[6] == 'a'
+        && name[7] == 'c'
+        && name[8] == 'c'
+        && name[9] == 'e'
+        && name[10] == 'n'
+        && name[11] == 't'
+    {
+        return 96;
+    }
+    if name.len() == 10
+        && name[0] == 'l'
+        && name[1] == 'e'
+        && name[2] == 'f'
+        && name[3] == 't'
+        && name[4] == '-'
+        && name[5] == 'b'
+        && name[6] == 'r'
+        && name[7] == 'a'
+        && name[8] == 'c'
+        && name[9] == 'e'
+    {
+        return 123;
+    }
+    if name.len() == 18
+        && name[0] == 'l'
+        && name[1] == 'e'
+        && name[2] == 'f'
+        && name[3] == 't'
+        && name[4] == '-'
+        && name[5] == 'c'
+        && name[6] == 'u'
+        && name[7] == 'r'
+        && name[8] == 'l'
+        && name[9] == 'y'
+        && name[10] == '-'
+        && name[11] == 'b'
+        && name[12] == 'r'
+        && name[13] == 'a'
+        && name[14] == 'c'
+        && name[15] == 'k'
+        && name[16] == 'e'
+        && name[17] == 't'
+    {
+        return 123;
+    }
+    if name.len() == 13
+        && name[0] == 'v'
+        && name[1] == 'e'
+        && name[2] == 'r'
+        && name[3] == 't'
+        && name[4] == 'i'
+        && name[5] == 'c'
+        && name[6] == 'a'
+        && name[7] == 'l'
+        && name[8] == '-'
+        && name[9] == 'l'
+        && name[10] == 'i'
+        && name[11] == 'n'
+        && name[12] == 'e'
+    {
+        return 124;
+    }
+    if name.len() == 11
+        && name[0] == 'r'
+        && name[1] == 'i'
+        && name[2] == 'g'
+        && name[3] == 'h'
+        && name[4] == 't'
+        && name[5] == '-'
+        && name[6] == 'b'
+        && name[7] == 'r'
+        && name[8] == 'a'
+        && name[9] == 'c'
+        && name[10] == 'e'
+    {
+        return 125;
+    }
+    if name.len() == 19
+        && name[0] == 'r'
+        && name[1] == 'i'
+        && name[2] == 'g'
+        && name[3] == 'h'
+        && name[4] == 't'
+        && name[5] == '-'
+        && name[6] == 'c'
+        && name[7] == 'u'
+        && name[8] == 'r'
+        && name[9] == 'l'
+        && name[10] == 'y'
+        && name[11] == '-'
+        && name[12] == 'b'
+        && name[13] == 'r'
+        && name[14] == 'a'
+        && name[15] == 'c'
+        && name[16] == 'k'
+        && name[17] == 'e'
+        && name[18] == 't'
+    {
+        return 125;
+    }
+    if name.len() == 5
+        && name[0] == 't'
+        && name[1] == 'i'
+        && name[2] == 'l'
+        && name[3] == 'd'
+        && name[4] == 'e'
+    {
+        return 126;
+    }
+    if name.len() == 3 && name[0] == 'D' && name[1] == 'E' && name[2] == 'L' {
+        return 127;
+    }
+    2147483647
+}
+
 fn parse_capture_class_atom(source: Vec<char>, syntax: char, groups: usize) -> CaptureClassAtom {
     let position = 0;
+    let mut range_endpoint = true;
     let mut valid = position < source.len();
     let mut end = position;
     let mut kind = CAPTURE_CLASS_RANGE;
@@ -4021,7 +4903,21 @@ fn parse_capture_class_atom(source: Vec<char>, syntax: char, groups: usize) -> C
                 || source[position + 1] == '=')
         {
             valid = false;
-            if source[position + 1] == ':' && source.len() - position >= 8 {
+            if source[position + 1] == '.' || source[position + 1] == '=' {
+                let marker = source[position + 1];
+                range_endpoint = marker == '.';
+                end = position + 2;
+                let mut name: Vec<char> = Vec::new();
+                while end + 1 < source.len() && (source[end] != marker || source[end + 1] != ']') {
+                    name.push(source[end]);
+                    end += 1;
+                }
+                if end + 1 < source.len() && name.len() > 0 {
+                    value = capture_collating_value(name);
+                    valid = value != 2147483647;
+                    end += 2;
+                }
+            } else if source[position + 1] == ':' && source.len() - position >= 8 {
                 kind = posix_class_kind(
                     source[position + 2],
                     source[position + 3],
@@ -4089,6 +4985,7 @@ fn parse_capture_class_atom(source: Vec<char>, syntax: char, groups: usize) -> C
     };
     CaptureClassAtom {
         valid,
+        range_endpoint,
         end,
         kind,
         value,
@@ -4139,6 +5036,8 @@ fn parse_capture_class(source: Vec<char>, syntax: char, groups: usize) -> Captur
             }
             let bound = parse_capture_class_atom(lookahead, syntax, groups);
             if bound.valid == false
+                || atom.range_endpoint == false
+                || bound.range_endpoint == false
                 || atom.kind != CAPTURE_CLASS_RANGE
                 || bound.kind != CAPTURE_CLASS_RANGE
                 || bound.value < atom.value
@@ -4318,7 +5217,7 @@ fn capture_pattern_source(pattern: &str, expanded: bool) -> CaptureSource {
                 let current = source[position];
                 atoms.push(current);
                 position += 1;
-                if syntax == 'a' && current == '\\' && position < source.len() {
+                if special == ' ' && syntax == 'a' && current == '\\' && position < source.len() {
                     let marker = source[position];
                     atoms.push(marker);
                     position += 1;
@@ -4339,6 +5238,8 @@ fn capture_pattern_source(pattern: &str, expanded: bool) -> CaptureSource {
                         || source[position] == '=')
                 {
                     special = source[position];
+                    atoms.push(special);
+                    position += 1;
                 } else if current == ']' && position > first + 1 {
                     break;
                 };
@@ -4674,7 +5575,8 @@ fn compile_capture_program_atoms(
                     let current = source[position];
                     class_atoms.push(current);
                     position += 1;
-                    if syntax == 'a' && current == '\\' && position < source.len() {
+                    if special == ' ' && syntax == 'a' && current == '\\' && position < source.len()
+                    {
                         let marker = source[position];
                         class_atoms.push(marker);
                         position += 1;
@@ -4696,6 +5598,8 @@ fn compile_capture_program_atoms(
                             || source[position] == '=')
                     {
                         special = source[position];
+                        class_atoms.push(special);
+                        position += 1;
                     } else if current == ']' && position > first + 1 {
                         break;
                     };

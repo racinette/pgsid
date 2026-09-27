@@ -1731,8 +1731,45 @@ fn angle_word_escapes_follow_the_selected_syntax() {
 }
 
 #[test]
+fn capture_compiler_rejects_invalid_collating_elements_and_equivalence_ranges() {
+    for pattern in [
+        "[[..]]",
+        "[[==]]",
+        "[[.missing.]]",
+        "[[=missing=]]",
+        "[[.Zero.]]",
+        "[[.ab.]]",
+        "[[.a=]]",
+        "[[.a.]",
+        "[[=a=]-z]",
+        "[a-[=z=]]",
+        "[[=a=]-[=z=]]",
+        "[[.z.]-[.a.]]",
+    ] {
+        assert!(
+            matches!(
+                engine::compile(pattern, engine::Options::default()),
+                engine::CompileOutcome::InvalidPattern
+            ),
+            "reference accepted: {pattern}"
+        );
+        assert!(
+            !candidate::supports_capture_program(pattern, false),
+            "{pattern}"
+        );
+        assert!(
+            matches!(
+                candidate::find_capture_program(pattern, "az", 0, true, true, false, false),
+                candidate::MatchOutcome::Uncertain
+            ),
+            "{pattern}"
+        );
+    }
+}
+
+#[test]
 fn capture_compiler_leaves_unlowered_features_uncertain() {
-    for pattern in ["(?z)a", "[[.a.]]", "(a)(?=\\1)"] {
+    for pattern in ["(?z)a", "(a)(?=\\1)"] {
         assert!(
             !candidate::supports_capture_program(pattern, false),
             "{pattern}"
@@ -2942,7 +2979,6 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(basic_bound >= 20);
     assert!(basic_backref >= 20);
     assert!(bracket_word >= 10);
-    assert!(collating_bracket >= 10);
     assert!(basic_transparent_group >= 4);
     assert!(basic_special_bracket >= 4);
     assert!(basic_literal_escaped_letter >= 2);
