@@ -142,7 +142,7 @@ fn execute_pattern(
     let parsed = capture_pattern_source(pattern, syntax, options.expanded);
     let program = compile_capture_program_atoms(
         parsed.atoms,
-        parsed.escape_ends,
+        parsed.token_ends,
         parsed.syntax,
         parsed.valid,
         parsed.case_mode,
@@ -512,7 +512,7 @@ struct CaptureSource {
     case_mode: char,
     newline_mode: char,
     atoms: Vec<char>,
-    escape_ends: Vec<usize>,
+    token_ends: Vec<usize>,
 }
 
 struct CaptureNumeric {
@@ -1860,9 +1860,10 @@ fn capture_pattern_source(pattern: &str, mut syntax: char, expanded: bool) -> Ca
         newline_mode = 's';
     }
     let mut atoms: Vec<char> = Vec::new();
-    let mut escape_ends: Vec<usize> = Vec::new();
+    let mut token_ends: Vec<usize> = Vec::new();
     while valid && position < source.len() {
         let atom = source[position];
+        let token_start = atoms.len();
         if syntax == 'q' {
             atoms.push(atom);
             position += 1;
@@ -1907,7 +1908,6 @@ fn capture_pattern_source(pattern: &str, mut syntax: char, expanded: bool) -> Ca
                 };
             }
         } else if atom == '\\' {
-            let escape_start = atoms.len();
             atoms.push(atom);
             position += 1;
             if position < source.len() {
@@ -1943,8 +1943,6 @@ fn capture_pattern_source(pattern: &str, mut syntax: char, expanded: bool) -> Ca
                     }
                 };
             };
-            escape_ends.push(escape_start);
-            escape_ends.push(atoms.len());
         } else if syntax == 'a'
             && atom == '('
             && source.len() - position >= 3
@@ -1955,11 +1953,32 @@ fn capture_pattern_source(pattern: &str, mut syntax: char, expanded: bool) -> Ca
             while position < source.len() && source[position] != ')' {
                 position += 1;
             }
-            if position == source.len() {
-                valid = false;
-            } else {
+            if position < source.len() {
                 position += 1;
             };
+        } else if syntax == 'a' && atom == '(' {
+            atoms.push(atom);
+            position += 1;
+            if position < source.len() && source[position] == '?' {
+                atoms.push('?');
+                position += 1;
+                if position < source.len() {
+                    let marker = source[position];
+                    atoms.push(marker);
+                    position += 1;
+                    if marker == '<' && position < source.len() {
+                        atoms.push(source[position]);
+                        position += 1;
+                    }
+                }
+            }
+        } else if syntax == 'a' && (atom == '*' || atom == '+' || atom == '?') {
+            atoms.push(atom);
+            position += 1;
+            if position < source.len() && source[position] == '?' {
+                atoms.push('?');
+                position += 1;
+            }
         } else if effective_expanded && atom == '#' {
             while position < source.len() && source[position] != '\n' {
                 position += 1;
@@ -1971,6 +1990,60 @@ fn capture_pattern_source(pattern: &str, mut syntax: char, expanded: bool) -> Ca
             atoms.push(atom);
             position += 1;
         };
+        if syntax != 'q' && atoms.len() > token_start {
+            let basic_bound = syntax == 'b'
+                && atoms.len() - token_start == 2
+                && atoms[token_start] == '\\'
+                && atoms[token_start + 1] == '{';
+            if basic_bound || (syntax != 'b' && atoms[token_start] == '{') {
+                let mut in_bound = basic_bound;
+                let mut first = true;
+                while position < source.len() {
+                    let current = source[position];
+                    if effective_expanded
+                        && (current == ' ' || ((current as u32) >= 9 && (current as u32) <= 13))
+                    {
+                        position += 1;
+                    } else if effective_expanded && current == '#' {
+                        while position < source.len() && source[position] != '\n' {
+                            position += 1;
+                        }
+                    } else {
+                        if first && (current as u32) >= 48 && (current as u32) <= 57 {
+                            in_bound = true;
+                        }
+                        first = false;
+                        if in_bound == false {
+                            break;
+                        }
+                        atoms.push(current);
+                        position += 1;
+                        if basic_bound && current == '\\' {
+                            if position < source.len() && source[position] == '}' {
+                                atoms.push('}');
+                                position += 1;
+                            } else {
+                                valid = false;
+                            };
+                            break;
+                        } else if basic_bound == false && current == '}' {
+                            if syntax == 'a' && position < source.len() && source[position] == '?' {
+                                atoms.push('?');
+                                position += 1;
+                            }
+                            break;
+                        } else if current != ',' && ((current as u32) < 48 || (current as u32) > 57)
+                        {
+                            valid = false;
+                            break;
+                        };
+                    };
+                }
+            }
+        }
+        while token_ends.len() < atoms.len() {
+            token_ends.push(atoms.len());
+        }
     }
     CaptureSource {
         valid,
@@ -1978,13 +2051,13 @@ fn capture_pattern_source(pattern: &str, mut syntax: char, expanded: bool) -> Ca
         case_mode,
         newline_mode,
         atoms,
-        escape_ends,
+        token_ends,
     }
 }
 
 fn compile_capture_program_atoms(
     source: Vec<char>,
-    escape_ends: Vec<usize>,
+    token_ends: Vec<usize>,
     syntax: char,
     mut valid: bool,
     case_mode: char,
@@ -2011,7 +2084,6 @@ fn compile_capture_program_atoms(
     let mut assertions = false;
     let mut assertion_depth = 0;
     let mut position = 0;
-    let mut escape_index = 0;
     let mut basic_star_literal = true;
     while position < source.len() && valid {
         let mut atom = source[position];
@@ -2051,7 +2123,8 @@ fn compile_capture_program_atoms(
         if atom == ']'
             || atom == '}'
             || (atom == '{'
-                && (source.len() - position < 2
+                && (token_ends[position] == position + 1
+                    || source.len() - position < 2
                     || (source[position + 1] as u32) < 48
                     || (source[position + 1] as u32) > 57))
         {
@@ -2070,7 +2143,11 @@ fn compile_capture_program_atoms(
             let first = groups + 1;
             let mut operation = NODE_GROUP;
             position += 1;
-            if syntax != 'b' && position < source.len() && source[position] == '?' {
+            if syntax != 'b'
+                && position < source.len()
+                && source[position] == '?'
+                && token_ends[position - 1] > position
+            {
                 if syntax != 'a' {
                     valid = false;
                 }
@@ -2386,16 +2463,7 @@ fn compile_capture_program_atoms(
                     || escaped == 'U'
                     || ((escaped as u32) >= 48 && (escaped as u32) <= 57)
                 {
-                    while escape_index < escape_ends.len()
-                        && escape_ends[escape_index] < escape_start
-                    {
-                        escape_index += 2;
-                    }
-                    let mut limit = source.len();
-                    if escape_index < escape_ends.len() && escape_ends[escape_index] == escape_start
-                    {
-                        limit = escape_ends[escape_index + 1];
-                    }
+                    let limit = token_ends[escape_start];
                     let mut window: Vec<char> = Vec::new();
                     let mut next = escape_start;
                     while next < limit && next - escape_start < 257 {
@@ -2446,6 +2514,7 @@ fn compile_capture_program_atoms(
             let mut upper = 0;
             let mut unbounded = false;
             let mut fixed = false;
+            let mut quantifier_end = position;
             if syntax != 'q' && position < source.len() {
                 let mut basic_bound = false;
                 if syntax == 'b'
@@ -2456,6 +2525,7 @@ fn compile_capture_program_atoms(
                     basic_bound = true;
                     position += 1;
                 }
+                quantifier_end = token_ends[position];
                 let quantifier = source[position];
                 if (quantifier == '*' && (syntax != 'b' || basic_star_literal == false))
                     || (syntax != 'b' && (quantifier == '+' || quantifier == '?'))
@@ -2469,6 +2539,7 @@ fn compile_capture_program_atoms(
                     position += 1;
                 } else if (syntax != 'b' || basic_bound)
                     && quantifier == '{'
+                    && quantifier_end > position + 1
                     && source.len() - position >= 2
                     && (source[position + 1] as u32) >= 48
                     && (source[position + 1] as u32) <= 57
@@ -2537,13 +2608,16 @@ fn compile_capture_program_atoms(
                     valid = false;
                 };
                 let mut preference = 1;
-                if syntax == 'a' && position < source.len() && source[position] == '?' {
+                if syntax == 'a' && position < quantifier_end && source[position] == '?' {
                     preference = 2;
                     position += 1;
                 };
                 if fixed {
                     preference = inner.preference;
                 };
+                if lower == 0 && upper == 0 && unbounded == false {
+                    preference = 0;
+                }
                 let child = node;
                 node = nodes.len();
                 nodes.push(CaptureNode {
@@ -2965,6 +3039,9 @@ fn execute_capture_tree(
                         upper = upper - 1;
                     }
                 }
+                let repeated_reference = node.operation == NODE_REPEAT
+                    && program.nodes[node.left].operation == VM_BACKREF
+                    && (node.unbounded || upper > 0);
                 let child_shortest = program.nodes[node.left].preference == 2;
                 let mut minimum = program.minimums[frame.node];
                 let mut maximum = program.maximums[frame.node];
@@ -3004,16 +3081,32 @@ fn execute_capture_tree(
                         if frame.begin != frame.end {
                             complete = true;
                         } else {
-                            cursor = frame.begin;
+                            let mut available = haystack.len() - frame.begin;
                             if node.operation >= NODE_LOOKBEHIND {
-                                cursor = 0;
-                                child_begin = 0;
+                                available = frame.begin;
                             }
-                            child_end = frame.begin;
-                            child = true;
-                            phase = DISSECT_ASSERTION;
+                            let minimum_width = program.minimums[node.left];
+                            let mut maximum_width = program.maximums[node.left];
+                            if maximum_width > available {
+                                maximum_width = available;
+                            }
+                            if minimum_width > available {
+                                success = node.operation == NODE_NOT_LOOKAHEAD
+                                    || node.operation == NODE_NOT_LOOKBEHIND;
+                                complete = true;
+                            } else {
+                                cursor = frame.begin + minimum_width;
+                                child_end = cursor;
+                                if node.operation >= NODE_LOOKBEHIND {
+                                    cursor = frame.begin - maximum_width;
+                                    child_begin = cursor;
+                                    child_end = frame.begin;
+                                }
+                                child = true;
+                                phase = DISSECT_ASSERTION;
+                            };
                         };
-                    } else if node.operation == NODE_REPEAT {
+                    } else if node.operation == NODE_REPEAT && repeated_reference == false {
                         if frame.prefix == false && lower > 0 && program.references[node.left] == 0
                         {
                             cursor = frame.end;
@@ -3066,27 +3159,48 @@ fn execute_capture_tree(
                                 next_newline,
                                 line_anchors,
                             );
-                        } else if node.operation == VM_BACKREF {
-                            let register = captures[frame.capture + node.group];
+                        } else if node.operation == VM_BACKREF || repeated_reference {
+                            let mut reference = node.group;
+                            let mut minimum_repeats = 1;
+                            let mut maximum_repeats = 1;
+                            let mut unbounded_repeats = false;
+                            if repeated_reference {
+                                reference = program.nodes[node.left].group;
+                                minimum_repeats = lower;
+                                maximum_repeats = upper;
+                                unbounded_repeats = node.unbounded;
+                            }
+                            let register = captures[frame.capture + reference];
                             let length = register.end - register.start;
-                            matched = register.status == 2 && length <= haystack.len() - end;
-                            let mut offset = 0;
-                            while matched && offset < length {
-                                if work == MAX_CAPTURE_WORK {
-                                    return make_capture_run_result(2, 0, 0, 0);
+                            matched = register.status == 2;
+                            if length == 0 {
+                                matched = matched && end == frame.end;
+                            } else {
+                                let mut repeats = 0;
+                                while matched && end < frame.end {
+                                    matched = length <= frame.end - end
+                                        && (unbounded_repeats || repeats < maximum_repeats);
+                                    let mut offset = 0;
+                                    while matched && offset < length {
+                                        if work == MAX_CAPTURE_WORK {
+                                            return make_capture_run_result(2, 0, 0, 0);
+                                        }
+                                        work += 1;
+                                        let actual = haystack[end + offset];
+                                        let expected = haystack[register.start + offset];
+                                        matched = actual == expected
+                                            || (case_sensitive == false
+                                                && actual.to_ascii_lowercase()
+                                                    == expected.to_ascii_lowercase());
+                                        offset += 1;
+                                    }
+                                    if matched {
+                                        end += length;
+                                        repeats += 1;
+                                    }
                                 }
-                                work += 1;
-                                let actual = haystack[end + offset];
-                                let expected = haystack[register.start + offset];
-                                matched = actual == expected
-                                    || (case_sensitive == false
-                                        && actual.to_ascii_lowercase()
-                                            == expected.to_ascii_lowercase());
-                                offset += 1;
-                            }
-                            if matched {
-                                end += length;
-                            }
+                                matched = matched && repeats >= minimum_repeats;
+                            };
                         } else if node.operation == VM_CLASS {
                             if end < haystack.len() {
                                 let mut class_position = node.group;
@@ -3204,8 +3318,10 @@ fn execute_capture_tree(
                     } else {
                         let mut limit = haystack.len();
                         if node.operation >= NODE_LOOKBEHIND {
-                            limit = frame.begin;
-                        }
+                            limit = frame.begin - program.minimums[node.left];
+                        } else if program.maximums[node.left] < haystack.len() - frame.begin {
+                            limit = frame.begin + program.maximums[node.left];
+                        };
                         if cursor == limit {
                             success = node.operation == NODE_NOT_LOOKAHEAD
                                 || node.operation == NODE_NOT_LOOKBEHIND;

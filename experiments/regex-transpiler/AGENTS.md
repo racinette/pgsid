@@ -2,8 +2,8 @@
 
 These instructions apply throughout this experiment. The root `AGENTS.md`
 also applies. Keep the Rust source valid Rust and keep both generated targets
-faithful to the behavior of that source. The live regex engine is a behavioral
-reference; expand the transpilable engine only through the shared dialect.
+faithful to the behavior of that source. Use stored PGlite fixtures as the
+behavioral oracle. Expand the engine only through the shared dialect.
 
 ## Write Rust in the shared dialect
 

@@ -52,7 +52,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 		"ordinary": {Kind: NewlineModeOrdinary}, "sensitive": {Kind: NewlineModeSensitive},
 		"stop": {Kind: NewlineModeStop}, "anchors": {Kind: NewlineModeAnchors},
 	}
-	for _, path := range []string{"postgres-fixtures.json", "stress-fixtures.json", "targeted-postgres-fixtures.json", "stress-position-fixtures.json", "stress-boundary-fixtures.json"} {
+	for _, path := range []string{"postgres-fixtures.json", "stress-fixtures.json", "targeted-postgres-fixtures.json", "stress-position-fixtures.json", "stress-boundary-fixtures.json", "stress-classification-fixtures.json"} {
 		data, err := os.ReadFile(path)
 		if err != nil {
 			t.Fatal(err)
