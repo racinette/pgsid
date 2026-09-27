@@ -1902,7 +1902,7 @@ fn capture_compiler_matches_every_fixture_it_accepts() {
 }
 
 #[test]
-fn unified_find_preserves_uncertainty_at_resource_limits() {
+fn unified_operations_preserve_uncertainty_at_resource_limits() {
     let options = candidate::RegexOptions {
         syntax: candidate::Syntax::Advanced,
         newline: candidate::NewlineMode::Ordinary,
@@ -1917,7 +1917,24 @@ fn unified_find_preserves_uncertainty_at_resource_limits() {
             candidate::find(&pattern, "a", 0, options),
             candidate::MatchOutcome::Uncertain
         ));
+        assert!(matches!(
+            candidate::count(&pattern, "a", 0, options),
+            candidate::CountOutcome::Uncertain
+        ));
     }
+    let subject = "a".repeat(250000);
+    assert!(matches!(
+        candidate::find("(?=a)(?=a)", &subject, 0, options),
+        candidate::MatchOutcome::Found(_)
+    ));
+    assert!(matches!(
+        candidate::count("(?=a)(?=a)", &subject, 0, options),
+        candidate::CountOutcome::Uncertain
+    ));
+    assert!(matches!(
+        candidate::count("[", "", 100, options),
+        candidate::CountOutcome::InvalidPattern
+    ));
     assert!(matches!(
         candidate::find("[", "", 100, options),
         candidate::MatchOutcome::InvalidPattern
@@ -1925,8 +1942,9 @@ fn unified_find_preserves_uncertainty_at_resource_limits() {
 }
 
 #[test]
-fn unified_find_matches_every_postgres_fixture() {
-    let mut checked = 0;
+fn unified_operations_match_every_postgres_fixture() {
+    let mut finds = 0;
+    let mut counts = 0;
     for source in [
         include_str!("../conformance/postgres-fixtures.json"),
         include_str!("../conformance/stress-fixtures.json"),
@@ -1936,9 +1954,6 @@ fn unified_find_matches_every_postgres_fixture() {
     ] {
         let document: Value = serde_json::from_str(source).unwrap();
         for fixture in document["fixtures"].as_array().unwrap() {
-            if fixture["operation"] == "count" {
-                continue;
-            }
             let input = &fixture["input"];
             let options = &input["options"];
             let syntax = match options["syntax"].as_str().unwrap() {
@@ -1955,128 +1970,43 @@ fn unified_find_matches_every_postgres_fixture() {
                 "anchors" => candidate::NewlineMode::Anchors,
                 other => panic!("unexpected newline mode: {other}"),
             };
-            let outcome = candidate::find(
-                input["pattern"].as_str().unwrap(),
-                input["subject"].as_str().unwrap(),
-                input["start"].as_u64().unwrap_or(1) as usize - 1,
-                candidate::RegexOptions {
-                    syntax,
-                    newline,
-                    case_sensitive: options["caseSensitive"].as_bool().unwrap(),
-                    expanded: options["expanded"].as_bool().unwrap(),
-                },
-            );
-            let actual = match outcome {
-                candidate::MatchOutcome::Found(span) => {
-                    json!({"kind":"Found", "value":{"start":span.start, "end":span.end}})
-                }
-                candidate::MatchOutcome::NoMatch => json!({"kind":"NoMatch"}),
-                candidate::MatchOutcome::InvalidPattern => {
-                    json!({"kind":"InvalidPattern", "sqlstate":"2201B"})
-                }
-                candidate::MatchOutcome::Uncertain => json!({"kind":"Uncertain"}),
+            let options = candidate::RegexOptions {
+                syntax,
+                newline,
+                case_sensitive: options["caseSensitive"].as_bool().unwrap(),
+                expanded: options["expanded"].as_bool().unwrap(),
             };
-            assert_eq!(actual, fixture["expected"], "unified find: {input}");
-            checked += 1;
+            let pattern = input["pattern"].as_str().unwrap();
+            let subject = input["subject"].as_str().unwrap();
+            let from = input["start"].as_u64().unwrap_or(1) as usize - 1;
+            let actual = if fixture["operation"] == "count" {
+                counts += 1;
+                match candidate::count(pattern, subject, from, options) {
+                    candidate::CountOutcome::Count(value) => json!({"kind":"Count", "value":value}),
+                    candidate::CountOutcome::InvalidPattern => {
+                        json!({"kind":"InvalidPattern", "sqlstate":"2201B"})
+                    }
+                    candidate::CountOutcome::Uncertain => json!({"kind":"Uncertain"}),
+                }
+            } else {
+                assert!(fixture["operation"].is_null() || fixture["operation"] == "find");
+                finds += 1;
+                match candidate::find(pattern, subject, from, options) {
+                    candidate::MatchOutcome::Found(span) => {
+                        json!({"kind":"Found", "value":{"start":span.start,"end":span.end}})
+                    }
+                    candidate::MatchOutcome::NoMatch => json!({"kind":"NoMatch"}),
+                    candidate::MatchOutcome::InvalidPattern => {
+                        json!({"kind":"InvalidPattern", "sqlstate":"2201B"})
+                    }
+                    candidate::MatchOutcome::Uncertain => json!({"kind":"Uncertain"}),
+                }
+            };
+            assert_eq!(actual, fixture["expected"], "unified operation: {input}");
         }
     }
-    eprintln!("unified find: {checked} PostgreSQL fixtures");
-}
-
-#[test]
-fn supported_count_matches_pglite_fixtures() {
-    let fixtures: Value =
-        serde_json::from_str(include_str!("../conformance/stress-position-fixtures.json")).unwrap();
-    let mut checked = 0;
-    for fixture in fixtures["fixtures"].as_array().unwrap() {
-        if fixture["operation"] != "count" {
-            continue;
-        }
-        let input = &fixture["input"];
-        let options = &input["options"];
-        let pattern = input["pattern"].as_str().unwrap();
-        let simple = options["syntax"] == "advanced"
-            && (options["expanded"] == false && candidate::supports_simple_advanced(pattern)
-                || options["expanded"] == true && candidate::supports_expanded_advanced(pattern));
-        let choice = options["syntax"] == "advanced"
-            && candidate::supports_group_choice(pattern, options["expanded"] == true);
-        let lookbehind = options["syntax"] == "advanced"
-            && candidate::supports_fixed_lookbehind(pattern, options["expanded"] == true);
-        let lookahead = options["syntax"] == "advanced"
-            && candidate::supports_leading_lookahead(pattern, options["expanded"] == true);
-        let backref = options["syntax"] == "advanced"
-            && candidate::supports_fixed_backref(pattern, options["expanded"] == true);
-        if !simple && !choice && !lookbehind && !lookahead && !backref {
-            continue;
-        }
-        let newline = options["newline"].as_str().unwrap();
-        let outcome = if backref {
-            candidate::count_fixed_backref(
-                pattern,
-                input["subject"].as_str().unwrap(),
-                input["start"].as_u64().unwrap() as usize - 1,
-                options["caseSensitive"].as_bool().unwrap(),
-                newline == "ordinary" || newline == "anchors",
-                newline == "sensitive" || newline == "anchors",
-                options["expanded"] == true,
-            )
-        } else if lookahead {
-            candidate::count_leading_lookahead(
-                pattern,
-                input["subject"].as_str().unwrap(),
-                input["start"].as_u64().unwrap() as usize - 1,
-                options["caseSensitive"].as_bool().unwrap(),
-                newline == "ordinary" || newline == "anchors",
-                newline == "sensitive" || newline == "anchors",
-                options["expanded"] == true,
-            )
-        } else if lookbehind {
-            candidate::count_fixed_lookbehind(
-                pattern,
-                input["subject"].as_str().unwrap(),
-                input["start"].as_u64().unwrap() as usize - 1,
-                options["caseSensitive"].as_bool().unwrap(),
-                newline == "ordinary" || newline == "anchors",
-                newline == "sensitive" || newline == "anchors",
-                options["expanded"] == true,
-            )
-        } else if choice {
-            candidate::count_group_choice(
-                pattern,
-                input["subject"].as_str().unwrap(),
-                input["start"].as_u64().unwrap() as usize - 1,
-                options["caseSensitive"].as_bool().unwrap(),
-                newline == "ordinary" || newline == "anchors",
-                newline == "sensitive" || newline == "anchors",
-                options["expanded"] == true,
-            )
-        } else if options["expanded"] == true {
-            candidate::count_expanded_advanced(
-                pattern,
-                input["subject"].as_str().unwrap(),
-                input["start"].as_u64().unwrap() as usize - 1,
-                options["caseSensitive"].as_bool().unwrap(),
-                newline == "ordinary" || newline == "anchors",
-                newline == "sensitive" || newline == "anchors",
-            )
-        } else {
-            candidate::count_simple_advanced(
-                pattern,
-                input["subject"].as_str().unwrap(),
-                input["start"].as_u64().unwrap() as usize - 1,
-                options["caseSensitive"].as_bool().unwrap(),
-                newline == "ordinary" || newline == "anchors",
-                newline == "sensitive" || newline == "anchors",
-            )
-        };
-        let actual = match outcome {
-            candidate::CountOutcome::Count(value) => json!({ "kind": "Count", "value": value }),
-            candidate::CountOutcome::Uncertain => json!({ "kind": "Uncertain" }),
-        };
-        assert_eq!(actual, fixture["expected"], "input={input}");
-        checked += 1;
-    }
-    assert_eq!(checked, 180);
+    assert!(finds > 0 && counts > 0);
+    eprintln!("unified operations: {finds} find and {counts} count PostgreSQL fixtures");
 }
 
 #[test]

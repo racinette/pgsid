@@ -1702,3 +1702,34 @@ fn rust_api_options_match_postgres() {
         );
     }
 }
+
+#[test]
+fn rust_targeted_count_matches_postgres() {
+    let document: Value = serde_json::from_str(include_str!(
+        "../conformance/targeted-postgres-fixtures.json"
+    ))
+    .unwrap();
+    let mut checked = 0;
+    for fixture in document["fixtures"].as_array().unwrap() {
+        if fixture["operation"] != "count" {
+            continue;
+        }
+        let input = &fixture["input"];
+        let actual = match engine::compile(input["pattern"].as_str().unwrap(), options(input)) {
+            engine::CompileOutcome::InvalidPattern => {
+                json!({"kind":"InvalidPattern", "sqlstate":"2201B"})
+            }
+            engine::CompileOutcome::Uncertain => json!({"kind":"Uncertain"}),
+            engine::CompileOutcome::Ready(program) => match program.count(
+                input["subject"].as_str().unwrap(),
+                input["start"].as_i64().unwrap() as i32,
+            ) {
+                engine::CountOutcome::Count(value) => json!({"kind":"Count", "value":value}),
+                other => panic!("unexpected count outcome: {other:?}"),
+            },
+        };
+        assert_eq!(actual, fixture["expected"], "targeted count: {input}");
+        checked += 1;
+    }
+    assert!(checked > 0);
+}

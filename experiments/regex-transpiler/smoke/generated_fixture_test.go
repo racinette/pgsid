@@ -44,7 +44,6 @@ type fixtureDocument struct {
 func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 	findFixtures := 0
 	countFixtures := 0
-	countSupported := 0
 	syntaxKinds := map[string]Syntax{
 		"advanced": {Kind: SyntaxAdvanced}, "basic": {Kind: SyntaxBasic},
 		"extended": {Kind: SyntaxExtended}, "literal": {Kind: SyntaxLiteral},
@@ -66,48 +65,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			t.Fatalf("unexpected fixture document: %s", path)
 		}
 		for index, fixture := range document.Fixtures {
-			if fixture.Operation == "count" {
-				countFixtures++
-				input := fixture.Input
-				simple := (!input.Options.Expanded && SupportsSimpleAdvanced(input.Pattern)) || (input.Options.Expanded && SupportsExpandedAdvanced(input.Pattern))
-				choice := SupportsGroupChoice(input.Pattern, input.Options.Expanded)
-				lookbehind := SupportsFixedLookbehind(input.Pattern, input.Options.Expanded)
-				lookahead := SupportsLeadingLookahead(input.Pattern, input.Options.Expanded)
-				backrefCount := SupportsFixedBackref(input.Pattern, input.Options.Expanded)
-				if input.Options.Syntax == "advanced" && (simple || choice || lookbehind || lookahead || backrefCount) {
-					from := input.Start - 1
-					crossesNewline := input.Options.Newline == "ordinary" || input.Options.Newline == "anchors"
-					lineAnchors := input.Options.Newline == "sensitive" || input.Options.Newline == "anchors"
-					var actual CountOutcome
-					if backrefCount {
-						actual = CountFixedBackref(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors, input.Options.Expanded)
-					} else if lookahead {
-						actual = CountLeadingLookahead(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors, input.Options.Expanded)
-					} else if lookbehind {
-						actual = CountFixedLookbehind(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors, input.Options.Expanded)
-					} else if choice {
-						actual = CountGroupChoice(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors, input.Options.Expanded)
-					} else if input.Options.Expanded {
-						actual = CountExpandedAdvanced(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors)
-					} else {
-						actual = CountSimpleAdvanced(input.Pattern, input.Subject, from, input.Options.CaseSensitive, crossesNewline, lineAnchors)
-					}
-					var count int
-					if err := json.Unmarshal(fixture.Expected.Value, &count); err != nil {
-						t.Fatal(err)
-					}
-					expected := CountOutcome{Kind: CountOutcomeCount, Count: count}
-					if actual != expected {
-						t.Errorf("%s count fixture %d: input=%+v, expected=%+v, actual=%+v", path, index, input, expected, actual)
-					}
-					countSupported++
-				}
-				if countSupported != countFixtures {
-					t.Fatalf("unsupported count fixture: %+v", input)
-				}
-				continue
-			}
-			if fixture.Operation != "" && fixture.Operation != "find" {
+			if fixture.Operation != "" && fixture.Operation != "find" && fixture.Operation != "count" {
 				t.Fatalf("unknown operation: %s", fixture.Operation)
 			}
 			input := fixture.Input
@@ -123,10 +81,32 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			if input.Start > 0 {
 				from = input.Start - 1
 			}
-			actual := Find(input.Pattern, input.Subject, from, RegexOptions{
-				Syntax: syntax, Newline: newline,
-				CaseSensitive: input.Options.CaseSensitive, Expanded: input.Options.Expanded,
-			})
+			options := RegexOptions{Syntax: syntax, Newline: newline, CaseSensitive: input.Options.CaseSensitive, Expanded: input.Options.Expanded}
+			if fixture.Operation == "count" {
+				actual := Count(input.Pattern, input.Subject, from, options)
+				var expected CountOutcome
+				switch fixture.Expected.Kind {
+				case "Count":
+					var count int
+					if err := json.Unmarshal(fixture.Expected.Value, &count); err != nil {
+						t.Fatal(err)
+					}
+					expected = CountOutcome{Kind: CountOutcomeCount, Count: count}
+				case "InvalidPattern":
+					if fixture.Expected.Sqlstate != "2201B" {
+						t.Fatalf("unexpected SQLSTATE: %s", fixture.Expected.Sqlstate)
+					}
+					expected = CountOutcome{Kind: CountOutcomeInvalidPattern}
+				default:
+					t.Fatalf("unexpected count outcome: %s", fixture.Expected.Kind)
+				}
+				if actual != expected {
+					t.Errorf("%s count fixture %d: input=%+v, expected=%+v, actual=%+v", path, index, input, expected, actual)
+				}
+				countFixtures++
+				continue
+			}
+			actual := Find(input.Pattern, input.Subject, from, options)
 			var expected MatchOutcome
 			switch fixture.Expected.Kind {
 			case "Found":
@@ -151,8 +131,5 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			findFixtures++
 		}
 	}
-	if countSupported != countFixtures {
-		t.Fatalf("count fixtures: %d/%d", countSupported, countFixtures)
-	}
-	t.Logf("unified find: %d PostgreSQL fixtures; count: %d/%d; zero skipped", findFixtures, countSupported, countFixtures)
+	t.Logf("unified operations: %d find and %d count PostgreSQL fixtures; zero skipped", findFixtures, countFixtures)
 }

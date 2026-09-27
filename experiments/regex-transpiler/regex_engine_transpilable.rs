@@ -69,10 +69,68 @@ pub struct RegexOptions {
 }
 
 pub fn find(pattern: &str, subject: &str, from: usize, options: RegexOptions) -> MatchOutcome {
+    capture_match_outcome(execute_pattern(pattern, subject, from, options, false))
+}
+
+pub fn count(pattern: &str, subject: &str, from: usize, options: RegexOptions) -> CountOutcome {
+    let result = execute_pattern(pattern, subject, from, options, true);
+    if result.kind == 2 {
+        return CountOutcome::Uncertain;
+    }
+    if result.kind == 3 {
+        return CountOutcome::InvalidPattern;
+    }
+    CountOutcome::Count(result.count)
+}
+
+struct CaptureRunResult {
+    kind: usize,
+    start: usize,
+    end: usize,
+    count: usize,
+}
+
+fn make_capture_run_result(
+    kind: usize,
+    start: usize,
+    end: usize,
+    count: usize,
+) -> CaptureRunResult {
+    CaptureRunResult {
+        kind,
+        start,
+        end,
+        count,
+    }
+}
+
+fn capture_match_outcome(result: CaptureRunResult) -> MatchOutcome {
+    if result.kind == 2 {
+        return MatchOutcome::Uncertain;
+    }
+    if result.kind == 3 {
+        return MatchOutcome::InvalidPattern;
+    }
+    if result.kind == 1 {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Found(MatchSpan {
+        start: result.start,
+        end: result.end,
+    })
+}
+
+fn execute_pattern(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    options: RegexOptions,
+    counting: bool,
+) -> CaptureRunResult {
     if options.syntax == Syntax::Literal
         && (options.expanded || options.newline != NewlineMode::Ordinary)
     {
-        return MatchOutcome::InvalidPattern;
+        return make_capture_run_result(3, 0, 0, 0);
     }
     let mut syntax = 'a';
     if options.syntax == Syntax::Basic {
@@ -92,18 +150,19 @@ pub fn find(pattern: &str, subject: &str, from: usize, options: RegexOptions) ->
         parsed.newline_mode,
     );
     if program.limited {
-        return MatchOutcome::Uncertain;
+        return make_capture_run_result(2, 0, 0, 0);
     }
     if program.valid == false {
-        return MatchOutcome::InvalidPattern;
+        return make_capture_run_result(3, 0, 0, 0);
     }
-    run_capture_program(
+    execute_capture_program(
         program,
         subject,
         from,
         options.case_sensitive,
         options.newline == NewlineMode::Ordinary || options.newline == NewlineMode::Anchors,
         options.newline == NewlineMode::Sensitive || options.newline == NewlineMode::Anchors,
+        counting,
     )
 }
 
@@ -135,6 +194,7 @@ pub struct SearchResult {
 
 pub enum CountOutcome {
     Count(usize),
+    InvalidPattern,
     Uncertain,
 }
 
@@ -6320,7 +6380,7 @@ fn make_capture_dissect_frame(
     }
 }
 
-fn run_capture_tree(
+fn run_capture_program(
     program: CaptureProgram,
     subject: &str,
     from: usize,
@@ -6328,6 +6388,27 @@ fn run_capture_tree(
     dot_crosses_newline: bool,
     line_anchors: bool,
 ) -> MatchOutcome {
+    capture_match_outcome(execute_capture_program(
+        program,
+        subject,
+        from,
+        case_sensitive,
+        dot_crosses_newline,
+        line_anchors,
+        false,
+    ))
+}
+
+fn execute_capture_tree(
+    program: CaptureProgram,
+    subject: &str,
+    from: usize,
+    case_sensitive: bool,
+    dot_crosses_newline: bool,
+    line_anchors: bool,
+    counting: bool,
+) -> CaptureRunResult {
+    let mut count = 0;
     let haystack: Vec<char> = subject.chars().collect();
     let mut width = 0;
     if program.backreferences {
@@ -6336,8 +6417,9 @@ fn run_capture_tree(
     let mut work = 0;
     let mut start = from;
     while start <= haystack.len() {
+        let mut next_start = start + 1;
         if program.minimums[program.root] > haystack.len() - start {
-            return MatchOutcome::NoMatch;
+            return make_capture_run_result(1, 0, 0, count);
         }
         let minimum_end = start + program.minimums[program.root];
         let mut maximum_end = haystack.len();
@@ -6381,7 +6463,7 @@ fn run_capture_tree(
             let mut returned = 0;
             while depth > 0 {
                 if work == MAX_CAPTURE_WORK {
-                    return MatchOutcome::Uncertain;
+                    return make_capture_run_result(2, 0, 0, 0);
                 }
                 work += 1;
                 let frame = frames[depth - 1];
@@ -6514,7 +6596,7 @@ fn run_capture_tree(
                             let mut offset = 0;
                             while matched && offset < length {
                                 if work == MAX_CAPTURE_WORK {
-                                    return MatchOutcome::Uncertain;
+                                    return make_capture_run_result(2, 0, 0, 0);
                                 }
                                 work += 1;
                                 let actual = haystack[end + offset];
@@ -6534,7 +6616,7 @@ fn run_capture_tree(
                                 let mut included = false;
                                 while program.class_members[class_position].kind > 0 {
                                     if work == MAX_CAPTURE_WORK {
-                                        return MatchOutcome::Uncertain;
+                                        return make_capture_run_result(2, 0, 0, 0);
                                     }
                                     work += 1;
                                     if capture_class_member_matches(
@@ -6609,7 +6691,7 @@ fn run_capture_tree(
                         group = 0;
                         while group < width {
                             if work == MAX_CAPTURE_WORK {
-                                return MatchOutcome::Uncertain;
+                                return make_capture_run_result(2, 0, 0, 0);
                             }
                             work += 1;
                             if group == node.group {
@@ -6787,7 +6869,7 @@ fn run_capture_tree(
                             group = 0;
                             while group < width {
                                 if work == MAX_CAPTURE_WORK {
-                                    return MatchOutcome::Uncertain;
+                                    return make_capture_run_result(2, 0, 0, 0);
                                 }
                                 work += 1;
                                 if group >= node.first && group <= node.last {
@@ -6820,10 +6902,18 @@ fn run_capture_tree(
                 };
             }
             if success {
-                return MatchOutcome::Found(MatchSpan {
-                    start,
-                    end: match_end,
-                });
+                if counting == false {
+                    return make_capture_run_result(0, start, match_end, 1);
+                }
+                count += 1;
+                next_start = match_end;
+                if match_end == start {
+                    if match_end == haystack.len() {
+                        return make_capture_run_result(1, 0, 0, count);
+                    }
+                    next_start += 1;
+                }
+                break;
             }
             if program.shortest {
                 if match_end == maximum_end {
@@ -6837,19 +6927,20 @@ fn run_capture_tree(
                 match_end = match_end - 1;
             };
         }
-        start += 1;
+        start = next_start;
     }
-    MatchOutcome::NoMatch
+    make_capture_run_result(1, 0, 0, count)
 }
 
-fn run_capture_program(
+fn execute_capture_program(
     program: CaptureProgram,
     subject: &str,
     from: usize,
     mut case_sensitive: bool,
     mut dot_crosses_newline: bool,
     mut line_anchors: bool,
-) -> MatchOutcome {
+    counting: bool,
+) -> CaptureRunResult {
     if program.case_mode == 'i' {
         case_sensitive = false;
     } else if program.case_mode == 'c' {
@@ -6869,18 +6960,20 @@ fn run_capture_program(
         line_anchors = false;
     }
     if program.interpreted {
-        return run_capture_tree(
+        return execute_capture_tree(
             program,
             subject,
             from,
             case_sensitive,
             dot_crosses_newline,
             line_anchors,
+            counting,
         );
     }
+    let mut count = 0;
     let haystack: Vec<char> = subject.chars().collect();
     if from > haystack.len() {
-        return MatchOutcome::NoMatch;
+        return make_capture_run_result(1, 0, 0, count);
     };
     let mut marks: Vec<usize> = Vec::new();
     let mut rows: Vec<usize> = Vec::new();
@@ -6890,7 +6983,7 @@ fn run_capture_program(
         let mut position = 0;
         while position <= haystack.len() {
             if marks.len() == MAX_CAPTURE_WORK {
-                return MatchOutcome::Uncertain;
+                return make_capture_run_result(2, 0, 0, 0);
             };
             marks.push(0);
             position += 1;
@@ -6916,7 +7009,7 @@ fn run_capture_program(
             let mut matched = true;
             while matched {
                 if work == MAX_CAPTURE_WORK {
-                    return MatchOutcome::Uncertain;
+                    return make_capture_run_result(2, 0, 0, 0);
                 };
                 work += 1;
                 let cell = rows[instruction] + subject_position;
@@ -6981,7 +7074,7 @@ fn run_capture_program(
                         let mut included = false;
                         while program.class_members[class_position].kind > 0 {
                             if work == MAX_CAPTURE_WORK {
-                                return MatchOutcome::Uncertain;
+                                return make_capture_run_result(2, 0, 0, 0);
                             }
                             work += 1;
                             if capture_class_member_matches(
@@ -7039,14 +7132,23 @@ fn run_capture_program(
             }
         }
         if found {
-            return MatchOutcome::Found(MatchSpan {
-                start,
-                end: best_end,
-            });
+            if counting == false {
+                return make_capture_run_result(0, start, best_end, 1);
+            }
+            count += 1;
+            if best_end == start {
+                if best_end == haystack.len() {
+                    return make_capture_run_result(1, 0, 0, count);
+                }
+                start += 1;
+            } else {
+                start = best_end;
+            };
+        } else {
+            start += 1;
         };
-        start += 1;
     }
-    MatchOutcome::NoMatch
+    make_capture_run_result(1, 0, 0, count)
 }
 
 fn fixed_lookbehind_atoms(pattern: &str, expanded: bool) -> LookbehindResult {
@@ -10993,47 +11095,6 @@ fn find_advanced(
     })
 }
 
-fn count_advanced(
-    pattern: &str,
-    subject: &str,
-    from: usize,
-    case_sensitive: bool,
-    dot_crosses_newline: bool,
-    line_anchors: bool,
-    expanded: bool,
-) -> CountOutcome {
-    let characters: Vec<char> = subject.chars().collect();
-    let mut position = from;
-    let mut count = 0;
-    while position <= characters.len() {
-        let atoms = pattern_atoms(pattern, expanded);
-        let result = search_atoms(
-            atoms,
-            subject,
-            position,
-            case_sensitive,
-            dot_crosses_newline,
-            line_anchors,
-        );
-        if result.kind == 2 {
-            return CountOutcome::Uncertain;
-        }
-        if result.kind == 1 {
-            break;
-        }
-        if count == MAX_CAPTURE_WORK {
-            return CountOutcome::Uncertain;
-        }
-        count += 1;
-        if result.start == result.end {
-            position = result.end + 1;
-        } else {
-            position = result.end;
-        };
-    }
-    CountOutcome::Count(count)
-}
-
 pub fn find_simple_advanced(
     pattern: &str,
     subject: &str,
@@ -11062,44 +11123,6 @@ pub fn find_expanded_advanced(
     line_anchors: bool,
 ) -> MatchOutcome {
     find_advanced(
-        pattern,
-        subject,
-        from,
-        case_sensitive,
-        dot_crosses_newline,
-        line_anchors,
-        true,
-    )
-}
-
-pub fn count_simple_advanced(
-    pattern: &str,
-    subject: &str,
-    from: usize,
-    case_sensitive: bool,
-    dot_crosses_newline: bool,
-    line_anchors: bool,
-) -> CountOutcome {
-    count_advanced(
-        pattern,
-        subject,
-        from,
-        case_sensitive,
-        dot_crosses_newline,
-        line_anchors,
-        false,
-    )
-}
-
-pub fn count_expanded_advanced(
-    pattern: &str,
-    subject: &str,
-    from: usize,
-    case_sensitive: bool,
-    dot_crosses_newline: bool,
-    line_anchors: bool,
-) -> CountOutcome {
-    count_advanced(
         pattern,
         subject,
         from,
@@ -11388,47 +11411,6 @@ pub fn find_noncapture_literal(
     MatchOutcome::NoMatch
 }
 
-pub fn count_group_choice(
-    pattern: &str,
-    subject: &str,
-    from: usize,
-    case_sensitive: bool,
-    dot_crosses_newline: bool,
-    line_anchors: bool,
-    expanded: bool,
-) -> CountOutcome {
-    let characters: Vec<char> = subject.chars().collect();
-    let mut position = from;
-    let mut count = 0;
-    while position <= characters.len() {
-        let result = search_group_choice(
-            pattern,
-            subject,
-            position,
-            case_sensitive,
-            dot_crosses_newline,
-            line_anchors,
-            expanded,
-        );
-        if result.kind == 2 {
-            return CountOutcome::Uncertain;
-        }
-        if result.kind == 1 {
-            break;
-        }
-        if count == MAX_CAPTURE_WORK {
-            return CountOutcome::Uncertain;
-        }
-        count += 1;
-        if result.start == result.end {
-            position = result.end + 1;
-        } else {
-            position = result.end;
-        };
-    }
-    CountOutcome::Count(count)
-}
-
 fn search_fixed_lookbehind(
     pattern: &str,
     subject: &str,
@@ -11628,47 +11610,6 @@ pub fn find_anchor_lookbehind(
     MatchOutcome::NoMatch
 }
 
-pub fn count_fixed_lookbehind(
-    pattern: &str,
-    subject: &str,
-    from: usize,
-    case_sensitive: bool,
-    dot_crosses_newline: bool,
-    line_anchors: bool,
-    expanded: bool,
-) -> CountOutcome {
-    let characters: Vec<char> = subject.chars().collect();
-    let mut position = from;
-    let mut count = 0;
-    while position <= characters.len() {
-        let result = search_fixed_lookbehind(
-            pattern,
-            subject,
-            position,
-            case_sensitive,
-            dot_crosses_newline,
-            line_anchors,
-            expanded,
-        );
-        if result.kind == 2 {
-            return CountOutcome::Uncertain;
-        }
-        if result.kind == 1 {
-            break;
-        }
-        if count == MAX_CAPTURE_WORK {
-            return CountOutcome::Uncertain;
-        }
-        count += 1;
-        if result.start == result.end {
-            position = result.end + 1;
-        } else {
-            position = result.end;
-        };
-    }
-    CountOutcome::Count(count)
-}
-
 fn search_leading_lookahead(
     pattern: &str,
     subject: &str,
@@ -11761,47 +11702,6 @@ pub fn find_leading_lookahead(
         start: result.start,
         end: result.end,
     })
-}
-
-pub fn count_leading_lookahead(
-    pattern: &str,
-    subject: &str,
-    from: usize,
-    case_sensitive: bool,
-    dot_crosses_newline: bool,
-    line_anchors: bool,
-    expanded: bool,
-) -> CountOutcome {
-    let characters: Vec<char> = subject.chars().collect();
-    let mut position = from;
-    let mut count = 0;
-    while position <= characters.len() {
-        let result = search_leading_lookahead(
-            pattern,
-            subject,
-            position,
-            case_sensitive,
-            dot_crosses_newline,
-            line_anchors,
-            expanded,
-        );
-        if result.kind == 2 {
-            return CountOutcome::Uncertain;
-        }
-        if result.kind == 1 {
-            break;
-        }
-        if count == MAX_CAPTURE_WORK {
-            return CountOutcome::Uncertain;
-        }
-        count += 1;
-        if result.start == result.end {
-            position = result.end + 1;
-        } else {
-            position = result.end;
-        };
-    }
-    CountOutcome::Count(count)
 }
 
 fn search_middle_lookahead(
@@ -12854,47 +12754,6 @@ fn find_star_capture_backref(
         start: nonzero.start,
         end: nonzero.end,
     })
-}
-
-pub fn count_fixed_backref(
-    pattern: &str,
-    subject: &str,
-    from: usize,
-    case_sensitive: bool,
-    dot_crosses_newline: bool,
-    line_anchors: bool,
-    expanded: bool,
-) -> CountOutcome {
-    let characters: Vec<char> = subject.chars().collect();
-    let mut position = from;
-    let mut count = 0;
-    while position <= characters.len() {
-        let result = search_fixed_backref(
-            pattern,
-            subject,
-            position,
-            case_sensitive,
-            dot_crosses_newline,
-            line_anchors,
-            expanded,
-        );
-        if result.kind == 2 {
-            return CountOutcome::Uncertain;
-        }
-        if result.kind == 1 {
-            break;
-        }
-        if count == MAX_CAPTURE_WORK {
-            return CountOutcome::Uncertain;
-        }
-        count += 1;
-        if result.start == result.end {
-            position = result.end + 1;
-        } else {
-            position = result.end;
-        };
-    }
-    CountOutcome::Count(count)
 }
 
 pub fn find_inline_advanced(
