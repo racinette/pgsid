@@ -1756,6 +1756,23 @@ for (const [pattern, subject] of [
   }
 }
 
+for (const [pattern, subject] of [
+  ['a+b', 'a'.repeat(1024)],
+  ['(?=a)(a+)b', 'a'.repeat(1024)],
+  ['(a+)b\\1', 'a'.repeat(1024)],
+  ['(a+)b\\1', 'a'.repeat(128) + 'b' + 'a'.repeat(128)],
+]) {
+  for (const operation of ['find', 'count']) {
+    inputs.push({
+      family: 'search-work',
+      operation,
+      pattern,
+      subject,
+      options: { syntax: 'advanced', caseSensitive: true, expanded: false, newline: 'ordinary' },
+    })
+  }
+}
+
 for (const [pattern, subject, captureGroups, start, overrides] of [
   ['abc', 'zabc', 0, 1, {}],
   ['', '😀', 0, 2, {}],
@@ -1856,6 +1873,13 @@ for (const [pattern, subject, captureGroups, start, overrides] of [
   ['(a??){3}', '', 1, 1, {}],
   ['((?=a)){3}', 'a', 1, 1, {}],
   ['((?=b)){3}', 'a', 1, 1, {}],
+  ['(a+)b', 'a'.repeat(48), 1, 1, {}],
+  ['(a+)b', 'a'.repeat(1024) + 'b', 1, 1, {}],
+  ['(a|aa)+b', 'a'.repeat(24) + 'b', 1, 1, {}],
+  ['(a|aa)+b', 'a'.repeat(1024) + 'b', 1, 1, {}],
+  ['(?=a)(a+)b', 'a'.repeat(1024), 1, 1, {}],
+  ['(a+)b\\1', 'a'.repeat(1024), 1, 1, {}],
+  ['(a+)b\\1', 'a'.repeat(128) + 'b' + 'a'.repeat(128), 1, 1, {}],
 ]) {
   inputs.push({
     operation: 'captures',

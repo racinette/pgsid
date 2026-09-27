@@ -1687,6 +1687,20 @@ fn unified_operations_preserve_uncertainty_at_resource_limits() {
 }
 
 #[test]
+fn early_literal_match_uses_only_reached_positions() {
+    let subject = "a".repeat(500000);
+    assert!(matches!(
+        candidate::find(
+            "a",
+            &subject,
+            0,
+            test_options(candidate::Syntax::Advanced, true, true, false, false)
+        ),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 1 })
+    ));
+}
+
+#[test]
 fn unified_operations_match_every_postgres_fixture() {
     let mut finds = 0;
     let mut counts = 0;

@@ -249,7 +249,11 @@ struct CaptureProgram {
     references: Vec<usize>,
     minimums: Vec<usize>,
     maximums: Vec<usize>,
+    first_literals: Vec<usize>,
+    last_literals: Vec<usize>,
     interpreted: bool,
+    regular: bool,
+    prefilter: bool,
     instructions: Vec<CaptureInstruction>,
     class_members: Vec<CaptureClassMember>,
     case_mode: char,
@@ -2734,6 +2738,8 @@ fn compile_capture_program_atoms(
     let mut references: Vec<usize> = Vec::new();
     let mut minimums: Vec<usize> = Vec::new();
     let mut maximums: Vec<usize> = Vec::new();
+    let mut first_literals: Vec<usize> = Vec::new();
+    let mut last_literals: Vec<usize> = Vec::new();
     let mut index = 0;
     while index < nodes.len() {
         let node = nodes[index];
@@ -2750,6 +2756,8 @@ fn compile_capture_program_atoms(
         references.push(value);
         let mut minimum = 0;
         let mut maximum = 0;
+        let mut first_literal = 0;
+        let mut last_literal = 0;
         if node.operation == VM_LITERAL
             || node.operation == VM_ANY
             || node.operation == VM_WORD
@@ -2758,12 +2766,25 @@ fn compile_capture_program_atoms(
         {
             minimum = 1;
             maximum = 1;
+            if node.operation == VM_LITERAL {
+                first_literal = ((node.atom as u32) as usize) + 1;
+                last_literal = first_literal;
+            } else if node.operation == VM_NUMERIC {
+                first_literal = node.group + 1;
+                last_literal = first_literal;
+            };
         } else if node.operation == VM_BACKREF {
             minimum = capture_minimums[node.group];
             maximum = capture_maximums[node.group];
         } else if node.operation == NODE_SEQUENCE {
             minimum = capture_width_sum(minimums[node.left], minimums[node.right]);
             maximum = capture_width_sum(maximums[node.left], maximums[node.right]);
+            if minimums[node.left] > 0 {
+                first_literal = first_literals[node.left];
+            }
+            if minimums[node.right] > 0 {
+                last_literal = last_literals[node.right];
+            }
         } else if node.operation == NODE_ALTERNATIVE {
             minimum = minimums[node.left];
             if minimums[node.right] < minimum {
@@ -2773,14 +2794,26 @@ fn compile_capture_program_atoms(
             if maximums[node.right] > maximum {
                 maximum = maximums[node.right];
             }
+            if first_literals[node.left] == first_literals[node.right] {
+                first_literal = first_literals[node.left];
+            }
+            if last_literals[node.left] == last_literals[node.right] {
+                last_literal = last_literals[node.left];
+            }
         } else if node.operation == NODE_GROUP {
             minimum = minimums[node.left];
             maximum = maximums[node.left];
+            first_literal = first_literals[node.left];
+            last_literal = last_literals[node.left];
         } else if node.operation == NODE_REPEAT {
             minimum = capture_width_repeat(minimums[node.left], node.lower);
             maximum = capture_width_repeat(maximums[node.left], node.upper);
             if node.unbounded && maximums[node.left] > 0 {
                 maximum = MAX_CAPTURE_WORK;
+            }
+            if node.lower > 0 && minimums[node.left] > 0 {
+                first_literal = first_literals[node.left];
+                last_literal = last_literals[node.left];
             }
         };
         if node.operation == NODE_GROUP && node.group > 0 {
@@ -2789,6 +2822,8 @@ fn compile_capture_program_atoms(
         }
         minimums.push(minimum);
         maximums.push(maximum);
+        first_literals.push(first_literal);
+        last_literals.push(last_literal);
         index += 1;
     }
     index = nodes.len();
@@ -2822,6 +2857,14 @@ fn compile_capture_program_atoms(
                 capture_width_sum(minimums[left.right], minimums[current.right]);
             maximums[current.left] =
                 capture_width_sum(maximums[left.right], maximums[current.right]);
+            first_literals[current.left] = 0;
+            if minimums[left.right] > 0 {
+                first_literals[current.left] = first_literals[left.right];
+            }
+            last_literals[current.left] = 0;
+            if minimums[current.right] > 0 {
+                last_literals[current.left] = last_literals[current.right];
+            }
             nodes[index] = make_capture_node(
                 NODE_SEQUENCE,
                 left.left,
@@ -2836,6 +2879,8 @@ fn compile_capture_program_atoms(
     }
     let shortest = nodes[root].preference == 2;
     let interpreted = backreferences || assertions || capturing;
+    let regular = backreferences == false && assertions == false;
+    let mut prefilter = true;
     let mut instructions: Vec<CaptureInstruction> = Vec::new();
     instructions.push(make_capture_step(VM_JUMP, 1, 0, 0, ' '));
     instructions.push(make_capture_step(VM_ACCEPT, 0, 0, 0, ' '));
@@ -2846,10 +2891,13 @@ fn compile_capture_program_atoms(
         exit: 1,
     });
     let mut head = 0;
-    while head < tasks.len() && valid && interpreted == false {
+    while head < tasks.len() && valid && prefilter {
         if instructions.len() > MAX_CAPTURE_INSTRUCTIONS {
-            limited = true;
-            valid = false;
+            prefilter = false;
+            if regular {
+                limited = true;
+                valid = false;
+            }
             break;
         };
         let task = tasks[head];
@@ -2951,8 +2999,11 @@ fn compile_capture_program_atoms(
         };
     }
     if instructions.len() > MAX_CAPTURE_INSTRUCTIONS {
-        limited = true;
-        valid = false;
+        prefilter = false;
+        if regular {
+            limited = true;
+            valid = false;
+        }
     }
     CaptureProgram {
         valid,
@@ -2962,7 +3013,11 @@ fn compile_capture_program_atoms(
         references,
         minimums,
         maximums,
+        first_literals,
+        last_literals,
         interpreted,
+        regular,
+        prefilter,
         instructions,
         class_members,
         case_mode,
@@ -3009,10 +3064,29 @@ fn capture_repeat_endpoint(
     begin + width
 }
 
+fn capture_boundary_matches(expected: usize, actual: char, case_sensitive: bool) -> bool {
+    if expected == 0 {
+        return true;
+    }
+    let mut actual_code = ((actual as u32) as usize) + 1;
+    let mut expected_code = expected;
+    if case_sensitive == false {
+        if actual_code >= 66 && actual_code <= 91 {
+            actual_code += 32;
+        }
+        if expected_code >= 66 && expected_code <= 91 {
+            expected_code += 32;
+        }
+    }
+    actual_code == expected_code
+}
+
 fn execute_capture_tree(
     program: CaptureProgram,
     subject: &str,
     from: usize,
+    exact_end: usize,
+    exact_match: bool,
     case_sensitive: bool,
     dot_crosses_newline: bool,
     line_anchors: bool,
@@ -3032,10 +3106,14 @@ fn execute_capture_tree(
         if program.minimums[program.root] > haystack.len() - start {
             return make_capture_run_result(1, 0, 0, count);
         }
-        let minimum_end = start + program.minimums[program.root];
+        let mut minimum_end = start + program.minimums[program.root];
         let mut maximum_end = haystack.len();
         if program.maximums[program.root] < haystack.len() - start {
             maximum_end = start + program.maximums[program.root];
+        }
+        if exact_match {
+            minimum_end = exact_end;
+            maximum_end = exact_end;
         }
         let mut match_end = maximum_end;
         if program.shortest {
@@ -3125,13 +3203,59 @@ fn execute_capture_tree(
                     success = false;
                     returned = frame.capture;
                     if node.operation == NODE_SEQUENCE {
-                        cursor = frame.end;
-                        if child_shortest {
-                            cursor = frame.begin;
-                        }
-                        child = true;
-                        child_end = cursor;
-                        phase = DISSECT_LEFT;
+                        let span = frame.end - frame.begin;
+                        let left_minimum = program.minimums[node.left];
+                        let right_minimum = program.minimums[node.right];
+                        if left_minimum > span || right_minimum > span {
+                            complete = true;
+                        } else {
+                            let mut lower = frame.begin + left_minimum;
+                            if program.maximums[node.right] < span
+                                && frame.end - program.maximums[node.right] > lower
+                            {
+                                lower = frame.end - program.maximums[node.right];
+                            }
+                            let mut upper = frame.end - right_minimum;
+                            if program.maximums[node.left] < span
+                                && frame.begin + program.maximums[node.left] < upper
+                            {
+                                upper = frame.begin + program.maximums[node.left];
+                            }
+                            if lower > upper {
+                                complete = true;
+                            } else {
+                                cursor = upper;
+                                if child_shortest {
+                                    cursor = lower;
+                                }
+                                phase = DISSECT_LEFT;
+                                let mut possible = true;
+                                if cursor > frame.begin
+                                    && capture_boundary_matches(
+                                        program.last_literals[node.left],
+                                        haystack[cursor - 1],
+                                        case_sensitive,
+                                    ) == false
+                                {
+                                    possible = false;
+                                }
+                                if cursor < frame.end
+                                    && capture_boundary_matches(
+                                        program.first_literals[node.right],
+                                        haystack[cursor],
+                                        case_sensitive,
+                                    ) == false
+                                {
+                                    possible = false;
+                                }
+                                if possible == false {
+                                    advance = true;
+                                } else {
+                                    child = true;
+                                    child_end = cursor;
+                                };
+                            };
+                        };
                     } else if node.operation == NODE_ALTERNATIVE {
                         child = true;
                         phase = DISSECT_ALTERNATIVE;
@@ -3497,26 +3621,73 @@ fn execute_capture_tree(
                     if node.operation == NODE_REPEAT {
                         ascending = node.preference == 2;
                     }
-                    if (ascending && cursor == frame.end)
-                        || (ascending == false && cursor == frame.begin)
-                    {
-                        success = false;
-                        complete = true;
-                    } else {
-                        if ascending {
-                            cursor += 1;
-                        } else {
-                            cursor = cursor - 1;
-                        };
-                        child = true;
-                        child_end = cursor;
-                        phase = DISSECT_LEFT;
-                        if node.operation == NODE_REPEAT {
-                            child_node = frame.node;
-                            child_prefix = true;
-                            phase = DISSECT_PREFIX;
+                    let mut lower = frame.begin;
+                    let mut upper = frame.end;
+                    if node.operation == NODE_SEQUENCE {
+                        lower += program.minimums[node.left];
+                        if program.maximums[node.right] < frame.end - frame.begin
+                            && frame.end - program.maximums[node.right] > lower
+                        {
+                            lower = frame.end - program.maximums[node.right];
                         }
-                    };
+                        upper = frame.end - program.minimums[node.right];
+                        if program.maximums[node.left] < frame.end - frame.begin
+                            && frame.begin + program.maximums[node.left] < upper
+                        {
+                            upper = frame.begin + program.maximums[node.left];
+                        }
+                    }
+                    let mut choosing = true;
+                    while choosing {
+                        if (ascending && cursor == upper) || (ascending == false && cursor == lower)
+                        {
+                            success = false;
+                            complete = true;
+                            choosing = false;
+                        } else {
+                            if work == MAX_CAPTURE_WORK {
+                                return make_capture_run_result(2, 0, 0, 0);
+                            }
+                            work += 1;
+                            if ascending {
+                                cursor += 1;
+                            } else {
+                                cursor = cursor - 1;
+                            };
+                            let mut possible = true;
+                            if node.operation == NODE_SEQUENCE {
+                                if cursor > frame.begin
+                                    && capture_boundary_matches(
+                                        program.last_literals[node.left],
+                                        haystack[cursor - 1],
+                                        case_sensitive,
+                                    ) == false
+                                {
+                                    possible = false;
+                                }
+                                if cursor < frame.end
+                                    && capture_boundary_matches(
+                                        program.first_literals[node.right],
+                                        haystack[cursor],
+                                        case_sensitive,
+                                    ) == false
+                                {
+                                    possible = false;
+                                }
+                            }
+                            if possible {
+                                child = true;
+                                child_end = cursor;
+                                phase = DISSECT_LEFT;
+                                if node.operation == NODE_REPEAT {
+                                    child_node = frame.node;
+                                    child_prefix = true;
+                                    phase = DISSECT_PREFIX;
+                                }
+                                choosing = false;
+                            }
+                        };
+                    }
                 }
                 if complete {
                     depth = depth - 1;
@@ -3624,6 +3795,9 @@ fn execute_capture_tree(
                 match_end = match_end - 1;
             };
         }
+        if exact_match {
+            return make_capture_run_result(2, 0, 0, 0);
+        }
         start = next_start;
     }
     make_capture_run_result(1, 0, 0, count)
@@ -3657,11 +3831,13 @@ fn execute_capture_program(
         dot_crosses_newline = true;
         line_anchors = false;
     }
-    if program.interpreted {
+    if program.interpreted && program.prefilter == false {
         return execute_capture_tree(
             program,
             subject,
             from,
+            0,
+            false,
             case_sensitive,
             dot_crosses_newline,
             line_anchors,
@@ -3670,181 +3846,342 @@ fn execute_capture_program(
         );
     }
     let mut count = 0;
+    let projected = program.regular == false;
     let haystack: Vec<char> = subject.chars().collect();
     if from > haystack.len() {
         return make_capture_run_result(1, 0, 0, count);
     };
-    let mut marks: Vec<usize> = Vec::new();
-    let mut rows: Vec<usize> = Vec::new();
-    let mut instruction = 0;
-    while instruction < program.instructions.len() {
-        rows.push(marks.len());
-        let mut position = 0;
-        while position <= haystack.len() {
-            if marks.len() == MAX_CAPTURE_WORK {
-                return make_capture_run_result(2, 0, 0, 0);
-            };
-            marks.push(0);
-            position += 1;
-        }
-        instruction += 1;
+    let mut seen_epochs: Vec<usize> = Vec::new();
+    let mut seen_starts: Vec<usize> = Vec::new();
+    let mut instruction_index = 0;
+    while instruction_index < program.instructions.len() {
+        seen_epochs.push(0);
+        seen_starts.push(0);
+        instruction_index += 1;
     }
     let mut work = 0;
-    let mut start = from;
-    while start <= haystack.len() {
+    let mut search_from = from;
+    let mut epoch = 0;
+    while search_from <= haystack.len() {
         let mut stack: Vec<PatternWorkState> = Vec::new();
-        stack.push(PatternWorkState {
-            pattern: 0,
-            subject: start,
-        });
-        let mut stack_len = 1;
+        let mut stack_len = 0;
+        let mut next: Vec<PatternWorkState> = Vec::new();
+        let mut next_len = 0;
         let mut found = false;
-        let mut best_end = start;
-        while stack_len > 0 {
-            stack_len = stack_len - 1;
-            let state = stack[stack_len];
-            let mut instruction = state.pattern;
-            let mut subject_position = state.subject;
-            let mut matched = true;
-            while matched {
+        let mut best_start = search_from;
+        let mut best_end = search_from;
+        let mut position = search_from;
+        while position <= haystack.len() {
+            epoch += 1;
+            if found == false {
+                let seed = PatternWorkState {
+                    pattern: 0,
+                    subject: position,
+                };
+                if stack_len == stack.len() {
+                    stack.push(seed);
+                } else {
+                    stack[stack_len] = seed;
+                }
+                stack_len += 1;
+            }
+            while stack_len > 0 {
+                stack_len = stack_len - 1;
+                let state = stack[stack_len];
                 if work == MAX_CAPTURE_WORK {
+                    if projected {
+                        return execute_capture_tree(
+                            program,
+                            subject,
+                            from,
+                            0,
+                            false,
+                            case_sensitive,
+                            dot_crosses_newline,
+                            line_anchors,
+                            counting,
+                            capturing,
+                        );
+                    }
                     return make_capture_run_result(2, 0, 0, 0);
                 };
                 work += 1;
-                let cell = rows[instruction] + subject_position;
-                if marks[cell] == start + 1 {
-                    break;
-                }
-                marks[cell] = start + 1;
-                let step = program.instructions[instruction];
-                if step.operation == VM_ACCEPT {
-                    if found == false
-                        || (program.shortest && subject_position < best_end)
-                        || (program.shortest == false && subject_position > best_end)
-                    {
-                        found = true;
-                        best_end = subject_position;
-                    };
-                    break;
-                } else if capture_assertion(step.operation) {
-                    let before =
-                        subject_position > 0 && zero_width_word(haystack[subject_position - 1]);
-                    let after = subject_position < haystack.len()
-                        && zero_width_word(haystack[subject_position]);
-                    let previous_newline =
-                        subject_position > 0 && haystack[subject_position - 1] == '\n';
-                    let next_newline =
-                        subject_position < haystack.len() && haystack[subject_position] == '\n';
-                    matched = capture_assertion_matches(
-                        step.operation,
-                        subject_position,
-                        haystack.len(),
-                        before,
-                        after,
-                        previous_newline,
-                        next_newline,
-                        line_anchors,
-                    );
-                    instruction += 1;
-                } else if step.operation == VM_SPLIT {
-                    let skipped = PatternWorkState {
-                        pattern: step.alternate,
-                        subject: subject_position,
-                    };
-                    if stack_len == stack.len() {
-                        stack.push(skipped);
-                    } else {
-                        stack[stack_len] = skipped;
-                    };
-                    stack_len += 1;
-                    instruction = step.target;
-                } else if step.operation == VM_JUMP {
-                    instruction = step.target;
-                } else if step.operation == VM_CLEAR
-                    || step.operation == VM_OPEN
-                    || step.operation == VM_CLOSE
-                {
-                    instruction += 1;
-                } else if step.operation == VM_CLASS {
-                    if subject_position == haystack.len() {
-                        matched = false;
-                    } else {
-                        let mut class_position = step.group;
-                        let mut included = false;
-                        while program.class_members[class_position].kind > 0 {
-                            if work == MAX_CAPTURE_WORK {
-                                return make_capture_run_result(2, 0, 0, 0);
-                            }
-                            work += 1;
-                            if capture_class_member_matches(
-                                program.class_members[class_position],
-                                haystack[subject_position],
+                let instruction = state.pattern;
+                let start = state.subject;
+                if seen_epochs[instruction] != epoch || seen_starts[instruction] > start {
+                    seen_epochs[instruction] = epoch;
+                    seen_starts[instruction] = start;
+                    let step = program.instructions[instruction];
+                    if step.operation == VM_ACCEPT {
+                        if projected {
+                            return execute_capture_tree(
+                                program,
+                                subject,
+                                from,
+                                0,
+                                false,
                                 case_sensitive,
-                            ) {
-                                included = true;
-                            }
-                            class_position += 1;
+                                dot_crosses_newline,
+                                line_anchors,
+                                counting,
+                                capturing,
+                            );
                         }
-                        let negated = step.atom == '^';
-                        matched = included != negated
-                            && (negated == false
-                                || dot_crosses_newline
-                                || haystack[subject_position] != '\n');
-                        if matched {
-                            subject_position += 1;
-                            instruction += 1;
+                        if found == false
+                            || start < best_start
+                            || (start == best_start
+                                && ((program.shortest && position < best_end)
+                                    || (program.shortest == false && position > best_end)))
+                        {
+                            found = true;
+                            best_start = start;
+                            best_end = position;
                         };
-                    };
-                } else {
-                    if subject_position == haystack.len() {
-                        matched = false;
+                    } else if projected
+                        && (step.operation == VM_BACKREF
+                            || (step.operation >= NODE_LOOKAHEAD
+                                && step.operation <= NODE_NOT_LOOKBEHIND))
+                    {
+                        // These transitions admit every possible match of the unchecked condition.
+                        let resumed = PatternWorkState {
+                            pattern: instruction + 1,
+                            subject: start,
+                        };
+                        if stack_len == stack.len() {
+                            stack.push(resumed);
+                        } else {
+                            stack[stack_len] = resumed;
+                        }
+                        stack_len += 1;
+                        if step.operation == VM_BACKREF && position < haystack.len() {
+                            if next_len == next.len() {
+                                next.push(state);
+                            } else {
+                                next[next_len] = state;
+                            }
+                            next_len += 1;
+                        }
+                    } else if capture_assertion(step.operation) {
+                        let before = position > 0 && zero_width_word(haystack[position - 1]);
+                        let after =
+                            position < haystack.len() && zero_width_word(haystack[position]);
+                        let previous_newline = position > 0 && haystack[position - 1] == '\n';
+                        let next_newline = position < haystack.len() && haystack[position] == '\n';
+                        if capture_assertion_matches(
+                            step.operation,
+                            position,
+                            haystack.len(),
+                            before,
+                            after,
+                            previous_newline,
+                            next_newline,
+                            line_anchors,
+                        ) {
+                            let resumed = PatternWorkState {
+                                pattern: instruction + 1,
+                                subject: start,
+                            };
+                            if stack_len == stack.len() {
+                                stack.push(resumed);
+                            } else {
+                                stack[stack_len] = resumed;
+                            }
+                            stack_len += 1;
+                        }
+                    } else if step.operation == VM_SPLIT {
+                        let skipped = PatternWorkState {
+                            pattern: step.alternate,
+                            subject: start,
+                        };
+                        if stack_len == stack.len() {
+                            stack.push(skipped);
+                        } else {
+                            stack[stack_len] = skipped;
+                        };
+                        stack_len += 1;
+                        let branch = PatternWorkState {
+                            pattern: step.target,
+                            subject: start,
+                        };
+                        if stack_len == stack.len() {
+                            stack.push(branch);
+                        } else {
+                            stack[stack_len] = branch;
+                        }
+                        stack_len += 1;
+                    } else if step.operation == VM_JUMP
+                        || step.operation == VM_CLEAR
+                        || step.operation == VM_OPEN
+                        || step.operation == VM_CLOSE
+                    {
+                        let mut target = instruction + 1;
+                        if step.operation == VM_JUMP {
+                            target = step.target;
+                        }
+                        let resumed = PatternWorkState {
+                            pattern: target,
+                            subject: start,
+                        };
+                        if stack_len == stack.len() {
+                            stack.push(resumed);
+                        } else {
+                            stack[stack_len] = resumed;
+                        }
+                        stack_len += 1;
+                    } else if step.operation == VM_CLASS {
+                        if position < haystack.len() {
+                            let mut class_position = step.group;
+                            let mut included = false;
+                            while program.class_members[class_position].kind > 0 {
+                                if work == MAX_CAPTURE_WORK {
+                                    if projected {
+                                        return execute_capture_tree(
+                                            program,
+                                            subject,
+                                            from,
+                                            0,
+                                            false,
+                                            case_sensitive,
+                                            dot_crosses_newline,
+                                            line_anchors,
+                                            counting,
+                                            capturing,
+                                        );
+                                    }
+                                    return make_capture_run_result(2, 0, 0, 0);
+                                }
+                                work += 1;
+                                if capture_class_member_matches(
+                                    program.class_members[class_position],
+                                    haystack[position],
+                                    case_sensitive,
+                                ) {
+                                    included = true;
+                                }
+                                class_position += 1;
+                            }
+                            let negated = step.atom == '^';
+                            let matched = included != negated
+                                && (negated == false
+                                    || dot_crosses_newline
+                                    || haystack[position] != '\n');
+                            if matched {
+                                let resumed = PatternWorkState {
+                                    pattern: instruction + 1,
+                                    subject: start,
+                                };
+                                if next_len == next.len() {
+                                    next.push(resumed);
+                                } else {
+                                    next[next_len] = resumed;
+                                }
+                                next_len += 1;
+                            };
+                        };
                     } else {
-                        let actual = haystack[subject_position];
-                        let codepoint = actual as u32;
-                        let lowercase = actual.to_ascii_lowercase() as u32;
-                        let word = (codepoint >= 48 && codepoint <= 57)
-                            || (lowercase >= 97 && lowercase <= 122)
-                            || actual == '_';
-                        let mut numeric_lower = step.group;
-                        if numeric_lower >= 65 && numeric_lower <= 90 {
-                            numeric_lower += 32;
-                        };
-                        matched = (step.operation == VM_ANY
-                            && (dot_crosses_newline || actual != '\n'))
-                            || (step.operation == VM_WORD && word)
-                            || (step.operation == VM_NUMERIC
-                                && ((actual as u32) as usize == step.group
-                                    || (case_sensitive == false
-                                        && (actual.to_ascii_lowercase() as u32) as usize
-                                            == numeric_lower)))
-                            || (step.operation == VM_LITERAL
-                                && (actual == step.atom
-                                    || (case_sensitive == false
-                                        && actual.to_ascii_lowercase()
-                                            == step.atom.to_ascii_lowercase())));
-                        if matched {
-                            subject_position += 1;
-                            instruction += 1;
+                        if position < haystack.len() {
+                            let actual = haystack[position];
+                            let codepoint = actual as u32;
+                            let lowercase = actual.to_ascii_lowercase() as u32;
+                            let word = (codepoint >= 48 && codepoint <= 57)
+                                || (lowercase >= 97 && lowercase <= 122)
+                                || actual == '_';
+                            let mut numeric_lower = step.group;
+                            if numeric_lower >= 65 && numeric_lower <= 90 {
+                                numeric_lower += 32;
+                            };
+                            let matched = (step.operation == VM_ANY
+                                && (dot_crosses_newline || actual != '\n'))
+                                || (step.operation == VM_WORD && word)
+                                || (step.operation == VM_NUMERIC
+                                    && ((actual as u32) as usize == step.group
+                                        || (case_sensitive == false
+                                            && (actual.to_ascii_lowercase() as u32) as usize
+                                                == numeric_lower)))
+                                || (step.operation == VM_LITERAL
+                                    && (actual == step.atom
+                                        || (case_sensitive == false
+                                            && actual.to_ascii_lowercase()
+                                                == step.atom.to_ascii_lowercase())));
+                            if matched {
+                                let resumed = PatternWorkState {
+                                    pattern: instruction + 1,
+                                    subject: start,
+                                };
+                                if next_len == next.len() {
+                                    next.push(resumed);
+                                } else {
+                                    next[next_len] = resumed;
+                                }
+                                next_len += 1;
+                            };
                         };
                     };
                 };
             }
+            let mut keep = 0;
+            let mut index = 0;
+            while index < next_len {
+                let state = next[index];
+                if found == false
+                    || state.subject < best_start
+                    || (program.shortest == false && state.subject == best_start)
+                {
+                    next[keep] = state;
+                    keep += 1;
+                }
+                index += 1;
+            }
+            next_len = keep;
+            if found && next_len == 0 {
+                break;
+            }
+            if position == haystack.len() {
+                break;
+            }
+            position += 1;
+            stack_len = 0;
+            index = 0;
+            while index < next_len {
+                let state = next[index];
+                if stack_len == stack.len() {
+                    stack.push(state);
+                } else {
+                    stack[stack_len] = state;
+                }
+                stack_len += 1;
+                index += 1;
+            }
+            next_len = 0;
         }
         if found {
             if counting == false {
-                return make_capture_run_result(0, start, best_end, 1);
+                if capturing {
+                    return execute_capture_tree(
+                        program,
+                        subject,
+                        best_start,
+                        best_end,
+                        true,
+                        case_sensitive,
+                        dot_crosses_newline,
+                        line_anchors,
+                        false,
+                        true,
+                    );
+                }
+                return make_capture_run_result(0, best_start, best_end, 1);
             }
             count += 1;
-            if best_end == start {
+            search_from = best_end;
+            if best_end == best_start {
                 if best_end == haystack.len() {
                     return make_capture_run_result(1, 0, 0, count);
                 }
-                start += 1;
-            } else {
-                start = best_end;
+                search_from += 1;
             };
         } else {
-            start += 1;
+            return make_capture_run_result(1, 0, 0, count);
         };
     }
     make_capture_run_result(1, 0, 0, count)

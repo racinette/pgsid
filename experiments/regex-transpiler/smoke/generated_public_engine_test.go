@@ -17,6 +17,14 @@ func TestExportedEngineSurface(t *testing.T) {
 	}
 }
 
+func TestEarlyLiteralMatch(t *testing.T) {
+	options := generated.RegexOptions{Syntax: generated.Syntax{Kind: generated.SyntaxAdvanced}, CaseSensitive: true, Newline: generated.NewlineMode{Kind: generated.NewlineModeOrdinary}}
+	result := generated.Find("a", strings.Repeat("a", 500000), 0, options)
+	if result.Kind != generated.MatchOutcomeFound || result.Found.Start != 0 || result.Found.End != 1 {
+		t.Fatalf("unexpected long-subject match: %+v", result)
+	}
+}
+
 func TestExportedCaptures(t *testing.T) {
 	options := generated.RegexOptions{Syntax: generated.Syntax{Kind: generated.SyntaxAdvanced}, CaseSensitive: true, Newline: generated.NewlineMode{Kind: generated.NewlineModeOrdinary}}
 	result := generated.Captures("(a)?()", "😀", 1, options)
