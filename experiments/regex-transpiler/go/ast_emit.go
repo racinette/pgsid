@@ -190,6 +190,12 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		if !ok {
 			reject("expression operator needs statement lowering: " + value.Operator)
 		}
+		if _, composite := left.(*ast.CompositeLit); composite {
+			left = &ast.ParenExpr{X: left}
+		}
+		if _, composite := right.(*ast.CompositeLit); composite {
+			right = &ast.ParenExpr{X: right}
+		}
 		return &ast.BinaryExpr{X: left, Op: operator, Y: right}
 	case "field":
 		return goSelect(g.goExpression(value.Base), g.fieldName(g.fieldOwner(value.Base), value.Member))

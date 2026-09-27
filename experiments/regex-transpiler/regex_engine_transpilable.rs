@@ -45,6 +45,69 @@ const DISSECT_ITERATION_ADVANCE: usize = 10;
 const DISSECT_ASSERTION: usize = 11;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Syntax {
+    Advanced,
+    Basic,
+    Extended,
+    Literal,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum NewlineMode {
+    Ordinary,
+    Sensitive,
+    Stop,
+    Anchors,
+}
+
+#[derive(Clone, Copy)]
+pub struct RegexOptions {
+    pub syntax: Syntax,
+    pub case_sensitive: bool,
+    pub expanded: bool,
+    pub newline: NewlineMode,
+}
+
+pub fn find(pattern: &str, subject: &str, from: usize, options: RegexOptions) -> MatchOutcome {
+    if options.syntax == Syntax::Literal
+        && (options.expanded || options.newline != NewlineMode::Ordinary)
+    {
+        return MatchOutcome::InvalidPattern;
+    }
+    let mut syntax = 'a';
+    if options.syntax == Syntax::Basic {
+        syntax = 'b';
+    } else if options.syntax == Syntax::Extended {
+        syntax = 'e';
+    } else if options.syntax == Syntax::Literal {
+        syntax = 'q';
+    }
+    let parsed = capture_pattern_source(pattern, syntax, options.expanded);
+    let program = compile_capture_program_atoms(
+        parsed.atoms,
+        parsed.escape_ends,
+        parsed.syntax,
+        parsed.valid,
+        parsed.case_mode,
+        parsed.newline_mode,
+    );
+    if program.limited {
+        return MatchOutcome::Uncertain;
+    }
+    if program.valid == false {
+        return MatchOutcome::InvalidPattern;
+    }
+    run_capture_program(
+        program,
+        subject,
+        from,
+        options.case_sensitive,
+        options.newline == NewlineMode::Ordinary || options.newline == NewlineMode::Anchors,
+        options.newline == NewlineMode::Sensitive || options.newline == NewlineMode::Anchors,
+    )
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub struct MatchSpan {
     pub start: usize,
     pub end: usize,
@@ -53,6 +116,7 @@ pub struct MatchSpan {
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum MatchOutcome {
     Found(MatchSpan),
+    InvalidPattern,
     NoMatch,
     Uncertain,
 }
@@ -206,6 +270,7 @@ struct CaptureInstruction {
 
 struct CaptureProgram {
     valid: bool,
+    limited: bool,
     nodes: Vec<CaptureNode>,
     root: usize,
     references: Vec<usize>,
@@ -599,7 +664,7 @@ pub fn definitely_invalid_numeric_escape(
     if selected.syntax != 'a' {
         return false;
     }
-    let parsed = capture_pattern_source(pattern, expanded);
+    let parsed = capture_pattern_source(pattern, 'a', expanded);
     let source = parsed.atoms;
     let mut position = 0;
     let mut escape_index = 0;
@@ -5119,7 +5184,7 @@ fn validation_pattern_source(pattern: &str, syntax: char, expanded: bool) -> Inl
         && source[2] == '*'
         && (source[3] == ':' || source[3] == '=');
     if syntax == 'a' || ((syntax == 'b' || syntax == 'e') && prefixed) {
-        let parsed = capture_pattern_source(pattern, expanded);
+        let parsed = capture_pattern_source(pattern, 'a', expanded);
         return InlineOptionsResult {
             valid: parsed.valid,
             syntax: parsed.syntax,
@@ -5137,26 +5202,27 @@ fn validation_pattern_source(pattern: &str, syntax: char, expanded: bool) -> Inl
     }
 }
 
-fn capture_pattern_source(pattern: &str, expanded: bool) -> CaptureSource {
+fn capture_pattern_source(pattern: &str, mut syntax: char, expanded: bool) -> CaptureSource {
     let source: Vec<char> = pattern.chars().collect();
     let mut position = 0;
     let mut valid = true;
-    let mut syntax = 'a';
     let mut case_mode = ' ';
     let mut newline_mode = ' ';
     let mut effective_expanded = expanded;
-    if source.len() >= 4
+    if syntax != 'q'
+        && source.len() >= 4
         && source[0] == '*'
         && source[1] == '*'
         && source[2] == '*'
         && (source[3] == ':' || source[3] == '=')
     {
         position = 4;
+        syntax = 'a';
         if source[3] == '=' {
             syntax = 'q';
         }
     };
-    if syntax != 'q'
+    if syntax == 'a'
         && source.len() - position >= 3
         && source[position] == '('
         && source[position + 1] == '?'
@@ -5328,6 +5394,7 @@ fn compile_capture_program_atoms(
     case_mode: char,
     newline_mode: char,
 ) -> CaptureProgram {
+    let mut limited = false;
     let mut class_members: Vec<CaptureClassMember> = Vec::new();
     let mut nodes: Vec<CaptureNode> = Vec::new();
     nodes.push(make_capture_node(NODE_EMPTY, 0, 0, 0, ' ', 0, 1, 0));
@@ -5437,6 +5504,7 @@ fn compile_capture_program_atoms(
                         assertions = true;
                         assertion_depth += 1;
                         if assertion_depth > 64 {
+                            limited = true;
                             valid = false;
                         }
                     } else {
@@ -6068,6 +6136,7 @@ fn compile_capture_program_atoms(
     let mut head = 0;
     while head < tasks.len() && valid && interpreted == false {
         if instructions.len() > MAX_CAPTURE_INSTRUCTIONS {
+            limited = true;
             valid = false;
             break;
         };
@@ -6170,10 +6239,12 @@ fn compile_capture_program_atoms(
         };
     }
     if instructions.len() > MAX_CAPTURE_INSTRUCTIONS {
+        limited = true;
         valid = false;
     }
     CaptureProgram {
         valid,
+        limited,
         nodes,
         root,
         references,
@@ -6191,7 +6262,7 @@ fn compile_capture_program_atoms(
 }
 
 fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
-    let parsed = capture_pattern_source(pattern, expanded);
+    let parsed = capture_pattern_source(pattern, 'a', expanded);
     compile_capture_program_atoms(
         parsed.atoms,
         parsed.escape_ends,

@@ -1407,8 +1407,10 @@ fn estimated_automaton_states(expression: &Expression, groups: &[usize]) -> Opti
 }
 
 pub fn compile(pattern: &str, options: Options) -> CompileOutcome {
-    if options.syntax == Syntax::Literal && options.newline != NewlineMode::Ordinary {
-        return CompileOutcome::Uncertain;
+    if options.syntax == Syntax::Literal
+        && (options.expanded || options.newline != NewlineMode::Ordinary)
+    {
+        return CompileOutcome::InvalidPattern;
     }
 
     let (mut syntax, mut body, mut newline) = if options.syntax == Syntax::Literal {

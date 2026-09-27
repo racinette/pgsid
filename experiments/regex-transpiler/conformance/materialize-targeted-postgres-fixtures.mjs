@@ -1474,6 +1474,51 @@ for (const [name, character] of [
   }
 }
 
+for (const [syntax, pattern, subject, overrides] of [
+  ['literal', '(?i)A', '(?i)A', {}],
+  ['literal', '***=a+b', '***=a+b', {}],
+  ['literal', 'a # b', 'a # b', { expanded: true }],
+  ['literal', 'A\nB', 'a\nb', { caseSensitive: false, newline: 'sensitive' }],
+  ['basic', '(?i)a', '(?i)a', {}],
+  ['extended', '(?i)a', 'a', {}],
+  ['basic', '***:^(ab|cd)+$', 'abcd', {}],
+  ['extended', '***:^(ab|cd)+$', 'abcd', {}],
+  ['basic', '***=a+b', 'a+b', {}],
+  ['extended', '***=a+b', 'a+b', {}],
+  ['basic', '***:(?i)^(ab|cd)+$', 'ABcd', {}],
+  ['extended', '***:(?b)^\\(ab\\)*$', 'abab', {}],
+  ['advanced', '(?c)a', 'A', { caseSensitive: false }],
+  ['advanced', '(?i)a', 'A', {}],
+  ['advanced', '(?t)a b', 'a b', { expanded: true }],
+  ['advanced', '(?x)a b', 'ab', {}],
+  ['advanced', '(?s)^a.b$', 'a\nb', { newline: 'sensitive' }],
+  ['advanced', '(?n)^a$', 'x\na\nx', { newline: 'ordinary' }],
+  ['literal', '[a', '[a', {}],
+  ['advanced', '[a', 'a', {}],
+  ['basic', '***?', '***?', {}],
+  ['extended', '***?', '***?', {}],
+  ['literal', '***?', '***?', {}],
+  ['advanced', '[[..]]', 'az', {}],
+  ['advanced', '[[==]]', 'az', {}],
+  ['advanced', '[[.missing.]]', 'az', {}],
+  ['advanced', '[[=missing=]]', 'az', {}],
+  ['advanced', '[[.Zero.]]', 'az', {}],
+  ['advanced', '[[.ab.]]', 'az', {}],
+  ['advanced', '[[.a=]]', 'az', {}],
+  ['advanced', '[[.a.]', 'az', {}],
+  ['advanced', '[[=a=]-z]', 'az', {}],
+  ['advanced', '[a-[=z=]]', 'az', {}],
+  ['advanced', '[[=a=]-[=z=]]', 'az', {}],
+  ['advanced', '[[.z.]-[.a.]]', 'az', {}],
+]) {
+  inputs.push({
+    family: 'api',
+    pattern,
+    subject,
+    options: { syntax, caseSensitive: true, expanded: false, newline: 'ordinary', ...overrides },
+  })
+}
+
 function flags(options) {
   const newline = { ordinary: '', sensitive: 'n', stop: 'p', anchors: 'w' }[options.newline]
   const syntax = { literal: 'q', basic: 'b', extended: '', advanced: '' }[options.syntax]
@@ -1490,18 +1535,27 @@ try {
   `
   const fixtures = []
   for (const { family, ...input } of inputs) {
-    const pattern = input.options.syntax === 'extended' ? `(?e)${input.pattern}` : input.pattern
-    const result = await pg.query(sql, [
-      input.subject,
-      pattern,
-      flags(input.options),
-      input.start ?? 1,
-    ])
-    const { match_start: start, match_end: end } = result.rows[0]
-    const expected =
-      start === 0
-        ? { kind: 'NoMatch' }
-        : { kind: 'Found', value: { start: start - 1, end: end - 1 } }
+    const pattern =
+      input.options.syntax === 'extended' && !input.pattern.startsWith('***')
+        ? `(?e)${input.pattern}`
+        : input.pattern
+    let expected
+    try {
+      const result = await pg.query(sql, [
+        input.subject,
+        pattern,
+        flags(input.options),
+        input.start ?? 1,
+      ])
+      const { match_start: start, match_end: end } = result.rows[0]
+      expected =
+        start === 0
+          ? { kind: 'NoMatch' }
+          : { kind: 'Found', value: { start: start - 1, end: end - 1 } }
+    } catch (error) {
+      if (error.code !== '2201B') throw error
+      expected = { kind: 'InvalidPattern', sqlstate: error.code }
+    }
     fixtures.push({ ...(family ? { family } : {}), input, expected })
   }
   const output = `${JSON.stringify(

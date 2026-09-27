@@ -252,3 +252,14 @@ assert.deepEqual(generated.chargeWork(1999999, 1), {
   value: 2000000,
 })
 assert.deepEqual(generated.chargeWork(2000000, 1), { kind: 'Uncertain' })
+
+const unifiedOptions = {
+  syntax: { kind: 'Advanced' },
+  newline: { kind: 'Ordinary' },
+  caseSensitive: true,
+  expanded: false,
+}
+for (const pattern of ['(a{255}){255}', `${'(?='.repeat(65)}a${')'.repeat(65)}`]) {
+  assert.deepEqual(generated.find(pattern, 'a', 0, unifiedOptions), { kind: 'Uncertain' })
+}
+assert.deepEqual(generated.find('[', '', 100, unifiedOptions), { kind: 'InvalidPattern' })

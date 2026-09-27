@@ -86,3 +86,6 @@ assert.deepEqual(positions, [2])
 assert.throws(() => generated.appendPosition([-1], 4), RangeError)
 assert.throws(() => generated.appendPosition(positions, 2147483648), RangeError)
 assert.throws(() => generated.overwritePosition(positions, 1, 4), RangeError)
+
+assert.equal(generated.conditionLiterals({ kind: 'Run' }), 1)
+assert.equal(generated.conditionLiterals({ kind: 'Stop' }), 0)
