@@ -242,6 +242,18 @@ struct UnicodeProgram {
     tokens: Vec<UnicodeToken>,
 }
 
+#[derive(Clone, Copy)]
+struct WidthFrame {
+    sequence: usize,
+    alternative: usize,
+    has_alternative: bool,
+}
+
+struct WidthResult {
+    valid: bool,
+    minimum: usize,
+}
+
 struct TwoChoiceResult {
     valid: bool,
     first_left: Vec<char>,
@@ -3228,6 +3240,332 @@ pub fn find_unicode_simple(
         start += 1;
     }
     MatchOutcome::NoMatch
+}
+
+fn width_choice(sequence: usize, alternative: usize, has_alternative: bool) -> usize {
+    if has_alternative && alternative < sequence {
+        return alternative;
+    }
+    sequence
+}
+
+fn parse_minimum_width(pattern: &str, expanded: bool) -> WidthResult {
+    let source = pattern_atoms(pattern, expanded);
+    let mut frames: Vec<WidthFrame> = Vec::new();
+    let mut frame_count = 0;
+    let mut sequence = 0;
+    let mut alternative = 0;
+    let mut has_alternative = false;
+    let mut last = 0;
+    let mut has_last = false;
+    let mut quantified = false;
+    let mut position = 0;
+    while position < source.len() {
+        let atom = source[position];
+        if atom == '*' || atom == '+' || atom == '?' || atom == '{' {
+            if has_last == false || quantified {
+                return WidthResult {
+                    valid: false,
+                    minimum: 0,
+                };
+            }
+            if atom == '*' || atom == '?' {
+                last = 0;
+                position += 1;
+            } else if atom == '+' {
+                position += 1;
+            } else {
+                position += 1;
+                let mut lower = 0;
+                let mut digits = 0;
+                while position < source.len()
+                    && (source[position] as u32) >= 48
+                    && (source[position] as u32) <= 57
+                {
+                    let digit = ((source[position] as u32) - 48) as usize;
+                    let double = lower + lower;
+                    let four = double + double;
+                    let eight = four + four;
+                    lower = eight + double + digit;
+                    digits += 1;
+                    position += 1;
+                    if lower > 255 {
+                        return WidthResult {
+                            valid: false,
+                            minimum: 0,
+                        };
+                    }
+                }
+                if digits == 0 {
+                    return WidthResult {
+                        valid: false,
+                        minimum: 0,
+                    };
+                }
+                if position < source.len() && source[position] == ',' {
+                    position += 1;
+                    let mut upper = 0;
+                    let mut upper_digits = 0;
+                    while position < source.len()
+                        && (source[position] as u32) >= 48
+                        && (source[position] as u32) <= 57
+                    {
+                        let digit = ((source[position] as u32) - 48) as usize;
+                        let double = upper + upper;
+                        let four = double + double;
+                        let eight = four + four;
+                        upper = eight + double + digit;
+                        upper_digits += 1;
+                        position += 1;
+                        if upper > 255 {
+                            return WidthResult {
+                                valid: false,
+                                minimum: 0,
+                            };
+                        }
+                    }
+                    if upper_digits > 0 && upper < lower {
+                        return WidthResult {
+                            valid: false,
+                            minimum: 0,
+                        };
+                    }
+                }
+                if position == source.len() || source[position] != '}' {
+                    return WidthResult {
+                        valid: false,
+                        minimum: 0,
+                    };
+                }
+                position += 1;
+                let unit = last;
+                last = 0;
+                let mut repeated = 0;
+                while repeated < lower {
+                    last += unit;
+                    if last > 65535 {
+                        return WidthResult {
+                            valid: false,
+                            minimum: 0,
+                        };
+                    }
+                    repeated += 1;
+                }
+            };
+            quantified = true;
+            if position < source.len() && source[position] == '?' {
+                position += 1;
+            }
+        } else if atom == '|' || atom == ')' {
+            if has_last {
+                sequence += last;
+                has_last = false;
+            }
+            if atom == '|' {
+                if has_alternative == false || sequence < alternative {
+                    alternative = sequence;
+                }
+                has_alternative = true;
+                sequence = 0;
+                position += 1;
+            } else {
+                if frame_count == 0 {
+                    return WidthResult {
+                        valid: false,
+                        minimum: 0,
+                    };
+                }
+                let group_width = width_choice(sequence, alternative, has_alternative);
+                frame_count = frame_count - 1;
+                let frame = frames[frame_count];
+                sequence = frame.sequence;
+                alternative = frame.alternative;
+                has_alternative = frame.has_alternative;
+                last = group_width;
+                has_last = true;
+                quantified = false;
+                position += 1;
+            };
+        } else if atom == '(' {
+            if source.len() - position > 1 && source[position + 1] == '?' {
+                return WidthResult {
+                    valid: false,
+                    minimum: 0,
+                };
+            }
+            if has_last {
+                sequence += last;
+                has_last = false;
+            }
+            let frame = WidthFrame {
+                sequence,
+                alternative,
+                has_alternative,
+            };
+            if frame_count == frames.len() {
+                frames.push(frame);
+            } else {
+                frames[frame_count] = frame;
+            }
+            frame_count += 1;
+            sequence = 0;
+            alternative = 0;
+            has_alternative = false;
+            quantified = false;
+            position += 1;
+        } else {
+            if has_last {
+                sequence += last;
+            }
+            has_last = true;
+            quantified = false;
+            last = 1;
+            if atom == '^' || atom == '$' {
+                last = 0;
+                position += 1;
+            } else if atom == '.' {
+                position += 1;
+            } else if atom == '[' {
+                let mut end = position + 1;
+                if source.len() - position >= 10
+                    && source[position + 1] == '['
+                    && source[position + 2] == ':'
+                {
+                    let kind = posix_class_kind(
+                        source[position + 3],
+                        source[position + 4],
+                        source[position + 5],
+                        source[position + 6],
+                        source[position + 7],
+                        source[position + 8],
+                    );
+                    end = position + posix_class_width(kind);
+                } else {
+                    while end < source.len() && source[end] != ']' {
+                        if source[end] == '\\' {
+                            end += 1;
+                        }
+                        end += 1;
+                    }
+                    end += 1;
+                };
+                if end > source.len() {
+                    return WidthResult {
+                        valid: false,
+                        minimum: 0,
+                    };
+                }
+                let mut member: Vec<char> = Vec::new();
+                let mut index = position;
+                while index < end {
+                    member.push(source[index]);
+                    index += 1;
+                }
+                if supports_atoms(member) == false {
+                    return WidthResult {
+                        valid: false,
+                        minimum: 0,
+                    };
+                }
+                position = end;
+            } else if atom == '\\' {
+                if source.len() - position < 2 {
+                    return WidthResult {
+                        valid: false,
+                        minimum: 0,
+                    };
+                }
+                let escaped = source[position + 1];
+                if escaped == 'm'
+                    || escaped == 'M'
+                    || escaped == 'y'
+                    || escaped == 'Y'
+                    || escaped == 'A'
+                    || escaped == 'Z'
+                {
+                    last = 0;
+                } else if escaped != 'd'
+                    && escaped != 'D'
+                    && escaped != 's'
+                    && escaped != 'S'
+                    && escaped != 'w'
+                    && escaped != 'W'
+                    && escaped != 'n'
+                    && escaped != 'r'
+                    && escaped != 't'
+                    && escaped != '.'
+                    && escaped != '+'
+                    && escaped != '-'
+                    && escaped != '?'
+                    && escaped != '*'
+                    && escaped != '^'
+                    && escaped != '$'
+                    && escaped != '|'
+                    && escaped != '('
+                    && escaped != ')'
+                    && escaped != '\\'
+                {
+                    return WidthResult {
+                        valid: false,
+                        minimum: 0,
+                    };
+                }
+                position += 2;
+            } else if simple_literal_char(atom) {
+                position += 1;
+            } else {
+                return WidthResult {
+                    valid: false,
+                    minimum: 0,
+                };
+            };
+        };
+        if sequence > 65535 {
+            return WidthResult {
+                valid: false,
+                minimum: 0,
+            };
+        }
+    }
+    if frame_count != 0 {
+        return WidthResult {
+            valid: false,
+            minimum: 0,
+        };
+    }
+    if has_last {
+        sequence += last;
+    }
+    WidthResult {
+        valid: sequence <= 65535,
+        minimum: width_choice(sequence, alternative, has_alternative),
+    }
+}
+
+pub fn definitely_no_match_by_width(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    expanded: bool,
+) -> bool {
+    let parsed = parse_minimum_width(pattern, expanded);
+    if parsed.valid == false {
+        return false;
+    }
+    let haystack: Vec<char> = subject.chars().collect();
+    from <= haystack.len() && parsed.minimum > haystack.len() - from
+}
+
+pub fn find_width_rejected(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    expanded: bool,
+) -> MatchOutcome {
+    if definitely_no_match_by_width(pattern, subject, from, expanded) {
+        return MatchOutcome::NoMatch;
+    }
+    MatchOutcome::Uncertain
 }
 
 fn make_capture_step(

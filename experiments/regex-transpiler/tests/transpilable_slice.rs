@@ -1216,6 +1216,27 @@ fn repeated_anchor_or_newline_choices_advance_without_zero_loops() {
 }
 
 #[test]
+fn minimum_width_rejection_respects_empty_arms_and_invalid_syntax() {
+    assert!(candidate::definitely_no_match_by_width(
+        "^(ab|c)d{2,3}$",
+        "x",
+        0,
+        false,
+    ));
+    assert!(matches!(
+        candidate::find_width_rejected("^(ab|c)d{2,3}$", "x", 0, false),
+        candidate::MatchOutcome::NoMatch
+    ));
+    assert!(!candidate::definitely_no_match_by_width(
+        "(ab|)*", "", 0, false
+    ));
+    assert!(!candidate::definitely_no_match_by_width("a(", "", 0, false));
+    assert!(!candidate::definitely_no_match_by_width(
+        "a\\q", "", 0, false
+    ));
+}
+
+#[test]
 fn group_repetition_gate_requires_fixed_literal_member() {
     assert!(candidate::supports_bounded_group("(ab){1,3}c", false));
     assert!(candidate::supports_bounded_group("a(ab)*c", false));
@@ -2704,6 +2725,21 @@ fn supported_search_matches_pglite_fixtures() {
                     subject,
                     from,
                     options["caseSensitive"].as_bool().unwrap(),
+                    options["expanded"].as_bool().unwrap(),
+                )
+            } else if options["syntax"] == "advanced"
+                && candidate::definitely_no_match_by_width(
+                    pattern,
+                    subject,
+                    from,
+                    options["expanded"].as_bool().unwrap(),
+                )
+            {
+                advanced += 1;
+                candidate::find_width_rejected(
+                    pattern,
+                    subject,
+                    from,
                     options["expanded"].as_bool().unwrap(),
                 )
             } else {

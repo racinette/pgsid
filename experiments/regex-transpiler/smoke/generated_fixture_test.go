@@ -473,6 +473,9 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			} else if input.Options.Syntax == "advanced" && SupportsUnicodeSimple(input.Pattern, input.Options.Expanded) {
 				actual = FindUnicodeSimple(input.Pattern, input.Subject, from, input.Options.CaseSensitive, input.Options.Expanded)
 				advanced++
+			} else if input.Options.Syntax == "advanced" && DefinitelyNoMatchByWidth(input.Pattern, input.Subject, from, input.Options.Expanded) {
+				actual = FindWidthRejected(input.Pattern, input.Subject, from, input.Options.Expanded)
+				advanced++
 			} else {
 				continue
 			}

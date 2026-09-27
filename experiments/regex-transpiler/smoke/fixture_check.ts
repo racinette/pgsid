@@ -940,6 +940,12 @@ for (const fixturePath of fixturePaths) {
         options.expanded,
       )
       coverage.advanced++
+    } else if (
+      options.syntax === 'advanced' &&
+      generated.definitelyNoMatchByWidth(pattern, subject, from, options.expanded)
+    ) {
+      actual = generated.findWidthRejected(pattern, subject, from, options.expanded)
+      coverage.advanced++
     } else {
       if (options.syntax === 'advanced') coverage.unsupportedAdvanced++
       else coverage.otherOptions++
