@@ -1596,6 +1596,39 @@ fn rust_targeted_count_matches_postgres() {
 }
 
 #[test]
+fn rust_find_all_matches_postgres() {
+    let document: Value = serde_json::from_str(include_str!(
+        "../conformance/targeted-postgres-fixtures.json"
+    ))
+    .unwrap();
+    let mut checked = 0;
+    for fixture in document["fixtures"].as_array().unwrap() {
+        if fixture["operation"] != "find_all" {
+            continue;
+        }
+        let input = &fixture["input"];
+        let actual = match engine::find_all(
+            input["pattern"].as_str().unwrap(),
+            input["subject"].as_str().unwrap(),
+            input["start"].as_u64().unwrap() as usize - 1,
+            options(input),
+        ) {
+            engine::MatchListOutcome::Matches(spans) => json!({
+                "kind":"Matches",
+                "value": spans.iter().map(|span| json!({"start":span.start,"end":span.end})).collect::<Vec<_>>()
+            }),
+            engine::MatchListOutcome::InvalidPattern => {
+                json!({"kind":"InvalidPattern", "sqlstate":"2201B"})
+            }
+            engine::MatchListOutcome::Uncertain => json!({"kind":"Uncertain"}),
+        };
+        assert_eq!(actual, fixture["expected"], "find all: {input}");
+        checked += 1;
+    }
+    assert!(checked > 0);
+}
+
+#[test]
 fn rust_composition_results_match_postgres() {
     let document: Value = serde_json::from_str(include_str!(
         "../conformance/targeted-postgres-fixtures.json"

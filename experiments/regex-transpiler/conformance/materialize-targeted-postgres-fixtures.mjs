@@ -1929,6 +1929,29 @@ for (const [pattern, subject, captureGroups] of [
   })
 }
 
+for (const [pattern, subject, start] of [
+  ['a*?', 'aa', 1],
+  ['a*', 'baa', 1],
+  ['(?=a)', 'aa', 1],
+  ['.', '😀a', 1],
+  ['ab|a', 'ababa', 1],
+  ['', '😀', 1],
+  ['a', 'bbb', 1],
+  ['a', 'aaa', 2],
+  ['a', 'aaa', 5],
+  [String.raw`(a)\1`, 'aa aa', 1],
+  ['[', 'abc', 1],
+]) {
+  inputs.push({
+    operation: 'find_all',
+    family: 'api-find-all',
+    pattern,
+    subject,
+    start,
+    options: { syntax: 'advanced', caseSensitive: true, expanded: false, newline: 'ordinary' },
+  })
+}
+
 function flags(options) {
   const newline = { ordinary: '', sensitive: 'n', stop: 'p', anchors: 'w' }[options.newline]
   const syntax = { literal: 'q', basic: 'b', extended: '', advanced: '' }[options.syntax]
@@ -1944,6 +1967,12 @@ try {
       regexp_instr(($1::text collate "C"), $2::text, $4::int, 1, 1, $3::text) as match_end
   `
   const countSql = `select regexp_count(($1::text collate "C"), $2::text, $4::int, $3::text) as count`
+  const findAllSql = `
+    select regexp_instr(($1::text collate "C"), $2::text, $4::int, occurrence, 0, $3::text) as match_start,
+      regexp_instr(($1::text collate "C"), $2::text, $4::int, occurrence, 1, $3::text) as match_end
+    from generate_series(1, regexp_count(($1::text collate "C"), $2::text, $4::int, $3::text)) as occurrence
+    order by occurrence
+  `
   const captureSql = `
     select subexpression,
       regexp_instr(($1::text collate "C"), $2::text, $4::int, 1, 0, $3::text, subexpression) as match_start,
@@ -1961,7 +1990,21 @@ try {
         : input.pattern
     let expected
     try {
-      if (operation === 'captures') {
+      if (operation === 'find_all') {
+        const { rows } = await pg.query(findAllSql, [
+          input.subject,
+          pattern,
+          flags(input.options),
+          input.start ?? 1,
+        ])
+        expected = {
+          kind: 'Matches',
+          value: rows.map(({ match_start: start, match_end: end }) => ({
+            start: start - 1,
+            end: end - 1,
+          })),
+        }
+      } else if (operation === 'captures') {
         const { rows } = await pg.query(captureSql, [
           input.subject,
           pattern,

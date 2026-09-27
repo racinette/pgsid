@@ -48,3 +48,21 @@ func TestExportedCaptures(t *testing.T) {
 		t.Fatal("lookaround depth must respect the work limit")
 	}
 }
+
+func TestExportedFindAll(t *testing.T) {
+	options := generated.RegexOptions{Syntax: generated.Syntax{Kind: generated.SyntaxAdvanced}, CaseSensitive: true, Newline: generated.NewlineMode{Kind: generated.NewlineModeOrdinary}}
+	result := generated.FindAll("a", "aba", 0, options)
+	if result.Kind != generated.MatchListOutcomeMatches || len(result.Matches) != 2 || result.Matches[0] != (generated.MatchSpan{Start: 0, End: 1}) || result.Matches[1] != (generated.MatchSpan{Start: 2, End: 3}) {
+		t.Fatalf("unexpected exported match list: %+v", result)
+	}
+	result.Matches[0].End = 99
+	if result.Matches[1].End != 3 || generated.FindAll("a", "aba", 0, options).Matches[0].End != 1 {
+		t.Fatal("match list results share mutable storage")
+	}
+	if generated.FindAll("[", "", 100, options).Kind != generated.MatchListOutcomeInvalidPattern {
+		t.Fatal("invalid pattern lost its status")
+	}
+	if generated.FindAll(strings.Repeat("(?=", 65)+"a"+strings.Repeat(")", 65), "a", 0, options).Kind != generated.MatchListOutcomeUncertain {
+		t.Fatal("lookaround depth must respect the work limit")
+	}
+}

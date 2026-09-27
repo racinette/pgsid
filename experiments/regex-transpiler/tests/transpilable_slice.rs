@@ -1666,6 +1666,10 @@ fn unified_operations_preserve_uncertainty_at_resource_limits() {
             candidate::count(&pattern, "a", 0, options),
             candidate::CountOutcome::Uncertain
         ));
+        assert!(matches!(
+            candidate::find_all(&pattern, "a", 0, options),
+            candidate::MatchListOutcome::Uncertain
+        ));
     }
     let subject = "a".repeat(250000);
     assert!(matches!(
@@ -1677,12 +1681,20 @@ fn unified_operations_preserve_uncertainty_at_resource_limits() {
         candidate::CountOutcome::Uncertain
     ));
     assert!(matches!(
+        candidate::find_all("(?=a)(?=a)", &subject, 0, options),
+        candidate::MatchListOutcome::Uncertain
+    ));
+    assert!(matches!(
         candidate::count("[", "", 100, options),
         candidate::CountOutcome::InvalidPattern
     ));
     assert!(matches!(
         candidate::find("[", "", 100, options),
         candidate::MatchOutcome::InvalidPattern
+    ));
+    assert!(matches!(
+        candidate::find_all("[", "", 100, options),
+        candidate::MatchListOutcome::InvalidPattern
     ));
 }
 
@@ -1705,6 +1717,7 @@ fn unified_operations_match_every_postgres_fixture() {
     let mut finds = 0;
     let mut counts = 0;
     let mut captures = 0;
+    let mut lists = 0;
     for source in [
         include_str!("../conformance/postgres-fixtures.json"),
         include_str!("../conformance/stress-fixtures.json"),
@@ -1749,6 +1762,17 @@ fn unified_operations_match_every_postgres_fixture() {
                     }
                     candidate::CountOutcome::Uncertain => json!({"kind":"Uncertain"}),
                 }
+            } else if fixture["operation"] == "find_all" {
+                lists += 1;
+                match candidate::find_all(pattern, subject, from, options) {
+                    candidate::MatchListOutcome::Matches(spans) => {
+                        json!({"kind":"Matches", "value": spans.iter().map(|span| json!({"start":span.start,"end":span.end})).collect::<Vec<_>>()})
+                    }
+                    candidate::MatchListOutcome::InvalidPattern => {
+                        json!({"kind":"InvalidPattern", "sqlstate":"2201B"})
+                    }
+                    candidate::MatchListOutcome::Uncertain => json!({"kind":"Uncertain"}),
+                }
             } else if fixture["operation"] == "captures" {
                 captures += 1;
                 match candidate::captures(pattern, subject, from, options) {
@@ -1778,8 +1802,8 @@ fn unified_operations_match_every_postgres_fixture() {
             assert_eq!(actual, fixture["expected"], "unified operation: {input}");
         }
     }
-    assert!(finds > 0 && counts > 0 && captures > 0);
-    eprintln!("unified operations: {finds} find and {counts} count and {captures} capture PostgreSQL fixtures");
+    assert!(finds > 0 && counts > 0 && captures > 0 && lists > 0);
+    eprintln!("unified operations: {finds} find and {counts} count and {captures} capture and {lists} find-all PostgreSQL fixtures");
 }
 
 #[test]

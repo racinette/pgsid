@@ -72212,6 +72212,299 @@
           }
         ]
       }
+    },
+    {
+      "family": "api-find-all",
+      "operation": "find_all",
+      "input": {
+        "pattern": "a*?",
+        "subject": "aa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": [
+          {
+            "start": 0,
+            "end": 0
+          },
+          {
+            "start": 1,
+            "end": 1
+          },
+          {
+            "start": 2,
+            "end": 2
+          }
+        ]
+      }
+    },
+    {
+      "family": "api-find-all",
+      "operation": "find_all",
+      "input": {
+        "pattern": "a*",
+        "subject": "baa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": [
+          {
+            "start": 0,
+            "end": 0
+          },
+          {
+            "start": 1,
+            "end": 3
+          },
+          {
+            "start": 3,
+            "end": 3
+          }
+        ]
+      }
+    },
+    {
+      "family": "api-find-all",
+      "operation": "find_all",
+      "input": {
+        "pattern": "(?=a)",
+        "subject": "aa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": [
+          {
+            "start": 0,
+            "end": 0
+          },
+          {
+            "start": 1,
+            "end": 1
+          }
+        ]
+      }
+    },
+    {
+      "family": "api-find-all",
+      "operation": "find_all",
+      "input": {
+        "pattern": ".",
+        "subject": "😀a",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": [
+          {
+            "start": 0,
+            "end": 1
+          },
+          {
+            "start": 1,
+            "end": 2
+          }
+        ]
+      }
+    },
+    {
+      "family": "api-find-all",
+      "operation": "find_all",
+      "input": {
+        "pattern": "ab|a",
+        "subject": "ababa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": [
+          {
+            "start": 0,
+            "end": 2
+          },
+          {
+            "start": 2,
+            "end": 4
+          },
+          {
+            "start": 4,
+            "end": 5
+          }
+        ]
+      }
+    },
+    {
+      "family": "api-find-all",
+      "operation": "find_all",
+      "input": {
+        "pattern": "",
+        "subject": "😀",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": [
+          {
+            "start": 0,
+            "end": 0
+          },
+          {
+            "start": 1,
+            "end": 1
+          }
+        ]
+      }
+    },
+    {
+      "family": "api-find-all",
+      "operation": "find_all",
+      "input": {
+        "pattern": "a",
+        "subject": "bbb",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": []
+      }
+    },
+    {
+      "family": "api-find-all",
+      "operation": "find_all",
+      "input": {
+        "pattern": "a",
+        "subject": "aaa",
+        "start": 2,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": [
+          {
+            "start": 1,
+            "end": 2
+          },
+          {
+            "start": 2,
+            "end": 3
+          }
+        ]
+      }
+    },
+    {
+      "family": "api-find-all",
+      "operation": "find_all",
+      "input": {
+        "pattern": "a",
+        "subject": "aaa",
+        "start": 5,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": []
+      }
+    },
+    {
+      "family": "api-find-all",
+      "operation": "find_all",
+      "input": {
+        "pattern": "(a)\\1",
+        "subject": "aa aa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Matches",
+        "value": [
+          {
+            "start": 0,
+            "end": 2
+          },
+          {
+            "start": 3,
+            "end": 5
+          }
+        ]
+      }
+    },
+    {
+      "family": "api-find-all",
+      "operation": "find_all",
+      "input": {
+        "pattern": "[",
+        "subject": "abc",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
     }
   ]
 }
