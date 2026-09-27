@@ -68,11 +68,13 @@ pub struct RegexOptions {
 }
 
 pub fn find(pattern: &str, subject: &str, from: usize, options: RegexOptions) -> MatchOutcome {
-    capture_match_outcome(execute_pattern(pattern, subject, from, options, false))
+    capture_match_outcome(execute_pattern(
+        pattern, subject, from, options, false, false,
+    ))
 }
 
 pub fn count(pattern: &str, subject: &str, from: usize, options: RegexOptions) -> CountOutcome {
-    let result = execute_pattern(pattern, subject, from, options, true);
+    let result = execute_pattern(pattern, subject, from, options, true, false);
     if result.kind == 2 {
         return CountOutcome::Uncertain;
     }
@@ -82,11 +84,45 @@ pub fn count(pattern: &str, subject: &str, from: usize, options: RegexOptions) -
     CountOutcome::Count(result.count)
 }
 
+#[derive(Clone, Copy)]
+pub struct CaptureSpan {
+    pub matched: bool,
+    pub start: usize,
+    pub end: usize,
+}
+
+pub enum CaptureOutcome {
+    Found(Vec<CaptureSpan>),
+    InvalidPattern,
+    NoMatch,
+    Uncertain,
+}
+
+pub fn captures(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    options: RegexOptions,
+) -> CaptureOutcome {
+    let result = execute_pattern(pattern, subject, from, options, false, true);
+    if result.kind == 2 {
+        return CaptureOutcome::Uncertain;
+    }
+    if result.kind == 3 {
+        return CaptureOutcome::InvalidPattern;
+    }
+    if result.kind == 1 {
+        return CaptureOutcome::NoMatch;
+    }
+    CaptureOutcome::Found(result.groups)
+}
+
 struct CaptureRunResult {
     kind: usize,
     start: usize,
     end: usize,
     count: usize,
+    groups: Vec<CaptureSpan>,
 }
 
 fn make_capture_run_result(
@@ -95,11 +131,13 @@ fn make_capture_run_result(
     end: usize,
     count: usize,
 ) -> CaptureRunResult {
+    let groups: Vec<CaptureSpan> = Vec::new();
     CaptureRunResult {
         kind,
         start,
         end,
         count,
+        groups,
     }
 }
 
@@ -125,6 +163,7 @@ fn execute_pattern(
     from: usize,
     options: RegexOptions,
     counting: bool,
+    capturing: bool,
 ) -> CaptureRunResult {
     if options.syntax == Syntax::Literal
         && (options.expanded || options.newline != NewlineMode::Ordinary)
@@ -147,6 +186,7 @@ fn execute_pattern(
         parsed.valid,
         parsed.case_mode,
         parsed.newline_mode,
+        capturing,
     );
     if program.limited {
         return make_capture_run_result(2, 0, 0, 0);
@@ -162,6 +202,7 @@ fn execute_pattern(
         options.newline == NewlineMode::Ordinary || options.newline == NewlineMode::Anchors,
         options.newline == NewlineMode::Sensitive || options.newline == NewlineMode::Anchors,
         counting,
+        capturing,
     )
 }
 
@@ -2062,6 +2103,7 @@ fn compile_capture_program_atoms(
     mut valid: bool,
     case_mode: char,
     newline_mode: char,
+    capturing: bool,
 ) -> CaptureProgram {
     let mut limited = false;
     let mut class_members: Vec<CaptureClassMember> = Vec::new();
@@ -2793,7 +2835,7 @@ fn compile_capture_program_atoms(
         }
     }
     let shortest = nodes[root].preference == 2;
-    let interpreted = backreferences || assertions;
+    let interpreted = backreferences || assertions || capturing;
     let mut instructions: Vec<CaptureInstruction> = Vec::new();
     instructions.push(make_capture_step(VM_JUMP, 1, 0, 0, ' '));
     instructions.push(make_capture_step(VM_ACCEPT, 0, 0, 0, ' '));
@@ -2950,6 +2992,23 @@ fn make_capture_dissect_frame(
     }
 }
 
+fn capture_repeat_endpoint(
+    begin: usize,
+    end: usize,
+    minimum: usize,
+    maximum: usize,
+    shortest: bool,
+) -> usize {
+    let mut width = maximum;
+    if shortest {
+        width = minimum;
+    }
+    if width > end - begin {
+        width = end - begin;
+    }
+    begin + width
+}
+
 fn execute_capture_tree(
     program: CaptureProgram,
     subject: &str,
@@ -2958,11 +3017,12 @@ fn execute_capture_tree(
     dot_crosses_newline: bool,
     line_anchors: bool,
     counting: bool,
+    capturing: bool,
 ) -> CaptureRunResult {
     let mut count = 0;
     let haystack: Vec<char> = subject.chars().collect();
     let mut width = 0;
-    if program.backreferences {
+    if program.backreferences || capturing {
         width = program.captures + 1;
     }
     let mut work = 0;
@@ -3037,6 +3097,10 @@ fn execute_capture_tree(
                     lower = lower - 1;
                     if node.unbounded == false {
                         upper = upper - 1;
+                    }
+                    if frame.begin == frame.end && lower > 1 {
+                        lower = 1;
+                        upper = 1;
                     }
                 }
                 let repeated_reference = node.operation == NODE_REPEAT
@@ -3125,10 +3189,13 @@ fn execute_capture_tree(
                             success = true;
                             complete = true;
                         } else {
-                            let mut endpoint = frame.end;
-                            if child_shortest {
-                                endpoint = frame.begin;
-                            }
+                            let endpoint = capture_repeat_endpoint(
+                                frame.begin,
+                                frame.end,
+                                program.minimums[node.left],
+                                program.maximums[node.left],
+                                child_shortest,
+                            );
                             path = paths.len();
                             paths.push(CaptureRepeatPath {
                                 begin: frame.begin,
@@ -3372,10 +3439,13 @@ fn execute_capture_tree(
                     if success && current.cursor == frame.end {
                         complete = true;
                     } else if success {
-                        let mut endpoint = frame.end;
-                        if child_shortest {
-                            endpoint = current.cursor;
-                        }
+                        let endpoint = capture_repeat_endpoint(
+                            current.cursor,
+                            frame.end,
+                            program.minimums[node.left],
+                            program.maximums[node.left],
+                            child_shortest,
+                        );
                         let previous = path;
                         path = paths.len();
                         paths.push(CaptureRepeatPath {
@@ -3392,9 +3462,14 @@ fn execute_capture_tree(
                 } else if phase == DISSECT_ITERATION_ADVANCE {
                     let current = paths[path];
                     let mut endpoint = current.cursor;
-                    if (child_shortest && endpoint == frame.end)
-                        || (child_shortest == false && endpoint == current.begin)
-                    {
+                    let limit = capture_repeat_endpoint(
+                        current.begin,
+                        frame.end,
+                        program.minimums[node.left],
+                        program.maximums[node.left],
+                        child_shortest == false,
+                    );
+                    if endpoint == limit {
                         path = current.previous;
                         if path == 0 {
                             success = lower == 0 && frame.begin == frame.end;
@@ -3495,6 +3570,35 @@ fn execute_capture_tree(
                 };
             }
             if success {
+                if capturing {
+                    let mut groups: Vec<CaptureSpan> = Vec::new();
+                    groups.push(CaptureSpan {
+                        matched: true,
+                        start,
+                        end: match_end,
+                    });
+                    group = 1;
+                    while group < width {
+                        if work == MAX_CAPTURE_WORK {
+                            return make_capture_run_result(2, 0, 0, 0);
+                        }
+                        work += 1;
+                        let register = captures[returned + group];
+                        groups.push(CaptureSpan {
+                            matched: register.status == 2,
+                            start: register.start,
+                            end: register.end,
+                        });
+                        group += 1;
+                    }
+                    return CaptureRunResult {
+                        kind: 0,
+                        start,
+                        end: match_end,
+                        count: 1,
+                        groups,
+                    };
+                }
                 if counting == false {
                     return make_capture_run_result(0, start, match_end, 1);
                 }
@@ -3533,6 +3637,7 @@ fn execute_capture_program(
     mut dot_crosses_newline: bool,
     mut line_anchors: bool,
     counting: bool,
+    capturing: bool,
 ) -> CaptureRunResult {
     if program.case_mode == 'i' {
         case_sensitive = false;
@@ -3561,6 +3666,7 @@ fn execute_capture_program(
             dot_crosses_newline,
             line_anchors,
             counting,
+            capturing,
         );
     }
     let mut count = 0;

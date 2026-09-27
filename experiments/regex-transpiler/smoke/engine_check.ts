@@ -330,3 +330,24 @@ assert.deepEqual(
   generated.find('a(b)*c', 'b'.repeat(300), 0, testOptions('Advanced', true, true, false, false)),
   { kind: 'NoMatch' },
 )
+
+const captureResult = generated.captures('(a)?()', '😀', 1, unifiedOptions)
+assert.deepEqual(captureResult, {
+  kind: 'Found',
+  value: [
+    { matched: true, start: 1, end: 1 },
+    { matched: false, start: 0, end: 0 },
+    { matched: true, start: 1, end: 1 },
+  ],
+})
+captureResult.value[0].end = 99
+assert.equal(captureResult.value[2].end, 1)
+assert.equal(generated.captures('(a)?()', '😀', 1, unifiedOptions).value[0].end, 1)
+assert.deepEqual(generated.captures('(', '', 100, unifiedOptions), { kind: 'InvalidPattern' })
+assert.deepEqual(generated.captures('a', '', 100, unifiedOptions), { kind: 'NoMatch' })
+assert.deepEqual(
+  generated.captures(`${'(?='.repeat(65)}a${')'.repeat(65)}`, 'a', 0, unifiedOptions),
+  {
+    kind: 'Uncertain',
+  },
+)

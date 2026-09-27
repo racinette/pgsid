@@ -7,7 +7,7 @@ if (!generatedPath || fixturePaths.length === 0) {
   throw new Error('usage: fixture_check.ts GENERATED_TS FIXTURES_JSON...')
 }
 const generated = await import(pathToFileURL(generatedPath).href)
-const coverage = { find: 0, count: 0 }
+const coverage = { find: 0, count: 0, captures: 0 }
 const syntaxKinds = {
   advanced: 'Advanced',
   basic: 'Basic',
@@ -27,7 +27,10 @@ for (const fixturePath of fixturePaths) {
   assert.ok(document.fixtures.length > 0)
   for (const [index, fixture] of document.fixtures.entries()) {
     assert.ok(
-      !fixture.operation || fixture.operation === 'find' || fixture.operation === 'count',
+      !fixture.operation ||
+        fixture.operation === 'find' ||
+        fixture.operation === 'count' ||
+        fixture.operation === 'captures',
       'unknown fixture operation',
     )
     const { pattern, subject, options } = fixture.input
@@ -48,10 +51,9 @@ for (const fixturePath of fixturePaths) {
       fixture.expected,
       `${fixturePath} fixture ${index}: ${JSON.stringify(fixture.input)}`,
     )
-    if (operation === 'count') coverage.count++
-    else coverage.find++
+    coverage[operation as keyof typeof coverage]++
   }
 }
 process.stdout.write(
-  `TypeScript unified operations: ${coverage.find} find and ${coverage.count} count PostgreSQL fixtures; zero skipped.\n`,
+  `TypeScript unified operations: ${coverage.find} find and ${coverage.count} count and ${coverage.captures} capture PostgreSQL fixtures; zero skipped.\n`,
 )

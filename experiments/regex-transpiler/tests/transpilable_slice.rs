@@ -1690,6 +1690,7 @@ fn unified_operations_preserve_uncertainty_at_resource_limits() {
 fn unified_operations_match_every_postgres_fixture() {
     let mut finds = 0;
     let mut counts = 0;
+    let mut captures = 0;
     for source in [
         include_str!("../conformance/postgres-fixtures.json"),
         include_str!("../conformance/stress-fixtures.json"),
@@ -1734,6 +1735,18 @@ fn unified_operations_match_every_postgres_fixture() {
                     }
                     candidate::CountOutcome::Uncertain => json!({"kind":"Uncertain"}),
                 }
+            } else if fixture["operation"] == "captures" {
+                captures += 1;
+                match candidate::captures(pattern, subject, from, options) {
+                    candidate::CaptureOutcome::Found(groups) => {
+                        json!({"kind":"Found", "value": groups.iter().map(|group| json!({"matched":group.matched, "start":group.start, "end":group.end})).collect::<Vec<_>>()})
+                    }
+                    candidate::CaptureOutcome::NoMatch => json!({"kind":"NoMatch"}),
+                    candidate::CaptureOutcome::InvalidPattern => {
+                        json!({"kind":"InvalidPattern", "sqlstate":"2201B"})
+                    }
+                    candidate::CaptureOutcome::Uncertain => json!({"kind":"Uncertain"}),
+                }
             } else {
                 assert!(fixture["operation"].is_null() || fixture["operation"] == "find");
                 finds += 1;
@@ -1751,6 +1764,53 @@ fn unified_operations_match_every_postgres_fixture() {
             assert_eq!(actual, fixture["expected"], "unified operation: {input}");
         }
     }
-    assert!(finds > 0 && counts > 0);
-    eprintln!("unified operations: {finds} find and {counts} count PostgreSQL fixtures");
+    assert!(finds > 0 && counts > 0 && captures > 0);
+    eprintln!("unified operations: {finds} find and {counts} count and {captures} capture PostgreSQL fixtures");
+}
+
+#[test]
+fn captures_preserve_outcome_status_and_detached_group_spans() {
+    let options = test_options(candidate::Syntax::Advanced, true, true, false, false);
+    let candidate::CaptureOutcome::Found(mut groups) =
+        candidate::captures("(a)?()", "😀", 1, options)
+    else {
+        panic!("expected captures");
+    };
+    assert_eq!(groups.len(), 3);
+    assert_eq!(
+        (groups[0].matched, groups[0].start, groups[0].end),
+        (true, 1, 1)
+    );
+    assert_eq!(
+        (groups[1].matched, groups[1].start, groups[1].end),
+        (false, 0, 0)
+    );
+    assert_eq!(
+        (groups[2].matched, groups[2].start, groups[2].end),
+        (true, 1, 1)
+    );
+    groups[0].end = 99;
+    assert_eq!(groups[2].end, 1);
+    let candidate::CaptureOutcome::Found(again) = candidate::captures("(a)?()", "😀", 1, options)
+    else {
+        panic!("expected independent captures");
+    };
+    assert_eq!(again[0].end, 1);
+    assert!(matches!(
+        candidate::captures("(", "", 100, options),
+        candidate::CaptureOutcome::InvalidPattern
+    ));
+    assert!(matches!(
+        candidate::captures("a", "", 100, options),
+        candidate::CaptureOutcome::NoMatch
+    ));
+    assert!(matches!(
+        candidate::captures(
+            &format!("{}a{}", "(?=".repeat(65), ")".repeat(65)),
+            "a",
+            0,
+            options
+        ),
+        candidate::CaptureOutcome::Uncertain
+    ));
 }

@@ -1756,6 +1756,124 @@ for (const [pattern, subject] of [
   }
 }
 
+for (const [pattern, subject, captureGroups, start, overrides] of [
+  ['abc', 'zabc', 0, 1, {}],
+  ['', '😀', 0, 2, {}],
+  ['(a)(b)', 'zab', 2, 1, {}],
+  ['(a)?(b*)', 'bbb', 2, 1, {}],
+  ['(a*)(b?)', '', 2, 1, {}],
+  ['(a)?b', 'b', 1, 1, {}],
+  ['(a?)b', 'b', 1, 1, {}],
+  ['(a|b)', 'c', 1, 1, {}],
+  ['((a)|(b))', 'b', 3, 1, {}],
+  ['((a)(b))', 'ab', 3, 1, {}],
+  ['(a+)(a+)', 'aaaa', 2, 1, {}],
+  ['(a+?)(a+)', 'aaaa', 2, 1, {}],
+  ['(a+)(a+?)', 'aaaa', 2, 1, {}],
+  ['(a+?)(a+?)', 'aaaa', 2, 1, {}],
+  ['^(a|aa)(a?)$', 'aaa', 2, 1, {}],
+  ['^(a|aa)(a?)$', 'aa', 2, 1, {}],
+  ['(ab|a)(b?)', 'ab', 2, 1, {}],
+  ['(a|ab)(b?)', 'ab', 2, 1, {}],
+  ['(a*)|((a)+)', 'aaa', 3, 1, {}],
+  ['((a|b)+)', 'ab', 2, 1, {}],
+  ['(ab|cd)+', 'abcd', 1, 1, {}],
+  ['(a|aa){2}', 'aaa', 1, 1, {}],
+  ['(a|aa){2}', 'aaaa', 1, 1, {}],
+  ['((a)?b)+', 'abb', 2, 1, {}],
+  ['((a)|(b))+', 'ab', 3, 1, {}],
+  ['(a?)*', '', 1, 1, {}],
+  ['(a?)+', '', 1, 1, {}],
+  ['(a??)*', '', 1, 1, {}],
+  ['(a??)+', '', 1, 1, {}],
+  ['(a*)*', 'aaa', 1, 1, {}],
+  ['(a*)+', 'aaa', 1, 1, {}],
+  ['(a*?)+', 'aaa', 1, 1, {}],
+  ['(a){0}(b)', 'b', 2, 1, {}],
+  ['(a*?){0}b+', 'bbb', 1, 1, {}],
+  ['((a)){0}(b)', 'b', 3, 1, {}],
+  ['(?:a)(b)', 'ab', 1, 1, {}],
+  ['(?=(a))(a)', 'a', 1, 1, {}],
+  ['(?<=(a))(b)', 'ab', 1, 1, {}],
+  ['(?!(a))(b)', 'b', 1, 1, {}],
+  ['(?<!(a))(b)', 'b', 1, 1, {}],
+  ['(a)(?=b)', 'ab', 1, 1, {}],
+  ['((?=a))a', 'a', 1, 1, {}],
+  ['(a*)\\1', 'aaaaa', 1, 1, {}],
+  ['(a|aa){2}\\1', 'aaaaa', 1, 1, {}],
+  ['(a|aa){2}\\1', 'aaaaaa', 1, 1, {}],
+  ['(a*)(a*)\\2\\1', 'aaaa', 2, 1, {}],
+  ['(a)?\\1*', '', 1, 1, {}],
+  ['()\\1{2}', '', 1, 1, {}],
+  ['(?i)(a)\\1', 'aA', 1, 1, {}],
+  ['(😀)(β?)', 'x😀β', 2, 1, {}],
+  ['(😀)(β?)', '😀😀β', 2, 2, {}],
+  ['(a)?()', '😀', 2, 2, {}],
+  ['(a)', 'a', 1, 3, {}],
+  ['(?<=a)(b)', 'ab', 1, 2, {}],
+  ['(?n)^(a*)$', 'x\naa\ny', 1, 2, {}],
+  ['(?x)(a b) #x\n (c)?', 'ab', 2, 1, {}],
+  ['(?b)\\(a\\)\\{2\\}', 'aa', 1, 1, {}],
+  ['\\(a\\)\\(b\\)', 'ab', 2, 1, { syntax: 'basic' }],
+  ['(ab|cd)+', 'abcd', 1, 1, { syntax: 'extended' }],
+  ['(a)', '(a)', 0, 1, { syntax: 'literal' }],
+  ['(?q)(a)', '(a)', 0, 1, {}],
+  ['***=(a)', '(a)', 0, 1, {}],
+  ['(a)', 'A', 1, 1, { caseSensitive: false }],
+  ['[', '', 0, 1, {}],
+  ['(a)\\2', 'aa', 1, 1, {}],
+  ['(?x)a* ?', 'aaa', 0, 1, {}],
+  ['(\\w)(.*?\\1)', 'Programmer', 2, 1, {}],
+  ['^([^/]+?)(?:/([^/]+?))(?:/([^/]+?))?$', 'foo/bar/baz', 3, 1, {}],
+  ['^(l*)(.*)(f*)$', 'llmmmfff', 3, 1, {}],
+  ['^(l*){1,1}(.*)(f*)$', 'llmmmfff', 3, 1, {}],
+  ['^(l*){1,1}?(.*)(f*)$', 'llmmmfff', 3, 1, {}],
+  ['^(l*){1,1}?(.*){1,1}?(f*)$', 'llmmmfff', 3, 1, {}],
+  ['^(l*?)(.*)(f*)$', 'llmmmfff', 3, 1, {}],
+  ['^(l*?){1,1}(.*)(f*)$', 'llmmmfff', 3, 1, {}],
+  ['^(l*?){1,1}?(.*)(f*)$', 'llmmmfff', 3, 1, {}],
+  ['^(l*?){1,1}?(.*){1,1}?(f*)$', 'llmmmfff', 3, 1, {}],
+  ['(.){0}(\\1)', 'xxx', 2, 1, {}],
+  ['((.)){0}(\\2)', 'xxx', 3, 1, {}],
+  ['((.)){0}(\\2){0}', 'xyz', 3, 1, {}],
+  ['^(.)\\1|\\1.', 'abcdef', 1, 1, {}],
+  ['^((.)\\2|..)\\2', 'abadef', 2, 1, {}],
+  ['()*\\1', 'a', 1, 1, {}],
+  ['()+\\1', 'a', 1, 1, {}],
+  ['(a{1,3}?)(a*)', 'aaaa', 2, 1, {}],
+  ['((ab)?(cd)?)+', 'abcdab', 3, 1, {}],
+  ['(a)|(b)|(c)', 'c', 3, 1, {}],
+  ['((a)(b))(c)(d)', 'abcd', 5, 1, {}],
+  ['(?<=a)(b)', 'a'.repeat(8192) + 'b', 1, 1, {}],
+
+  ['(a+)', 'a'.repeat(8192), 1, 1, {}],
+  ['(a+?)(a*)', 'a'.repeat(1000), 2, 1, {}],
+  ['((ab)+)', 'ab'.repeat(1000), 2, 1, {}],
+  ['(a?){3}', 'a', 1, 1, {}],
+  ['(a??){3}', 'a', 1, 1, {}],
+  ['(a{2})*', 'aaa', 1, 1, {}],
+  ['(a?){3}', '', 1, 1, {}],
+  ['(a??){3}', '', 1, 1, {}],
+  ['((?=a)){3}', 'a', 1, 1, {}],
+  ['((?=b)){3}', 'a', 1, 1, {}],
+]) {
+  inputs.push({
+    operation: 'captures',
+    family: 'captures',
+    captureGroups,
+    pattern,
+    subject,
+    start,
+    options: {
+      syntax: 'advanced',
+      caseSensitive: true,
+      expanded: false,
+      newline: 'ordinary',
+      ...overrides,
+    },
+  })
+}
+
 function flags(options) {
   const newline = { ordinary: '', sensitive: 'n', stop: 'p', anchors: 'w' }[options.newline]
   const syntax = { literal: 'q', basic: 'b', extended: '', advanced: '' }[options.syntax]
@@ -1771,27 +1889,59 @@ try {
       regexp_instr(($1::text collate "C"), $2::text, $4::int, 1, 1, $3::text) as match_end
   `
   const countSql = `select regexp_count(($1::text collate "C"), $2::text, $4::int, $3::text) as count`
+  const captureSql = `
+    select subexpression,
+      regexp_instr(($1::text collate "C"), $2::text, $4::int, 1, 0, $3::text, subexpression) as match_start,
+      regexp_instr(($1::text collate "C"), $2::text, $4::int, 1, 1, $3::text, subexpression) as match_end,
+      regexp_substr(($1::text collate "C"), $2::text, $4::int, 1, $3::text, subexpression) as matched_text,
+      array_length(regexp_match(($1::text collate "C"), $2::text, $3::text), 1) as group_count
+    from generate_series(0, $5::int) as subexpression
+    order by subexpression
+  `
   const fixtures = []
-  for (const { family, operation, ...input } of inputs) {
+  for (const { family, operation, captureGroups, ...input } of inputs) {
     const pattern =
       input.options.syntax === 'extended' && !input.pattern.startsWith('***')
         ? `(?e)${input.pattern}`
         : input.pattern
     let expected
     try {
-      const result = await pg.query(operation === 'count' ? countSql : sql, [
-        input.subject,
-        pattern,
-        flags(input.options),
-        input.start ?? 1,
-      ])
-      const { match_start: start, match_end: end } = result.rows[0]
-      expected =
-        operation === 'count'
-          ? { kind: 'Count', value: result.rows[0].count }
-          : start === 0
-            ? { kind: 'NoMatch' }
-            : { kind: 'Found', value: { start: start - 1, end: end - 1 } }
+      if (operation === 'captures') {
+        const { rows } = await pg.query(captureSql, [
+          input.subject,
+          pattern,
+          flags(input.options),
+          input.start ?? 1,
+          captureGroups,
+        ])
+        if (rows.length !== captureGroups + 1) throw new Error('capture row count mismatch')
+        const characters = Array.from(input.subject)
+        const spans = rows.map(({ match_start: start, match_end: end, matched_text: text }) => {
+          const matched = start !== 0
+          if (text !== (matched ? characters.slice(start - 1, end - 1).join('') : null)) {
+            throw new Error(`capture text differs from span for ${JSON.stringify(input)}`)
+          }
+          return { matched, start: matched ? start - 1 : 0, end: matched ? end - 1 : 0 }
+        })
+        if (spans[0].matched && rows[0].group_count !== Math.max(1, captureGroups)) {
+          throw new Error(`capture group count mismatch for ${JSON.stringify(input)}`)
+        }
+        expected = spans[0].matched ? { kind: 'Found', value: spans } : { kind: 'NoMatch' }
+      } else {
+        const result = await pg.query(operation === 'count' ? countSql : sql, [
+          input.subject,
+          pattern,
+          flags(input.options),
+          input.start ?? 1,
+        ])
+        const { match_start: start, match_end: end } = result.rows[0]
+        expected =
+          operation === 'count'
+            ? { kind: 'Count', value: result.rows[0].count }
+            : start === 0
+              ? { kind: 'NoMatch' }
+              : { kind: 'Found', value: { start: start - 1, end: end - 1 } }
+      }
     } catch (error) {
       if (error.code !== '2201B') throw error
       expected = { kind: 'InvalidPattern', sqlstate: error.code }
