@@ -2054,7 +2054,7 @@ fn match_ends(
     }
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone)]
 struct CaptureState {
     position: usize,
     captures: Vec<Option<MatchSpan>>,
@@ -2071,12 +2071,9 @@ fn clear_captures(
             captures[*index] = None;
             clear_captures(inner, captures, groups);
         }
-        Expression::NonCapturingGroup(inner)
-        | Expression::PositiveLookahead(inner)
-        | Expression::NegativeLookahead(inner)
-        | Expression::PositiveLookbehind { inner, .. }
-        | Expression::NegativeLookbehind { inner, .. }
-        | Expression::Repeat(inner, _, _) => clear_captures(inner, captures, groups),
+        Expression::NonCapturingGroup(inner) | Expression::Repeat(inner, _, _) => {
+            clear_captures(inner, captures, groups)
+        }
         Expression::Concatenation(parts) | Expression::Alternation(parts) => {
             for part in parts {
                 clear_captures(part, captures, groups);
@@ -2086,239 +2083,275 @@ fn clear_captures(
     }
 }
 
-fn contains_capture(expression: &Expression, groups: &[Expression]) -> bool {
+fn contains_backreference(expression: &Expression, groups: &[Expression]) -> bool {
     match expression {
-        Expression::GroupRef(id) => contains_capture(&groups[*id], groups),
-        Expression::CapturingGroup { .. } => true,
-        Expression::NonCapturingGroup(inner)
-        | Expression::PositiveLookahead(inner)
-        | Expression::NegativeLookahead(inner)
-        | Expression::PositiveLookbehind { inner, .. }
-        | Expression::NegativeLookbehind { inner, .. }
-        | Expression::Repeat(inner, _, _) => contains_capture(inner, groups),
-        Expression::Concatenation(parts) | Expression::Alternation(parts) => {
-            parts.iter().any(|part| contains_capture(part, groups))
-        }
+        Expression::BackReference(_) => true,
+        Expression::GroupRef(id) => contains_backreference(&groups[*id], groups),
+        Expression::CapturingGroup { inner, .. }
+        | Expression::NonCapturingGroup(inner)
+        | Expression::Repeat(inner, _, _) => contains_backreference(inner, groups),
+        Expression::Concatenation(parts) | Expression::Alternation(parts) => parts
+            .iter()
+            .any(|part| contains_backreference(part, groups)),
         _ => false,
     }
 }
 
-fn push_capture_unique(
-    states: &mut Vec<CaptureState>,
-    state: CaptureState,
-    context: &mut MatchContext,
-) -> Result<(), ()> {
-    charge_capture_work(
-        context,
-        (state.captures.len() + 1)
-            .checked_mul(states.len() + 1)
-            .ok_or(())?,
-    )?;
-    if !states.contains(&state) {
-        if states.len() >= MAX_CAPTURE_STATES {
-            return Err(());
-        }
-        states.push(state);
-    }
-    Ok(())
-}
-
-fn capture_advance(
+fn capture_endpoints(
     expression: &Expression,
     subject: &[char],
-    states: Vec<CaptureState>,
+    begin: usize,
+    end: usize,
     mode: MatchMode,
     context: &mut MatchContext,
-) -> Result<Vec<CaptureState>, ()> {
-    let mut next = Vec::new();
-    for state in states {
-        for candidate in capture_match_ends(expression, subject, state, mode, context)? {
-            push_capture_unique(&mut next, candidate, context)?;
-        }
-    }
-    Ok(next)
-}
-
-fn capture_repeat(
-    expression: &Expression,
-    repetition: &Repetition,
-    non_greedy: bool,
-    subject: &[char],
-    state: CaptureState,
-    mode: MatchMode,
-    context: &mut MatchContext,
-) -> Result<Vec<CaptureState>, ()> {
-    let (min, max) = match repetition {
-        Repetition::ZeroOrMore => (0, None),
-        Repetition::OneOrMore => (1, None),
-        Repetition::ZeroOrOne => (0, Some(1)),
-        Repetition::Bounded { min, max, .. } => (*min, *max),
+) -> Result<Vec<usize>, ()> {
+    charge_capture_work(context, end - begin + 1)?;
+    let mut ends = if contains_backreference(expression, context.groups) {
+        (begin..=end).collect::<Vec<_>>()
+    } else {
+        match_ends(expression, subject, begin, mode, context)
+            .into_iter()
+            .filter(|position| *position <= end)
+            .collect()
     };
-    let limit = max.unwrap_or(min + subject.len() + 1);
-    // A later backreference sees only the preferred subdivision at each repeat endpoint.
-    let prefer_bounded_paths = matches!(repetition, Repetition::Bounded { .. })
-        && !non_greedy
-        && contains_capture(expression, context.groups);
-    let mut frontier = vec![state];
-    let mut reached = Vec::new();
-    let mut bounded_reached = Vec::new();
-    let mut bounded_states = 0;
-    let mut seen = Vec::new();
-    for count in 0..=limit {
-        if count >= min {
-            if prefer_bounded_paths {
-                bounded_states += frontier.len();
-                if bounded_states > MAX_CAPTURE_STATES {
-                    return Err(());
-                }
-                charge_capture_work(
-                    context,
-                    frontier
-                        .len()
-                        .checked_mul(frontier.first().map_or(0, |state| state.captures.len() + 1))
-                        .ok_or(())?,
-                )?;
-                bounded_reached.push(frontier.clone());
-            } else {
-                for candidate in &frontier {
-                    push_capture_unique(&mut reached, candidate.clone(), context)?;
-                }
-            }
-        }
-        if count == limit || frontier.is_empty() {
-            break;
-        }
-        for candidate in &mut frontier {
-            clear_captures(expression, &mut candidate.captures, context.groups);
-        }
-        let mut next = capture_advance(expression, subject, frontier, mode, context)?;
-        if prefer_bounded_paths {
-            next.sort_by(|left, right| right.position.cmp(&left.position));
-        }
-        if max.is_none() && count >= min {
-            let capture_width = next.first().map_or(0, |state| state.captures.len() + 1);
-            charge_capture_work(
-                context,
-                next.len()
-                    .checked_mul(seen.len())
-                    .and_then(|comparisons| comparisons.checked_mul(capture_width))
-                    .ok_or(())?,
-            )?;
-        }
-        if max.is_none() && count >= min && next.iter().all(|candidate| seen.contains(candidate)) {
-            break;
-        }
-        for candidate in &next {
-            push_capture_unique(&mut seen, candidate.clone(), context)?;
-        }
-        frontier = next;
+    ends.sort_unstable();
+    if expression_preference(expression, context.groups) != Some(MatchPreference::Shortest) {
+        ends.reverse();
     }
-    if prefer_bounded_paths {
-        for candidates in bounded_reached.into_iter().rev() {
-            for candidate in candidates {
-                if !reached
-                    .iter()
-                    .any(|state: &CaptureState| state.position == candidate.position)
-                {
-                    push_capture_unique(&mut reached, candidate, context)?;
-                }
-            }
-        }
-    }
-    Ok(reached)
+    Ok(ends)
 }
 
-fn capture_match_ends(
+fn dissect_capture(
     expression: &Expression,
     subject: &[char],
-    state: CaptureState,
+    end: usize,
+    mut state: CaptureState,
     mode: MatchMode,
     context: &mut MatchContext,
-) -> Result<Vec<CaptureState>, ()> {
-    charge_capture_work(context, 1)?;
+) -> Result<Option<CaptureState>, ()> {
+    charge_capture_work(context, state.captures.len() + 1)?;
+    let begin = state.position;
     match expression {
         Expression::GroupRef(id) => {
-            let group = &context.groups[*id];
-            capture_match_ends(group, subject, state, mode, context)
+            dissect_capture(&context.groups[*id], subject, end, state, mode, context)
         }
         Expression::CapturingGroup { index, inner } => {
-            let start = state.position;
-            let mut state = state;
-            state.captures[*index] = None;
-            clear_captures(inner, &mut state.captures, context.groups);
-            let mut results = Vec::new();
-            for mut candidate in capture_match_ends(inner, subject, state, mode, context)? {
-                candidate.captures[*index] = Some(MatchSpan {
-                    start,
-                    end: candidate.position,
-                });
-                push_capture_unique(&mut results, candidate, context)?;
-            }
-            Ok(results)
+            clear_captures(expression, &mut state.captures, context.groups);
+            let Some(mut result) = dissect_capture(inner, subject, end, state, mode, context)?
+            else {
+                return Ok(None);
+            };
+            result.captures[*index] = Some(MatchSpan { start: begin, end });
+            Ok(Some(result))
         }
         Expression::NonCapturingGroup(inner) => {
-            capture_match_ends(inner, subject, state, mode, context)
+            dissect_capture(inner, subject, end, state, mode, context)
         }
         Expression::BackReference(index) => {
             let Some(span) = state.captures[*index] else {
-                return Ok(Vec::new());
+                return Ok(None);
             };
-            let length = span.end - span.start;
-            if state.position + length > subject.len() {
-                return Ok(Vec::new());
+            if span.end - span.start != end - begin {
+                return Ok(None);
             }
-            for offset in 0..length {
+            for offset in 0..end - begin {
+                charge_capture_work(context, 1)?;
                 if !equal_char(
                     subject[span.start + offset],
-                    subject[state.position + offset],
+                    subject[begin + offset],
                     mode.case_sensitive,
                 ) {
-                    return Ok(Vec::new());
+                    return Ok(None);
                 }
             }
-            Ok(vec![CaptureState {
-                position: state.position + length,
-                captures: state.captures,
-            }])
-        }
-        Expression::Concatenation(parts) => {
-            let mut states = vec![state];
-            for part in parts {
-                states = capture_advance(part, subject, states, mode, context)?;
-                if states.is_empty() {
-                    break;
-                }
-            }
-            Ok(states)
+            state.position = end;
+            Ok(Some(state))
         }
         Expression::Alternation(branches) => {
-            let mut results = Vec::new();
             for branch in branches {
-                for candidate in capture_match_ends(branch, subject, state.clone(), mode, context)?
+                if let Some(result) =
+                    dissect_capture(branch, subject, end, state.clone(), mode, context)?
                 {
-                    push_capture_unique(&mut results, candidate, context)?;
+                    return Ok(Some(result));
                 }
             }
-            Ok(results)
+            Ok(None)
         }
-        Expression::Repeat(inner, repetition, non_greedy) => capture_repeat(
-            inner,
-            repetition,
-            *non_greedy,
-            subject,
-            state,
-            mode,
-            context,
-        ),
-        _ => Ok(
-            match_ends(expression, subject, state.position, mode, context)
-                .into_iter()
-                .map(|position| CaptureState {
-                    position,
-                    captures: state.captures.clone(),
-                })
-                .collect(),
-        ),
+        Expression::Concatenation(parts) => {
+            if parts.is_empty() {
+                return Ok((begin == end).then_some(state));
+            }
+            let ends = capture_endpoints(&parts[0], subject, begin, end, mode, context)?;
+            let mut stack = vec![(0, state, ends, 0)];
+            while let Some((index, state, ends, cursor)) = stack.pop() {
+                charge_capture_work(context, 1)?;
+                if cursor == ends.len() {
+                    continue;
+                }
+                let split = ends[cursor];
+                stack.push((index, state.clone(), ends, cursor + 1));
+                if index + 1 == parts.len() && split != end {
+                    continue;
+                }
+                if let Some(result) =
+                    dissect_capture(&parts[index], subject, split, state, mode, context)?
+                {
+                    if index + 1 == parts.len() {
+                        return Ok(Some(result));
+                    }
+                    let ends =
+                        capture_endpoints(&parts[index + 1], subject, split, end, mode, context)?;
+                    stack.push((index + 1, result, ends, 0));
+                }
+            }
+            Ok(None)
+        }
+        Expression::Repeat(inner, repetition, lazy) => {
+            let (min, max) = match repetition {
+                Repetition::ZeroOrMore => (0, None),
+                Repetition::OneOrMore => (1, None),
+                Repetition::ZeroOrOne => (0, Some(1)),
+                Repetition::Bounded { min, max, .. } => (*min, *max),
+            };
+            if min > 0 && !contains_backreference(inner, context.groups) {
+                let prefix = Repetition::Bounded {
+                    min: min - 1,
+                    max: max.map(|max| max - 1),
+                    fixed: false,
+                };
+                let mut splits = match_repeat(inner, &prefix, subject, begin, mode, context);
+                splits.retain(|split| *split <= end);
+                splits.sort_unstable();
+                let shortest = match repetition {
+                    Repetition::Bounded { fixed: true, .. } => {
+                        expression_preference(inner, context.groups)
+                            == Some(MatchPreference::Shortest)
+                    }
+                    _ => *lazy,
+                };
+                if !shortest {
+                    splits.reverse();
+                }
+                for split in splits {
+                    let mut candidate = state.clone();
+                    candidate.position = split;
+                    clear_captures(inner, &mut candidate.captures, context.groups);
+                    if let Some(result) =
+                        dissect_capture(inner, subject, end, candidate, mode, context)?
+                    {
+                        return Ok(Some(result));
+                    }
+                }
+                return Ok(None);
+            }
+            if max == Some(0) {
+                return Ok((begin == end).then_some(state));
+            }
+            let shortest =
+                expression_preference(inner, context.groups) == Some(MatchPreference::Shortest);
+            if shortest && min == 0 && begin == end {
+                return Ok(Some(state));
+            }
+            let minimum = min.max(1);
+            let maximum = max.unwrap_or(end - begin).min(end - begin).max(minimum);
+            if maximum > MAX_CAPTURE_STATES {
+                return Err(());
+            }
+            let first = if shortest { begin } else { end };
+            let mut stack = vec![(state.clone(), first, 0)];
+            while let Some((mut candidate, split, count)) = stack.pop() {
+                charge_capture_work(context, 1)?;
+                let position = candidate.position;
+                if shortest && split < end {
+                    stack.push((candidate.clone(), split + 1, count));
+                } else if !shortest && split > position {
+                    stack.push((candidate.clone(), split - 1, count));
+                }
+                let count = count + 1;
+                if (split == position
+                    && split != end
+                    && (count >= minimum || minimum - count < end - split))
+                    || (count == maximum && split != end)
+                    || (split == end && count < minimum)
+                {
+                    continue;
+                }
+                clear_captures(inner, &mut candidate.captures, context.groups);
+                if let Some(result) =
+                    dissect_capture(inner, subject, split, candidate, mode, context)?
+                {
+                    if split == end {
+                        return Ok(Some(result));
+                    }
+                    let next = if shortest { split } else { end };
+                    stack.push((result, next, count));
+                }
+            }
+            Ok((min == 0 && begin == end).then_some(state))
+        }
+        _ => {
+            if match_ends(expression, subject, begin, mode, context).contains(&end) {
+                state.position = end;
+                Ok(Some(state))
+            } else {
+                Ok(None)
+            }
+        }
+    }
+}
+
+fn capture_width_bounds(
+    expression: &Expression,
+    groups: &[Expression],
+    captures: &mut [(usize, usize)],
+    limit: usize,
+) -> (usize, usize) {
+    match expression {
+        Expression::GroupRef(id) => capture_width_bounds(&groups[*id], groups, captures, limit),
+        Expression::CapturingGroup { index, inner } => {
+            let bounds = capture_width_bounds(inner, groups, captures, limit);
+            captures[*index] = bounds;
+            bounds
+        }
+        Expression::NonCapturingGroup(inner) => {
+            capture_width_bounds(inner, groups, captures, limit)
+        }
+        Expression::Literal(_) | Expression::CharacterClass { .. } | Expression::AnyCharacter => {
+            (1, 1)
+        }
+        Expression::BackReference(index) => captures[*index],
+        Expression::Concatenation(parts) => {
+            let mut bounds = (0_usize, 0_usize);
+            for part in parts {
+                let part = capture_width_bounds(part, groups, captures, limit);
+                bounds.0 = bounds.0.saturating_add(part.0).min(limit);
+                bounds.1 = bounds.1.saturating_add(part.1).min(limit);
+            }
+            bounds
+        }
+        Expression::Alternation(parts) => {
+            let mut bounds = (limit, 0);
+            for part in parts {
+                let part = capture_width_bounds(part, groups, captures, limit);
+                bounds.0 = bounds.0.min(part.0);
+                bounds.1 = bounds.1.max(part.1);
+            }
+            bounds
+        }
+        Expression::Repeat(inner, repetition, _) => {
+            let (lower, upper) = match repetition {
+                Repetition::ZeroOrMore => (0, limit),
+                Repetition::OneOrMore => (1, limit),
+                Repetition::ZeroOrOne => (0, 1),
+                Repetition::Bounded { min, max, .. } => (*min, max.unwrap_or(limit)),
+            };
+            let bounds = capture_width_bounds(inner, groups, captures, limit);
+            (
+                bounds.0.saturating_mul(lower).min(limit),
+                bounds.1.saturating_mul(upper).min(limit),
+            )
+        }
+        _ => (0, 0),
     }
 }
 
@@ -2331,21 +2364,26 @@ fn first_capture_match(
     capture_count: usize,
     context: &mut MatchContext,
 ) -> Result<Option<MatchSpan>, ()> {
+    let mut widths = vec![(0, subject.len() + 1); capture_count + 1];
+    let (minimum, maximum) =
+        capture_width_bounds(expression, context.groups, &mut widths, subject.len() + 1);
     for start in from..=subject.len() {
-        charge_capture_work(context, capture_count + 1)?;
-        let state = CaptureState {
-            position: start,
-            captures: vec![None; capture_count + 1],
-        };
-        let states = capture_match_ends(expression, subject, state, mode, context)?;
-        let ends = states.into_iter().map(|state| state.position);
-        let end = if preference == MatchPreference::Shortest {
-            ends.min()
-        } else {
-            ends.max()
-        };
-        if let Some(end) = end {
-            return Ok(Some(MatchSpan { start, end }));
+        if minimum > subject.len() - start {
+            break;
+        }
+        let limit = start + maximum.min(subject.len() - start);
+        let mut ends: Vec<usize> = (start + minimum..=limit).collect();
+        if preference == MatchPreference::Longest {
+            ends.reverse();
+        }
+        for end in ends {
+            let state = CaptureState {
+                position: start,
+                captures: vec![None; capture_count + 1],
+            };
+            if dissect_capture(expression, subject, end, state, mode, context)?.is_some() {
+                return Ok(Some(MatchSpan { start, end }));
+            }
         }
     }
     Ok(None)

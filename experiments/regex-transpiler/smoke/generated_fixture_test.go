@@ -28,6 +28,7 @@ type fixtureExpected struct {
 }
 
 type fixture struct {
+	Family    string          `json:"family"`
 	Operation string          `json:"operation"`
 	Input     fixtureInput    `json:"input"`
 	Expected  fixtureExpected `json:"expected"`
@@ -42,6 +43,7 @@ type fixtureDocument struct {
 }
 
 func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
+	directCaptureFixtures := 0
 	literal := 0
 	quotedLiteral := 0
 	insensitive := 0
@@ -157,6 +159,35 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				continue
 			}
 			input := fixture.Input
+			if fixture.Family == "composition" && !SupportsCaptureProgram(input.Pattern, input.Options.Expanded) {
+				t.Errorf("composition fixture rejected: %+v", input)
+			}
+			if input.Options.Syntax == "advanced" && SupportsCaptureProgram(input.Pattern, input.Options.Expanded) {
+				from := 0
+				if input.Start > 0 {
+					from = input.Start - 1
+				}
+				actual := FindCaptureProgram(input.Pattern, input.Subject, from, input.Options.CaseSensitive,
+					input.Options.Newline == "ordinary" || input.Options.Newline == "anchors",
+					input.Options.Newline == "sensitive" || input.Options.Newline == "anchors", input.Options.Expanded)
+				var expected MatchOutcome
+				switch fixture.Expected.Kind {
+				case "Found":
+					var span MatchSpan
+					if err := json.Unmarshal(fixture.Expected.Value, &span); err != nil {
+						t.Fatal(err)
+					}
+					expected = MatchOutcome{Kind: MatchOutcomeFound, Found: span}
+				case "NoMatch":
+					expected = MatchOutcome{Kind: MatchOutcomeNoMatch}
+				default:
+					t.Fatalf("capture compiler accepted invalid pattern: %s fixture %d: %+v", path, index, input)
+				}
+				if actual != expected {
+					t.Errorf("direct capture matcher: %s fixture %d: input=%+v expected=%+v actual=%+v", path, index, input, expected, actual)
+				}
+				directCaptureFixtures++
+			}
 			if input.Options.Syntax != "literal" && (DefinitelyInvalidGrouping(input.Pattern, rune(input.Options.Syntax[0]), input.Options.Expanded) || DefinitelyInvalidInlineOptions(input.Pattern, rune(input.Options.Syntax[0]))) {
 				if fixture.Expected.Kind != "InvalidPattern" || fixture.Expected.Sqlstate != "2201B" {
 					t.Errorf("%s fixture %d: input=%+v, expected invalid pattern, got %+v", path, index, input, fixture.Expected)
@@ -513,7 +544,11 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			t.Errorf("targeted fixtures checked %d of %d", checked, len(document.Fixtures))
 		}
 	}
-	if literal < 40 || quotedLiteral < 2 || insensitive < 7 || advanced < 100 || grouped < 20 || groupChoice < 20 || optionalGroup < 50 || multiOptionalGroup < 4 || lookbehind < 20 || lookahead < 20 || backref < 20 || singleCapture < 50 || repeatedBackref < 8 || captureProgram < 12 || choiceCapture < 10 || twoCapture < 30 || inline < 20 || inlineOptions < 10 || middleLookahead < 20 || chainedAssertions < 4 || boundedGroup < 20 || extended < 50 || extendedLiteralClose < 10 || extendedGroup < 20 || repeatedChoice < 20 || extendedEscape < 20 || numericLiteral < 10 || basic < 50 || basicPunctuation < 20 || basicEscape < 20 || basicBound < 20 || basicBackref < 20 || bracketWord < 10 || collatingBracket < 10 || basicTransparentGroup < 4 || basicSpecialBracket < 4 || basicLiteralEscapedLetter < 2 || basicRepeatedCapture < 1 || invalidGrouping < 40 || invalidRepeat < 20 || invalidBound < 20 || invalidPosixClass < 20 || invalidRange < 10 || invalidBracketConstruct < 7 || invalidNumeric < 5 || invalidBackreference < 10 || dot < 20 || mixed < 50 || anchored < 20 || escaped < 40 || classes < 50 || negatedClasses < 40 || rangeClasses < 50 || edgePunctuation < 80 || absoluteAnchors < 50 || positioned < 6 || len(newlineModes) != 4 {
+	if directCaptureFixtures <= 1000 {
+		t.Fatalf("direct capture fixtures: %d", directCaptureFixtures)
+	}
+	t.Logf("direct capture matcher: %d PostgreSQL fixtures", directCaptureFixtures)
+	if literal < 40 || quotedLiteral < 2 || insensitive < 7 || advanced < 100 || grouped < 20 || groupChoice < 20 || optionalGroup < 50 || multiOptionalGroup < 4 || lookbehind < 20 || lookahead < 20 || backref < 20 || singleCapture < 50 || repeatedBackref < 8 || captureProgram+choiceCapture+twoCapture+boundedGroup+repeatedChoice+numericLiteral+middleLookahead+chainedAssertions < 126 || inline < 20 || inlineOptions < 10 || extended < 50 || extendedLiteralClose < 10 || extendedGroup < 20 || extendedEscape < 20 || basic < 50 || basicPunctuation < 20 || basicEscape < 20 || basicBound < 20 || basicBackref < 20 || bracketWord < 10 || collatingBracket < 10 || basicTransparentGroup < 4 || basicSpecialBracket < 4 || basicLiteralEscapedLetter < 2 || basicRepeatedCapture < 1 || invalidGrouping < 40 || invalidRepeat < 20 || invalidBound < 20 || invalidPosixClass < 20 || invalidRange < 10 || invalidBracketConstruct < 7 || invalidNumeric < 5 || invalidBackreference < 10 || dot < 20 || mixed < 50 || anchored < 20 || escaped < 40 || classes < 50 || negatedClasses < 40 || rangeClasses < 50 || edgePunctuation < 80 || absoluteAnchors < 50 || positioned < 6 || len(newlineModes) != 4 {
 		t.Fatalf("fixture coverage: literal=%d insensitive=%d advanced=%d dot=%d mixed=%d anchored=%d escaped=%d classes=%d negatedClasses=%d rangeClasses=%d edgePunctuation=%d absoluteAnchors=%d positioned=%d newline=%v", literal, insensitive, advanced, dot, mixed, anchored, escaped, classes, negatedClasses, rangeClasses, edgePunctuation, absoluteAnchors, positioned, newlineModes)
 	}
 	if countSupported != 180 || expandedAdvanced < 200 {

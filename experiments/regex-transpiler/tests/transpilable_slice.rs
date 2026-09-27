@@ -264,8 +264,16 @@ fn capture_program_reuses_the_first_capture_across_repeated_groups() {
             candidate::MatchOutcome::NoMatch
         ));
     }
-    for pattern in ["^(\\w+)( \\2)+$", "^(\\w+)( \\1)*$", "^(\\w+)( \\1)+"] {
-        assert!(!candidate::supports_capture_program(pattern, false));
+    assert!(!candidate::supports_capture_program(
+        "^(\\w+)( \\2)+$",
+        false
+    ));
+    for pattern in ["^(\\w+)( \\1)*$", "^(\\w+)( \\1)+"] {
+        assert!(candidate::supports_capture_program(pattern, false));
+        assert!(matches!(
+            candidate::find_capture_program(pattern, "abc abc", 0, true, true, false, false),
+            candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 7 })
+        ));
     }
     assert!(candidate::supports_capture_program("((.))(\\2)", false));
     assert!(matches!(
@@ -1157,13 +1165,17 @@ fn inline_line_mode_checks_negative_class_at_each_line_start() {
 }
 
 #[test]
-fn nested_capture_choices_require_consuming_cycles() {
+fn nested_capture_choices_deduplicate_empty_cycles() {
     assert!(candidate::supports_capture_program("a((b|c)d+)+", false));
     assert!(matches!(
         candidate::find_capture_program("a((b|c)d+)+", "abacdbd", 0, true, true, false, false),
         candidate::MatchOutcome::Found(candidate::MatchSpan { start: 2, end: 7 })
     ));
-    assert!(!candidate::supports_capture_program("((a|)+)+", false));
+    assert!(candidate::supports_capture_program("((a|)+)+", false));
+    assert!(matches!(
+        candidate::find_capture_program("((a|)+)+", "aaa", 0, true, true, false, false),
+        candidate::MatchOutcome::Found(candidate::MatchSpan { start: 0, end: 3 })
+    ));
 }
 
 #[test]
@@ -1716,6 +1728,87 @@ fn angle_word_escapes_follow_the_selected_syntax() {
         candidate::find_angle_word("a\\<b", "a<b", 0, true, true, false, 'b', false),
         candidate::MatchOutcome::NoMatch
     ));
+}
+
+#[test]
+fn capture_compiler_leaves_unlowered_features_uncertain() {
+    for pattern in ["(?i)a", "[[:digit:]]", "(a)(?=\\1)"] {
+        assert!(
+            !candidate::supports_capture_program(pattern, false),
+            "{pattern}"
+        );
+        assert!(matches!(
+            candidate::find_capture_program(pattern, "aaaa", 0, true, true, false, false),
+            candidate::MatchOutcome::Uncertain
+        ));
+    }
+}
+
+#[test]
+fn capture_compiler_matches_every_fixture_it_accepts() {
+    let mut checked = 0;
+    for source in [
+        include_str!("../conformance/postgres-fixtures.json"),
+        include_str!("../conformance/stress-fixtures.json"),
+        include_str!("../conformance/targeted-postgres-fixtures.json"),
+        include_str!("../conformance/stress-position-fixtures.json"),
+        include_str!("../conformance/stress-boundary-fixtures.json"),
+    ] {
+        let document: Value = serde_json::from_str(source).unwrap();
+        for fixture in document["fixtures"].as_array().unwrap() {
+            let input = &fixture["input"];
+            let options = &input["options"];
+            if fixture["operation"] == "count" || options["syntax"] != "advanced" {
+                continue;
+            }
+            let pattern = input["pattern"].as_str().unwrap();
+            let expanded = options["expanded"].as_bool().unwrap();
+            let supported = candidate::supports_capture_program(pattern, expanded);
+            if fixture["family"] == "composition" {
+                assert!(supported, "composition fixture rejected: {input}");
+                let engine::CompileOutcome::Ready(reference) =
+                    engine::compile(pattern, engine::Options::default())
+                else {
+                    panic!("reference compiler rejected composition fixture: {input}");
+                };
+                let reference = match reference.find(input["subject"].as_str().unwrap(), 0) {
+                    engine::MatchOutcome::Found(span) => {
+                        json!({"kind": "Found", "value": {"start": span.start, "end": span.end}})
+                    }
+                    engine::MatchOutcome::NoMatch => json!({"kind": "NoMatch"}),
+                    engine::MatchOutcome::Uncertain => json!({"kind": "Uncertain"}),
+                };
+                assert_eq!(reference, fixture["expected"], "reference engine: {input}");
+            }
+            if !supported {
+                continue;
+            }
+            let newline = options["newline"].as_str().unwrap();
+            let actual = candidate::find_capture_program(
+                pattern,
+                input["subject"].as_str().unwrap(),
+                input["start"].as_u64().unwrap_or(1) as usize - 1,
+                options["caseSensitive"].as_bool().unwrap(),
+                newline == "ordinary" || newline == "anchors",
+                newline == "sensitive" || newline == "anchors",
+                expanded,
+            );
+            let actual = match actual {
+                candidate::MatchOutcome::Found(span) => {
+                    json!({"kind": "Found", "value": {"start": span.start, "end": span.end}})
+                }
+                candidate::MatchOutcome::NoMatch => json!({"kind": "NoMatch"}),
+                candidate::MatchOutcome::Uncertain => json!({"kind": "Uncertain"}),
+            };
+            assert_eq!(
+                actual, fixture["expected"],
+                "direct capture matcher: {input}"
+            );
+            checked += 1;
+        }
+    }
+    assert!(checked > 1000);
+    eprintln!("direct capture matcher: {checked} PostgreSQL fixtures");
 }
 
 #[test]
@@ -2775,21 +2868,24 @@ fn supported_search_matches_pglite_fixtures() {
     assert!(backref >= 20);
     assert!(single_capture >= 50);
     assert!(repeated_backref >= 8);
-    assert!(capture_program >= 12);
-    assert!(choice_capture >= 10);
-    assert!(two_capture >= 30);
+    assert!(
+        capture_program
+            + choice_capture
+            + two_capture
+            + bounded_group
+            + repeated_choice
+            + numeric_literal
+            + middle_lookahead
+            + chained_assertions
+            >= 126
+    );
     assert!(inline >= 20);
     assert!(inline_options >= 10);
-    assert!(middle_lookahead >= 20);
-    assert!(chained_assertions >= 4);
-    assert!(bounded_group >= 20);
     assert!(expanded_advanced >= 200);
     assert!(extended >= 50);
     assert!(extended_literal_close >= 10);
-    assert!(repeated_choice >= 20);
     assert!(extended_group >= 20);
     assert!(extended_escape >= 20);
-    assert!(numeric_literal >= 10);
     assert!(basic >= 50);
     assert!(basic_punctuation >= 20);
     assert!(basic_escape >= 20);
