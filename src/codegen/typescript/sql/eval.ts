@@ -2,9 +2,6 @@ import ts from 'typescript'
 import { factory, identifier } from '../ast.js'
 import type { EvalExpressionBackend } from '../../../sql-semantics/eval-expressions.js'
 import type { EmittedEvalExpression } from '../../../sql-semantics/eval-expressions.js'
-import { compilePostgresRegex } from '../../../sql-semantics/regex/compiler.js'
-import { parseRegexpLikeFlags } from '../../../sql-semantics/regex/flags.js'
-import { REGEX_ENGINE_PROFILES } from '../../../sql-semantics/regex/profiles.generated.js'
 
 const call = (name: string, operands: readonly ts.Expression[] = []): ts.Expression =>
   factory.createCallExpression(identifier(name), undefined, operands)
@@ -206,17 +203,8 @@ export const typescriptEvalBackend: EvalExpressionBackend<ts.Expression> = {
     ],
   }),
   regexCount: (operands, pattern, flags) => {
-    const dynamic = pattern === undefined || (operands.length === 4 && flags === undefined)
-    const parsedFlags = !dynamic ? parseRegexpLikeFlags(flags ?? '') : undefined
-    const compiled =
-      !dynamic && parsedFlags?.kind === 'valid'
-        ? compilePostgresRegex(pattern, REGEX_ENGINE_PROFILES.ecmascript, parsedFlags.options)
-        : undefined
-    const mode = dynamic
-      ? 'dynamic'
-      : parsedFlags?.kind === 'invalid'
-        ? 'invalid-flags'
-        : compiled!.kind
+    void pattern
+    void flags
     const statements: ts.Statement[] = operands.map((operand, index) =>
       factory.createVariableStatement(
         undefined,
@@ -257,19 +245,7 @@ export const typescriptEvalBackend: EvalExpressionBackend<ts.Expression> = {
         : value
     }
     statements.push(
-      factory.createReturnStatement(
-        call(dynamic ? 'evalRegexCountDynamic' : 'evalRegexCount', [
-          raw(0),
-          raw(1),
-          raw(2),
-          raw(3),
-          factory.createStringLiteral(mode),
-          factory.createStringLiteral(compiled?.kind === 'supported' ? compiled.source : ''),
-          factory.createStringLiteral(
-            compiled?.kind === 'supported' ? compiled.flags.join('') : '',
-          ),
-        ]),
-      ),
+      factory.createReturnStatement(call('evalRegexCountEngine', [raw(0), raw(1), raw(2), raw(3)])),
     )
     return {
       expression: factory.createCallExpression(
@@ -287,7 +263,7 @@ export const typescriptEvalBackend: EvalExpressionBackend<ts.Expression> = {
         [],
       ),
       helpers: [
-        dynamic ? 'evalRegexCountDynamic' : 'evalRegexCount',
+        'evalRegexCountEngine',
         ...(operands.some((operand) => operand.effect === 'partial') ? ['evalValueUncertain'] : []),
       ],
     }

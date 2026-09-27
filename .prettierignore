@@ -7,6 +7,12 @@ tests/fixtures/sql-semantics/projects/
 
 # Generators write these files and check them themselves.
 **/*.generated.ts
-experiments/regex-transpiler/conformance/stress-fixtures.json
-experiments/regex-transpiler/conformance/stress-position-fixtures.json
-experiments/regex-transpiler/conformance/stress-boundary-fixtures.json
+src/codegen/shared/regex-engine/engine.go
+src/codegen/shared/regex-engine/engine.ts
+tools/regex-transpiler/conformance/stress-fixtures.json
+tools/regex-transpiler/conformance/stress-position-fixtures.json
+tools/regex-transpiler/conformance/stress-boundary-fixtures.json
+tools/regex-transpiler/conformance/stress-classification-fixtures.json
+tools/regex-transpiler/conformance/targeted-postgres-fixtures.json
+tools/regex-transpiler/conformance/postgres-extracted.json
+tools/regex-transpiler/conformance/postgres-fixtures.json

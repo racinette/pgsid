@@ -1,4 +1,4 @@
-import type { PostgresRegexOptions } from './ast.js'
+import type { PostgresRegexOptions } from './options.js'
 
 export type RegexpLikeFlags =
   { kind: 'valid'; options: PostgresRegexOptions } | { kind: 'invalid'; sqlstate: '22023' }

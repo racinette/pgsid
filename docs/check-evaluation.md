@@ -89,17 +89,15 @@ propagate.
 
 Only incomplete atoms, never total operators:
 
-- A regex (or similar) call whose pattern has no faithful translation for
-  the selected target engine. A supported translation is an ordinary
-  evaluation (`Certain`).
+- A regex call that reaches the shared engine's execution budget. The result
+  remains `Uncertain` because the engine did not finish evaluating the pattern.
 - A CHECK node that was not lowered (unsupported overload, session-dependent
   leftover). Never omit the constraint; the atom is `Uncertain`.
 - A partial-row validator whose CHECK reads a field that was not supplied.
   Omission is not SQL `NULL`.
 
-Host regex engines are not substitutes for PostgreSQL's ARE. LIKE is a
-separate C-port batch and, once faithful, is total — it returns `SqlBoolean`,
-lifted with `Certain`.
+Regex checks use the same matching semantics in both generated targets. LIKE
+has separate matching logic and is total when that logic is faithful.
 
 ## Constraint wrapper
 

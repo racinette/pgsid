@@ -19,7 +19,7 @@ import {
   type EvalBoolExpression,
 } from '../../src/sql-semantics/check-expressions.js'
 import { emitSqlExpression, type SqlExpression } from '../../src/sql-semantics/expressions.js'
-import type { PostgresRegexOptions } from '../../src/sql-semantics/regex/ast.js'
+import type { PostgresRegexOptions } from '../../src/sql-semantics/regex/options.js'
 import { parseRegexpLikeFlags } from '../../src/sql-semantics/regex/flags.js'
 import type { EvalExpression } from '../../src/sql-semantics/eval-expressions.js'
 import { numericMathCopyright } from '../../src/sql-semantics/numeric-math-license.js'
@@ -399,6 +399,11 @@ const regexCases: CheckCase[] = [
     expected: { certain: true, value: true },
   },
   {
+    name: 'lookbehind regex matches',
+    expression: regex('ab', '(?<=a)b'),
+    expected: { certain: true, value: true },
+  },
+  {
     name: 'supported regex does not match',
     expression: regex('abc\n', '^abc$'),
     expected: { certain: true, value: false },
@@ -414,14 +419,14 @@ const regexCases: CheckCase[] = [
     expected: { certain: true, value: null },
   },
   {
-    name: 'unsupported regex is uncertain',
+    name: 'alternation regex matches',
     expression: regex('a', 'a|b'),
-    expected: { certain: false },
+    expected: { certain: true, value: true },
   },
   {
-    name: 'unsupported case folding is uncertain',
+    name: 'case folding matches',
     expression: regex('A', 'a', { caseSensitive: false }),
-    expected: { certain: false },
+    expected: { certain: true, value: true },
   },
   {
     name: 'unsupported regex preserves SQL NULL',
@@ -493,14 +498,14 @@ const regexCases: CheckCase[] = [
     expected: { certain: true, value: true },
   },
   {
-    name: 'dynamic unsupported regex is uncertain',
+    name: 'dynamic alternation regex matches',
     expression: dynamicRegex('b', 'a|b'),
-    expected: { certain: false },
+    expected: { certain: true, value: true },
   },
   {
-    name: 'dynamic case folding option is uncertain',
+    name: 'dynamic case folding option matches',
     expression: dynamicRegex('ABC', 'abc', { caseSensitive: false }),
-    expected: { certain: false },
+    expected: { certain: true, value: true },
   },
   {
     name: 'dynamic invalid regex raises SQLSTATE',
@@ -758,6 +763,13 @@ interface RegexCallableCase extends CheckCase {
 }
 
 const regexCallableCases: RegexCallableCase[] = [
+  {
+    name: 'lookbehind operator matches',
+    expression: regexCall('operator', '~', [text('ab'), text('(?<=a)b')]),
+    expected: { certain: true, value: true },
+    sql: 'SELECT $1::text OPERATOR(pg_catalog.~) $2::text AS value',
+    params: ['ab', '(?<=a)b'],
+  },
   ...(['text', 'name', 'bpchar'] as const).flatMap((subjectType) => {
     const subject =
       subjectType === 'text'
@@ -769,9 +781,7 @@ const regexCallableCases: RegexCallableCase[] = [
     return (['~', '!~', '~*', '!~*'] as const).map((operator) => ({
       name: `${subjectType} ${operator} operator`,
       expression: regexCall('operator', operator, [subject, text('a')]),
-      expected: operator.endsWith('*')
-        ? ({ certain: false } as const)
-        : ({ certain: true, value: operator === '~' } as const),
+      expected: { certain: true, value: !operator.startsWith('!') } as const,
       sql: `SELECT $1::${cast} OPERATOR(pg_catalog.${operator}) $2::text AS value`,
       params: ['a', 'a'],
     }))
@@ -789,9 +799,7 @@ const regexCallableCases: RegexCallableCase[] = [
       return {
         name: `${name} function`,
         expression: regexCall('function', name, [subject, text('a')]),
-        expected: suffix.startsWith('ic')
-          ? ({ certain: false } as const)
-          : ({ certain: true, value: suffix === 'regexeq' } as const),
+        expected: { certain: true, value: suffix.endsWith('regexeq') } as const,
         sql: `SELECT pg_catalog.${name}($1::${cast}, $2::text) AS value`,
         params: ['a', 'a'],
       }
@@ -841,7 +849,7 @@ const regexCallableCases: RegexCallableCase[] = [
     params: ['xxabcyy', 'ab', 'c'],
   },
   {
-    name: 'regex operator computes an unsupported pattern',
+    name: 'regex operator computes alternation',
     expression: regexCall('operator', '~', [
       text('b'),
       {
@@ -851,7 +859,7 @@ const regexCallableCases: RegexCallableCase[] = [
         operands: [text('a|'), text('b')],
       },
     ]),
-    expected: { certain: false },
+    expected: { certain: true, value: true },
     sql: 'SELECT $1::text OPERATOR(pg_catalog.~) ($2::text || $3::text) AS value',
     params: ['b', 'a|', 'b'],
   },
@@ -936,16 +944,14 @@ const regexCallableCases: RegexCallableCase[] = [
     expected:
       flag === 'z'
         ? ({ certain: true, value: null, error: '22023' } as const)
-        : flag === 'i'
-          ? ({ certain: false } as const)
-          : ({ certain: true, value: true } as const),
+        : ({ certain: true, value: true } as const),
     sql: 'SELECT pg_catalog.regexp_like($1::text, $2::text, $3::text) AS value',
     params: ['a', 'a', flag],
   })),
   {
-    name: 'regexp_like case-insensitive flag stays uncertain',
+    name: 'regexp_like case-insensitive flag matches',
     expression: regexCall('function', 'regexp_like', [text('A'), text('a'), text('i')]),
-    expected: { certain: false },
+    expected: { certain: true, value: true },
     sql: 'SELECT pg_catalog.regexp_like($1::text, $2::text, $3::text) AS value',
     params: ['A', 'a', 'i'],
   },
@@ -1056,9 +1062,9 @@ const similarCases: RegexCallableCase[] = [
     params: ['a%b', 'a#%b', '', '#'],
   },
   {
-    name: 'SIMILAR TO wildcard is uncertain',
+    name: 'SIMILAR TO wildcard matches',
     expression: regexCall('operator', '~', [text('abc'), similar(text('a%c'))]),
-    expected: { certain: false },
+    expected: { certain: true, value: true },
     sql: 'SELECT $1::text SIMILAR TO $2::text AS value',
     params: ['abc', 'a%c'],
   },
@@ -1200,8 +1206,9 @@ const regexCountCases: RegexCountCase[] = [
     certain: true,
     value: true,
   }),
-  countCase('regexp_count unsupported alternation is uncertain', ['aba', 'a|b'], 3, {
-    certain: false,
+  countCase('regexp_count alternation counts', ['aba', 'a|b'], 3, {
+    certain: true,
+    value: true,
   }),
   countCase('regexp_count invalid start', ['a', 'a', 0], 1, {
     certain: true,
@@ -1475,16 +1482,18 @@ return [${allCases.map((_, index) => `evaluate${index}`).join(',')}].map((evalua
     expect(typescriptSource).toContain('function evalBoolUncertain')
     expect(typescriptSource).not.toContain('function evalBoolCertain')
     expect(typescriptSource).not.toContain('function evalBoolAnd')
+    expect(typescriptSource).not.toContain('function find(')
 
     const goResult = emitEvalBoolExpression(uncertain, goSqlBackend, goEvalBoolBackend)
     expect(goResult.helpers).toEqual(['evalBoolUncertain'])
     const goSource = goSqlRuntime(goResult.helpers, 'main')
     expect(goSource).toContain('func evalBoolUncertain')
     expect(goSource).not.toContain('func evalBoolCertain')
+    expect(goSource).not.toContain('func Find(')
     expect(goSource).not.toContain('func evalBoolAnd')
   })
 
-  it('embeds only the selected target engine translation for a constant pattern', () => {
+  it('uses the generated regex engine for a constant pattern', () => {
     const expression = regex('abc', 'abc$')
     const typescript = emitEvalBoolExpression(
       expression,
@@ -1495,8 +1504,9 @@ return [${allCases.map((_, index) => `evaluate${index}`).join(',')}].map((evalua
       ...typescriptSqlRuntime(typescript.helpers),
       factory.createExpressionStatement(typescript.value.expression),
     ])
-    expect(typescriptSource).toContain(String.raw`(?![\\s\\S])`)
-    expect(typescriptSource).not.toContain(String.raw`\\z`)
+    expect(typescriptSource).toContain('function find(')
+    expect(typescriptSource).toContain('function evalBoolRegexEngine(')
+    expect(typescriptSource).not.toContain('new RegExp(')
 
     const goResult = emitEvalBoolExpression(expression, goSqlBackend, goEvalBoolBackend)
     const goSource =
@@ -1513,34 +1523,31 @@ return [${allCases.map((_, index) => `evaluate${index}`).join(',')}].map((evalua
           ),
         ],
       })
-    expect(goSource).toContain(String.raw`\\z`)
-    expect(goSource).not.toContain(String.raw`(?![\\s\\S])`)
+    expect(goSource).toContain('func Find(')
+    expect(goSource).toContain('func evalBoolRegexEngine(')
+    expect(goSource).not.toContain('regexp.MustCompile(')
   })
 
-  it('includes a runtime analyzer only for a dynamic pattern', () => {
+  it('includes the generated engine for constant and dynamic patterns', () => {
     const constant = emitEvalBoolExpression(
       regex('abc', 'abc'),
       typescriptSqlBackend,
       typescriptEvalBoolBackend,
     )
-    expect(printFile(typescriptSqlRuntime(constant.helpers))).not.toContain(
-      'function evalBoolRegexAnalyze',
-    )
+    expect(printFile(typescriptSqlRuntime(constant.helpers))).toContain('function find(')
     const similarConstant = emitEvalBoolExpression(
       regexCall('operator', '~', [text('abc'), similar(text('abc'))]),
       typescriptSqlBackend,
       typescriptEvalBoolBackend,
     )
-    expect(printFile(typescriptSqlRuntime(similarConstant.helpers))).not.toContain(
-      'function evalBoolRegexAnalyze',
-    )
+    expect(printFile(typescriptSqlRuntime(similarConstant.helpers))).toContain('function find(')
     const similarDynamic = emitEvalBoolExpression(
       regexCall('operator', '~', [text('abc'), similar(concat(text('a'), text('bc')))]),
       typescriptSqlBackend,
       typescriptEvalBoolBackend,
     )
     const similarDynamicSource = printFile(typescriptSqlRuntime(similarDynamic.helpers))
-    expect(similarDynamicSource).toContain('function evalBoolRegexAnalyze')
+    expect(similarDynamicSource).toContain('function find(')
     expect(similarDynamicSource).toContain('function similarToEscapeDefault')
     expect(similarDynamicSource).toContain(numericMathCopyright)
     const goSimilarDynamic = emitEvalBoolExpression(
@@ -1554,40 +1561,32 @@ return [${allCases.map((_, index) => `evaluate${index}`).join(',')}].map((evalua
       typescriptSqlBackend,
       typescriptEvalBoolBackend,
     )
-    expect(printFile(typescriptSqlRuntime(invalidFlags.helpers))).not.toContain(
-      'function evalBoolRegexAnalyze',
-    )
+    expect(printFile(typescriptSqlRuntime(invalidFlags.helpers))).not.toContain('function find(')
     const dynamic = dynamicRegex('abc', 'abc')
     const typescript = emitEvalBoolExpression(
       dynamic,
       typescriptSqlBackend,
       typescriptEvalBoolBackend,
     )
-    expect(printFile(typescriptSqlRuntime(typescript.helpers))).toContain(
-      'function evalBoolRegexAnalyze',
-    )
+    expect(printFile(typescriptSqlRuntime(typescript.helpers))).toContain('function find(')
     const goResult = emitEvalBoolExpression(dynamic, goSqlBackend, goEvalBoolBackend)
     const goSource = goSqlRuntime(goResult.helpers, 'main')
-    expect(goSource).toContain('func evalBoolRegexAnalyze')
-    expect(goSource).not.toContain('ecmascript.escape-literal')
+    expect(goSource).toContain('func Find(')
+    expect(goSource).not.toContain('regexp.MustCompile(')
 
     const constantCount = emitEvalBoolExpression(
       regexCountCases[0]!.expression,
       typescriptSqlBackend,
       typescriptEvalBoolBackend,
     )
-    expect(printFile(typescriptSqlRuntime(constantCount.helpers))).not.toContain(
-      'function evalBoolRegexAnalyze',
-    )
+    expect(printFile(typescriptSqlRuntime(constantCount.helpers))).toContain('function count(')
     const dynamicCount = emitEvalBoolExpression(
       regexCountCases.find((fixture) => fixture.name === 'regexp_count computed pattern')!
         .expression,
       typescriptSqlBackend,
       typescriptEvalBoolBackend,
     )
-    expect(printFile(typescriptSqlRuntime(dynamicCount.helpers))).toContain(
-      'function evalBoolRegexAnalyze',
-    )
+    expect(printFile(typescriptSqlRuntime(dynamicCount.helpers))).toContain('function count(')
   })
 
   it('rejects malformed incomplete expressions', () => {
