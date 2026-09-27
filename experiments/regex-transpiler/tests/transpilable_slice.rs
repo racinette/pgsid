@@ -1768,6 +1768,33 @@ fn capture_compiler_obeys_syntax_switch_restrictions() {
 }
 
 #[test]
+fn capture_compiler_rejects_invalid_escapes_and_quantified_assertions() {
+    for pattern in [
+        r"\x",
+        r"\u006",
+        r"\U0000000",
+        r"\c",
+        r"\U80000000",
+        r"\x80000061",
+        r"(?x)\u00 61",
+        r"\A*",
+        r"\y+",
+        r"[\A]",
+        r"[\1]",
+        r"()()()()()()()()()()()()[\12]",
+    ] {
+        assert!(
+            !candidate::supports_capture_program(pattern, false),
+            "{pattern}"
+        );
+        assert!(matches!(
+            candidate::find_capture_program(pattern, "aaaa", 0, true, true, false, false),
+            candidate::MatchOutcome::Uncertain
+        ));
+    }
+}
+
+#[test]
 fn capture_compiler_matches_every_fixture_it_accepts() {
     let mut checked = 0;
     for source in [

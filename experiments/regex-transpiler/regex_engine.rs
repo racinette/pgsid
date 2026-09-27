@@ -575,6 +575,7 @@ fn control_letter(character: char) -> char {
 fn bracket_character<'a>(
     mut cursor: Cursor<'a>,
     syntax: Syntax,
+    captures: usize,
 ) -> Result<(Cursor<'a>, u32, bool), ParseIssue> {
     let raw = cursor.peek().ok_or(ParseIssue::Invalid)?;
     if raw == '[' {
@@ -591,7 +592,18 @@ fn bracket_character<'a>(
         cursor.position += 1;
         let escaped = cursor.peek().ok_or(ParseIssue::Invalid)?;
         if matches!(escaped, '1'..='9') {
-            return Err(ParseIssue::Unsupported);
+            let mut number = 0_u32;
+            let mut digits = 0;
+            for atom in cursor.characters[cursor.position..].iter().take(255) {
+                let Some(digit) = atom.to_digit(10) else {
+                    break;
+                };
+                number = number.wrapping_mul(10).wrapping_add(digit);
+                digits += 1;
+            }
+            if digits == 1 || (number > 0 && number as usize <= captures) {
+                return Err(ParseIssue::Invalid);
+            }
         }
         if shorthand_class(escaped).is_some() {
             return Err(ParseIssue::Invalid);
@@ -624,7 +636,11 @@ fn bracket_character<'a>(
     Ok((cursor, raw as u32, false))
 }
 
-fn parse_character_class<'a>(mut cursor: Cursor<'a>, syntax: Syntax) -> Parsed<'a> {
+fn parse_character_class<'a>(
+    mut cursor: Cursor<'a>,
+    syntax: Syntax,
+    captures: usize,
+) -> Parsed<'a> {
     let negated = cursor.peek() == Some('^');
     if negated {
         cursor.position += 1;
@@ -716,7 +732,7 @@ fn parse_character_class<'a>(mut cursor: Cursor<'a>, syntax: Syntax) -> Parsed<'
                 continue;
             }
         }
-        let (next, first, escaped_first) = bracket_character(cursor, syntax)?;
+        let (next, first, escaped_first) = bracket_character(cursor, syntax, captures)?;
         cursor = next;
         if first == '-' as u32
             && !escaped_first
@@ -732,7 +748,7 @@ fn parse_character_class<'a>(mut cursor: Cursor<'a>, syntax: Syntax) -> Parsed<'
             && cursor.characters.get(cursor.position + 1) != Some(&']');
         if range_follows {
             cursor.position += 1;
-            let (next, last, _) = bracket_character(cursor, syntax)?;
+            let (next, last, _) = bracket_character(cursor, syntax, captures)?;
             cursor = next;
             if last < first {
                 return Err(ParseIssue::Invalid);
@@ -829,7 +845,7 @@ fn parse_atom<'a>(
             if let Some(boundary) = bracket_boundary(&cursor) {
                 return Ok(boundary);
             }
-            return parse_character_class(cursor, syntax);
+            return parse_character_class(cursor, syntax, context.closed_captures.len() - 1);
         }
         '\\' => {
             let escaped = cursor.peek().ok_or(ParseIssue::Invalid)?;
@@ -868,19 +884,19 @@ fn parse_atom<'a>(
             }
             if syntax == Syntax::Advanced && matches!(escaped, '1'..='9') {
                 let mut end = cursor.position;
-                let mut number = 0_usize;
+                let mut number = 0_u32;
                 while end - cursor.position < 255 {
                     let Some(digit) = cursor.characters.get(end).and_then(|c| c.to_digit(10))
                     else {
                         break;
                     };
-                    number = number
-                        .checked_mul(10)
-                        .and_then(|value| value.checked_add(digit as usize))
-                        .ok_or(ParseIssue::Unsupported)?;
+                    number = number.wrapping_mul(10).wrapping_add(digit);
                     end += 1;
                 }
-                if end == cursor.position + 1 || number < context.closed_captures.len() {
+                let number = number as usize;
+                if end == cursor.position + 1
+                    || (number > 0 && number < context.closed_captures.len())
+                {
                     if in_lookaround
                         || number >= context.closed_captures.len()
                         || !context.closed_captures[number]
@@ -1079,7 +1095,11 @@ fn parse_basic_iterative<'a>(mut cursor: Cursor<'a>, context: &mut ParseContext)
                     let (next, class) = if let Some(boundary) = bracket_boundary(&cursor) {
                         boundary
                     } else {
-                        parse_character_class(cursor, Syntax::Basic)?
+                        parse_character_class(
+                            cursor,
+                            Syntax::Basic,
+                            context.closed_captures.len() - 1,
+                        )?
                     };
                     cursor = next;
                     class
@@ -1198,12 +1218,50 @@ fn parse_repetition<'a>(mut cursor: Cursor<'a>, atom: Expression, syntax: Syntax
     ))
 }
 
-fn expanded_characters(pattern: &str) -> Result<Vec<char>, ParseIssue> {
+fn expanded_escape(
+    source: &[char],
+    position: usize,
+    in_class: bool,
+) -> Result<(usize, Vec<char>), ParseIssue> {
+    let escaped = *source.get(position + 1).ok_or(ParseIssue::Invalid)?;
+    if escaped == 'c' {
+        let control = *source.get(position + 2).ok_or(ParseIssue::Invalid)?;
+        return Ok((
+            position + 3,
+            format!("\\U{:08x}", control as u32 & 31).chars().collect(),
+        ));
+    }
+    if matches!(escaped, 'x' | 'u' | 'U' | '0') {
+        let (next, value) = numeric_escape(Cursor {
+            characters: source,
+            position: position + 1,
+        })?
+        .ok_or(ParseIssue::Invalid)?;
+        return Ok((next.position, format!("\\U{value:08x}").chars().collect()));
+    }
+    if !in_class && matches!(escaped, '1'..='9') {
+        let mut end = position + 1;
+        while end - position <= 255 && source.get(end).is_some_and(char::is_ascii_digit) {
+            end += 1;
+        }
+        let mut atom = vec!['(', '?', ':'];
+        atom.extend_from_slice(&source[position..end]);
+        atom.push(')');
+        return Ok((end, atom));
+    }
+    Ok((position + 2, source[position..position + 2].to_vec()))
+}
+
+fn expanded_characters(pattern: &str, syntax: Syntax) -> Result<Vec<char>, ParseIssue> {
     let source: Vec<char> = pattern.chars().collect();
     let mut result = Vec::new();
     let mut position = 0;
     while let Some(character) = source.get(position).copied() {
-        if character == '\\' {
+        if character == '\\' && syntax == Syntax::Advanced {
+            let (next, atom) = expanded_escape(&source, position, false)?;
+            result.extend(atom);
+            position = next;
+        } else if character == '\\' {
             let escaped = source.get(position + 1).ok_or(ParseIssue::Invalid)?;
             result.push(character);
             result.push(*escaped);
@@ -1232,11 +1290,10 @@ fn expanded_characters(pattern: &str) -> Result<Vec<char>, ParseIssue> {
             }
             loop {
                 let current = *source.get(position).ok_or(ParseIssue::Invalid)?;
-                if current == '\\' {
-                    let escaped = source.get(position + 1).ok_or(ParseIssue::Invalid)?;
-                    result.push(current);
-                    result.push(*escaped);
-                    position += 2;
+                if current == '\\' && syntax == Syntax::Advanced {
+                    let (next, atom) = expanded_escape(&source, position, true)?;
+                    result.extend(atom);
+                    position = next;
                 } else if current == '['
                     && matches!(source.get(position + 1), Some(':' | '.' | '='))
                 {
@@ -1417,7 +1474,7 @@ pub fn compile(pattern: &str, options: Options) -> CompileOutcome {
         });
     }
     let characters: Vec<char> = if expanded {
-        match expanded_characters(body) {
+        match expanded_characters(body, syntax) {
             Ok(characters) => characters,
             Err(ParseIssue::Unsupported) => return CompileOutcome::Uncertain,
             Err(ParseIssue::Invalid) => return CompileOutcome::InvalidPattern,
