@@ -1215,8 +1215,13 @@ fn expanded_characters(pattern: &str) -> Result<Vec<char>, ParseIssue> {
         } else if character == '[' {
             result.push(character);
             position += 1;
+            if source.get(position) == Some(&'^') {
+                result.push('^');
+                position += 1;
+            }
             if source.get(position) == Some(&']') {
-                return Err(ParseIssue::Unsupported);
+                result.push(']');
+                position += 1;
             }
             loop {
                 let current = *source.get(position).ok_or(ParseIssue::Invalid)?;
@@ -1225,22 +1230,23 @@ fn expanded_characters(pattern: &str) -> Result<Vec<char>, ParseIssue> {
                     result.push(current);
                     result.push(*escaped);
                     position += 2;
-                } else if current == '[' && source.get(position + 1) == Some(&':') {
+                } else if current == '['
+                    && matches!(source.get(position + 1), Some(':' | '.' | '='))
+                {
+                    let delimiter = source[position + 1];
                     result.push(current);
-                    result.push(':');
+                    result.push(delimiter);
                     position += 2;
                     loop {
                         let nested = *source.get(position).ok_or(ParseIssue::Unsupported)?;
                         result.push(nested);
                         position += 1;
-                        if nested == ':' && source.get(position) == Some(&']') {
+                        if nested == delimiter && source.get(position) == Some(&']') {
                             result.push(']');
                             position += 1;
                             break;
                         }
                     }
-                } else if current == '[' {
-                    return Err(ParseIssue::Unsupported);
                 } else {
                     result.push(current);
                     position += 1;

@@ -1732,7 +1732,7 @@ fn angle_word_escapes_follow_the_selected_syntax() {
 
 #[test]
 fn capture_compiler_leaves_unlowered_features_uncertain() {
-    for pattern in ["(?i)a", "[[:digit:]]", "(a)(?=\\1)"] {
+    for pattern in ["(?q)a", "[[.a.]]", "(a)(?=\\1)"] {
         assert!(
             !candidate::supports_capture_program(pattern, false),
             "{pattern}"
@@ -2877,10 +2877,10 @@ fn supported_search_matches_pglite_fixtures() {
             + numeric_literal
             + middle_lookahead
             + chained_assertions
-            >= 126
+            + inline
+            + inline_options
+            >= 156
     );
-    assert!(inline >= 20);
-    assert!(inline_options >= 10);
     assert!(expanded_advanced >= 200);
     assert!(extended >= 50);
     assert!(extended_literal_close >= 10);

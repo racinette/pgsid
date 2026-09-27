@@ -14,6 +14,7 @@ const VM_JUMP: usize = 11;
 const VM_CLASS: usize = 12;
 const VM_NUMERIC: usize = 13;
 const VM_WORD_END: usize = 14;
+const CAPTURE_CLASS_RANGE: usize = 15;
 const NODE_SEQUENCE: usize = 16;
 const NODE_ALTERNATIVE: usize = 17;
 const NODE_GROUP: usize = 18;
@@ -207,7 +208,9 @@ struct CaptureProgram {
     maximums: Vec<usize>,
     interpreted: bool,
     instructions: Vec<CaptureInstruction>,
-    atoms: Vec<char>,
+    class_members: Vec<CaptureClassMember>,
+    case_mode: char,
+    newline_mode: char,
     shortest: bool,
     captures: usize,
     backreferences: bool,
@@ -3688,7 +3691,361 @@ fn capture_width_repeat(width: usize, count: usize) -> usize {
     result
 }
 
-fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
+#[derive(Clone, Copy)]
+struct CaptureClassMember {
+    kind: usize,
+    lower: u32,
+    upper: u32,
+    complement: bool,
+}
+
+struct CaptureClass {
+    valid: bool,
+    negated: bool,
+    members: Vec<CaptureClassMember>,
+}
+
+struct CaptureClassAtom {
+    valid: bool,
+    end: usize,
+    kind: usize,
+    value: u32,
+    complement: bool,
+}
+
+fn parse_capture_class_atom(source: Vec<char>) -> CaptureClassAtom {
+    let position = 0;
+    let mut valid = position < source.len();
+    let mut end = position;
+    let mut kind = CAPTURE_CLASS_RANGE;
+    let mut value: u32 = 0;
+    let mut complement = false;
+    if valid {
+        let atom = source[position];
+        value = atom as u32;
+        end += 1;
+        if atom == '['
+            && source.len() - position >= 2
+            && (source[position + 1] == ':'
+                || source[position + 1] == '.'
+                || source[position + 1] == '=')
+        {
+            valid = false;
+            if source[position + 1] == ':' && source.len() - position >= 8 {
+                kind = posix_class_kind(
+                    source[position + 2],
+                    source[position + 3],
+                    source[position + 4],
+                    source[position + 5],
+                    source[position + 6],
+                    source[position + 7],
+                );
+                if kind > 0 {
+                    end = position + posix_class_width(kind) - 2;
+                    valid = end <= source.len() && source[end - 2] == ':' && source[end - 1] == ']';
+                };
+            };
+        } else if atom == '\\' {
+            valid = end < source.len();
+            if valid {
+                let escaped = source[end];
+                end += 1;
+                value = escaped as u32;
+                if escaped == 'd' || escaped == 'D' {
+                    kind = 1;
+                    complement = escaped == 'D';
+                } else if escaped == 's' || escaped == 'S' {
+                    kind = 4;
+                    complement = escaped == 'S';
+                } else if escaped == 'w' || escaped == 'W' {
+                    kind = 14;
+                    complement = escaped == 'W';
+                } else if escaped == 'a' {
+                    value = 7;
+                } else if escaped == 'b' {
+                    value = 8;
+                } else if escaped == 'B' {
+                    value = 92;
+                } else if escaped == 'e' {
+                    value = 27;
+                } else if escaped == 'f' {
+                    value = 12;
+                } else if escaped == 'n' {
+                    value = 10;
+                } else if escaped == 'r' {
+                    value = 13;
+                } else if escaped == 't' {
+                    value = 9;
+                } else if escaped == 'v' {
+                    value = 11;
+                } else if (value >= 48 && value <= 57)
+                    || (value >= 65 && value <= 90)
+                    || (value >= 97 && value <= 122)
+                {
+                    valid = false;
+                };
+            };
+        };
+    };
+    CaptureClassAtom {
+        valid,
+        end,
+        kind,
+        value,
+        complement,
+    }
+}
+
+fn parse_capture_class(source: Vec<char>) -> CaptureClass {
+    let mut position = 1;
+    let mut negated = false;
+    if position < source.len() && source[position] == '^' {
+        negated = true;
+        position += 1;
+    };
+    let first = position;
+    let mut members: Vec<CaptureClassMember> = Vec::new();
+    let mut valid = false;
+    while position < source.len() {
+        if source[position] == ']' && position > first {
+            valid = true;
+            break;
+        };
+        if source[position] == '-'
+            && position > first
+            && position + 1 < source.len()
+            && source[position + 1] != ']'
+        {
+            break;
+        };
+        let mut lookahead: Vec<char> = Vec::new();
+        let mut look = position;
+        while look < source.len() && look - position < 10 {
+            lookahead.push(source[look]);
+            look += 1;
+        }
+        let atom = parse_capture_class_atom(lookahead);
+        if atom.valid == false {
+            break;
+        };
+        position += atom.end;
+        let mut upper = atom.value;
+        if source.len() - position >= 2 && source[position] == '-' && source[position + 1] != ']' {
+            let mut lookahead: Vec<char> = Vec::new();
+            let mut look = position + 1;
+            while look < source.len() && look - position < 11 {
+                lookahead.push(source[look]);
+                look += 1;
+            }
+            let bound = parse_capture_class_atom(lookahead);
+            if bound.valid == false
+                || atom.kind != CAPTURE_CLASS_RANGE
+                || bound.kind != CAPTURE_CLASS_RANGE
+                || bound.value < atom.value
+            {
+                break;
+            };
+            upper = bound.value;
+            position += 1 + bound.end;
+        };
+        members.push(CaptureClassMember {
+            kind: atom.kind,
+            lower: atom.value,
+            upper,
+            complement: atom.complement,
+        });
+    }
+    members.push(CaptureClassMember {
+        kind: 0,
+        lower: 0,
+        upper: 0,
+        complement: false,
+    });
+    CaptureClass {
+        valid,
+        negated,
+        members,
+    }
+}
+
+fn capture_class_member_matches(member: CaptureClassMember, actual: char, sensitive: bool) -> bool {
+    let codepoint = actual as u32;
+    let digit = codepoint >= 48 && codepoint <= 57;
+    let upper = codepoint >= 65 && codepoint <= 90;
+    let lower = codepoint >= 97 && codepoint <= 122;
+    let letter = upper || lower;
+    let space = (codepoint >= 9 && codepoint <= 13) || codepoint == 32;
+    let kind = member.kind;
+    let mut matched = (kind == 1 && digit)
+        || (kind == 2 && letter)
+        || (kind == 3 && (upper || (sensitive == false && lower)))
+        || (kind == 4 && space)
+        || (kind == 5 && (digit || letter))
+        || (kind == 6 && codepoint <= 127)
+        || (kind == 7 && (codepoint == 32 || codepoint == 9))
+        || (kind == 8 && (codepoint <= 31 || (codepoint >= 127 && codepoint <= 159)))
+        || (kind == 9 && codepoint >= 33 && codepoint <= 126)
+        || (kind == 10 && (lower || (sensitive == false && upper)))
+        || (kind == 11 && codepoint >= 32 && codepoint <= 126)
+        || (kind == 12
+            && ((codepoint >= 33 && codepoint <= 47)
+                || (codepoint >= 58 && codepoint <= 64)
+                || (codepoint >= 91 && codepoint <= 96)
+                || (codepoint >= 123 && codepoint <= 126)))
+        || (kind == 13
+            && (digit
+                || (codepoint >= 65 && codepoint <= 70)
+                || (codepoint >= 97 && codepoint <= 102)))
+        || (kind == 14 && (digit || letter || codepoint == 95));
+    if kind == CAPTURE_CLASS_RANGE {
+        matched = codepoint >= member.lower && codepoint <= member.upper;
+        if sensitive == false {
+            let mut alternate = codepoint;
+            if upper {
+                alternate += 32;
+            } else if lower {
+                alternate = alternate - 32;
+            };
+            matched = matched || (alternate >= member.lower && alternate <= member.upper);
+        };
+    };
+    matched != member.complement
+}
+
+fn capture_pattern_source(pattern: &str, expanded: bool) -> InlineOptionsResult {
+    let source: Vec<char> = pattern.chars().collect();
+    let mut position = 0;
+    let mut valid = true;
+    let mut case_mode = ' ';
+    let mut newline_mode = ' ';
+    let mut effective_expanded = expanded;
+    if source.len() >= 4
+        && source[0] == '*'
+        && source[1] == '*'
+        && source[2] == '*'
+        && source[3] == ':'
+    {
+        position = 4;
+    };
+    if source.len() - position >= 3
+        && source[position] == '('
+        && source[position + 1] == '?'
+        && (((source[position + 2] as u32) >= 65 && (source[position + 2] as u32) <= 90)
+            || ((source[position + 2] as u32) >= 97 && (source[position + 2] as u32) <= 122))
+    {
+        position += 2;
+        while position < source.len() && source[position] != ')' {
+            let option = source[position];
+            if option == 'i' || option == 'c' {
+                case_mode = option;
+            } else if option == 'n'
+                || option == 'm'
+                || option == 'p'
+                || option == 'w'
+                || option == 's'
+            {
+                newline_mode = option;
+            } else if option == 'x' {
+                effective_expanded = true;
+            } else if option == 't' {
+                effective_expanded = false;
+            } else {
+                valid = false;
+                break;
+            };
+            position += 1;
+        }
+        if position == source.len() {
+            valid = false;
+        } else {
+            position += 1;
+        };
+    };
+    let mut atoms: Vec<char> = Vec::new();
+    while valid && position < source.len() {
+        let atom = source[position];
+        if atom == '[' {
+            atoms.push(atom);
+            position += 1;
+            if position < source.len() && source[position] == '^' {
+                atoms.push(source[position]);
+                position += 1;
+            };
+            let first = position;
+            let mut special = ' ';
+            while position < source.len() {
+                let current = source[position];
+                atoms.push(current);
+                position += 1;
+                if current == '\\' && position < source.len() {
+                    atoms.push(source[position]);
+                    position += 1;
+                } else if special != ' ' {
+                    if current == special && position < source.len() && source[position] == ']' {
+                        atoms.push(']');
+                        position += 1;
+                        special = ' ';
+                    };
+                } else if current == '['
+                    && position < source.len()
+                    && (source[position] == ':'
+                        || source[position] == '.'
+                        || source[position] == '=')
+                {
+                    special = source[position];
+                } else if current == ']' && position > first + 1 {
+                    break;
+                };
+            }
+        } else if atom == '\\' {
+            atoms.push(atom);
+            position += 1;
+            if position < source.len() {
+                atoms.push(source[position]);
+                position += 1;
+            };
+        } else if atom == '('
+            && source.len() - position >= 3
+            && source[position + 1] == '?'
+            && source[position + 2] == '#'
+        {
+            position += 3;
+            while position < source.len() && source[position] != ')' {
+                position += 1;
+            }
+            if position == source.len() {
+                valid = false;
+            } else {
+                position += 1;
+            };
+        } else if effective_expanded && atom == '#' {
+            while position < source.len() && source[position] != '\n' {
+                position += 1;
+            }
+        } else if effective_expanded && (atom == ' ' || ((atom as u32) >= 9 && (atom as u32) <= 13))
+        {
+            position += 1;
+        } else {
+            atoms.push(atom);
+            position += 1;
+        };
+    }
+    InlineOptionsResult {
+        valid,
+        syntax: 'a',
+        case_mode,
+        newline_mode,
+        atoms,
+    }
+}
+
+fn compile_capture_program_atoms(
+    source: Vec<char>,
+    mut valid: bool,
+    case_mode: char,
+    newline_mode: char,
+) -> CaptureProgram {
+    let mut class_members: Vec<CaptureClassMember> = Vec::new();
     let mut nodes: Vec<CaptureNode> = Vec::new();
     nodes.push(make_capture_node(NODE_EMPTY, 0, 0, 0, ' ', 0, 1, 0));
     let mut frames: Vec<CaptureFrame> = Vec::new();
@@ -3707,7 +4064,6 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
     let mut backreferences = false;
     let mut assertions = false;
     let mut assertion_depth = 0;
-    let mut valid = true;
     let mut position = 0;
     while position < source.len() && valid {
         let atom = source[position];
@@ -3855,35 +4211,51 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
                 position += 1;
             } else if atom == '[' {
                 operation = VM_CLASS;
-                reference = position;
+                reference = class_members.len();
+                let mut class_atoms: Vec<char> = Vec::new();
+                class_atoms.push('[');
                 position += 1;
-                while position < source.len() && source[position] != ']' {
-                    if source[position] == '\\'
-                        && source.len() - position >= 2
-                        && (source[position + 1] == 'n' || source[position + 1] == 'r')
-                    {
-                        position += 2;
-                    } else if source[position] == '[' || source[position] == '\\' {
-                        valid = false;
-                        break;
-                    } else {
+                if position < source.len() && source[position] == '^' {
+                    class_atoms.push('^');
+                    position += 1;
+                }
+                let first = position;
+                let mut special = ' ';
+                while position < source.len() {
+                    let current = source[position];
+                    class_atoms.push(current);
+                    position += 1;
+                    if current == '\\' && position < source.len() {
+                        class_atoms.push(source[position]);
                         position += 1;
+                    } else if special != ' ' {
+                        if current == special && position < source.len() && source[position] == ']'
+                        {
+                            class_atoms.push(']');
+                            position += 1;
+                            special = ' ';
+                        }
+                    } else if current == '['
+                        && position < source.len()
+                        && (source[position] == ':'
+                            || source[position] == '.'
+                            || source[position] == '=')
+                    {
+                        special = source[position];
+                    } else if current == ']' && position > first + 1 {
+                        break;
                     };
                 }
-                if position == source.len() || position == reference + 1 {
-                    valid = false;
-                } else {
-                    position += 1;
-                    let mut member_atoms: Vec<char> = Vec::new();
-                    let mut member_position = reference;
-                    while member_position < position {
-                        member_atoms.push(source[member_position]);
-                        member_position += 1;
-                    }
-                    if supports_atoms(member_atoms) == false {
-                        valid = false;
-                    };
-                };
+                let parsed_class = parse_capture_class(class_atoms);
+                valid = parsed_class.valid;
+                if parsed_class.negated {
+                    member = '^';
+                }
+                let mut index = 0;
+                while index < parsed_class.members.len() {
+                    class_members.push(parsed_class.members[index]);
+                    index += 1;
+                }
             } else if atom == '\\' && source.len() - position >= 2 {
                 let escaped = source[position + 1];
                 let escape_start = position;
@@ -4358,7 +4730,9 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
         maximums,
         interpreted,
         instructions,
-        atoms: source,
+        class_members,
+        case_mode,
+        newline_mode,
         shortest,
         captures: groups,
         backreferences,
@@ -4366,7 +4740,13 @@ fn compile_capture_program_atoms(source: Vec<char>) -> CaptureProgram {
 }
 
 fn compile_capture_program(pattern: &str, expanded: bool) -> CaptureProgram {
-    compile_capture_program_atoms(pattern_atoms(pattern, expanded))
+    let parsed = capture_pattern_source(pattern, expanded);
+    compile_capture_program_atoms(
+        parsed.atoms,
+        parsed.valid,
+        parsed.case_mode,
+        parsed.newline_mode,
+    )
 }
 
 pub fn supports_capture_program(pattern: &str, expanded: bool) -> bool {
@@ -4626,29 +5006,27 @@ fn run_capture_tree(
                             }
                         } else if node.operation == VM_CLASS {
                             if end < haystack.len() {
-                                let mut member: Vec<char> = Vec::new();
-                                let mut position = node.group;
-                                while position < program.atoms.len() {
-                                    let atom = program.atoms[position];
-                                    member.push(atom);
-                                    position += 1;
-                                    if atom == ']' {
-                                        break;
+                                let mut class_position = node.group;
+                                let mut included = false;
+                                while program.class_members[class_position].kind > 0 {
+                                    if work == MAX_CAPTURE_WORK {
+                                        return MatchOutcome::Uncertain;
                                     }
+                                    work += 1;
+                                    if capture_class_member_matches(
+                                        program.class_members[class_position],
+                                        haystack[end],
+                                        case_sensitive,
+                                    ) {
+                                        included = true;
+                                    }
+                                    class_position += 1;
                                 }
-                                let found = search_atoms(
-                                    member,
-                                    subject,
-                                    end,
-                                    case_sensitive,
-                                    dot_crosses_newline,
-                                    line_anchors,
-                                );
-                                if found.kind == 2 {
-                                    return MatchOutcome::Uncertain;
-                                }
-                                matched =
-                                    found.kind == 0 && found.start == end && found.end == end + 1;
+                                let negated = node.atom == '^';
+                                matched = included != negated
+                                    && (negated == false
+                                        || dot_crosses_newline
+                                        || haystack[end] != '\n');
                                 if matched {
                                     end += 1;
                                 }
@@ -4944,10 +5322,28 @@ fn run_capture_program(
     program: CaptureProgram,
     subject: &str,
     from: usize,
-    case_sensitive: bool,
-    dot_crosses_newline: bool,
-    line_anchors: bool,
+    mut case_sensitive: bool,
+    mut dot_crosses_newline: bool,
+    mut line_anchors: bool,
 ) -> MatchOutcome {
+    if program.case_mode == 'i' {
+        case_sensitive = false;
+    } else if program.case_mode == 'c' {
+        case_sensitive = true;
+    }
+    if program.newline_mode == 'm' || program.newline_mode == 'n' {
+        dot_crosses_newline = false;
+        line_anchors = true;
+    } else if program.newline_mode == 'p' {
+        dot_crosses_newline = false;
+        line_anchors = false;
+    } else if program.newline_mode == 'w' {
+        dot_crosses_newline = true;
+        line_anchors = true;
+    } else if program.newline_mode == 's' {
+        dot_crosses_newline = true;
+        line_anchors = false;
+    }
     if program.interpreted {
         return run_capture_tree(
             program,
@@ -5056,30 +5452,27 @@ fn run_capture_program(
                     if subject_position == haystack.len() {
                         matched = false;
                     } else {
-                        let mut member: Vec<char> = Vec::new();
                         let mut class_position = step.group;
-                        while class_position < program.atoms.len() {
-                            let class_atom = program.atoms[class_position];
-                            member.push(class_atom);
+                        let mut included = false;
+                        while program.class_members[class_position].kind > 0 {
+                            if work == MAX_CAPTURE_WORK {
+                                return MatchOutcome::Uncertain;
+                            }
+                            work += 1;
+                            if capture_class_member_matches(
+                                program.class_members[class_position],
+                                haystack[subject_position],
+                                case_sensitive,
+                            ) {
+                                included = true;
+                            }
                             class_position += 1;
-                            if class_atom == ']' {
-                                break;
-                            };
                         }
-                        let found_member = search_atoms(
-                            member,
-                            subject,
-                            subject_position,
-                            case_sensitive,
-                            dot_crosses_newline,
-                            line_anchors,
-                        );
-                        if found_member.kind == 2 {
-                            return MatchOutcome::Uncertain;
-                        };
-                        matched = found_member.kind == 0
-                            && found_member.start == subject_position
-                            && found_member.end == subject_position + 1;
+                        let negated = step.atom == '^';
+                        matched = included != negated
+                            && (negated == false
+                                || dot_crosses_newline
+                                || haystack[subject_position] != '\n');
                         if matched {
                             subject_position += 1;
                             instruction += 1;
@@ -7653,7 +8046,7 @@ pub fn supports_basic_repeated_capture(pattern: &str, expanded: bool) -> bool {
     if parsed.valid == false {
         return false;
     }
-    let program = compile_capture_program_atoms(parsed.atoms);
+    let program = compile_capture_program_atoms(parsed.atoms, parsed.valid, ' ', ' ');
     program.valid
 }
 
@@ -7670,7 +8063,7 @@ pub fn find_basic_repeated_capture(
     if parsed.valid == false {
         return MatchOutcome::Uncertain;
     }
-    let program = compile_capture_program_atoms(parsed.atoms);
+    let program = compile_capture_program_atoms(parsed.atoms, parsed.valid, ' ', ' ');
     if program.valid == false {
         return MatchOutcome::Uncertain;
     }
