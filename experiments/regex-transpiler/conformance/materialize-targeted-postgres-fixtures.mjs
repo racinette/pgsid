@@ -998,6 +998,126 @@ for (const [pattern, subject, caseSensitive, newline] of [
   })
 }
 
+for (const [pattern, subject] of [
+  ['^(ab|cd)+$', 'abcd'],
+  ['((a+?))', 'aaa'],
+  ['^((a)|b)+\\2$', 'aba'],
+  ['^(ab|cd)*$', 'abcd'],
+  ['^(ab|cd|ef)+$', 'abcdef'],
+  ['^(ab|cd)+$', 'abce'],
+  ['^(ab|cd)*$', ''],
+  ['^(ab|cd|ef)+$', 'efabcd'],
+  ['((a|)+)+', ''],
+  ['((a|)+)+', 'aaa'],
+  ['^(a*)*$', ''],
+  ['^(a*)*$', 'aaa'],
+  ['^(a*)*$', 'ab'],
+  ['^(a?)*$', 'aaaa'],
+  ['^(a?)*$', 'b'],
+  ['^(?:ab|c){2,3}$', 'abab'],
+  ['^(?:ab|c){2,3}$', 'abc'],
+  ['^(?:ab|c){2,3}$', 'ccc'],
+  ['^(?:ab|c){2,3}$', 'ab'],
+  ['(?:a+?){2}', 'aaa'],
+  ['(a+?|ab)', 'aaa'],
+  ['(a+?)b*', 'aaabb'],
+  ['^((a)|b)+\\2$', 'aa'],
+  ['^((a)|b)+\\2$', 'baa'],
+  ['^((a)|b)*\\2$', 'aba'],
+  ['^((a?)*)\\2$', ''],
+  ['^((a?)*)\\2$', 'aa'],
+  ['^((a)|(b))+\\2$', 'aba'],
+  ['^((a)|(b))+\\3$', 'abb'],
+  ['^(a|ab)\\1$', 'abab'],
+  ['^(ab|a)\\1$', 'aa'],
+  ['^(a{2})\\1$', 'aaaa'],
+  ['(a|aa){2}\\1', 'aaa'],
+  ['(a|aa){2}\\1', 'aaaa'],
+  ['(a|aa){2}\\1', 'aaaaaaa'],
+  ['(a|aa){1,2}?\\1', 'aaaaaa'],
+  ['((a|aa){1,2})\\1', 'aaaaaa'],
+  ['((a|){1,3})\\2', 'aaa'],
+  ['((a|){1,3})\\2', ''],
+  ['((a|b){0,3})\\2', 'abb'],
+  ['(a){1,4}\\1', 'aa'],
+  ['(a){1,4}\\1', 'a'],
+  ['(a|aa){2,}\\1', 'aaaaaa'],
+  ['(?=(ab|cd)+$)(ab|cd)+', 'abcd'],
+  ['(?=(ab|cd)+$)(ab|cd)+', 'abce'],
+  ['(?<=a+)b', 'zaaab'],
+  ['(?<=a+)b', 'zb'],
+  ['(?<!a+)b', 'zaaab'],
+  ['(?<!a+)b', 'zb'],
+  ['(?<=a(?=b))b', 'ab'],
+  ['(?<=a(?=c))b', 'ab'],
+  ['(?=(?!ab)a.)a.', 'ac'],
+  ['(?=(?!ab)a.)a.', 'ab'],
+  ['(?<=(?<=a)b)c', 'abc'],
+  ['(?<=(?<=a)b)c', 'xbc'],
+  ['(?<!a|bc)d', 'xbcd'],
+  ['(?<!a|bc)d', 'xbd'],
+  ['(?=(a))(a)\\1', 'aa'],
+  ['(?=(a))(a)\\1', 'ab'],
+  ['(?<=(a))(b)\\1', 'abb'],
+  ['(?<=(a))(b)\\1', 'aba'],
+  ['(?=a*)b', 'b'],
+  ['(?!a*)b', 'b'],
+  ['(?<=a*)b', 'b'],
+  ['(?<!a*)b', 'b'],
+  ['(?=a|aa)a+?', 'aaa'],
+  ['(?<=^a+)b', 'aaab'],
+  ['(?<=^a+)b', 'zaaab'],
+  ['(?=(?:a?)*b)a*b', 'aaab'],
+  ['(?<=a{1,3})b', 'aaaab'],
+  ['(?!(?:ab|cd){2}$)(ab|cd)+', 'abcd'],
+  ['(?!(?:ab|cd){2}$)(ab|cd)+', 'ababcd'],
+  ['(a?){1,}\\1', ''],
+  ['(a?){1,}\\1', 'aaa'],
+  ['((a|)){1,}\\2', 'aaa'],
+  ['((a|aa){1,})\\2', 'aaaaaa'],
+  ['(a|aa){2}?\\1', 'aaaaaa'],
+  ['(a|aa){2}?\\1', 'aaaa'],
+  ['((a?)?){0,3}\\2', 'aa'],
+  ['((a?)?){0,3}\\2', ''],
+  ['(|()){1}\\2', ''],
+  ['(()|){1}\\2', ''],
+  ['((a|aa)+){1}\\2', 'aaaa'],
+  ['((a|aa)*){1}\\2', 'aaaa'],
+  ['((a?)?){1}\\2', 'aa'],
+  ['((a*)?){1}\\2', 'aa'],
+  ['((a|aa)?){1}\\2', 'aaaa'],
+  ['((a|aa)?){1}\\2', 'aa'],
+  ['(a|aa|aaaaa){1,3}\\1', 'aaaaaaa'],
+  ['(a|aa|aaaaa){0,3}\\1', 'aaaaaaa'],
+  ['(a|aa|aaaaa)+\\1', 'aaaaaaa'],
+  ['(a|(a))\\2', 'aa'],
+  ['((a)|a)\\2', 'aa'],
+  ['(a|aa){0,2}\\1', 'aaa'],
+  ['(a|aa){1,2}\\1', 'aaa'],
+  ['(a|aa)*\\1', 'aaa'],
+  ['(a|aa)+\\1', 'aaa'],
+  ['((a)\\2){1,3}\\2', 'aaaaa'],
+  ['((a)\\2){2,3}\\2', 'aaaaa'],
+  ['((a|aa)\\2){1,2}\\2', 'aaaaaaa'],
+  ['(()\\2){2}\\1', ''],
+  ['(a+?)(a*)\\1', 'aaaaaa'],
+  ['((a|aa)+?)\\2', 'aaaaaa'],
+  ['(a|aa){2,2}?\\1', 'aaaaaa'],
+  ['(?=(a|aa)+)(a|aa)*\\1', 'aaa'],
+]) {
+  inputs.push({
+    family: 'composition',
+    pattern,
+    subject,
+    options: {
+      syntax: 'advanced',
+      caseSensitive: true,
+      expanded: false,
+      newline: 'ordinary',
+    },
+  })
+}
+
 function flags(options) {
   const newline = { ordinary: '', sensitive: 'n', stop: 'p', anchors: 'w' }[options.newline]
   const syntax = { literal: 'q', basic: 'b', extended: '', advanced: '' }[options.syntax]
@@ -1013,7 +1133,7 @@ try {
       regexp_instr(($1::text collate "C"), $2::text, $4::int, 1, 1, $3::text) as match_end
   `
   const fixtures = []
-  for (const input of inputs) {
+  for (const { family, ...input } of inputs) {
     const pattern = input.options.syntax === 'extended' ? `(?e)${input.pattern}` : input.pattern
     const result = await pg.query(sql, [
       input.subject,
@@ -1026,7 +1146,7 @@ try {
       start === 0
         ? { kind: 'NoMatch' }
         : { kind: 'Found', value: { start: start - 1, end: end - 1 } }
-    fixtures.push({ input, expected })
+    fixtures.push({ ...(family ? { family } : {}), input, expected })
   }
   const output = `${JSON.stringify(
     {
