@@ -69,12 +69,12 @@ pub struct RegexOptions {
 
 pub fn find(pattern: &str, subject: &str, from: usize, options: RegexOptions) -> MatchOutcome {
     capture_match_outcome(execute_pattern(
-        pattern, subject, from, options, false, false,
+        pattern, subject, from, options, false, false, false,
     ))
 }
 
 pub fn count(pattern: &str, subject: &str, from: usize, options: RegexOptions) -> CountOutcome {
-    let result = execute_pattern(pattern, subject, from, options, true, false);
+    let result = execute_pattern(pattern, subject, from, options, true, false, false);
     if result.kind == 2 {
         return CountOutcome::Uncertain;
     }
@@ -82,6 +82,28 @@ pub fn count(pattern: &str, subject: &str, from: usize, options: RegexOptions) -
         return CountOutcome::InvalidPattern;
     }
     CountOutcome::Count(result.count)
+}
+
+pub enum MatchListOutcome {
+    Matches(Vec<MatchSpan>),
+    InvalidPattern,
+    Uncertain,
+}
+
+pub fn find_all(
+    pattern: &str,
+    subject: &str,
+    from: usize,
+    options: RegexOptions,
+) -> MatchListOutcome {
+    let result = execute_pattern(pattern, subject, from, options, true, false, true);
+    if result.kind == 2 {
+        return MatchListOutcome::Uncertain;
+    }
+    if result.kind == 3 {
+        return MatchListOutcome::InvalidPattern;
+    }
+    MatchListOutcome::Matches(result.matches)
 }
 
 #[derive(Clone, Copy)]
@@ -104,7 +126,7 @@ pub fn captures(
     from: usize,
     options: RegexOptions,
 ) -> CaptureOutcome {
-    let result = execute_pattern(pattern, subject, from, options, false, true);
+    let result = execute_pattern(pattern, subject, from, options, false, true, false);
     if result.kind == 2 {
         return CaptureOutcome::Uncertain;
     }
@@ -123,6 +145,7 @@ struct CaptureRunResult {
     end: usize,
     count: usize,
     groups: Vec<CaptureSpan>,
+    matches: Vec<MatchSpan>,
 }
 
 fn make_capture_run_result(
@@ -132,12 +155,26 @@ fn make_capture_run_result(
     count: usize,
 ) -> CaptureRunResult {
     let groups: Vec<CaptureSpan> = Vec::new();
+    let matches: Vec<MatchSpan> = Vec::new();
     CaptureRunResult {
         kind,
         start,
         end,
         count,
         groups,
+        matches,
+    }
+}
+
+fn complete_match_list_result(count: usize, matches: Vec<MatchSpan>) -> CaptureRunResult {
+    let groups: Vec<CaptureSpan> = Vec::new();
+    CaptureRunResult {
+        kind: 1,
+        start: 0,
+        end: 0,
+        count,
+        groups,
+        matches,
     }
 }
 
@@ -164,6 +201,7 @@ fn execute_pattern(
     options: RegexOptions,
     counting: bool,
     capturing: bool,
+    collecting: bool,
 ) -> CaptureRunResult {
     if options.syntax == Syntax::Literal
         && (options.expanded || options.newline != NewlineMode::Ordinary)
@@ -203,6 +241,7 @@ fn execute_pattern(
         options.newline == NewlineMode::Sensitive || options.newline == NewlineMode::Anchors,
         counting,
         capturing,
+        collecting,
     )
 }
 
@@ -3092,8 +3131,10 @@ fn execute_capture_tree(
     line_anchors: bool,
     counting: bool,
     capturing: bool,
+    collecting: bool,
 ) -> CaptureRunResult {
     let mut count = 0;
+    let mut matches: Vec<MatchSpan> = Vec::new();
     let haystack: Vec<char> = subject.chars().collect();
     let mut width = 0;
     if program.backreferences || capturing {
@@ -3104,7 +3145,7 @@ fn execute_capture_tree(
     while start <= haystack.len() {
         let mut next_start = start + 1;
         if program.minimums[program.root] > haystack.len() - start {
-            return make_capture_run_result(1, 0, 0, count);
+            return complete_match_list_result(count, matches);
         }
         let mut minimum_end = start + program.minimums[program.root];
         let mut maximum_end = haystack.len();
@@ -3768,16 +3809,23 @@ fn execute_capture_tree(
                         end: match_end,
                         count: 1,
                         groups,
+                        matches,
                     };
                 }
                 if counting == false {
                     return make_capture_run_result(0, start, match_end, 1);
                 }
                 count += 1;
+                if collecting {
+                    matches.push(MatchSpan {
+                        start,
+                        end: match_end,
+                    });
+                }
                 next_start = match_end;
                 if match_end == start {
                     if match_end == haystack.len() {
-                        return make_capture_run_result(1, 0, 0, count);
+                        return complete_match_list_result(count, matches);
                     }
                     next_start += 1;
                 }
@@ -3800,7 +3848,7 @@ fn execute_capture_tree(
         }
         start = next_start;
     }
-    make_capture_run_result(1, 0, 0, count)
+    complete_match_list_result(count, matches)
 }
 
 fn execute_capture_program(
@@ -3812,6 +3860,7 @@ fn execute_capture_program(
     mut line_anchors: bool,
     counting: bool,
     capturing: bool,
+    collecting: bool,
 ) -> CaptureRunResult {
     if program.case_mode == 'i' {
         case_sensitive = false;
@@ -3843,13 +3892,15 @@ fn execute_capture_program(
             line_anchors,
             counting,
             capturing,
+            collecting,
         );
     }
     let mut count = 0;
+    let mut matches: Vec<MatchSpan> = Vec::new();
     let projected = program.regular == false;
     let haystack: Vec<char> = subject.chars().collect();
     if from > haystack.len() {
-        return make_capture_run_result(1, 0, 0, count);
+        return complete_match_list_result(count, matches);
     };
     let mut seen_epochs: Vec<usize> = Vec::new();
     let mut seen_starts: Vec<usize> = Vec::new();
@@ -3901,6 +3952,7 @@ fn execute_capture_program(
                             line_anchors,
                             counting,
                             capturing,
+                            collecting,
                         );
                     }
                     return make_capture_run_result(2, 0, 0, 0);
@@ -3925,6 +3977,7 @@ fn execute_capture_program(
                                 line_anchors,
                                 counting,
                                 capturing,
+                                collecting,
                             );
                         }
                         if found == false
@@ -4046,6 +4099,7 @@ fn execute_capture_program(
                                             line_anchors,
                                             counting,
                                             capturing,
+                                            collecting,
                                         );
                                     }
                                     return make_capture_run_result(2, 0, 0, 0);
@@ -4168,23 +4222,30 @@ fn execute_capture_program(
                         line_anchors,
                         false,
                         true,
+                        false,
                     );
                 }
                 return make_capture_run_result(0, best_start, best_end, 1);
             }
             count += 1;
+            if collecting {
+                matches.push(MatchSpan {
+                    start: best_start,
+                    end: best_end,
+                });
+            }
             search_from = best_end;
             if best_end == best_start {
                 if best_end == haystack.len() {
-                    return make_capture_run_result(1, 0, 0, count);
+                    return complete_match_list_result(count, matches);
                 }
                 search_from += 1;
             };
         } else {
-            return make_capture_run_result(1, 0, 0, count);
+            return complete_match_list_result(count, matches);
         };
     }
-    make_capture_run_result(1, 0, 0, count)
+    complete_match_list_result(count, matches)
 }
 
 fn simple_literal_char(atom: char) -> bool {

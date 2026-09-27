@@ -7,7 +7,7 @@ if (!generatedPath || fixturePaths.length === 0) {
   throw new Error('usage: fixture_check.ts GENERATED_TS FIXTURES_JSON...')
 }
 const generated = await import(pathToFileURL(generatedPath).href)
-const coverage = { find: 0, count: 0, captures: 0 }
+const coverage = { find: 0, count: 0, captures: 0, find_all: 0 }
 const syntaxKinds = {
   advanced: 'Advanced',
   basic: 'Basic',
@@ -30,7 +30,8 @@ for (const fixturePath of fixturePaths) {
       !fixture.operation ||
         fixture.operation === 'find' ||
         fixture.operation === 'count' ||
-        fixture.operation === 'captures',
+        fixture.operation === 'captures' ||
+        fixture.operation === 'find_all',
       'unknown fixture operation',
     )
     const { pattern, subject, options } = fixture.input
@@ -39,7 +40,8 @@ for (const fixturePath of fixturePaths) {
     assert.ok(syntax, 'unknown syntax option')
     assert.ok(newline, 'unknown newline option')
     const operation = fixture.operation ?? 'find'
-    const outcome = generated[operation](pattern, subject, (fixture.input.start ?? 1) - 1, {
+    const functionName = operation === 'find_all' ? 'findAll' : operation
+    const outcome = generated[functionName](pattern, subject, (fixture.input.start ?? 1) - 1, {
       syntax: { kind: syntax },
       newline: { kind: newline },
       caseSensitive: options.caseSensitive,
@@ -55,5 +57,5 @@ for (const fixturePath of fixturePaths) {
   }
 }
 process.stdout.write(
-  `TypeScript unified operations: ${coverage.find} find and ${coverage.count} count and ${coverage.captures} capture PostgreSQL fixtures; zero skipped.\n`,
+  `TypeScript unified operations: ${coverage.find} find and ${coverage.count} count and ${coverage.captures} capture and ${coverage.find_all} find-all PostgreSQL fixtures; zero skipped.\n`,
 )

@@ -46,6 +46,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 	findFixtures := 0
 	countFixtures := 0
 	captureFixtures := 0
+	listFixtures := 0
 	syntaxKinds := map[string]Syntax{
 		"advanced": {Kind: SyntaxAdvanced}, "basic": {Kind: SyntaxBasic},
 		"extended": {Kind: SyntaxExtended}, "literal": {Kind: SyntaxLiteral},
@@ -67,7 +68,7 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			t.Fatalf("unexpected fixture document: %s", path)
 		}
 		for index, fixture := range document.Fixtures {
-			if fixture.Operation != "" && fixture.Operation != "find" && fixture.Operation != "count" && fixture.Operation != "captures" {
+			if fixture.Operation != "" && fixture.Operation != "find" && fixture.Operation != "count" && fixture.Operation != "captures" && fixture.Operation != "find_all" {
 				t.Fatalf("unknown operation: %s", fixture.Operation)
 			}
 			input := fixture.Input
@@ -84,6 +85,33 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 				from = input.Start - 1
 			}
 			options := RegexOptions{Syntax: syntax, Newline: newline, CaseSensitive: input.Options.CaseSensitive, Expanded: input.Options.Expanded}
+			if fixture.Operation == "find_all" {
+				actual := FindAll(input.Pattern, input.Subject, from, options)
+				var expected MatchListOutcome
+				switch fixture.Expected.Kind {
+				case "Matches":
+					var spans []MatchSpan
+					if err := json.Unmarshal(fixture.Expected.Value, &spans); err != nil {
+						t.Fatal(err)
+					}
+					if spans == nil {
+						spans = []MatchSpan{}
+					}
+					expected = MatchListOutcome{Kind: MatchListOutcomeMatches, Matches: spans}
+				case "InvalidPattern":
+					if fixture.Expected.Sqlstate != "2201B" {
+						t.Fatalf("unexpected SQLSTATE: %s", fixture.Expected.Sqlstate)
+					}
+					expected = MatchListOutcome{Kind: MatchListOutcomeInvalidPattern}
+				default:
+					t.Fatalf("unexpected find-all outcome: %s", fixture.Expected.Kind)
+				}
+				if !reflect.DeepEqual(actual, expected) {
+					t.Errorf("%s find-all fixture %d: input=%+v, expected=%+v, actual=%+v", path, index, input, expected, actual)
+				}
+				listFixtures++
+				continue
+			}
 			if fixture.Operation == "count" {
 				actual := Count(input.Pattern, input.Subject, from, options)
 				var expected CountOutcome
@@ -159,5 +187,5 @@ func TestGeneratedEngineAgainstPGliteFixtures(t *testing.T) {
 			findFixtures++
 		}
 	}
-	t.Logf("unified operations: %d find and %d count and %d capture PostgreSQL fixtures; zero skipped", findFixtures, countFixtures, captureFixtures)
+	t.Logf("unified operations: %d find and %d count and %d capture and %d find-all PostgreSQL fixtures; zero skipped", findFixtures, countFixtures, captureFixtures, listFixtures)
 }

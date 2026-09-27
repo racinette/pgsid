@@ -316,13 +316,29 @@ const unifiedOptions = {
 for (const pattern of ['(a{255}){255}', `${'(?='.repeat(65)}a${')'.repeat(65)}`]) {
   assert.deepEqual(generated.find(pattern, 'a', 0, unifiedOptions), { kind: 'Uncertain' })
   assert.deepEqual(generated.count(pattern, 'a', 0, unifiedOptions), { kind: 'Uncertain' })
+  assert.deepEqual(generated.findAll(pattern, 'a', 0, unifiedOptions), { kind: 'Uncertain' })
 }
 assert.deepEqual(generated.find('[', '', 100, unifiedOptions), { kind: 'InvalidPattern' })
+assert.deepEqual(generated.findAll('[', '', 100, unifiedOptions), { kind: 'InvalidPattern' })
+const allResult = generated.findAll('a', 'aba', 0, unifiedOptions)
+assert.deepEqual(allResult, {
+  kind: 'Matches',
+  value: [
+    { start: 0, end: 1 },
+    { start: 2, end: 3 },
+  ],
+})
+allResult.value[0].end = 99
+assert.equal(allResult.value[1].end, 3)
+assert.equal(generated.findAll('a', 'aba', 0, unifiedOptions).value[0].end, 1)
 
 assert.deepEqual(generated.count('[', '', 100, unifiedOptions), { kind: 'InvalidPattern' })
 const repeatedSubject = 'a'.repeat(250000)
 assert.equal(generated.find('(?=a)(?=a)', repeatedSubject, 0, unifiedOptions).kind, 'Found')
 assert.deepEqual(generated.count('(?=a)(?=a)', repeatedSubject, 0, unifiedOptions), {
+  kind: 'Uncertain',
+})
+assert.deepEqual(generated.findAll('(?=a)(?=a)', repeatedSubject, 0, unifiedOptions), {
   kind: 'Uncertain',
 })
 assert.deepEqual(generated.find('a', 'a'.repeat(500000), 0, unifiedOptions), {
