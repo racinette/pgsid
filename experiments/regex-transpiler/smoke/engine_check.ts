@@ -325,6 +325,10 @@ assert.equal(generated.find('(?=a)(?=a)', repeatedSubject, 0, unifiedOptions).ki
 assert.deepEqual(generated.count('(?=a)(?=a)', repeatedSubject, 0, unifiedOptions), {
   kind: 'Uncertain',
 })
+assert.deepEqual(generated.find('a', 'a'.repeat(500000), 0, unifiedOptions), {
+  kind: 'Found',
+  value: { start: 0, end: 1 },
+})
 
 assert.deepEqual(
   generated.find('a(b)*c', 'b'.repeat(300), 0, testOptions('Advanced', true, true, false, false)),
