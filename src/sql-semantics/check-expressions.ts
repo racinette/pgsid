@@ -1,6 +1,6 @@
 import { emitSqlExpression, type ExpressionBackend, type SqlExpression } from './expressions.js'
 import { builtinMetadata } from '../postgres/builtins/inventory.js'
-import type { PostgresRegexOptions } from './regex/ast.js'
+import type { PostgresRegexOptions } from './regex/options.js'
 import { parseRegexpLikeFlags } from './regex/flags.js'
 import { similarToEscape } from './regex/similar.js'
 import type { TypedSqlExpression } from './signatures.js'

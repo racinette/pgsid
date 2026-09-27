@@ -36,6 +36,7 @@ export default tseslint.config(
       // Producer output compared byte for byte. A finding here is fixed by regenerating.
       'tests/fixtures/codegen/**',
       'tests/fixtures/sql-semantics/projects/**',
+      'src/codegen/shared/regex-engine/engine.ts',
     ],
   },
   {

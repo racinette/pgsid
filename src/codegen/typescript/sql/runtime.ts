@@ -17,6 +17,8 @@ import { typescriptTemporalExtractHelpers } from './temporal-extract-runtime.js'
 import { typescriptTemporalArithmeticHelpers } from './temporal-arithmetic-runtime.js'
 import { typescriptTemporalOverlapsHelpers } from './temporal-overlaps-runtime.js'
 import { typescriptCheckHelpers } from './check-runtime.js'
+import { generatedRegexEngineSource } from '../../shared/regex-engine/source.js'
+import { typescriptRegexEngineHelpers } from './regex-engine-runtime.js'
 
 const helpers: Record<string, { dependencies: readonly string[]; source: string }> = {
   sqlIntegerError: {
@@ -178,6 +180,8 @@ Object.assign(helpers, typescriptTemporalExtractHelpers)
 Object.assign(helpers, typescriptTemporalArithmeticHelpers)
 Object.assign(helpers, typescriptTemporalOverlapsHelpers)
 Object.assign(helpers, typescriptCheckHelpers)
+Object.assign(helpers, typescriptRegexEngineHelpers)
+helpers.regexEngine = { dependencies: [], source: '' }
 
 for (const [width, bits, shiftMask] of [
   ['int2', 16, 31n],
@@ -223,7 +227,7 @@ export function typescriptSqlRuntime(required: readonly string[]): ts.Statement[
     for (const dependency of helper.dependencies) include(dependency)
     const parsed = ts.createSourceFile(
       'runtime.ts',
-      helper.source,
+      name === 'regexEngine' ? generatedRegexEngineSource('typescript') : helper.source,
       ts.ScriptTarget.ES2022,
       true,
       ts.ScriptKind.TS,
@@ -233,8 +237,16 @@ export function typescriptSqlRuntime(required: readonly string[]): ts.Statement[
       ts.setTextRange(node, { pos: -1, end: -1 })
     }
     for (const statement of parsed.statements) {
-      synthesize(statement)
-      statements.push(statement)
+      const declaration =
+        name === 'regexEngine' && ts.canHaveModifiers(statement)
+          ? ts
+              .getModifiers(statement)
+              ?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)
+            ? stripExport(statement)
+            : statement
+          : statement
+      synthesize(declaration)
+      statements.push(declaration)
     }
   }
   for (const name of required) include(name)
@@ -258,4 +270,36 @@ export function typescriptSqlRuntime(required: readonly string[]): ts.Statement[
       true,
     )
   return statements
+}
+
+function stripExport(statement: ts.Statement): ts.Statement {
+  if (ts.isFunctionDeclaration(statement))
+    return ts.factory.updateFunctionDeclaration(
+      statement,
+      undefined,
+      statement.asteriskToken,
+      statement.name,
+      statement.typeParameters,
+      statement.parameters,
+      statement.type,
+      statement.body,
+    )
+  if (ts.isTypeAliasDeclaration(statement))
+    return ts.factory.updateTypeAliasDeclaration(
+      statement,
+      undefined,
+      statement.name,
+      statement.typeParameters,
+      statement.type,
+    )
+  if (ts.isInterfaceDeclaration(statement))
+    return ts.factory.updateInterfaceDeclaration(
+      statement,
+      undefined,
+      statement.name,
+      statement.typeParameters,
+      statement.heritageClauses,
+      statement.members,
+    )
+  throw new Error(`Unexpected exported regex engine declaration: ${ts.SyntaxKind[statement.kind]}`)
 }

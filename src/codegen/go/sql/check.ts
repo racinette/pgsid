@@ -1,7 +1,5 @@
 import { go, type GoExpression } from '../ast.js'
 import type { EvalBoolBackend } from '../../../sql-semantics/check-expressions.js'
-import { compilePostgresRegex } from '../../../sql-semantics/regex/compiler.js'
-import { REGEX_ENGINE_PROFILES } from '../../../sql-semantics/regex/profiles.generated.js'
 import { goEvalBackend } from './eval.js'
 
 const thunk = (expression: GoExpression): GoExpression => ({
@@ -61,47 +59,31 @@ export const goEvalBoolBackend: EvalBoolBackend<GoExpression> = {
     helpers: ['evalBoolCompare'],
   }),
   regex: (subject, pattern, options, negated) => {
-    if (typeof pattern !== 'string')
-      return {
-        expression: go.call(go.ident('evalBoolRegexDynamic'), [
-          subject.expression,
-          pattern.expression,
-          go.string(options.syntax ?? 'advanced'),
-          go.ident(options.caseSensitive === false ? 'false' : 'true'),
-          go.ident(options.expanded === true ? 'true' : 'false'),
-          go.string(options.newline ?? 'ordinary'),
-          go.ident(negated ? 'true' : 'false'),
-        ]),
-        helpers: ['evalBoolRegexDynamic'],
-      }
-    const compiled = compilePostgresRegex(pattern, REGEX_ENGINE_PROFILES.re2, options)
-    if (compiled.kind === 'invalid')
-      return {
-        expression: go.call(go.ident('evalBoolRegexInvalid'), [subject.expression]),
-        helpers: ['evalBoolRegexInvalid'],
-      }
-    if (compiled.kind === 'unsupported')
-      return {
-        expression: go.call(go.ident('evalBoolRegexUnsupported'), [subject.expression]),
-        helpers: ['evalBoolRegexUnsupported'],
-      }
-    if (compiled.flags.length > 0) throw new Error('RE2 lowering emitted unsupported runtime flags')
     return {
-      expression: go.call(go.ident('evalBoolRegex'), [
+      expression: go.call(go.ident('evalBoolRegexEngine'), [
         subject.expression,
-        go.string(compiled.source),
+        typeof pattern === 'string'
+          ? go.composite(go.ident('SqlText'), [
+              go.keyValue('Value', go.string(pattern)),
+              go.keyValue('Valid', go.ident('true')),
+            ])
+          : pattern.expression,
+        go.string(options.syntax ?? 'advanced'),
+        go.ident(options.caseSensitive === false ? 'false' : 'true'),
+        go.ident(options.expanded === true ? 'true' : 'false'),
+        go.string(options.newline ?? 'ordinary'),
         go.ident(negated ? 'true' : 'false'),
       ]),
-      helpers: ['evalBoolRegex'],
+      helpers: ['evalBoolRegexEngine'],
     }
   },
   regexWithFlags: (subject, pattern, flags) => ({
-    expression: go.call(go.ident('evalBoolRegexpLike'), [
+    expression: go.call(go.ident('evalBoolRegexpLikeEngine'), [
       subject.expression,
       pattern.expression,
       flags.expression,
     ]),
-    helpers: ['evalBoolRegexpLike'],
+    helpers: ['evalBoolRegexpLikeEngine'],
   }),
   regexInvalidFlags: (subject, pattern) => ({
     expression: go.call(go.ident('evalBoolRegexInvalidFlags'), [

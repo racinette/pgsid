@@ -13,7 +13,7 @@ import { goArrayDependencies } from './array-runtime.js'
 import { goJsonDependencies } from './json-runtime.js'
 import { goTemporalDependencies } from './temporal-runtime.js'
 import { goCheckDependencies } from './check-runtime.js'
-import { goRegexProfileSource } from './regex-runtime.js'
+import { generatedRegexEngineSource } from '../../shared/regex-engine/source.js'
 
 const dependencies: Record<string, readonly string[]> = {
   float8WidthBucket: ['SqlFloat', 'sqlIntegerRange'],
@@ -109,6 +109,7 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
       'temporal-arithmetic',
       'temporal-overlaps',
       'check',
+      'regex-engine-adapter',
     ]
       .flatMap((asset) =>
         readFileSync(new URL(`./assets/${asset}.go`, import.meta.url), 'utf8')
@@ -120,17 +121,18 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
         return [name, declaration]
       }),
   )
-  declarations.set(
-    'evalBoolRegexAnalyze',
-    readFileSync(new URL('./assets/regex-analyzer.go', import.meta.url), 'utf8').replace(
-      /^package pgsidsql\n/u,
-      '',
-    ),
-  )
   const included = new Set<string>()
   const output: string[] = []
   const include = (name: string) => {
     if (included.has(name)) return
+    if (name === 'regexEngine') {
+      included.add(name)
+      const source = generatedRegexEngineSource('go')
+      const header = 'package generated\n\nimport "unicode/utf8"\n\n'
+      if (!source.startsWith(header)) throw new Error('Unexpected generated Go regex engine header')
+      output.push(source.slice(header.length))
+      return
+    }
     const dependency = dependencies[name]
     const declaration = declarations.get(name)
     if (!dependency || !declaration) throw new Error(`Missing Go SQL helper: ${name}`)
@@ -139,8 +141,7 @@ export function goSqlRuntime(required: readonly string[], packageName = 'pgsidsq
     output.push(declaration)
   }
   for (const name of required) include(name)
-  const body =
-    output.join('\n') + (included.has('evalBoolRegexAnalyze') ? goRegexProfileSource() : '')
+  const body = output.join('\n')
   const imports = [
     'bytes',
     'math',

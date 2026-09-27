@@ -20,5 +20,10 @@
     "types": ["node", "vitest/globals"]
   },
   "include": ["src", "tests", "scripts"],
-  "exclude": ["node_modules", "dist", "tests/fixtures/codegen/**"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "tests/fixtures/codegen/**",
+    "src/codegen/shared/regex-engine/engine.ts"
+  ]
 }

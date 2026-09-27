@@ -1,4 +1,4 @@
-import { typescriptSimilarSource } from './regex-analyzer.js'
+import { typescriptSimilarSource } from './similar-runtime-source.js'
 
 export const typescriptTextHelpers: Record<
   string,
