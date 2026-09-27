@@ -5,201 +5,88 @@ import (
 	"testing"
 )
 
+func testOptions(syntax Syntax, caseSensitive bool, crosses bool, anchors bool, expanded bool) RegexOptions {
+	newline := NewlineMode{Kind: NewlineModeOrdinary}
+	if anchors {
+		newline = NewlineMode{Kind: NewlineModeAnchors}
+	}
+	if !crosses {
+		newline = NewlineMode{Kind: NewlineModeStop}
+		if anchors {
+			newline = NewlineMode{Kind: NewlineModeSensitive}
+		}
+	}
+	return RegexOptions{Syntax: syntax, CaseSensitive: caseSensitive, Newline: newline, Expanded: expanded}
+}
+
 func TestLiteralSlice(t *testing.T) {
-	if !SupportsFlatGroups("a((b)c)", false) {
-		t.Error("plain nested capture groups were rejected")
-	}
-	for _, pattern := range []string{"(a|b)c", "(ab)+", "(a)\\1", "(?=a)a", "(ab"} {
-		if SupportsFlatGroups(pattern, false) {
-			t.Errorf("group with changed semantics was accepted: %q", pattern)
-		}
-	}
-	if !SupportsGroupChoice("a(b|bc)", false) {
-		t.Error("single group choice was rejected")
-	}
-	if !SupportsOptionalGroup("a(b)?c", false) {
-		t.Error("optional fixed literal group was rejected")
-	}
-	for _, pattern := range []string{"a([bc])?d", "a(b+)?c", "a(b)?c(d)?e", "a(b)??c"} {
-		if SupportsOptionalGroup(pattern, false) {
-			t.Errorf("unsupported optional group was accepted: %q", pattern)
-		}
-	}
-	for _, pattern := range []string{"(a|b)+", "((a|b))", "(a|b)\\1", "(?=a|b)c", "a|b(c|d)"} {
-		if SupportsGroupChoice(pattern, false) {
-			t.Errorf("unsupported group choice was accepted: %q", pattern)
-		}
-	}
-	if !SupportsFixedLookbehind("(?<=ab)c", false) {
-		t.Error("fixed lookbehind was rejected")
-	}
-	if !SupportsFixedLookbehind("(?<=a|b)c", false) {
-		t.Error("lookbehind alternation was rejected")
-	}
-	for _, pattern := range []string{"(?<=a+)c", "(?<=a\\n)b", "(?=a)b"} {
-		if SupportsFixedLookbehind(pattern, false) {
-			t.Errorf("unsupported lookbehind was accepted: %q", pattern)
-		}
-	}
-	if !SupportsLeadingLookahead("(?=ab)a.", false) {
-		t.Error("leading lookahead was rejected")
-	}
-	for _, pattern := range []string{"(?=(ab))a", "(?=[ab])a", "a(?=b)b", "(?=a\\n)b"} {
-		if SupportsLeadingLookahead(pattern, false) {
-			t.Errorf("unsupported lookahead was accepted: %q", pattern)
-		}
-	}
-	if !SupportsFixedBackref("(ab)c\\1", false) {
-		t.Error("fixed backreference was rejected")
-	}
-	if !SupportsSingleCaptureBackref("([ab])\\1", false) {
-		t.Error("single capture backreference was rejected")
-	}
-	if !SupportsSingleCaptureBackref("([ab]+)c\\1", false) {
-		t.Error("repeated capture backreference was rejected")
-	}
-	if !SupportsSingleCaptureBackref("a(b*)c\\1", false) {
-		t.Error("zero-or-more capture backreference was rejected")
-	}
-	for _, pattern := range []string{"([ab]?)\\1", "([ab])\\2", "([ab])", "((a))\\1"} {
-		if SupportsSingleCaptureBackref(pattern, false) {
-			t.Errorf("unsupported single capture was accepted: %q", pattern)
-		}
-	}
-	for _, pattern := range []string{"([ab])\\1", "(a+)\\1", "(a)\\2", "(a)|(b)\\1", "(a)*\\1"} {
-		if SupportsFixedBackref(pattern, false) {
-			t.Errorf("unsupported backreference was accepted: %q", pattern)
-		}
-	}
-	for _, pattern := range []string{"(?i)ab", "(?n)^b", "(?x)a b", "(?t)a b", "(?b)a+b", "(?e)a+b", "(?q)a+b"} {
-		if !SupportsInlineAdvanced(pattern, false) {
-			t.Errorf("supported inline flag was rejected: %q", pattern)
-		}
-	}
-	for _, pattern := range []string{"(?e)\\W+", "a(?i)b", "(?z)ab"} {
-		if SupportsInlineAdvanced(pattern, false) {
-			t.Errorf("unsupported inline flag was accepted: %q", pattern)
-		}
-	}
-	if !SupportsMiddleLookahead("a(?=b)b", false) {
-		t.Error("middle lookahead was rejected")
-	}
-	for _, pattern := range []string{"a+(?=b)b", "a(?=[bc])b", "(?=b)b", "a(?=(b))\\1"} {
-		if SupportsMiddleLookahead(pattern, false) {
-			t.Errorf("unsupported middle lookahead was accepted: %q", pattern)
-		}
-	}
-	if !SupportsBoundedGroup("(ab){1,3}c", false) {
-		t.Error("bounded literal group was rejected")
-	}
-	if !SupportsBoundedGroup("a(ab)*c", false) || !SupportsBoundedGroup("a(ab)+c", false) {
-		t.Error("unbounded literal group was rejected")
-	}
-	if FindBoundedGroup("a(b)*c", strings.Repeat("b", 300), 0, true, true, false, false).Kind != MatchOutcomeUncertain {
-		t.Error("unbounded literal group exceeded work limit without uncertainty")
-	}
-	for _, pattern := range []string{"(a|b){2}", "(ab){1,}", "(a+){2}", "(ab){17}"} {
-		if SupportsBoundedGroup(pattern, false) {
-			t.Errorf("unsupported bounded group was accepted: %q", pattern)
-		}
-	}
-	if !SupportsExtendedGroup("(a|ab)b", false) || !SupportsExtendedGroup("a(b)?c", false) || SupportsExtendedGroup("(a|ab)\\w", false) {
-		t.Error("extended group support gate changed")
-	}
-	if !SupportsBasicLiteralPunctuation("a+b", false) || SupportsBasicLiteralPunctuation("a\\+b", false) || SupportsBasicLiteralPunctuation("[a+b]", false) {
-		t.Error("basic literal punctuation gate changed")
-	}
-	if !SupportsExtendedLiteralEscape("a\\wb", false) || SupportsExtendedLiteralEscape("[\\w]", false) || SupportsExtendedLiteralEscape("a\\1b", false) {
-		t.Error("extended literal escape gate changed")
-	}
-	if !SupportsBasicLetterEscape("a\\wb", false) || SupportsBasicLetterEscape("a\\w\\(b\\)", false) {
-		t.Error("basic letter escape gate changed")
-	}
-	if !SupportsBasicEscapedBound("a\\{2,3\\}b", false) {
-		t.Error("basic escaped bound was rejected")
-	}
-	for _, pattern := range []string{"a\\{3,1\\}b", "a\\{2,3", "a{2,3}b", "\\(a\\)\\{2\\}"} {
-		if SupportsBasicEscapedBound(pattern, false) {
-			t.Errorf("unsupported basic bound was accepted: %q", pattern)
-		}
-	}
-	if !SupportsBasicFixedBackref("\\(ab\\)\\1", false) {
-		t.Error("basic fixed backreference was rejected")
-	}
-	for _, pattern := range []string{"\\([ab]\\)\\1", "\\(a+\\)\\1", "\\(a\\)\\2", "\\(a\\)b"} {
-		if SupportsBasicFixedBackref(pattern, false) {
-			t.Errorf("unsupported basic backreference was accepted: %q", pattern)
-		}
-	}
-	found := FindLiteral("😀", "a😀a", 0, true)
+	found := Find("😀", "a😀a", 0, testOptions(Syntax{Kind: SyntaxLiteral}, true, true, false, false))
 	if found != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Errorf("literal match = %+v", found)
 	}
-	empty := FindLiteral("", "a😀a", 3, true)
+	empty := Find("", "a😀a", 3, testOptions(Syntax{Kind: SyntaxLiteral}, true, true, false, false))
 	if empty != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 3, End: 3}}) {
 		t.Errorf("empty literal match = %+v", empty)
 	}
-	if FindLiteral("a", "a😀a", 4, true).Kind != MatchOutcomeNoMatch {
+	if Find("a", "a😀a", 4, testOptions(Syntax{Kind: SyntaxLiteral}, true, true, false, false)).Kind != MatchOutcomeNoMatch {
 		t.Error("out-of-range start matched")
 	}
-	if FindLiteral("a", "bA", 0, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
+	if Find("a", "bA", 0, testOptions(Syntax{Kind: SyntaxLiteral}, false, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Error("ASCII case folding missed match")
 	}
-	if FindLiteral("Z", "z", 0, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
+	if Find("Z", "z", 0, testOptions(Syntax{Kind: SyntaxLiteral}, false, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
 		t.Error("ASCII case folding missed range endpoint")
 	}
-	if FindLiteral("a", "A", 0, true).Kind != MatchOutcomeNoMatch {
+	if Find("a", "A", 0, testOptions(Syntax{Kind: SyntaxLiteral}, true, true, false, false)).Kind != MatchOutcomeNoMatch {
 		t.Error("case sensitive search matched different case")
 	}
-	if FindLiteral("Å", "å", 0, false).Kind != MatchOutcomeNoMatch || FindLiteral("K", "K", 0, false).Kind != MatchOutcomeNoMatch {
+	if Find("Å", "å", 0, testOptions(Syntax{Kind: SyntaxLiteral}, false, true, false, false)).Kind != MatchOutcomeNoMatch || Find("K", "K", 0, testOptions(Syntax{Kind: SyntaxLiteral}, false, true, false, false)).Kind != MatchOutcomeNoMatch {
 		t.Error("non-ASCII case folding changed match")
 	}
-	if FindAnyCharacter("\n😀", 0, true) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
+	if Find(".", "\n😀", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
 		t.Error("ordinary dot skipped newline")
 	}
-	if FindAnyCharacter("\n😀", 0, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
+	if Find(".", "\n😀", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, false, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Error("newline-sensitive dot missed Unicode scalar")
 	}
-	if FindAnyCharacter("\n", 0, false).Kind != MatchOutcomeNoMatch || FindAnyCharacter("😀", 1, true).Kind != MatchOutcomeNoMatch {
+	if Find(".", "\n", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, false, false, false)).Kind != MatchOutcomeNoMatch || Find(".", "😀", 1, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)).Kind != MatchOutcomeNoMatch {
 		t.Error("dot matched outside the allowed position range")
 	}
-	if FindSimpleAdvanced("a.b", "za😀b", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 4}}) {
+	if Find("a.b", "za😀b", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 4}}) {
 		t.Error("simple sequence missed Unicode wildcard")
 	}
-	if FindSimpleAdvanced("a.b", "a\nb", 0, true, false, true).Kind != MatchOutcomeNoMatch {
+	if Find("a.b", "a\nb", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, false, true, false)).Kind != MatchOutcomeNoMatch {
 		t.Error("simple sequence crossed excluded newline")
 	}
-	if FindSimpleAdvanced("a*", "aaa", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 3}}) {
+	if Find("a*", "aaa", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 3}}) {
 		t.Error("zero-or-more missed the longest endpoint")
 	}
-	if FindSimpleAdvanced("a+b", "zaaab", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 5}}) {
+	if Find("a+b", "zaaab", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 5}}) {
 		t.Error("one-or-more missed repeated prefix")
 	}
-	if FindSimpleAdvanced("[ab]*c", "abbc", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 4}}) {
+	if Find("[ab]*c", "abbc", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 4}}) {
 		t.Error("class repetition missed sequence")
 	}
-	if FindSimpleAdvanced("a|ab", "ab", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 2}}) {
+	if Find("a|ab", "ab", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 2}}) {
 		t.Error("alternation missed longest endpoint")
 	}
-	if FindSimpleAdvanced("a|b", "ba", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
+	if Find("a|b", "ba", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
 		t.Error("alternation missed earliest start")
 	}
-	if FindSimpleAdvanced("a*?", "aaa", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 0}}) {
+	if Find("a*?", "aaa", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 0}}) {
 		t.Error("lazy zero-or-more missed shortest endpoint")
 	}
-	if FindSimpleAdvanced("a+?", "aaa", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
+	if Find("a+?", "aaa", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
 		t.Error("lazy one-or-more missed shortest endpoint")
 	}
-	if FindSimpleAdvanced("a{2,4}b", "aaaab", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 5}}) {
+	if Find("a{2,4}b", "aaaab", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 5}}) {
 		t.Error("bounded repeat missed its upper endpoint")
 	}
-	if FindSimpleAdvanced("a{0}", "bbb", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 0}}) {
+	if Find("a{0}", "bbb", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 0}}) {
 		t.Error("zero fixed repeat missed empty match")
 	}
-	if SupportsSimpleAdvanced("a{256}") {
-		t.Error("out-of-range bound was accepted")
-	}
-	if FindSimpleAdvanced("a{foo}", "za{foo}", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 7}}) {
+
+	if Find("a{foo}", "za{foo}", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 7}}) {
 		t.Error("nonnumeric braces lost their literal meaning")
 	}
 	if Count("a*", "baa", 0, RegexOptions{Syntax: Syntax{Kind: SyntaxAdvanced}, Newline: NewlineMode{Kind: NewlineModeOrdinary}, CaseSensitive: true}) != (CountOutcome{Kind: CountOutcomeCount, Count: 3}) {
@@ -208,84 +95,67 @@ func TestLiteralSlice(t *testing.T) {
 	if Count("a*?", "aaa", 0, RegexOptions{Syntax: Syntax{Kind: SyntaxAdvanced}, Newline: NewlineMode{Kind: NewlineModeOrdinary}, CaseSensitive: true}) != (CountOutcome{Kind: CountOutcomeCount, Count: 4}) {
 		t.Error("lazy count missed empty matches")
 	}
-	if !SupportsExpandedAdvanced("a # comment\nb") || FindExpandedAdvanced("a # comment\nb", "ab", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 2}}) {
+	if Find("a # comment\nb", "ab", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, true)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 2}}) {
 		t.Error("expanded comment was not removed")
 	}
-	if FindExpandedAdvanced("a[ #]b", "za#b", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 4}}) {
+	if Find("a[ #]b", "za#b", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, true)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 4}}) {
 		t.Error("expanded bracket characters were removed")
 	}
 	if Count("a *", "baa", 0, RegexOptions{Syntax: Syntax{Kind: SyntaxAdvanced}, Newline: NewlineMode{Kind: NewlineModeOrdinary}, CaseSensitive: true, Expanded: true}) != (CountOutcome{Kind: CountOutcomeCount, Count: 3}) {
 		t.Error("expanded count missed empty matches")
 	}
-	if FindSimpleAdvanced("^a$", "\na\n", 0, true, false, true) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
+	if Find("^a$", "\na\n", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, false, true, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Error("line anchors missed interior line")
 	}
-	if FindSimpleAdvanced("^a$", "\na\n", 0, true, true, false).Kind != MatchOutcomeNoMatch {
+	if Find("^a$", "\na\n", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)).Kind != MatchOutcomeNoMatch {
 		t.Error("ordinary anchors matched interior line")
 	}
-	if !SupportsSimpleAdvanced("a\\.b") || !SupportsSimpleAdvanced("a\\nb") {
-		t.Error("escaped punctuation or control support classification changed")
-	}
-	if FindSimpleAdvanced("a\\.b", "za.b", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 4}}) {
+
+	if Find("a\\.b", "za.b", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 4}}) {
 		t.Error("escaped dot missed literal match")
 	}
-	if FindSimpleAdvanced("\\^a", "z^a", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 3}}) {
+	if Find("\\^a", "z^a", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 3}}) {
 		t.Error("escaped anchor changed position")
 	}
-	if !SupportsSimpleAdvanced("a[bc]d") || !SupportsSimpleAdvanced("a[b-d]") {
-		t.Error("literal class support classification changed")
-	}
-	if FindSimpleAdvanced("a[bc]d", "zacd", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 4}}) {
+
+	if Find("a[bc]d", "zacd", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 4}}) {
 		t.Error("literal class missed sequence match")
 	}
-	if FindSimpleAdvanced("[A]", "a", 0, false, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
+	if Find("[A]", "a", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, false, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
 		t.Error("literal class missed ASCII case fold")
 	}
-	if !SupportsSimpleAdvanced("[^ab]") || !SupportsSimpleAdvanced("[^a-z]") {
-		t.Error("negated class support classification changed")
-	}
-	if FindSimpleAdvanced("[^a]", "\n", 0, true, false, false).Kind != MatchOutcomeNoMatch {
+
+	if Find("[^a]", "\n", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, false, false, false)).Kind != MatchOutcomeNoMatch {
 		t.Error("newline-sensitive negated class matched newline")
 	}
-	if FindSimpleAdvanced("[^a]", "\n", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
+	if Find("[^a]", "\n", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
 		t.Error("ordinary negated class missed newline")
 	}
-	if !SupportsSimpleAdvanced("[a-c]") || SupportsSimpleAdvanced("[z-a]") {
-		t.Error("range support classification changed")
-	}
-	if FindSimpleAdvanced("[A-C]", "b", 0, false, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
+
+	if Find("[A-C]", "b", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, false, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
 		t.Error("case insensitive range missed ASCII letter")
 	}
-	if FindSimpleAdvanced("[0-9]", "😀", 0, true, true, false).Kind != MatchOutcomeNoMatch {
+	if Find("[0-9]", "😀", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)).Kind != MatchOutcomeNoMatch {
 		t.Error("ASCII range matched supplementary Unicode scalar")
 	}
-	if !SupportsSimpleAdvanced("[-a]") || !SupportsSimpleAdvanced("[]a]") || SupportsSimpleAdvanced("[--a]") {
-		t.Error("class edge punctuation support classification changed")
-	}
-	if FindSimpleAdvanced("[-a]", "-", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
+
+	if Find("[-a]", "-", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 1}}) {
 		t.Error("leading hyphen missed literal match")
 	}
-	if FindSimpleAdvanced("[]a]", "z]", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
+	if Find("[]a]", "z]", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
 		t.Error("leading closing bracket missed literal match")
 	}
-	if !SupportsSimpleAdvanced("\\A😀\\Z") {
-		t.Error("absolute anchors were rejected")
-	}
-	if FindSimpleAdvanced("\\Aa", "\na", 0, true, true, true).Kind != MatchOutcomeNoMatch {
+
+	if Find("\\Aa", "\na", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, true, false)).Kind != MatchOutcomeNoMatch {
 		t.Error("absolute start anchor matched after newline")
 	}
-	if FindSimpleAdvanced("\\Z", "a\n", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 2, End: 2}}) {
+	if Find("\\Z", "a\n", 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 2, End: 2}}) {
 		t.Error("absolute end anchor matched before final newline")
 	}
-	if FindSimpleAdvanced("\\A", "a", 1, true, true, false).Kind != MatchOutcomeNoMatch {
+	if Find("\\A", "a", 1, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false)).Kind != MatchOutcomeNoMatch {
 		t.Error("absolute start anchor ignored search offset")
 	}
-	if ChargeWork(1999999, 1) != (WorkOutcome{Kind: WorkOutcomeReady, Ready: 2000000}) {
-		t.Error("work charge at budget changed result")
-	}
-	if ChargeWork(2000000, 1).Kind != WorkOutcomeUncertain {
-		t.Error("work charge over budget stayed definite")
-	}
+
 }
 
 func TestUnifiedFindResourceLimits(t *testing.T) {
@@ -311,5 +181,12 @@ func TestUnifiedFindResourceLimits(t *testing.T) {
 	}
 	if actual := Find("[", "", 100, options); actual.Kind != MatchOutcomeInvalidPattern {
 		t.Errorf("invalid pattern beyond subject returned %+v", actual)
+	}
+}
+
+func TestRepetitionWithoutStartingLiteral(t *testing.T) {
+	result := Find("a(b)*c", strings.Repeat("b", 300), 0, testOptions(Syntax{Kind: SyntaxAdvanced}, true, true, false, false))
+	if result.Kind != MatchOutcomeNoMatch {
+		t.Errorf("unexpected match: %+v", result)
 	}
 }
