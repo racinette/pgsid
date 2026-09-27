@@ -64419,6 +64419,1146 @@
         "kind": "InvalidPattern",
         "sqlstate": "2201B"
       }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "",
+        "subject": "",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "",
+        "subject": "😀a",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 3
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "",
+        "subject": "😀a",
+        "start": 2,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "",
+        "subject": "😀a",
+        "start": 3,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "",
+        "subject": "😀a",
+        "start": 4,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 0
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "a*",
+        "subject": "baa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 3
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "a*?",
+        "subject": "aaa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 4
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(a*?)",
+        "subject": "aaa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 4
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(a*)\\1",
+        "subject": "aaaa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(a*?)\\1",
+        "subject": "aaaa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 5
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "a|",
+        "subject": "baa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 4
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "a|",
+        "subject": "baa",
+        "start": 2,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 3
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(a|aa)\\1",
+        "subject": "aaaaaa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "((a|b)*)\\1",
+        "subject": "abababab",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(ab|cd)+",
+        "subject": "xabcd!abab?cd",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 3
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(ab|cd)+?",
+        "subject": "xabcd!abab?cd",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 5
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(a)?b\\1",
+        "subject": "aba ba aba",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(a|b){2}\\1",
+        "subject": "abbbaa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(?=a)",
+        "subject": "aaa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 3
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(?<=a)",
+        "subject": "aaa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 3
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(?<=a)",
+        "subject": "aaa",
+        "start": 3,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(?<=a)",
+        "subject": "aaa",
+        "start": 4,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(?<!a)",
+        "subject": "aba",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(?=a)(?=a)",
+        "subject": "aaa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 3
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "a(?=a)",
+        "subject": "aaaa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 3
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(?=(ab|cd))(?:ab|cd)",
+        "subject": "abcdab",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 3
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(?<=(?:ab|cd))[0-9]+",
+        "subject": "ab12 cd34 ef56",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "^|$",
+        "subject": "ab",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "^|$",
+        "subject": "a\nb",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 4
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "\\y",
+        "subject": "ab cd",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 4
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "\\Y",
+        "subject": "",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "[[:<:]]|[[:>:]]",
+        "subject": "ab cd",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 4
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(?n)^",
+        "subject": "a\nb\n",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 3
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(😀)\\1",
+        "subject": "😀😀!😀😀",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(😀)\\1",
+        "subject": "😀😀!😀😀",
+        "start": 2,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(?=😀)",
+        "subject": "😀😀",
+        "start": 2,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 1
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "([[.a.]][[=b=]])\\1",
+        "subject": "abab!abab",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "[[.zero.]-[.nine.]]+",
+        "subject": "01a234",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(?x)(a b) \\1 # comment",
+        "subject": "abab abab",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(?i)(ab)\\1",
+        "subject": "abAB ABab",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(ab|cd)+",
+        "subject": "abcd xx abab",
+        "start": 1,
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "\\(ab\\)\\1",
+        "subject": "abab xx abab",
+        "start": 1,
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "a+",
+        "subject": "a+a+",
+        "start": 1,
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "***:(?=a)",
+        "subject": "aaa",
+        "start": 1,
+        "options": {
+          "syntax": "basic",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 3
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "***=a+",
+        "subject": "a+a+",
+        "start": 1,
+        "options": {
+          "syntax": "extended",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(?b)\\(a\\)\\1",
+        "subject": "aaaa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(?q)a+",
+        "subject": "a+a+",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "a+",
+        "subject": "a+a+",
+        "start": 1,
+        "options": {
+          "syntax": "literal",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "A😀",
+        "subject": "a😀A😀",
+        "start": 1,
+        "options": {
+          "syntax": "literal",
+          "caseSensitive": false,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": ".",
+        "subject": "a\nb",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "stop"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "^.$",
+        "subject": "a\nb",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "anchors"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 2
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "[",
+        "subject": "",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "[",
+        "subject": "",
+        "start": 9,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "a{256}",
+        "subject": "",
+        "start": 9,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "[[=a=]-z]",
+        "subject": "az",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(a)\\2",
+        "subject": "aaaa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "a",
+        "subject": "a",
+        "start": 1,
+        "options": {
+          "syntax": "literal",
+          "caseSensitive": true,
+          "expanded": true,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "a",
+        "subject": "a",
+        "start": 1,
+        "options": {
+          "syntax": "literal",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "sensitive"
+        }
+      },
+      "expected": {
+        "kind": "InvalidPattern",
+        "sqlstate": "2201B"
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "(?=a)",
+        "subject": "aaa",
+        "start": 5,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 0
+      }
+    },
+    {
+      "family": "count",
+      "operation": "count",
+      "input": {
+        "pattern": "z",
+        "subject": "aaaa",
+        "start": 1,
+        "options": {
+          "syntax": "advanced",
+          "caseSensitive": true,
+          "expanded": false,
+          "newline": "ordinary"
+        }
+      },
+      "expected": {
+        "kind": "Count",
+        "value": 0
+      }
     }
   ]
 }

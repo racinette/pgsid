@@ -1519,6 +1519,84 @@ for (const [syntax, pattern, subject, overrides] of [
   })
 }
 
+for (const [pattern, subject, start, overrides] of [
+  ['', '', 1, {}],
+  ['', '😀a', 1, {}],
+  ['', '😀a', 2, {}],
+  ['', '😀a', 3, {}],
+  ['', '😀a', 4, {}],
+  ['a*', 'baa', 1, {}],
+  ['a*?', 'aaa', 1, {}],
+  ['(a*?)', 'aaa', 1, {}],
+  ['(a*)\\1', 'aaaa', 1, {}],
+  ['(a*?)\\1', 'aaaa', 1, {}],
+  ['a|', 'baa', 1, {}],
+  ['a|', 'baa', 2, {}],
+  ['(a|aa)\\1', 'aaaaaa', 1, {}],
+  ['((a|b)*)\\1', 'abababab', 1, {}],
+  ['(ab|cd)+', 'xabcd!abab?cd', 1, {}],
+  ['(ab|cd)+?', 'xabcd!abab?cd', 1, {}],
+  ['(a)?b\\1', 'aba ba aba', 1, {}],
+  ['(a|b){2}\\1', 'abbbaa', 1, {}],
+  ['(?=a)', 'aaa', 1, {}],
+  ['(?<=a)', 'aaa', 1, {}],
+  ['(?<=a)', 'aaa', 3, {}],
+  ['(?<=a)', 'aaa', 4, {}],
+  ['(?<!a)', 'aba', 1, {}],
+  ['(?=a)(?=a)', 'aaa', 1, {}],
+  ['a(?=a)', 'aaaa', 1, {}],
+  ['(?=(ab|cd))(?:ab|cd)', 'abcdab', 1, {}],
+  ['(?<=(?:ab|cd))[0-9]+', 'ab12 cd34 ef56', 1, {}],
+  ['^|$', 'ab', 1, {}],
+  ['^|$', 'a\nb', 1, { newline: 'sensitive' }],
+  ['\\y', 'ab cd', 1, {}],
+  ['\\Y', '', 1, {}],
+  ['[[:<:]]|[[:>:]]', 'ab cd', 1, {}],
+  ['(?n)^', 'a\nb\n', 1, {}],
+  ['(😀)\\1', '😀😀!😀😀', 1, {}],
+  ['(😀)\\1', '😀😀!😀😀', 2, {}],
+  ['(?=😀)', '😀😀', 2, {}],
+  ['([[.a.]][[=b=]])\\1', 'abab!abab', 1, {}],
+  ['[[.zero.]-[.nine.]]+', '01a234', 1, {}],
+  ['(?x)(a b) \\1 # comment', 'abab abab', 1, {}],
+  ['(?i)(ab)\\1', 'abAB ABab', 1, {}],
+  ['(ab|cd)+', 'abcd xx abab', 1, { syntax: 'extended' }],
+  ['\\(ab\\)\\1', 'abab xx abab', 1, { syntax: 'basic' }],
+  ['a+', 'a+a+', 1, { syntax: 'basic' }],
+  ['***:(?=a)', 'aaa', 1, { syntax: 'basic' }],
+  ['***=a+', 'a+a+', 1, { syntax: 'extended' }],
+  ['(?b)\\(a\\)\\1', 'aaaa', 1, {}],
+  ['(?q)a+', 'a+a+', 1, {}],
+  ['a+', 'a+a+', 1, { syntax: 'literal' }],
+  ['A😀', 'a😀A😀', 1, { syntax: 'literal', caseSensitive: false }],
+  ['.', 'a\nb', 1, { newline: 'stop' }],
+  ['^.$', 'a\nb', 1, { newline: 'anchors' }],
+  ['[', '', 1, {}],
+  ['[', '', 9, {}],
+  ['a{256}', '', 9, {}],
+  ['[[=a=]-z]', 'az', 1, {}],
+  ['(a)\\2', 'aaaa', 1, {}],
+  ['a', 'a', 1, { syntax: 'literal', expanded: true }],
+  ['a', 'a', 1, { syntax: 'literal', newline: 'sensitive' }],
+  ['(?=a)', 'aaa', 5, {}],
+  ['z', 'aaaa', 1, {}],
+]) {
+  inputs.push({
+    operation: 'count',
+    family: 'count',
+    pattern,
+    subject,
+    start,
+    options: {
+      syntax: 'advanced',
+      caseSensitive: true,
+      expanded: false,
+      newline: 'ordinary',
+      ...overrides,
+    },
+  })
+}
+
 function flags(options) {
   const newline = { ordinary: '', sensitive: 'n', stop: 'p', anchors: 'w' }[options.newline]
   const syntax = { literal: 'q', basic: 'b', extended: '', advanced: '' }[options.syntax]
@@ -1533,15 +1611,16 @@ try {
       regexp_instr(($1::text collate "C"), $2::text, $4::int, 1, 0, $3::text) as match_start,
       regexp_instr(($1::text collate "C"), $2::text, $4::int, 1, 1, $3::text) as match_end
   `
+  const countSql = `select regexp_count(($1::text collate "C"), $2::text, $4::int, $3::text) as count`
   const fixtures = []
-  for (const { family, ...input } of inputs) {
+  for (const { family, operation, ...input } of inputs) {
     const pattern =
       input.options.syntax === 'extended' && !input.pattern.startsWith('***')
         ? `(?e)${input.pattern}`
         : input.pattern
     let expected
     try {
-      const result = await pg.query(sql, [
+      const result = await pg.query(operation === 'count' ? countSql : sql, [
         input.subject,
         pattern,
         flags(input.options),
@@ -1549,14 +1628,21 @@ try {
       ])
       const { match_start: start, match_end: end } = result.rows[0]
       expected =
-        start === 0
-          ? { kind: 'NoMatch' }
-          : { kind: 'Found', value: { start: start - 1, end: end - 1 } }
+        operation === 'count'
+          ? { kind: 'Count', value: result.rows[0].count }
+          : start === 0
+            ? { kind: 'NoMatch' }
+            : { kind: 'Found', value: { start: start - 1, end: end - 1 } }
     } catch (error) {
       if (error.code !== '2201B') throw error
       expected = { kind: 'InvalidPattern', sqlstate: error.code }
     }
-    fixtures.push({ ...(family ? { family } : {}), input, expected })
+    fixtures.push({
+      ...(family ? { family } : {}),
+      ...(operation ? { operation } : {}),
+      input,
+      expected,
+    })
   }
   const output = `${JSON.stringify(
     {

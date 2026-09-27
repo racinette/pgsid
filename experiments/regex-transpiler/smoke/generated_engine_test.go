@@ -202,10 +202,10 @@ func TestLiteralSlice(t *testing.T) {
 	if FindSimpleAdvanced("a{foo}", "za{foo}", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 7}}) {
 		t.Error("nonnumeric braces lost their literal meaning")
 	}
-	if CountSimpleAdvanced("a*", "baa", 0, true, true, false) != (CountOutcome{Kind: CountOutcomeCount, Count: 3}) {
+	if Count("a*", "baa", 0, RegexOptions{Syntax: Syntax{Kind: SyntaxAdvanced}, Newline: NewlineMode{Kind: NewlineModeOrdinary}, CaseSensitive: true}) != (CountOutcome{Kind: CountOutcomeCount, Count: 3}) {
 		t.Error("count missed empty matches or nonoverlapping advance")
 	}
-	if CountSimpleAdvanced("a*?", "aaa", 0, true, true, false) != (CountOutcome{Kind: CountOutcomeCount, Count: 4}) {
+	if Count("a*?", "aaa", 0, RegexOptions{Syntax: Syntax{Kind: SyntaxAdvanced}, Newline: NewlineMode{Kind: NewlineModeOrdinary}, CaseSensitive: true}) != (CountOutcome{Kind: CountOutcomeCount, Count: 4}) {
 		t.Error("lazy count missed empty matches")
 	}
 	if !SupportsExpandedAdvanced("a # comment\nb") || FindExpandedAdvanced("a # comment\nb", "ab", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 0, End: 2}}) {
@@ -214,7 +214,7 @@ func TestLiteralSlice(t *testing.T) {
 	if FindExpandedAdvanced("a[ #]b", "za#b", 0, true, true, false) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 4}}) {
 		t.Error("expanded bracket characters were removed")
 	}
-	if CountExpandedAdvanced("a *", "baa", 0, true, true, false) != (CountOutcome{Kind: CountOutcomeCount, Count: 3}) {
+	if Count("a *", "baa", 0, RegexOptions{Syntax: Syntax{Kind: SyntaxAdvanced}, Newline: NewlineMode{Kind: NewlineModeOrdinary}, CaseSensitive: true, Expanded: true}) != (CountOutcome{Kind: CountOutcomeCount, Count: 3}) {
 		t.Error("expanded count missed empty matches")
 	}
 	if FindSimpleAdvanced("^a$", "\na\n", 0, true, false, true) != (MatchOutcome{Kind: MatchOutcomeFound, Found: MatchSpan{Start: 1, End: 2}}) {
@@ -294,6 +294,20 @@ func TestUnifiedFindResourceLimits(t *testing.T) {
 		if actual := Find(pattern, "a", 0, options); actual.Kind != MatchOutcomeUncertain {
 			t.Errorf("resource limit returned %+v", actual)
 		}
+
+		if actual := Count(pattern, "a", 0, options); actual.Kind != CountOutcomeUncertain {
+			t.Errorf("count resource limit returned %+v", actual)
+		}
+	}
+	if actual := Count("[", "", 100, options); actual.Kind != CountOutcomeInvalidPattern {
+		t.Errorf("invalid count pattern returned %+v", actual)
+	}
+	subject := strings.Repeat("a", 250000)
+	if actual := Find("(?=a)(?=a)", subject, 0, options); actual.Kind != MatchOutcomeFound {
+		t.Errorf("single match returned %+v", actual)
+	}
+	if actual := Count("(?=a)(?=a)", subject, 0, options); actual.Kind != CountOutcomeUncertain {
+		t.Errorf("cumulative count budget returned %+v", actual)
 	}
 	if actual := Find("[", "", 100, options); actual.Kind != MatchOutcomeInvalidPattern {
 		t.Errorf("invalid pattern beyond subject returned %+v", actual)

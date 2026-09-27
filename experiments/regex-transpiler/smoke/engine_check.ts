@@ -159,14 +159,30 @@ assert.deepEqual(generated.findSimpleAdvanced('a{foo}', 'za{foo}', 0, true, true
   kind: 'Found',
   value: { start: 1, end: 7 },
 })
-assert.deepEqual(generated.countSimpleAdvanced('a*', 'baa', 0, true, true, false), {
-  kind: 'Count',
-  value: 3,
-})
-assert.deepEqual(generated.countSimpleAdvanced('a*?', 'aaa', 0, true, true, false), {
-  kind: 'Count',
-  value: 4,
-})
+assert.deepEqual(
+  generated.count('a*', 'baa', 0, {
+    syntax: { kind: 'Advanced' },
+    newline: { kind: 'Ordinary' },
+    caseSensitive: true,
+    expanded: false,
+  }),
+  {
+    kind: 'Count',
+    value: 3,
+  },
+)
+assert.deepEqual(
+  generated.count('a*?', 'aaa', 0, {
+    syntax: { kind: 'Advanced' },
+    newline: { kind: 'Ordinary' },
+    caseSensitive: true,
+    expanded: false,
+  }),
+  {
+    kind: 'Count',
+    value: 4,
+  },
+)
 assert.equal(generated.supportsExpandedAdvanced('a # comment\nb'), true)
 assert.deepEqual(generated.findExpandedAdvanced('a # comment\nb', 'ab', 0, true, true, false), {
   kind: 'Found',
@@ -176,10 +192,18 @@ assert.deepEqual(generated.findExpandedAdvanced('a[ #]b', 'za#b', 0, true, true,
   kind: 'Found',
   value: { start: 1, end: 4 },
 })
-assert.deepEqual(generated.countExpandedAdvanced('a *', 'baa', 0, true, true, false), {
-  kind: 'Count',
-  value: 3,
-})
+assert.deepEqual(
+  generated.count('a *', 'baa', 0, {
+    syntax: { kind: 'Advanced' },
+    newline: { kind: 'Ordinary' },
+    caseSensitive: true,
+    expanded: true,
+  }),
+  {
+    kind: 'Count',
+    value: 3,
+  },
+)
 assert.deepEqual(generated.findSimpleAdvanced('^a$', '\na\n', 0, true, false, true), {
   kind: 'Found',
   value: { start: 1, end: 2 },
@@ -261,5 +285,13 @@ const unifiedOptions = {
 }
 for (const pattern of ['(a{255}){255}', `${'(?='.repeat(65)}a${')'.repeat(65)}`]) {
   assert.deepEqual(generated.find(pattern, 'a', 0, unifiedOptions), { kind: 'Uncertain' })
+  assert.deepEqual(generated.count(pattern, 'a', 0, unifiedOptions), { kind: 'Uncertain' })
 }
 assert.deepEqual(generated.find('[', '', 100, unifiedOptions), { kind: 'InvalidPattern' })
+
+assert.deepEqual(generated.count('[', '', 100, unifiedOptions), { kind: 'InvalidPattern' })
+const repeatedSubject = 'a'.repeat(250000)
+assert.equal(generated.find('(?=a)(?=a)', repeatedSubject, 0, unifiedOptions).kind, 'Found')
+assert.deepEqual(generated.count('(?=a)(?=a)', repeatedSubject, 0, unifiedOptions), {
+  kind: 'Uncertain',
+})
