@@ -13,6 +13,7 @@ export interface CatalogCheckPlan {
 export interface CatalogCheckGroup {
   name: string
   kind: 'table' | 'domain'
+  source: { schema: string; name: string }
   checks: readonly { owner: string; plan: CatalogCheckPlan }[]
 }
 
@@ -198,7 +199,13 @@ export function catalogCheckGroups(
         const plan = lowerTableCheck(table, constraint)
         return plan ? [{ owner: `${table.schema}.${table.name}`, plan }] : []
       })
-    if (checks.length) groups.push({ name: `${table.schema}_${table.name}`, kind: 'table', checks })
+    if (checks.length)
+      groups.push({
+        name: `${table.schema}_${table.name}`,
+        kind: 'table',
+        source: { schema: table.schema, name: table.name },
+        checks,
+      })
   }
   const byOid = new Map(domains.map((domain) => [domain.oid, domain]))
   for (const domain of selectedDomains) {
@@ -221,7 +228,12 @@ export function catalogCheckGroups(
       }),
     )
     if (checks.length)
-      groups.push({ name: `${domain.schema}_${domain.name}`, kind: 'domain', checks })
+      groups.push({
+        name: `${domain.schema}_${domain.name}`,
+        kind: 'domain',
+        source: { schema: domain.schema, name: domain.name },
+        checks,
+      })
   }
   return groups
 }

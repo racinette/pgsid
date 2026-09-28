@@ -103,6 +103,11 @@ describe('renderGoSchemaArtifacts', () => {
     expect(source).toContain('CreatedAt time.Time')
     expect(source).toContain('Actor *int64')
     expect(source).toContain('func EvaluatePublicEventIdDomainChecks(')
+    expect(source).toContain('type PublicEventIdCheckInput struct')
+    expect(source).toMatch(/Value\s+CheckOptional\[EventId\]/u)
+    expect(source).toMatch(
+      /type PublicDefaultEventIdCheckInput struct\s*\{\s*Value\s+CheckOptional\[DefaultEventId\]/u,
+    )
   })
 
   it('diagnoses import cycles introduced by schema package boundaries', async () => {

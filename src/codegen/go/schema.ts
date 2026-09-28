@@ -38,6 +38,7 @@ import {
   createGoTypeContext,
   type GoTypeContext,
   nullableGoType,
+  storedGoColumnNotNull,
   addGoNullImport,
   resolveGoColumnType,
   resolveGoDomainBase,
@@ -222,6 +223,9 @@ export function renderGoSchemaArtifacts(
         goPackageName(directory),
         catalog.domains,
         catalog.domains.filter((domain) => domain.schema === scope),
+        catalog,
+        config,
+        context,
       )
       if (checks) artifacts.push({ path: join(outDir, directory, 'checks.go'), content: checks })
     }
@@ -269,9 +273,9 @@ const tableFields = (
       imports,
       config,
       context,
-      nullableGoType(resolved.type, storedNotNull(column, catalog), config),
+      nullableGoType(resolved.type, storedGoColumnNotNull(column, catalog), config),
     )
-    return field(column, resolved, storedNotNull(column, catalog), config)
+    return field(column, resolved, storedGoColumnNotNull(column, catalog), config)
   })
 }
 
@@ -322,20 +326,6 @@ const field = (
   type: nullableGoType(resolved.type, notNull, config),
   tag: `db:${JSON.stringify(column.name)}`,
 })
-
-const storedNotNull = (column: ColumnInfo, catalog: CatalogSnapshot): boolean => {
-  if (column.notNull) return true
-  let oid = column.typeOid
-  const seen = new Set<number>()
-  while (!seen.has(oid)) {
-    seen.add(oid)
-    const domain = catalog.domains.find((item) => item.oid === oid)
-    if (!domain) return false
-    if (domain.notNull) return true
-    oid = domain.baseTypeOid
-  }
-  return false
-}
 
 const orderedDomains = (domains: readonly DomainInfo[]): DomainInfo[] => {
   const result: DomainInfo[] = []
