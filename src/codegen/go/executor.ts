@@ -3,6 +3,7 @@ import type { QueryAnalysisItem } from '../../query-analysis.js'
 import { go, printGoFile, type GoDeclaration, type GoField, type GoStatement } from './ast.js'
 import { runtimeSource } from './nulls.js'
 import { goName } from './names.js'
+import type { CheckInputPlan } from '../shared/check-inputs.js'
 
 const id = go.ident
 const field = (name: string, type: ReturnType<typeof id>): GoField => ({ names: [name], type })
@@ -138,6 +139,7 @@ export function goExecutorDeclaration(
   parameterFields: readonly GoField[],
   outputFields: readonly GoField[],
   structs = false,
+  checkInputs: readonly CheckInputPlan[] = [],
 ): GoDeclaration {
   const name = goName(analysis.query.name)
   const parameters = [field('ctx', member('context', 'Context'))]
@@ -282,11 +284,45 @@ export function goExecutorDeclaration(
         statement.operator = '='
     }
   }
+  const checkStatements: GoStatement[] = checkInputs.flatMap((plan) => {
+    const values = go.composite(
+      go.map(id('string'), go.any()),
+      plan.columns.map(({ name: column, parameter }) => {
+        const target = parameterFields[parameter - 1]
+        if (!target?.names?.[0])
+          throw new Error(`Missing Go parameter $${parameter} for CHECK validation`)
+        return {
+          kind: 'key-value' as const,
+          left: go.string(column),
+          right: member('params', target.names[0]),
+        }
+      }),
+    )
+    const call = go.call(member('pgsidpgx', 'ValidateCheckInputs'), [
+      values,
+      member('pgsidpgx', `Evaluate${goName(`${plan.table.schema}_${plan.table.name}`)}Checks`),
+    ])
+    const failure =
+      command === 'exec'
+        ? [id('err')]
+        : command === 'execrows'
+          ? [go.number(0), id('err')]
+          : command === 'one'
+            ? [go.composite(id(`${name}Row`), []), id('err')]
+            : [id('nil'), id('err')]
+    return [
+      go.if(
+        go.notEqual(id('err'), id('nil')),
+        [go.return(...failure)],
+        go.assign([id('err')], [call]),
+      ),
+    ]
+  })
   return go.function(
     name,
     parameters,
     results,
-    [...inputChecks, ...body],
+    [...inputChecks, ...checkStatements, ...body],
     [field('q', go.pointer(id('Queries')))],
   )
 }

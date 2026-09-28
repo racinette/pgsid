@@ -1,0 +1,160 @@
+import ts from 'typescript'
+import type { DomainInfo, TableInfo } from '../../../catalog/types.js'
+import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
+import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
+import { portableCheckAtoms } from '../../shared/check-atom-support.js'
+import { exportModifier, factory, identifier, printFile } from '../ast.js'
+import { typeName } from '../type-mapping.js'
+import { typescriptEvalBoolBackend } from './check.js'
+import { typescriptSqlBackend } from './registry.js'
+import { typescriptSqlRuntime } from './runtime.js'
+
+export function renderTypescriptSchemaChecks(
+  tables: readonly TableInfo[],
+  domains: readonly DomainInfo[] = [],
+  selectedDomains: readonly DomainInfo[] = domains,
+): string {
+  const groups = catalogCheckGroups(tables, domains, selectedDomains)
+  if (!groups.length) return ''
+  const row = identifier('row')
+  const callInput = (helper: string, name: string): ts.Expression =>
+    factory.createCallExpression(identifier(helper), undefined, [
+      row,
+      factory.createStringLiteral(name),
+    ])
+  const inputHelper = (type: string): string | null => {
+    if (type === 'pg_catalog.bool') return 'checkInputBoolean'
+    if (/^pg_catalog\.int[248]$/u.test(type)) return 'checkInputInteger'
+    if (/^pg_catalog\.float[48]$/u.test(type)) return 'checkInputFloat'
+    if (['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type))
+      return 'checkInputText'
+    return null
+  }
+  const backend = {
+    ...typescriptEvalBoolBackend,
+    guardInputs: (names: readonly string[], expression: ts.Expression): ts.Expression =>
+      factory.createConditionalExpression(
+        names
+          .map((name) => callInput('checkTextKnown', name))
+          .reduce((left, right) =>
+            factory.createBinaryExpression(left, ts.SyntaxKind.AmpersandAmpersandToken, right),
+          ),
+        factory.createToken(ts.SyntaxKind.QuestionToken),
+        expression,
+        factory.createToken(ts.SyntaxKind.ColonToken),
+        factory.createCallExpression(identifier('evalBoolUncertain'), undefined, []),
+      ),
+  }
+  const emitted = groups.map((group) => ({
+    ...group,
+    results: group.checks.map(({ plan }) =>
+      emitEvalBoolExpression(
+        portableCheckAtoms(plan.expression),
+        { ...typescriptSqlBackend, input: (name) => callInput('checkTextValue', name) },
+        {
+          ...backend,
+          scalar: {
+            ...backend.scalar,
+            input: (type, name) => {
+              const helper = inputHelper(type)
+              if (!helper) throw new Error(`Unsupported CHECK input type: ${type}`)
+              return { expression: callInput(helper, name), helpers: ['EvalValue'] }
+            },
+          },
+        },
+      ),
+    ),
+  }))
+  return printFile([
+    ...typescriptSqlRuntime(
+      emitted.flatMap((group) => group.results.flatMap((result) => result.helpers)),
+    ),
+    ...checkInputStatements(),
+    ...emitted.map(({ name, kind, checks, results }) =>
+      factory.createFunctionDeclaration(
+        [exportModifier],
+        undefined,
+        `evaluate${typeName(name)}${kind === 'domain' ? 'DomainChecks' : 'Checks'}`,
+        undefined,
+        [
+          factory.createParameterDeclaration(
+            undefined,
+            undefined,
+            row,
+            undefined,
+            factory.createKeywordTypeNode(ts.SyntaxKind.ObjectKeyword),
+          ),
+        ],
+        undefined,
+        factory.createBlock(
+          [
+            factory.createReturnStatement(
+              factory.createArrayLiteralExpression(
+                results.map((result, index) =>
+                  factory.createObjectLiteralExpression([
+                    factory.createPropertyAssignment(
+                      'owner',
+                      factory.createStringLiteral(checks[index]!.owner),
+                    ),
+                    factory.createPropertyAssignment(
+                      'constraint',
+                      factory.createStringLiteral(checks[index]!.plan.name),
+                    ),
+                    factory.createPropertyAssignment('result', result.value.expression),
+                  ]),
+                ),
+                true,
+              ),
+            ),
+          ],
+          true,
+        ),
+      ),
+    ),
+  ])
+}
+
+function checkInputStatements(): ts.Statement[] {
+  const source = ts.createSourceFile(
+    'check-inputs.ts',
+    `
+function checkRawInput(row: object, name: string): unknown {
+  return Object.hasOwn(row, name) ? Reflect.get(row, name) : undefined
+}
+function checkTextKnown(row: object, name: string): boolean {
+  const value = checkRawInput(row, name)
+  return value === null || typeof value === 'string'
+}
+function checkTextValue(row: object, name: string): string | null {
+  const value = checkRawInput(row, name)
+  return typeof value === 'string' ? value : null
+}
+function checkInputText(row: object, name: string): EvalValue<string> {
+  return checkTextKnown(row, name) ? { certain: true, value: checkTextValue(row, name) } : { certain: false }
+}
+function checkInputBoolean(row: object, name: string): EvalValue<boolean> {
+  const value = checkRawInput(row, name)
+  return value === null || typeof value === 'boolean' ? { certain: true, value } : { certain: false }
+}
+function checkInputInteger(row: object, name: string): EvalValue<bigint> {
+  const value = checkRawInput(row, name)
+  if (value === null) return { certain: true, value: null }
+  if (typeof value === 'bigint') return { certain: true, value }
+  if (typeof value === 'number' && Number.isSafeInteger(value)) return { certain: true, value: BigInt(value) }
+  return { certain: false }
+}
+function checkInputFloat(row: object, name: string): EvalValue<number> {
+  const value = checkRawInput(row, name)
+  return value === null || typeof value === 'number' ? { certain: true, value } : { certain: false }
+}
+`,
+    ts.ScriptTarget.ES2022,
+    true,
+  )
+  const synthesize = (node: ts.Node): void => {
+    ts.forEachChild(node, synthesize)
+    ts.setTextRange(node, { pos: -1, end: -1 })
+  }
+  for (const statement of source.statements) synthesize(statement)
+  return [...source.statements]
+}

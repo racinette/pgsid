@@ -470,7 +470,7 @@ describe('diffCatalogs: domains', () => {
           baseTypeName: 'integer',
           notNull: false,
           default: null,
-          checks: ['CHECK (value > 0)'],
+          checks: [{ name: 'posint_check', definition: 'CHECK (value > 0)' }],
         },
       ],
     })
@@ -484,7 +484,7 @@ describe('diffCatalogs: domains', () => {
           baseTypeName: 'bigint',
           notNull: false,
           default: null,
-          checks: ['CHECK (value > 0)'],
+          checks: [{ name: 'posint_check', definition: 'CHECK (value > 0)' }],
         },
       ],
     })
@@ -526,7 +526,7 @@ describe('diffCatalogs: domains', () => {
   // The capture kept ONE check, picked without an ORDER BY, so a domain
   // declaring several hid all but that one from the diff.
   it('dropping the second of two checks → domain modified', () => {
-    const dom = (checks: string[]) =>
+    const dom = (checks: { name: string; definition: string }[]) =>
       snapshot({
         domains: [
           {
@@ -541,9 +541,35 @@ describe('diffCatalogs: domains', () => {
           },
         ],
       })
-    const before = dom(['CHECK ((VALUE < 10))', 'CHECK ((VALUE > 0))'])
-    const after = dom(['CHECK ((VALUE > 0))'])
+    const before = dom([
+      { name: 'aa_hi', definition: 'CHECK ((VALUE < 10))' },
+      { name: 'zz_lo', definition: 'CHECK ((VALUE > 0))' },
+    ])
+    const after = dom([{ name: 'zz_lo', definition: 'CHECK ((VALUE > 0))' }])
     expect(diffCatalogs(before, after).modified.map((m) => m.entityId)).toEqual(['public.twochk'])
+  })
+
+  it('renaming a domain check changes its comparable state', () => {
+    const base = {
+      schema: 'public',
+      name: 'posint',
+      oid: 90001,
+      baseTypeOid: 23,
+      baseTypeName: 'integer',
+      notNull: false,
+      default: null,
+    }
+    const before = snapshot({
+      domains: [{ ...base, checks: [{ name: 'positive', definition: 'CHECK (VALUE > 0)' }] }],
+    })
+    const after = snapshot({
+      domains: [
+        { ...base, checks: [{ name: 'greater_than_zero', definition: 'CHECK (VALUE > 0)' }] },
+      ],
+    })
+    expect(diffCatalogs(before, after).modified.map((entry) => entry.entityId)).toEqual([
+      'public.posint',
+    ])
   })
 })
 

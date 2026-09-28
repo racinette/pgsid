@@ -77,6 +77,7 @@ function columnState(c: ColumnInfo): Omit<ColumnInfo, 'typeOid'> {
     // conclude (literal distinctness), so it is a comparable property.
     collationDeterministic: c.collationDeterministic,
     collationIsDefault: c.collationIsDefault,
+    collationIsC: c.collationIsC ?? null,
   }
 }
 
@@ -194,6 +195,7 @@ function domainState(d: DomainInfo): Omit<DomainInfo, 'oid' | 'baseTypeOid'> {
     schema: d.schema,
     name: d.name,
     baseTypeName: d.baseTypeName,
+    collationIsC: d.collationIsC ?? null,
     notNull: d.notNull,
     default: d.default,
     checks: d.checks,

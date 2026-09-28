@@ -1,6 +1,7 @@
 import { goJsonSchemaBindings } from './json-schema-bindings.js'
 import { goValidationContract, goValidationSchema } from './json-schema-validation.js'
 import { planJsonSchemaInputs } from '../shared/json-schema-inputs.js'
+import { planCheckInputs } from '../shared/check-inputs.js'
 import { goExecutorDeclaration } from './executor.js'
 import type { GoTypeContext } from './type-mapping.js'
 import type { CatalogSnapshot } from '../../catalog/types.js'
@@ -41,7 +42,7 @@ export function renderGoQueryArtifacts(
   catalog: CatalogSnapshot | undefined,
   packageName: string,
   context?: GoTypeContext,
-  options: { executor?: boolean; helperImportPath?: string } = {},
+  options: { executor?: boolean; helperImportPath?: string; checkCatalog?: CatalogSnapshot } = {},
 ): GoQueryArtifacts {
   if (options.executor && config.sql.codegen?.go?.nulls === 'structs') {
     if (!options.helperImportPath)
@@ -83,6 +84,7 @@ export function renderGoQueryArtifacts(
         context,
         options.executor ?? false,
         options.helperImportPath,
+        options.checkCatalog ?? catalog,
       )
     } catch (error) {
       diagnostics.push({
@@ -132,6 +134,7 @@ const renderQuery = (
   context: GoTypeContext | undefined,
   executor: boolean,
   helperImportPath: string | undefined,
+  checkCatalog: CatalogSnapshot | undefined,
 ): void => {
   const queryName = goName(analysis.query.name)
   declarations.push(go.const(`${queryName}SQL`, go.string(analysis.query.definition.sql)))
@@ -153,6 +156,14 @@ const renderQuery = (
     config.sql.codegen?.go?.mappings.column ?? {},
     catalog,
   )
+  const checkInputs = executor
+    ? planCheckInputs(
+        analysis.query.definition.stmt,
+        analysis.writeLineage ?? [],
+        checkCatalog,
+        parameterTypes,
+      )
+    : []
   for (const unsupported of inputPlan.unsupported)
     diagnostics.push({
       code: 'json-schema-input-unsupported',
@@ -254,6 +265,11 @@ const renderQuery = (
   })
   assertUniqueFields(parameterFields, analysis.query.name, 'parameter')
   declarations.push(go.type(`${queryName}Params`, go.struct(parameterFields)))
+  if (checkInputs.length) {
+    if (!helperImportPath)
+      throw new Error('Go CHECK input validation requires a helper import path')
+    imports.push({ path: helperImportPath, as: 'pgsidpgx' })
+  }
   if (parameterFields.some((field) => field.jsonValidation || field.arrayValidation)) {
     if (!helperImportPath) throw new Error('Go input validation requires a helper import path')
     imports.push({ path: helperImportPath, as: 'pgsidpgx' })
@@ -269,6 +285,7 @@ const renderQuery = (
           parameterFields,
           [],
           config.sql.codegen?.go?.nulls === 'structs',
+          checkInputs,
         ),
       )
     return
@@ -337,6 +354,7 @@ const renderQuery = (
       sqlNullable:
         !(analysis.contract.outputs[index]?.notNull ?? false) &&
         config.sql.codegen?.go?.nulls === 'structs',
+      checkInputs,
       type: nullableGoType(
         resolved.type,
         analysis.contract.outputs[index]?.notNull ?? false,

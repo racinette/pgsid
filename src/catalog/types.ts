@@ -90,6 +90,8 @@ export interface ColumnInfo {
    * already extends to collation.
    */
   collationIsDefault: boolean | null
+  /** Whether the column uses the built-in C collation. */
+  collationIsC?: boolean | null
   /** Identity column: `attidentity` 'a'→always, 'd'→byDefault, ''→null. */
   identity: 'always' | 'byDefault' | null
 }
@@ -541,11 +543,13 @@ export interface DomainInfo {
   oid: number
   baseTypeOid: number
   baseTypeName: string
+  /** Whether text values of this domain use the C collation. */
+  collationIsC?: boolean | null
   notNull: boolean
   /** Default expression from `pg_get_expr(typdefaultbin, oid)`, or null. */
   default: string | null
   /**
-   * Every CHECK constraint on the domain, rendered by `pg_get_constraintdef`
+   * Every CHECK constraint on the domain, named and rendered by `pg_get_constraintdef`
    * and ordered by constraint name. A domain may carry any number of them
    * (`CREATE DOMAIN twochk AS int CONSTRAINT lo CHECK (VALUE > 0) CONSTRAINT
    * hi CHECK (VALUE < 10)`), so a single entry is a reader assuming one row
@@ -553,7 +557,7 @@ export interface DomainInfo {
    * hid the others from the diff and made the state depend on catalog row
    * order across a replay.
    */
-  checks: string[]
+  checks: { name: string; definition: string }[]
 }
 
 export interface CompositeTypeAttrInfo {

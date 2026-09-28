@@ -791,8 +791,9 @@ describe('snapshotCatalog: enums, domains, composite types, sequences', () => {
     expect(posint?.baseTypeName).toBe('integer')
     // pg_get_constraintdef normalizes identifiers to uppercase.
     expect(posint?.checks).toHaveLength(1)
-    expect(posint?.checks[0]).toContain('CHECK')
-    expect(posint?.checks[0]?.toLowerCase()).toContain('value > 0')
+    expect(posint?.checks[0]?.name).toBe('posint_check')
+    expect(posint?.checks[0]?.definition).toContain('CHECK')
+    expect(posint?.checks[0]?.definition.toLowerCase()).toContain('value > 0')
     const tagged = s.domains.find((d) => d.schema === 'public' && d.name === 'tagged')
     expect(tagged?.notNull).toBe(true)
     expect(tagged?.default).toBe("'unknown'::text")
@@ -809,7 +810,10 @@ describe('snapshotCatalog: enums, domains, composite types, sequences', () => {
     )
     const s = await snapshotCatalog(pg)
     const twochk = s.domains.find((d) => d.schema === 'public' && d.name === 'twochk')
-    expect(twochk?.checks).toEqual(['CHECK ((VALUE < 10))', 'CHECK ((VALUE > 0))'])
+    expect(twochk?.checks).toEqual([
+      { name: 'aa_hi', definition: 'CHECK ((VALUE < 10))' },
+      { name: 'zz_lo', definition: 'CHECK ((VALUE > 0))' },
+    ])
   })
 
   it('captures composite type attributes', async () => {

@@ -10,6 +10,7 @@ import type { TypedSqlExpression } from './signatures.js'
 import { builtinMetadata } from '../postgres/builtins/inventory.js'
 
 export type EvalExpression =
+  | { kind: 'input'; type: ScalarType; name: string }
   | { kind: 'certain'; expression: SqlExpression }
   | { kind: 'uncertain'; type: string }
   | {
@@ -43,6 +44,7 @@ export interface EmittedEvalExpression<Ast> extends TypedSqlExpression<Ast> {
 }
 
 export interface EvalExpressionBackend<Ast> {
+  input?: (type: ScalarType, name: string) => { expression: Ast; helpers: readonly string[] }
   certain: (type: string, expression: Ast) => { expression: Ast; helpers: readonly string[] }
   uncertain: (type: string) => { expression: Ast; helpers: readonly string[] }
   call: (
@@ -87,6 +89,12 @@ export function emitEvalExpression<Ast>(
     for (const name of names) helpers.add(name)
   }
   const emit = (node: EvalExpression): EmittedEvalExpression<Ast> => {
+    if (node.kind === 'input') {
+      if (!backend.input) throw new Error(`No partial SQL input binding for ${node.name}`)
+      const result = backend.input(node.type, node.name)
+      include(result.helpers)
+      return { type: node.type, expression: result.expression, effect: 'partial' }
+    }
     if (node.kind === 'certain') {
       const result = emitSqlExpression(node.expression, scalarBackend)
       include(result.helpers)

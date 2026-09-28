@@ -2754,7 +2754,7 @@ export async function buildNullabilityCatalog(
       if (!unique(d.name)) continue
       // The whole chain runs at cast time: nested domains contribute their
       // own CHECKs, and the canonical base must render immutable-I/O.
-      const chainChecks: string[] = []
+      const chainChecks: { name: string; definition: string }[] = []
       let cur: (typeof snapshot.domains)[number] | undefined = d
       let base: string | null = null
       for (let hops = 0; hops < 32 && cur !== undefined; hops++) {
@@ -2774,7 +2774,9 @@ export async function buildNullabilityCatalog(
       for (const check of chainChecks) {
         let body: unknown | undefined
         try {
-          const parsed = await parseSql(`ALTER DOMAIN _pgsid_dom ADD CONSTRAINT _pgsid_c ${check}`)
+          const parsed = await parseSql(
+            `ALTER DOMAIN _pgsid_dom ADD CONSTRAINT _pgsid_c ${check.definition}`,
+          )
           body = (
             (parsed.stmts?.[0]?.stmt as Record<string, unknown> | undefined)?.[
               'AlterDomainStmt'

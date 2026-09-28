@@ -29,13 +29,18 @@ export function createCodegenTargets(
                 ...options.catalog.tables,
                 ...options.catalog.views,
                 ...options.catalog.materializedViews,
-              ].map(({ schema, name, columns }) => ({
+              ].map(({ schema, name, columns, ...relation }) => ({
                 schema,
                 name,
-                columns: columns.map(({ name, typeOid, typeName }) => ({
+                ...('constraints' in relation ? { constraints: relation.constraints } : {}),
+                ...('writeRewritesTree' in relation
+                  ? { writeRewritesTree: relation.writeRewritesTree }
+                  : {}),
+                columns: columns.map(({ name, typeOid, typeName, collationIsC }) => ({
                   name,
                   typeOid,
                   typeName,
+                  collationIsC,
                 })),
               }))
             : null,
@@ -52,6 +57,20 @@ export function createCodegenTargets(
           options.catalog?.domains ?? null,
           options.catalog?.enums ?? null,
           options.catalog?.compositeTypes ?? null,
+          options.catalog?.tables.map(
+            ({ schema, name, constraints, columns, writeRewritesTree }) => ({
+              schema,
+              name,
+              constraints,
+              columns: columns.map(({ name, typeOid, typeName, collationIsC }) => ({
+                name,
+                typeOid,
+                typeName,
+                collationIsC,
+              })),
+              writeRewritesTree,
+            }),
+          ) ?? null,
         ]),
       ),
       catalog: options.catalog,

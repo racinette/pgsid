@@ -49,6 +49,7 @@ export type EvalBoolExpression =
 
 export interface EvalBoolBackend<Ast> {
   scalar: EvalExpressionBackend<Ast>
+  guardInputs?: (names: readonly string[], expression: Ast) => Ast
   partialScalar: (value: Ast) => { expression: Ast; helpers: readonly string[] }
   certain: (value: TypedSqlExpression<Ast, 'pg_catalog.bool'>) => Ast
   uncertain: () => Ast
@@ -94,6 +95,21 @@ export function emitEvalBoolExpression<Ast>(
   const helpers = new Set<string>()
   const include = (names: readonly string[]): void => {
     for (const name of names) helpers.add(name)
+  }
+  const guardRegexInputs = (values: readonly (SqlExpression | string)[], expression: Ast): Ast => {
+    const names = [
+      ...new Set(
+        values
+          .filter(
+            (value): value is Extract<SqlExpression, { kind: 'input' }> =>
+              typeof value !== 'string' && value.kind === 'input',
+          )
+          .map((value) => value.name),
+      ),
+    ]
+    if (!names.length || !backend.guardInputs) return expression
+    helpers.add('evalBoolUncertain')
+    return backend.guardInputs(names, expression)
   }
   const emit = (node: EvalBoolExpression): Ast => {
     if (node.kind === 'eval-scalar') {
@@ -277,7 +293,7 @@ export function emitEvalBoolExpression<Ast>(
         }
         const result = backend.regexInvalidFlags(emitted.value, pattern)
         include(result.helpers)
-        return result.expression
+        return guardRegexInputs([node.subject, node.pattern], result.expression)
       }
       if (node.flags) {
         if (node.flags.type !== 'pg_catalog.text')
@@ -294,11 +310,11 @@ export function emitEvalBoolExpression<Ast>(
         }
         const result = backend.regexWithFlags(emitted.value, pattern, emittedFlags.value)
         include(result.helpers)
-        return result.expression
+        return guardRegexInputs([node.subject, node.pattern, node.flags], result.expression)
       }
       const result = backend.regex(emitted.value, pattern, node.options ?? {}, node.negated)
       include(result.helpers)
-      return result.expression
+      return guardRegexInputs([node.subject, node.pattern], result.expression)
     }
     const result = backend.compare(node.operation, [emit(node.operands[0]), emit(node.operands[1])])
     include(result.helpers)
