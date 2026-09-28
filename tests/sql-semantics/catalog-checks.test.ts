@@ -142,6 +142,27 @@ describe('catalog CHECK lowering', () => {
     })
   })
 
+  it('omits input codecs when a CHECK cannot be evaluated locally', async () => {
+    const catalog = await snapshotCatalog(pg)
+    const table = catalog.tables.find((item) => item.name === 'regulated')!
+    const unsupported = {
+      ...table,
+      constraints: table.constraints.filter((item) => item.name === 'ordinary_equality'),
+    }
+    const typescript = renderTypescriptSchemaChecks([unsupported])
+    expect(typescript).not.toContain('function checkRawInput(')
+    const goSource = renderGoSchemaChecks(
+      [unsupported],
+      'main',
+      [],
+      [],
+      catalog,
+      parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go: {}\n'),
+    )
+    expect(goSource).not.toContain('func checkPrimitive(')
+    expect(goSource).not.toContain('"reflect"')
+  })
+
   it('runs a catalog regex predicate in generated TypeScript and Go', async () => {
     const catalog = await snapshotCatalog(pg)
     const table = catalog.tables.find(

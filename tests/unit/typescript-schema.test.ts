@@ -106,7 +106,12 @@ describe('renderTypescriptSchemaArtifacts', () => {
     expect(artifacts['/generated/public/domains.d.ts']).toContain(
       'export type DefaultEventId = string &',
     )
-    expect(artifacts['/generated/public/checks.ts']).toContain('evaluatePublicEventIdDomainChecks')
+    const checks = artifacts['/generated/public/checks.ts']!
+    expect(checks).toContain('evaluatePublicEventIdDomainChecks')
+    expect(checks).toContain('function checkInputInteger(')
+    expect(checks).not.toContain('function checkInputText(')
+    expect(checks).not.toContain('function checkInputBoolean(')
+    expect(checks).not.toContain('function checkInputFloat(')
     const tables = artifacts['/generated/public/tables.d.ts']!
     expect(tables).toContain('export type Events = TableTypes<')
     expect(tables).toContain(

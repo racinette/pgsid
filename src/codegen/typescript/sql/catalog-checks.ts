@@ -17,11 +17,14 @@ export function renderTypescriptSchemaChecks(
   const groups = catalogCheckGroups(tables, domains, selectedDomains)
   if (!groups.length) return ''
   const row = identifier('row')
-  const callInput = (helper: string, name: string): ts.Expression =>
-    factory.createCallExpression(identifier(helper), undefined, [
+  const inputHelpers = new Set<string>()
+  const callInput = (helper: string, name: string): ts.Expression => {
+    inputHelpers.add(helper)
+    return factory.createCallExpression(identifier(helper), undefined, [
       row,
       factory.createStringLiteral(name),
     ])
+  }
   const inputHelper = (type: string): string | null => {
     if (type === 'pg_catalog.bool') return 'checkInputBoolean'
     if (/^pg_catalog\.int[248]$/u.test(type)) return 'checkInputInteger'
@@ -69,7 +72,7 @@ export function renderTypescriptSchemaChecks(
     ...typescriptSqlRuntime(
       emitted.flatMap((group) => group.results.flatMap((result) => result.helpers)),
     ),
-    ...checkInputStatements(),
+    ...checkInputStatements(inputHelpers),
     ...emitted.map(({ name, kind, checks, results }) =>
       factory.createFunctionDeclaration(
         [exportModifier],
@@ -114,47 +117,83 @@ export function renderTypescriptSchemaChecks(
   ])
 }
 
-function checkInputStatements(): ts.Statement[] {
-  const source = ts.createSourceFile(
-    'check-inputs.ts',
-    `
-function checkRawInput(row: object, name: string): unknown {
+const checkInputHelpers: Record<string, { dependencies: readonly string[]; source: string }> = {
+  checkRawInput: {
+    dependencies: [],
+    source: `function checkRawInput(row: object, name: string): unknown {
   return Object.hasOwn(row, name) ? Reflect.get(row, name) : undefined
-}
-function checkTextKnown(row: object, name: string): boolean {
+}`,
+  },
+  checkTextKnown: {
+    dependencies: ['checkRawInput'],
+    source: `function checkTextKnown(row: object, name: string): boolean {
   const value = checkRawInput(row, name)
   return value === null || typeof value === 'string'
-}
-function checkTextValue(row: object, name: string): string | null {
+}`,
+  },
+  checkTextValue: {
+    dependencies: ['checkRawInput'],
+    source: `function checkTextValue(row: object, name: string): string | null {
   const value = checkRawInput(row, name)
   return typeof value === 'string' ? value : null
-}
-function checkInputText(row: object, name: string): EvalValue<string> {
+}`,
+  },
+  checkInputText: {
+    dependencies: ['checkTextKnown', 'checkTextValue'],
+    source: `function checkInputText(row: object, name: string): EvalValue<string> {
   return checkTextKnown(row, name) ? { certain: true, value: checkTextValue(row, name) } : { certain: false }
-}
-function checkInputBoolean(row: object, name: string): EvalValue<boolean> {
+}`,
+  },
+  checkInputBoolean: {
+    dependencies: ['checkRawInput'],
+    source: `function checkInputBoolean(row: object, name: string): EvalValue<boolean> {
   const value = checkRawInput(row, name)
   return value === null || typeof value === 'boolean' ? { certain: true, value } : { certain: false }
-}
-function checkInputInteger(row: object, name: string): EvalValue<bigint> {
+}`,
+  },
+  checkInputInteger: {
+    dependencies: ['checkRawInput'],
+    source: `function checkInputInteger(row: object, name: string): EvalValue<bigint> {
   const value = checkRawInput(row, name)
   if (value === null) return { certain: true, value: null }
   if (typeof value === 'bigint') return { certain: true, value }
   if (typeof value === 'number' && Number.isSafeInteger(value)) return { certain: true, value: BigInt(value) }
   return { certain: false }
-}
-function checkInputFloat(row: object, name: string): EvalValue<number> {
+}`,
+  },
+  checkInputFloat: {
+    dependencies: ['checkRawInput'],
+    source: `function checkInputFloat(row: object, name: string): EvalValue<number> {
   const value = checkRawInput(row, name)
   return value === null || typeof value === 'number' ? { certain: true, value } : { certain: false }
+}`,
+  },
 }
-`,
-    ts.ScriptTarget.ES2022,
-    true,
-  )
+
+function checkInputStatements(required: ReadonlySet<string>): ts.Statement[] {
+  const included = new Set<string>()
+  const statements: ts.Statement[] = []
   const synthesize = (node: ts.Node): void => {
     ts.forEachChild(node, synthesize)
     ts.setTextRange(node, { pos: -1, end: -1 })
   }
-  for (const statement of source.statements) synthesize(statement)
-  return [...source.statements]
+  const include = (name: string): void => {
+    if (included.has(name)) return
+    const helper = checkInputHelpers[name]
+    if (!helper) throw new Error(`Missing TypeScript CHECK input helper: ${name}`)
+    included.add(name)
+    for (const dependency of helper.dependencies) include(dependency)
+    const parsed = ts.createSourceFile(
+      'check-inputs.ts',
+      helper.source,
+      ts.ScriptTarget.ES2022,
+      true,
+    )
+    for (const statement of parsed.statements) {
+      synthesize(statement)
+      statements.push(statement)
+    }
+  }
+  for (const name of required) include(name)
+  return statements
 }
