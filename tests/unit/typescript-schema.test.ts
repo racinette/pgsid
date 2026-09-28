@@ -90,6 +90,7 @@ describe('renderTypescriptSchemaArtifacts', () => {
       '/generated/public/tables.d.ts',
       '/generated/public/enums.d.ts',
       '/generated/public/domains.d.ts',
+      '/generated/public/checks.ts',
       '/generated/public/index.d.ts',
     ])
     expect(artifacts['/generated/helpers.d.ts']).toContain('export type InferInsert')
@@ -105,6 +106,7 @@ describe('renderTypescriptSchemaArtifacts', () => {
     expect(artifacts['/generated/public/domains.d.ts']).toContain(
       'export type DefaultEventId = string &',
     )
+    expect(artifacts['/generated/public/checks.ts']).toContain('evaluatePublicEventIdDomainChecks')
     const tables = artifacts['/generated/public/tables.d.ts']!
     expect(tables).toContain('export type Events = TableTypes<')
     expect(tables).toContain(

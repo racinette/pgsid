@@ -161,6 +161,7 @@ export function resolveArrayPolymorphicType(
 }
 
 export type SqlExpression =
+  | { kind: 'input'; type: ScalarType; name: string }
   | {
       kind: 'array-operation'
       type: ScalarType
@@ -304,6 +305,7 @@ export type SqlExpression =
 
 export interface ExpressionBackend<Ast> {
   bindings: readonly SqlBindingGroup<Ast>[]
+  input?: (name: string, type: ScalarType) => Ast
   boolean: (value: boolean | null) => Ast
   text: (value: string | null) => Ast
   name: (value: string | null) => Ast
@@ -547,6 +549,10 @@ export function emitSqlExpression<Ast>(
     return enumType(definition)
   }
   const emit = (node: SqlExpression): TypedSqlExpression<Ast> => {
+    if (node.kind === 'input') {
+      if (!backend.input) throw new Error(`No SQL input binding for ${node.name}`)
+      return { type: node.type, expression: backend.input(node.name, node.type) }
+    }
     if (node.kind === 'array-operation' || node.kind === 'array-comparison') {
       const identity = arrayType(node.elementType)
       const metadataOperations = ['cardinality', 'ndims', 'dims'] as const

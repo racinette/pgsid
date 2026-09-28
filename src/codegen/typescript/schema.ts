@@ -4,6 +4,7 @@ import type { CatalogSnapshot, ColumnInfo, TableInfo, ViewInfo } from '../../cat
 import type { Config, JsonSchemaDocument, TypeImport } from '../../config/schema.js'
 import { interpretValueLineage } from '../../query/value-lineage.js'
 import type { SchemaRelationAnalyses } from '../../schema-analysis.js'
+import { renderTypescriptSchemaChecks } from './sql/catalog-checks.js'
 import {
   exportModifier,
   factory,
@@ -177,6 +178,7 @@ export function renderTypescriptSchemaArtifacts(
         ['tables.d.ts', tableFile],
         ['enums.d.ts', enumFile],
         ['domains.d.ts', domainFile],
+        ['checks.ts', renderTypescriptSchemaChecks(tables, catalog.domains, domains)],
       ]
       const exported = files.filter(([, content]) => content.length > 0)
       for (const [name, content] of exported) {
@@ -188,9 +190,9 @@ export function renderTypescriptSchemaArtifacts(
           exported.map(([name]) =>
             factory.createExportDeclaration(
               undefined,
-              true,
+              name !== 'checks.ts',
               undefined,
-              factory.createStringLiteral(`./${name.replace(/\.d\.ts$/u, '.js')}`),
+              factory.createStringLiteral(`./${name.replace(/(?:\.d)?\.ts$/u, '.js')}`),
             ),
           ),
         ),

@@ -7,6 +7,8 @@ import type { QueryAnalysisItem } from '../../query-analysis.js'
 import { interpretValueLineage } from '../../query/value-lineage.js'
 import { planArrayDimensionInputs } from '../shared/array-dimensions.js'
 import { planJsonSchemaInputs } from '../shared/json-schema-inputs.js'
+import { planCheckInputs, type CheckInputPlan } from '../shared/check-inputs.js'
+import { renderTypescriptSchemaChecks } from './sql/catalog-checks.js'
 import {
   asyncModifier,
   exportModifier,
@@ -27,6 +29,7 @@ import { queryValidationErrorDeclarations } from './validation-diagnostics.js'
 import {
   resolveTypescriptPgType,
   importedTypescriptType,
+  typeName,
   type TypescriptTypeContext,
 } from './type-mapping.js'
 import { resolveTypescriptValueType, type ResolvedTypescriptValueType } from './value-type.js'
@@ -75,6 +78,7 @@ interface RenderedQuery {
   typeNames: string[]
   usesJsonSchemaRuntime: boolean
   hasValidators: boolean
+  checkInputs: readonly CheckInputPlan[]
 }
 
 interface RenderedValidator {
@@ -182,6 +186,14 @@ export function renderTypescriptQueryArtifacts(
   ])
   const typeNames = [...new Set(rendered.flatMap((query) => query.typeNames))]
   const hasValidators = rendered.some((query) => query.hasValidators)
+  const checkTables = [
+    ...new Map(
+      rendered.flatMap((query) =>
+        query.checkInputs.map(({ table }) => [`${table.schema}.${table.name}`, table] as const),
+      ),
+    ).values(),
+  ]
+  const checkRuntime = renderTypescriptSchemaChecks(checkTables)
   const runtime = printFile([
     ...(typeNames.length
       ? [namedImport(typeNames, options.typesModuleSpecifier ?? './types.js', true)]
@@ -239,10 +251,31 @@ export function renderTypescriptQueryArtifacts(
           ),
         ]
       : []),
+    ...synthesizedStatements(checkRuntime),
+    ...(checkTables.length
+      ? synthesizedStatements(`export class SqlCheckViolationError extends Error {
+  readonly code = '23514'
+  constructor(readonly owner: string, readonly constraint: string) {
+    super('new row violates check constraint "' + constraint + '"')
+    this.name = 'SqlCheckViolationError'
+  }
+}`)
+      : []),
     ...rendered.flatMap((query) => query.runtimeDeclarations),
     ...rendered.map((query) => query.wrapper),
   ])
   return { types, runtime: options.emitRuntime === false ? null : runtime, diagnostics }
+}
+
+const synthesizedStatements = (source: string): ts.Statement[] => {
+  if (!source) return []
+  const parsed = ts.createSourceFile('checks.ts', source, ts.ScriptTarget.ES2022, true)
+  const synthesize = (node: ts.Node): void => {
+    ts.forEachChild(node, synthesize)
+    ts.setTextRange(node, { pos: -1, end: -1 })
+  }
+  for (const statement of parsed.statements) synthesize(statement)
+  return [...parsed.statements]
 }
 
 const renderQuery = (
@@ -282,6 +315,12 @@ const renderQuery = (
     analysis.contract.params.length,
     'parameter-type-shape',
     diagnostics,
+  )
+  const checkInputs = planCheckInputs(
+    analysis.query.definition.stmt,
+    analysis.writeLineage ?? [],
+    options.catalog,
+    parameterTypes,
   )
   const semanticLineage = analysis.rawLineage?.map((output) => interpretValueLineage(output.value))
   const imports: TypeImport[] = []
@@ -606,6 +645,7 @@ const renderQuery = (
     runtimeDeclarations,
     usesJsonSchemaRuntime,
     hasValidators: validators.length + inputValidators.length > 0,
+    checkInputs,
     wrapper: renderWrapper(
       analysis,
       queryName,
@@ -614,6 +654,7 @@ const renderQuery = (
       validators,
       inputValidators,
       [...inputPlan.parameters.keys()],
+      checkInputs,
       options.queryableModuleSpecifier
         ? factory.createTypeReferenceNode(
             factory.createQualifiedName(factory.createIdentifier('pgsid'), 'Queryable'),
@@ -739,6 +780,7 @@ const renderWrapper = (
   validators: readonly RenderedValidator[],
   inputValidators: readonly RenderedValidator[],
   jsonParameters: readonly number[],
+  checkInputs: readonly CheckInputPlan[],
   queryableType: ts.TypeNode,
   validationError: ts.Expression,
 ): ts.FunctionDeclaration => {
@@ -860,6 +902,64 @@ const renderWrapper = (
             factory.createPropertyAccessExpression(factory.createIdentifier('JSON'), 'parse'),
             undefined,
             [jsonEncoded(number)],
+          ),
+        ),
+      ),
+    )
+  }
+  for (const plan of checkInputs) {
+    const row = factory.createObjectLiteralExpression(
+      plan.columns.map(({ name, parameter }) => {
+        const parameterName = named.find((item) => item.index === parameter)?.name
+        const raw = factory.createElementAccessExpression(
+          factory.createIdentifier('params'),
+          parameterName
+            ? factory.createStringLiteral(parameterName)
+            : factory.createNumericLiteral(parameter - 1),
+        )
+        return factory.createPropertyAssignment(factory.createStringLiteral(name), raw)
+      }),
+    )
+    const result = factory.createIdentifier('check')
+    inputStatements.push(
+      factory.createForOfStatement(
+        undefined,
+        factory.createVariableDeclarationList(
+          [factory.createVariableDeclaration(result)],
+          ts.NodeFlags.Const,
+        ),
+        factory.createCallExpression(
+          factory.createIdentifier(
+            `evaluate${typeName(`${plan.table.schema}_${plan.table.name}`)}Checks`,
+          ),
+          undefined,
+          [row],
+        ),
+        factory.createIfStatement(
+          factory.createBinaryExpression(
+            factory.createPropertyAccessExpression(
+              factory.createPropertyAccessExpression(result, 'result'),
+              'certain',
+            ),
+            ts.SyntaxKind.AmpersandAmpersandToken,
+            factory.createBinaryExpression(
+              factory.createPropertyAccessExpression(
+                factory.createPropertyAccessExpression(result, 'result'),
+                'value',
+              ),
+              ts.SyntaxKind.EqualsEqualsEqualsToken,
+              factory.createFalse(),
+            ),
+          ),
+          factory.createThrowStatement(
+            factory.createNewExpression(
+              factory.createIdentifier('SqlCheckViolationError'),
+              undefined,
+              [
+                factory.createPropertyAccessExpression(result, 'owner'),
+                factory.createPropertyAccessExpression(result, 'constraint'),
+              ],
+            ),
           ),
         ),
       ),

@@ -31,6 +31,7 @@ import {
 } from './jsonschemas.js'
 import { createGoTypeContext } from './type-mapping.js'
 import { renderGoSchemaArtifacts } from './schema.js'
+import { renderGoSchemaChecks } from './sql/catalog-checks.js'
 
 export interface CreateGoCodegenTargetOptions {
   baseDirectory: string
@@ -92,6 +93,9 @@ export function createGoCodegenTarget(
       ? {
           renderSupport() {
             try {
+              const checkSupport = options.catalog
+                ? renderGoSchemaChecks(options.catalog.tables, 'pgsidpgx', options.catalog.domains)
+                : ''
               return {
                 artifacts: [...helpers.values()].flatMap((helper) => [
                   {
@@ -99,6 +103,15 @@ export function createGoCodegenTarget(
                     path: helper.path,
                     content: renderGoExecutorInterface(options.catalog, target.nulls === 'structs'),
                   },
+                  ...(checkSupport
+                    ? [
+                        {
+                          kind: 'helpers' as const,
+                          path: join(dirname(helper.path), 'checks.go'),
+                          content: checkSupport,
+                        },
+                      ]
+                    : []),
                   ...(Object.values(target.mappings.column).some(
                     (mapping) => typeof mapping === 'object' && 'dimensions' in mapping,
                   )
@@ -239,7 +252,7 @@ export function createGoCodegenTarget(
           schemaOutDir ? options.catalog : undefined,
           target.package ?? goPackageName(basename(directory)),
           queryContext,
-          { executor: true, helperImportPath: helper?.importPath },
+          { executor: true, helperImportPath: helper?.importPath, checkCatalog: options.catalog },
         )
         return {
           artifacts: rendered.types

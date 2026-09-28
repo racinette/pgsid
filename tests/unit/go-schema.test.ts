@@ -77,9 +77,10 @@ describe('renderGoSchemaArtifacts', () => {
     const result = renderGoSchemaArtifacts(catalog, config, schemas, '/generated', 'db', relations)
 
     expect(result.diagnostics).toEqual([])
-    expect(result.artifacts).toHaveLength(2)
+    expect(result.artifacts).toHaveLength(3)
     expect(result.artifacts.map((artifact) => artifact.path)).toEqual([
       '/generated/public/schema.go',
+      '/generated/public/checks.go',
       '/jsonschemas/eventpayload.go',
     ])
     const source = result.artifacts.map((artifact) => artifact.content).join('\n')
@@ -101,6 +102,7 @@ describe('renderGoSchemaArtifacts', () => {
     expect(source).toMatch(/Meta\s+\*EventMeta/u)
     expect(source).toContain('CreatedAt time.Time')
     expect(source).toContain('Actor *int64')
+    expect(source).toContain('func EvaluatePublicEventIdDomainChecks(')
   })
 
   it('diagnoses import cycles introduced by schema package boundaries', async () => {

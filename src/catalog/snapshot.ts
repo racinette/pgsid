@@ -112,6 +112,7 @@ interface ColumnRow {
   identity: string // 'a' | 'd' | ''
   collation_deterministic: boolean | null
   collation_is_default: boolean | null
+  collation_is_c: boolean | null
 }
 
 interface ConstraintRow {
@@ -214,9 +215,10 @@ interface DomainRow {
   name: string
   base_type_oid: number
   base_type_name: string
+  collation_is_c: boolean | null
   not_null: boolean
   default_expr: string | null
-  check_exprs: string[] | null
+  check_exprs: { name: string; definition: string }[] | null
 }
 
 interface InheritsRow {
@@ -661,6 +663,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       identity: mapIdentity(c.identity),
       collationDeterministic: c.collation_deterministic,
       collationIsDefault: c.collation_is_default,
+      collationIsC: c.collation_is_c,
     }
     const arr = columnsByRel.get(c.attrelid)
     if (arr) arr.push(ci)
@@ -980,6 +983,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       oid: d.oid,
       baseTypeOid: d.base_type_oid,
       baseTypeName: d.base_type_name,
+      collationIsC: d.collation_is_c,
       notNull: d.not_null,
       default: d.default_expr,
       checks: d.check_exprs ?? [],
@@ -1213,7 +1217,10 @@ async function queryColumns(pg: PGlite): Promise<ColumnRow[]> {
             co.collisdeterministic AS collation_deterministic,
             CASE WHEN a.attcollation = 0 THEN NULL
                  ELSE a.attcollation = 'pg_catalog."default"'::regcollation
-            END AS collation_is_default
+            END AS collation_is_default,
+            CASE WHEN a.attcollation = 0 THEN NULL
+                 ELSE a.attcollation = 'pg_catalog."C"'::regcollation
+            END AS collation_is_c
      FROM pg_attribute a
      JOIN pg_class c ON c.oid = a.attrelid
      JOIN pg_namespace n ON n.oid = c.relnamespace
@@ -1857,6 +1864,9 @@ async function queryDomains(pg: PGlite): Promise<DomainRow[]> {
     `SELECT t.oid, n.nspname AS schema, t.typname AS name,
             t.typbasetype AS base_type_oid,
             format_type(t.typbasetype, null) AS base_type_name,
+            CASE WHEN t.typcollation = 0 THEN NULL
+                 ELSE t.typcollation = 'pg_catalog."C"'::regcollation
+            END AS collation_is_c,
             t.typnotnull AS not_null,
             -- Domain defaults: typdefault is the pre-deparsed SQL text
             -- (e.g. 'unknown'::text). pg_get_expr(typdefaultbin, oid) returns
@@ -1867,7 +1877,9 @@ async function queryDomains(pg: PGlite): Promise<DomainRow[]> {
             -- arbitrarily — the rest were invisible to the diff, and the one
             -- kept depended on catalog row order, so the same domain could
             -- compare unequal to itself across a replay.
-            (SELECT array_agg(pg_get_constraintdef(con.oid) ORDER BY con.conname)
+            (SELECT json_agg(json_build_object('name', con.conname,
+                                               'definition', pg_get_constraintdef(con.oid))
+                             ORDER BY con.conname)
                FROM pg_constraint con
               WHERE con.contypid = t.oid AND con.contype = 'c') AS check_exprs
      FROM pg_type t

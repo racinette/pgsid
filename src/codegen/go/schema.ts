@@ -10,6 +10,7 @@ import type { Config, GoTypeImport, JsonSchemaDocument } from '../../config/sche
 import { interpretValueLineage } from '../../query/value-lineage.js'
 import type { SchemaRelationAnalyses } from '../../schema-analysis.js'
 import { go, printGoFile, type GoDeclaration, type GoField } from './ast.js'
+import { renderGoSchemaChecks } from './sql/catalog-checks.js'
 import {
   usesGoNullStructs,
   renderGoNulls,
@@ -216,6 +217,13 @@ export function renderGoSchemaArtifacts(
             declarations,
           }),
         })
+      const checks = renderGoSchemaChecks(
+        catalog.tables.filter((table) => table.schema === scope && table.relkind !== 'S'),
+        goPackageName(directory),
+        catalog.domains,
+        catalog.domains.filter((domain) => domain.schema === scope),
+      )
+      if (checks) artifacts.push({ path: join(outDir, directory, 'checks.go'), content: checks })
     }
     assertAcyclicPackages(dependencies)
     return {
