@@ -286,16 +286,15 @@ export function goExecutorDeclaration(
   }
   const checkStatements: GoStatement[] = checkInputs.flatMap((plan) => {
     const values = go.composite(
-      go.map(id('string'), go.any()),
+      member('pgsidpgx', `${goName(`${plan.table.schema}_${plan.table.name}`)}CheckInput`),
       plan.columns.map(({ name: column, parameter }) => {
         const target = parameterFields[parameter - 1]
         if (!target?.names?.[0])
           throw new Error(`Missing Go parameter $${parameter} for CHECK validation`)
-        return {
-          kind: 'key-value' as const,
-          left: go.string(column),
-          right: member('params', target.names[0]),
-        }
+        return go.keyValue(
+          goName(column),
+          go.call(member('pgsidpgx', 'KnownCheckValue'), [member('params', target.names[0])]),
+        )
       }),
     )
     const call = go.call(member('pgsidpgx', 'ValidateCheckInputs'), [

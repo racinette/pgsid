@@ -301,6 +301,31 @@ export const nullableGoType = (
         ? type
         : go.pointer(type)
 
+export const storedGoColumnNotNull = (column: ColumnInfo, catalog: CatalogSnapshot): boolean => {
+  if (column.notNull) return true
+  let oid = column.typeOid
+  const seen = new Set<number>()
+  while (!seen.has(oid)) {
+    seen.add(oid)
+    const domain = catalog.domains.find((item) => item.oid === oid)
+    if (!domain) return false
+    if (domain.notNull) return true
+    oid = domain.baseTypeOid
+  }
+  return false
+}
+
+export const storedGoDomainNotNull = (domain: DomainInfo, catalog: CatalogSnapshot): boolean => {
+  let current: DomainInfo | undefined = domain
+  const seen = new Set<number>()
+  while (current && !seen.has(current.oid)) {
+    if (current.notNull) return true
+    seen.add(current.oid)
+    current = catalog.domains.find((item) => item.oid === current?.baseTypeOid)
+  }
+  return false
+}
+
 export const addGoNullImport = (
   imports: GoTypeImport[],
   config: Config,

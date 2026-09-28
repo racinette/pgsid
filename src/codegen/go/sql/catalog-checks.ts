@@ -1,9 +1,20 @@
-import type { DomainInfo, TableInfo } from '../../../catalog/types.js'
+import type { CatalogSnapshot, ColumnInfo, DomainInfo, TableInfo } from '../../../catalog/types.js'
+import type { Config, GoTypeImport } from '../../../config/schema.js'
 import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
 import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
 import { go, printGoFile, type GoExpression } from '../ast.js'
+import { normalizeGoImports } from '../imports.js'
 import { goName } from '../names.js'
+import {
+  addGoNullImport,
+  nullableGoType,
+  resolveGoColumnType,
+  resolveGoPgType,
+  storedGoColumnNotNull,
+  storedGoDomainNotNull,
+  type GoTypeContext,
+} from '../type-mapping.js'
 import { goEvalBoolBackend } from './check.js'
 import { goSqlBackend } from './registry.js'
 import { goSqlRuntime } from './runtime.js'
@@ -13,12 +24,76 @@ export function renderGoSchemaChecks(
   packageName: string,
   domains: readonly DomainInfo[] = [],
   selectedDomains: readonly DomainInfo[] = domains,
+  catalog: CatalogSnapshot,
+  config: Config,
+  context?: GoTypeContext,
 ): string {
   const groups = catalogCheckGroups(tables, domains, selectedDomains)
   if (!groups.length) return ''
   const row = go.ident('row')
   const callInput = (helper: string, name: string): GoExpression =>
-    go.call(go.ident(helper), [row, go.string(name)])
+    go.call(go.ident(helper), [go.selector(row, goName(name))])
+  const imports: GoTypeImport[] = [{ path: 'reflect' }]
+  const schemaTypes = Boolean(config.sql.codegen?.go?.schema && context)
+  const typeConfig: Config =
+    !schemaTypes && config.sql.codegen?.go
+      ? {
+          ...config,
+          sql: {
+            ...config.sql,
+            codegen: {
+              ...config.sql.codegen,
+              go: { ...config.sql.codegen.go, domains: false },
+            },
+          },
+        }
+      : config
+  const groupInputs = groups.map((group) => {
+    const table =
+      group.kind === 'table'
+        ? tables.find(
+            (item) => item.schema === group.source.schema && item.name === group.source.name,
+          )
+        : undefined
+    const domain =
+      group.kind === 'domain'
+        ? selectedDomains.find(
+            (item) => item.schema === group.source.schema && item.name === group.source.name,
+          )
+        : undefined
+    const columns: readonly ColumnInfo[] = table?.columns ?? []
+    const fields = table
+      ? columns.map((column) => {
+          const resolved = schemaTypes
+            ? resolveGoColumnType(table.schema, table.name, column, catalog, config, context)
+            : resolveGoPgType(column.typeName, typeConfig, catalog, table.schema, column.typeOid)
+          imports.push(...resolved.imports)
+          const type = nullableGoType(resolved.type, storedGoColumnNotNull(column, catalog), config)
+          addGoNullImport(imports, config, context, type)
+          return { names: [goName(column.name)], type: go.index(go.ident('CheckOptional'), type) }
+        })
+      : domain
+        ? (() => {
+            const resolved = resolveGoPgType(
+              `${domain.schema}.${domain.name}`,
+              typeConfig,
+              catalog,
+              domain.schema,
+              domain.oid,
+              schemaTypes ? context : undefined,
+            )
+            imports.push(...resolved.imports)
+            const type = nullableGoType(
+              resolved.type,
+              storedGoDomainNotNull(domain, catalog),
+              config,
+            )
+            addGoNullImport(imports, config, context, type)
+            return [{ names: ['Value'], type: go.index(go.ident('CheckOptional'), type) }]
+          })()
+        : []
+    return { ...group, fields, inputType: `${goName(group.name)}CheckInput` }
+  })
   const inputHelper = (type: string): [string, string] | null => {
     if (type === 'pg_catalog.bool') return ['checkInputBoolean', 'SqlBoolean']
     if (/^pg_catalog\.int[248]$/u.test(type)) return ['checkInputInteger', 'SqlInteger']
@@ -44,7 +119,7 @@ export function renderGoSchemaChecks(
         ],
       }),
   }
-  const emitted = groups.map((group) => ({
+  const emitted = groupInputs.map((group) => ({
     ...group,
     results: group.checks.map(({ plan }) =>
       emitEvalBoolExpression(
@@ -70,8 +145,26 @@ export function renderGoSchemaChecks(
   const resultType = go.ident('CheckEvaluation')
   return printGoFile({
     package: packageName,
-    imports: [],
+    imports: normalizeGoImports(imports),
     source: `${goSqlRuntime(['SqlText', 'SqlInteger', 'SqlBoolean', 'SqlFloat', ...emitted.flatMap((group) => group.results.flatMap((result) => result.helpers))], packageName)}
+type CheckOptional[T any] struct { V T; Set bool }
+func KnownCheckValue[T any](value T) CheckOptional[T] { return CheckOptional[T]{V: value, Set: true} }
+
+func checkPrimitive(raw any) (any, bool) {
+  if raw == nil { return nil, true }
+  value := reflect.ValueOf(raw)
+  for value.Kind() == reflect.Pointer {
+    if value.IsNil() { return nil, true }
+    value = value.Elem()
+  }
+  switch value.Kind() {
+  case reflect.String: return value.String(), true
+  case reflect.Bool: return value.Bool(), true
+  case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64: return value.Int(), true
+  case reflect.Float32, reflect.Float64: return value.Float(), true
+  }
+  return nil, false
+}
 func checkTextRaw(raw any) (SqlText, bool) {
   switch value := raw.(type) {
   case nil: return SqlText{}, true
@@ -84,21 +177,26 @@ func checkTextRaw(raw any) (SqlText, bool) {
     if !value.SQLValid() { return SqlText{}, true }
     return checkTextRaw(value.SQLValue())
   }
+  if primitive, ok := checkPrimitive(raw); ok {
+    switch value := primitive.(type) {
+    case nil: return SqlText{}, true
+    case string: return SqlText{Value: value, Valid: true}, true
+    }
+  }
   return SqlText{}, false
 }
-func checkTextKnown(row map[string]any, name string) bool {
-  raw, ok := row[name]
-  if !ok { return false }
-  _, known := checkTextRaw(raw)
+func checkTextKnown[T any](field CheckOptional[T]) bool {
+  if !field.Set { return false }
+  _, known := checkTextRaw(any(field.V))
   return known
 }
-func checkTextValue(row map[string]any, name string) SqlText {
-  value, _ := checkTextRaw(row[name])
+func checkTextValue[T any](field CheckOptional[T]) SqlText {
+  value, _ := checkTextRaw(any(field.V))
   return value
 }
-func checkInputText(row map[string]any, name string) EvalValue[SqlText] {
-  if !checkTextKnown(row, name) { return EvalValue[SqlText]{} }
-  return EvalValue[SqlText]{Certain: true, Value: checkTextValue(row, name)}
+func checkInputText[T any](field CheckOptional[T]) EvalValue[SqlText] {
+  if !checkTextKnown(field) { return EvalValue[SqlText]{} }
+  return EvalValue[SqlText]{Certain: true, Value: checkTextValue(field)}
 }
 func checkIntegerRaw(raw any) (SqlInteger, bool) {
   switch value := raw.(type) {
@@ -124,12 +222,17 @@ func checkIntegerRaw(raw any) (SqlInteger, bool) {
     if !value.SQLValid() { return SqlInteger{}, true }
     return checkIntegerRaw(value.SQLValue())
   }
+  if primitive, ok := checkPrimitive(raw); ok {
+    switch value := primitive.(type) {
+    case nil: return SqlInteger{}, true
+    case int64: return SqlInteger{Value: value, Valid: true}, true
+    }
+  }
   return SqlInteger{}, false
 }
-func checkInputInteger(row map[string]any, name string) EvalValue[SqlInteger] {
-  raw, ok := row[name]
-  if !ok { return EvalValue[SqlInteger]{} }
-  value, known := checkIntegerRaw(raw)
+func checkInputInteger[T any](field CheckOptional[T]) EvalValue[SqlInteger] {
+  if !field.Set { return EvalValue[SqlInteger]{} }
+  value, known := checkIntegerRaw(any(field.V))
   return EvalValue[SqlInteger]{Certain: known, Value: value}
 }
 func checkBooleanRaw(raw any) (SqlBoolean, bool) {
@@ -144,12 +247,17 @@ func checkBooleanRaw(raw any) (SqlBoolean, bool) {
     if !value.SQLValid() { return SqlBoolean{}, true }
     return checkBooleanRaw(value.SQLValue())
   }
+  if primitive, ok := checkPrimitive(raw); ok {
+    switch value := primitive.(type) {
+    case nil: return SqlBoolean{}, true
+    case bool: return SqlBoolean{Value: value, Valid: true}, true
+    }
+  }
   return SqlBoolean{}, false
 }
-func checkInputBoolean(row map[string]any, name string) EvalValue[SqlBoolean] {
-  raw, ok := row[name]
-  if !ok { return EvalValue[SqlBoolean]{} }
-  value, known := checkBooleanRaw(raw)
+func checkInputBoolean[T any](field CheckOptional[T]) EvalValue[SqlBoolean] {
+  if !field.Set { return EvalValue[SqlBoolean]{} }
+  value, known := checkBooleanRaw(any(field.V))
   return EvalValue[SqlBoolean]{Certain: known, Value: value}
 }
 func checkFloatRaw(raw any) (SqlFloat, bool) {
@@ -168,12 +276,17 @@ func checkFloatRaw(raw any) (SqlFloat, bool) {
     if !value.SQLValid() { return SqlFloat{}, true }
     return checkFloatRaw(value.SQLValue())
   }
+  if primitive, ok := checkPrimitive(raw); ok {
+    switch value := primitive.(type) {
+    case nil: return SqlFloat{}, true
+    case float64: return SqlFloat{Value: value, Valid: true}, true
+    }
+  }
   return SqlFloat{}, false
 }
-func checkInputFloat(row map[string]any, name string) EvalValue[SqlFloat] {
-  raw, ok := row[name]
-  if !ok { return EvalValue[SqlFloat]{} }
-  value, known := checkFloatRaw(raw)
+func checkInputFloat[T any](field CheckOptional[T]) EvalValue[SqlFloat] {
+  if !field.Set { return EvalValue[SqlFloat]{} }
+  value, known := checkFloatRaw(any(field.V))
   return EvalValue[SqlFloat]{Certain: known, Value: value}
 }
 
@@ -189,7 +302,7 @@ func (e *CheckEvaluationError) Error() string {
 }
 func (e *CheckEvaluationError) SQLState() string { return e.State }
 
-func ValidateCheckInputs(input map[string]any, evaluate func(map[string]any) []CheckEvaluation) error {
+func ValidateCheckInputs[T any](input T, evaluate func(T) []CheckEvaluation) error {
   for _, check := range evaluate(input) {
     if !check.Result.Certain { continue }
     value := check.Result.Value
@@ -203,6 +316,7 @@ func ValidateCheckInputs(input map[string]any, evaluate func(map[string]any) []C
   return nil
 }`,
     declarations: [
+      ...emitted.map(({ inputType, fields }) => go.type(inputType, go.struct(fields))),
       go.type(
         'CheckEvaluation',
         go.struct([
@@ -211,10 +325,10 @@ func ValidateCheckInputs(input map[string]any, evaluate func(map[string]any) []C
           { names: ['Result'], type: go.ident('EvalBool') },
         ]),
       ),
-      ...emitted.map(({ name, kind, checks, results }) =>
+      ...emitted.map(({ name, kind, checks, results, inputType }) =>
         go.function(
           `Evaluate${goName(name)}${kind === 'domain' ? 'DomainChecks' : 'Checks'}`,
-          [{ names: ['row'], type: go.map(go.ident('string'), go.any()) }],
+          [{ names: ['row'], type: go.ident(inputType) }],
           [{ type: go.slice(resultType) }],
           [
             go.return(

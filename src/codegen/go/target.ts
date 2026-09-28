@@ -93,74 +93,95 @@ export function createGoCodegenTarget(
       ? {
           renderSupport() {
             try {
-              const checkSupport = options.catalog
-                ? renderGoSchemaChecks(options.catalog.tables, 'pgsidpgx', options.catalog.domains)
-                : ''
               return {
-                artifacts: [...helpers.values()].flatMap((helper) => [
-                  {
-                    kind: 'helpers',
-                    path: helper.path,
-                    content: renderGoExecutorInterface(options.catalog, target.nulls === 'structs'),
-                  },
-                  ...(checkSupport
-                    ? [
-                        {
-                          kind: 'helpers' as const,
-                          path: join(dirname(helper.path), 'checks.go'),
-                          content: checkSupport,
-                        },
-                      ]
-                    : []),
-                  ...(Object.values(target.mappings.column).some(
-                    (mapping) => typeof mapping === 'object' && 'dimensions' in mapping,
-                  )
-                    ? [
-                        {
-                          kind: 'helpers' as const,
-                          path: join(dirname(helper.path), 'array.go'),
-                          content: runtimeSource('array.go'),
-                        },
-                      ]
-                    : []),
-                  ...(Object.values(goJsonSchemaBindings(config, schemas).columns).some(
-                    (binding) => binding.runtimeValidation,
-                  )
-                    ? [
-                        {
-                          kind: 'helpers',
-                          path: join(dirname(helper.path), 'validation.go'),
-                          content: renderGoValidation(
-                            schemaImportPath
-                              ? `${goJsonSchemasImportPath(schemaImportPath)}/pgsid`
-                              : `${helper.importPath.replace(/\/pgsid\/pgx$/u, '')}/jsonschemas/pgsid`,
-                          ),
-                        },
-                      ]
-                    : []),
-                  ...(!schemaOutDir && usesGoNullStructs(config)
-                    ? [
-                        {
-                          kind: 'helpers',
-                          path: join(dirname(dirname(helper.path)), 'null.go'),
-                          content: renderGoNulls(),
-                        },
-                      ]
-                    : []),
-                  ...(!schemaOutDir
-                    ? renderGoJsonSchemaArtifacts(
-                        referencedGoJsonSchemas(config),
-                        schemas,
-                        join(dirname(dirname(dirname(helper.path))), 'jsonschemas'),
-                        {
-                          nulls: goJsonNulls(config),
+                artifacts: [...helpers.values()].flatMap((helper) => {
+                  const checkContext =
+                    typeContext ??
+                    (usesGoNullStructs(config)
+                      ? {
+                          importPath: helper.importPath,
                           nullsImportPath: helper.importPath.replace(/\/pgx$/u, ''),
-                          validationNames: runtimeGoJsonSchemas(config),
-                          validationImportPath: `${helper.importPath.replace(/\/pgsid\/pgx$/u, '')}/jsonschemas/pgsid`,
-                        },
-                      ).map((item) => ({ ...item, kind: 'helpers' }))
-                    : []),
-                ]),
+                        }
+                      : undefined)
+                  const checkSupport = options.catalog
+                    ? renderGoSchemaChecks(
+                        options.catalog.tables,
+                        'pgsidpgx',
+                        options.catalog.domains,
+                        options.catalog.domains,
+                        options.catalog,
+                        config,
+                        checkContext,
+                      )
+                    : ''
+                  return [
+                    {
+                      kind: 'helpers',
+                      path: helper.path,
+                      content: renderGoExecutorInterface(
+                        options.catalog,
+                        target.nulls === 'structs',
+                      ),
+                    },
+                    ...(checkSupport
+                      ? [
+                          {
+                            kind: 'helpers' as const,
+                            path: join(dirname(helper.path), 'checks.go'),
+                            content: checkSupport,
+                          },
+                        ]
+                      : []),
+                    ...(Object.values(target.mappings.column).some(
+                      (mapping) => typeof mapping === 'object' && 'dimensions' in mapping,
+                    )
+                      ? [
+                          {
+                            kind: 'helpers' as const,
+                            path: join(dirname(helper.path), 'array.go'),
+                            content: runtimeSource('array.go'),
+                          },
+                        ]
+                      : []),
+                    ...(Object.values(goJsonSchemaBindings(config, schemas).columns).some(
+                      (binding) => binding.runtimeValidation,
+                    )
+                      ? [
+                          {
+                            kind: 'helpers',
+                            path: join(dirname(helper.path), 'validation.go'),
+                            content: renderGoValidation(
+                              schemaImportPath
+                                ? `${goJsonSchemasImportPath(schemaImportPath)}/pgsid`
+                                : `${helper.importPath.replace(/\/pgsid\/pgx$/u, '')}/jsonschemas/pgsid`,
+                            ),
+                          },
+                        ]
+                      : []),
+                    ...(!schemaOutDir && usesGoNullStructs(config)
+                      ? [
+                          {
+                            kind: 'helpers',
+                            path: join(dirname(dirname(helper.path)), 'null.go'),
+                            content: renderGoNulls(),
+                          },
+                        ]
+                      : []),
+                    ...(!schemaOutDir
+                      ? renderGoJsonSchemaArtifacts(
+                          referencedGoJsonSchemas(config),
+                          schemas,
+                          join(dirname(dirname(dirname(helper.path))), 'jsonschemas'),
+                          {
+                            nulls: goJsonNulls(config),
+                            nullsImportPath: helper.importPath.replace(/\/pgx$/u, ''),
+                            validationNames: runtimeGoJsonSchemas(config),
+                            validationImportPath: `${helper.importPath.replace(/\/pgsid\/pgx$/u, '')}/jsonschemas/pgsid`,
+                          },
+                        ).map((item) => ({ ...item, kind: 'helpers' }))
+                      : []),
+                  ]
+                }),
                 diagnostics: [],
               }
             } catch (error) {

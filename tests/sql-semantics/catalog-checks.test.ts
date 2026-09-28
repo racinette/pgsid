@@ -24,6 +24,8 @@ import { goSqlRuntime } from '../../src/codegen/go/sql/runtime.js'
 import { go, printGoFile } from '../../src/codegen/go/ast.js'
 import { renderTypescriptSchemaChecks } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { renderGoSchemaChecks } from '../../src/codegen/go/sql/catalog-checks.js'
+import { renderGoNulls } from '../../src/codegen/go/nulls.js'
+import { createGoTypeContext } from '../../src/codegen/go/type-mapping.js'
 import { renderTypescriptQueryArtifacts } from '../../src/codegen/typescript/query.js'
 import { renderGoQueryArtifacts } from '../../src/codegen/go/query.js'
 import { planCheckInputs } from '../../src/codegen/shared/check-inputs.js'
@@ -41,11 +43,14 @@ describe('catalog CHECK lowering', () => {
     pg = await PGlite.create()
     await parse('SELECT 1')
     await pg.exec(`CREATE TABLE public.regulated (
+      id bigint PRIMARY KEY,
+      last_name text,
       email text COLLATE "C",
       pattern text,
       plain text,
       amount integer,
       enabled boolean,
+      CONSTRAINT id_positive CHECK (id > 0),
       CONSTRAINT email_format CHECK (email ~ '^a+$'),
       CONSTRAINT dynamic_format CHECK (email ~ pattern),
       CONSTRAINT with_unknown CHECK ((email ~ '^a+$') AND amount > 0),
@@ -303,23 +308,37 @@ func main() {
     expect(
       evaluateExtra({ enabled: true }).find((item) => item.constraint === 'enabled_guard')?.result,
     ).toEqual({ certain: true, value: true })
+    expect(
+      evaluateExtra({ id: -1n }).find((item) => item.constraint === 'id_positive')?.result,
+    ).toEqual({ certain: true, value: false })
 
-    const goSource = `${renderGoSchemaChecks([table], 'main')}
+    const goChecks = renderGoSchemaChecks(
+      [table],
+      'main',
+      [],
+      [],
+      catalog,
+      parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go: {}\n'),
+    )
+    expect(goChecks).toMatch(/Id\s+CheckOptional\[int64\]/u)
+    expect(goChecks).toMatch(/LastName\s+CheckOptional\[\*string\]/u)
+    const goSource = `${goChecks}
+func ptr[T any](value T) *T { return &value }
 func main() {
-  rows := []map[string]any{
+  rows := []PublicRegulatedCheckInput{
     {},
-    {"email": SqlText{}},
-    {"email": SqlText{Value: "b", Valid: true}},
-    {"email": SqlText{Value: "a", Valid: true}},
-    {"email": "a", "amount": int64(-1)},
-    {"email": "a", "amount": int64(1)},
-    {"email": ""},
+    {Email: KnownCheckValue((*string)(nil))},
+    {Email: KnownCheckValue(ptr("b"))},
+    {Email: KnownCheckValue(ptr("a"))},
+    {Email: KnownCheckValue(ptr("a")), Amount: KnownCheckValue(ptr(int32(-1)))},
+    {Email: KnownCheckValue(ptr("a")), Amount: KnownCheckValue(ptr(int32(1)))},
+    {Email: KnownCheckValue(ptr(""))},
   }
   results := [][]CheckEvaluation{}
   for _, row := range rows { results = append(results, EvaluatePublicRegulatedChecks(row)) }
   if err := json.NewEncoder(os.Stdout).Encode(results); err != nil { panic(err) }
   failures := []bool{}
-  for _, input := range []map[string]any{{}, {"email": "b"}, {"email": "a"}, {"email": (*string)(nil)}, {"email": "a", "amount": int16(-1)}} {
+  for _, input := range []PublicRegulatedCheckInput{{}, {Email: KnownCheckValue(ptr("b"))}, {Email: KnownCheckValue(ptr("a"))}, {Email: KnownCheckValue((*string)(nil))}, {Id: KnownCheckValue(int64(-1))}} {
     failures = append(failures, ValidateCheckInputs(input, EvaluatePublicRegulatedChecks) != nil)
   }
   if err := json.NewEncoder(os.Stdout).Encode(failures); err != nil { panic(err) }
@@ -360,6 +379,74 @@ func main() {
         )
       }
       expect(JSON.parse(failuresLine!)).toEqual([false, true, false, false, true])
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
+
+  it('types partial Go fields with the configured SQL null representation', async () => {
+    const catalog = await snapshotCatalog(pg)
+    const table = catalog.tables.find((item) => item.name === 'regulated')!
+    const config = parseConfigString(
+      'schema: schema.sql\nsql:\n  codegen:\n    go:\n      nulls: structs\n',
+    )
+    const context = createGoTypeContext('example.com/typed/schema', config, catalog, 'public')
+    const checks = renderGoSchemaChecks([table], 'main', [], [], catalog, config, context)
+    expect(checks).toMatch(/Id\s+CheckOptional\[int64\]/u)
+    expect(checks).toMatch(/LastName\s+CheckOptional\[pgsid\.Null\[string\]\]/u)
+    const handle = catalog.domains.find((item) => item.name === 'handle')!
+    const standalone = renderGoSchemaChecks(
+      [],
+      'main',
+      catalog.domains,
+      [handle],
+      catalog,
+      parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go: {}\n'),
+    )
+    expect(standalone).toMatch(/Value\s+CheckOptional\[\*string\]/u)
+    const standaloneStructs = renderGoSchemaChecks(
+      [],
+      'main',
+      catalog.domains,
+      [handle],
+      catalog,
+      config,
+      {
+        importPath: 'example.com/typed/pgsid/pgx',
+        nullsImportPath: 'example.com/typed/pgsid',
+      },
+    )
+    expect(standaloneStructs).toMatch(/Value\s+CheckOptional\[pgsid\.Null\[string\]\]/u)
+    const directory = await mkdtemp(join(tmpdir(), 'pgsid-typed-check-'))
+    try {
+      await mkdir(join(directory, 'pgsid'))
+      await mkdir(join(directory, 'standalone'))
+      await writeFile(join(directory, 'go.mod'), 'module example.com/typed\n\ngo 1.24\n')
+      await writeFile(join(directory, 'pgsid', 'null.go'), renderGoNulls())
+      await writeFile(join(directory, 'checks.go'), checks)
+      await writeFile(join(directory, 'standalone', 'checks.go'), standaloneStructs)
+      await writeFile(join(directory, 'main.go'), 'package main\nfunc main() {}\n')
+      await writeFile(
+        join(directory, 'checks_test.go'),
+        `package main
+import (
+  "testing"
+  pgsid "example.com/typed/pgsid"
+)
+func TestPartialCheckInputs(t *testing.T) {
+  evaluate := EvaluatePublicRegulatedChecks
+  if err := ValidateCheckInputs(PublicRegulatedCheckInput{}, evaluate); err != nil { t.Fatal(err) }
+  nullEmail := PublicRegulatedCheckInput{Email: KnownCheckValue(pgsid.Null[string]{})}
+  if err := ValidateCheckInputs(nullEmail, evaluate); err != nil { t.Fatal(err) }
+  badEmail := PublicRegulatedCheckInput{Email: KnownCheckValue(pgsid.Null[string]{V: "b", Valid: true})}
+  if err := ValidateCheckInputs(badEmail, evaluate); err == nil { t.Fatal("expected CHECK failure") }
+}
+`,
+      )
+      await run(process.env.PGSID_GO_BINARY ?? 'go', ['test', './...'], {
+        cwd: directory,
+        env: { ...process.env, GOCACHE: join(tmpdir(), 'pgsid-sql-semantics-go-cache') },
+      })
     } finally {
       await rm(directory, { recursive: true, force: true })
     }
@@ -513,7 +600,7 @@ func main() {
       await writeFile(join(directory, 'go.mod'), 'module example.com/checks\n\ngo 1.24\n')
       await writeFile(
         join(helperDir, 'checks.go'),
-        renderGoSchemaChecks([plans[0]!.table], 'pgsidpgx'),
+        renderGoSchemaChecks([plans[0]!.table], 'pgsidpgx', [], [], catalog, config),
       )
       await writeFile(join(directory, 'query.go'), goQuery.types!)
       await writeFile(

@@ -15,8 +15,10 @@ import { assertUniqueGoNames, GeneratedGoNameCollisionError, goName } from './na
 import {
   addGoNullImport,
   nullableGoType,
+  resolveGoColumnType,
   resolveGoPgType,
   resolveGoValueType,
+  storedGoColumnNotNull,
 } from './type-mapping.js'
 
 export interface GoQueryArtifacts {
@@ -156,7 +158,7 @@ const renderQuery = (
     config.sql.codegen?.go?.mappings.column ?? {},
     catalog,
   )
-  const checkInputs = executor
+  let checkInputs = executor
     ? planCheckInputs(
         analysis.query.definition.stmt,
         analysis.writeLineage ?? [],
@@ -265,6 +267,28 @@ const renderQuery = (
   })
   assertUniqueFields(parameterFields, analysis.query.name, 'parameter')
   declarations.push(go.type(`${queryName}Params`, go.struct(parameterFields)))
+  checkInputs = checkInputs.flatMap((plan) => {
+    const columns = plan.columns.filter(({ name, parameter }) => {
+      const column = plan.table.columns.find((item) => item.name === name)
+      const parameterType = parameterFields[parameter - 1]?.type
+      if (!column || !parameterType || !checkCatalog) return false
+      const resolved = resolveGoColumnType(
+        plan.table.schema,
+        plan.table.name,
+        column,
+        checkCatalog,
+        config,
+        context,
+      )
+      const inputType = nullableGoType(
+        resolved.type,
+        storedGoColumnNotNull(column, checkCatalog),
+        config,
+      )
+      return JSON.stringify(inputType) === JSON.stringify(parameterType)
+    })
+    return columns.length ? [{ ...plan, columns }] : []
+  })
   if (checkInputs.length) {
     if (!helperImportPath)
       throw new Error('Go CHECK input validation requires a helper import path')

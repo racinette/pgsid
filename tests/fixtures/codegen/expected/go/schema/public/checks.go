@@ -1,6 +1,9 @@
 package public
 
-import "strconv"
+import (
+	"reflect"
+	"strconv"
+)
 
 type SqlText struct {
 	Value string
@@ -68,6 +71,38 @@ type EvalBool = EvalValue[SqlBoolean]
 func evalBoolFromValue(value EvalValue[SqlBoolean]) EvalBool {
 	return EvalBool{Certain: value.Certain, Value: value.Value}
 }
+
+type CheckOptional[T any] struct {
+	V   T
+	Set bool
+}
+
+func KnownCheckValue[T any](value T) CheckOptional[T] {
+	return CheckOptional[T]{V: value, Set: true}
+}
+func checkPrimitive(raw any) (any, bool) {
+	if raw == nil {
+		return nil, true
+	}
+	value := reflect.ValueOf(raw)
+	for value.Kind() == reflect.Pointer {
+		if value.IsNil() {
+			return nil, true
+		}
+		value = value.Elem()
+	}
+	switch value.Kind() {
+	case reflect.String:
+		return value.String(), true
+	case reflect.Bool:
+		return value.Bool(), true
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return value.Int(), true
+	case reflect.Float32, reflect.Float64:
+		return value.Float(), true
+	}
+	return nil, false
+}
 func checkTextRaw(raw any) (SqlText, bool) {
 	switch value := raw.(type) {
 	case nil:
@@ -90,25 +125,32 @@ func checkTextRaw(raw any) (SqlText, bool) {
 		}
 		return checkTextRaw(value.SQLValue())
 	}
+	if primitive, ok := checkPrimitive(raw); ok {
+		switch value := primitive.(type) {
+		case nil:
+			return SqlText{}, true
+		case string:
+			return SqlText{Value: value, Valid: true}, true
+		}
+	}
 	return SqlText{}, false
 }
-func checkTextKnown(row map[string]any, name string) bool {
-	raw, ok := row[name]
-	if !ok {
+func checkTextKnown[T any](field CheckOptional[T]) bool {
+	if !field.Set {
 		return false
 	}
-	_, known := checkTextRaw(raw)
+	_, known := checkTextRaw(any(field.V))
 	return known
 }
-func checkTextValue(row map[string]any, name string) SqlText {
-	value, _ := checkTextRaw(row[name])
+func checkTextValue[T any](field CheckOptional[T]) SqlText {
+	value, _ := checkTextRaw(any(field.V))
 	return value
 }
-func checkInputText(row map[string]any, name string) EvalValue[SqlText] {
-	if !checkTextKnown(row, name) {
+func checkInputText[T any](field CheckOptional[T]) EvalValue[SqlText] {
+	if !checkTextKnown(field) {
 		return EvalValue[SqlText]{}
 	}
-	return EvalValue[SqlText]{Certain: true, Value: checkTextValue(row, name)}
+	return EvalValue[SqlText]{Certain: true, Value: checkTextValue(field)}
 }
 func checkIntegerRaw(raw any) (SqlInteger, bool) {
 	switch value := raw.(type) {
@@ -153,14 +195,21 @@ func checkIntegerRaw(raw any) (SqlInteger, bool) {
 		}
 		return checkIntegerRaw(value.SQLValue())
 	}
+	if primitive, ok := checkPrimitive(raw); ok {
+		switch value := primitive.(type) {
+		case nil:
+			return SqlInteger{}, true
+		case int64:
+			return SqlInteger{Value: value, Valid: true}, true
+		}
+	}
 	return SqlInteger{}, false
 }
-func checkInputInteger(row map[string]any, name string) EvalValue[SqlInteger] {
-	raw, ok := row[name]
-	if !ok {
+func checkInputInteger[T any](field CheckOptional[T]) EvalValue[SqlInteger] {
+	if !field.Set {
 		return EvalValue[SqlInteger]{}
 	}
-	value, known := checkIntegerRaw(raw)
+	value, known := checkIntegerRaw(any(field.V))
 	return EvalValue[SqlInteger]{Certain: known, Value: value}
 }
 func checkBooleanRaw(raw any) (SqlBoolean, bool) {
@@ -185,14 +234,21 @@ func checkBooleanRaw(raw any) (SqlBoolean, bool) {
 		}
 		return checkBooleanRaw(value.SQLValue())
 	}
+	if primitive, ok := checkPrimitive(raw); ok {
+		switch value := primitive.(type) {
+		case nil:
+			return SqlBoolean{}, true
+		case bool:
+			return SqlBoolean{Value: value, Valid: true}, true
+		}
+	}
 	return SqlBoolean{}, false
 }
-func checkInputBoolean(row map[string]any, name string) EvalValue[SqlBoolean] {
-	raw, ok := row[name]
-	if !ok {
+func checkInputBoolean[T any](field CheckOptional[T]) EvalValue[SqlBoolean] {
+	if !field.Set {
 		return EvalValue[SqlBoolean]{}
 	}
-	value, known := checkBooleanRaw(raw)
+	value, known := checkBooleanRaw(any(field.V))
 	return EvalValue[SqlBoolean]{Certain: known, Value: value}
 }
 func checkFloatRaw(raw any) (SqlFloat, bool) {
@@ -224,14 +280,21 @@ func checkFloatRaw(raw any) (SqlFloat, bool) {
 		}
 		return checkFloatRaw(value.SQLValue())
 	}
+	if primitive, ok := checkPrimitive(raw); ok {
+		switch value := primitive.(type) {
+		case nil:
+			return SqlFloat{}, true
+		case float64:
+			return SqlFloat{Value: value, Valid: true}, true
+		}
+	}
 	return SqlFloat{}, false
 }
-func checkInputFloat(row map[string]any, name string) EvalValue[SqlFloat] {
-	raw, ok := row[name]
-	if !ok {
+func checkInputFloat[T any](field CheckOptional[T]) EvalValue[SqlFloat] {
+	if !field.Set {
 		return EvalValue[SqlFloat]{}
 	}
-	value, known := checkFloatRaw(raw)
+	value, known := checkFloatRaw(any(field.V))
 	return EvalValue[SqlFloat]{Certain: known, Value: value}
 }
 
@@ -252,7 +315,7 @@ func (e *CheckEvaluationError) Error() string {
 func (e *CheckEvaluationError) SQLState() string {
 	return e.State
 }
-func ValidateCheckInputs(input map[string]any, evaluate func(map[string]any) []CheckEvaluation) error {
+func ValidateCheckInputs[T any](input T, evaluate func(T) []CheckEvaluation) error {
 	for _, check := range evaluate(input) {
 		if !check.Result.Certain {
 			continue
@@ -268,15 +331,21 @@ func ValidateCheckInputs(input map[string]any, evaluate func(map[string]any) []C
 	return nil
 }
 
+type PublicDefaultEventIdCheckInput struct {
+	Value CheckOptional[DefaultEventId]
+}
+type PublicEventIdCheckInput struct {
+	Value CheckOptional[EventId]
+}
 type CheckEvaluation struct {
 	Owner      string
 	Constraint string
 	Result     EvalBool
 }
 
-func EvaluatePublicDefaultEventIdDomainChecks(row map[string]any) []CheckEvaluation {
+func EvaluatePublicDefaultEventIdDomainChecks(row PublicDefaultEventIdCheckInput) []CheckEvaluation {
 	return []CheckEvaluation{CheckEvaluation{Owner: "public.event_id", Constraint: "event_id_check", Result: evalBoolFromValue(func() EvalValue[SqlBoolean] {
-		argument0 := checkInputInteger(row, "value")
+		argument0 := checkInputInteger(row.Value)
 		argument1 := int4Input("0")
 		if argument0.Certain && argument0.Value.Error != "" {
 			return EvalValue[SqlBoolean]{Certain: true, Value: SqlBoolean{Error: argument0.Value.Error}}
@@ -290,9 +359,9 @@ func EvaluatePublicDefaultEventIdDomainChecks(row map[string]any) []CheckEvaluat
 		return EvalValue[SqlBoolean]{Certain: true, Value: integerGt(argument0.Value, argument1)}
 	}())}}
 }
-func EvaluatePublicEventIdDomainChecks(row map[string]any) []CheckEvaluation {
+func EvaluatePublicEventIdDomainChecks(row PublicEventIdCheckInput) []CheckEvaluation {
 	return []CheckEvaluation{CheckEvaluation{Owner: "public.event_id", Constraint: "event_id_check", Result: evalBoolFromValue(func() EvalValue[SqlBoolean] {
-		argument0 := checkInputInteger(row, "value")
+		argument0 := checkInputInteger(row.Value)
 		argument1 := int4Input("0")
 		if argument0.Certain && argument0.Value.Error != "" {
 			return EvalValue[SqlBoolean]{Certain: true, Value: SqlBoolean{Error: argument0.Value.Error}}
