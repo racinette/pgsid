@@ -5,23 +5,8 @@ import (
 	"strconv"
 )
 
-type SqlText struct {
-	Value string
-	Valid bool
-	Error string
-}
 type SqlInteger struct {
 	Value int64
-	Valid bool
-	Error string
-}
-type SqlBoolean struct {
-	Value bool
-	Valid bool
-	Error string
-}
-type SqlFloat struct {
-	Value float64
 	Valid bool
 	Error string
 }
@@ -40,6 +25,13 @@ func sqlIntegerInput(value string, bits int) SqlInteger {
 func int4Input(value string) SqlInteger {
 	return sqlIntegerInput(value, 32)
 }
+
+type SqlBoolean struct {
+	Value bool
+	Valid bool
+	Error string
+}
+
 func sqlIntegerCompare(left, right SqlInteger) SqlInteger {
 	if left.Error != "" {
 		return left
@@ -103,55 +95,6 @@ func checkPrimitive(raw any) (any, bool) {
 	}
 	return nil, false
 }
-func checkTextRaw(raw any) (SqlText, bool) {
-	switch value := raw.(type) {
-	case nil:
-		return SqlText{}, true
-	case SqlText:
-		return value, true
-	case string:
-		return SqlText{Value: value, Valid: true}, true
-	case *string:
-		if value == nil {
-			return SqlText{}, true
-		}
-		return SqlText{Value: *value, Valid: true}, true
-	case interface {
-		SQLValid() bool
-		SQLValue() any
-	}:
-		if !value.SQLValid() {
-			return SqlText{}, true
-		}
-		return checkTextRaw(value.SQLValue())
-	}
-	if primitive, ok := checkPrimitive(raw); ok {
-		switch value := primitive.(type) {
-		case nil:
-			return SqlText{}, true
-		case string:
-			return SqlText{Value: value, Valid: true}, true
-		}
-	}
-	return SqlText{}, false
-}
-func checkTextKnown[T any](field CheckOptional[T]) bool {
-	if !field.Set {
-		return false
-	}
-	_, known := checkTextRaw(any(field.V))
-	return known
-}
-func checkTextValue[T any](field CheckOptional[T]) SqlText {
-	value, _ := checkTextRaw(any(field.V))
-	return value
-}
-func checkInputText[T any](field CheckOptional[T]) EvalValue[SqlText] {
-	if !checkTextKnown(field) {
-		return EvalValue[SqlText]{}
-	}
-	return EvalValue[SqlText]{Certain: true, Value: checkTextValue(field)}
-}
 func checkIntegerRaw(raw any) (SqlInteger, bool) {
 	switch value := raw.(type) {
 	case nil:
@@ -211,91 +154,6 @@ func checkInputInteger[T any](field CheckOptional[T]) EvalValue[SqlInteger] {
 	}
 	value, known := checkIntegerRaw(any(field.V))
 	return EvalValue[SqlInteger]{Certain: known, Value: value}
-}
-func checkBooleanRaw(raw any) (SqlBoolean, bool) {
-	switch value := raw.(type) {
-	case nil:
-		return SqlBoolean{}, true
-	case SqlBoolean:
-		return value, true
-	case bool:
-		return SqlBoolean{Value: value, Valid: true}, true
-	case *bool:
-		if value == nil {
-			return SqlBoolean{}, true
-		}
-		return checkBooleanRaw(*value)
-	case interface {
-		SQLValid() bool
-		SQLValue() any
-	}:
-		if !value.SQLValid() {
-			return SqlBoolean{}, true
-		}
-		return checkBooleanRaw(value.SQLValue())
-	}
-	if primitive, ok := checkPrimitive(raw); ok {
-		switch value := primitive.(type) {
-		case nil:
-			return SqlBoolean{}, true
-		case bool:
-			return SqlBoolean{Value: value, Valid: true}, true
-		}
-	}
-	return SqlBoolean{}, false
-}
-func checkInputBoolean[T any](field CheckOptional[T]) EvalValue[SqlBoolean] {
-	if !field.Set {
-		return EvalValue[SqlBoolean]{}
-	}
-	value, known := checkBooleanRaw(any(field.V))
-	return EvalValue[SqlBoolean]{Certain: known, Value: value}
-}
-func checkFloatRaw(raw any) (SqlFloat, bool) {
-	switch value := raw.(type) {
-	case nil:
-		return SqlFloat{}, true
-	case SqlFloat:
-		return value, true
-	case float32:
-		return SqlFloat{Value: float64(value), Valid: true}, true
-	case float64:
-		return SqlFloat{Value: value, Valid: true}, true
-	case *float32:
-		if value == nil {
-			return SqlFloat{}, true
-		}
-		return checkFloatRaw(*value)
-	case *float64:
-		if value == nil {
-			return SqlFloat{}, true
-		}
-		return checkFloatRaw(*value)
-	case interface {
-		SQLValid() bool
-		SQLValue() any
-	}:
-		if !value.SQLValid() {
-			return SqlFloat{}, true
-		}
-		return checkFloatRaw(value.SQLValue())
-	}
-	if primitive, ok := checkPrimitive(raw); ok {
-		switch value := primitive.(type) {
-		case nil:
-			return SqlFloat{}, true
-		case float64:
-			return SqlFloat{Value: value, Valid: true}, true
-		}
-	}
-	return SqlFloat{}, false
-}
-func checkInputFloat[T any](field CheckOptional[T]) EvalValue[SqlFloat] {
-	if !field.Set {
-		return EvalValue[SqlFloat]{}
-	}
-	value, known := checkFloatRaw(any(field.V))
-	return EvalValue[SqlFloat]{Certain: known, Value: value}
 }
 
 type CheckViolationError struct{ Owner, Constraint string }

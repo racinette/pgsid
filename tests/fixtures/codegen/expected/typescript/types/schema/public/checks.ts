@@ -31,21 +31,6 @@ function evalValueUncertain<T>(): EvalValue<T> {
 function checkRawInput(row: object, name: string): unknown {
     return Object.hasOwn(row, name) ? Reflect.get(row, name) : undefined;
 }
-function checkTextKnown(row: object, name: string): boolean {
-    const value = checkRawInput(row, name);
-    return value === null || typeof value === "string";
-}
-function checkTextValue(row: object, name: string): string | null {
-    const value = checkRawInput(row, name);
-    return typeof value === "string" ? value : null;
-}
-function checkInputText(row: object, name: string): EvalValue<string> {
-    return checkTextKnown(row, name) ? { certain: true, value: checkTextValue(row, name) } : { certain: false };
-}
-function checkInputBoolean(row: object, name: string): EvalValue<boolean> {
-    const value = checkRawInput(row, name);
-    return value === null || typeof value === "boolean" ? { certain: true, value } : { certain: false };
-}
 function checkInputInteger(row: object, name: string): EvalValue<bigint> {
     const value = checkRawInput(row, name);
     if (value === null)
@@ -55,10 +40,6 @@ function checkInputInteger(row: object, name: string): EvalValue<bigint> {
     if (typeof value === "number" && Number.isSafeInteger(value))
         return { certain: true, value: BigInt(value) };
     return { certain: false };
-}
-function checkInputFloat(row: object, name: string): EvalValue<number> {
-    const value = checkRawInput(row, name);
-    return value === null || typeof value === "number" ? { certain: true, value } : { certain: false };
 }
 export function evaluatePublicDefaultEventIdDomainChecks(row: object) {
     return [

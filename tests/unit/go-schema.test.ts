@@ -108,6 +108,13 @@ describe('renderGoSchemaArtifacts', () => {
     expect(source).toMatch(
       /type PublicDefaultEventIdCheckInput struct\s*\{\s*Value\s+CheckOptional\[DefaultEventId\]/u,
     )
+    const checks = result.artifacts.find((artifact) =>
+      artifact.path.endsWith('/checks.go'),
+    )!.content
+    expect(checks).toContain('func checkInputInteger[')
+    expect(checks).not.toContain('func checkInputText[')
+    expect(checks).not.toContain('func checkInputBoolean[')
+    expect(checks).not.toContain('func checkInputFloat[')
   })
 
   it('diagnoses import cycles introduced by schema package boundaries', async () => {
