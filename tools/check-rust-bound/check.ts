@@ -38,6 +38,7 @@ let lengthExpected: (boolean | null)[]
 let negativeExpected: (boolean | null)[]
 let minimumExpected: (boolean | null)[]
 let conditionalExpected: (boolean | null)[]
+let prefixExpected: (boolean | null)[]
 try {
   await pg.exec(
     'CREATE TABLE public.check_rust_bound (amount integer, flag boolean, note text COLLATE "C", wide bigint, ' +
@@ -47,7 +48,8 @@ try {
       'CONSTRAINT negative_floor CHECK (amount > -1), ' +
       'CONSTRAINT minimum_floor CHECK (amount >= -2147483648), ' +
       'CONSTRAINT conditional_check CHECK (CASE WHEN flag THEN amount + 1 > 0 ELSE note IS NULL END), ' +
-      'CONSTRAINT wide_guard CHECK (wide > 0))',
+      'CONSTRAINT wide_guard CHECK (wide > 0), ' +
+      "CONSTRAINT prefix_guard CHECK (starts_with(note, 'ab')))",
   )
   const catalog = await snapshotCatalog(pg)
   const table = catalog.tables.find((item) => item.name === 'check_rust_bound')!
@@ -59,6 +61,7 @@ try {
     'minimum_floor',
     'conditional_check',
     'wide_guard',
+    'prefix_guard',
   ].map(
     (name) =>
       lowerTableCheck(
@@ -73,10 +76,12 @@ try {
   assert.equal(wide.kind, 'unsupported')
   if (wide.kind === 'unsupported')
     assert.match(wide.reason, /Unsupported Rust CHECK input type: pg_catalog.int8/u)
+  assert.equal(prepareCheckRust(expressions[7]!).kind, 'supported')
   expected = []
   negativeExpected = []
   minimumExpected = []
   conditionalExpected = []
+  prefixExpected = []
   for (const [amount, flag, note] of cases) {
     const result = await pg.query<{ value: boolean | null }>(
       'SELECT (($1::int4 > 0 OR $2::bool IS NULL) AND NOT (($3::text COLLATE "C") ~ \'^x+$\')) AS value',
@@ -87,14 +92,17 @@ try {
       negative: boolean | null
       minimum: boolean | null
       conditional: boolean | null
+      prefix: boolean | null
     }>(
       'SELECT ($1::int4 > -1) AS negative, ($1::int4 >= -2147483648) AS minimum, ' +
-        '(CASE WHEN $2::bool THEN $1::int4 + 1 > 0 ELSE $3::text IS NULL END) AS conditional',
+        '(CASE WHEN $2::bool THEN $1::int4 + 1 > 0 ELSE $3::text IS NULL END) AS conditional, ' +
+        'starts_with(($3::text) COLLATE "C", \'ab\') AS prefix',
       [amount, flag, note],
     )
     negativeExpected.push(extras.rows[0]!.negative)
     minimumExpected.push(extras.rows[0]!.minimum)
     conditionalExpected.push(extras.rows[0]!.conditional)
+    prefixExpected.push(extras.rows[0]!.prefix)
   }
   lengthExpected = []
   for (const note of lengthCases) {
@@ -120,7 +128,16 @@ try {
 const group = prepareCheckRustGroup(expressions)
 assert.deepEqual(
   group.checks.map((check) => check.kind),
-  ['supported', 'supported', 'supported', 'supported', 'supported', 'supported', 'unsupported'],
+  [
+    'supported',
+    'supported',
+    'supported',
+    'supported',
+    'supported',
+    'supported',
+    'unsupported',
+    'supported',
+  ],
 )
 assert.deepEqual(
   group.checks[5]?.kind === 'supported' ? group.checks[5].inputs.map((input) => input.name) : [],
@@ -164,6 +181,7 @@ const rustGroupChecks = cases.flatMap(([amount, flag, note], index) => {
     `    assert!(evaluate_check_3(${integer}) == CheckOutcome::${outcomeName(negativeExpected[index]!)});`,
     `    assert!(evaluate_check_4(${integer}) == CheckOutcome::${outcomeName(minimumExpected[index]!)});`,
     `    assert!(evaluate_check_5(${boolean}, ${integer}, ${text}) == CheckOutcome::${outcomeName(conditionalExpected[index]!)});`,
+    `    assert!(evaluate_check_7(${text}) == CheckOutcome::${outcomeName(prefixExpected[index]!)});`,
   ]
 })
 rustGroupChecks.push(
@@ -171,6 +189,8 @@ rustGroupChecks.push(
   '    assert!(evaluate_check_5(make_bool_value(true), make_int4_value(2147483647), text_null()) == CheckOutcome::Error(make_sql_error(3452547)));',
   '    assert!(evaluate_check_5(bool_unknown(), make_int4_value(1), text_null()) == CheckOutcome::Unknown);',
   '    assert!(evaluate_check_5(BoolValue::Error(make_sql_error(3452547)), make_int4_value(1), text_null()) == CheckOutcome::Error(make_sql_error(3452547)));',
+  '    assert!(evaluate_check_7(text_unknown()) == CheckOutcome::Unknown);',
+  '    assert!(evaluate_check_7(TextValue::Error(make_sql_error(3452591))) == CheckOutcome::Error(make_sql_error(3452591)));',
 )
 await writeFile(
   directory + '/group-test.rs',
@@ -206,12 +226,15 @@ const goGroupChecks = cases.flatMap(([amount, flag, note], index) => {
     `    if actual := EvaluateCheck3(${integer}); actual.Kind != CheckOutcome${outcomeName(negativeExpected[index]!)} { t.Errorf("negative ${index}: %+v", actual) }`,
     `    if actual := EvaluateCheck4(${integer}); actual.Kind != CheckOutcome${outcomeName(minimumExpected[index]!)} { t.Errorf("minimum ${index}: %+v", actual) }`,
     `    if actual := EvaluateCheck5(${boolean}, ${integer}, ${text}); actual.Kind != CheckOutcome${outcomeName(conditionalExpected[index]!)} { t.Errorf("CASE ${index}: %+v", actual) }`,
+    `    if actual := EvaluateCheck7(${text}); actual.Kind != CheckOutcome${outcomeName(prefixExpected[index]!)} { t.Errorf("prefix ${index}: %+v", actual) }`,
   ]
 })
 goGroupChecks.push(
   '    if actual := EvaluateCheck5(MakeBoolValue(false), MakeInt4Value(2147483647), TextNull()); actual.Kind != CheckOutcomeTrue { t.Errorf("lazy CASE: %+v", actual) }',
   '    if actual := EvaluateCheck5(MakeBoolValue(true), MakeInt4Value(2147483647), TextNull()); actual.Kind != CheckOutcomeError || actual.Error.State != 3452547 { t.Errorf("selected CASE overflow: %+v", actual) }',
   '    if actual := EvaluateCheck5(BoolUnknown(), MakeInt4Value(1), TextNull()); actual.Kind != CheckOutcomeUnknown { t.Errorf("uncertain CASE guard: %+v", actual) }',
+  '    if actual := EvaluateCheck7(TextUnknown()); actual.Kind != CheckOutcomeUnknown { t.Errorf("prefix unknown: %+v", actual) }',
+  '    if actual := EvaluateCheck7(TextValue{Kind: TextValueError, Error: SqlError{State: 3452591}}); actual.Kind != CheckOutcomeError { t.Errorf("prefix error: %+v", actual) }',
 )
 await writeFile(
   directory + '/go-group/check_test.go',
@@ -259,7 +282,13 @@ for (const [index, [amount, flag, note]] of cases.entries()) {
     tsGroup.evaluateCheck5(boolean, integer, text).kind,
     outcomeName(conditionalExpected[index]!),
   )
+  assert.equal(tsGroup.evaluateCheck7(text).kind, outcomeName(prefixExpected[index]!))
 }
+assert.equal(tsGroup.evaluateCheck7(tsGroup.textUnknown()).kind, 'Unknown')
+assert.deepEqual(tsGroup.evaluateCheck7({ kind: 'Error', value: { state: 3452591 } }), {
+  kind: 'Error',
+  value: { state: 3452591 },
+})
 assert.equal(
   tsGroup.evaluateCheck5(
     tsGroup.makeBoolValue(false),
