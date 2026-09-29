@@ -13,11 +13,19 @@ interface Bridge {
 export function transpileGo(ast: Uint8Array, wasmBytes: Buffer): string {
   const bytes = new Uint8Array(wasmBytes.length)
   bytes.set(wasmBytes)
-  const module = new WebAssembly.Module(bytes)
-  if (WebAssembly.Module.imports(module).length !== 0) {
+  const wasm = (
+    globalThis as unknown as {
+      WebAssembly: {
+        Module: { new (bytes: Uint8Array): unknown; imports(module: unknown): unknown[] }
+        Instance: new (module: unknown) => { exports: unknown }
+      }
+    }
+  ).WebAssembly
+  const module = new wasm.Module(bytes)
+  if (wasm.Module.imports(module).length !== 0) {
     throw new Error('Go transpiler unexpectedly requires WASM imports')
   }
-  const instance = new WebAssembly.Instance(module)
+  const instance = new wasm.Instance(module)
   const bridge = instance.exports as unknown as Bridge
   bridge._initialize()
   const pointer = bridge.alloc(ast.length)

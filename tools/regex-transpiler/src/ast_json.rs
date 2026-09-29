@@ -215,14 +215,17 @@ fn ty(value: &Type) -> Result<Value> {
         Type::Path(path) => {
             let segment = &path.path.segments[0];
             if let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments {
-                let syn::GenericArgument::Type(argument) = &arguments.args[0] else {
-                    return Err("expected a type argument".into());
-                };
-                Ok(json!({
-                    "kind": "path",
-                    "segments": segments(&path.path),
-                    "typeArguments": [ty(argument)?],
-                }))
+                match &arguments.args[0] {
+                    syn::GenericArgument::Type(argument) => Ok(json!({
+                        "kind": "path",
+                        "segments": segments(&path.path),
+                        "typeArguments": [ty(argument)?],
+                    })),
+                    syn::GenericArgument::Lifetime(_) => {
+                        Ok(json!({ "kind": "path", "segments": segments(&path.path) }))
+                    }
+                    _ => Err("expected a type or lifetime argument".into()),
+                }
             } else {
                 Ok(json!({ "kind": "path", "segments": segments(&path.path) }))
             }
@@ -267,6 +270,23 @@ fn operator(value: &BinOp) -> Result<&'static str> {
 }
 
 fn if_expr(node: &syn::ExprIf) -> Result<Value> {
+    if let Expr::Let(binding) = &*node.cond {
+        let Pat::TupleStruct(pattern) = &*binding.pat else {
+            return Err("if-let needs a payload enum variant".into());
+        };
+        let Pat::Ident(name) = &pattern.elems[0] else {
+            return Err("if-let payload must bind an identifier".into());
+        };
+        let names = segments(&pattern.path);
+        return Ok(json!({
+            "kind": "if-let",
+            "enumName": names[0],
+            "variant": names[1],
+            "payloadBinding": name.ident.to_string(),
+            "source": expr(&binding.expr)?,
+            "body": block(&node.then_branch)?,
+        }));
+    }
     let mut value = json!({
         "kind": "if",
         "condition": expr(&node.cond)?,
@@ -515,6 +535,11 @@ mod tests {
     #[test]
     fn serializes_slice_without_losing_tail_or_mutability() {
         assert_eq!(smoke::stack_probe(3), 6);
+        assert!(smoke::same_text(smoke::wrap_text("value"), "value"));
+        assert!(smoke::same_wrapped_text(
+            smoke::make_wrapped_text("value"),
+            "value"
+        ));
         assert!(smoke::echo_bool(true));
         assert_eq!(smoke::append_position(vec![2], 4), 2);
         assert_eq!(smoke::overwrite_position(vec![2], 0, 4), 4);
@@ -564,6 +589,22 @@ mod tests {
         );
         assert_eq!(stack["body"][1]["value"]["arguments"][0]["kind"], "path");
         assert_eq!(stack["body"][4]["value"]["kind"], "assign");
+        let wrapped = value["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["name"] == "wrap_text")
+            .unwrap();
+        assert_eq!(wrapped["returnType"]["segments"][0], "BorrowedText");
+        assert!(wrapped["returnType"].get("typeArguments").is_none());
+        let destructured = value["items"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|item| item["name"] == "same_wrapped_text")
+            .unwrap();
+        assert_eq!(destructured["body"][0]["value"]["kind"], "if-let");
+        assert_eq!(destructured["body"][0]["value"]["payloadBinding"], "text");
     }
 
     #[test]
@@ -616,6 +657,32 @@ mod tests {
     fn rejects_types_without_target_mappings() {
         assert!(parse("pub fn f(value: Vec<i32>) -> i32 { 1 }").is_err());
         assert!(parse("pub fn f(value: &char) -> bool { 1 == 1 }").is_err());
+        assert!(parse("pub fn f(value: i32<'static>) -> bool { true }").is_err());
+    }
+
+    #[test]
+    fn if_let_requires_matching_payload_enum() {
+        let declaration = "enum Maybe { Empty, Number(i32) }";
+        assert!(parse(&format!(
+            "{declaration} pub fn f(value: Maybe) -> bool {{ if let Maybe::Empty(x) = value {{ return true; }} false }}"
+        ))
+        .is_err());
+        assert!(parse(&format!(
+            "{declaration} pub fn f(value: Maybe) -> bool {{ if let Other::Number(x) = value {{ return true; }} false }}"
+        ))
+        .is_err());
+        assert!(parse(&format!(
+            "{declaration} pub fn f(value: Maybe) -> bool {{ if let Maybe::Number(x) = value {{ return x > 0; }} false }}"
+        ))
+        .is_ok());
+        assert!(parse(&format!(
+            "{declaration} pub fn f(value: Maybe) -> bool {{ if let Maybe::Number(value) = value {{ return true; }} false }}"
+        ))
+        .is_err());
+        assert!(parse(
+            "enum Words { Value(Vec<char>) } pub fn f(value: Words) -> bool { if let Words::Value(chars) = value { return chars.len() > 0; } false }"
+        )
+        .is_err());
     }
 
     #[test]
