@@ -32,6 +32,7 @@ import {
 import { createGoTypeContext } from './type-mapping.js'
 import { renderGoSchemaArtifacts } from './schema.js'
 import { renderGoSchemaChecks } from './sql/catalog-checks.js'
+import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
 
 export interface CreateGoCodegenTargetOptions {
   baseDirectory: string
@@ -182,7 +183,22 @@ export function createGoCodegenTarget(
                       : []),
                   ]
                 }),
-                diagnostics: [],
+                diagnostics:
+                  !schemaOutDir && options.catalog
+                    ? options.catalog.tables.flatMap((table) => {
+                        const message = checkTriggerWarning(table)
+                        return message
+                          ? [
+                              {
+                                code: 'check-before-trigger',
+                                severity: 'warning' as const,
+                                queryId: '<helpers>',
+                                message,
+                              },
+                            ]
+                          : []
+                      })
+                    : [],
               }
             } catch (error) {
               return {

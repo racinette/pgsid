@@ -13,7 +13,9 @@ export function renderTypescriptSchemaChecks(
   tables: readonly TableInfo[],
   domains: readonly DomainInfo[] = [],
   selectedDomains: readonly DomainInfo[] = domains,
+  options: { typedInputs?: boolean } = {},
 ): string {
+  const typedInputs = options.typedInputs ?? false
   const groups = catalogCheckGroups(tables, domains, selectedDomains)
   if (!groups.length) return ''
   const row = identifier('row')
@@ -68,11 +70,92 @@ export function renderTypescriptSchemaChecks(
       ),
     ),
   }))
+  const namedImport = (names: readonly string[], module: string): ts.ImportDeclaration =>
+    factory.createImportDeclaration(
+      undefined,
+      factory.createImportClause(
+        true,
+        undefined,
+        factory.createNamedImports(
+          [...new Set(names)]
+            .sort()
+            .map((name) =>
+              factory.createImportSpecifier(false, undefined, factory.createIdentifier(name)),
+            ),
+        ),
+      ),
+      factory.createStringLiteral(module),
+      undefined,
+    )
+  const inputType = (group: (typeof groups)[number]): ts.TypeNode => {
+    if (group.kind === 'domain')
+      return factory.createTypeLiteralNode([
+        factory.createPropertySignature(
+          undefined,
+          'value',
+          factory.createToken(ts.SyntaxKind.QuestionToken),
+          factory.createUnionTypeNode([
+            factory.createTypeReferenceNode(typeName(group.source.name)),
+            factory.createLiteralTypeNode(factory.createNull()),
+          ]),
+        ),
+      ])
+    const selected = factory.createTypeReferenceNode('InferSelect', [
+      factory.createTypeReferenceNode(typeName(group.source.name)),
+    ])
+    return factory.createMappedTypeNode(
+      undefined,
+      factory.createTypeParameterDeclaration(
+        undefined,
+        'K',
+        factory.createTypeOperatorNode(ts.SyntaxKind.KeyOfKeyword, selected),
+        undefined,
+      ),
+      undefined,
+      factory.createToken(ts.SyntaxKind.QuestionToken),
+      factory.createUnionTypeNode([
+        factory.createIndexedAccessTypeNode(selected, factory.createTypeReferenceNode('K')),
+        factory.createLiteralTypeNode(factory.createNull()),
+      ]),
+      undefined,
+    )
+  }
   return printFile([
+    ...(typedInputs && groups.some((group) => group.kind === 'table')
+      ? [
+          namedImport(['InferSelect'], '../helpers.js'),
+          namedImport(
+            groups
+              .filter((group) => group.kind === 'table')
+              .map((group) => typeName(group.source.name)),
+            './tables.js',
+          ),
+        ]
+      : []),
+    ...(typedInputs && groups.some((group) => group.kind === 'domain')
+      ? [
+          namedImport(
+            groups
+              .filter((group) => group.kind === 'domain')
+              .map((group) => typeName(group.source.name)),
+            './domains.js',
+          ),
+        ]
+      : []),
     ...typescriptSqlRuntime(
       emitted.flatMap((group) => group.results.flatMap((result) => result.helpers)),
     ),
     ...checkInputStatements(inputHelpers),
+    ...(typedInputs
+      ? groups.map((group) =>
+          factory.createTypeAliasDeclaration(
+            [exportModifier],
+            `${typeName(group.name)}CheckInput`,
+            undefined,
+            inputType(group),
+          ),
+        )
+      : []),
     ...emitted.map(({ name, kind, checks, results }) =>
       factory.createFunctionDeclaration(
         [exportModifier],
@@ -85,7 +168,9 @@ export function renderTypescriptSchemaChecks(
             undefined,
             row,
             undefined,
-            factory.createKeywordTypeNode(ts.SyntaxKind.ObjectKeyword),
+            typedInputs
+              ? factory.createTypeReferenceNode(`${typeName(name)}CheckInput`)
+              : factory.createKeywordTypeNode(ts.SyntaxKind.ObjectKeyword),
           ),
         ],
         undefined,

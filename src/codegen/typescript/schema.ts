@@ -3,6 +3,7 @@ import ts from 'typescript'
 import type { CatalogSnapshot, ColumnInfo, TableInfo, ViewInfo } from '../../catalog/types.js'
 import type { Config, JsonSchemaDocument, TypeImport } from '../../config/schema.js'
 import { interpretValueLineage } from '../../query/value-lineage.js'
+import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
 import type { SchemaRelationAnalyses } from '../../schema-analysis.js'
 import { renderTypescriptSchemaChecks } from './sql/catalog-checks.js'
 import {
@@ -36,8 +37,8 @@ export interface TypescriptSchemaArtifact {
 }
 
 export interface TypescriptSchemaDiagnostic {
-  code: 'generated-name-collision' | 'invalid-type-mapping'
-  severity: 'error'
+  code: 'generated-name-collision' | 'invalid-type-mapping' | 'check-before-trigger'
+  severity: 'error' | 'warning'
   message: string
 }
 
@@ -62,6 +63,10 @@ export function renderTypescriptSchemaArtifacts(
   const target = config.sql.codegen?.typescript
   if (!target?.schema) return { artifacts: [], diagnostics: [] }
   const diagnostics: TypescriptSchemaDiagnostic[] = []
+  for (const table of catalog.tables.filter((item) => item.relkind !== 'S')) {
+    const message = checkTriggerWarning(table)
+    if (message) diagnostics.push({ code: 'check-before-trigger', severity: 'warning', message })
+  }
   const artifacts: TypescriptSchemaArtifact[] = [
     { path: join(outDir, 'helpers.d.ts'), content: printFile(helperDeclarations()) },
   ]
@@ -178,7 +183,10 @@ export function renderTypescriptSchemaArtifacts(
         ['tables.d.ts', tableFile],
         ['enums.d.ts', enumFile],
         ['domains.d.ts', domainFile],
-        ['checks.ts', renderTypescriptSchemaChecks(tables, catalog.domains, domains)],
+        [
+          'checks.ts',
+          renderTypescriptSchemaChecks(tables, catalog.domains, domains, { typedInputs: true }),
+        ],
       ]
       const exported = files.filter(([, content]) => content.length > 0)
       for (const [name, content] of exported) {
@@ -208,7 +216,9 @@ export function renderTypescriptSchemaArtifacts(
       })
     }
   }
-  return diagnostics.length ? { artifacts: [], diagnostics } : { artifacts, diagnostics }
+  return diagnostics.some((item) => item.severity === 'error')
+    ? { artifacts: [], diagnostics }
+    : { artifacts, diagnostics }
 }
 
 const renderRelations = (

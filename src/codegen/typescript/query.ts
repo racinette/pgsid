@@ -8,6 +8,7 @@ import { interpretValueLineage } from '../../query/value-lineage.js'
 import { planArrayDimensionInputs } from '../shared/array-dimensions.js'
 import { planJsonSchemaInputs } from '../shared/json-schema-inputs.js'
 import { planCheckInputs, type CheckInputPlan } from '../shared/check-inputs.js'
+import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
 import { renderTypescriptSchemaChecks } from './sql/catalog-checks.js'
 import {
   asyncModifier,
@@ -42,6 +43,7 @@ export type TypescriptQueryDiagnosticCode =
   | 'output-type-shape'
   | 'parameter-type-shape'
   | 'json-schema-input-unsupported'
+  | 'check-before-trigger'
 
 export interface TypescriptQueryDiagnostic {
   code: TypescriptQueryDiagnosticCode
@@ -322,6 +324,17 @@ const renderQuery = (
     options.catalog,
     parameterTypes,
   )
+  if (options.emitRuntime !== false)
+    for (const plan of checkInputs) {
+      const message = checkTriggerWarning(plan.table, 'insert')
+      if (message)
+        diagnostics.push({
+          code: 'check-before-trigger',
+          severity: 'warning',
+          queryId: analysis.query.id,
+          message,
+        })
+    }
   const semanticLineage = analysis.rawLineage?.map((output) => interpretValueLineage(output.value))
   const imports: TypeImport[] = []
   const validators: RenderedValidator[] = []

@@ -2,6 +2,7 @@ import { goJsonSchemaBindings } from './json-schema-bindings.js'
 import { goValidationContract, goValidationSchema } from './json-schema-validation.js'
 import { planJsonSchemaInputs } from '../shared/json-schema-inputs.js'
 import { planCheckInputs } from '../shared/check-inputs.js'
+import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
 import { goExecutorDeclaration } from './executor.js'
 import type { GoTypeContext } from './type-mapping.js'
 import type { CatalogSnapshot } from '../../catalog/types.js'
@@ -31,6 +32,7 @@ export interface GoQueryArtifacts {
       | 'output-type-shape'
       | 'parameter-type-shape'
       | 'json-schema-input-unsupported'
+      | 'check-before-trigger'
     severity: 'error' | 'warning'
     queryId: string
     message: string
@@ -289,6 +291,16 @@ const renderQuery = (
     })
     return columns.length ? [{ ...plan, columns }] : []
   })
+  for (const plan of checkInputs) {
+    const message = checkTriggerWarning(plan.table, 'insert')
+    if (message)
+      diagnostics.push({
+        code: 'check-before-trigger',
+        severity: 'warning',
+        queryId: analysis.query.id,
+        message,
+      })
+  }
   if (checkInputs.length) {
     if (!helperImportPath)
       throw new Error('Go CHECK input validation requires a helper import path')
