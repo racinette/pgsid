@@ -65,12 +65,16 @@ func evalBoolFromValue(value EvalValue[SqlBoolean]) EvalBool {
 }
 
 type CheckOptional[T any] struct {
-	V   T
-	Set bool
+	V    T
+	Set  bool
+	Null bool
 }
 
 func KnownCheckValue[T any](value T) CheckOptional[T] {
 	return CheckOptional[T]{V: value, Set: true}
+}
+func NullCheckValue[T any]() CheckOptional[T] {
+	return CheckOptional[T]{Set: true, Null: true}
 }
 func checkPrimitive(raw any) (any, bool) {
 	if raw == nil {
@@ -151,6 +155,9 @@ func checkIntegerRaw(raw any) (SqlInteger, bool) {
 func checkInputInteger[T any](field CheckOptional[T]) EvalValue[SqlInteger] {
 	if !field.Set {
 		return EvalValue[SqlInteger]{}
+	}
+	if field.Null {
+		return EvalValue[SqlInteger]{Certain: true}
 	}
 	value, known := checkIntegerRaw(any(field.V))
 	return EvalValue[SqlInteger]{Certain: known, Value: value}

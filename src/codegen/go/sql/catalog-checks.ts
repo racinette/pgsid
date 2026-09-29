@@ -153,8 +153,9 @@ export function renderGoSchemaChecks(
     package: packageName,
     imports: normalizeGoImports(imports),
     source: `${goSqlRuntime([...inputSource.runtime, ...emitted.flatMap((group) => group.results.flatMap((result) => result.helpers))], packageName)}
-type CheckOptional[T any] struct { V T; Set bool }
+type CheckOptional[T any] struct { V T; Set bool; Null bool }
 func KnownCheckValue[T any](value T) CheckOptional[T] { return CheckOptional[T]{V: value, Set: true} }
+func NullCheckValue[T any]() CheckOptional[T] { return CheckOptional[T]{Set: true, Null: true} }
 
 ${inputSource.source}
 

@@ -22,3 +22,16 @@ func TestNamedSchemaIdentity(t *testing.T) {
 		}
 	}
 }
+
+func TestCheckCandidateDistinguishesUnknownAndNull(t *testing.T) {
+	unknown := public.EvaluatePublicEventIdDomainChecks(public.PublicEventIdCheckInput{})[0].Result
+	if unknown.Certain {
+		t.Fatal("missing column must remain unknown")
+	}
+	null := public.EvaluatePublicEventIdDomainChecks(public.PublicEventIdCheckInput{
+		Value: public.NullCheckValue[public.EventId](),
+	})[0].Result
+	if !null.Certain || null.Value.Valid {
+		t.Fatalf("explicit SQL NULL must evaluate to known NULL: %+v", null)
+	}
+}

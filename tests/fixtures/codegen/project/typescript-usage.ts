@@ -10,6 +10,7 @@ import type { GetEventRow } from './generated/typescript/types/queries/events/Ge
 import type { GetEventTypesRow } from './generated/typescript/types/queries/events/GetEventTypes.js'
 import type { GetBillingEventRow } from './generated/typescript/types/queries/events/GetBillingEvent.js'
 import type { Events as BillingEvents } from './generated/typescript/types/schema/billing/tables.js'
+import type { PublicEventIdCheckInput } from './generated/typescript/types/schema/public/checks.js'
 
 declare function expectType<T>(value: T): void
 
@@ -64,3 +65,9 @@ const invalidRecursiveValue = {
 // @ts-expect-error Recursive JSON schemas preserve deep property constraints.
 const invalidRecursive: EventPayload = invalidRecursiveValue
 void invalidRecursive
+
+const partialCheck: PublicEventIdCheckInput = { value: null }
+void partialCheck
+// @ts-expect-error CHECK candidates preserve the domain value type.
+const invalidCheck: PublicEventIdCheckInput = { value: 'not an event id' }
+void invalidCheck

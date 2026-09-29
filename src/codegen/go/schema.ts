@@ -8,6 +8,7 @@ import type {
 } from '../../catalog/types.js'
 import type { Config, GoTypeImport, JsonSchemaDocument } from '../../config/schema.js'
 import { interpretValueLineage } from '../../query/value-lineage.js'
+import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
 import type { SchemaRelationAnalyses } from '../../schema-analysis.js'
 import { go, printGoFile, type GoDeclaration, type GoField } from './ast.js'
 import { renderGoSchemaChecks } from './sql/catalog-checks.js'
@@ -50,8 +51,8 @@ import {
 export interface GoSchemaArtifacts {
   artifacts: readonly { path: string; content: string }[]
   diagnostics: readonly {
-    code: 'generated-name-collision' | 'invalid-type-mapping'
-    severity: 'error'
+    code: 'generated-name-collision' | 'invalid-type-mapping' | 'check-before-trigger'
+    severity: 'error' | 'warning'
     message: string
   }[]
 }
@@ -230,6 +231,11 @@ export function renderGoSchemaArtifacts(
       if (checks) artifacts.push({ path: join(outDir, directory, 'checks.go'), content: checks })
     }
     assertAcyclicPackages(dependencies)
+    const diagnostics: GoSchemaArtifacts['diagnostics'][number][] = []
+    for (const table of catalog.tables.filter((item) => item.relkind !== 'S')) {
+      const message = checkTriggerWarning(table)
+      if (message) diagnostics.push({ code: 'check-before-trigger', severity: 'warning', message })
+    }
     return {
       artifacts: [
         ...artifacts,
@@ -238,7 +244,7 @@ export function renderGoSchemaArtifacts(
           ? [{ path: join(goNullsOutDir(outDir), 'null.go'), content: renderGoNulls() }]
           : []),
       ],
-      diagnostics: [],
+      diagnostics,
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)

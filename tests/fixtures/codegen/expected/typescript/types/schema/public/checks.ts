@@ -1,3 +1,4 @@
+import type { DefaultEventId, EventId } from "./domains.js";
 type EvalValue<T> = {
     readonly certain: false;
 } | {
@@ -41,7 +42,13 @@ function checkInputInteger(row: object, name: string): EvalValue<bigint> {
         return { certain: true, value: BigInt(value) };
     return { certain: false };
 }
-export function evaluatePublicDefaultEventIdDomainChecks(row: object) {
+export type PublicDefaultEventIdCheckInput = {
+    value?: DefaultEventId | null;
+};
+export type PublicEventIdCheckInput = {
+    value?: EventId | null;
+};
+export function evaluatePublicDefaultEventIdDomainChecks(row: PublicDefaultEventIdCheckInput) {
     return [
         { owner: "public.event_id", constraint: "event_id_check", result: (() => {
                 const argument0 = checkInputInteger(row, "value");
@@ -53,7 +60,7 @@ export function evaluatePublicDefaultEventIdDomainChecks(row: object) {
             })() }
     ];
 }
-export function evaluatePublicEventIdDomainChecks(row: object) {
+export function evaluatePublicEventIdDomainChecks(row: PublicEventIdCheckInput) {
     return [
         { owner: "public.event_id", constraint: "event_id_check", result: (() => {
                 const argument0 = checkInputInteger(row, "value");

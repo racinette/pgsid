@@ -44,6 +44,7 @@ const helpers: Record<string, { dependencies: readonly string[]; source: string 
     dependencies: ['checkTextRaw'],
     source: `func checkTextKnown[T any](field CheckOptional[T]) bool {
   if !field.Set { return false }
+  if field.Null { return true }
   _, known := checkTextRaw(any(field.V))
   return known
 }`,
@@ -52,6 +53,7 @@ const helpers: Record<string, { dependencies: readonly string[]; source: string 
     dependencies: ['checkTextRaw'],
     source: `func checkTextValue[T any](field CheckOptional[T]) SqlText {
   value, _ := checkTextRaw(any(field.V))
+  if field.Null { return SqlText{} }
   return value
 }`,
   },
@@ -101,6 +103,7 @@ const helpers: Record<string, { dependencies: readonly string[]; source: string 
     dependencies: ['checkIntegerRaw'],
     source: `func checkInputInteger[T any](field CheckOptional[T]) EvalValue[SqlInteger] {
   if !field.Set { return EvalValue[SqlInteger]{} }
+  if field.Null { return EvalValue[SqlInteger]{Certain: true} }
   value, known := checkIntegerRaw(any(field.V))
   return EvalValue[SqlInteger]{Certain: known, Value: value}
 }`,
@@ -132,6 +135,7 @@ const helpers: Record<string, { dependencies: readonly string[]; source: string 
     dependencies: ['checkBooleanRaw'],
     source: `func checkInputBoolean[T any](field CheckOptional[T]) EvalValue[SqlBoolean] {
   if !field.Set { return EvalValue[SqlBoolean]{} }
+  if field.Null { return EvalValue[SqlBoolean]{Certain: true} }
   value, known := checkBooleanRaw(any(field.V))
   return EvalValue[SqlBoolean]{Certain: known, Value: value}
 }`,
@@ -167,6 +171,7 @@ const helpers: Record<string, { dependencies: readonly string[]; source: string 
     dependencies: ['checkFloatRaw'],
     source: `func checkInputFloat[T any](field CheckOptional[T]) EvalValue[SqlFloat] {
   if !field.Set { return EvalValue[SqlFloat]{} }
+  if field.Null { return EvalValue[SqlFloat]{Certain: true} }
   value, known := checkFloatRaw(any(field.V))
   return EvalValue[SqlFloat]{Certain: known, Value: value}
 }`,
