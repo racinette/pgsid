@@ -5,7 +5,7 @@ import type { Config, JsonSchemaDocument, TypeImport } from '../../config/schema
 import { interpretValueLineage } from '../../query/value-lineage.js'
 import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
 import type { SchemaRelationAnalyses } from '../../schema-analysis.js'
-import { renderTypescriptSchemaChecks } from './sql/catalog-checks.js'
+import { renderTypescriptSchemaCheckArtifacts } from './sql/catalog-checks.js'
 import {
   exportModifier,
   factory,
@@ -179,19 +179,24 @@ export function renderTypescriptSchemaArtifacts(
         ...importDeclarations(domainImports),
         ...domainDeclarations,
       ])
+      const checks = renderTypescriptSchemaCheckArtifacts(tables, catalog.domains, domains, {
+        typedInputs: true,
+      })
       const files: [string, string][] = [
         ['tables.d.ts', tableFile],
         ['enums.d.ts', enumFile],
         ['domains.d.ts', domainFile],
-        [
-          'checks.ts',
-          renderTypescriptSchemaChecks(tables, catalog.domains, domains, { typedInputs: true }),
-        ],
+        ['checks.ts', checks.checks],
       ]
       const exported = files.filter(([, content]) => content.length > 0)
       for (const [name, content] of exported) {
         artifacts.push({ path: join(outDir, schemaDirectory(schema), name), content })
       }
+      if (checks.rust)
+        artifacts.push({
+          path: join(outDir, schemaDirectory(schema), 'checks-rust.ts'),
+          content: checks.rust,
+        })
       artifacts.push({
         path: join(outDir, schemaDirectory(schema), 'index.d.ts'),
         content: printFile(

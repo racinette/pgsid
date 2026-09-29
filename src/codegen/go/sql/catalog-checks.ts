@@ -3,6 +3,8 @@ import type { Config, GoTypeImport } from '../../../config/schema.js'
 import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
 import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
+import { prepareCheckRustGroup } from '../../shared/check-rust-source.js'
+import { transpileCheckRust } from '../../shared/check-rust-transpile.js'
 import { go, printGoFile, type GoExpression } from '../ast.js'
 import { normalizeGoImports } from '../imports.js'
 import { goName } from '../names.js'
@@ -29,8 +31,42 @@ export function renderGoSchemaChecks(
   config: Config,
   context?: GoTypeContext,
 ): string {
+  return renderGoSchemaCheckArtifacts(
+    tables,
+    packageName,
+    domains,
+    selectedDomains,
+    catalog,
+    config,
+    context,
+    undefined,
+    false,
+  ).checks
+}
+
+export function renderGoSchemaCheckArtifacts(
+  tables: readonly TableInfo[],
+  packageName: string,
+  domains: readonly DomainInfo[],
+  selectedDomains: readonly DomainInfo[],
+  catalog: CatalogSnapshot,
+  config: Config,
+  context?: GoTypeContext,
+  rustImportPath?: string,
+  rust = true,
+): { checks: string; rust: string | null } {
   const groups = catalogCheckGroups(tables, domains, selectedDomains)
-  if (!groups.length) return ''
+  if (!groups.length) return { checks: '', rust: null }
+  const rustGroup = rust
+    ? prepareCheckRustGroup(
+        groups.flatMap((group) =>
+          group.checks.map(({ plan }) => portableCheckAtoms(plan.expression)),
+        ),
+      )
+    : null
+  if (rustGroup?.source && !rustImportPath)
+    throw new Error('Go Rust CHECK module requires an import path')
+  let rustIndex = 0
   const row = go.ident('row')
   const inputHelpers = new Set<string>()
   const callInput = (helper: string, name: string): GoExpression => {
@@ -125,8 +161,45 @@ export function renderGoSchemaChecks(
   }
   const emitted = groupInputs.map((group) => ({
     ...group,
-    results: group.checks.map(({ plan }) =>
-      emitEvalBoolExpression(
+    results: group.checks.map(({ plan }) => {
+      const prepared = rustGroup?.checks[rustIndex++]
+      if (prepared?.kind === 'supported') {
+        const arguments_ = prepared.inputs.map((item) => {
+          if (!['Int4Value', 'TextValue', 'BoolValue'].includes(item.rustType))
+            throw new Error(`Unsupported Go Rust CHECK input: ${item.rustType}`)
+          const helper =
+            item.rustType === 'Int4Value'
+              ? 'checkRustInt4'
+              : item.rustType === 'TextValue'
+                ? 'checkRustText'
+                : 'checkRustBool'
+          inputHelpers.add(
+            item.rustType === 'Int4Value'
+              ? 'checkInputInteger'
+              : item.rustType === 'TextValue'
+                ? 'checkInputText'
+                : 'checkInputBoolean',
+          )
+          return go.call(go.ident(helper), [go.selector(row, goName(item.name))])
+        })
+        return {
+          value: {
+            expression: go.call(go.ident('checkRustOutcome'), [
+              go.call(
+                go.selector(
+                  go.ident('checkrust'),
+                  prepared.entryName.replace(/(^|_)([a-z0-9])/gu, (_, _separator, part: string) =>
+                    part.toUpperCase(),
+                  ),
+                ),
+                arguments_,
+              ),
+            ]),
+          },
+          helpers: ['evalBoolCertain', 'evalBoolUncertain'],
+        }
+      }
+      return emitEvalBoolExpression(
         portableCheckAtoms(plan.expression),
         { ...goSqlBackend, input: (name) => callInput('checkTextValue', name) },
         {
@@ -143,21 +216,28 @@ export function renderGoSchemaChecks(
             },
           },
         },
-      ),
-    ),
+      )
+    }),
   }))
   const resultType = go.ident('CheckEvaluation')
   const inputSource = goCheckInputSource(inputHelpers)
   if (inputSource.reflect) imports.push({ path: 'reflect' })
-  return printGoFile({
-    package: packageName,
-    imports: normalizeGoImports(imports),
-    source: `${goSqlRuntime([...inputSource.runtime, ...emitted.flatMap((group) => group.results.flatMap((result) => result.helpers))], packageName)}
+  return {
+    checks: printGoFile({
+      package: packageName,
+      imports: normalizeGoImports([
+        ...imports,
+        ...(rustGroup?.source ? [{ path: 'strconv' }, { path: 'strings' }] : []),
+        ...(rustGroup?.source ? [{ path: `${rustImportPath}/checkrust`, as: 'checkrust' }] : []),
+      ]),
+      source: `${goSqlRuntime([...inputSource.runtime, ...emitted.flatMap((group) => group.results.flatMap((result) => result.helpers))], packageName)}
 type CheckOptional[T any] struct { V T; Set bool; Null bool }
 func KnownCheckValue[T any](value T) CheckOptional[T] { return CheckOptional[T]{V: value, Set: true} }
 func NullCheckValue[T any]() CheckOptional[T] { return CheckOptional[T]{Set: true, Null: true} }
 
 ${inputSource.source}
+
+${rustGroup?.source ? goRustAdapterSource : ''}
 
 type CheckViolationError struct { Owner, Constraint string }
 func (e *CheckViolationError) Error() string {
@@ -184,37 +264,102 @@ func ValidateCheckInputs[T any](input T, evaluate func(T) []CheckEvaluation) err
   }
   return nil
 }`,
-    declarations: [
-      ...emitted.map(({ inputType, fields }) => go.type(inputType, go.struct(fields))),
-      go.type(
-        'CheckEvaluation',
-        go.struct([
-          { names: ['Owner'], type: go.ident('string') },
-          { names: ['Constraint'], type: go.ident('string') },
-          { names: ['Result'], type: go.ident('EvalBool') },
-        ]),
-      ),
-      ...emitted.map(({ name, kind, checks, results, inputType }) =>
-        go.function(
-          `Evaluate${goName(name)}${kind === 'domain' ? 'DomainChecks' : 'Checks'}`,
-          [{ names: ['row'], type: go.ident(inputType) }],
-          [{ type: go.slice(resultType) }],
-          [
-            go.return(
-              go.composite(
-                go.slice(resultType),
-                results.map((result, index) =>
-                  go.composite(resultType, [
-                    go.keyValue('Owner', go.string(checks[index]!.owner)),
-                    go.keyValue('Constraint', go.string(checks[index]!.plan.name)),
-                    go.keyValue('Result', result.value.expression),
-                  ]),
+      declarations: [
+        ...emitted.map(({ inputType, fields }) => go.type(inputType, go.struct(fields))),
+        go.type(
+          'CheckEvaluation',
+          go.struct([
+            { names: ['Owner'], type: go.ident('string') },
+            { names: ['Constraint'], type: go.ident('string') },
+            { names: ['Result'], type: go.ident('EvalBool') },
+          ]),
+        ),
+        ...emitted.map(({ name, kind, checks, results, inputType }) =>
+          go.function(
+            `Evaluate${goName(name)}${kind === 'domain' ? 'DomainChecks' : 'Checks'}`,
+            [{ names: ['row'], type: go.ident(inputType) }],
+            [{ type: go.slice(resultType) }],
+            [
+              go.return(
+                go.composite(
+                  go.slice(resultType),
+                  results.map((result, index) =>
+                    go.composite(resultType, [
+                      go.keyValue('Owner', go.string(checks[index]!.owner)),
+                      go.keyValue('Constraint', go.string(checks[index]!.plan.name)),
+                      go.keyValue('Result', result.value.expression),
+                    ]),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-    ],
-  })
+      ],
+    }),
+    rust: rustGroup?.source
+      ? transpileCheckRust(rustGroup.source).go.replace(
+          /^package generated\b/u,
+          'package checkrust',
+        )
+      : null,
+  }
 }
+
+const goRustAdapterSource = `func checkRustInt4[T any](field CheckOptional[T]) checkrust.Int4Value {
+  value := checkInputInteger(field)
+  if !value.Certain { return checkrust.Int4Unknown() }
+  if value.Value.Error != "" {
+    if state, ok := checkRustState(value.Value.Error); ok {
+      return checkrust.Int4Value{Kind: checkrust.Int4ValueError, Error: state}
+    }
+    return checkrust.Int4Unknown()
+  }
+  if !value.Value.Valid { return checkrust.Int4Null() }
+  number := value.Value.Value
+  if number < -2147483648 || number > 2147483647 { return checkrust.Int4Unknown() }
+  return checkrust.MakeInt4Value(int(number))
+}
+func checkRustText[T any](field CheckOptional[T]) checkrust.TextValue {
+  value := checkInputText(field)
+  if !value.Certain { return checkrust.TextUnknown() }
+  if value.Value.Error != "" {
+    if state, ok := checkRustState(value.Value.Error); ok {
+      return checkrust.TextValue{Kind: checkrust.TextValueError, Error: state}
+    }
+    return checkrust.TextUnknown()
+  }
+  if !value.Value.Valid { return checkrust.TextNull() }
+  return checkrust.MakeTextValue(value.Value.Value)
+}
+func checkRustBool[T any](field CheckOptional[T]) checkrust.BoolValue {
+  value := checkInputBoolean(field)
+  if !value.Certain { return checkrust.BoolUnknown() }
+  if value.Value.Error != "" {
+    if state, ok := checkRustState(value.Value.Error); ok {
+      return checkrust.BoolValue{Kind: checkrust.BoolValueError, Error: state}
+    }
+    return checkrust.BoolUnknown()
+  }
+  if !value.Value.Valid { return checkrust.BoolNull() }
+  return checkrust.MakeBoolValue(value.Value.Value)
+}
+func checkRustState(value string) (checkrust.SqlError, bool) {
+  if len(value) != 5 { return checkrust.SqlError{}, false }
+  state, error := strconv.ParseUint(value, 36, 32)
+  if error != nil { return checkrust.SqlError{}, false }
+  return checkrust.MakeSqlError(int(state)), true
+}
+func checkRustOutcome(value checkrust.CheckOutcome) EvalBool {
+  switch value.Kind {
+  case checkrust.CheckOutcomeTrue: return evalBoolCertain(SqlBoolean{Value: true, Valid: true})
+  case checkrust.CheckOutcomeFalse: return evalBoolCertain(SqlBoolean{Value: false, Valid: true})
+  case checkrust.CheckOutcomeNull: return evalBoolCertain(SqlBoolean{})
+  case checkrust.CheckOutcomeUnknown: return evalBoolUncertain()
+  case checkrust.CheckOutcomeError:
+    state := strings.ToUpper(strconv.FormatInt(int64(value.Error.State), 36))
+    for len(state) < 5 { state = "0" + state }
+    return evalBoolCertain(SqlBoolean{Error: state})
+  }
+  panic("invalid Rust CHECK outcome")
+}`

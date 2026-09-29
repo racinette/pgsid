@@ -3,21 +3,22 @@ import { fileURLToPath } from 'node:url'
 import { PGlite } from '@electric-sql/pglite'
 import { builtinCallables } from '../../src/postgres/builtins/inventory.js'
 
-type Operand = 'int4' | 'text'
+type Shape =
+  'int4_pair_bool' | 'int4_pair_int4' | 'bool_pair_bool' | 'text_pair_bool' | 'text_single_int4'
 type State =
-  | { kind: 'Value'; value: number | string }
+  | { kind: 'Value'; value: boolean | number | string }
   | { kind: 'Null' | 'Unknown' }
   | { kind: 'Error'; state: number }
 type Expected =
-  | { kind: 'Value'; value: boolean }
+  | { kind: 'Value'; value: boolean | number }
   | { kind: 'Null' | 'Unknown' }
   | { kind: 'Error'; state: number }
-type Case = { left: State; right: State; expected: Expected }
+type Case = { inputs: State[]; expected: Expected }
 type Fixture = {
   rustName: string
   wrapper: string
   functionName: string
-  operand: Operand
+  shape: Shape
   cases: Case[]
 }
 
@@ -28,28 +29,35 @@ if (!rustOutput || !fixtureOutput || !rustTestOutput || !goTestOutput)
 const readSource = (path: string): string =>
   readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
 const values = readSource('../../crates/check-evaluator/src/values.rs')
+const boolean = readSource('../../crates/check-evaluator/src/operations/boolean.rs')
 const integer = readSource('../../crates/check-evaluator/src/operations/integer.rs')
-const text = readSource('../../crates/check-evaluator/src/operations/text.rs')
-const names = [...`${integer}\n${text}`.matchAll(/\bfn (sql__[a-z0-9_]+)\s*\(/gu)].map(
-  (match) => match[1]!,
-)
+const textSource = readSource('../../crates/check-evaluator/src/operations/text.rs')
+const names = [
+  ...`${boolean}\n${integer}\n${textSource}`.matchAll(/\bfn (sql__[a-z0-9_]+)\s*\(/gu),
+].map((match) => match[1]!)
 const catalog = new Map(
   builtinCallables()
     .filter((callable) => callable.kind === 'function')
     .map((callable) => [callable.rustName, callable]),
 )
-const operandOf = (args: readonly string[], result: string): Operand | null => {
-  if (result !== 'pg_catalog.bool') return null
-  if (args.join(',') === 'pg_catalog.int4,pg_catalog.int4') return 'int4'
-  if (args.join(',') === 'pg_catalog.text,pg_catalog.text') return 'text'
+const shapeOf = (args: readonly string[], result: string): Shape | null => {
+  if (result === 'pg_catalog.bool') {
+    if (args.join(',') === 'pg_catalog.int4,pg_catalog.int4') return 'int4_pair_bool'
+    if (args.join(',') === 'pg_catalog.bool,pg_catalog.bool') return 'bool_pair_bool'
+    if (args.join(',') === 'pg_catalog.text,pg_catalog.text') return 'text_pair_bool'
+  }
+  if (result === 'pg_catalog.int4' && args.join(',') === 'pg_catalog.int4,pg_catalog.int4')
+    return 'int4_pair_int4'
+  if (result === 'pg_catalog.int4' && args.join(',') === 'pg_catalog.text')
+    return 'text_single_int4'
   return null
 }
 const functions = names.map((name) => {
   const metadata = catalog.get(name)
   if (!metadata) throw new Error(`Rust implementation is absent from catalog: ${name}`)
-  const operand = operandOf(metadata.args, metadata.result)
+  const shape = shapeOf(metadata.args, metadata.result)
   if (
-    !operand ||
+    !shape ||
     metadata.schema !== 'pg_catalog' ||
     !/^[a-z][a-z0-9_]*$/u.test(metadata.name) ||
     !metadata.strict ||
@@ -57,10 +65,10 @@ const functions = names.map((name) => {
     metadata.returnsSet
   )
     throw new Error(`Operation parity harness does not support ${name}`)
-  return { rustName: name, functionName: metadata.name, operand }
+  return { rustName: name, functionName: metadata.name, shape }
 })
 
-const int4Samples: readonly [number | null, number | null][] = [
+const int4Samples: readonly (readonly [number | null, number | null])[] = [
   [-2147483648, 2147483647],
   [-1, 0],
   [0, -1],
@@ -70,7 +78,32 @@ const int4Samples: readonly [number | null, number | null][] = [
   [null, 0],
   [0, null],
 ]
-const textSamples: readonly [string | null, string | null][] = [
+const int4ArithmeticSamples: readonly (readonly [number | null, number | null])[] = [
+  [-2147483648, -1],
+  [-2147483648, 0],
+  [-2147483647, -1],
+  [-1, -2147483648],
+  [-1, 0],
+  [0, -1],
+  [0, 0],
+  [0, 2147483647],
+  [1, 2147483647],
+  [2147483646, 1],
+  [2147483647, 1],
+  [2147483647, -2147483648],
+  [null, 0],
+  [0, null],
+]
+const boolSamples: readonly (readonly [boolean | null, boolean | null])[] = [
+  [false, false],
+  [false, true],
+  [true, false],
+  [true, true],
+  [null, false],
+  [true, null],
+  [null, null],
+]
+const textSamples: readonly (readonly [string | null, string | null])[] = [
   ['', ''],
   ['', 'a'],
   ['a', ''],
@@ -96,16 +129,46 @@ const textSamples: readonly [string | null, string | null][] = [
   ['a', null],
   [null, null],
 ]
-const value = (input: number | string | null): State =>
+const textSingleSamples: readonly (readonly [string | null])[] = [
+  [''],
+  ['a'],
+  ['abc'],
+  ['é'],
+  ['😀'],
+  ['a\u0301'],
+  [null],
+]
+const samplesOf = (shape: Shape): readonly (readonly (boolean | number | string | null)[])[] =>
+  shape === 'int4_pair_bool'
+    ? int4Samples
+    : shape === 'int4_pair_int4'
+      ? int4ArithmeticSamples
+      : shape === 'bool_pair_bool'
+        ? boolSamples
+        : shape === 'text_pair_bool'
+          ? textSamples
+          : textSingleSamples
+const inputType = (shape: Shape): 'Int4Value' | 'BoolValue' | 'TextValue' =>
+  shape === 'int4_pair_bool' || shape === 'int4_pair_int4'
+    ? 'Int4Value'
+    : shape === 'bool_pair_bool'
+      ? 'BoolValue'
+      : 'TextValue'
+const resultType = (shape: Shape): 'BoolValue' | 'Int4Value' =>
+  shape === 'text_single_int4' || shape === 'int4_pair_int4' ? 'Int4Value' : 'BoolValue'
+const inputCount = (shape: Shape): number => (shape === 'text_single_int4' ? 1 : 2)
+const queryOf = (shape: Shape, functionName: string): string => {
+  const args = Array.from({ length: inputCount(shape) }, (_, index) =>
+    shape === 'int4_pair_bool' || shape === 'int4_pair_int4'
+      ? `$${index + 1}::int4`
+      : shape === 'bool_pair_bool'
+        ? `$${index + 1}::bool`
+        : `($${index + 1}::text) COLLATE "C"`,
+  )
+  return `SELECT pg_catalog.${functionName}(${args.join(', ')}) AS value`
+}
+const state = (input: boolean | number | string | null): State =>
   input === null ? { kind: 'Null' } : { kind: 'Value', value: input }
-const samplesOf = (
-  operand: Operand,
-): readonly [number | string | null, number | string | null][] =>
-  operand === 'int4' ? int4Samples : textSamples
-const queryOf = (operand: Operand, functionName: string): string =>
-  operand === 'int4'
-    ? `SELECT pg_catalog.${functionName}($1::int4, $2::int4) AS value`
-    : `SELECT pg_catalog.${functionName}(($1::text) COLLATE "C", ($2::text) COLLATE "C") AS value`
 
 const pg = await PGlite.create()
 let fixtures: Fixture[]
@@ -113,44 +176,69 @@ try {
   fixtures = []
   for (const [index, fn] of functions.entries()) {
     const cases: Case[] = []
-    for (const [left, right] of samplesOf(fn.operand)) {
-      const result = await pg.query<{ value: boolean | null }>(
-        queryOf(fn.operand, fn.functionName),
-        [left, right],
-      )
-      const observed = result.rows[0]!.value
+    for (const sample of samplesOf(fn.shape)) {
+      let expected: Expected
+      try {
+        const result = await pg.query<{ value: boolean | number | null }>(
+          queryOf(fn.shape, fn.functionName),
+          [...sample],
+        )
+        const observed = result.rows[0]!.value
+        expected = observed === null ? { kind: 'Null' } : { kind: 'Value', value: observed }
+      } catch (error) {
+        const sqlstate = (error as { code?: unknown }).code
+        if (sqlstate !== '22003') throw error
+        expected = { kind: 'Error', state: Number.parseInt(sqlstate, 36) }
+      }
+      cases.push({ inputs: sample.map(state), expected })
+    }
+    const ordinary = state(
+      fn.shape === 'int4_pair_bool' || fn.shape === 'int4_pair_int4'
+        ? 0
+        : fn.shape === 'bool_pair_bool'
+          ? false
+          : 'a',
+    )
+    const error = { kind: 'Error', state: 3452591 } as const
+    for (let position = 0; position < inputCount(fn.shape); position++) {
+      const inputs = Array.from({ length: inputCount(fn.shape) }, () => ordinary)
       cases.push({
-        left: value(left),
-        right: value(right),
-        expected: observed === null ? { kind: 'Null' } : { kind: 'Value', value: observed },
+        inputs: inputs.map((input, index) => (index === position ? { kind: 'Unknown' } : input)),
+        expected: { kind: 'Unknown' },
+      })
+      cases.push({
+        inputs: inputs.map((input, index) => (index === position ? error : input)),
+        expected: error,
       })
     }
-    const ordinary = value(fn.operand === 'int4' ? 0 : 'a')
-    const error = { kind: 'Error', state: 3452591 } as const
-    cases.push(
-      { left: { kind: 'Unknown' }, right: ordinary, expected: { kind: 'Unknown' } },
-      { left: ordinary, right: { kind: 'Unknown' }, expected: { kind: 'Unknown' } },
-      { left: { kind: 'Unknown' }, right: { kind: 'Null' }, expected: { kind: 'Unknown' } },
-      { left: { kind: 'Null' }, right: { kind: 'Unknown' }, expected: { kind: 'Unknown' } },
-      { left: error, right: ordinary, expected: error },
-      { left: ordinary, right: error, expected: error },
-      { left: error, right: { kind: 'Null' }, expected: error },
-      { left: error, right: { kind: 'Unknown' }, expected: error },
-    )
+    if (inputCount(fn.shape) === 2)
+      cases.push(
+        { inputs: [{ kind: 'Unknown' }, { kind: 'Null' }], expected: { kind: 'Unknown' } },
+        { inputs: [{ kind: 'Null' }, { kind: 'Unknown' }], expected: { kind: 'Unknown' } },
+        { inputs: [error, { kind: 'Null' }], expected: error },
+        { inputs: [error, { kind: 'Unknown' }], expected: error },
+      )
     fixtures.push({ ...fn, wrapper: `evaluate_callable_${index}`, cases })
   }
 } finally {
   await pg.close()
 }
 
-const rustType = (operand: Operand): string => (operand === 'int4' ? 'Int4Value' : 'TextValue')
 const wrappers = fixtures
-  .map(
-    (item) =>
-      `pub fn ${item.wrapper}(left: ${rustType(item.operand)}, right: ${rustType(item.operand)}) -> BoolValue {\n    ${item.rustName}(left, right)\n}`,
-  )
+  .map((item) => {
+    const type = inputType(item.shape)
+    const parameters = Array.from(
+      { length: inputCount(item.shape) },
+      (_, index) => `input_${index}: ${type}`,
+    )
+    const arguments_ = Array.from(
+      { length: inputCount(item.shape) },
+      (_, index) => `input_${index}`,
+    )
+    return `pub fn ${item.wrapper}(${parameters.join(', ')}) -> ${resultType(item.shape)} {\n    ${item.rustName}(${arguments_.join(', ')})\n}`
+  })
   .join('\n\n')
-writeFileSync(rustOutput, `${values}\n${integer}\n${text}\n${wrappers}\n`)
+writeFileSync(rustOutput, `${values}\n${boolean}\n${integer}\n${textSource}\n${wrappers}\n`)
 writeFileSync(fixtureOutput, JSON.stringify(fixtures, null, 2) + '\n')
 
 const rustString = (input: string): string => {
@@ -183,19 +271,22 @@ const goString = (input: string): string => {
   }
   return `${encoded}"`
 }
-const rustValue = (operand: Operand, state: State): string => {
-  if (state.kind === 'Value') {
-    return operand === 'int4'
-      ? `make_int4_value(${state.value})`
-      : `make_text_value(${rustString(String(state.value))})`
-  }
-  if (state.kind === 'Error') return `${rustType(operand)}::Error(make_sql_error(${state.state}))`
-  return `${rustType(operand)}::${state.kind}`
+const rustInput = (shape: Shape, input: State): string => {
+  const type = inputType(shape)
+  if (input.kind === 'Value')
+    return type === 'Int4Value'
+      ? `make_int4_value(${input.value})`
+      : type === 'BoolValue'
+        ? `make_bool_value(${input.value})`
+        : `make_text_value(${rustString(String(input.value))})`
+  if (input.kind === 'Error') return `${type}::Error(make_sql_error(${input.state}))`
+  return `${type}::${input.kind}`
 }
-const rustExpected = (state: Expected): string => {
-  if (state.kind === 'Value') return `BoolValue::Value(${state.value})`
-  if (state.kind === 'Error') return `BoolValue::Error(make_sql_error(${state.state}))`
-  return `BoolValue::${state.kind}`
+const rustExpected = (shape: Shape, expected: Expected): string => {
+  const type = resultType(shape)
+  if (expected.kind === 'Value') return `${type}::Value(${expected.value})`
+  if (expected.kind === 'Error') return `${type}::Error(make_sql_error(${expected.state}))`
+  return `${type}::${expected.kind}`
 }
 writeFileSync(
   rustTestOutput,
@@ -203,7 +294,7 @@ writeFileSync(
     .flatMap((item) =>
       item.cases.map(
         (test) =>
-          `    assert!(${item.wrapper}(${rustValue(item.operand, test.left)}, ${rustValue(item.operand, test.right)}) == ${rustExpected(test.expected)});`,
+          `    assert!(${item.wrapper}(${test.inputs.map((input) => rustInput(item.shape, input)).join(', ')}) == ${rustExpected(item.shape, test.expected)});`,
       ),
     )
     .join('\n')}\n}\n`,
@@ -213,22 +304,24 @@ const goTarget = (wrapper: string): string =>
   wrapper
     .replace(/^evaluate/u, 'Evaluate')
     .replace(/_([a-z0-9])/gu, (_, part: string) => part.toUpperCase())
-const goValue = (operand: Operand, state: State): string => {
-  const type = rustType(operand)
-  if (state.kind === 'Value') {
-    return operand === 'int4'
-      ? `MakeInt4Value(${state.value})`
-      : `MakeTextValue(${goString(String(state.value))})`
-  }
-  if (state.kind === 'Error')
-    return `${type}{Kind: ${type}Error, Error: SqlError{State: ${state.state}}}`
-  return `${type}{Kind: ${type}${state.kind}}`
+const goInput = (shape: Shape, input: State): string => {
+  const type = inputType(shape)
+  if (input.kind === 'Value')
+    return type === 'Int4Value'
+      ? `MakeInt4Value(${input.value})`
+      : type === 'BoolValue'
+        ? `MakeBoolValue(${input.value})`
+        : `MakeTextValue(${goString(String(input.value))})`
+  if (input.kind === 'Error')
+    return `${type}{Kind: ${type}Error, Error: SqlError{State: ${input.state}}}`
+  return `${type}{Kind: ${type}${input.kind}}`
 }
-const goExpected = (state: Expected): string => {
-  if (state.kind === 'Value') return `BoolValue{Kind: BoolValueValue, Value: ${state.value}}`
-  if (state.kind === 'Error')
-    return `BoolValue{Kind: BoolValueError, Error: SqlError{State: ${state.state}}}`
-  return `BoolValue{Kind: BoolValue${state.kind}}`
+const goExpected = (shape: Shape, expected: Expected): string => {
+  const type = resultType(shape)
+  if (expected.kind === 'Value') return `${type}{Kind: ${type}Value, Value: ${expected.value}}`
+  if (expected.kind === 'Error')
+    return `${type}{Kind: ${type}Error, Error: SqlError{State: ${expected.state}}}`
+  return `${type}{Kind: ${type}${expected.kind}}`
 }
 writeFileSync(
   goTestOutput,
@@ -236,13 +329,12 @@ writeFileSync(
     .flatMap((item) =>
       item.cases.map(
         (test) =>
-          `    if actual := ${goTarget(item.wrapper)}(${goValue(item.operand, test.left)}, ${goValue(item.operand, test.right)}); actual != (${goExpected(test.expected)}) { t.Errorf("${item.functionName}: got %+v", actual) }`,
+          `    if actual := ${goTarget(item.wrapper)}(${test.inputs.map((input) => goInput(item.shape, input)).join(', ')}); actual != (${goExpected(item.shape, test.expected)}) { t.Errorf("${item.functionName}: got %+v", actual) }`,
       ),
     )
     .join('\n')}\n}\n`,
 )
-const counted = (operand: Operand): number =>
-  fixtures.filter((item) => item.operand === operand).length
+const counted = (shape: Shape): number => fixtures.filter((item) => item.shape === shape).length
 console.log(
-  `checked ${counted('int4')} Rust int4 comparison implementations and ${counted('text')} Rust text comparison implementations against PGlite`,
+  `checked ${counted('int4_pair_bool')} Rust int4 comparisons, ${counted('int4_pair_int4')} Rust int4 arithmetic functions, ${counted('bool_pair_bool')} Rust boolean comparisons, ${counted('text_pair_bool')} Rust text comparisons, and ${counted('text_single_int4')} Rust text-to-int4 functions against PGlite`,
 )

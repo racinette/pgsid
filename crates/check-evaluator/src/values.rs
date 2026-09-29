@@ -38,6 +38,18 @@ pub fn make_text_value(value: &str) -> TextValue<'_> {
     TextValue::Value(value)
 }
 
+pub fn bool_unknown() -> BoolValue {
+    BoolValue::Unknown
+}
+
+pub fn bool_null() -> BoolValue {
+    BoolValue::Null
+}
+
+pub fn make_bool_value(value: bool) -> BoolValue {
+    BoolValue::Value(value)
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum CheckOutcome {
     True,
@@ -80,4 +92,48 @@ fn check_from_bool(value: BoolValue) -> CheckOutcome {
         return CheckOutcome::False;
     }
     CheckOutcome::True
+}
+
+fn check_unknown() -> CheckOutcome {
+    CheckOutcome::Unknown
+}
+
+fn int4_is_null(value: Int4Value) -> BoolValue {
+    if let Int4Value::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == Int4Value::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(value == Int4Value::Null)
+}
+
+fn text_is_null(value: TextValue) -> BoolValue {
+    if let TextValue::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == TextValue::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(value == TextValue::Null)
+}
+
+fn bool_is_null(value: BoolValue) -> BoolValue {
+    if let BoolValue::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == BoolValue::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(value == BoolValue::Null)
+}
+
+fn bool_not_value(value: BoolValue) -> BoolValue {
+    if let BoolValue::Value(result) = value {
+        if result {
+            return BoolValue::Value(false);
+        }
+        return BoolValue::Value(true);
+    }
+    value
 }

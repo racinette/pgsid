@@ -31,7 +31,7 @@ import {
 } from './jsonschemas.js'
 import { createGoTypeContext } from './type-mapping.js'
 import { renderGoSchemaArtifacts } from './schema.js'
-import { renderGoSchemaChecks } from './sql/catalog-checks.js'
+import { renderGoSchemaCheckArtifacts } from './sql/catalog-checks.js'
 import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
 
 export interface CreateGoCodegenTargetOptions {
@@ -105,7 +105,7 @@ export function createGoCodegenTarget(
                         }
                       : undefined)
                   const checkSupport = options.catalog
-                    ? renderGoSchemaChecks(
+                    ? renderGoSchemaCheckArtifacts(
                         options.catalog.tables,
                         'pgsidpgx',
                         options.catalog.domains,
@@ -113,8 +113,9 @@ export function createGoCodegenTarget(
                         options.catalog,
                         config,
                         checkContext,
+                        helper.importPath,
                       )
-                    : ''
+                    : { checks: '', rust: null }
                   return [
                     {
                       kind: 'helpers',
@@ -124,12 +125,21 @@ export function createGoCodegenTarget(
                         target.nulls === 'structs',
                       ),
                     },
-                    ...(checkSupport
+                    ...(checkSupport.checks
                       ? [
                           {
                             kind: 'helpers' as const,
                             path: join(dirname(helper.path), 'checks.go'),
-                            content: checkSupport,
+                            content: checkSupport.checks,
+                          },
+                        ]
+                      : []),
+                    ...(checkSupport.rust
+                      ? [
+                          {
+                            kind: 'helpers' as const,
+                            path: join(dirname(helper.path), 'checkrust', 'checks.go'),
+                            content: checkSupport.rust,
                           },
                         ]
                       : []),

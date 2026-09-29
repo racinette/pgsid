@@ -5,29 +5,26 @@ import { pathToFileURL } from 'node:url'
 const [generatedPath, fixturePath] = process.argv.slice(2)
 if (!generatedPath || !fixturePath) throw new Error('usage: check.ts GENERATED_TS FIXTURES_JSON')
 const generated = await import(pathToFileURL(generatedPath).href)
+type Shape =
+  'int4_pair_bool' | 'int4_pair_int4' | 'bool_pair_bool' | 'text_pair_bool' | 'text_single_int4'
+type State = { kind: string; value?: boolean | number | string; state?: number }
 const fixtures = JSON.parse(readFileSync(fixturePath, 'utf8')) as {
   wrapper: string
   functionName: string
-  operand: 'int4' | 'text'
-  cases: {
-    left: { kind: string; value?: number | string; state?: number }
-    right: { kind: string; value?: number | string; state?: number }
-    expected: { kind: string; value?: boolean; state?: number }
-  }[]
+  shape: Shape
+  cases: { inputs: State[]; expected: State }[]
 }[]
-const input = (
-  operand: 'int4' | 'text',
-  state: { kind: string; value?: number | string; state?: number },
-): unknown => {
-  if (state.kind === 'Value') {
-    return operand === 'int4'
+const input = (shape: Shape, state: State): unknown => {
+  if (state.kind === 'Value')
+    return shape === 'int4_pair_bool' || shape === 'int4_pair_int4'
       ? generated.makeInt4Value(state.value)
-      : generated.makeTextValue(state.value)
-  }
+      : shape === 'bool_pair_bool'
+        ? generated.makeBoolValue(state.value)
+        : generated.makeTextValue(state.value)
   if (state.kind === 'Error') return { kind: 'Error', value: { state: state.state } }
   return { kind: state.kind }
 }
-const expected = (state: { kind: string; value?: boolean; state?: number }): unknown => {
+const expected = (state: State): unknown => {
   if (state.kind === 'Value') return { kind: 'Value', value: state.value }
   if (state.kind === 'Error') return { kind: 'Error', value: { state: state.state } }
   return { kind: state.kind }
@@ -38,11 +35,10 @@ for (const fixture of fixtures) {
     .filter(Boolean)
     .map((part, index) => (index === 0 ? part : part[0]!.toUpperCase() + part.slice(1)))
     .join('')
-  for (const test of fixture.cases) {
+  for (const test of fixture.cases)
     assert.deepEqual(
-      generated[targetName](input(fixture.operand, test.left), input(fixture.operand, test.right)),
+      generated[targetName](...test.inputs.map((state) => input(fixture.shape, state))),
       expected(test.expected),
       fixture.functionName,
     )
-  }
 }

@@ -51,6 +51,7 @@ const expression: EvalBoolExpression = {
               kind: 'operator',
               type: 'pg_catalog.bool',
               signature: 'operator:["pg_catalog","<>"](pg_catalog.text,pg_catalog.text)',
+              collation: 'C',
             },
             operands: [
               { kind: 'input', type: 'pg_catalog.text', name: 'status' },

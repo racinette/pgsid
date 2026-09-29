@@ -20,11 +20,13 @@ update its tests when that boundary changes.
 
 ## Initial language
 
-- Emit functions with explicit `CheckOutcome` returns. The sole public entry
-  is `evaluate_check`; helper functions are private `check_part_*` functions.
-- Parameters are immutable named values of `Int4Value` or `TextValue`.
-  Calls take bound identifiers, unsuffixed decimal integer literals, or
-  string literals.
+- Emit functions with explicit `CheckOutcome` returns. A single evaluator
+  exports `evaluate_check`; a group may export numbered `evaluate_check_*`
+  entries. Helper functions are private `check_part_*` or numbered
+  `check_*_part_*` functions.
+- Parameters are immutable named values of `Int4Value`, `TextValue`, or
+  `BoolValue`. Calls take bound identifiers, unsuffixed decimal integer
+  literals, string literals, or boolean literals.
 - Bodies contain immutable `let` bindings initialized by direct calls,
   optional `if` statements whose condition is a direct call and whose body
   returns one bound value, and a final direct call as the tail expression.

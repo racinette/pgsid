@@ -4,6 +4,7 @@ import { parse } from 'libpg-query'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { execFile } from 'node:child_process'
 import ts from 'typescript'
@@ -22,8 +23,14 @@ import { goSqlBackend } from '../../src/codegen/go/sql/registry.js'
 import { goEvalBoolBackend } from '../../src/codegen/go/sql/check.js'
 import { goSqlRuntime } from '../../src/codegen/go/sql/runtime.js'
 import { go, printGoFile } from '../../src/codegen/go/ast.js'
-import { renderTypescriptSchemaChecks } from '../../src/codegen/typescript/sql/catalog-checks.js'
-import { renderGoSchemaChecks } from '../../src/codegen/go/sql/catalog-checks.js'
+import {
+  renderTypescriptSchemaCheckArtifacts,
+  renderTypescriptSchemaChecks,
+} from '../../src/codegen/typescript/sql/catalog-checks.js'
+import {
+  renderGoSchemaCheckArtifacts,
+  renderGoSchemaChecks,
+} from '../../src/codegen/go/sql/catalog-checks.js'
 import { renderGoNulls } from '../../src/codegen/go/nulls.js'
 import { createGoTypeContext } from '../../src/codegen/go/type-mapping.js'
 import { renderTypescriptQueryArtifacts } from '../../src/codegen/typescript/query.js'
@@ -54,8 +61,13 @@ describe('catalog CHECK lowering', () => {
       CONSTRAINT email_format CHECK (email ~ '^a+$'),
       CONSTRAINT dynamic_format CHECK (email ~ pattern),
       CONSTRAINT with_unknown CHECK ((email ~ '^a+$') AND amount > 0),
+      CONSTRAINT amount_plus CHECK (amount + 1 > 0),
+      CONSTRAINT amount_minus CHECK (amount - 1 >= 0),
       CONSTRAINT email_length CHECK (length(email) > 0),
       CONSTRAINT email_excluded CHECK (email <> 'forbidden'),
+      CONSTRAINT enabled_equal CHECK (enabled = true),
+      CONSTRAINT enabled_unequal CHECK (enabled <> false),
+      CONSTRAINT enabled_less CHECK (enabled < true),
       CONSTRAINT enabled_guard CHECK (enabled IS NOT NULL),
       CONSTRAINT ordinary_equality CHECK (plain = 'a'),
       CONSTRAINT ordinary_collation CHECK (plain ~ '^a+$')
@@ -67,6 +79,191 @@ describe('catalog CHECK lowering', () => {
   })
 
   afterAll(async () => pg.close())
+
+  it('runs supported Rust checks and unsupported fallback checks through generated validators', async () => {
+    const catalog = await snapshotCatalog(pg)
+    const table = catalog.tables.find(
+      (item) => item.schema === 'public' && item.name === 'regulated',
+    )!
+    const typescript = renderTypescriptSchemaCheckArtifacts([table])
+    const go = renderGoSchemaCheckArtifacts(
+      [table],
+      'mixed',
+      [],
+      [],
+      catalog,
+      parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go: {}\n'),
+      undefined,
+      'check-rust-production',
+    )
+    expect(typescript.rust).not.toBeNull()
+    expect(go.rust).not.toBeNull()
+    expect(typescript.checks).toContain('_checkRust.evaluateCheck')
+    expect(typescript.checks).toContain('evalBool')
+    expect(go.checks).toContain('checkRustOutcome(checkrust.EvaluateCheck')
+    expect(typescript.checks).toMatch(/constraint: "email_length", result: checkRustOutcome/u)
+    expect(go.checks).toMatch(/Constraint: "email_length",\s*Result: checkRustOutcome/u)
+    expect(typescript.checks).toMatch(/constraint: "amount_plus", result: checkRustOutcome/u)
+    expect(go.checks).toMatch(/Constraint: "amount_minus",\s*Result: checkRustOutcome/u)
+    expect(typescript.checks).toMatch(/constraint: "enabled_equal", result: checkRustOutcome/u)
+    expect(go.checks).toMatch(/Constraint: "enabled_unequal",\s*Result: checkRustOutcome/u)
+    expect(typescript.checks).toMatch(/constraint: "enabled_less", result: checkRustOutcome/u)
+    expect(typescript.checks).toMatch(/constraint: "id_positive", result: \(\(\) =>/u)
+
+    const directory = await mkdtemp(join(tmpdir(), 'pgsid-check-rust-production-'))
+    try {
+      await writeFile(join(directory, 'package.json'), '{"type":"module"}\n')
+      await writeFile(join(directory, 'checks.ts'), typescript.checks)
+      await writeFile(join(directory, 'checks-rust.ts'), typescript.rust!)
+      await run('node_modules/.bin/tsc', [
+        '--strict',
+        '--skipLibCheck',
+        '--target',
+        'es2022',
+        '--module',
+        'nodenext',
+        '--moduleResolution',
+        'nodenext',
+        '--outDir',
+        join(directory, 'js'),
+        join(directory, 'checks.ts'),
+        join(directory, 'checks-rust.ts'),
+      ])
+      const generated = await import(pathToFileURL(join(directory, 'js', 'checks.js')).href)
+      const result = generated.evaluatePublicRegulatedChecks({ email: 'b', amount: 1 }) as {
+        constraint: string
+        result: { certain: boolean; value?: boolean | null }
+      }[]
+      expect(result.map((item) => item.constraint)).toEqual(
+        catalogCheckGroups([table], [], [])[0]!.checks.map((item) => item.plan.name),
+      )
+      expect(result.find((item) => item.constraint === 'email_format')?.result).toEqual({
+        certain: true,
+        value: false,
+      })
+      expect(result.find((item) => item.constraint === 'email_length')?.result).toEqual({
+        certain: true,
+        value: true,
+      })
+      for (const name of ['amount_plus', 'amount_minus']) {
+        expect(result.find((item) => item.constraint === name)?.result).toEqual({
+          certain: true,
+          value: true,
+        })
+      }
+      expect(() => generated.evaluatePublicRegulatedChecks({ amount: 2147483647 })).toThrowError(
+        expect.objectContaining({ code: '22003' }),
+      )
+      expect(() => generated.evaluatePublicRegulatedChecks({ amount: -2147483648 })).toThrowError(
+        expect.objectContaining({ code: '22003' }),
+      )
+      const enabledTrue = generated.evaluatePublicRegulatedChecks({
+        enabled: true,
+      }) as typeof result
+      const enabledFalse = generated.evaluatePublicRegulatedChecks({
+        enabled: false,
+      }) as typeof result
+      for (const name of ['enabled_equal', 'enabled_unequal']) {
+        expect(enabledTrue.find((item) => item.constraint === name)?.result).toEqual({
+          certain: true,
+          value: true,
+        })
+        expect(enabledFalse.find((item) => item.constraint === name)?.result).toEqual({
+          certain: true,
+          value: false,
+        })
+      }
+      expect(enabledTrue.find((item) => item.constraint === 'enabled_less')?.result).toEqual({
+        certain: true,
+        value: false,
+      })
+      expect(enabledFalse.find((item) => item.constraint === 'enabled_less')?.result).toEqual({
+        certain: true,
+        value: true,
+      })
+      expect(enabledTrue.find((item) => item.constraint === 'id_positive')?.result).toEqual({
+        certain: false,
+      })
+      expect(
+        (generated.evaluatePublicRegulatedChecks({ enabled: null }) as typeof result).find(
+          (item) => item.constraint === 'enabled_equal',
+        )?.result,
+      ).toEqual({ certain: true, value: null })
+      for (const [email, expected] of [
+        ['', false],
+        ['😀', true],
+      ] as const) {
+        const row = generated.evaluatePublicRegulatedChecks({ email }) as typeof result
+        expect(row.find((item) => item.constraint === 'email_length')?.result).toEqual({
+          certain: true,
+          value: expected,
+        })
+      }
+      expect(result.find((item) => item.constraint === 'id_positive')?.result).toEqual({
+        certain: false,
+      })
+      const nullEmail = generated.evaluatePublicRegulatedChecks({ email: null }) as typeof result
+      expect(nullEmail.find((item) => item.constraint === 'email_format')?.result).toEqual({
+        certain: true,
+        value: null,
+      })
+      const outsideInt4 = generated.evaluatePublicRegulatedChecks({
+        email: 'a',
+        amount: 2147483648n,
+      }) as typeof result
+      expect(outsideInt4.find((item) => item.constraint === 'with_unknown')?.result).toEqual({
+        certain: false,
+      })
+      expect(() =>
+        generated.evaluatePublicRegulatedChecks({ email: 'a', pattern: '(' }),
+      ).toThrowError(expect.objectContaining({ code: '2201B' }))
+
+      await writeFile(join(directory, 'go.mod'), 'module check-rust-production\n\ngo 1.24\n')
+      await writeFile(join(directory, 'checks.go'), go.checks)
+      await mkdir(join(directory, 'checkrust'))
+      await writeFile(join(directory, 'checkrust', 'checks.go'), go.rust!)
+      await writeFile(
+        join(directory, 'checks_test.go'),
+        `package mixed
+import (
+  "testing"
+  checkrust "check-rust-production/checkrust"
+)
+func ptr[T any](value T) *T { return &value }
+func TestMixedChecks(t *testing.T) {
+  checks := EvaluatePublicRegulatedChecks(PublicRegulatedCheckInput{Email: KnownCheckValue(ptr("b")), Amount: KnownCheckValue(ptr(int32(1))), Enabled: KnownCheckValue(ptr(true))})
+  results := map[string]EvalBool{}
+  for _, check := range checks { results[check.Constraint] = check.Result }
+  if result := results["email_format"]; !result.Certain || !result.Value.Valid || result.Value.Value { t.Fatalf("Rust CHECK: %+v", result) }
+  if result := results["email_length"]; !result.Certain || !result.Value.Valid || !result.Value.Value { t.Fatalf("length CHECK: %+v", result) }
+  for _, name := range []string{"amount_plus", "amount_minus"} { if result := results[name]; !result.Certain || !result.Value.Valid || !result.Value.Value { t.Fatalf("arithmetic CHECK %s: %+v", name, result) } }
+  maxRows := EvaluatePublicRegulatedChecks(PublicRegulatedCheckInput{Amount: KnownCheckValue(ptr(int32(2147483647)))})
+  for _, check := range maxRows { if check.Constraint == "amount_plus" && check.Result.Value.Error != "22003" { t.Fatalf("addition overflow: %+v", check.Result) } }
+  minRows := EvaluatePublicRegulatedChecks(PublicRegulatedCheckInput{Amount: KnownCheckValue(ptr(int32(-2147483648)))})
+  for _, check := range minRows { if check.Constraint == "amount_minus" && check.Result.Value.Error != "22003" { t.Fatalf("subtraction overflow: %+v", check.Result) } }
+  for _, name := range []string{"enabled_equal", "enabled_unequal"} { if result := results[name]; !result.Certain || !result.Value.Valid || !result.Value.Value { t.Fatalf("boolean CHECK %s: %+v", name, result) } }
+  if result := results["enabled_less"]; !result.Certain || !result.Value.Valid || result.Value.Value { t.Fatalf("boolean ordering CHECK: %+v", result) }
+  if result := results["id_positive"]; result.Certain { t.Fatalf("missing input: %+v", result) }
+  empty := EvaluatePublicRegulatedChecks(PublicRegulatedCheckInput{Email: KnownCheckValue(ptr(""))})
+  for _, check := range empty { if check.Constraint == "email_length" && (!check.Result.Certain || !check.Result.Value.Valid || check.Result.Value.Value) { t.Fatalf("empty length: %+v", check.Result) } }
+  knownId := EvaluatePublicRegulatedChecks(PublicRegulatedCheckInput{Id: KnownCheckValue(int64(1))})
+  for _, check := range knownId { if check.Constraint == "id_positive" && (!check.Result.Certain || !check.Result.Value.Valid || !check.Result.Value.Value) { t.Fatalf("fallback CHECK: %+v", check.Result) } }
+  if value := checkRustInt4(KnownCheckValue(int64(2147483648))); value.Kind != checkrust.Int4ValueUnknown { t.Fatalf("int4 range: %+v", value) }
+  if value := checkRustText(NullCheckValue[*string]()); value.Kind != checkrust.TextValueNull { t.Fatalf("SQL null: %+v", value) }
+  incoming := checkRustInt4(KnownCheckValue(SqlInteger{Error: "22003"}))
+  if incoming.Kind != checkrust.Int4ValueError { t.Fatalf("input error: %+v", incoming) }
+  outgoing := checkRustOutcome(checkrust.CheckOutcome{Kind: checkrust.CheckOutcomeError, Error: incoming.Error})
+  if !outgoing.Certain || outgoing.Value.Error != "22003" { t.Fatalf("SQLSTATE round trip: %+v", outgoing) }
+}`,
+      )
+      await run(process.env.PGSID_GO_BINARY ?? 'go', ['test', '.'], {
+        cwd: directory,
+        env: { ...process.env, GOCACHE: join(tmpdir(), 'pgsid-check-rust-go-cache') },
+      })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
+  })
 
   it('binds existing numeric atoms alongside regex checks', async () => {
     const catalog = await snapshotCatalog(pg)
@@ -494,13 +691,14 @@ func TestPartialCheckInputs(t *testing.T) {
       },
     ]
     const plans = planCheckInputs(statement!, writes, catalog, ['text', 'integer'])
-    expect(plans).toMatchObject([
-      {
-        columns: [
-          { name: 'email', parameter: 1 },
-          { name: 'amount', parameter: 2 },
-        ],
-      },
+    expect(plans).toHaveLength(1)
+    expect(
+      plans[0]!.columns
+        .map(({ name, parameter }) => ({ name, parameter }))
+        .sort((left, right) => left.parameter - right.parameter),
+    ).toEqual([
+      { name: 'email', parameter: 1 },
+      { name: 'amount', parameter: 2 },
     ])
     const item = {
       query: {
@@ -599,13 +797,48 @@ func TestPartialCheckInputs(t *testing.T) {
       module.exports['insertRegulated']!(db, { email: 'a', amount: -1 }),
     ).rejects.toMatchObject({
       code: '23514',
-      constraint: 'with_unknown',
+      constraint: 'amount_minus',
     })
     expect(queries).toBe(0)
     await module.exports['insertRegulated']!(db, { email: 'a', amount: 1 })
     expect(queries).toBe(1)
     await module.exports['insertRegulated']!(db, { email: null, amount: 1 })
     expect(queries).toBe(2)
+
+    const rustQuery = renderTypescriptQueryArtifacts(
+      [item],
+      config,
+      {},
+      {
+        catalog,
+        checkRustModuleSpecifier: './query.check-rust.js',
+      },
+    )
+    expect(rustQuery.checkRust).not.toBeNull()
+    expect(rustQuery.runtime).toContain('from "./query.check-rust.js"')
+    const rustDirectory = await mkdtemp(join(tmpdir(), 'pgsid-query-rust-ts-'))
+    try {
+      await writeFile(join(rustDirectory, 'package.json'), '{"type":"module"}\n')
+      await writeFile(join(rustDirectory, 'query.ts'), rustQuery.runtime!)
+      await writeFile(join(rustDirectory, 'query.check-rust.ts'), rustQuery.checkRust!)
+      await writeFile(join(rustDirectory, 'types.d.ts'), rustQuery.types!)
+      await run('node_modules/.bin/tsc', [
+        '--strict',
+        '--noEmit',
+        '--skipLibCheck',
+        '--target',
+        'es2022',
+        '--module',
+        'nodenext',
+        '--moduleResolution',
+        'nodenext',
+        join(rustDirectory, 'query.ts'),
+        join(rustDirectory, 'query.check-rust.ts'),
+        join(rustDirectory, 'types.d.ts'),
+      ])
+    } finally {
+      await rm(rustDirectory, { recursive: true, force: true })
+    }
 
     const goQuery = renderGoQueryArtifacts([item], config, {}, catalog, 'checks', undefined, {
       executor: true,
@@ -619,10 +852,20 @@ func TestPartialCheckInputs(t *testing.T) {
       const helperDir = join(directory, 'pgsid', 'pgx')
       await mkdir(helperDir, { recursive: true })
       await writeFile(join(directory, 'go.mod'), 'module example.com/checks\n\ngo 1.24\n')
-      await writeFile(
-        join(helperDir, 'checks.go'),
-        renderGoSchemaChecks([plans[0]!.table], 'pgsidpgx', [], [], catalog, config),
+      const goSupport = renderGoSchemaCheckArtifacts(
+        [plans[0]!.table],
+        'pgsidpgx',
+        [],
+        [],
+        catalog,
+        config,
+        undefined,
+        'example.com/checks/pgsid/pgx',
       )
+      expect(goSupport.rust).not.toBeNull()
+      await writeFile(join(helperDir, 'checks.go'), goSupport.checks)
+      await mkdir(join(helperDir, 'checkrust'))
+      await writeFile(join(helperDir, 'checkrust', 'checks.go'), goSupport.rust!)
       await writeFile(join(directory, 'query.go'), goQuery.types!)
       await writeFile(
         join(directory, 'query_test.go'),

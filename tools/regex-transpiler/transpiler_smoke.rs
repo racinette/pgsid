@@ -179,6 +179,22 @@ pub fn subtract_positions(left: usize, right: usize) -> usize {
     left - right
 }
 
+pub fn signed_add(left: i32, right: i32) -> i32 {
+    left + right
+}
+
+pub fn signed_subtract(left: i32, right: i32) -> i32 {
+    left - right
+}
+
+pub fn signed_negate(value: i32) -> i32 {
+    -value
+}
+
+pub fn signed_minimum() -> i32 {
+    -2147483647 - 1
+}
+
 pub fn is_before_first(position: i32) -> bool {
     position < 1
 }

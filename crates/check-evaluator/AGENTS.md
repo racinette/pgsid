@@ -25,9 +25,10 @@ compiled as Rust and transpiled to Go and TypeScript.
 - CHECK evaluation requires the C collation only. Collation-sensitive
   operations implement C-collation behavior, and parity comparisons use that
   collation. Text ordering compares Unicode scalars.
-- The operation parity command discovers immutable, strict
-  `int4 × int4 → bool` and `text × text → bool` implementations in the
-  operation sources and tests them automatically.
+- The operation parity command discovers all six immutable, strict
+  `int4 × int4 → bool`, `bool × bool → bool`, and `text × text → bool`
+  comparisons, plus `int4 × int4 → int4` arithmetic and `text → int4`
+  implementations, in the operation sources and tests them automatically.
 - If a callable needs a new value representation, primitive, SQL error, or
   Rust syntax rule, surface that as a separate foundation change before
   porting more functions that depend on it. The transpiler's own `AGENTS.md`

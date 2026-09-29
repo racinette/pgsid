@@ -28,6 +28,28 @@ function checkedSubtract(left: number, right: number): number {
         throw new RangeError('shared numeric underflow');
     return left - right;
 }
+function checkedSignedNegate(value: number): number {
+    checkedI32(value);
+    if (value === -2147483648)
+        throw new RangeError('signed integer overflow');
+    return -value;
+}
+function checkedSignedAdd(left: number, right: number): number {
+    checkedI32(left);
+    checkedI32(right);
+    const result = left + right;
+    if (result < -2147483648 || result > MAX_SHARED_INDEX)
+        throw new RangeError('signed integer overflow');
+    return result;
+}
+function checkedSignedSubtract(left: number, right: number): number {
+    checkedI32(left);
+    checkedI32(right);
+    const result = left - right;
+    if (result < -2147483648 || result > MAX_SHARED_INDEX)
+        throw new RangeError('signed integer overflow');
+    return result;
+}
 function checkedChar(value: string): string {
     const points = Array.from(value);
     if (points.length !== 1 || (value.codePointAt(0)! >= 0xd800 && value.codePointAt(0)! <= 0xdfff))

@@ -181,6 +181,11 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		return &ast.ParenExpr{X: g.goExpression(value.Inner)}
 	case "borrow":
 		return &ast.UnaryExpr{Op: token.AND, X: g.goExpression(value.Value)}
+	case "unary":
+		if value.Operator != "negate" {
+			reject("unsupported unary operator")
+		}
+		return goCall("checkedSignedNegate", g.goExpression(value.Value))
 	case "cast":
 		switch path(value.TargetType) {
 		case "u32":
@@ -194,8 +199,16 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		left, right := g.goExpression(value.Left), g.goExpression(value.Right)
 		switch value.Operator {
 		case "add":
+			signed := path(g.inferType(value.Left)) == "i32" || path(g.inferType(value.Right)) == "i32"
+			if signed {
+				return goCall("checkedSignedAdd", left, right)
+			}
 			return goCall("checkedAdd", left, right)
 		case "subtract":
+			signed := path(g.inferType(value.Left)) == "i32" || path(g.inferType(value.Right)) == "i32"
+			if signed {
+				return goCall("checkedSignedSubtract", left, right)
+			}
 			return goCall("checkedSubtract", left, right)
 		}
 		operators := map[string]token.Token{
