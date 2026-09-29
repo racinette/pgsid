@@ -13,6 +13,7 @@ type Expr =
   | { kind: 'string'; text: string }
   | { kind: 'parenthesized'; inner: Expr }
   | { kind: 'borrow'; value: Expr }
+  | { kind: 'unary'; operator: 'negate'; value: Expr }
   | { kind: 'cast'; value: Expr; targetType: TypeNode }
   | { kind: 'binary'; operator: string; left: Expr; right: Expr }
   | { kind: 'assign'; left: Expr; right: Expr }
@@ -245,11 +246,16 @@ class Transpiler {
         const inner = this.infer(value.value, locals)
         return inner ? `&${inner}` : undefined
       }
+      case 'unary':
+        return 'i32'
       case 'cast':
         return this.path(value.targetType)
       case 'binary':
         if (value.operator === 'add' || value.operator === 'subtract')
-          return this.infer(value.left, locals)
+          return this.infer(value.left, locals) === 'i32' ||
+            this.infer(value.right, locals) === 'i32'
+            ? 'i32'
+            : this.infer(value.left, locals)
         return value.operator === 'add-assign' ? undefined : 'bool'
       case 'field': {
         const base = this.infer(value.base, locals)
@@ -319,6 +325,9 @@ class Transpiler {
         return f.createParenthesizedExpression(this.expression(value.inner, locals))
       case 'borrow':
         return this.expression(value.value, locals)
+      case 'unary':
+        if (value.operator !== 'negate') throw new Error('unsupported unary operator')
+        return call('checkedSignedNegate', this.expression(value.value, locals))
       case 'cast':
         if (this.path(value.targetType) === 'u32')
           return f.createNonNullExpression(
@@ -334,8 +343,12 @@ class Transpiler {
       case 'binary': {
         const left = this.expression(value.left, locals)
         const right = this.expression(value.right, locals)
-        if (value.operator === 'add') return call('checkedAdd', left, right)
-        if (value.operator === 'subtract') return call('checkedSubtract', left, right)
+        const signed =
+          this.infer(value.left, locals) === 'i32' || this.infer(value.right, locals) === 'i32'
+        if (value.operator === 'add')
+          return call(signed ? 'checkedSignedAdd' : 'checkedAdd', left, right)
+        if (value.operator === 'subtract')
+          return call(signed ? 'checkedSignedSubtract' : 'checkedSubtract', left, right)
         if (value.operator === 'add-assign')
           return comparison(left, ts.SyntaxKind.EqualsToken, call('checkedAdd', left, right))
         if (value.operator === 'equal' || value.operator === 'not-equal') {

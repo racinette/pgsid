@@ -3,6 +3,8 @@ import type { DomainInfo, TableInfo } from '../../../catalog/types.js'
 import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
 import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
+import { prepareCheckRustGroup } from '../../shared/check-rust-source.js'
+import { transpileCheckRust } from '../../shared/check-rust-transpile.js'
 import { exportModifier, factory, identifier, printFile } from '../ast.js'
 import { typeName } from '../type-mapping.js'
 import { typescriptEvalBoolBackend } from './check.js'
@@ -15,9 +17,28 @@ export function renderTypescriptSchemaChecks(
   selectedDomains: readonly DomainInfo[] = domains,
   options: { typedInputs?: boolean } = {},
 ): string {
+  return renderTypescriptSchemaCheckArtifacts(tables, domains, selectedDomains, options, false)
+    .checks
+}
+
+export function renderTypescriptSchemaCheckArtifacts(
+  tables: readonly TableInfo[],
+  domains: readonly DomainInfo[] = [],
+  selectedDomains: readonly DomainInfo[] = domains,
+  options: { typedInputs?: boolean; rustModuleSpecifier?: string } = {},
+  rust = true,
+): { checks: string; rust: string | null } {
   const typedInputs = options.typedInputs ?? false
   const groups = catalogCheckGroups(tables, domains, selectedDomains)
-  if (!groups.length) return ''
+  if (!groups.length) return { checks: '', rust: null }
+  const rustGroup = rust
+    ? prepareCheckRustGroup(
+        groups.flatMap((group) =>
+          group.checks.map(({ plan }) => portableCheckAtoms(plan.expression)),
+        ),
+      )
+    : null
+  let rustIndex = 0
   const row = identifier('row')
   const inputHelpers = new Set<string>()
   const callInput = (helper: string, name: string): ts.Expression => {
@@ -52,8 +73,49 @@ export function renderTypescriptSchemaChecks(
   }
   const emitted = groups.map((group) => ({
     ...group,
-    results: group.checks.map(({ plan }) =>
-      emitEvalBoolExpression(
+    results: group.checks.map(({ plan }) => {
+      const prepared = rustGroup?.checks[rustIndex++]
+      if (prepared?.kind === 'supported') {
+        const args = prepared.inputs.map((item) => {
+          if (!['Int4Value', 'TextValue', 'BoolValue'].includes(item.rustType))
+            throw new Error(`Unsupported TypeScript Rust CHECK input: ${item.rustType}`)
+          const helper =
+            item.rustType === 'Int4Value'
+              ? 'checkRustInt4'
+              : item.rustType === 'TextValue'
+                ? 'checkRustText'
+                : 'checkRustBool'
+          inputHelpers.add(
+            item.rustType === 'Int4Value'
+              ? 'checkInputInteger'
+              : item.rustType === 'TextValue'
+                ? 'checkInputText'
+                : 'checkInputBoolean',
+          )
+          return factory.createCallExpression(identifier(helper), undefined, [
+            row,
+            factory.createStringLiteral(item.name),
+          ])
+        })
+        return {
+          value: {
+            expression: factory.createCallExpression(identifier('checkRustOutcome'), undefined, [
+              factory.createCallExpression(
+                factory.createPropertyAccessExpression(
+                  identifier('_checkRust'),
+                  prepared.entryName.replace(/_([a-z0-9])/gu, (_, part: string) =>
+                    part.toUpperCase(),
+                  ),
+                ),
+                undefined,
+                args,
+              ),
+            ]),
+          },
+          helpers: ['evalBoolCertain', 'evalBoolUncertain'],
+        }
+      }
+      return emitEvalBoolExpression(
         portableCheckAtoms(plan.expression),
         { ...typescriptSqlBackend, input: (name) => callInput('checkTextValue', name) },
         {
@@ -67,8 +129,8 @@ export function renderTypescriptSchemaChecks(
             },
           },
         },
-      ),
-    ),
+      )
+    }),
   }))
   const namedImport = (names: readonly string[], module: string): ts.ImportDeclaration =>
     factory.createImportDeclaration(
@@ -120,86 +182,145 @@ export function renderTypescriptSchemaChecks(
       undefined,
     )
   }
-  return printFile([
-    ...(typedInputs && groups.some((group) => group.kind === 'table')
-      ? [
-          namedImport(['InferSelect'], '../helpers.js'),
-          namedImport(
-            groups
-              .filter((group) => group.kind === 'table')
-              .map((group) => typeName(group.source.name)),
-            './tables.js',
-          ),
-        ]
-      : []),
-    ...(typedInputs && groups.some((group) => group.kind === 'domain')
-      ? [
-          namedImport(
-            groups
-              .filter((group) => group.kind === 'domain')
-              .map((group) => typeName(group.source.name)),
-            './domains.js',
-          ),
-        ]
-      : []),
-    ...typescriptSqlRuntime(
-      emitted.flatMap((group) => group.results.flatMap((result) => result.helpers)),
-    ),
-    ...checkInputStatements(inputHelpers),
-    ...(typedInputs
-      ? groups.map((group) =>
-          factory.createTypeAliasDeclaration(
-            [exportModifier],
-            `${typeName(group.name)}CheckInput`,
-            undefined,
-            inputType(group),
-          ),
-        )
-      : []),
-    ...emitted.map(({ name, kind, checks, results }) =>
-      factory.createFunctionDeclaration(
-        [exportModifier],
-        undefined,
-        `evaluate${typeName(name)}${kind === 'domain' ? 'DomainChecks' : 'Checks'}`,
-        undefined,
-        [
-          factory.createParameterDeclaration(
-            undefined,
-            undefined,
-            row,
-            undefined,
-            typedInputs
-              ? factory.createTypeReferenceNode(`${typeName(name)}CheckInput`)
-              : factory.createKeywordTypeNode(ts.SyntaxKind.ObjectKeyword),
-          ),
-        ],
-        undefined,
-        factory.createBlock(
-          [
-            factory.createReturnStatement(
-              factory.createArrayLiteralExpression(
-                results.map((result, index) =>
-                  factory.createObjectLiteralExpression([
-                    factory.createPropertyAssignment(
-                      'owner',
-                      factory.createStringLiteral(checks[index]!.owner),
-                    ),
-                    factory.createPropertyAssignment(
-                      'constraint',
-                      factory.createStringLiteral(checks[index]!.plan.name),
-                    ),
-                    factory.createPropertyAssignment('result', result.value.expression),
-                  ]),
-                ),
-                true,
+  return {
+    checks: printFile([
+      ...(rustGroup?.source
+        ? [
+            factory.createImportDeclaration(
+              undefined,
+              factory.createImportClause(
+                false,
+                undefined,
+                factory.createNamespaceImport(identifier('_checkRust')),
               ),
+              factory.createStringLiteral(options.rustModuleSpecifier ?? './checks-rust.js'),
+            ),
+          ]
+        : []),
+      ...(typedInputs && groups.some((group) => group.kind === 'table')
+        ? [
+            namedImport(['InferSelect'], '../helpers.js'),
+            namedImport(
+              groups
+                .filter((group) => group.kind === 'table')
+                .map((group) => typeName(group.source.name)),
+              './tables.js',
+            ),
+          ]
+        : []),
+      ...(typedInputs && groups.some((group) => group.kind === 'domain')
+        ? [
+            namedImport(
+              groups
+                .filter((group) => group.kind === 'domain')
+                .map((group) => typeName(group.source.name)),
+              './domains.js',
+            ),
+          ]
+        : []),
+      ...typescriptSqlRuntime(
+        emitted.flatMap((group) => group.results.flatMap((result) => result.helpers)),
+      ),
+      ...checkInputStatements(inputHelpers),
+      ...(rustGroup?.source ? synthesizedStatements(typescriptRustAdapterSource) : []),
+      ...(typedInputs
+        ? groups.map((group) =>
+            factory.createTypeAliasDeclaration(
+              [exportModifier],
+              `${typeName(group.name)}CheckInput`,
+              undefined,
+              inputType(group),
+            ),
+          )
+        : []),
+      ...emitted.map(({ name, kind, checks, results }) =>
+        factory.createFunctionDeclaration(
+          [exportModifier],
+          undefined,
+          `evaluate${typeName(name)}${kind === 'domain' ? 'DomainChecks' : 'Checks'}`,
+          undefined,
+          [
+            factory.createParameterDeclaration(
+              undefined,
+              undefined,
+              row,
+              undefined,
+              typedInputs
+                ? factory.createTypeReferenceNode(`${typeName(name)}CheckInput`)
+                : factory.createKeywordTypeNode(ts.SyntaxKind.ObjectKeyword),
             ),
           ],
-          true,
+          undefined,
+          factory.createBlock(
+            [
+              factory.createReturnStatement(
+                factory.createArrayLiteralExpression(
+                  results.map((result, index) =>
+                    factory.createObjectLiteralExpression([
+                      factory.createPropertyAssignment(
+                        'owner',
+                        factory.createStringLiteral(checks[index]!.owner),
+                      ),
+                      factory.createPropertyAssignment(
+                        'constraint',
+                        factory.createStringLiteral(checks[index]!.plan.name),
+                      ),
+                      factory.createPropertyAssignment('result', result.value.expression),
+                    ]),
+                  ),
+                  true,
+                ),
+              ),
+            ],
+            true,
+          ),
         ),
       ),
-    ),
-  ])
+    ]),
+    rust: rustGroup?.source ? transpileCheckRust(rustGroup.source).typescript : null,
+  }
+}
+
+const typescriptRustAdapterSource = `function checkRustInt4(row: object, name: string): _checkRust.Int4Value {
+  const input = checkInputInteger(row, name)
+  if (!input.certain) return _checkRust.int4Unknown()
+  if (input.value === null) return _checkRust.int4Null()
+  if (input.value < -2147483648n || input.value > 2147483647n) return _checkRust.int4Unknown()
+  return _checkRust.makeInt4Value(Number(input.value))
+}
+function checkRustText(row: object, name: string): _checkRust.TextValue {
+  const input = checkInputText(row, name)
+  if (!input.certain) return _checkRust.textUnknown()
+  if (input.value === null) return _checkRust.textNull()
+  return _checkRust.makeTextValue(input.value)
+}
+function checkRustBool(row: object, name: string): _checkRust.BoolValue {
+  const input = checkInputBoolean(row, name)
+  if (!input.certain) return _checkRust.boolUnknown()
+  if (input.value === null) return _checkRust.boolNull()
+  return _checkRust.makeBoolValue(input.value)
+}
+function checkRustOutcome(value: _checkRust.CheckOutcome): EvalBool {
+  switch (value.kind) {
+    case 'True': return evalBoolCertain(true)
+    case 'False': return evalBoolCertain(false)
+    case 'Null': return evalBoolCertain(null)
+    case 'Unknown': return evalBoolUncertain()
+    case 'Error': throw Object.assign(new Error('check constraint evaluation failed'), {
+      code: value.value.state.toString(36).toUpperCase().padStart(5, '0'),
+    })
+  }
+  throw new Error('invalid Rust CHECK outcome')
+}`
+
+const synthesizedStatements = (source: string): ts.Statement[] => {
+  const parsed = ts.createSourceFile('check-rust-adapter.ts', source, ts.ScriptTarget.ES2022, true)
+  const synthesize = (node: ts.Node): void => {
+    ts.forEachChild(node, synthesize)
+    ts.setTextRange(node, { pos: -1, end: -1 })
+  }
+  for (const statement of parsed.statements) synthesize(statement)
+  return [...parsed.statements]
 }
 
 const checkInputHelpers: Record<string, { dependencies: readonly string[]; source: string }> = {

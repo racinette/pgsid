@@ -201,6 +201,10 @@ func (g *generator) inferType(value *node) *node {
 		}
 	case "integer":
 		return namedType("usize")
+	case "unary":
+		if value.Operator == "negate" {
+			return namedType("i32")
+		}
 	case "character":
 		return namedType("char")
 	case "boolean":
@@ -211,6 +215,9 @@ func (g *generator) inferType(value *node) *node {
 		return value.TargetType
 	case "binary":
 		if value.Operator == "add" || value.Operator == "subtract" {
+			if path(g.inferType(value.Left)) == "i32" || path(g.inferType(value.Right)) == "i32" {
+				return namedType("i32")
+			}
 			return g.inferType(value.Left)
 		}
 		return namedType("bool")

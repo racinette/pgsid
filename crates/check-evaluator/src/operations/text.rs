@@ -16,6 +16,29 @@ fn text_codepoint_before(left: &str, right: &str) -> bool {
     left_chars.len() < right_chars.len()
 }
 
+fn sql__pg_catalog__length__ehpe(value: TextValue) -> Int4Value {
+    if let TextValue::Error(error) = value {
+        return Int4Value::Error(error);
+    }
+    if value == TextValue::Unknown {
+        return Int4Value::Unknown;
+    }
+    if value == TextValue::Null {
+        return Int4Value::Null;
+    }
+    if let TextValue::Value(text) = value {
+        let chars: Vec<char> = text.chars().collect();
+        let mut index = 0;
+        let mut length = 0;
+        while index < chars.len() {
+            index = index + 1;
+            length = length + 1;
+        }
+        return Int4Value::Value(length);
+    }
+    Int4Value::Unknown
+}
+
 fn sql__pg_catalog__texteq__aet8(left: TextValue, right: TextValue) -> BoolValue {
     if let TextValue::Error(error) = left {
         return BoolValue::Error(error);

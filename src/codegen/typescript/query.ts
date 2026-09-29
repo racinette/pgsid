@@ -9,7 +9,7 @@ import { planArrayDimensionInputs } from '../shared/array-dimensions.js'
 import { planJsonSchemaInputs } from '../shared/json-schema-inputs.js'
 import { planCheckInputs, type CheckInputPlan } from '../shared/check-inputs.js'
 import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
-import { renderTypescriptSchemaChecks } from './sql/catalog-checks.js'
+import { renderTypescriptSchemaCheckArtifacts } from './sql/catalog-checks.js'
 import {
   asyncModifier,
   exportModifier,
@@ -64,11 +64,13 @@ export interface RenderTypescriptQueryArtifactsOptions {
   jsonSchemaValidation?: (alternative: JsonSchemaAlternative) => string | undefined
   jsonSchemaPredicate?: GenerateTypescriptJsonSchemaValidatorOptions['schemaPredicate']
   jsonSchemaDiagnostic?: GenerateTypescriptJsonSchemaValidatorOptions['schemaValidation']
+  checkRustModuleSpecifier?: string
 }
 
 export interface TypescriptQueryArtifacts {
   types: string | null
   runtime: string | null
+  checkRust: string | null
   diagnostics: readonly TypescriptQueryDiagnostic[]
 }
 
@@ -100,7 +102,7 @@ export function renderTypescriptQueryArtifacts(
 ): TypescriptQueryArtifacts {
   const diagnostics: TypescriptQueryDiagnostic[] = []
   const target = config.sql.codegen?.typescript
-  if (!target) return { types: null, runtime: null, diagnostics }
+  if (!target) return { types: null, runtime: null, checkRust: null, diagnostics }
   const bindings = typescriptJsonSchemaBindings(config, schemas)
   const context: TypescriptTypeContext = {
     inlineNative: !options.nativeModuleSpecifier,
@@ -164,7 +166,7 @@ export function renderTypescriptQueryArtifacts(
     }
   }
   if (diagnostics.some((diagnostic) => diagnostic.severity === 'error')) {
-    return { types: null, runtime: null, diagnostics }
+    return { types: null, runtime: null, checkRust: null, diagnostics }
   }
 
   const types = printFile([
@@ -195,7 +197,15 @@ export function renderTypescriptQueryArtifacts(
       ),
     ).values(),
   ]
-  const checkRuntime = renderTypescriptSchemaChecks(checkTables)
+  const checkRuntime = renderTypescriptSchemaCheckArtifacts(
+    checkTables,
+    [],
+    [],
+    {
+      rustModuleSpecifier: options.checkRustModuleSpecifier,
+    },
+    Boolean(options.checkRustModuleSpecifier),
+  )
   const runtime = printFile([
     ...(typeNames.length
       ? [namedImport(typeNames, options.typesModuleSpecifier ?? './types.js', true)]
@@ -253,7 +263,7 @@ export function renderTypescriptQueryArtifacts(
           ),
         ]
       : []),
-    ...synthesizedStatements(checkRuntime),
+    ...synthesizedStatements(checkRuntime.checks),
     ...(checkTables.length
       ? synthesizedStatements(`export class SqlCheckViolationError extends Error {
   readonly code = '23514'
@@ -266,7 +276,12 @@ export function renderTypescriptQueryArtifacts(
     ...rendered.flatMap((query) => query.runtimeDeclarations),
     ...rendered.map((query) => query.wrapper),
   ])
-  return { types, runtime: options.emitRuntime === false ? null : runtime, diagnostics }
+  return {
+    types,
+    runtime: options.emitRuntime === false ? null : runtime,
+    checkRust: options.emitRuntime === false ? null : checkRuntime.rust,
+    diagnostics,
+  }
 }
 
 const synthesizedStatements = (source: string): ts.Statement[] => {

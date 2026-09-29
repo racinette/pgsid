@@ -200,6 +200,7 @@ export function createTypescriptCodegenTarget(
               join(jsonTypesDirectory, 'index.d.ts'),
             ),
             typesModuleSpecifier: runtime ? typescriptModuleSpecifier(runtime, types) : undefined,
+            checkRustModuleSpecifier: `./${analysis.query.name}.check-rust.js`,
             queryableModuleSpecifier:
               runtime && helper ? typescriptModuleSpecifier(runtime, helper) : undefined,
             jsonSchemaRuntimeModuleSpecifier:
@@ -228,6 +229,15 @@ export function createTypescriptCodegenTarget(
                 : [{ kind: 'types', path: types, content: rendered.types }]),
               ...(runtime && rendered.runtime !== null
                 ? [{ kind: 'runtime', path: runtime, content: rendered.runtime }]
+                : []),
+              ...(runtime && rendered.checkRust !== null
+                ? [
+                    {
+                      kind: 'runtime' as const,
+                      path: join(runtimeDirectory!, `${analysis.query.name}.check-rust.ts`),
+                      content: rendered.checkRust,
+                    },
+                  ]
                 : []),
             ],
             diagnostics: rendered.diagnostics,

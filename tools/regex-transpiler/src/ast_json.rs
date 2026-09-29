@@ -320,6 +320,11 @@ fn expr(value: &Expr) -> Result<Value> {
         },
         Expr::Paren(node) => Ok(json!({ "kind": "parenthesized", "inner": expr(&node.expr)? })),
         Expr::Group(node) => expr(&node.expr),
+        Expr::Unary(node) if matches!(node.op, syn::UnOp::Neg(_)) => Ok(json!({
+            "kind": "unary",
+            "operator": "negate",
+            "value": expr(&node.expr)?,
+        })),
         Expr::Reference(node) => Ok(json!({ "kind": "borrow", "value": expr(&node.expr)? })),
         Expr::Cast(node) => Ok(json!({
             "kind": "cast",
@@ -636,7 +641,10 @@ mod tests {
             &parse(r#"pub fn f(value: &str) -> bool { value == "a\nb\"c\u{1f600}" }"#).unwrap(),
         )
         .unwrap();
-        assert_eq!(tree["items"][0]["body"][0]["value"]["right"]["kind"], "string");
+        assert_eq!(
+            tree["items"][0]["body"][0]["value"]["right"]["kind"],
+            "string"
+        );
         assert_eq!(
             tree["items"][0]["body"][0]["value"]["right"]["text"],
             "a\nb\"c😀"
@@ -834,8 +842,11 @@ mod tests {
     }
 
     #[test]
-    fn rejects_signed_arithmetic_and_oversized_literals() {
-        assert!(parse("pub fn f(value: i32) -> i32 { value + 1 }").is_err());
+    fn signed_arithmetic_has_an_explicit_boundary() {
+        assert!(parse("pub fn f(value: i32) -> i32 { value + 1 }").is_ok());
+        assert!(parse("pub fn f(value: i32) -> i32 { -value }").is_ok());
+        assert!(parse("pub fn f(value: usize) -> usize { -value }").is_err());
+        assert!(parse("pub fn f(left: i32, right: u32) -> i32 { left + right }").is_err());
         assert!(parse("const TOO_LARGE: usize = 2147483648;").is_err());
     }
 

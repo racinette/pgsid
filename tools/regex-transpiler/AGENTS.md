@@ -37,11 +37,17 @@ behavioral oracle. Expand the engine only through the shared dialect.
   casts, and methods only where the validator can establish a shared meaning.
   Direct calls to declared functions and single-payload enum constructors are
   allowed. Generated functions check and detach their arguments at entry.
+- Signed `i32` expressions support unary minus, addition, and subtraction.
+  Generated targets check the `i32` range and trap on overflow, matching Rust.
+  Arithmetic on `usize` and `u32` retains its nonnegative checks. Do not mix
+  signed and unsigned variables in one arithmetic expression.
 - Keep literals within the shared numeric range and write integers as
   unsuffixed decimals. A `char` is one Unicode scalar. A string literal is
   a sequence of Unicode scalars. Avoid Rust operations
   whose Go and TypeScript meanings differ, including string length, vector
   equality, and character or string ordering.
+  Express the `i32` minimum as `-2147483647 - 1`; the literal magnitude
+  `2147483648` remains outside the shared subset.
 - Use Rust `pub` for the intended external API. Target naming follows each
   language: Go exports capitalized names and uses lower camel case for private
   names; TypeScript uses Pascal case for types, lower camel case for functions,
@@ -69,8 +75,8 @@ of the wire tree.
 Types are paths with segments and, for `Vec`, type arguments; immutable
 references have an inner type. Structs carry named fields. Enums carry unit
 or single-payload variants. Derives are a list. Blocks are ordered local and
-expression statements. Expressions include literals, paths, casts, binary
-operations, field and index access, method and constructor calls, struct
+expression statements. Expressions include literals, paths, casts, unary
+minus, binary operations, field and index access, method and constructor calls, struct
 literals, `if`, payload `if let`, `while`, `return`, and `break`. Preserve the distinction
 between a semicolon statement and a function tail expression. An `if` may
 carry an `elseBody`; `else if` is nested there. Integer literals are decimal

@@ -11,7 +11,7 @@ import { interpretValueLineage } from '../../query/value-lineage.js'
 import { checkTriggerWarning } from '../shared/check-trigger-warning.js'
 import type { SchemaRelationAnalyses } from '../../schema-analysis.js'
 import { go, printGoFile, type GoDeclaration, type GoField } from './ast.js'
-import { renderGoSchemaChecks } from './sql/catalog-checks.js'
+import { renderGoSchemaCheckArtifacts } from './sql/catalog-checks.js'
 import {
   usesGoNullStructs,
   renderGoNulls,
@@ -219,7 +219,7 @@ export function renderGoSchemaArtifacts(
             declarations,
           }),
         })
-      const checks = renderGoSchemaChecks(
+      const checks = renderGoSchemaCheckArtifacts(
         catalog.tables.filter((table) => table.schema === scope && table.relkind !== 'S'),
         goPackageName(directory),
         catalog.domains,
@@ -227,8 +227,15 @@ export function renderGoSchemaArtifacts(
         catalog,
         config,
         context,
+        currentPath,
       )
-      if (checks) artifacts.push({ path: join(outDir, directory, 'checks.go'), content: checks })
+      if (checks.checks)
+        artifacts.push({ path: join(outDir, directory, 'checks.go'), content: checks.checks })
+      if (checks.rust)
+        artifacts.push({
+          path: join(outDir, directory, 'checkrust', 'checks.go'),
+          content: checks.rust,
+        })
     }
     assertAcyclicPackages(dependencies)
     const diagnostics: GoSchemaArtifacts['diagnostics'][number][] = []

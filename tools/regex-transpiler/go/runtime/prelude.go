@@ -18,6 +18,7 @@ func checkedBorrowed[T any](value *T, copyValue func(T) T) *T {
 }
 
 const maxSharedIndex = 2147483647
+const minSharedI32 = -2147483648
 
 func checkedIndex(value int) int {
 	if value < 0 || value > maxSharedIndex {
@@ -47,6 +48,32 @@ func checkedSubtract(left int, right int) int {
 	checkedIndex(right)
 	if right > left {
 		panic("shared numeric underflow")
+	}
+	return left - right
+}
+
+func checkedSignedNegate(value int) int {
+	checkedI32(value)
+	if value == minSharedI32 {
+		panic("signed integer overflow")
+	}
+	return -value
+}
+
+func checkedSignedAdd(left int, right int) int {
+	checkedI32(left)
+	checkedI32(right)
+	if (right > 0 && left > maxSharedIndex-right) || (right < 0 && left < minSharedI32-right) {
+		panic("signed integer overflow")
+	}
+	return left + right
+}
+
+func checkedSignedSubtract(left int, right int) int {
+	checkedI32(left)
+	checkedI32(right)
+	if (right < 0 && left > maxSharedIndex+right) || (right > 0 && left < minSharedI32+right) {
+		panic("signed integer overflow")
 	}
 	return left - right
 }

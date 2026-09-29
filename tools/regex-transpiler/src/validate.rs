@@ -342,6 +342,21 @@ fn infer_expr_type(
         }) => Ok(Some("&str".into())),
         Expr::Paren(paren) => infer_expr_type(&paren.expr, locals, semantics),
         Expr::Group(group) => infer_expr_type(&group.expr, locals, semantics),
+        Expr::Unary(unary) if matches!(unary.op, syn::UnOp::Neg(_)) => {
+            let source = infer_expr_type(&unary.expr, locals, semantics)?;
+            let literal = matches!(
+                &*unary.expr,
+                Expr::Lit(syn::ExprLit {
+                    lit: syn::Lit::Int(_),
+                    ..
+                })
+            );
+            if source.as_deref() != Some("i32") && !(literal && source.as_deref() == Some("usize"))
+            {
+                return Err("unary minus requires an i32 operand".into());
+            }
+            Ok(Some("i32".into()))
+        }
         Expr::Reference(reference) => {
             let inner = infer_expr_type(&reference.expr, locals, semantics)?
                 .ok_or("borrowed value has no shared type")?;
@@ -383,6 +398,25 @@ fn infer_expr_type(
                     Ok(Some("bool".into()))
                 }
                 syn::BinOp::Add(_) | syn::BinOp::Sub(_) => {
+                    let signed_literal = |operand: &Expr, ty: &Option<String>| {
+                        ty.as_deref() == Some("usize")
+                            && matches!(
+                                operand,
+                                Expr::Lit(syn::ExprLit {
+                                    lit: syn::Lit::Int(_),
+                                    ..
+                                })
+                            )
+                    };
+                    if left.as_deref() == Some("i32") || right.as_deref() == Some("i32") {
+                        if !(left.as_deref() == Some("i32") || signed_literal(&binary.left, &left))
+                            || !(right.as_deref() == Some("i32")
+                                || signed_literal(&binary.right, &right))
+                        {
+                            return Err("signed arithmetic requires i32 operands".into());
+                        }
+                        return Ok(Some("i32".into()));
+                    }
                     if !left.as_deref().is_some_and(checked_arithmetic)
                         || !right.as_deref().is_some_and(checked_arithmetic)
                     {

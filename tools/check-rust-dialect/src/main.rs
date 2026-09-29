@@ -2,6 +2,22 @@ use std::{collections::BTreeSet, env, fs};
 
 use syn::{Expr, FnArg, Item, Pat, ReturnType, Stmt, Type, Visibility};
 
+fn digits(value: &str) -> bool {
+    !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit())
+}
+
+fn entry_name(name: &str) -> bool {
+    name == "evaluate_check" || name.strip_prefix("evaluate_check_").is_some_and(digits)
+}
+
+fn part_name(name: &str) -> bool {
+    name.strip_prefix("check_part_").is_some_and(digits)
+        || name
+            .strip_prefix("check_")
+            .and_then(|value| value.split_once("_part_"))
+            .is_some_and(|(check, part)| digits(check) && digits(part))
+}
+
 fn type_name(ty: &Type) -> Result<&'static str, String> {
     match ty {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("Int4Value") => {
@@ -9,6 +25,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("TextValue") => {
             Ok("TextValue")
+        }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("BoolValue") => {
+            Ok("BoolValue")
         }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("CheckOutcome") => {
             Ok("CheckOutcome")
@@ -57,6 +76,8 @@ fn call(expr: &Expr, bindings: &BTreeSet<String>) -> Result<(), String> {
                 {}
             Expr::Lit(literal)
                 if literal.attrs.is_empty() && matches!(&literal.lit, syn::Lit::Str(_)) => {}
+            Expr::Lit(literal)
+                if literal.attrs.is_empty() && matches!(&literal.lit, syn::Lit::Bool(_)) => {}
             _ => return Err("call argument is outside the CHECK subset".into()),
         }
     }
@@ -79,14 +100,14 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
     if !names.insert(name.clone()) {
         return Err(format!("duplicate function {name}"));
     }
-    let entry = name == "evaluate_check";
+    let entry = entry_name(&name);
     if !matches!(
         (&function.vis, entry),
         (Visibility::Public(_), true) | (Visibility::Inherited, false)
     ) {
         return Err("only evaluate_check may be public".into());
     }
-    if !entry && !name.starts_with("check_part_") {
+    if !entry && !part_name(&name) {
         return Err("private function must be a generated check_part".into());
     }
     if !matches!(&function.sig.output, ReturnType::Type(_, ty) if type_name(ty).as_deref() == Ok("CheckOutcome"))
@@ -99,7 +120,10 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
             return Err("receiver is outside the CHECK subset".into());
         };
         if !parameter.attrs.is_empty()
-            || !matches!(type_name(&parameter.ty)?, "Int4Value" | "TextValue")
+            || !matches!(
+                type_name(&parameter.ty)?,
+                "Int4Value" | "TextValue" | "BoolValue"
+            )
         {
             return Err("parameter is outside the CHECK subset".into());
         }
@@ -186,7 +210,7 @@ fn check_source(source: &str) -> Result<(), String> {
         };
         check_function(function, &mut names)?;
     }
-    if !names.contains("evaluate_check") {
+    if !names.iter().any(|name| entry_name(name)) {
         return Err("missing public evaluate_check".into());
     }
     Ok(())
@@ -279,5 +303,43 @@ pub fn evaluate_check(status: TextValue) -> CheckOutcome {
         check_source(source).unwrap();
         assert!(check_source(&source.replace("\"housed\"", "b\"housed\"")).is_err());
         assert!(check_source(&source.replace("\"housed\"", "r#\"housed\"#")).is_ok());
+    }
+
+    #[test]
+    fn accepts_boolean_inputs_and_literals() {
+        let source = r#"
+fn check_part_0(enabled: BoolValue) -> CheckOutcome {
+    let expected = make_bool_value(true);
+    let result = bool_is_null(enabled);
+    check_from_bool(result)
+}
+pub fn evaluate_check(enabled: BoolValue) -> CheckOutcome {
+    check_part_0(enabled)
+}
+"#;
+        check_source(source).unwrap();
+        assert!(check_source(&source.replace("true", "true || false")).is_err());
+    }
+
+    #[test]
+    fn accepts_numbered_group_entries() {
+        let source = r#"
+fn check_0_part_0(amount: Int4Value) -> CheckOutcome {
+    let result = int4_is_null(amount);
+    check_from_bool(result)
+}
+pub fn evaluate_check_0(amount: Int4Value) -> CheckOutcome {
+    check_0_part_0(amount)
+}
+fn check_1_part_0(enabled: BoolValue) -> CheckOutcome {
+    let result = bool_is_null(enabled);
+    check_from_bool(result)
+}
+pub fn evaluate_check_1(enabled: BoolValue) -> CheckOutcome {
+    check_1_part_0(enabled)
+}
+"#;
+        check_source(source).unwrap();
+        assert!(check_source(&source.replace("evaluate_check_1", "evaluate_check_bad")).is_err());
     }
 }

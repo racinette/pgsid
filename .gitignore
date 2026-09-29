@@ -15,6 +15,7 @@ src/codegen/go/wasm/go-ast.wasm
 src/codegen/go/assets/check-rust-parser.wasm
 src/codegen/go/assets/check-go-transpiler.wasm
 src/codegen/go/assets/check-rust-integer.rs
+src/codegen/go/assets/check-rust-regex.rs
 tools/regex-transpiler/target/
 tools/check-rust-dialect/target/
 crates/regex-engine/target/

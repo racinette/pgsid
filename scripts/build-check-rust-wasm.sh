@@ -19,7 +19,12 @@ bash "$repo_dir/scripts/build-tinygo-wasm.sh" \
   "$repo_dir/tools/regex-transpiler/go/wasm" "$asset_dir/check-go-transpiler.wasm"
 cat \
   "$repo_dir/crates/check-evaluator/src/values.rs" \
+  "$repo_dir/crates/check-evaluator/src/operations/boolean.rs" \
   "$repo_dir/crates/check-evaluator/src/operations/integer.rs" \
   "$repo_dir/crates/check-evaluator/src/operations/text.rs" \
   "$repo_dir/crates/check-evaluator/src/logic.rs" \
   > "$asset_dir/check-rust-integer.rs"
+cat \
+  "$repo_dir/crates/regex-engine/src/lib.rs" \
+  "$repo_dir/crates/check-evaluator/src/operations/regex.rs" \
+  > "$asset_dir/check-rust-regex.rs"

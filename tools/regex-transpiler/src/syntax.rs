@@ -84,6 +84,9 @@ fn expr(expr: &Expr) -> Result {
         }
         Expr::Paren(node) if node.attrs.is_empty() => self::expr(&node.expr),
         Expr::Group(node) if node.attrs.is_empty() => self::expr(&node.expr),
+        Expr::Unary(node) if node.attrs.is_empty() && matches!(node.op, syn::UnOp::Neg(_)) => {
+            self::expr(&node.expr)
+        }
         Expr::Reference(node)
             if node.attrs.is_empty()
                 && node.mutability.is_none()

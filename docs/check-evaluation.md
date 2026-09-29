@@ -1,155 +1,55 @@
-# CHECK predicate evaluation
+# CHECK evaluation
 
-Settled model for generated domain and table CHECK validators. Scalar
-helpers that implement PostgreSQL operators are unchanged: they return SQL
-values. This file is the boolean lattice used when those values are _used as
-a constraint_.
+Generated row validators evaluate a CHECK against the values available before a
+write. They return one result per constraint, in catalog order. The public
+validator uses the owner and constraint name to report a failed CHECK.
 
-Stage 1 goldens still compare SQL `TRUE` / `FALSE` / `NULL` to PGlite. Do
-not introduce `UNCERTAIN` into that pipeline. Implement this lattice when
-CHECK codegen starts, before the first incomplete operator and before the
-first generated validator ships as `boolean | null`.
+An evaluated predicate has three SQL answers: true, false, and null. False
+rejects the row. True and null pass, as they do in PostgreSQL. A fourth result,
+unknown, means the local validator could not decide. It occurs when a required
+column was omitted or an operation stopped before producing an answer. Unknown
+lets the write reach PostgreSQL, which remains authoritative.
 
-## Two types
+An evaluation error is distinct from unknown and SQL null. It carries a
+SQLSTATE and stops validation. Boolean expressions preserve SQL evaluation
+order, so a deciding left operand can avoid evaluating a right operand that
+would error. A known false value decides an AND; a known true value decides an
+OR. Otherwise uncertainty propagates until a later operand can decide the
+expression.
 
-**`SqlBoolean`** is PostgreSQL's three-valued boolean: `TRUE`, `FALSE`,
-`NULL`. Total operators (`integerLt`, `textEq`, …) keep returning it. A
-result of `NULL` here means PostgreSQL would also yield SQL null.
+## Generated evaluators
 
-**`EvalBool`** is the CHECK-predicate type. Four constructors:
+Supported constraints are lowered to a small Rust program. Maintained Rust
+operations implement PostgreSQL callables; generated Rust composes them in
+expression order. The same program is compiled as Rust and transpiled to the
+target language. Go and TypeScript modules contain that transpiled program,
+while row adapters convert public input values and results at the boundary.
+The generated entry names are internal to the adapters.
 
-| Constructor      | Meaning                          | PostgreSQL would                |
-| ---------------- | -------------------------------- | ------------------------------- |
-| `Certain(TRUE)`  | we evaluated; result is true     | true                            |
-| `Certain(FALSE)` | we evaluated; result is false    | false                           |
-| `Certain(NULL)`  | we evaluated; result is SQL null | null                            |
-| `Uncertain`      | we did not evaluate this atom    | unknown; maybe any of the three |
+The generator selects Rust support separately for each constraint. A
+constraint outside the supported expression or value subset retains the
+existing target evaluator. A group can therefore contain Rust and fallback
+results without changing the public row-validator API or result order.
+Fallback evaluators preserve unknown for expressions they cannot evaluate.
 
-`Uncertain` is not SQL `NULL`. SQL null is an answer and CHECK-in-Postgres
-treats it as pass. `Uncertain` is the absence of an answer.
+Target adapters distinguish a missing input from explicit null. Integer inputs
+must fit their PostgreSQL width before entering the Rust representation;
+values outside that width remain unknown locally. The target representation
+of a SQL error carries its SQLSTATE back through the existing validation API.
 
-Go shape: `Certain(sqlBoolean) EvalBool` at the call site that feeds `AND` /
-`OR`. Incomplete operators return `EvalBool` directly and never go through
-`Certain`. TypeScript uses the same constructors.
+Text operations in the Rust subset use PostgreSQL's C collation. Constraints
+whose text semantics require another collation stay on the fallback path.
+Supported `int4` addition and subtraction return PostgreSQL SQLSTATE `22003`
+when the result is outside the `int4` range. The generated validator reports
+that error through the same SQL error path as other supported operations.
 
-## Why four, not three
+## Scope of local validation
 
-A CHECK such as `a < 1000 AND c ~ b` must keep running after a lint-unsafe
-pattern. It must not claim `TRUE`. It must not claim `FALSE` from an atom we
-did not run. It must still reject when `a < 1000` is already false.
+The validator sees the supplied row fragment, not a server-side row after
+defaults, generated columns, or triggers. A missing value therefore never
+becomes SQL null by assumption. PostgreSQL evaluates the final row and may
+make a different decision after those server-side changes.
 
-Encoding the missing regex as SQL `NULL` would make the constraint pass
-locally. Insert validation would accept rows PostgreSQL would reject.
-
-## Absorption
-
-`AND` / `OR` keep Kleene tables on the SQL component and let a deciding
-value **kill** uncertainty. Thunks stay: if the left arm of `AND` is
-`Certain(FALSE)`, the right arm is not called.
-
-| Left             | Right                              | `AND`            |
-| ---------------- | ---------------------------------- | ---------------- |
-| `Certain(FALSE)` | anything, including not called     | `Certain(FALSE)` |
-| `Certain(TRUE)`  | `Certain(x)`                       | `Certain(x)`     |
-| `Certain(TRUE)`  | `Uncertain`                        | `Uncertain`      |
-| `Certain(NULL)`  | `Certain(FALSE)`                   | `Certain(FALSE)` |
-| `Certain(NULL)`  | `Certain(TRUE)` or `Certain(NULL)` | `Certain(NULL)`  |
-| `Certain(NULL)`  | `Uncertain`                        | `Uncertain`      |
-| `Uncertain`      | `Certain(FALSE)`                   | `Certain(FALSE)` |
-| `Uncertain`      | otherwise                          | `Uncertain`      |
-
-| Left             | Right                               | `OR`            |
-| ---------------- | ----------------------------------- | --------------- |
-| `Certain(TRUE)`  | anything, including not called      | `Certain(TRUE)` |
-| `Certain(FALSE)` | `Certain(x)`                        | `Certain(x)`    |
-| `Certain(FALSE)` | `Uncertain`                         | `Uncertain`     |
-| `Certain(NULL)`  | `Certain(TRUE)`                     | `Certain(TRUE)` |
-| `Certain(NULL)`  | `Certain(FALSE)` or `Certain(NULL)` | `Certain(NULL)` |
-| `Certain(NULL)`  | `Uncertain`                         | `Uncertain`     |
-| `Uncertain`      | `Certain(TRUE)`                     | `Certain(TRUE)` |
-| `Uncertain`      | otherwise                           | `Uncertain`     |
-
-`NOT Uncertain` is `Uncertain`. `NOT Certain(x)` is `Certain` of SQL `NOT x`.
-
-`NULL AND Uncertain` stays `Uncertain` because the other arm might have been
-`FALSE`. Same dual for `OR` and `TRUE`.
-
-## CASE
-
-A `WHEN` that is `Uncertain` makes the whole `CASE` `Uncertain`: we cannot
-know whether to take that arm or a later one. A `WHEN` that is not
-`Certain(TRUE)` is skipped exactly as in SQL (`FALSE` and SQL `NULL`).
-`IS TRUE` / `IS FALSE` / `IS UNKNOWN` on `Uncertain` are `Uncertain`.
-Comparing `Uncertain` to a boolean is `Uncertain`.
-
-Raising (`22008`, malformed input, …) is not `Uncertain`. Errors still
-propagate.
-
-## Where `Uncertain` comes from
-
-Only incomplete atoms, never total operators:
-
-- A regex call that reaches the shared engine's execution budget. The result
-  remains `Uncertain` because the engine did not finish evaluating the pattern.
-- A CHECK node that was not lowered (unsupported overload, session-dependent
-  leftover). Never omit the constraint; the atom is `Uncertain`.
-- A partial-row validator whose CHECK reads a field that was not supplied.
-  Omission is not SQL `NULL`.
-
-Regex checks use the same matching semantics in both generated targets. LIKE
-has separate matching logic and is total when that logic is faithful.
-
-## Constraint wrapper
-
-The expression yields `EvalBool`. The function an app calls maps that:
-
-| `EvalBool`                         | Insert validation                         | `SELECT` of an already-stored row                    |
-| ---------------------------------- | ----------------------------------------- | ---------------------------------------------------- |
-| `Certain(TRUE)` or `Certain(NULL)` | pass                                      | pass                                                 |
-| `Certain(FALSE)`                   | reject                                    | reject                                               |
-| `Uncertain`                        | do not decide; send the row to PostgreSQL | ignore the flag; the server already accepted the row |
-
-`SELECT` and `INSERT` share the evaluator. They differ only in whether
-`Uncertain` is a fall-through or a no-op. Collapsing `Uncertain` to SQL
-`NULL` at this boundary is the lie the extra constructor exists to prevent.
-
-PostgreSQL's own CHECK still treats SQL null as pass. Client `Certain(NULL)`
-matches that. Client `Uncertain` does not.
-
-The wrapper, not the expression evaluator, owns violation diagnostics. A
-`Certain(FALSE)` result identifies the failed table or domain constraint and
-produces a structured violation with SQLSTATE `23514`, the owning schema and
-table or domain, and the constraint name. A human-readable PostgreSQL-style
-message is rendered from that identity. The message is presentation, not the
-identity applications should inspect. `Certain(NULL)` and `Uncertain` never
-produce a CHECK violation; errors raised while evaluating the expression
-remain their own errors.
-
-The catalog must retain each domain CHECK's name alongside its definition,
-including checks on nested domain layers. Constraint names are not recovered
-from rendered SQL. PostgreSQL CHECK declarations have no custom-message field:
-a descriptive constraint name is preserved verbatim, while any application-
-specific wording is a separate presentation policy. Do not promise exact
-PostgreSQL localization or failing-row detail from a partial-row validator.
-
-## Rejected encodings
-
-- **`boolean | null` as the generated CHECK API.** Every consumer already
-  treats null as pass. Adding a fourth state later is a breaking change.
-- **SQL `NULL` as the only signal that we did not evaluate.** Same trap.
-- **`FALSE` for an unevaluated atom.** Rejects rows PostgreSQL would accept.
-- **`TRUE` for an unevaluated atom.** Accepts rows PostgreSQL would reject.
-- **Shipping Spencer (WASM/cgo) in every adopter** to avoid `Uncertain`.
-- **Binding `textregexeq(text, text)` as a total `SqlBoolean` function.**
-  Dynamic patterns are a runtime lint plus `EvalBool`, not a promise that
-  every string is an evaluation target.
-
-## What this is not
-
-This is not a change to stage-1 scalar helpers, observations, or goldens.
-`integerLt` does not grow a certainty bit. `sqlBooleanAnd` used to evaluate
-SQL `AND` against PGlite stays three-valued.
-
-CHECK codegen gets a sibling connective that takes `EvalBool` thunks. The
-first incomplete operator plugs into that connective; it does not redesign
-it.
+Local validation is an early check for known failures. The database CHECK
+remains the final constraint. Reading an already stored row can ignore a local
+unknown result because the database has already accepted that row.

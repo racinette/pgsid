@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "tsx src/bin.ts",
     "language-server": "tsx src/language-server-bin.ts",
-    "build": "tsup",
+    "build": "pnpm check-rust:build-wasm && tsup",
     "typecheck": "tsc --noEmit",
     "regex-engine:check": "bash tools/regex-transpiler/check.sh",
     "check-rust:check": "bash tools/check-rust/check.sh",

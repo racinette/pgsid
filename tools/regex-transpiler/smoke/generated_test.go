@@ -88,6 +88,17 @@ func TestTranspilerSmoke(t *testing.T) {
 	}
 	expectPanic(t, func() { AddPositions(2147483647, 1) })
 	expectPanic(t, func() { SubtractPositions(0, 1) })
+	if SignedAdd(-2, 5) != 3 || SignedSubtract(-2, 5) != -7 || SignedNegate(-5) != 5 || SignedMinimum() != -2147483648 {
+		t.Error("signed arithmetic changed its result")
+	}
+	if SignedAdd(-2147483648, 1) != -2147483647 || SignedSubtract(2147483647, 1) != 2147483646 {
+		t.Error("signed arithmetic boundary changed its result")
+	}
+	expectPanic(t, func() { SignedAdd(2147483647, 1) })
+	expectPanic(t, func() { SignedAdd(-2147483648, -1) })
+	expectPanic(t, func() { SignedSubtract(-2147483648, 1) })
+	expectPanic(t, func() { SignedSubtract(2147483647, -1) })
+	expectPanic(t, func() { SignedNegate(-2147483648) })
 	expectPanic(t, func() { EchoChars([]rune{0xd800}) })
 	if !IsBeforeFirst(-1) || CharCount("😀") != 1 {
 		t.Error("numeric or Unicode input changed its result")
