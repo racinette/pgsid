@@ -111,11 +111,17 @@ export function emitCheckRustEvaluator(
         }
       if (value.kind === 'integer' && value.type === 'pg_catalog.int4') {
         if (value.value === null) return { name: bind('int4_null()'), type: value.type }
-        if (!/^(?:0|[1-9][0-9]*)$/u.test(value.value) || BigInt(value.value) > 2147483647n)
+        if (!/^-?(?:0|[1-9][0-9]*)$/u.test(value.value))
           throw new UnsupportedCheckRustExpression(
             `Unsupported Rust CHECK int4 literal: ${value.value}`,
           )
-        return { name: bind(`make_int4_value(${value.value})`), type: value.type }
+        const integer = BigInt(value.value)
+        if (integer < -2147483648n || integer > 2147483647n)
+          throw new UnsupportedCheckRustExpression(
+            `Unsupported Rust CHECK int4 literal: ${value.value}`,
+          )
+        const literal = integer === -2147483648n ? '-2147483647 - 1' : integer.toString()
+        return { name: bind(`make_int4_value(${literal})`), type: value.type }
       }
       throw new UnsupportedCheckRustExpression(`Unsupported Rust CHECK constant: ${value.kind}`)
     }
@@ -206,6 +212,26 @@ export function emitCheckRustEvaluator(
     ${finish}(left, right)
 `
       }
+    } else if (node.kind === 'eval-case') {
+      if (node.branches.length === 0)
+        throw new UnsupportedCheckRustExpression('Expected a CASE branch')
+      used = new Set<string>()
+      const statements: string[] = []
+      for (const branch of node.branches) {
+        const condition = emit(branch.when)
+        const selected = emit(branch.then)
+        for (const item of [...condition.inputs, ...selected.inputs]) used.add(item)
+        const name = `value_${next++}`
+        statements.push(`    let ${name} = ${condition.name}(${arguments_(condition.inputs)});`)
+        statements.push(`    if case_guard_stops(${name}) {\n        return ${name};\n    }`)
+        statements.push(
+          `    if case_guard_takes(${name}) {\n        return ${selected.name}(${arguments_(selected.inputs)});\n    }`,
+        )
+      }
+      const otherwise = emit(node.otherwise)
+      for (const item of otherwise.inputs) used.add(item)
+      statements.push(`    ${otherwise.name}(${arguments_(otherwise.inputs)})`)
+      body = `\n${statements.join('\n')}\n`
     } else if (node.kind === 'eval-scalar') {
       used = new Set<string>()
       const bindings: string[] = []

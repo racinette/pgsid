@@ -50,6 +50,43 @@ fn identifier(expr: &Expr) -> Result<String, String> {
     Ok(path.path.segments[0].ident.to_string())
 }
 
+fn positive_literal(expr: &Expr) -> Option<u32> {
+    let Expr::Lit(literal) = expr else {
+        return None;
+    };
+    let syn::Lit::Int(value) = &literal.lit else {
+        return None;
+    };
+    let source = value.to_string();
+    if !literal.attrs.is_empty() || !digits(&source) {
+        return None;
+    }
+    source
+        .parse::<u32>()
+        .ok()
+        .filter(|value| *value <= i32::MAX as u32)
+}
+
+fn negative_literal(expr: &Expr) -> Option<u32> {
+    let Expr::Unary(unary) = expr else {
+        return None;
+    };
+    if !unary.attrs.is_empty() || !matches!(unary.op, syn::UnOp::Neg(_)) {
+        return None;
+    }
+    positive_literal(&unary.expr)
+}
+
+fn int4_minimum(expr: &Expr) -> bool {
+    let Expr::Binary(binary) = expr else {
+        return false;
+    };
+    binary.attrs.is_empty()
+        && matches!(binary.op, syn::BinOp::Sub(_))
+        && negative_literal(&binary.left) == Some(i32::MAX as u32)
+        && positive_literal(&binary.right) == Some(1)
+}
+
 fn call(expr: &Expr, bindings: &BTreeSet<String>) -> Result<(), String> {
     let Expr::Call(call) = expr else {
         return Err("expected a direct function call".into());
@@ -70,10 +107,9 @@ fn call(expr: &Expr, bindings: &BTreeSet<String>) -> Result<(), String> {
     for arg in &call.args {
         match arg {
             Expr::Path(_) if bindings.contains(&identifier(arg)?) => {}
-            Expr::Lit(literal)
-                if literal.attrs.is_empty()
-                    && matches!(&literal.lit, syn::Lit::Int(value) if value.to_string().chars().all(|digit| digit.is_ascii_digit())) =>
-                {}
+            Expr::Lit(_) if positive_literal(arg).is_some() => {}
+            Expr::Unary(_) if negative_literal(arg).is_some() => {}
+            Expr::Binary(_) if int4_minimum(arg) => {}
             Expr::Lit(literal)
                 if literal.attrs.is_empty() && matches!(&literal.lit, syn::Lit::Str(_)) => {}
             Expr::Lit(literal)
@@ -183,12 +219,12 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                 else {
                     return Err("conditional must contain one early return".into());
                 };
-                if !ret.attrs.is_empty()
-                    || !bindings.contains(&identifier(
-                        ret.expr.as_deref().ok_or("return needs a value")?,
-                    )?)
-                {
-                    return Err("return must use a bound identifier".into());
+                if !ret.attrs.is_empty() {
+                    return Err("return is outside the CHECK subset".into());
+                }
+                let value = ret.expr.as_deref().ok_or("return needs a value")?;
+                if !identifier(value).is_ok_and(|name| bindings.contains(&name)) {
+                    call(value, &bindings)?;
                 }
             }
             Stmt::Expr(expr, None) if last => call(expr, &bindings)?,
@@ -341,5 +377,42 @@ pub fn evaluate_check_1(enabled: BoolValue) -> CheckOutcome {
 "#;
         check_source(source).unwrap();
         assert!(check_source(&source.replace("evaluate_check_1", "evaluate_check_bad")).is_err());
+    }
+
+    #[test]
+    fn accepts_signed_int4_literals_and_lazy_case_branch() {
+        let source = r#"
+fn check_part_0(amount: Int4Value) -> CheckOutcome {
+    let floor = make_int4_value(-1);
+    let minimum = make_int4_value(-2147483647 - 1);
+    let condition = sql__pg_catalog__int4gt__example(amount, floor);
+    let guard = check_from_bool(condition);
+    if case_guard_stops(guard) { return guard; }
+    if case_guard_takes(guard) { return check_part_1(amount); }
+    check_part_2(minimum)
+}
+fn check_part_1(amount: Int4Value) -> CheckOutcome {
+    let result = int4_is_null(amount);
+    check_from_bool(result)
+}
+fn check_part_2(amount: Int4Value) -> CheckOutcome {
+    let result = int4_is_null(amount);
+    check_from_bool(result)
+}
+pub fn evaluate_check(amount: Int4Value) -> CheckOutcome {
+    check_part_0(amount)
+}
+"#;
+        check_source(source).unwrap();
+        assert!(check_source(
+            &source.replace("make_int4_value(-1)", "make_int4_value(-2147483648)")
+        )
+        .is_err());
+        assert!(check_source(&source.replace("-2147483647 - 1", "-2147483646 - 2")).is_err());
+        assert!(check_source(&source.replace(
+            "return check_part_1(amount)",
+            "return check_part_1(make_int4_value(0))"
+        ))
+        .is_err());
     }
 }
