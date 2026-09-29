@@ -22,9 +22,12 @@ compiled as Rust and transpiled to Go and TypeScript.
 - Add a PostgreSQL/PGlite comparison for migrated behavior and exercise the
   same cases in Rust, generated Go, and generated TypeScript. Run
   `pnpm check-rust:check` from the repository root.
-- The operation parity command currently discovers immutable, strict
-  `int4 × int4 → bool` implementations in the integer operation source and
-  tests them automatically. Keep the first porting batch within that shape.
+- CHECK evaluation requires the C collation only. Collation-sensitive
+  operations implement C-collation behavior, and parity comparisons use that
+  collation. Text ordering compares Unicode scalars.
+- The operation parity command discovers immutable, strict
+  `int4 × int4 → bool` and `text × text → bool` implementations in the
+  operation sources and tests them automatically.
 - If a callable needs a new value representation, primitive, SQL error, or
   Rust syntax rule, surface that as a separate foundation change before
   porting more functions that depend on it. The transpiler's own `AGENTS.md`

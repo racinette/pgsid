@@ -23,7 +23,8 @@ update its tests when that boundary changes.
 - Emit functions with explicit `CheckOutcome` returns. The sole public entry
   is `evaluate_check`; helper functions are private `check_part_*` functions.
 - Parameters are immutable named values of `Int4Value` or `TextValue`.
-  Calls take bound identifiers or unsuffixed decimal integer literals.
+  Calls take bound identifiers, unsuffixed decimal integer literals, or
+  string literals.
 - Bodies contain immutable `let` bindings initialized by direct calls,
   optional `if` statements whose condition is a direct call and whose body
   returns one bound value, and a final direct call as the tail expression.

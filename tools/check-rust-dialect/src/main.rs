@@ -55,6 +55,8 @@ fn call(expr: &Expr, bindings: &BTreeSet<String>) -> Result<(), String> {
                 if literal.attrs.is_empty()
                     && matches!(&literal.lit, syn::Lit::Int(value) if value.to_string().chars().all(|digit| digit.is_ascii_digit())) =>
                 {}
+            Expr::Lit(literal)
+                if literal.attrs.is_empty() && matches!(&literal.lit, syn::Lit::Str(_)) => {}
             _ => return Err("call argument is outside the CHECK subset".into()),
         }
     }
@@ -261,5 +263,21 @@ pub fn evaluate_check(amount: Int4Value) -> CheckOutcome {
         assert!(
             check_source(&VALID.replace("make_int4_value(0)", "make_int4_value(0x0)")).is_err()
         );
+    }
+
+    #[test]
+    fn accepts_string_literals_and_rejects_byte_strings() {
+        let source = r#"
+fn check_part_0(status: TextValue) -> CheckOutcome {
+    let housed = make_text_value("housed");
+    compare_status(status, housed)
+}
+pub fn evaluate_check(status: TextValue) -> CheckOutcome {
+    check_part_0(status)
+}
+"#;
+        check_source(source).unwrap();
+        assert!(check_source(&source.replace("\"housed\"", "b\"housed\"")).is_err());
+        assert!(check_source(&source.replace("\"housed\"", "r#\"housed\"#")).is_ok());
     }
 }

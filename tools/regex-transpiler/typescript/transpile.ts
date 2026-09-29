@@ -10,6 +10,7 @@ type Expr =
   | { kind: 'integer'; digits: string }
   | { kind: 'character'; scalar: string }
   | { kind: 'boolean'; state: boolean }
+  | { kind: 'string'; text: string }
   | { kind: 'parenthesized'; inner: Expr }
   | { kind: 'borrow'; value: Expr }
   | { kind: 'cast'; value: Expr; targetType: TypeNode }
@@ -236,6 +237,8 @@ class Transpiler {
         return 'char'
       case 'boolean':
         return 'bool'
+      case 'string':
+        return '&str'
       case 'parenthesized':
         return this.infer(value.inner, locals)
       case 'borrow': {
@@ -310,6 +313,8 @@ class Transpiler {
         return f.createStringLiteral(value.scalar)
       case 'boolean':
         return value.state ? f.createTrue() : f.createFalse()
+      case 'string':
+        return f.createStringLiteral(value.text)
       case 'parenthesized':
         return f.createParenthesizedExpression(this.expression(value.inner, locals))
       case 'borrow':

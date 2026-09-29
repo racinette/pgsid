@@ -8,14 +8,22 @@ const generated = await import(pathToFileURL(generatedPath).href)
 const fixtures = JSON.parse(readFileSync(fixturePath, 'utf8')) as {
   wrapper: string
   functionName: string
+  operand: 'int4' | 'text'
   cases: {
-    left: { kind: string; value?: number; state?: number }
-    right: { kind: string; value?: number; state?: number }
+    left: { kind: string; value?: number | string; state?: number }
+    right: { kind: string; value?: number | string; state?: number }
     expected: { kind: string; value?: boolean; state?: number }
   }[]
 }[]
-const int4 = (state: { kind: string; value?: number; state?: number }): unknown => {
-  if (state.kind === 'Value') return generated.makeInt4Value(state.value)
+const input = (
+  operand: 'int4' | 'text',
+  state: { kind: string; value?: number | string; state?: number },
+): unknown => {
+  if (state.kind === 'Value') {
+    return operand === 'int4'
+      ? generated.makeInt4Value(state.value)
+      : generated.makeTextValue(state.value)
+  }
   if (state.kind === 'Error') return { kind: 'Error', value: { state: state.state } }
   return { kind: state.kind }
 }
@@ -32,7 +40,7 @@ for (const fixture of fixtures) {
     .join('')
   for (const test of fixture.cases) {
     assert.deepEqual(
-      generated[targetName](int4(test.left), int4(test.right)),
+      generated[targetName](input(fixture.operand, test.left), input(fixture.operand, test.right)),
       expected(test.expected),
       fixture.functionName,
     )

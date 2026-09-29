@@ -175,6 +175,8 @@ func (g *generator) goExpression(value *node) ast.Expr {
 			return goIdent("true")
 		}
 		return goIdent("false")
+	case "string":
+		return &ast.BasicLit{Kind: token.STRING, Value: strconv.Quote(value.Text)}
 	case "parenthesized":
 		return &ast.ParenExpr{X: g.goExpression(value.Inner)}
 	case "borrow":

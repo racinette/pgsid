@@ -77,7 +77,7 @@ fn expr(expr: &Expr) -> Result {
             if node.attrs.is_empty()
                 && matches!(
                     node.lit,
-                    syn::Lit::Int(_) | syn::Lit::Char(_) | syn::Lit::Bool(_)
+                    syn::Lit::Int(_) | syn::Lit::Char(_) | syn::Lit::Str(_) | syn::Lit::Bool(_)
                 ) =>
         {
             Ok(())

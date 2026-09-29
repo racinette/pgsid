@@ -336,6 +336,10 @@ fn infer_expr_type(
             lit: syn::Lit::Bool(_),
             ..
         }) => Ok(Some("bool".into())),
+        Expr::Lit(syn::ExprLit {
+            lit: syn::Lit::Str(_),
+            ..
+        }) => Ok(Some("&str".into())),
         Expr::Paren(paren) => infer_expr_type(&paren.expr, locals, semantics),
         Expr::Group(group) => infer_expr_type(&group.expr, locals, semantics),
         Expr::Reference(reference) => {

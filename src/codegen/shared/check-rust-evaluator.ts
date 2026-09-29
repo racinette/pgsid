@@ -9,6 +9,20 @@ const rustType = (type: string): string => {
   throw new Error(`Unsupported Rust CHECK input type: ${type}`)
 }
 
+const rustString = (input: string): string => {
+  let encoded = '"'
+  for (const character of input) {
+    const code = character.codePointAt(0)!
+    if (character === '\\' || character === '"') encoded += `\\${character}`
+    else if (code === 0x0a) encoded += '\\n'
+    else if (code === 0x0d) encoded += '\\r'
+    else if (code === 0x09) encoded += '\\t'
+    else if (code < 0x20 || code === 0x7f || code > 0x7e) encoded += `\\u{${code.toString(16)}}`
+    else encoded += character
+  }
+  return `${encoded}"`
+}
+
 export function emitCheckRustEvaluator(expression: EvalBoolExpression): {
   source: string
   inputs: readonly Input[]
@@ -104,6 +118,18 @@ export function emitCheckRustEvaluator(expression: EvalBoolExpression): {
         ) {
           const binding = `argument_${index}`
           bindings.push(`    let ${binding} = make_int4_value(${operand.expression.value});`)
+          return binding
+        }
+        if (
+          operand.kind === 'certain' &&
+          operand.expression.kind === 'text' &&
+          operand.expression.type === 'pg_catalog.text' &&
+          operand.expression.value !== null
+        ) {
+          const binding = `argument_${index}`
+          bindings.push(
+            `    let ${binding} = make_text_value(${rustString(operand.expression.value)});`,
+          )
           return binding
         }
         throw new Error('Unsupported Rust CHECK callable argument')

@@ -20,5 +20,6 @@ bash "$repo_dir/scripts/build-tinygo-wasm.sh" \
 cat \
   "$repo_dir/crates/check-evaluator/src/values.rs" \
   "$repo_dir/crates/check-evaluator/src/operations/integer.rs" \
+  "$repo_dir/crates/check-evaluator/src/operations/text.rs" \
   "$repo_dir/crates/check-evaluator/src/logic.rs" \
   > "$asset_dir/check-rust-integer.rs"
