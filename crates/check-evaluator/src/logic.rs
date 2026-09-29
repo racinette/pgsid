@@ -65,3 +65,17 @@ fn not_finish(value: CheckOutcome) -> CheckOutcome {
     }
     value
 }
+
+fn case_guard_stops(value: CheckOutcome) -> bool {
+    if value == CheckOutcome::Unknown {
+        return true;
+    }
+    if let CheckOutcome::Error(_error) = value {
+        return true;
+    }
+    false
+}
+
+fn case_guard_takes(value: CheckOutcome) -> bool {
+    value == CheckOutcome::True
+}

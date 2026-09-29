@@ -133,6 +133,22 @@ export function bindCatalogCheck(
       const type = names ? catalogScalarType(names.at(-1)!) : null
       if (!type) return unknown
       const operand = bind(cast['arg'])
+      if (
+        type === 'pg_catalog.int4' &&
+        operand.literal?.kind === 'string' &&
+        typeof operand.literal.value === 'string' &&
+        /^-?(?:0|[1-9][0-9]*)$/u.test(operand.literal.value)
+      ) {
+        const integer = BigInt(operand.literal.value)
+        if (integer >= -2147483648n && integer <= 2147483647n)
+          return {
+            type,
+            value: {
+              kind: 'certain',
+              expression: { kind: 'integer', type, value: integer.toString() },
+            },
+          }
+      }
       if (operand.literal?.kind === 'integer' && /^pg_catalog\.int[248]$/u.test(type))
         return {
           type,
@@ -163,6 +179,13 @@ export function bindCatalogCheck(
         const integer = integerNode['ival'] ?? 0
         if (typeof integer === 'number')
           return { type: null, value: null, literal: { kind: 'integer', value: String(integer) } }
+      }
+      const floatNode = fields(constant['fval'])
+      const float = floatNode?.['fval']
+      if (typeof float === 'string' && /^-?(?:0|[1-9][0-9]*)$/u.test(float)) {
+        const integer = BigInt(float)
+        if (integer >= -2147483648n && integer <= 2147483647n)
+          return { type: null, value: null, literal: { kind: 'integer', value: float } }
       }
       const booleanNode = fields(constant['boolval'])
       if (booleanNode) {
@@ -279,6 +302,28 @@ export function bindCatalogCheck(
   const lower = (node: unknown): EvalBoolExpression => {
     const wrapper = fields(node)
     if (!wrapper) return { kind: 'uncertain' }
+    const caseExpression = fields(wrapper['CaseExpr'])
+    if (caseExpression) {
+      if (caseExpression['arg'] !== undefined) return { kind: 'uncertain' }
+      const args = caseExpression['args']
+      if (!Array.isArray(args) || args.length === 0) return { kind: 'uncertain' }
+      const branches = args.map((item) => fields(fields(item)?.['CaseWhen']))
+      if (branches.some((branch) => !branch || !branch['expr'] || !branch['result']))
+        return { kind: 'uncertain' }
+      return {
+        kind: 'eval-case',
+        branches: branches.map((branch) => ({
+          when: lower(branch!['expr']),
+          then: lower(branch!['result']),
+        })),
+        otherwise: caseExpression['defresult']
+          ? lower(caseExpression['defresult'])
+          : {
+              kind: 'certain',
+              expression: { kind: 'boolean', type: 'pg_catalog.bool', value: null },
+            },
+      }
+    }
     const bool = fields(wrapper['BoolExpr'])
     if (bool) {
       const args = bool['args']

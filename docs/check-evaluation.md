@@ -17,6 +17,11 @@ would error. A known false value decides an AND; a known true value decides an
 OR. Otherwise uncertainty propagates until a later operand can decide the
 expression.
 
+A searched conditional evaluates its conditions in order. False and SQL null
+skip an arm; a true condition evaluates only its selected result. If a
+condition is locally unknown, the result remains unknown because the selected
+arm cannot be determined. Errors in an unselected result do not occur.
+
 ## Generated evaluators
 
 Supported constraints are lowered to a small Rust program. Maintained Rust

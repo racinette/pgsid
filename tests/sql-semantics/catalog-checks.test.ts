@@ -74,6 +74,16 @@ describe('catalog CHECK lowering', () => {
     )`)
     await pg.exec(`CREATE DOMAIN public.handle AS text COLLATE "C"
       CONSTRAINT handle_format CHECK (VALUE ~ '^a+$')`)
+    await pg.exec(`CREATE TABLE public.case_rust (
+      amount integer,
+      flag boolean,
+      note text,
+      CONSTRAINT negative_floor CHECK (amount > -1),
+      CONSTRAINT minimum_floor CHECK (amount >= -2147483648),
+      CONSTRAINT conditional_check CHECK (
+        CASE WHEN flag THEN amount + 1 > 0 ELSE note IS NULL END
+      )
+    )`)
     await pg.exec(`CREATE DOMAIN public.short_handle AS public.handle
       CONSTRAINT short_handle_format CHECK (VALUE ~ '^a{1,3}$')`)
   })
@@ -85,9 +95,12 @@ describe('catalog CHECK lowering', () => {
     const table = catalog.tables.find(
       (item) => item.schema === 'public' && item.name === 'regulated',
     )!
-    const typescript = renderTypescriptSchemaCheckArtifacts([table])
+    const caseTable = catalog.tables.find(
+      (item) => item.schema === 'public' && item.name === 'case_rust',
+    )!
+    const typescript = renderTypescriptSchemaCheckArtifacts([table, caseTable])
     const go = renderGoSchemaCheckArtifacts(
-      [table],
+      [table, caseTable],
       'mixed',
       [],
       [],
@@ -108,6 +121,9 @@ describe('catalog CHECK lowering', () => {
     expect(typescript.checks).toMatch(/constraint: "enabled_equal", result: checkRustOutcome/u)
     expect(go.checks).toMatch(/Constraint: "enabled_unequal",\s*Result: checkRustOutcome/u)
     expect(typescript.checks).toMatch(/constraint: "enabled_less", result: checkRustOutcome/u)
+    expect(typescript.checks).toMatch(/constraint: "negative_floor", result: checkRustOutcome/u)
+    expect(typescript.checks).toMatch(/constraint: "minimum_floor", result: checkRustOutcome/u)
+    expect(typescript.checks).toMatch(/constraint: "conditional_check", result: checkRustOutcome/u)
     expect(typescript.checks).toMatch(/constraint: "id_positive", result: \(\(\) =>/u)
 
     const directory = await mkdtemp(join(tmpdir(), 'pgsid-check-rust-production-'))
@@ -217,6 +233,35 @@ describe('catalog CHECK lowering', () => {
       expect(() =>
         generated.evaluatePublicRegulatedChecks({ email: 'a', pattern: '(' }),
       ).toThrowError(expect.objectContaining({ code: '2201B' }))
+      const conditional = generated.evaluatePublicCaseRustChecks({
+        amount: -2,
+        flag: false,
+        note: null,
+      }) as typeof result
+      expect(conditional.find((item) => item.constraint === 'negative_floor')?.result).toEqual({
+        certain: true,
+        value: false,
+      })
+      expect(conditional.find((item) => item.constraint === 'minimum_floor')?.result).toEqual({
+        certain: true,
+        value: true,
+      })
+      expect(conditional.find((item) => item.constraint === 'conditional_check')?.result).toEqual({
+        certain: true,
+        value: true,
+      })
+      const lazyCase = generated.evaluatePublicCaseRustChecks({
+        amount: 2147483647,
+        flag: false,
+        note: null,
+      }) as typeof result
+      expect(lazyCase.find((item) => item.constraint === 'conditional_check')?.result).toEqual({
+        certain: true,
+        value: true,
+      })
+      expect(() =>
+        generated.evaluatePublicCaseRustChecks({ amount: 2147483647, flag: true, note: null }),
+      ).toThrowError(expect.objectContaining({ code: '22003' }))
 
       await writeFile(join(directory, 'go.mod'), 'module check-rust-production\n\ngo 1.24\n')
       await writeFile(join(directory, 'checks.go'), go.checks)
@@ -254,6 +299,16 @@ func TestMixedChecks(t *testing.T) {
   if incoming.Kind != checkrust.Int4ValueError { t.Fatalf("input error: %+v", incoming) }
   outgoing := checkRustOutcome(checkrust.CheckOutcome{Kind: checkrust.CheckOutcomeError, Error: incoming.Error})
   if !outgoing.Certain || outgoing.Value.Error != "22003" { t.Fatalf("SQLSTATE round trip: %+v", outgoing) }
+  caseRows := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(-2))), Flag: KnownCheckValue(ptr(false)), Note: NullCheckValue[*string]()})
+  caseResults := map[string]EvalBool{}
+  for _, check := range caseRows { caseResults[check.Constraint] = check.Result }
+  if value := caseResults["negative_floor"]; !value.Certain || !value.Value.Valid || value.Value.Value { t.Fatalf("negative literal: %+v", value) }
+  if value := caseResults["minimum_floor"]; !value.Certain || !value.Value.Valid || !value.Value.Value { t.Fatalf("minimum literal: %+v", value) }
+  if value := caseResults["conditional_check"]; !value.Certain || !value.Value.Valid || !value.Value.Value { t.Fatalf("CASE fallback arm: %+v", value) }
+  lazyCase := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(2147483647))), Flag: KnownCheckValue(ptr(false)), Note: NullCheckValue[*string]()})
+  for _, check := range lazyCase { if check.Constraint == "conditional_check" && (!check.Result.Certain || !check.Result.Value.Valid || !check.Result.Value.Value) { t.Fatalf("lazy CASE: %+v", check.Result) } }
+  selectedCase := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(2147483647))), Flag: KnownCheckValue(ptr(true)), Note: NullCheckValue[*string]()})
+  for _, check := range selectedCase { if check.Constraint == "conditional_check" && check.Result.Value.Error != "22003" { t.Fatalf("selected CASE overflow: %+v", check.Result) } }
 }`,
       )
       await run(process.env.PGSID_GO_BINARY ?? 'go', ['test', '.'], {

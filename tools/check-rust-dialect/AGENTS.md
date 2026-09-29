@@ -25,11 +25,13 @@ update its tests when that boundary changes.
   entries. Helper functions are private `check_part_*` or numbered
   `check_*_part_*` functions.
 - Parameters are immutable named values of `Int4Value`, `TextValue`, or
-  `BoolValue`. Calls take bound identifiers, unsuffixed decimal integer
-  literals, string literals, or boolean literals.
+  `BoolValue`. Calls take bound identifiers, in-range signed `int4` literals,
+  string literals, or boolean literals. The `int4` minimum uses
+  `-2147483647 - 1`.
 - Bodies contain immutable `let` bindings initialized by direct calls,
   optional `if` statements whose condition is a direct call and whose body
-  returns one bound value, and a final direct call as the tail expression.
+  returns one bound value or a direct call, and a final direct call as the tail
+  expression.
 - Keep evaluation order visible in statements. A deciding boolean result must
   return before code for the unselected operand runs.
 - Do not add syntax for convenience. Mutation, loops, generics, methods,
