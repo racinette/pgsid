@@ -3,6 +3,20 @@ package generated
 import "testing"
 
 func TestTranspilerSmoke(t *testing.T) {
+	wrappedText := WrapText("value")
+	if !SameText(wrappedText, "value") || SameText(wrappedText, "other") {
+		t.Fatal("borrowed text wrapper changed its contents")
+	}
+	if !SameWrappedText(MakeWrappedText("value"), "value") || SameWrappedText(MakeWrappedText("value"), "other") || SameWrappedText(WrappedText{Kind: WrappedTextMissing}, "value") {
+		t.Fatal("enum payload destructuring changed its contents")
+	}
+	if !WrappedTextIsValue(MakeWrappedText("value")) || WrappedTextIsValue(WrappedText{Kind: WrappedTextMissing}) {
+		t.Fatal("unused destructured payload changed the variant test")
+	}
+	wrappedSpanInput := Span{Start: 2, End: 4}
+	if ShiftWrappedSpan(MakeWrappedSpan(wrappedSpanInput), 3) != 5 || wrappedSpanInput != (Span{Start: 2, End: 4}) {
+		t.Fatal("destructured struct payload shared caller storage")
+	}
 	input := Span{Start: 1, End: 3}
 	actual := ShiftSpan(input, 2)
 	expected := Span{Start: 3, End: 5}

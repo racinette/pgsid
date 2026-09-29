@@ -26,11 +26,7 @@ fn path(path: &syn::Path, max_segments: usize) -> Result {
 
 fn ty(ty: &Type) -> Result {
     match ty {
-        Type::Reference(reference)
-            if reference.lifetime.is_none() && reference.mutability.is_none() =>
-        {
-            self::ty(&reference.elem)
-        }
+        Type::Reference(reference) if reference.mutability.is_none() => self::ty(&reference.elem),
         Type::Path(name) if name.qself.is_none() && name.path.segments.len() == 1 => {
             let segment = &name.path.segments[0];
             if segment.ident == "Vec" {
@@ -44,6 +40,13 @@ fn ty(ty: &Type) -> Result {
                     return Err("Vec needs one type argument".into());
                 };
                 self::ty(inner)
+            } else if let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments {
+                if arguments.args.len() != 1
+                    || !matches!(&arguments.args[0], syn::GenericArgument::Lifetime(_))
+                {
+                    return Err("type accepts only one lifetime argument".into());
+                }
+                Ok(())
             } else {
                 path(&name.path, 1)
             }
@@ -213,7 +216,43 @@ fn returns_from_block(block: &syn::Block) -> bool {
 
 fn if_statement(branch: &syn::ExprIf) -> Result {
     no_attrs(&branch.attrs)?;
-    expr(&branch.cond)?;
+    if let Expr::Let(binding) = &*branch.cond {
+        if !binding.attrs.is_empty() || branch.else_branch.is_some() {
+            return Err("if-let attributes and else branches are outside the subset".into());
+        }
+        let Pat::TupleStruct(pattern) = &*binding.pat else {
+            return Err("if-let needs a payload enum variant".into());
+        };
+        no_attrs(&pattern.attrs)?;
+        path(&pattern.path, 2)?;
+        if pattern.path.segments.len() != 2 || pattern.elems.len() != 1 {
+            return Err("if-let needs one payload binding".into());
+        }
+        let Pat::Ident(name) = &pattern.elems[0] else {
+            return Err("if-let payload must bind an identifier".into());
+        };
+        if !name.attrs.is_empty()
+            || name.by_ref.is_some()
+            || name.mutability.is_some()
+            || name.subpat.is_some()
+        {
+            return Err("if-let payload binding must be immutable".into());
+        }
+        let Expr::Path(source) = &*binding.expr else {
+            return Err("if-let source must be an identifier".into());
+        };
+        no_attrs(&source.attrs)?;
+        if source.qself.is_some() {
+            return Err("if-let source must be an identifier".into());
+        }
+        path(&source.path, 1)?;
+        if name.ident == source.path.segments[0].ident {
+            return Err("if-let payload binding must differ from its source".into());
+        }
+        self::expr(&binding.expr)?;
+    } else {
+        expr(&branch.cond)?;
+    }
     block(&branch.then_branch, false)?;
     if let Some((_, alternate)) = &branch.else_branch {
         match &**alternate {
@@ -307,7 +346,14 @@ pub fn check(file: &syn::File) -> Result {
                 expr(&node.expr)?;
             }
             Item::Struct(node) => {
-                if !node.generics.params.is_empty() || node.generics.where_clause.is_some() {
+                if node.generics.where_clause.is_some()
+                    || node.generics.params.len() > 1
+                    || node
+                        .generics
+                        .params
+                        .iter()
+                        .any(|param| !matches!(param, syn::GenericParam::Lifetime(_)))
+                {
                     return Err("struct generics are outside the syntax subset".into());
                 }
                 let Fields::Named(fields) = &node.fields else {
@@ -322,7 +368,14 @@ pub fn check(file: &syn::File) -> Result {
                 if node.variants.is_empty() {
                     return Err("empty enums are outside the syntax subset".into());
                 }
-                if !node.generics.params.is_empty() || node.generics.where_clause.is_some() {
+                if node.generics.where_clause.is_some()
+                    || node.generics.params.len() > 1
+                    || node
+                        .generics
+                        .params
+                        .iter()
+                        .any(|param| !matches!(param, syn::GenericParam::Lifetime(_)))
+                {
                     return Err("enum generics are outside the syntax subset".into());
                 }
                 for variant in &node.variants {
@@ -399,6 +452,10 @@ mod tests {
             "pub fn f(value: char) -> i32 { value as i32 }",
             "pub fn f(value: bool) -> usize { if value { 1 } else { 2 } }",
             "pub fn f(value: bool) -> usize { let result = if value { 1 } else { 2 }; result }",
+            "pub struct Generic<T> { pub value: T }",
+            "pub struct TwoLifetimes<'a, 'b> { pub left: &'a str, pub right: &'b str }",
+            "pub enum GenericEnum<T> { Value(T) }",
+            "pub fn f(value: bool) -> bool { if let Some(x) = value { return x; } false }",
         ] {
             let file = syn::parse_file(source).unwrap();
             assert!(check(&file).is_err(), "accepted: {source}");

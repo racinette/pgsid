@@ -5,6 +5,18 @@ const [generatedPath] = process.argv.slice(2)
 if (!generatedPath) throw new Error('usage: check.ts GENERATED_TS')
 
 const generated = await import(pathToFileURL(generatedPath).href)
+const wrappedText = generated.wrapText('value')
+assert.deepEqual(wrappedText, { value: 'value' })
+assert.equal(generated.sameText(wrappedText, 'value'), true)
+assert.equal(generated.sameText(wrappedText, 'other'), false)
+assert.equal(generated.sameWrappedText(generated.makeWrappedText('value'), 'value'), true)
+assert.equal(generated.sameWrappedText(generated.makeWrappedText('value'), 'other'), false)
+assert.equal(generated.sameWrappedText({ kind: 'Missing' }, 'value'), false)
+assert.equal(generated.wrappedTextIsValue(generated.makeWrappedText('value')), true)
+assert.equal(generated.wrappedTextIsValue({ kind: 'Missing' }), false)
+const wrappedSpanInput = { start: 2, end: 4 }
+assert.equal(generated.shiftWrappedSpan(generated.makeWrappedSpan(wrappedSpanInput), 3), 5)
+assert.deepEqual(wrappedSpanInput, { start: 2, end: 4 })
 const input = { start: 1, end: 3 }
 const expected = { start: 3, end: 5 }
 const actual = generated.shiftSpan(input, 2)

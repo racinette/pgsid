@@ -14,13 +14,17 @@ behavioral oracle. Expand the engine only through the shared dialect.
 - Use `usize`, `u32`, `i32`, `bool`, `char`, `&str`, shared vectors, or a
   declared struct or enum. Immutable `&DeclaredStruct` parameters can read
   fields and indexed vector elements; direct calls can borrow a local struct
-  with `&name`. Borrowed structs cannot be stored or returned. Mutable
-  references, other references, generic types, and custom type parameters
-  need a lowering rule before they can enter this dialect.
+  with `&name`. Borrowed structs cannot be stored or returned. A struct or enum
+  may declare one lifetime parameter for a borrowed `&str` field or payload;
+  the lifetime is erased in Go and TypeScript, where strings are values.
+  Mutable references,
+  other references, type generics, and custom type parameters need a lowering
+  rule before they can enter this dialect.
 - Use initialized local bindings. Mark a binding or parameter `mut` only when
   its value is assigned. Use `if`, `else if`, `else`, `while`, `break`, and
   value-bearing `return` as statements. A function body may end with a tail
-  expression. Branches do not produce values.
+  expression. Branches do not produce values. `if let Enum::Variant(name) = value`
+  may bind one payload from an enum variable inside its branch, without `else`.
 - A mutable `Vec<usize>`, `Vec<char>`, or `Vec` of a declared `Copy` struct may
   be initialized with an explicitly typed `Vec::new()` local, grown with
   `push`, and read or written by index. Direct `=` assignment is limited to
@@ -66,7 +70,7 @@ references have an inner type. Structs carry named fields. Enums carry unit
 or single-payload variants. Derives are a list. Blocks are ordered local and
 expression statements. Expressions include literals, paths, casts, binary
 operations, field and index access, method and constructor calls, struct
-literals, `if`, `while`, `return`, and `break`. Preserve the distinction
+literals, `if`, payload `if let`, `while`, `return`, and `break`. Preserve the distinction
 between a semicolon statement and a function tail expression. An `if` may
 carry an `elseBody`; `else if` is nested there. Integer literals are decimal
 strings, characters are Unicode scalar strings, and booleans carry their

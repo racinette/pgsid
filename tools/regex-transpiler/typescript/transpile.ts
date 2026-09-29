@@ -21,6 +21,14 @@ type Expr =
   | { kind: 'struct-literal'; path: string[]; fields: { name: string; value: Expr }[] }
   | { kind: 'call'; callee: Expr; arguments: Expr[] }
   | { kind: 'if'; condition: Expr; body: Stmt[]; elseBody?: Stmt[] }
+  | {
+      kind: 'if-let'
+      enumName: string
+      variant: string
+      payloadBinding: string
+      source: Expr
+      body: Stmt[]
+    }
   | { kind: 'while'; condition: Expr; body: Stmt[] }
   | { kind: 'return'; value: Expr }
   | { kind: 'break' }
@@ -507,6 +515,42 @@ class Transpiler {
                   this.expression(value.receiver, locals),
                   this.expression(value.arguments[0]!, locals),
                 ),
+          ),
+        )
+      } else if (value.kind === 'if-let') {
+        if (value.source.kind !== 'path' || value.source.segments.length !== 1)
+          throw new Error('if-let source must be an identifier')
+        const payload = this.enums
+          .get(value.enumName)
+          ?.variants.find((variant) => variant.name === value.variant)?.payload
+        if (!payload || this.infer(value.source, locals) !== value.enumName)
+          throw new Error('if-let pattern is not a matching payload enum variant')
+        const source = this.expression(value.source, locals)
+        const bound = camelCase(value.payloadBinding)
+        const branchLocals = new Map(locals)
+        branchLocals.set(value.payloadBinding, this.path(payload))
+        const binding = f.createVariableStatement(
+          undefined,
+          f.createVariableDeclarationList(
+            [
+              f.createVariableDeclaration(
+                bound,
+                undefined,
+                this.type(payload),
+                this.detach(member(source, 'value'), payload),
+              ),
+            ],
+            ts.NodeFlags.Const,
+          ),
+        )
+        result.push(
+          f.createIfStatement(
+            comparison(
+              member(source, 'kind'),
+              ts.SyntaxKind.EqualsEqualsEqualsToken,
+              f.createStringLiteral(value.variant),
+            ),
+            f.createBlock([binding, ...this.statements(value.body, branchLocals)], true),
           ),
         )
       } else if (value.kind === 'if')

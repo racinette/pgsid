@@ -13,6 +13,62 @@ pub struct CharBag {
     pub characters: Vec<char>,
 }
 
+#[derive(Clone, Copy)]
+pub struct BorrowedText<'a> {
+    pub value: &'a str,
+}
+
+pub fn wrap_text(value: &str) -> BorrowedText<'_> {
+    BorrowedText { value }
+}
+
+pub fn same_text(left: BorrowedText, right: &str) -> bool {
+    left.value == right
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum WrappedText<'a> {
+    Missing,
+    Value(&'a str),
+}
+
+pub fn make_wrapped_text(value: &str) -> WrappedText<'_> {
+    WrappedText::Value(value)
+}
+
+pub fn same_wrapped_text(value: WrappedText, expected: &str) -> bool {
+    if let WrappedText::Value(text) = value {
+        return text == expected;
+    }
+    false
+}
+
+pub fn wrapped_text_is_value(value: WrappedText) -> bool {
+    if let WrappedText::Value(_text) = value {
+        return true;
+    }
+    false
+}
+
+#[derive(Clone, Copy)]
+pub enum WrappedSpan {
+    Missing,
+    Value(Span),
+}
+
+pub fn make_wrapped_span(value: Span) -> WrappedSpan {
+    WrappedSpan::Value(value)
+}
+
+pub fn shift_wrapped_span(value: WrappedSpan, offset: usize) -> usize {
+    if let WrappedSpan::Value(span) = value {
+        let mut changed = span;
+        changed.start += offset;
+        return changed.start;
+    }
+    0
+}
+
 pub struct Token {
     value: usize,
 }

@@ -22,6 +22,18 @@ pub fn type_name(ty: &Type) -> Result<String> {
             let name = segment.ident.to_string();
             match &segment.arguments {
                 syn::PathArguments::None => Ok(name),
+                syn::PathArguments::AngleBracketed(arguments) if name != "Vec" => {
+                    if !matches!(
+                        name.as_str(),
+                        "usize" | "u32" | "i32" | "bool" | "char" | "str"
+                    ) && arguments.args.len() == 1
+                        && matches!(&arguments.args[0], syn::GenericArgument::Lifetime(_))
+                    {
+                        Ok(name)
+                    } else {
+                        Err(format!("unsupported type arguments for {name}"))
+                    }
+                }
                 syn::PathArguments::AngleBracketed(arguments) if name == "Vec" => {
                     if arguments.args.len() != 1 {
                         return Err("Vec must have one type argument".into());
@@ -251,6 +263,36 @@ fn checked_arithmetic(name: &str) -> bool {
 }
 
 fn check_if_methods(branch: &syn::ExprIf, locals: &Bindings, semantics: &Semantics) -> Result<()> {
+    if let Expr::Let(binding) = &*branch.cond {
+        let Pat::TupleStruct(pattern) = &*binding.pat else {
+            return Err("if-let needs a payload enum variant".into());
+        };
+        let name = pattern.path.segments[0].ident.to_string();
+        let variant = pattern.path.segments[1].ident.to_string();
+        let payload = semantics
+            .variants
+            .get(&(name.clone(), variant))
+            .and_then(Clone::clone)
+            .ok_or("if-let pattern is not a payload enum variant")?;
+        if !scalar(&payload) && !semantics.copy.contains(&payload) {
+            return Err("if-let payload needs shared value semantics".into());
+        }
+        if infer_expr_type(&binding.expr, locals, semantics)?.as_deref() != Some(&name) {
+            return Err("if-let source type differs from its enum pattern".into());
+        }
+        let Pat::Ident(bound) = &pattern.elems[0] else {
+            return Err("if-let payload must bind an identifier".into());
+        };
+        let mut branch_locals = locals.clone();
+        branch_locals.insert(
+            bound.ident.to_string(),
+            Binding {
+                ty: payload,
+                mutable: false,
+            },
+        );
+        return check_body_methods(&branch.then_branch, &mut branch_locals, semantics);
+    }
     infer_expr_type(&branch.cond, locals, semantics)?;
     check_body_methods(&branch.then_branch, &mut locals.clone(), semantics)?;
     if let Some((_, alternate)) = &branch.else_branch {

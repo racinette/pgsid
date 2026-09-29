@@ -318,6 +318,37 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 			} else {
 				result = append(result, &ast.ExprStmt{X: generated})
 			}
+		case "if-let":
+			if value.Source == nil || value.Source.Kind != "path" || len(value.Source.Segments) != 1 || value.ElseBody != nil {
+				reject("if-let source or else branch is outside the AST contract")
+			}
+			var payload *node
+			for _, variant := range g.enums[value.EnumName] {
+				if variant.Name == value.Variant {
+					payload = variant.Payload
+				}
+			}
+			if payload == nil || value.PayloadBinding == "" || path(g.inferType(value.Source)) != value.EnumName {
+				reject("if-let pattern is not a matching payload enum variant")
+			}
+			source := g.goExpression(value.Source)
+			condition := &ast.BinaryExpr{
+				X:  goSelect(source, g.enumKindField(value.EnumName)),
+				Op: token.EQL,
+				Y:  goIdent(g.name(value.EnumName) + value.Variant),
+			}
+			originalLocals, originalTypes := g.locals, g.localTypes
+			g.locals, g.localTypes = cloneLocals(originalLocals), cloneTypes(originalTypes)
+			generated := casedName(value.PayloadBinding, false)
+			g.locals[value.PayloadBinding] = generated
+			g.localTypes[value.PayloadBinding] = payload
+			body := []ast.Stmt{goAssign(goIdent(generated), g.goDetach(goSelect(source, g.enumPayloadField(value.EnumName, value.Variant)), payload), token.DEFINE)}
+			if strings.HasPrefix(value.PayloadBinding, "_") {
+				body = append(body, goAssign(goIdent("_"), goIdent(generated), token.ASSIGN))
+			}
+			body = append(body, g.goStatements(value.Body)...)
+			g.locals, g.localTypes = originalLocals, originalTypes
+			result = append(result, &ast.IfStmt{Cond: condition, Body: &ast.BlockStmt{List: body}})
 		case "if", "while":
 			condition := g.goExpression(value.Condition)
 			originalLocals, originalTypes := g.locals, g.localTypes

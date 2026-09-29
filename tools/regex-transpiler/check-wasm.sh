@@ -30,12 +30,8 @@ fi
 bash "$transpiler_dir/check.sh"
 cargo build --locked --manifest-path "$transpiler_dir/Cargo.toml" \
   --target wasm32-unknown-unknown --lib --release --target-dir "$target_dir"
-docker run --rm \
-  -v "$transpiler_dir/go:/src" \
-  -v "$smoke_dir:/out" \
-  -w /src/wasm \
-  tinygo/tinygo:0.42.0 \
-  tinygo build -target wasm-unknown -buildmode=c-shared -no-debug -o /out/go-transpiler.wasm .
+bash "$repo_dir/scripts/build-tinygo-wasm.sh" \
+  "$transpiler_dir/go/wasm" "$smoke_dir/go-transpiler.wasm"
 
 cd "$repo_dir"
 node --import tsx "$transpiler_dir/typescript/rust-wasm.ts" \
