@@ -27,6 +27,7 @@ type node struct {
 	Value          *node       `json:"value"`
 	Digits         string      `json:"digits"`
 	Scalar         string      `json:"scalar"`
+	Text           string      `json:"text"`
 	Boolean        bool        `json:"state"`
 	Left           *node       `json:"left"`
 	Right          *node       `json:"right"`
@@ -204,6 +205,8 @@ func (g *generator) inferType(value *node) *node {
 		return namedType("char")
 	case "boolean":
 		return namedType("bool")
+	case "string":
+		return &node{Kind: "reference", Inner: namedType("str")}
 	case "cast":
 		return value.TargetType
 	case "binary":

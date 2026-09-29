@@ -315,6 +315,7 @@ fn expr(value: &Expr) -> Result<Value> {
                 Ok(json!({ "kind": "character", "scalar": character.value().to_string() }))
             }
             syn::Lit::Bool(boolean) => Ok(json!({ "kind": "boolean", "state": boolean.value })),
+            syn::Lit::Str(text) => Ok(json!({ "kind": "string", "text": text.value() })),
             _ => Err("literal is outside the AST contract".into()),
         },
         Expr::Paren(node) => Ok(json!({ "kind": "parenthesized", "inner": expr(&node.expr)? })),
@@ -630,6 +631,23 @@ mod tests {
     }
 
     #[test]
+    fn string_literals_preserve_decoded_text() {
+        let tree: serde_json::Value = serde_json::from_str(
+            &parse(r#"pub fn f(value: &str) -> bool { value == "a\nb\"c\u{1f600}" }"#).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(tree["items"][0]["body"][0]["value"]["right"]["kind"], "string");
+        assert_eq!(
+            tree["items"][0]["body"][0]["value"]["right"]["text"],
+            "a\nb\"c😀"
+        );
+        assert!(parse(r#"pub fn f(value: &str) -> bool { value == r"housed" }"#).is_ok());
+        assert!(parse(r#"pub fn f(value: &str) -> bool { value == "" }"#).is_ok());
+        assert!(parse(r#"pub fn f() -> bool { b"a" == b"a" }"#).is_err());
+        assert!(parse(r#"pub fn f() -> bool { c"a" == c"a" }"#).is_err());
+    }
+
+    #[test]
     fn boolean_literals_keep_their_value() {
         let tree: serde_json::Value =
             serde_json::from_str(&parse("pub fn f() -> bool { false }").unwrap()).unwrap();
@@ -861,6 +879,10 @@ mod tests {
         assert!(smoke::is_before_first(-1));
         assert_eq!(smoke::char_count("😀"), 1);
         assert_eq!(smoke::char_codepoint('😀'), 128512);
+        assert!(smoke::matches_literal("a\"b\\c\n\u{1f600}\0"));
+        assert!(!smoke::matches_literal("housed"));
+        assert!(smoke::matches_empty(""));
+        assert!(!smoke::matches_empty("a"));
         assert_eq!(smoke::index_from_codepoint('😀'), 128512);
         assert_eq!(smoke::index_from_u32(2147483647), 2147483647);
         assert_eq!(smoke::choose_position(2, 3), 2);

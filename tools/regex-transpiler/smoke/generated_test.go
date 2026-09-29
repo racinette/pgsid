@@ -95,6 +95,12 @@ func TestTranspilerSmoke(t *testing.T) {
 	if CharCodepoint('😀') != 128512 {
 		t.Error("Unicode scalar cast changed value")
 	}
+	if !MatchesLiteral("a\"b\\c\n😀\x00") || MatchesLiteral("housed") {
+		t.Error("string literal changed its value")
+	}
+	if !MatchesEmpty("") || MatchesEmpty("a") {
+		t.Error("empty string literal changed its value")
+	}
 	if IndexFromCodepoint('😀') != 128512 {
 		t.Error("checked unsigned cast changed value")
 	}

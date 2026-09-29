@@ -273,6 +273,14 @@ pub enum ConditionMode {
     Stop,
 }
 
+pub fn matches_literal(value: &str) -> bool {
+    value == "a\"b\\c\n\u{1f600}\0"
+}
+
+pub fn matches_empty(value: &str) -> bool {
+    value == ""
+}
+
 pub fn condition_literals(mode: ConditionMode) -> usize {
     let mut visits = 0;
     if mode == ConditionMode::Stop {

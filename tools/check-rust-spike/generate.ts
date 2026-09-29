@@ -27,12 +27,41 @@ const expression: EvalBoolExpression = {
       },
     },
     {
-      kind: 'eval-regex',
-      subject: { kind: 'input', type: 'pg_catalog.text', name: 'email' },
-      pattern: { kind: 'input', type: 'pg_catalog.text', name: 'pattern' },
-      options: { syntax: 'advanced', caseSensitive: true, expanded: false, newline: 'ordinary' },
-      negated: false,
-      collation: 'C',
+      kind: 'eval-boolean-logic',
+      operation: 'and',
+      operands: [
+        {
+          kind: 'eval-regex',
+          subject: { kind: 'input', type: 'pg_catalog.text', name: 'email' },
+          pattern: { kind: 'input', type: 'pg_catalog.text', name: 'pattern' },
+          options: {
+            syntax: 'advanced',
+            caseSensitive: true,
+            expanded: false,
+            newline: 'ordinary',
+          },
+          negated: false,
+          collation: 'C',
+        },
+        {
+          kind: 'eval-scalar',
+          expression: {
+            kind: 'call',
+            call: {
+              kind: 'operator',
+              type: 'pg_catalog.bool',
+              signature: 'operator:["pg_catalog","<>"](pg_catalog.text,pg_catalog.text)',
+            },
+            operands: [
+              { kind: 'input', type: 'pg_catalog.text', name: 'status' },
+              {
+                kind: 'certain',
+                expression: { kind: 'text', type: 'pg_catalog.text', value: 'housed' },
+              },
+            ],
+          },
+        },
+      ],
     },
   ],
 }

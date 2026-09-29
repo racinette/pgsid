@@ -38,7 +38,8 @@ behavioral oracle. Expand the engine only through the shared dialect.
   Direct calls to declared functions and single-payload enum constructors are
   allowed. Generated functions check and detach their arguments at entry.
 - Keep literals within the shared numeric range and write integers as
-  unsuffixed decimals. A `char` is one Unicode scalar. Avoid Rust operations
+  unsuffixed decimals. A `char` is one Unicode scalar. A string literal is
+  a sequence of Unicode scalars. Avoid Rust operations
   whose Go and TypeScript meanings differ, including string length, vector
   equality, and character or string ordering.
 - Use Rust `pub` for the intended external API. Target naming follows each
