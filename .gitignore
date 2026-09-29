@@ -12,8 +12,13 @@ tests/unit/query/espalier/.cache/
 # hand-maintained claim, so nothing here is reviewed and nothing is committed.
 artifacts/
 src/codegen/go/wasm/go-ast.wasm
+src/codegen/go/assets/check-rust-parser.wasm
+src/codegen/go/assets/check-go-transpiler.wasm
+src/codegen/go/assets/check-rust-integer.rs
 tools/regex-transpiler/target/
+tools/check-rust-dialect/target/
 crates/regex-engine/target/
+crates/check-evaluator/target/
 
 vendor/*
 !vendor/README.MD

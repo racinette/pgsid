@@ -1,5 +1,6 @@
 import type { PGlite } from '@electric-sql/pglite'
 import type { BuiltinFunctionSignature, BuiltinOperatorSignature } from '../../catalog/types.js'
+import { assertUniqueRustCallableNames, rustCallableName } from './rust-name.js'
 
 export interface CallableMetadata {
   kind: 'function' | 'aggregate' | 'window' | 'operator'
@@ -14,6 +15,7 @@ export interface CallableMetadata {
 
 export interface FunctionMetadata extends CallableMetadata {
   kind: 'function' | 'aggregate' | 'window'
+  rustName: string
   variadic: string | null
   numArgDefaults: number
   aggKind: 'n' | 'o' | 'h' | null
@@ -24,6 +26,7 @@ export interface OperatorMetadata extends CallableMetadata {
   kind: 'operator'
   left: string | null
   right: string | null
+  implementation: string
 }
 
 export interface BuiltinCatalog {
@@ -91,6 +94,9 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
       strict: boolean
       volatility: 'i' | 's' | 'v'
       returns_set: boolean
+      implementation_schema: string
+      implementation_name: string
+      implementation_args: string[] | null
     }>(`SELECT n.nspname AS schema, o.oprname AS name,
       CASE WHEN o.oprleft <> 0 THEN format_type(o.oprleft, null) END AS left_type,
       CASE WHEN o.oprright <> 0 THEN format_type(o.oprright, null) END AS right_type,
@@ -98,11 +104,40 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
       (${typeIdentity} o.oprright) AS right,
       format_type(o.oprresult, null) AS returns,
       (${typeIdentity} o.oprresult) AS result,
-      p.proisstrict AS strict, p.provolatile AS volatility, p.proretset AS returns_set
+      p.proisstrict AS strict, p.provolatile AS volatility, p.proretset AS returns_set,
+      pn.nspname AS implementation_schema, p.proname AS implementation_name,
+      (SELECT array_agg((${typeIdentity} u.t) ORDER BY o)
+        FROM unnest(p.proargtypes) WITH ORDINALITY AS u(t, o)) AS implementation_args
       FROM pg_operator o JOIN pg_proc p ON p.oid = o.oprcode
       JOIN pg_namespace n ON n.oid = o.oprnamespace
+      JOIN pg_namespace pn ON pn.oid = p.pronamespace
       WHERE n.nspname = 'pg_catalog' ORDER BY o.oprname, 3, 4`),
   ])
+  assertUniqueRustCallableNames([
+    ...functions.rows.map((row) => ({
+      schema: row.schema,
+      name: row.name,
+      args: row.canonical_args ?? [],
+    })),
+    ...operators.rows.map((row) => ({
+      schema: row.implementation_schema,
+      name: row.implementation_name,
+      args: row.implementation_args ?? [],
+    })),
+  ])
+  const functionsByIdentity = new Set(
+    functions.rows
+      .filter((row) => row.kind === 'f')
+      .map(
+        (row) =>
+          `function:${JSON.stringify([row.schema, row.name])}(${(row.canonical_args ?? []).join(',')})`,
+      ),
+  )
+  for (const row of operators.rows) {
+    const identity = `function:${JSON.stringify([row.implementation_schema, row.implementation_name])}(${(row.implementation_args ?? []).join(',')})`
+    if (!functionsByIdentity.has(identity))
+      throw new Error(`Operator implementation is absent from the function inventory: ${identity}`)
+  }
   return {
     serverVersion: Number(version.rows[0]!.server_version_num),
     functions: functions.rows.map((r) => ({
@@ -110,6 +145,11 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
         kind: r.kind === 'f' ? 'function' : r.kind === 'a' ? 'aggregate' : 'window',
         schema: r.schema,
         name: r.name,
+        rustName: rustCallableName({
+          schema: r.schema,
+          name: r.name,
+          args: r.canonical_args ?? [],
+        }),
         args: r.canonical_args ?? [],
         result: r.result,
         strict: r.strict,
@@ -137,6 +177,7 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
         kind: 'operator',
         schema: r.schema,
         name: r.name,
+        implementation: `function:${JSON.stringify([r.implementation_schema, r.implementation_name])}(${(r.implementation_args ?? []).join(',')})`,
         args: [r.left, r.right].filter((t): t is string => t !== null),
         left: r.left,
         right: r.right,
