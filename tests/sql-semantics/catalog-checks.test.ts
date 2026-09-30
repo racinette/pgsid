@@ -78,12 +78,19 @@ describe('catalog CHECK lowering', () => {
     await pg.exec(`CREATE TABLE public.case_rust (
       amount integer,
       flag boolean,
-      note text,
+      note text COLLATE "C",
       CONSTRAINT negative_floor CHECK (amount > -1),
       CONSTRAINT minimum_floor CHECK (amount >= -2147483648),
       CONSTRAINT conditional_check CHECK (
         CASE WHEN flag THEN amount + 1 > 0 ELSE note IS NULL END
-      )
+      ),
+      CONSTRAINT simple_int4 CHECK (CASE amount WHEN 0 THEN flag IS NULL WHEN 1 THEN note IS NULL ELSE amount > 0 END),
+      CONSTRAINT simple_bool CHECK (CASE flag WHEN true THEN amount > 0 WHEN false THEN note IS NULL END),
+      CONSTRAINT simple_text CHECK (CASE note WHEN 'a' THEN true ELSE note IS NULL END),
+      CONSTRAINT scalar_int4 CHECK ((CASE WHEN flag THEN amount + 1 ELSE 0 END) > 0),
+      CONSTRAINT scalar_text CHECK ((CASE WHEN flag THEN note ELSE 'a' END) = 'a'),
+      CONSTRAINT scalar_bool CHECK ((CASE WHEN amount > 0 THEN flag ELSE true END) = true),
+      CONSTRAINT scalar_no_else CHECK ((CASE WHEN flag THEN amount END) IS NULL)
     )`)
     await pg.exec(`CREATE DOMAIN public.short_handle AS public.handle
       CONSTRAINT short_handle_format CHECK (VALUE ~ '^a{1,3}$')`)
@@ -125,6 +132,20 @@ describe('catalog CHECK lowering', () => {
     expect(typescript.checks).toMatch(/constraint: "negative_floor", result: checkRustOutcome/u)
     expect(typescript.checks).toMatch(/constraint: "minimum_floor", result: checkRustOutcome/u)
     expect(typescript.checks).toMatch(/constraint: "conditional_check", result: checkRustOutcome/u)
+    for (const name of [
+      'simple_int4',
+      'simple_bool',
+      'simple_text',
+      'scalar_int4',
+      'scalar_text',
+      'scalar_bool',
+      'scalar_no_else',
+    ]) {
+      expect(typescript.checks).toMatch(
+        new RegExp(`constraint: "${name}", result: checkRustOutcome`),
+      )
+      expect(go.checks).toMatch(new RegExp(`Constraint: "${name}",\\s*Result: checkRustOutcome`))
+    }
     expect(typescript.checks).toMatch(/constraint: "id_positive", result: \(\(\) =>/u)
 
     const directory = await mkdtemp(join(tmpdir(), 'pgsid-check-rust-production-'))
@@ -268,6 +289,44 @@ describe('catalog CHECK lowering', () => {
         generated.evaluatePublicCaseRustChecks({ amount: 2147483647, flag: true, note: null }),
       ).toThrowError(expect.objectContaining({ code: '22003' }))
 
+      for (const [name, expected] of Object.entries({
+        simple_int4: false,
+        simple_bool: true,
+        simple_text: true,
+        scalar_int4: false,
+        scalar_text: true,
+        scalar_bool: true,
+        scalar_no_else: true,
+      })) {
+        expect(conditional.find((item) => item.constraint === name)?.result).toEqual({
+          certain: true,
+          value: expected,
+        })
+      }
+      const partialCase = generated.evaluatePublicCaseRustChecks({
+        amount: 1,
+        flag: true,
+      }) as typeof result
+      expect(partialCase.find((item) => item.constraint === 'simple_int4')?.result).toEqual({
+        certain: false,
+      })
+      expect(partialCase.find((item) => item.constraint === 'scalar_text')?.result).toEqual({
+        certain: false,
+      })
+      const nullGuard = generated.evaluatePublicCaseRustChecks({
+        amount: 0,
+        flag: null,
+        note: null,
+      }) as typeof result
+      expect(nullGuard.find((item) => item.constraint === 'simple_bool')?.result).toEqual({
+        certain: true,
+        value: null,
+      })
+      expect(nullGuard.find((item) => item.constraint === 'scalar_no_else')?.result).toEqual({
+        certain: true,
+        value: true,
+      })
+
       await writeFile(join(directory, 'go.mod'), 'module check-rust-production\n\ngo 1.24\n')
       await writeFile(join(directory, 'checks.go'), go.checks)
       await mkdir(join(directory, 'checkrust', 'pg_catalog'), { recursive: true })
@@ -330,6 +389,13 @@ func TestMixedChecks(t *testing.T) {
   if value := caseResults["negative_floor"]; !value.Certain || !value.Value.Valid || value.Value.Value { t.Fatalf("negative literal: %+v", value) }
   if value := caseResults["minimum_floor"]; !value.Certain || !value.Value.Valid || !value.Value.Value { t.Fatalf("minimum literal: %+v", value) }
   if value := caseResults["conditional_check"]; !value.Certain || !value.Value.Valid || !value.Value.Value { t.Fatalf("CASE fallback arm: %+v", value) }
+  for name, expected := range map[string]bool{"simple_int4": false, "simple_bool": true, "simple_text": true, "scalar_int4": false, "scalar_text": true, "scalar_bool": true, "scalar_no_else": true} {
+    if value := caseResults[name]; !value.Certain || !value.Value.Valid || value.Value.Value != expected { t.Fatalf("%s: %+v", name, value) }
+  }
+  partialCases := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(1))), Flag: KnownCheckValue(ptr(true))})
+  for _, check := range partialCases { if (check.Constraint == "simple_int4" || check.Constraint == "scalar_text") && check.Result.Certain { t.Fatalf("missing CASE input %s: %+v", check.Constraint, check.Result) } }
+  nullCases := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(0))), Flag: NullCheckValue[*bool](), Note: NullCheckValue[*string]()})
+  for _, check := range nullCases { if check.Constraint == "simple_bool" && (!check.Result.Certain || check.Result.Value.Valid) { t.Fatalf("NULL simple CASE: %+v", check.Result) } }
   lazyCase := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(2147483647))), Flag: KnownCheckValue(ptr(false)), Note: NullCheckValue[*string]()})
   for _, check := range lazyCase { if check.Constraint == "conditional_check" && (!check.Result.Certain || !check.Result.Value.Valid || !check.Result.Value.Value) { t.Fatalf("lazy CASE: %+v", check.Result) } }
   selectedCase := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(2147483647))), Flag: KnownCheckValue(ptr(true)), Note: NullCheckValue[*string]()})
@@ -399,6 +465,174 @@ func TestMixedChecks(t *testing.T) {
       ['public.short_handle', 'short_handle_format'],
       ['public.handle', 'handle_format'],
     ])
+  })
+
+  it('preserves CASE behavior and a single scrutinee binding in fallback validators', async () => {
+    const catalog = await snapshotCatalog(pg)
+    const caseTable = catalog.tables.find((item) => item.name === 'case_rust')!
+    const table = {
+      ...caseTable,
+      constraints: [
+        ...caseTable.constraints.filter(
+          (item) => item.name.startsWith('simple_') || item.name.startsWith('scalar_'),
+        ),
+        {
+          ...caseTable.constraints[0]!,
+          name: 'simple_once',
+          type: 'check' as const,
+          definition:
+            'CHECK (CASE amount + 1 WHEN 0 THEN true WHEN 1 THEN false ELSE flag IS NULL END)',
+        },
+      ],
+    }
+    const rows = [
+      { amount: -2, flag: false, note: null },
+      { amount: 0, flag: null, note: 'a' },
+      { amount: 1, flag: true, note: null },
+      { amount: 1, flag: true },
+      { flag: false, note: 'a' },
+    ]
+    const expected = [
+      {
+        simple_int4: false,
+        simple_bool: true,
+        simple_text: true,
+        scalar_int4: false,
+        scalar_text: true,
+        scalar_bool: true,
+        scalar_no_else: true,
+        simple_once: false,
+      },
+      {
+        simple_int4: true,
+        simple_bool: null,
+        simple_text: true,
+        scalar_int4: false,
+        scalar_text: true,
+        scalar_bool: true,
+        scalar_no_else: true,
+        simple_once: false,
+      },
+      {
+        simple_int4: true,
+        simple_bool: true,
+        simple_text: true,
+        scalar_int4: true,
+        scalar_text: null,
+        scalar_bool: true,
+        scalar_no_else: false,
+        simple_once: false,
+      },
+      {
+        simple_int4: undefined,
+        simple_bool: true,
+        simple_text: undefined,
+        scalar_int4: true,
+        scalar_text: undefined,
+        scalar_bool: true,
+        scalar_no_else: false,
+        simple_once: false,
+      },
+      {
+        simple_int4: undefined,
+        simple_bool: false,
+        simple_text: true,
+        scalar_int4: false,
+        scalar_text: true,
+        scalar_bool: undefined,
+        scalar_no_else: true,
+        simple_once: undefined,
+      },
+    ]
+    const source = renderTypescriptSchemaChecks([table])
+    const directory = await mkdtemp(join(tmpdir(), 'pgsid-case-fallback-'))
+    try {
+      await writeFile(join(directory, 'checks.ts'), source)
+      await run('node_modules/.bin/tsc', [
+        '--strict',
+        '--noEmit',
+        '--skipLibCheck',
+        '--target',
+        'es2022',
+        '--module',
+        'esnext',
+        join(directory, 'checks.ts'),
+      ])
+      const js = ts.transpileModule(source, {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+      }).outputText
+      const evaluate = Function('exports', `${js}; return evaluatePublicCaseRustChecks`)({}) as (
+        row: Record<string, unknown>,
+      ) => { constraint: string; result: { certain: boolean; value?: boolean | null } }[]
+      for (const [index, row] of rows.entries()) {
+        expect(
+          Object.fromEntries(
+            evaluate(row).map((item) => [
+              item.constraint,
+              item.result.certain ? item.result.value : undefined,
+            ]),
+          ),
+        ).toEqual(expected[index])
+      }
+      const onceSource = renderTypescriptSchemaChecks([
+        { ...table, constraints: table.constraints.filter((item) => item.name === 'simple_once') },
+      ])
+      const onceJs = ts.transpileModule(onceSource, {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+      }).outputText
+      const evaluateOnce = Function(
+        'exports',
+        `${onceJs}; return evaluatePublicCaseRustChecks`,
+      )({}) as typeof evaluate
+      let reads = 0
+      const input = {
+        flag: false,
+        get amount() {
+          reads++
+          return 0
+        },
+      }
+      expect(evaluateOnce(input)[0]!.result).toEqual({ certain: true, value: false })
+      expect(reads).toBe(1)
+      const goSource = renderGoSchemaChecks(
+        [table],
+        'cases',
+        [],
+        [],
+        catalog,
+        parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go: {}\n'),
+      )
+      const goRows = rows.map(
+        (row) =>
+          'PublicCaseRustCheckInput{' +
+          Object.entries(row)
+            .map(([name, value]) => {
+              const field = name[0]!.toUpperCase() + name.slice(1)
+              const type = name === 'amount' ? 'int32' : name === 'flag' ? 'bool' : 'string'
+              return `${field}: ${value === null ? `NullCheckValue[*${type}]()` : `KnownCheckValue(ptr(${type}(${JSON.stringify(value)})))`}`
+            })
+            .join(', ') +
+          '}',
+      )
+      const assertions = expected.flatMap((row, index) =>
+        Object.entries(row).map(
+          ([name, value]) =>
+            `if result := results[${index}]["${name}"]; ${value === undefined ? 'result.Certain' : value === null ? '!result.Certain || result.Value.Valid' : `!result.Certain || !result.Value.Valid || result.Value.Value != ${value}`} {t.Fatalf("${index} ${name}: %+v", result)}`,
+        ),
+      )
+      await writeFile(join(directory, 'go.mod'), 'module case-fallback\n\ngo 1.24\n')
+      await writeFile(join(directory, 'checks.go'), goSource)
+      await writeFile(
+        join(directory, 'checks_test.go'),
+        `package cases\nimport "testing"\nfunc ptr[T any](value T) *T {return &value}\nfunc TestCases(t *testing.T) {\nrows := []PublicCaseRustCheckInput{${goRows.join(', ')}}\nresults := []map[string]EvalBool{}\nfor _, row := range rows {values := map[string]EvalBool{}; for _, check := range EvaluatePublicCaseRustChecks(row) {values[check.Constraint] = check.Result}; results = append(results, values)}\n${assertions.join('\n')}\n}`,
+      )
+      await run('go', ['test', '.'], {
+        cwd: directory,
+        env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+      })
+    } finally {
+      await rm(directory, { recursive: true, force: true })
+    }
   })
 
   it('keeps a parsed but unavailable atom uncertain at the codegen boundary', async () => {

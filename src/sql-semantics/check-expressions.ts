@@ -113,7 +113,7 @@ export function emitEvalBoolExpression<Ast>(
   }
   const emit = (node: EvalBoolExpression): Ast => {
     if (node.kind === 'eval-scalar') {
-      const result = emitEvalExpression(node.expression, scalarBackend, backend.scalar)
+      const result = emitEvalExpression(node.expression, scalarBackend, backend.scalar, emit)
       if (result.value.type !== 'pg_catalog.bool')
         throw new Error('A scalar CHECK atom must be boolean')
       include(result.helpers)

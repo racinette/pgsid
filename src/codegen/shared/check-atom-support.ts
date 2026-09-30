@@ -19,6 +19,7 @@ const portable = (signature: string): boolean =>
 
 export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpression {
   const scalar = (value: EvalExpression): EvalExpression => {
+    if (value.kind === 'check') return { ...value, expression: bool(value.expression) }
     if (value.kind === 'call')
       return value.call.signature !== null && portable(value.call.signature)
         ? { ...value, operands: value.operands.map(scalar) }
@@ -29,6 +30,9 @@ export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpr
     if (value.kind === 'case')
       return {
         ...value,
+        ...(value.scrutinee
+          ? { scrutinee: { ...value.scrutinee, expression: scalar(value.scrutinee.expression) } }
+          : {}),
         branches: value.branches.map((branch) => ({
           when: scalar(branch.when),
           then: scalar(branch.then),

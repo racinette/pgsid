@@ -6,10 +6,12 @@ import {
   type SqlExpression,
   type ScalarType,
 } from './expressions.js'
+import type { EvalBoolExpression } from './check-expressions.js'
 import type { TypedSqlExpression } from './signatures.js'
 import { builtinMetadata } from '../postgres/builtins/inventory.js'
 
 export type EvalExpression =
+  | { kind: 'check'; type: 'pg_catalog.bool'; expression: EvalBoolExpression }
   | { kind: 'input'; type: ScalarType; name: string }
   | { kind: 'certain'; expression: SqlExpression }
   | { kind: 'uncertain'; type: string }
@@ -24,6 +26,7 @@ export type EvalExpression =
   | {
       kind: 'case'
       type: ScalarType
+      scrutinee?: { expression: EvalExpression; equality: SqlCallableExpression }
       branches: readonly { when: EvalExpression; then: EvalExpression }[]
       otherwise: EvalExpression
     }
@@ -45,6 +48,7 @@ export interface EmittedEvalExpression<Ast> extends TypedSqlExpression<Ast> {
 
 export interface EvalExpressionBackend<Ast> {
   input?: (type: ScalarType, name: string) => { expression: Ast; helpers: readonly string[] }
+  fromBool: (expression: Ast) => { expression: Ast; helpers: readonly string[] }
   certain: (type: string, expression: Ast) => { expression: Ast; helpers: readonly string[] }
   uncertain: (type: string) => { expression: Ast; helpers: readonly string[] }
   call: (
@@ -72,6 +76,11 @@ export interface EvalExpressionBackend<Ast> {
     branches: readonly { when: EmittedEvalExpression<Ast>; then: EmittedEvalExpression<Ast> }[],
     otherwise: EmittedEvalExpression<Ast>,
   ) => { expression: Ast; helpers: readonly string[] }
+  bind: (
+    type: string,
+    operand: EmittedEvalExpression<Ast>,
+    body: (bound: EmittedEvalExpression<Ast>) => EmittedEvalExpression<Ast>,
+  ) => { expression: Ast; helpers: readonly string[] }
   regexCount: (
     operands: readonly EmittedEvalExpression<Ast>[],
     pattern: string | undefined,
@@ -83,12 +92,39 @@ export function emitEvalExpression<Ast>(
   expression: EvalExpression,
   scalarBackend: ExpressionBackend<Ast>,
   backend: EvalExpressionBackend<Ast>,
+  emitBoolean?: (expression: EvalBoolExpression) => Ast,
 ): { value: TypedSqlExpression<Ast>; helpers: readonly string[] } {
   const helpers = new Set<string>()
   const include = (names: readonly string[]): void => {
     for (const name of names) helpers.add(name)
   }
+  const emitCall = (
+    call: SqlCallableExpression,
+    operands: readonly EmittedEvalExpression<Ast>[],
+  ): EmittedEvalExpression<Ast> => {
+    if (call.kind === 'cast' && call.signature === null) {
+      if (operands.length !== 1 || operands[0]!.type !== call.type)
+        throw new Error('Invalid partial relabel cast')
+      return operands[0]!
+    }
+    const emitTotal = (raw: readonly TypedSqlExpression<Ast>[]) =>
+      emitSqlCallable(call, raw, scalarBackend)
+    if (operands.every((operand) => operand.effect === 'total')) {
+      const result = emitTotal(operands)
+      include(result.helpers)
+      return { ...result.value, effect: 'total' }
+    }
+    const result = backend.call(call.type, operands, emitTotal)
+    include(result.helpers)
+    return { type: call.type, expression: result.expression, effect: 'partial' }
+  }
   const emit = (node: EvalExpression): EmittedEvalExpression<Ast> => {
+    if (node.kind === 'check') {
+      if (!emitBoolean) throw new Error('A CHECK Boolean binding is required')
+      const result = backend.fromBool(emitBoolean(node.expression))
+      include(result.helpers)
+      return { type: 'pg_catalog.bool', expression: result.expression, effect: 'partial' }
+    }
     if (node.kind === 'input') {
       if (!backend.input) throw new Error(`No partial SQL input binding for ${node.name}`)
       const result = backend.input(node.type, node.name)
@@ -148,33 +184,42 @@ export function emitEvalExpression<Ast>(
       return { type: node.type, expression: result.expression, effect: 'partial' }
     }
     if (node.kind === 'case') {
-      if (node.branches.length === 0) throw new Error('Invalid partial CASE expression')
-      const branches = node.branches.map((branch) => ({
-        when: emit(branch.when),
-        then: emit(branch.then),
-      }))
-      const otherwise = emit(node.otherwise)
-      if (
-        branches.some(
-          (branch) => branch.when.type !== 'pg_catalog.bool' || branch.then.type !== node.type,
-        ) ||
-        otherwise.type !== node.type
-      )
-        throw new Error('Invalid partial CASE expression')
-      if (
-        branches.every(
-          (branch) => branch.when.effect === 'total' && branch.then.effect === 'total',
-        ) &&
-        otherwise.effect === 'total'
-      ) {
-        const result = scalarBackend.syntax('case', node.type, [
-          ...branches.flatMap((branch) => [branch.when, branch.then]),
-          otherwise,
-        ])
+      const emitCase = (scrutinee?: EmittedEvalExpression<Ast>): EmittedEvalExpression<Ast> => {
+        if (node.branches.length === 0) throw new Error('Invalid partial CASE expression')
+        const branches = node.branches.map((branch) => ({
+          when:
+            scrutinee && node.scrutinee
+              ? emitCall(node.scrutinee.equality, [scrutinee, emit(branch.when)])
+              : emit(branch.when),
+          then: emit(branch.then),
+        }))
+        const otherwise = emit(node.otherwise)
+        if (
+          branches.some(
+            (branch) => branch.when.type !== 'pg_catalog.bool' || branch.then.type !== node.type,
+          ) ||
+          otherwise.type !== node.type
+        )
+          throw new Error('Invalid partial CASE expression')
+        if (
+          branches.every(
+            (branch) => branch.when.effect === 'total' && branch.then.effect === 'total',
+          ) &&
+          otherwise.effect === 'total'
+        ) {
+          const result = scalarBackend.syntax('case', node.type, [
+            ...branches.flatMap((branch) => [branch.when, branch.then]),
+            otherwise,
+          ])
+          include(result.helpers)
+          return { type: node.type, expression: result.expression, effect: 'total' }
+        }
+        const result = backend.case(node.type, branches, otherwise)
         include(result.helpers)
-        return { type: node.type, expression: result.expression, effect: 'total' }
+        return { type: node.type, expression: result.expression, effect: 'partial' }
       }
-      const result = backend.case(node.type, branches, otherwise)
+      if (!node.scrutinee) return emitCase()
+      const result = backend.bind(node.type, emit(node.scrutinee.expression), emitCase)
       include(result.helpers)
       return { type: node.type, expression: result.expression, effect: 'partial' }
     }
@@ -207,22 +252,7 @@ export function emitEvalExpression<Ast>(
       include(result.helpers)
       return { type: 'pg_catalog.int4', expression: result.expression, effect: 'partial' }
     }
-    const operands = node.operands.map(emit)
-    if (node.call.kind === 'cast' && node.call.signature === null) {
-      if (operands.length !== 1 || operands[0]!.type !== node.call.type)
-        throw new Error('Invalid partial relabel cast')
-      return operands[0]!
-    }
-    const emitTotal = (raw: readonly TypedSqlExpression<Ast>[]) =>
-      emitSqlCallable(node.call, raw, scalarBackend)
-    if (operands.every((operand) => operand.effect === 'total')) {
-      const result = emitTotal(operands)
-      include(result.helpers)
-      return { ...result.value, effect: 'total' }
-    }
-    const result = backend.call(node.call.type, operands, emitTotal)
-    include(result.helpers)
-    return { type: node.call.type, expression: result.expression, effect: 'partial' }
+    return emitCall(node.call, node.operands.map(emit))
   }
   const result = emit(expression)
   if (result.effect === 'partial') return { value: result, helpers: [...helpers] }

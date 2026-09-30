@@ -72,6 +72,7 @@ const thunk = (expression: ts.Expression): ts.ArrowFunction =>
   )
 
 export const typescriptEvalBackend: EvalExpressionBackend<ts.Expression> = {
+  fromBool: (expression) => ({ expression, helpers: [] }),
   certain: (_type, expression) => ({
     expression: call('evalValueCertain', [expression]),
     helpers: ['evalValueCertain'],
@@ -202,6 +203,39 @@ export const typescriptEvalBackend: EvalExpressionBackend<ts.Expression> = {
         : []),
     ],
   }),
+  bind: (_type, operand, body) => {
+    const result = body({ ...operand, effect: 'partial', expression: identifier('scrutinee') })
+    return {
+      expression: factory.createCallExpression(
+        factory.createParenthesizedExpression(
+          factory.createArrowFunction(
+            undefined,
+            undefined,
+            [
+              factory.createParameterDeclaration(
+                undefined,
+                undefined,
+                'scrutinee',
+                undefined,
+                factory.createTypeReferenceNode('EvalValue', [sqlValueType(operand.type).type]),
+                undefined,
+              ),
+            ],
+            undefined,
+            factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+            lifted(result),
+          ),
+        ),
+        undefined,
+        [lifted(operand)],
+      ),
+      helpers: [
+        'EvalValue',
+        ...sqlValueType(operand.type).helpers,
+        ...(operand.effect === 'total' || result.effect === 'total' ? ['evalValueCertain'] : []),
+      ],
+    }
+  },
   regexCount: (operands, pattern, flags) => {
     void pattern
     void flags

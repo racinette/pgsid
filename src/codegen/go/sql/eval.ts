@@ -77,6 +77,10 @@ function errorGuard(
 }
 
 export const goEvalBackend: EvalExpressionBackend<GoExpression> = {
+  fromBool: (expression) => ({
+    expression: go.call(go.ident('evalValueFromBool'), [expression]),
+    helpers: ['evalValueFromBool'],
+  }),
   certain: (type, expression) => ({
     expression: known(type, expression),
     helpers: ['EvalValue', sqlValueType(type)],
@@ -182,6 +186,16 @@ export const goEvalBackend: EvalExpressionBackend<GoExpression> = {
     return {
       expression: iife(type, body),
       helpers: ['EvalValue', 'SqlBoolean', sqlValueType(type)],
+    }
+  },
+  bind: (type, operand, body) => {
+    const result = body({ ...operand, expression: go.ident('scrutinee') })
+    return {
+      expression: iife(type, [
+        go.assign([go.ident('scrutinee')], [operand.expression]),
+        go.return(lifted(result)),
+      ]),
+      helpers: ['EvalValue', sqlValueType(type)],
     }
   },
   regexCount: (operands, pattern, flags) => {
