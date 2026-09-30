@@ -64,8 +64,6 @@ pub struct SqlError {
     pub state: u32,
 }
 
-const SQLSTATE_INVALID_REGEX: u32 = 3452591;
-
 pub fn make_sql_error(state: u32) -> SqlError {
     SqlError { state: state }
 }
@@ -78,7 +76,7 @@ pub enum BoolValue {
     Error(SqlError),
 }
 
-fn check_from_bool(value: BoolValue) -> CheckOutcome {
+pub fn check_from_bool(value: BoolValue) -> CheckOutcome {
     if let BoolValue::Error(error) = value {
         return CheckOutcome::Error(error);
     }
@@ -94,11 +92,11 @@ fn check_from_bool(value: BoolValue) -> CheckOutcome {
     CheckOutcome::True
 }
 
-fn check_unknown() -> CheckOutcome {
+pub fn check_unknown() -> CheckOutcome {
     CheckOutcome::Unknown
 }
 
-fn int4_is_null(value: Int4Value) -> BoolValue {
+pub fn int4_is_null(value: Int4Value) -> BoolValue {
     if let Int4Value::Error(error) = value {
         return BoolValue::Error(error);
     }
@@ -108,7 +106,7 @@ fn int4_is_null(value: Int4Value) -> BoolValue {
     BoolValue::Value(value == Int4Value::Null)
 }
 
-fn text_is_null(value: TextValue) -> BoolValue {
+pub fn text_is_null(value: TextValue) -> BoolValue {
     if let TextValue::Error(error) = value {
         return BoolValue::Error(error);
     }
@@ -118,7 +116,7 @@ fn text_is_null(value: TextValue) -> BoolValue {
     BoolValue::Value(value == TextValue::Null)
 }
 
-fn bool_is_null(value: BoolValue) -> BoolValue {
+pub fn bool_is_null(value: BoolValue) -> BoolValue {
     if let BoolValue::Error(error) = value {
         return BoolValue::Error(error);
     }
@@ -128,7 +126,7 @@ fn bool_is_null(value: BoolValue) -> BoolValue {
     BoolValue::Value(value == BoolValue::Null)
 }
 
-fn bool_not_value(value: BoolValue) -> BoolValue {
+pub fn bool_not_value(value: BoolValue) -> BoolValue {
     if let BoolValue::Value(result) = value {
         if result {
             return BoolValue::Value(false);

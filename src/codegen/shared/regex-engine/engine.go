@@ -588,14 +588,10 @@ func compilePatternSource(pattern string, options RegexOptions, capturing bool) 
 	syntax := 'a'
 	if options.Syntax == (Syntax{Kind: SyntaxBasic}) {
 		syntax = checkedChar('b')
-	} else {
-		if options.Syntax == (Syntax{Kind: SyntaxExtended}) {
-			syntax = checkedChar('e')
-		} else {
-			if options.Syntax == (Syntax{Kind: SyntaxLiteral}) {
-				syntax = checkedChar('q')
-			}
-		}
+	} else if options.Syntax == (Syntax{Kind: SyntaxExtended}) {
+		syntax = checkedChar('e')
+	} else if options.Syntax == (Syntax{Kind: SyntaxLiteral}) {
+		syntax = checkedChar('q')
 	}
 	parsed := capturePatternSource(pattern, syntax, options.Expanded)
 	return compileCaptureProgramAtoms(parsed.atoms, parsed.tokenEnds, parsed.syntax, parsed.valid, parsed.caseMode, parsed.newlineMode, capturing, options.CaseSensitive, options.Newline == (NewlineMode{Kind: NewlineModeOrdinary}) || options.Newline == (NewlineMode{Kind: NewlineModeAnchors}), options.Newline == (NewlineMode{Kind: NewlineModeSensitive}) || options.Newline == (NewlineMode{Kind: NewlineModeAnchors}))
@@ -1022,67 +1018,63 @@ func parseCaptureNumeric(source []rune, groups int, basic bool) captureNumeric {
 			}
 			end = checkedIndex(3)
 		}
-	} else {
-		if marker == 'x' || marker == 'u' || marker == 'U' {
-			digits := 0
-			limit := 255
-			if marker == 'u' {
-				limit = checkedIndex(4)
-			} else {
-				if marker == 'U' {
-					limit = checkedIndex(8)
-				}
+	} else if marker == 'x' || marker == 'u' || marker == 'U' {
+		digits := 0
+		limit := 255
+		if marker == 'u' {
+			limit = checkedIndex(4)
+		} else if marker == 'U' {
+			limit = checkedIndex(8)
+		}
+		for end < len(source) && digits < limit {
+			digit := captureDigitValue(source[end])
+			if digit == 16 {
+				break
 			}
-			for end < len(source) && digits < limit {
+			number := captureWrappingDigit(value, 16, digit)
+			value = checkedIndex(number.value)
+			high = number.high
+			end = checkedAdd(end, 1)
+			digits = checkedAdd(digits, 1)
+		}
+		valid = high == false && value <= 2147483646 && digits > 0 && (marker == 'x' || digits == limit)
+	} else {
+		digits := 0
+		end = checkedIndex(1)
+		if marker != '0' {
+			for end < len(source) && digits < 255 {
 				digit := captureDigitValue(source[end])
-				if digit == 16 {
+				if digit > 9 || (basic && digits == 1) {
 					break
 				}
-				number := captureWrappingDigit(value, 16, digit)
+				number := captureWrappingDigit(value, 10, digit)
 				value = checkedIndex(number.value)
 				high = number.high
 				end = checkedAdd(end, 1)
 				digits = checkedAdd(digits, 1)
 			}
-			valid = high == false && value <= 2147483646 && digits > 0 && (marker == 'x' || digits == limit)
+			backreference = digits == 1 || (high == false && value > 0 && value <= 2147483646 && (checkedIndex(value)) <= groups)
+		}
+		if backreference {
+			valid = high == false && value > 0 && value <= 2147483646 && (checkedIndex(value)) <= groups
 		} else {
-			digits := 0
 			end = checkedIndex(1)
-			if marker != '0' {
-				for end < len(source) && digits < 255 {
-					digit := captureDigitValue(source[end])
-					if digit > 9 || (basic && digits == 1) {
-						break
-					}
-					number := captureWrappingDigit(value, 10, digit)
-					value = checkedIndex(number.value)
-					high = number.high
-					end = checkedAdd(end, 1)
-					digits = checkedAdd(digits, 1)
+			digits = checkedIndex(0)
+			value = checkedIndex(0)
+			for end < len(source) && digits < 3 {
+				digit := captureDigitValue(source[end])
+				if digit > 7 {
+					break
 				}
-				backreference = digits == 1 || (high == false && value > 0 && value <= 2147483646 && (checkedIndex(value)) <= groups)
-			}
-			if backreference {
-				valid = high == false && value > 0 && value <= 2147483646 && (checkedIndex(value)) <= groups
-			} else {
-				end = checkedIndex(1)
-				digits = checkedIndex(0)
-				value = checkedIndex(0)
-				for end < len(source) && digits < 3 {
-					digit := captureDigitValue(source[end])
-					if digit > 7 {
-						break
-					}
-					candidate := captureWrappingDigit(value, 8, digit).value
-					if candidate > 255 {
-						break
-					}
-					value = checkedIndex(candidate)
-					end = checkedAdd(end, 1)
-					digits = checkedAdd(digits, 1)
+				candidate := captureWrappingDigit(value, 8, digit).value
+				if candidate > 255 {
+					break
 				}
-				valid = digits > 0
+				value = checkedIndex(candidate)
+				end = checkedAdd(end, 1)
+				digits = checkedAdd(digits, 1)
 			}
+			valid = digits > 0
 		}
 	}
 	return captureNumeric{valid: valid, backreference: backreference, value: value, end: end}
@@ -1097,294 +1089,319 @@ func captureAssertionMatches(operation int, position int, length int, before boo
 	length = checkedIndex(length)
 	return (operation == vmBegin && (position == 0 || (lineAnchors && previousNewline))) || (operation == vmEnd && (position == length || (lineAnchors && nextNewline))) || (operation == vmAbsoluteBegin && position == 0) || (operation == vmAbsoluteEnd && position == length) || (operation == vmWordBegin && before == false && after) || (operation == vmWordEnd && before && after == false) || (operation == vmBoundary && before != after) || (operation == vmNotBoundary && before == after)
 }
-func captureCollatingValue(name []rune) int {
-	name = checkedChars(name)
-	if len(name) == 1 {
-		return int(checkedChar(name[0]))
+
+type collatingName struct {
+	characters []rune
+}
+
+func copycollatingName(value collatingName) collatingName {
+	return collatingName{characters: checkedChars(value.characters)}
+}
+func collatingNameEq(name *collatingName, expected string) bool {
+	name = checkedBorrowed(name, copycollatingName)
+	expected = checkedString(expected)
+	characters := []rune(expected)
+	if len(name.characters) != len(characters) {
+		return false
 	}
-	if len(name) == 3 && name[0] == 'N' && name[1] == 'U' && name[2] == 'L' {
+	index := 0
+	for index < len(characters) {
+		if name.characters[index] != characters[index] {
+			return false
+		}
+		index = checkedAdd(index, 1)
+	}
+	return true
+}
+func captureCollatingValue(characters []rune) int {
+	characters = checkedChars(characters)
+	if len(characters) == 1 {
+		return int(checkedChar(characters[0]))
+	}
+	name := collatingName{characters: characters}
+	if collatingNameEq(&name, "NUL") {
 		return 0
 	}
-	if len(name) == 3 && name[0] == 'S' && name[1] == 'O' && name[2] == 'H' {
+	if collatingNameEq(&name, "SOH") {
 		return 1
 	}
-	if len(name) == 3 && name[0] == 'S' && name[1] == 'T' && name[2] == 'X' {
+	if collatingNameEq(&name, "STX") {
 		return 2
 	}
-	if len(name) == 3 && name[0] == 'E' && name[1] == 'T' && name[2] == 'X' {
+	if collatingNameEq(&name, "ETX") {
 		return 3
 	}
-	if len(name) == 3 && name[0] == 'E' && name[1] == 'O' && name[2] == 'T' {
+	if collatingNameEq(&name, "EOT") {
 		return 4
 	}
-	if len(name) == 3 && name[0] == 'E' && name[1] == 'N' && name[2] == 'Q' {
+	if collatingNameEq(&name, "ENQ") {
 		return 5
 	}
-	if len(name) == 3 && name[0] == 'A' && name[1] == 'C' && name[2] == 'K' {
+	if collatingNameEq(&name, "ACK") {
 		return 6
 	}
-	if len(name) == 3 && name[0] == 'B' && name[1] == 'E' && name[2] == 'L' {
+	if collatingNameEq(&name, "BEL") {
 		return 7
 	}
-	if len(name) == 5 && name[0] == 'a' && name[1] == 'l' && name[2] == 'e' && name[3] == 'r' && name[4] == 't' {
+	if collatingNameEq(&name, "alert") {
 		return 7
 	}
-	if len(name) == 2 && name[0] == 'B' && name[1] == 'S' {
+	if collatingNameEq(&name, "BS") {
 		return 8
 	}
-	if len(name) == 9 && name[0] == 'b' && name[1] == 'a' && name[2] == 'c' && name[3] == 'k' && name[4] == 's' && name[5] == 'p' && name[6] == 'a' && name[7] == 'c' && name[8] == 'e' {
+	if collatingNameEq(&name, "backspace") {
 		return 8
 	}
-	if len(name) == 2 && name[0] == 'H' && name[1] == 'T' {
+	if collatingNameEq(&name, "HT") {
 		return 9
 	}
-	if len(name) == 3 && name[0] == 't' && name[1] == 'a' && name[2] == 'b' {
+	if collatingNameEq(&name, "tab") {
 		return 9
 	}
-	if len(name) == 2 && name[0] == 'L' && name[1] == 'F' {
+	if collatingNameEq(&name, "LF") {
 		return 10
 	}
-	if len(name) == 7 && name[0] == 'n' && name[1] == 'e' && name[2] == 'w' && name[3] == 'l' && name[4] == 'i' && name[5] == 'n' && name[6] == 'e' {
+	if collatingNameEq(&name, "newline") {
 		return 10
 	}
-	if len(name) == 2 && name[0] == 'V' && name[1] == 'T' {
+	if collatingNameEq(&name, "VT") {
 		return 11
 	}
-	if len(name) == 12 && name[0] == 'v' && name[1] == 'e' && name[2] == 'r' && name[3] == 't' && name[4] == 'i' && name[5] == 'c' && name[6] == 'a' && name[7] == 'l' && name[8] == '-' && name[9] == 't' && name[10] == 'a' && name[11] == 'b' {
+	if collatingNameEq(&name, "vertical-tab") {
 		return 11
 	}
-	if len(name) == 2 && name[0] == 'F' && name[1] == 'F' {
+	if collatingNameEq(&name, "FF") {
 		return 12
 	}
-	if len(name) == 9 && name[0] == 'f' && name[1] == 'o' && name[2] == 'r' && name[3] == 'm' && name[4] == '-' && name[5] == 'f' && name[6] == 'e' && name[7] == 'e' && name[8] == 'd' {
+	if collatingNameEq(&name, "form-feed") {
 		return 12
 	}
-	if len(name) == 2 && name[0] == 'C' && name[1] == 'R' {
+	if collatingNameEq(&name, "CR") {
 		return 13
 	}
-	if len(name) == 15 && name[0] == 'c' && name[1] == 'a' && name[2] == 'r' && name[3] == 'r' && name[4] == 'i' && name[5] == 'a' && name[6] == 'g' && name[7] == 'e' && name[8] == '-' && name[9] == 'r' && name[10] == 'e' && name[11] == 't' && name[12] == 'u' && name[13] == 'r' && name[14] == 'n' {
+	if collatingNameEq(&name, "carriage-return") {
 		return 13
 	}
-	if len(name) == 2 && name[0] == 'S' && name[1] == 'O' {
+	if collatingNameEq(&name, "SO") {
 		return 14
 	}
-	if len(name) == 2 && name[0] == 'S' && name[1] == 'I' {
+	if collatingNameEq(&name, "SI") {
 		return 15
 	}
-	if len(name) == 3 && name[0] == 'D' && name[1] == 'L' && name[2] == 'E' {
+	if collatingNameEq(&name, "DLE") {
 		return 16
 	}
-	if len(name) == 3 && name[0] == 'D' && name[1] == 'C' && name[2] == '1' {
+	if collatingNameEq(&name, "DC1") {
 		return 17
 	}
-	if len(name) == 3 && name[0] == 'D' && name[1] == 'C' && name[2] == '2' {
+	if collatingNameEq(&name, "DC2") {
 		return 18
 	}
-	if len(name) == 3 && name[0] == 'D' && name[1] == 'C' && name[2] == '3' {
+	if collatingNameEq(&name, "DC3") {
 		return 19
 	}
-	if len(name) == 3 && name[0] == 'D' && name[1] == 'C' && name[2] == '4' {
+	if collatingNameEq(&name, "DC4") {
 		return 20
 	}
-	if len(name) == 3 && name[0] == 'N' && name[1] == 'A' && name[2] == 'K' {
+	if collatingNameEq(&name, "NAK") {
 		return 21
 	}
-	if len(name) == 3 && name[0] == 'S' && name[1] == 'Y' && name[2] == 'N' {
+	if collatingNameEq(&name, "SYN") {
 		return 22
 	}
-	if len(name) == 3 && name[0] == 'E' && name[1] == 'T' && name[2] == 'B' {
+	if collatingNameEq(&name, "ETB") {
 		return 23
 	}
-	if len(name) == 3 && name[0] == 'C' && name[1] == 'A' && name[2] == 'N' {
+	if collatingNameEq(&name, "CAN") {
 		return 24
 	}
-	if len(name) == 2 && name[0] == 'E' && name[1] == 'M' {
+	if collatingNameEq(&name, "EM") {
 		return 25
 	}
-	if len(name) == 3 && name[0] == 'S' && name[1] == 'U' && name[2] == 'B' {
+	if collatingNameEq(&name, "SUB") {
 		return 26
 	}
-	if len(name) == 3 && name[0] == 'E' && name[1] == 'S' && name[2] == 'C' {
+	if collatingNameEq(&name, "ESC") {
 		return 27
 	}
-	if len(name) == 3 && name[0] == 'I' && name[1] == 'S' && name[2] == '4' {
+	if collatingNameEq(&name, "IS4") {
 		return 28
 	}
-	if len(name) == 2 && name[0] == 'F' && name[1] == 'S' {
+	if collatingNameEq(&name, "FS") {
 		return 28
 	}
-	if len(name) == 3 && name[0] == 'I' && name[1] == 'S' && name[2] == '3' {
+	if collatingNameEq(&name, "IS3") {
 		return 29
 	}
-	if len(name) == 2 && name[0] == 'G' && name[1] == 'S' {
+	if collatingNameEq(&name, "GS") {
 		return 29
 	}
-	if len(name) == 3 && name[0] == 'I' && name[1] == 'S' && name[2] == '2' {
+	if collatingNameEq(&name, "IS2") {
 		return 30
 	}
-	if len(name) == 2 && name[0] == 'R' && name[1] == 'S' {
+	if collatingNameEq(&name, "RS") {
 		return 30
 	}
-	if len(name) == 3 && name[0] == 'I' && name[1] == 'S' && name[2] == '1' {
+	if collatingNameEq(&name, "IS1") {
 		return 31
 	}
-	if len(name) == 2 && name[0] == 'U' && name[1] == 'S' {
+	if collatingNameEq(&name, "US") {
 		return 31
 	}
-	if len(name) == 5 && name[0] == 's' && name[1] == 'p' && name[2] == 'a' && name[3] == 'c' && name[4] == 'e' {
+	if collatingNameEq(&name, "space") {
 		return 32
 	}
-	if len(name) == 16 && name[0] == 'e' && name[1] == 'x' && name[2] == 'c' && name[3] == 'l' && name[4] == 'a' && name[5] == 'm' && name[6] == 'a' && name[7] == 't' && name[8] == 'i' && name[9] == 'o' && name[10] == 'n' && name[11] == '-' && name[12] == 'm' && name[13] == 'a' && name[14] == 'r' && name[15] == 'k' {
+	if collatingNameEq(&name, "exclamation-mark") {
 		return 33
 	}
-	if len(name) == 14 && name[0] == 'q' && name[1] == 'u' && name[2] == 'o' && name[3] == 't' && name[4] == 'a' && name[5] == 't' && name[6] == 'i' && name[7] == 'o' && name[8] == 'n' && name[9] == '-' && name[10] == 'm' && name[11] == 'a' && name[12] == 'r' && name[13] == 'k' {
+	if collatingNameEq(&name, "quotation-mark") {
 		return 34
 	}
-	if len(name) == 11 && name[0] == 'n' && name[1] == 'u' && name[2] == 'm' && name[3] == 'b' && name[4] == 'e' && name[5] == 'r' && name[6] == '-' && name[7] == 's' && name[8] == 'i' && name[9] == 'g' && name[10] == 'n' {
+	if collatingNameEq(&name, "number-sign") {
 		return 35
 	}
-	if len(name) == 11 && name[0] == 'd' && name[1] == 'o' && name[2] == 'l' && name[3] == 'l' && name[4] == 'a' && name[5] == 'r' && name[6] == '-' && name[7] == 's' && name[8] == 'i' && name[9] == 'g' && name[10] == 'n' {
+	if collatingNameEq(&name, "dollar-sign") {
 		return 36
 	}
-	if len(name) == 12 && name[0] == 'p' && name[1] == 'e' && name[2] == 'r' && name[3] == 'c' && name[4] == 'e' && name[5] == 'n' && name[6] == 't' && name[7] == '-' && name[8] == 's' && name[9] == 'i' && name[10] == 'g' && name[11] == 'n' {
+	if collatingNameEq(&name, "percent-sign") {
 		return 37
 	}
-	if len(name) == 9 && name[0] == 'a' && name[1] == 'm' && name[2] == 'p' && name[3] == 'e' && name[4] == 'r' && name[5] == 's' && name[6] == 'a' && name[7] == 'n' && name[8] == 'd' {
+	if collatingNameEq(&name, "ampersand") {
 		return 38
 	}
-	if len(name) == 10 && name[0] == 'a' && name[1] == 'p' && name[2] == 'o' && name[3] == 's' && name[4] == 't' && name[5] == 'r' && name[6] == 'o' && name[7] == 'p' && name[8] == 'h' && name[9] == 'e' {
+	if collatingNameEq(&name, "apostrophe") {
 		return 39
 	}
-	if len(name) == 16 && name[0] == 'l' && name[1] == 'e' && name[2] == 'f' && name[3] == 't' && name[4] == '-' && name[5] == 'p' && name[6] == 'a' && name[7] == 'r' && name[8] == 'e' && name[9] == 'n' && name[10] == 't' && name[11] == 'h' && name[12] == 'e' && name[13] == 's' && name[14] == 'i' && name[15] == 's' {
+	if collatingNameEq(&name, "left-parenthesis") {
 		return 40
 	}
-	if len(name) == 17 && name[0] == 'r' && name[1] == 'i' && name[2] == 'g' && name[3] == 'h' && name[4] == 't' && name[5] == '-' && name[6] == 'p' && name[7] == 'a' && name[8] == 'r' && name[9] == 'e' && name[10] == 'n' && name[11] == 't' && name[12] == 'h' && name[13] == 'e' && name[14] == 's' && name[15] == 'i' && name[16] == 's' {
+	if collatingNameEq(&name, "right-parenthesis") {
 		return 41
 	}
-	if len(name) == 8 && name[0] == 'a' && name[1] == 's' && name[2] == 't' && name[3] == 'e' && name[4] == 'r' && name[5] == 'i' && name[6] == 's' && name[7] == 'k' {
+	if collatingNameEq(&name, "asterisk") {
 		return 42
 	}
-	if len(name) == 9 && name[0] == 'p' && name[1] == 'l' && name[2] == 'u' && name[3] == 's' && name[4] == '-' && name[5] == 's' && name[6] == 'i' && name[7] == 'g' && name[8] == 'n' {
+	if collatingNameEq(&name, "plus-sign") {
 		return 43
 	}
-	if len(name) == 5 && name[0] == 'c' && name[1] == 'o' && name[2] == 'm' && name[3] == 'm' && name[4] == 'a' {
+	if collatingNameEq(&name, "comma") {
 		return 44
 	}
-	if len(name) == 6 && name[0] == 'h' && name[1] == 'y' && name[2] == 'p' && name[3] == 'h' && name[4] == 'e' && name[5] == 'n' {
+	if collatingNameEq(&name, "hyphen") {
 		return 45
 	}
-	if len(name) == 12 && name[0] == 'h' && name[1] == 'y' && name[2] == 'p' && name[3] == 'h' && name[4] == 'e' && name[5] == 'n' && name[6] == '-' && name[7] == 'm' && name[8] == 'i' && name[9] == 'n' && name[10] == 'u' && name[11] == 's' {
+	if collatingNameEq(&name, "hyphen-minus") {
 		return 45
 	}
-	if len(name) == 6 && name[0] == 'p' && name[1] == 'e' && name[2] == 'r' && name[3] == 'i' && name[4] == 'o' && name[5] == 'd' {
+	if collatingNameEq(&name, "period") {
 		return 46
 	}
-	if len(name) == 9 && name[0] == 'f' && name[1] == 'u' && name[2] == 'l' && name[3] == 'l' && name[4] == '-' && name[5] == 's' && name[6] == 't' && name[7] == 'o' && name[8] == 'p' {
+	if collatingNameEq(&name, "full-stop") {
 		return 46
 	}
-	if len(name) == 5 && name[0] == 's' && name[1] == 'l' && name[2] == 'a' && name[3] == 's' && name[4] == 'h' {
+	if collatingNameEq(&name, "slash") {
 		return 47
 	}
-	if len(name) == 7 && name[0] == 's' && name[1] == 'o' && name[2] == 'l' && name[3] == 'i' && name[4] == 'd' && name[5] == 'u' && name[6] == 's' {
+	if collatingNameEq(&name, "solidus") {
 		return 47
 	}
-	if len(name) == 4 && name[0] == 'z' && name[1] == 'e' && name[2] == 'r' && name[3] == 'o' {
+	if collatingNameEq(&name, "zero") {
 		return 48
 	}
-	if len(name) == 3 && name[0] == 'o' && name[1] == 'n' && name[2] == 'e' {
+	if collatingNameEq(&name, "one") {
 		return 49
 	}
-	if len(name) == 3 && name[0] == 't' && name[1] == 'w' && name[2] == 'o' {
+	if collatingNameEq(&name, "two") {
 		return 50
 	}
-	if len(name) == 5 && name[0] == 't' && name[1] == 'h' && name[2] == 'r' && name[3] == 'e' && name[4] == 'e' {
+	if collatingNameEq(&name, "three") {
 		return 51
 	}
-	if len(name) == 4 && name[0] == 'f' && name[1] == 'o' && name[2] == 'u' && name[3] == 'r' {
+	if collatingNameEq(&name, "four") {
 		return 52
 	}
-	if len(name) == 4 && name[0] == 'f' && name[1] == 'i' && name[2] == 'v' && name[3] == 'e' {
+	if collatingNameEq(&name, "five") {
 		return 53
 	}
-	if len(name) == 3 && name[0] == 's' && name[1] == 'i' && name[2] == 'x' {
+	if collatingNameEq(&name, "six") {
 		return 54
 	}
-	if len(name) == 5 && name[0] == 's' && name[1] == 'e' && name[2] == 'v' && name[3] == 'e' && name[4] == 'n' {
+	if collatingNameEq(&name, "seven") {
 		return 55
 	}
-	if len(name) == 5 && name[0] == 'e' && name[1] == 'i' && name[2] == 'g' && name[3] == 'h' && name[4] == 't' {
+	if collatingNameEq(&name, "eight") {
 		return 56
 	}
-	if len(name) == 4 && name[0] == 'n' && name[1] == 'i' && name[2] == 'n' && name[3] == 'e' {
+	if collatingNameEq(&name, "nine") {
 		return 57
 	}
-	if len(name) == 5 && name[0] == 'c' && name[1] == 'o' && name[2] == 'l' && name[3] == 'o' && name[4] == 'n' {
+	if collatingNameEq(&name, "colon") {
 		return 58
 	}
-	if len(name) == 9 && name[0] == 's' && name[1] == 'e' && name[2] == 'm' && name[3] == 'i' && name[4] == 'c' && name[5] == 'o' && name[6] == 'l' && name[7] == 'o' && name[8] == 'n' {
+	if collatingNameEq(&name, "semicolon") {
 		return 59
 	}
-	if len(name) == 14 && name[0] == 'l' && name[1] == 'e' && name[2] == 's' && name[3] == 's' && name[4] == '-' && name[5] == 't' && name[6] == 'h' && name[7] == 'a' && name[8] == 'n' && name[9] == '-' && name[10] == 's' && name[11] == 'i' && name[12] == 'g' && name[13] == 'n' {
+	if collatingNameEq(&name, "less-than-sign") {
 		return 60
 	}
-	if len(name) == 11 && name[0] == 'e' && name[1] == 'q' && name[2] == 'u' && name[3] == 'a' && name[4] == 'l' && name[5] == 's' && name[6] == '-' && name[7] == 's' && name[8] == 'i' && name[9] == 'g' && name[10] == 'n' {
+	if collatingNameEq(&name, "equals-sign") {
 		return 61
 	}
-	if len(name) == 17 && name[0] == 'g' && name[1] == 'r' && name[2] == 'e' && name[3] == 'a' && name[4] == 't' && name[5] == 'e' && name[6] == 'r' && name[7] == '-' && name[8] == 't' && name[9] == 'h' && name[10] == 'a' && name[11] == 'n' && name[12] == '-' && name[13] == 's' && name[14] == 'i' && name[15] == 'g' && name[16] == 'n' {
+	if collatingNameEq(&name, "greater-than-sign") {
 		return 62
 	}
-	if len(name) == 13 && name[0] == 'q' && name[1] == 'u' && name[2] == 'e' && name[3] == 's' && name[4] == 't' && name[5] == 'i' && name[6] == 'o' && name[7] == 'n' && name[8] == '-' && name[9] == 'm' && name[10] == 'a' && name[11] == 'r' && name[12] == 'k' {
+	if collatingNameEq(&name, "question-mark") {
 		return 63
 	}
-	if len(name) == 13 && name[0] == 'c' && name[1] == 'o' && name[2] == 'm' && name[3] == 'm' && name[4] == 'e' && name[5] == 'r' && name[6] == 'c' && name[7] == 'i' && name[8] == 'a' && name[9] == 'l' && name[10] == '-' && name[11] == 'a' && name[12] == 't' {
+	if collatingNameEq(&name, "commercial-at") {
 		return 64
 	}
-	if len(name) == 19 && name[0] == 'l' && name[1] == 'e' && name[2] == 'f' && name[3] == 't' && name[4] == '-' && name[5] == 's' && name[6] == 'q' && name[7] == 'u' && name[8] == 'a' && name[9] == 'r' && name[10] == 'e' && name[11] == '-' && name[12] == 'b' && name[13] == 'r' && name[14] == 'a' && name[15] == 'c' && name[16] == 'k' && name[17] == 'e' && name[18] == 't' {
+	if collatingNameEq(&name, "left-square-bracket") {
 		return 91
 	}
-	if len(name) == 9 && name[0] == 'b' && name[1] == 'a' && name[2] == 'c' && name[3] == 'k' && name[4] == 's' && name[5] == 'l' && name[6] == 'a' && name[7] == 's' && name[8] == 'h' {
+	if collatingNameEq(&name, "backslash") {
 		return 92
 	}
-	if len(name) == 15 && name[0] == 'r' && name[1] == 'e' && name[2] == 'v' && name[3] == 'e' && name[4] == 'r' && name[5] == 's' && name[6] == 'e' && name[7] == '-' && name[8] == 's' && name[9] == 'o' && name[10] == 'l' && name[11] == 'i' && name[12] == 'd' && name[13] == 'u' && name[14] == 's' {
+	if collatingNameEq(&name, "reverse-solidus") {
 		return 92
 	}
-	if len(name) == 20 && name[0] == 'r' && name[1] == 'i' && name[2] == 'g' && name[3] == 'h' && name[4] == 't' && name[5] == '-' && name[6] == 's' && name[7] == 'q' && name[8] == 'u' && name[9] == 'a' && name[10] == 'r' && name[11] == 'e' && name[12] == '-' && name[13] == 'b' && name[14] == 'r' && name[15] == 'a' && name[16] == 'c' && name[17] == 'k' && name[18] == 'e' && name[19] == 't' {
+	if collatingNameEq(&name, "right-square-bracket") {
 		return 93
 	}
-	if len(name) == 10 && name[0] == 'c' && name[1] == 'i' && name[2] == 'r' && name[3] == 'c' && name[4] == 'u' && name[5] == 'm' && name[6] == 'f' && name[7] == 'l' && name[8] == 'e' && name[9] == 'x' {
+	if collatingNameEq(&name, "circumflex") {
 		return 94
 	}
-	if len(name) == 17 && name[0] == 'c' && name[1] == 'i' && name[2] == 'r' && name[3] == 'c' && name[4] == 'u' && name[5] == 'm' && name[6] == 'f' && name[7] == 'l' && name[8] == 'e' && name[9] == 'x' && name[10] == '-' && name[11] == 'a' && name[12] == 'c' && name[13] == 'c' && name[14] == 'e' && name[15] == 'n' && name[16] == 't' {
+	if collatingNameEq(&name, "circumflex-accent") {
 		return 94
 	}
-	if len(name) == 10 && name[0] == 'u' && name[1] == 'n' && name[2] == 'd' && name[3] == 'e' && name[4] == 'r' && name[5] == 's' && name[6] == 'c' && name[7] == 'o' && name[8] == 'r' && name[9] == 'e' {
+	if collatingNameEq(&name, "underscore") {
 		return 95
 	}
-	if len(name) == 8 && name[0] == 'l' && name[1] == 'o' && name[2] == 'w' && name[3] == '-' && name[4] == 'l' && name[5] == 'i' && name[6] == 'n' && name[7] == 'e' {
+	if collatingNameEq(&name, "low-line") {
 		return 95
 	}
-	if len(name) == 12 && name[0] == 'g' && name[1] == 'r' && name[2] == 'a' && name[3] == 'v' && name[4] == 'e' && name[5] == '-' && name[6] == 'a' && name[7] == 'c' && name[8] == 'c' && name[9] == 'e' && name[10] == 'n' && name[11] == 't' {
+	if collatingNameEq(&name, "grave-accent") {
 		return 96
 	}
-	if len(name) == 10 && name[0] == 'l' && name[1] == 'e' && name[2] == 'f' && name[3] == 't' && name[4] == '-' && name[5] == 'b' && name[6] == 'r' && name[7] == 'a' && name[8] == 'c' && name[9] == 'e' {
+	if collatingNameEq(&name, "left-brace") {
 		return 123
 	}
-	if len(name) == 18 && name[0] == 'l' && name[1] == 'e' && name[2] == 'f' && name[3] == 't' && name[4] == '-' && name[5] == 'c' && name[6] == 'u' && name[7] == 'r' && name[8] == 'l' && name[9] == 'y' && name[10] == '-' && name[11] == 'b' && name[12] == 'r' && name[13] == 'a' && name[14] == 'c' && name[15] == 'k' && name[16] == 'e' && name[17] == 't' {
+	if collatingNameEq(&name, "left-curly-bracket") {
 		return 123
 	}
-	if len(name) == 13 && name[0] == 'v' && name[1] == 'e' && name[2] == 'r' && name[3] == 't' && name[4] == 'i' && name[5] == 'c' && name[6] == 'a' && name[7] == 'l' && name[8] == '-' && name[9] == 'l' && name[10] == 'i' && name[11] == 'n' && name[12] == 'e' {
+	if collatingNameEq(&name, "vertical-line") {
 		return 124
 	}
-	if len(name) == 11 && name[0] == 'r' && name[1] == 'i' && name[2] == 'g' && name[3] == 'h' && name[4] == 't' && name[5] == '-' && name[6] == 'b' && name[7] == 'r' && name[8] == 'a' && name[9] == 'c' && name[10] == 'e' {
+	if collatingNameEq(&name, "right-brace") {
 		return 125
 	}
-	if len(name) == 19 && name[0] == 'r' && name[1] == 'i' && name[2] == 'g' && name[3] == 'h' && name[4] == 't' && name[5] == '-' && name[6] == 'c' && name[7] == 'u' && name[8] == 'r' && name[9] == 'l' && name[10] == 'y' && name[11] == '-' && name[12] == 'b' && name[13] == 'r' && name[14] == 'a' && name[15] == 'c' && name[16] == 'k' && name[17] == 'e' && name[18] == 't' {
+	if collatingNameEq(&name, "right-curly-bracket") {
 		return 125
 	}
-	if len(name) == 5 && name[0] == 't' && name[1] == 'i' && name[2] == 'l' && name[3] == 'd' && name[4] == 'e' {
+	if collatingNameEq(&name, "tilde") {
 		return 126
 	}
-	if len(name) == 3 && name[0] == 'D' && name[1] == 'E' && name[2] == 'L' {
+	if collatingNameEq(&name, "DEL") {
 		return 127
 	}
 	return 2147483647
@@ -1421,83 +1438,53 @@ func parseCaptureClassAtom(source []rune, syntax rune, groups int) captureClassA
 					valid = value != 2147483647
 					end = checkedAdd(end, 2)
 				}
-			} else {
-				if source[checkedAdd(position, 1)] == ':' && checkedSubtract(len(source), position) >= 8 {
-					kind = checkedIndex(posixClassKind(source[checkedAdd(position, 2)], source[checkedAdd(position, 3)], source[checkedAdd(position, 4)], source[checkedAdd(position, 5)], source[checkedAdd(position, 6)], source[checkedAdd(position, 7)]))
-					if kind > 0 {
-						end = checkedIndex(checkedSubtract(checkedAdd(position, posixClassWidth(kind)), 2))
-						valid = end <= len(source) && source[checkedSubtract(end, 2)] == ':' && source[checkedSubtract(end, 1)] == ']'
-					}
+			} else if source[checkedAdd(position, 1)] == ':' && checkedSubtract(len(source), position) >= 8 {
+				kind = checkedIndex(posixClassKind(source[checkedAdd(position, 2)], source[checkedAdd(position, 3)], source[checkedAdd(position, 4)], source[checkedAdd(position, 5)], source[checkedAdd(position, 6)], source[checkedAdd(position, 7)]))
+				if kind > 0 {
+					end = checkedIndex(checkedSubtract(checkedAdd(position, posixClassWidth(kind)), 2))
+					valid = end <= len(source) && source[checkedSubtract(end, 2)] == ':' && source[checkedSubtract(end, 1)] == ']'
 				}
 			}
-		} else {
-			if atom == '\\' && syntax == 'a' {
-				valid = end < len(source)
-				if valid {
-					escaped := source[end]
-					end = checkedAdd(end, 1)
-					value = checkedIndex(int(checkedChar(escaped)))
-					if escaped == 'x' || escaped == 'u' || escaped == 'U' || escaped == 'c' || (value >= 48 && value <= 57) {
-						numeric := parseCaptureNumeric(source, groups, false)
-						valid = numeric.valid && numeric.backreference == false
-						value = checkedIndex(numeric.value)
-						end = checkedIndex(numeric.end)
-					} else {
-						if escaped == 'd' || escaped == 'D' {
-							kind = checkedIndex(1)
-							complement = escaped == 'D'
-						} else {
-							if escaped == 's' || escaped == 'S' {
-								kind = checkedIndex(4)
-								complement = escaped == 'S'
-							} else {
-								if escaped == 'w' || escaped == 'W' {
-									kind = checkedIndex(14)
-									complement = escaped == 'W'
-								} else {
-									if escaped == 'a' {
-										value = checkedIndex(7)
-									} else {
-										if escaped == 'b' {
-											value = checkedIndex(8)
-										} else {
-											if escaped == 'B' {
-												value = checkedIndex(92)
-											} else {
-												if escaped == 'e' {
-													value = checkedIndex(27)
-												} else {
-													if escaped == 'f' {
-														value = checkedIndex(12)
-													} else {
-														if escaped == 'n' {
-															value = checkedIndex(10)
-														} else {
-															if escaped == 'r' {
-																value = checkedIndex(13)
-															} else {
-																if escaped == 't' {
-																	value = checkedIndex(9)
-																} else {
-																	if escaped == 'v' {
-																		value = checkedIndex(11)
-																	} else {
-																		if (value >= 48 && value <= 57) || (value >= 65 && value <= 90) || (value >= 97 && value <= 122) {
-																			valid = false
-																		}
-																	}
-																}
-															}
-														}
-													}
-												}
-											}
-										}
-									}
-								}
-							}
-						}
-					}
+		} else if atom == '\\' && syntax == 'a' {
+			valid = end < len(source)
+			if valid {
+				escaped := source[end]
+				end = checkedAdd(end, 1)
+				value = checkedIndex(int(checkedChar(escaped)))
+				if escaped == 'x' || escaped == 'u' || escaped == 'U' || escaped == 'c' || (value >= 48 && value <= 57) {
+					numeric := parseCaptureNumeric(source, groups, false)
+					valid = numeric.valid && numeric.backreference == false
+					value = checkedIndex(numeric.value)
+					end = checkedIndex(numeric.end)
+				} else if escaped == 'd' || escaped == 'D' {
+					kind = checkedIndex(1)
+					complement = escaped == 'D'
+				} else if escaped == 's' || escaped == 'S' {
+					kind = checkedIndex(4)
+					complement = escaped == 'S'
+				} else if escaped == 'w' || escaped == 'W' {
+					kind = checkedIndex(14)
+					complement = escaped == 'W'
+				} else if escaped == 'a' {
+					value = checkedIndex(7)
+				} else if escaped == 'b' {
+					value = checkedIndex(8)
+				} else if escaped == 'B' {
+					value = checkedIndex(92)
+				} else if escaped == 'e' {
+					value = checkedIndex(27)
+				} else if escaped == 'f' {
+					value = checkedIndex(12)
+				} else if escaped == 'n' {
+					value = checkedIndex(10)
+				} else if escaped == 'r' {
+					value = checkedIndex(13)
+				} else if escaped == 't' {
+					value = checkedIndex(9)
+				} else if escaped == 'v' {
+					value = checkedIndex(11)
+				} else if (value >= 48 && value <= 57) || (value >= 65 && value <= 90) || (value >= 97 && value <= 122) {
+					valid = false
 				}
 			}
 		}
@@ -1577,10 +1564,8 @@ func captureClassMemberMatches(member captureClassMember, actual rune, sensitive
 			alternate := codepoint
 			if upper {
 				alternate = checkedAdd(alternate, 32)
-			} else {
-				if lower {
-					alternate = checkedIndex(checkedSubtract(alternate, 32))
-				}
+			} else if lower {
+				alternate = checkedIndex(checkedSubtract(alternate, 32))
 			}
 			matched = matched || (alternate >= member.lower && alternate <= member.upper)
 		}
@@ -1609,25 +1594,17 @@ func capturePatternSource(pattern string, syntax rune, expanded bool) captureSou
 			option := source[position]
 			if option == 'b' || option == 'e' || option == 'q' {
 				syntax = checkedChar(option)
+			} else if option == 'i' || option == 'c' {
+				caseMode = checkedChar(option)
+			} else if option == 'n' || option == 'm' || option == 'p' || option == 'w' || option == 's' {
+				newlineMode = checkedChar(option)
+			} else if option == 'x' {
+				effectiveExpanded = true
+			} else if option == 't' {
+				effectiveExpanded = false
 			} else {
-				if option == 'i' || option == 'c' {
-					caseMode = checkedChar(option)
-				} else {
-					if option == 'n' || option == 'm' || option == 'p' || option == 'w' || option == 's' {
-						newlineMode = checkedChar(option)
-					} else {
-						if option == 'x' {
-							effectiveExpanded = true
-						} else {
-							if option == 't' {
-								effectiveExpanded = false
-							} else {
-								valid = false
-								break
-							}
-						}
-					}
-				}
+				valid = false
+				break
 			}
 			position = checkedAdd(position, 1)
 		}
@@ -1650,152 +1627,128 @@ func capturePatternSource(pattern string, syntax rune, expanded bool) captureSou
 			checkedAdd(len(atoms), 1)
 			atoms = append(atoms, checkedChar(atom))
 			position = checkedAdd(position, 1)
-		} else {
-			if atom == '[' {
+		} else if atom == '[' {
+			checkedAdd(len(atoms), 1)
+			atoms = append(atoms, checkedChar(atom))
+			position = checkedAdd(position, 1)
+			if position < len(source) && source[position] == '^' {
 				checkedAdd(len(atoms), 1)
-				atoms = append(atoms, checkedChar(atom))
+				atoms = append(atoms, checkedChar(source[position]))
 				position = checkedAdd(position, 1)
-				if position < len(source) && source[position] == '^' {
+			}
+			first := position
+			special := ' '
+			for position < len(source) {
+				current := source[position]
+				checkedAdd(len(atoms), 1)
+				atoms = append(atoms, checkedChar(current))
+				position = checkedAdd(position, 1)
+				if special == ' ' && syntax == 'a' && current == '\\' && position < len(source) {
+					marker := source[position]
+					checkedAdd(len(atoms), 1)
+					atoms = append(atoms, checkedChar(marker))
+					position = checkedAdd(position, 1)
+					if marker == 'c' && position < len(source) {
+						checkedAdd(len(atoms), 1)
+						atoms = append(atoms, checkedChar(source[position]))
+						position = checkedAdd(position, 1)
+					}
+				} else if special != ' ' {
+					if current == special && position < len(source) && source[position] == ']' {
+						checkedAdd(len(atoms), 1)
+						atoms = append(atoms, checkedChar(']'))
+						position = checkedAdd(position, 1)
+						special = checkedChar(' ')
+					}
+				} else if current == '[' && position < len(source) && (source[position] == ':' || source[position] == '.' || source[position] == '=') {
+					special = checkedChar(source[position])
+					checkedAdd(len(atoms), 1)
+					atoms = append(atoms, checkedChar(special))
+					position = checkedAdd(position, 1)
+				} else if current == ']' && position > checkedAdd(first, 1) {
+					break
+				}
+			}
+		} else if atom == '\\' {
+			checkedAdd(len(atoms), 1)
+			atoms = append(atoms, checkedChar(atom))
+			position = checkedAdd(position, 1)
+			if position < len(source) {
+				marker := source[position]
+				checkedAdd(len(atoms), 1)
+				atoms = append(atoms, checkedChar(marker))
+				position = checkedAdd(position, 1)
+				if syntax == 'a' && marker == 'c' && position < len(source) {
 					checkedAdd(len(atoms), 1)
 					atoms = append(atoms, checkedChar(source[position]))
 					position = checkedAdd(position, 1)
-				}
-				first := position
-				special := ' '
-				for position < len(source) {
-					current := source[position]
-					checkedAdd(len(atoms), 1)
-					atoms = append(atoms, checkedChar(current))
-					position = checkedAdd(position, 1)
-					if special == ' ' && syntax == 'a' && current == '\\' && position < len(source) {
-						marker := source[position]
-						checkedAdd(len(atoms), 1)
-						atoms = append(atoms, checkedChar(marker))
-						position = checkedAdd(position, 1)
-						if marker == 'c' && position < len(source) {
-							checkedAdd(len(atoms), 1)
-							atoms = append(atoms, checkedChar(source[position]))
-							position = checkedAdd(position, 1)
-						}
-					} else {
-						if special != ' ' {
-							if current == special && position < len(source) && source[position] == ']' {
-								checkedAdd(len(atoms), 1)
-								atoms = append(atoms, checkedChar(']'))
-								position = checkedAdd(position, 1)
-								special = checkedChar(' ')
-							}
-						} else {
-							if current == '[' && position < len(source) && (source[position] == ':' || source[position] == '.' || source[position] == '=') {
-								special = checkedChar(source[position])
-								checkedAdd(len(atoms), 1)
-								atoms = append(atoms, checkedChar(special))
-								position = checkedAdd(position, 1)
-							} else {
-								if current == ']' && position > checkedAdd(first, 1) {
-									break
-								}
-							}
-						}
+				} else if syntax == 'a' && (marker == 'x' || marker == 'u' || marker == 'U' || ((int(checkedChar(marker))) >= 48 && (int(checkedChar(marker))) <= 57)) {
+					limit := 255
+					if marker == 'u' {
+						limit = checkedIndex(4)
+					} else if marker == 'U' {
+						limit = checkedIndex(8)
 					}
-				}
-			} else {
-				if atom == '\\' {
-					checkedAdd(len(atoms), 1)
-					atoms = append(atoms, checkedChar(atom))
-					position = checkedAdd(position, 1)
-					if position < len(source) {
-						marker := source[position]
+					digits := 0
+					for position < len(source) && digits < limit {
+						digit := captureDigitValue(source[position])
+						if digit == 16 || ((int(checkedChar(marker))) >= 48 && (int(checkedChar(marker))) <= 57 && digit > 9) {
+							break
+						}
 						checkedAdd(len(atoms), 1)
-						atoms = append(atoms, checkedChar(marker))
+						atoms = append(atoms, checkedChar(source[position]))
 						position = checkedAdd(position, 1)
-						if syntax == 'a' && marker == 'c' && position < len(source) {
-							checkedAdd(len(atoms), 1)
-							atoms = append(atoms, checkedChar(source[position]))
-							position = checkedAdd(position, 1)
-						} else {
-							if syntax == 'a' && (marker == 'x' || marker == 'u' || marker == 'U' || ((int(checkedChar(marker))) >= 48 && (int(checkedChar(marker))) <= 57)) {
-								limit := 255
-								if marker == 'u' {
-									limit = checkedIndex(4)
-								} else {
-									if marker == 'U' {
-										limit = checkedIndex(8)
-									}
-								}
-								digits := 0
-								for position < len(source) && digits < limit {
-									digit := captureDigitValue(source[position])
-									if digit == 16 || ((int(checkedChar(marker))) >= 48 && (int(checkedChar(marker))) <= 57 && digit > 9) {
-										break
-									}
-									checkedAdd(len(atoms), 1)
-									atoms = append(atoms, checkedChar(source[position]))
-									position = checkedAdd(position, 1)
-									digits = checkedAdd(digits, 1)
-								}
-							}
-						}
-					}
-				} else {
-					if syntax == 'a' && atom == '(' && checkedSubtract(len(source), position) >= 3 && source[checkedAdd(position, 1)] == '?' && source[checkedAdd(position, 2)] == '#' {
-						position = checkedAdd(position, 3)
-						for position < len(source) && source[position] != ')' {
-							position = checkedAdd(position, 1)
-						}
-						if position < len(source) {
-							position = checkedAdd(position, 1)
-						}
-					} else {
-						if syntax == 'a' && atom == '(' {
-							checkedAdd(len(atoms), 1)
-							atoms = append(atoms, checkedChar(atom))
-							position = checkedAdd(position, 1)
-							if position < len(source) && source[position] == '?' {
-								checkedAdd(len(atoms), 1)
-								atoms = append(atoms, checkedChar('?'))
-								position = checkedAdd(position, 1)
-								if position < len(source) {
-									marker := source[position]
-									checkedAdd(len(atoms), 1)
-									atoms = append(atoms, checkedChar(marker))
-									position = checkedAdd(position, 1)
-									if marker == '<' && position < len(source) {
-										checkedAdd(len(atoms), 1)
-										atoms = append(atoms, checkedChar(source[position]))
-										position = checkedAdd(position, 1)
-									}
-								}
-							}
-						} else {
-							if syntax == 'a' && (atom == '*' || atom == '+' || atom == '?') {
-								checkedAdd(len(atoms), 1)
-								atoms = append(atoms, checkedChar(atom))
-								position = checkedAdd(position, 1)
-								if position < len(source) && source[position] == '?' {
-									checkedAdd(len(atoms), 1)
-									atoms = append(atoms, checkedChar('?'))
-									position = checkedAdd(position, 1)
-								}
-							} else {
-								if effectiveExpanded && atom == '#' {
-									for position < len(source) && source[position] != '\n' {
-										position = checkedAdd(position, 1)
-									}
-								} else {
-									if effectiveExpanded && (atom == ' ' || ((int(checkedChar(atom))) >= 9 && (int(checkedChar(atom))) <= 13)) {
-										position = checkedAdd(position, 1)
-									} else {
-										checkedAdd(len(atoms), 1)
-										atoms = append(atoms, checkedChar(atom))
-										position = checkedAdd(position, 1)
-									}
-								}
-							}
-						}
+						digits = checkedAdd(digits, 1)
 					}
 				}
 			}
+		} else if syntax == 'a' && atom == '(' && checkedSubtract(len(source), position) >= 3 && source[checkedAdd(position, 1)] == '?' && source[checkedAdd(position, 2)] == '#' {
+			position = checkedAdd(position, 3)
+			for position < len(source) && source[position] != ')' {
+				position = checkedAdd(position, 1)
+			}
+			if position < len(source) {
+				position = checkedAdd(position, 1)
+			}
+		} else if syntax == 'a' && atom == '(' {
+			checkedAdd(len(atoms), 1)
+			atoms = append(atoms, checkedChar(atom))
+			position = checkedAdd(position, 1)
+			if position < len(source) && source[position] == '?' {
+				checkedAdd(len(atoms), 1)
+				atoms = append(atoms, checkedChar('?'))
+				position = checkedAdd(position, 1)
+				if position < len(source) {
+					marker := source[position]
+					checkedAdd(len(atoms), 1)
+					atoms = append(atoms, checkedChar(marker))
+					position = checkedAdd(position, 1)
+					if marker == '<' && position < len(source) {
+						checkedAdd(len(atoms), 1)
+						atoms = append(atoms, checkedChar(source[position]))
+						position = checkedAdd(position, 1)
+					}
+				}
+			}
+		} else if syntax == 'a' && (atom == '*' || atom == '+' || atom == '?') {
+			checkedAdd(len(atoms), 1)
+			atoms = append(atoms, checkedChar(atom))
+			position = checkedAdd(position, 1)
+			if position < len(source) && source[position] == '?' {
+				checkedAdd(len(atoms), 1)
+				atoms = append(atoms, checkedChar('?'))
+				position = checkedAdd(position, 1)
+			}
+		} else if effectiveExpanded && atom == '#' {
+			for position < len(source) && source[position] != '\n' {
+				position = checkedAdd(position, 1)
+			}
+		} else if effectiveExpanded && (atom == ' ' || ((int(checkedChar(atom))) >= 9 && (int(checkedChar(atom))) <= 13)) {
+			position = checkedAdd(position, 1)
+		} else {
+			checkedAdd(len(atoms), 1)
+			atoms = append(atoms, checkedChar(atom))
+			position = checkedAdd(position, 1)
 		}
 		if syntax != 'q' && len(atoms) > tokenStart {
 			basicBound := syntax == 'b' && checkedSubtract(len(atoms), tokenStart) == 2 && atoms[tokenStart] == '\\' && atoms[checkedAdd(tokenStart, 1)] == '{'
@@ -1806,46 +1759,40 @@ func capturePatternSource(pattern string, syntax rune, expanded bool) captureSou
 					current := source[position]
 					if effectiveExpanded && (current == ' ' || ((int(checkedChar(current))) >= 9 && (int(checkedChar(current))) <= 13)) {
 						position = checkedAdd(position, 1)
+					} else if effectiveExpanded && current == '#' {
+						for position < len(source) && source[position] != '\n' {
+							position = checkedAdd(position, 1)
+						}
 					} else {
-						if effectiveExpanded && current == '#' {
-							for position < len(source) && source[position] != '\n' {
+						if first && (int(checkedChar(current))) >= 48 && (int(checkedChar(current))) <= 57 {
+							inBound = true
+						}
+						first = false
+						if inBound == false {
+							break
+						}
+						checkedAdd(len(atoms), 1)
+						atoms = append(atoms, checkedChar(current))
+						position = checkedAdd(position, 1)
+						if basicBound && current == '\\' {
+							if position < len(source) && source[position] == '}' {
+								checkedAdd(len(atoms), 1)
+								atoms = append(atoms, checkedChar('}'))
+								position = checkedAdd(position, 1)
+							} else {
+								valid = false
+							}
+							break
+						} else if basicBound == false && current == '}' {
+							if syntax == 'a' && position < len(source) && source[position] == '?' {
+								checkedAdd(len(atoms), 1)
+								atoms = append(atoms, checkedChar('?'))
 								position = checkedAdd(position, 1)
 							}
-						} else {
-							if first && (int(checkedChar(current))) >= 48 && (int(checkedChar(current))) <= 57 {
-								inBound = true
-							}
-							first = false
-							if inBound == false {
-								break
-							}
-							checkedAdd(len(atoms), 1)
-							atoms = append(atoms, checkedChar(current))
-							position = checkedAdd(position, 1)
-							if basicBound && current == '\\' {
-								if position < len(source) && source[position] == '}' {
-									checkedAdd(len(atoms), 1)
-									atoms = append(atoms, checkedChar('}'))
-									position = checkedAdd(position, 1)
-								} else {
-									valid = false
-								}
-								break
-							} else {
-								if basicBound == false && current == '}' {
-									if syntax == 'a' && position < len(source) && source[position] == '?' {
-										checkedAdd(len(atoms), 1)
-										atoms = append(atoms, checkedChar('?'))
-										position = checkedAdd(position, 1)
-									}
-									break
-								} else {
-									if current != ',' && ((int(checkedChar(current))) < 48 || (int(checkedChar(current))) > 57) {
-										valid = false
-										break
-									}
-								}
-							}
+							break
+						} else if current != ',' && ((int(checkedChar(current))) < 48 || (int(checkedChar(current))) > 57) {
+							valid = false
+							break
 						}
 					}
 				}
@@ -1889,22 +1836,14 @@ func compileCaptureProgramAtoms(source []rune, tokenEnds []int, syntax rune, val
 			if atom == '\\' && checkedSubtract(len(source), position) >= 2 && (source[checkedAdd(position, 1)] == '(' || source[checkedAdd(position, 1)] == ')') {
 				position = checkedAdd(position, 1)
 				atom = checkedChar(source[position])
-			} else {
-				if atom == '+' || atom == '?' || atom == '|' || atom == '(' || atom == ')' || atom == '{' || atom == '}' {
-					literal = true
-				} else {
-					if atom == '^' && frames[checkedSubtract(frameCount, 1)].sequence > 0 {
-						literal = true
-					} else {
-						if atom == '$' && checkedAdd(position, 1) < len(source) && (checkedSubtract(len(source), position) < 3 || source[checkedAdd(position, 1)] != '\\' || source[checkedAdd(position, 2)] != ')') {
-							literal = true
-						} else {
-							if atom == '*' && basicStarLiteral {
-								literal = true
-							}
-						}
-					}
-				}
+			} else if atom == '+' || atom == '?' || atom == '|' || atom == '(' || atom == ')' || atom == '{' || atom == '}' {
+				literal = true
+			} else if atom == '^' && frames[checkedSubtract(frameCount, 1)].sequence > 0 {
+				literal = true
+			} else if atom == '$' && checkedAdd(position, 1) < len(source) && (checkedSubtract(len(source), position) < 3 || source[checkedAdd(position, 1)] != '\\' || source[checkedAdd(position, 2)] != ')') {
+				literal = true
+			} else if atom == '*' && basicStarLiteral {
+				literal = true
 			}
 		}
 		if syntax == 'e' && atom == ')' && frameCount == 1 {
@@ -1921,346 +1860,286 @@ func compileCaptureProgramAtoms(source []rune, tokenEnds []int, syntax rune, val
 			nodes = append(nodes, copycaptureNode(makeCaptureNode(vmLiteral, 0, 0, 0, atom, 0, 1, 0)))
 			position = checkedAdd(position, 1)
 			hasAtom = true
-		} else {
-			if atom == '(' {
-				basicStarLiteral = true
-				group := 0
-				first := checkedAdd(groups, 1)
-				operation := nodeGroup
+		} else if atom == '(' {
+			basicStarLiteral = true
+			group := 0
+			first := checkedAdd(groups, 1)
+			operation := nodeGroup
+			position = checkedAdd(position, 1)
+			if syntax != 'b' && position < len(source) && source[position] == '?' && tokenEnds[checkedSubtract(position, 1)] > position {
+				if syntax != 'a' {
+					valid = false
+				}
 				position = checkedAdd(position, 1)
-				if syntax != 'b' && position < len(source) && source[position] == '?' && tokenEnds[checkedSubtract(position, 1)] > position {
-					if syntax != 'a' {
+				if position < len(source) && source[position] == ':' {
+					position = checkedAdd(position, 1)
+				} else {
+					behind := false
+					if position < len(source) && source[position] == '<' {
+						behind = true
+						position = checkedAdd(position, 1)
+					}
+					if position < len(source) && (source[position] == '=' || source[position] == '!') {
+						operation = checkedIndex(nodeLookahead)
+						if behind {
+							operation = checkedIndex(nodeLookbehind)
+						}
+						if source[position] == '!' {
+							operation = checkedIndex(nodeNotLookahead)
+							if behind {
+								operation = checkedIndex(nodeNotLookbehind)
+							}
+						}
+						position = checkedAdd(position, 1)
+						assertions = true
+						assertionDepth = checkedAdd(assertionDepth, 1)
+						if assertionDepth > 64 {
+							limited = true
+							valid = false
+						}
+					} else {
 						valid = false
 					}
-					position = checkedAdd(position, 1)
-					if position < len(source) && source[position] == ':' {
-						position = checkedAdd(position, 1)
-					} else {
-						behind := false
-						if position < len(source) && source[position] == '<' {
-							behind = true
-							position = checkedAdd(position, 1)
-						}
-						if position < len(source) && (source[position] == '=' || source[position] == '!') {
-							operation = checkedIndex(nodeLookahead)
-							if behind {
-								operation = checkedIndex(nodeLookbehind)
-							}
-							if source[position] == '!' {
-								operation = checkedIndex(nodeNotLookahead)
-								if behind {
-									operation = checkedIndex(nodeNotLookbehind)
-								}
-							}
-							position = checkedAdd(position, 1)
-							assertions = true
-							assertionDepth = checkedAdd(assertionDepth, 1)
-							if assertionDepth > 64 {
-								limited = true
-								valid = false
-							}
-						} else {
-							valid = false
-						}
-					}
-				} else {
-					if assertionDepth == 0 {
-						groups = checkedAdd(groups, 1)
-						group = checkedIndex(groups)
-						checkedAdd(len(closed), 1)
-						closed = append(closed, checkedIndex(0))
-					}
 				}
-				frame := captureFrame{operation: operation, sequence: 0, alternative: 0, group: group, first: first, branched: false}
-				if frameCount == len(frames) {
-					checkedAdd(len(frames), 1)
-					frames = append(frames, copycaptureFrame(frame))
-				} else {
-					frames[frameCount] = copycaptureFrame(frame)
-				}
-				frameCount = checkedAdd(frameCount, 1)
+			} else if assertionDepth == 0 {
+				groups = checkedAdd(groups, 1)
+				group = checkedIndex(groups)
+				checkedAdd(len(closed), 1)
+				closed = append(closed, checkedIndex(0))
+			}
+			frame := captureFrame{operation: operation, sequence: 0, alternative: 0, group: group, first: first, branched: false}
+			if frameCount == len(frames) {
+				checkedAdd(len(frames), 1)
+				frames = append(frames, copycaptureFrame(frame))
 			} else {
-				if atom == '|' {
-					frame := frames[checkedSubtract(frameCount, 1)]
-					alternative := frame.sequence
-					if frame.branched {
-						alternative = checkedIndex(len(nodes))
-						checkedAdd(len(nodes), 1)
-						nodes = append(nodes, copycaptureNode(makeCaptureNode(nodeAlternative, frame.alternative, frame.sequence, 0, ' ', 1, frame.first, groups)))
-					}
-					frames[checkedSubtract(frameCount, 1)] = copycaptureFrame(captureFrame{operation: frame.operation, sequence: 0, alternative: alternative, branched: true, group: frame.group, first: frame.first})
+				frames[frameCount] = copycaptureFrame(frame)
+			}
+			frameCount = checkedAdd(frameCount, 1)
+		} else if atom == '|' {
+			frame := frames[checkedSubtract(frameCount, 1)]
+			alternative := frame.sequence
+			if frame.branched {
+				alternative = checkedIndex(len(nodes))
+				checkedAdd(len(nodes), 1)
+				nodes = append(nodes, copycaptureNode(makeCaptureNode(nodeAlternative, frame.alternative, frame.sequence, 0, ' ', 1, frame.first, groups)))
+			}
+			frames[checkedSubtract(frameCount, 1)] = copycaptureFrame(captureFrame{operation: frame.operation, sequence: 0, alternative: alternative, branched: true, group: frame.group, first: frame.first})
+			position = checkedAdd(position, 1)
+		} else if atom == ')' {
+			if frameCount == 1 {
+				valid = false
+			} else {
+				frameCount = checkedIndex(checkedSubtract(frameCount, 1))
+				frame := frames[frameCount]
+				inner := frame.sequence
+				if frame.branched {
+					inner = checkedIndex(len(nodes))
+					checkedAdd(len(nodes), 1)
+					nodes = append(nodes, copycaptureNode(makeCaptureNode(nodeAlternative, frame.alternative, frame.sequence, 0, ' ', 1, frame.first, groups)))
+				}
+				preference := nodes[inner].preference
+				if frame.operation != nodeGroup {
+					preference = checkedIndex(0)
+					assertionDepth = checkedIndex(checkedSubtract(assertionDepth, 1))
+				}
+				node = checkedIndex(len(nodes))
+				checkedAdd(len(nodes), 1)
+				nodes = append(nodes, copycaptureNode(makeCaptureNode(frame.operation, inner, 0, frame.group, ' ', preference, frame.first, groups)))
+				if frame.group > 0 {
+					closed[frame.group] = checkedIndex(1)
+				}
+				position = checkedAdd(position, 1)
+				hasAtom = true
+			}
+		} else if atom == '^' || atom == '$' {
+			operation := vmBegin
+			if atom == '$' {
+				operation = checkedIndex(vmEnd)
+			}
+			node = checkedIndex(len(nodes))
+			checkedAdd(len(nodes), 1)
+			nodes = append(nodes, copycaptureNode(makeCaptureNode(operation, 0, 0, 0, ' ', 0, 1, 0)))
+			position = checkedAdd(position, 1)
+			hasAtom = true
+		} else {
+			operation := 0
+			member := ' '
+			reference := 0
+			if atom == '.' {
+				operation = checkedIndex(vmAny)
+				position = checkedAdd(position, 1)
+			} else if atom == '[' && checkedSubtract(len(source), position) >= 7 && source[checkedAdd(position, 1)] == '[' && source[checkedAdd(position, 2)] == ':' && (source[checkedAdd(position, 3)] == '<' || source[checkedAdd(position, 3)] == '>') && source[checkedAdd(position, 4)] == ':' && source[checkedAdd(position, 5)] == ']' && source[checkedAdd(position, 6)] == ']' {
+				operation = checkedIndex(vmWordBegin)
+				if source[checkedAdd(position, 3)] == '>' {
+					operation = checkedIndex(vmWordEnd)
+				}
+				position = checkedAdd(position, 7)
+			} else if atom == '[' {
+				operation = checkedIndex(vmClass)
+				reference = checkedIndex(len(classMembers))
+				classAtoms := []rune{}
+				checkedAdd(len(classAtoms), 1)
+				classAtoms = append(classAtoms, checkedChar('['))
+				position = checkedAdd(position, 1)
+				if position < len(source) && source[position] == '^' {
+					checkedAdd(len(classAtoms), 1)
+					classAtoms = append(classAtoms, checkedChar('^'))
 					position = checkedAdd(position, 1)
-				} else {
-					if atom == ')' {
-						if frameCount == 1 {
-							valid = false
-						} else {
-							frameCount = checkedIndex(checkedSubtract(frameCount, 1))
-							frame := frames[frameCount]
-							inner := frame.sequence
-							if frame.branched {
-								inner = checkedIndex(len(nodes))
-								checkedAdd(len(nodes), 1)
-								nodes = append(nodes, copycaptureNode(makeCaptureNode(nodeAlternative, frame.alternative, frame.sequence, 0, ' ', 1, frame.first, groups)))
-							}
-							preference := nodes[inner].preference
-							if frame.operation != nodeGroup {
-								preference = checkedIndex(0)
-								assertionDepth = checkedIndex(checkedSubtract(assertionDepth, 1))
-							}
-							node = checkedIndex(len(nodes))
-							checkedAdd(len(nodes), 1)
-							nodes = append(nodes, copycaptureNode(makeCaptureNode(frame.operation, inner, 0, frame.group, ' ', preference, frame.first, groups)))
-							if frame.group > 0 {
-								closed[frame.group] = checkedIndex(1)
-							}
+				}
+				first := position
+				special := ' '
+				for position < len(source) {
+					current := source[position]
+					checkedAdd(len(classAtoms), 1)
+					classAtoms = append(classAtoms, checkedChar(current))
+					position = checkedAdd(position, 1)
+					if special == ' ' && syntax == 'a' && current == '\\' && position < len(source) {
+						marker := source[position]
+						checkedAdd(len(classAtoms), 1)
+						classAtoms = append(classAtoms, checkedChar(marker))
+						position = checkedAdd(position, 1)
+						if marker == 'c' && position < len(source) {
+							checkedAdd(len(classAtoms), 1)
+							classAtoms = append(classAtoms, checkedChar(source[position]))
 							position = checkedAdd(position, 1)
-							hasAtom = true
 						}
-					} else {
-						if atom == '^' || atom == '$' {
-							operation := vmBegin
-							if atom == '$' {
-								operation = checkedIndex(vmEnd)
-							}
-							node = checkedIndex(len(nodes))
-							checkedAdd(len(nodes), 1)
-							nodes = append(nodes, copycaptureNode(makeCaptureNode(operation, 0, 0, 0, ' ', 0, 1, 0)))
+					} else if special != ' ' {
+						if current == special && position < len(source) && source[position] == ']' {
+							checkedAdd(len(classAtoms), 1)
+							classAtoms = append(classAtoms, checkedChar(']'))
 							position = checkedAdd(position, 1)
-							hasAtom = true
-						} else {
-							operation := 0
-							member := ' '
-							reference := 0
-							if atom == '.' {
-								operation = checkedIndex(vmAny)
-								position = checkedAdd(position, 1)
-							} else {
-								if atom == '[' && checkedSubtract(len(source), position) >= 7 && source[checkedAdd(position, 1)] == '[' && source[checkedAdd(position, 2)] == ':' && (source[checkedAdd(position, 3)] == '<' || source[checkedAdd(position, 3)] == '>') && source[checkedAdd(position, 4)] == ':' && source[checkedAdd(position, 5)] == ']' && source[checkedAdd(position, 6)] == ']' {
-									operation = checkedIndex(vmWordBegin)
-									if source[checkedAdd(position, 3)] == '>' {
-										operation = checkedIndex(vmWordEnd)
-									}
-									position = checkedAdd(position, 7)
-								} else {
-									if atom == '[' {
-										operation = checkedIndex(vmClass)
-										reference = checkedIndex(len(classMembers))
-										classAtoms := []rune{}
-										checkedAdd(len(classAtoms), 1)
-										classAtoms = append(classAtoms, checkedChar('['))
-										position = checkedAdd(position, 1)
-										if position < len(source) && source[position] == '^' {
-											checkedAdd(len(classAtoms), 1)
-											classAtoms = append(classAtoms, checkedChar('^'))
-											position = checkedAdd(position, 1)
-										}
-										first := position
-										special := ' '
-										for position < len(source) {
-											current := source[position]
-											checkedAdd(len(classAtoms), 1)
-											classAtoms = append(classAtoms, checkedChar(current))
-											position = checkedAdd(position, 1)
-											if special == ' ' && syntax == 'a' && current == '\\' && position < len(source) {
-												marker := source[position]
-												checkedAdd(len(classAtoms), 1)
-												classAtoms = append(classAtoms, checkedChar(marker))
-												position = checkedAdd(position, 1)
-												if marker == 'c' && position < len(source) {
-													checkedAdd(len(classAtoms), 1)
-													classAtoms = append(classAtoms, checkedChar(source[position]))
-													position = checkedAdd(position, 1)
-												}
-											} else {
-												if special != ' ' {
-													if current == special && position < len(source) && source[position] == ']' {
-														checkedAdd(len(classAtoms), 1)
-														classAtoms = append(classAtoms, checkedChar(']'))
-														position = checkedAdd(position, 1)
-														special = checkedChar(' ')
-													}
-												} else {
-													if current == '[' && position < len(source) && (source[position] == ':' || source[position] == '.' || source[position] == '=') {
-														special = checkedChar(source[position])
-														checkedAdd(len(classAtoms), 1)
-														classAtoms = append(classAtoms, checkedChar(special))
-														position = checkedAdd(position, 1)
-													} else {
-														if current == ']' && position > checkedAdd(first, 1) {
-															break
-														}
-													}
-												}
-											}
-										}
-										parsedClass := parseCaptureClass(classAtoms, syntax, groups)
-										valid = parsedClass.valid
-										if parsedClass.negated {
-											member = checkedChar('^')
-										}
-										index := 0
-										for index < len(parsedClass.members) {
-											checkedAdd(len(classMembers), 1)
-											classMembers = append(classMembers, copycaptureClassMember(parsedClass.members[index]))
-											index = checkedAdd(index, 1)
-										}
-									} else {
-										if atom == '\\' && checkedSubtract(len(source), position) >= 2 {
-											escaped := source[checkedAdd(position, 1)]
-											escapeStart := position
-											position = checkedAdd(position, 2)
-											if syntax == 'e' || (syntax == 'b' && escaped != '<' && escaped != '>' && ((int(checkedChar(escaped))) < 49 || (int(checkedChar(escaped))) > 57)) {
-												operation = checkedIndex(vmLiteral)
-												member = checkedChar(escaped)
-												if syntax == 'b' && escaped == '{' {
-													valid = false
-												}
-											} else {
-												if syntax == 'b' && (escaped == '<' || escaped == '>') {
-													operation = checkedIndex(vmWordBegin)
-													if escaped == '>' {
-														operation = checkedIndex(vmWordEnd)
-													}
-												} else {
-													if escaped == 'A' || escaped == 'Z' || escaped == 'm' || escaped == 'y' || escaped == 'Y' {
-														operation = checkedIndex(vmAbsoluteBegin)
-														if escaped == 'Z' {
-															operation = checkedIndex(vmAbsoluteEnd)
-														} else {
-															if escaped == 'm' {
-																operation = checkedIndex(vmWordBegin)
-															} else {
-																if escaped == 'y' {
-																	operation = checkedIndex(vmBoundary)
-																} else {
-																	if escaped == 'Y' {
-																		operation = checkedIndex(vmNotBoundary)
-																	}
-																}
-															}
-														}
-													} else {
-														if escaped == 'd' || escaped == 'D' || escaped == 's' || escaped == 'S' || escaped == 'W' {
-															operation = checkedIndex(vmClass)
-															reference = checkedIndex(len(classMembers))
-															kind := 14
-															if escaped == 'd' || escaped == 'D' {
-																kind = checkedIndex(1)
-															} else {
-																if escaped == 's' || escaped == 'S' {
-																	kind = checkedIndex(4)
-																}
-															}
-															checkedAdd(len(classMembers), 1)
-															classMembers = append(classMembers, copycaptureClassMember(captureClassMember{kind: kind, lower: 0, upper: 0, complement: escaped == 'D' || escaped == 'S' || escaped == 'W'}))
-															checkedAdd(len(classMembers), 1)
-															classMembers = append(classMembers, copycaptureClassMember(captureClassMember{kind: 0, lower: 0, upper: 0, complement: false}))
-														} else {
-															if escaped == 'a' || escaped == 'b' || escaped == 'B' || escaped == 'e' || escaped == 'f' || escaped == 't' || escaped == 'v' {
-																operation = checkedIndex(vmNumeric)
-																reference = checkedIndex(7)
-																if escaped == 'b' {
-																	reference = checkedIndex(8)
-																} else {
-																	if escaped == 'B' {
-																		reference = checkedIndex(92)
-																	} else {
-																		if escaped == 'e' {
-																			reference = checkedIndex(27)
-																		} else {
-																			if escaped == 'f' {
-																				reference = checkedIndex(12)
-																			} else {
-																				if escaped == 't' {
-																					reference = checkedIndex(9)
-																				} else {
-																					if escaped == 'v' {
-																						reference = checkedIndex(11)
-																					}
-																				}
-																			}
-																		}
-																	}
-																}
-															} else {
-																if escaped == 'w' {
-																	operation = checkedIndex(vmWord)
-																} else {
-																	if escaped == 'M' {
-																		operation = checkedIndex(vmWordEnd)
-																	} else {
-																		if escaped == 'n' || escaped == 'r' || ((int(checkedChar(escaped))) < 48 || (int(checkedChar(escaped))) > 57) && ((int(checkedChar(escaped))) < 65 || (int(checkedChar(escaped))) > 90) && ((int(checkedChar(escaped))) < 97 || (int(checkedChar(escaped))) > 122) {
-																			operation = checkedIndex(vmLiteral)
-																			member = checkedChar(escaped)
-																			if escaped == 'n' {
-																				member = checkedChar('\n')
-																			} else {
-																				if escaped == 'r' {
-																					member = checkedChar('\r')
-																				}
-																			}
-																		} else {
-																			if escaped == 'c' || escaped == 'x' || escaped == 'u' || escaped == 'U' || ((int(checkedChar(escaped))) >= 48 && (int(checkedChar(escaped))) <= 57) {
-																				limit := tokenEnds[escapeStart]
-																				window := []rune{}
-																				next := escapeStart
-																				for next < limit && checkedSubtract(next, escapeStart) < 257 {
-																					checkedAdd(len(window), 1)
-																					window = append(window, checkedChar(source[next]))
-																					next = checkedAdd(next, 1)
-																				}
-																				numeric := parseCaptureNumeric(window, groups, syntax == 'b')
-																				valid = numeric.valid
-																				if valid {
-																					reference = checkedIndex(checkedIndex(numeric.value))
-																					position = checkedIndex(checkedAdd(escapeStart, numeric.end))
-																					operation = checkedIndex(vmNumeric)
-																					if numeric.backreference {
-																						operation = checkedIndex(vmBackref)
-																						valid = reference < len(closed) && closed[reference] > 0
-																					}
-																				}
-																			} else {
-																				valid = false
-																			}
-																		}
-																	}
-																}
-															}
-														}
-													}
-												}
-											}
-										} else {
-											if simpleLiteralChar(atom) {
-												operation = checkedIndex(vmLiteral)
-												member = checkedChar(atom)
-												position = checkedAdd(position, 1)
-											} else {
-												valid = false
-											}
-										}
-									}
-								}
-							}
-							if valid == false {
-								break
-							}
-							node = checkedIndex(len(nodes))
-							checkedAdd(len(nodes), 1)
-							nodes = append(nodes, copycaptureNode(makeCaptureNode(operation, 0, 0, reference, member, 0, 1, 0)))
-							if operation == vmBackref {
-								backreferences = true
-								if assertionDepth > 0 {
-									valid = false
-								}
-							}
-							hasAtom = true
+							special = checkedChar(' ')
+						}
+					} else if current == '[' && position < len(source) && (source[position] == ':' || source[position] == '.' || source[position] == '=') {
+						special = checkedChar(source[position])
+						checkedAdd(len(classAtoms), 1)
+						classAtoms = append(classAtoms, checkedChar(special))
+						position = checkedAdd(position, 1)
+					} else if current == ']' && position > checkedAdd(first, 1) {
+						break
+					}
+				}
+				parsedClass := parseCaptureClass(classAtoms, syntax, groups)
+				valid = parsedClass.valid
+				if parsedClass.negated {
+					member = checkedChar('^')
+				}
+				index := 0
+				for index < len(parsedClass.members) {
+					checkedAdd(len(classMembers), 1)
+					classMembers = append(classMembers, copycaptureClassMember(parsedClass.members[index]))
+					index = checkedAdd(index, 1)
+				}
+			} else if atom == '\\' && checkedSubtract(len(source), position) >= 2 {
+				escaped := source[checkedAdd(position, 1)]
+				escapeStart := position
+				position = checkedAdd(position, 2)
+				if syntax == 'e' || (syntax == 'b' && escaped != '<' && escaped != '>' && ((int(checkedChar(escaped))) < 49 || (int(checkedChar(escaped))) > 57)) {
+					operation = checkedIndex(vmLiteral)
+					member = checkedChar(escaped)
+					if syntax == 'b' && escaped == '{' {
+						valid = false
+					}
+				} else if syntax == 'b' && (escaped == '<' || escaped == '>') {
+					operation = checkedIndex(vmWordBegin)
+					if escaped == '>' {
+						operation = checkedIndex(vmWordEnd)
+					}
+				} else if escaped == 'A' || escaped == 'Z' || escaped == 'm' || escaped == 'y' || escaped == 'Y' {
+					operation = checkedIndex(vmAbsoluteBegin)
+					if escaped == 'Z' {
+						operation = checkedIndex(vmAbsoluteEnd)
+					} else if escaped == 'm' {
+						operation = checkedIndex(vmWordBegin)
+					} else if escaped == 'y' {
+						operation = checkedIndex(vmBoundary)
+					} else if escaped == 'Y' {
+						operation = checkedIndex(vmNotBoundary)
+					}
+				} else if escaped == 'd' || escaped == 'D' || escaped == 's' || escaped == 'S' || escaped == 'W' {
+					operation = checkedIndex(vmClass)
+					reference = checkedIndex(len(classMembers))
+					kind := 14
+					if escaped == 'd' || escaped == 'D' {
+						kind = checkedIndex(1)
+					} else if escaped == 's' || escaped == 'S' {
+						kind = checkedIndex(4)
+					}
+					checkedAdd(len(classMembers), 1)
+					classMembers = append(classMembers, copycaptureClassMember(captureClassMember{kind: kind, lower: 0, upper: 0, complement: escaped == 'D' || escaped == 'S' || escaped == 'W'}))
+					checkedAdd(len(classMembers), 1)
+					classMembers = append(classMembers, copycaptureClassMember(captureClassMember{kind: 0, lower: 0, upper: 0, complement: false}))
+				} else if escaped == 'a' || escaped == 'b' || escaped == 'B' || escaped == 'e' || escaped == 'f' || escaped == 't' || escaped == 'v' {
+					operation = checkedIndex(vmNumeric)
+					reference = checkedIndex(7)
+					if escaped == 'b' {
+						reference = checkedIndex(8)
+					} else if escaped == 'B' {
+						reference = checkedIndex(92)
+					} else if escaped == 'e' {
+						reference = checkedIndex(27)
+					} else if escaped == 'f' {
+						reference = checkedIndex(12)
+					} else if escaped == 't' {
+						reference = checkedIndex(9)
+					} else if escaped == 'v' {
+						reference = checkedIndex(11)
+					}
+				} else if escaped == 'w' {
+					operation = checkedIndex(vmWord)
+				} else if escaped == 'M' {
+					operation = checkedIndex(vmWordEnd)
+				} else if escaped == 'n' || escaped == 'r' || ((int(checkedChar(escaped))) < 48 || (int(checkedChar(escaped))) > 57) && ((int(checkedChar(escaped))) < 65 || (int(checkedChar(escaped))) > 90) && ((int(checkedChar(escaped))) < 97 || (int(checkedChar(escaped))) > 122) {
+					operation = checkedIndex(vmLiteral)
+					member = checkedChar(escaped)
+					if escaped == 'n' {
+						member = checkedChar('\n')
+					} else if escaped == 'r' {
+						member = checkedChar('\r')
+					}
+				} else if escaped == 'c' || escaped == 'x' || escaped == 'u' || escaped == 'U' || ((int(checkedChar(escaped))) >= 48 && (int(checkedChar(escaped))) <= 57) {
+					limit := tokenEnds[escapeStart]
+					window := []rune{}
+					next := escapeStart
+					for next < limit && checkedSubtract(next, escapeStart) < 257 {
+						checkedAdd(len(window), 1)
+						window = append(window, checkedChar(source[next]))
+						next = checkedAdd(next, 1)
+					}
+					numeric := parseCaptureNumeric(window, groups, syntax == 'b')
+					valid = numeric.valid
+					if valid {
+						reference = checkedIndex(checkedIndex(numeric.value))
+						position = checkedIndex(checkedAdd(escapeStart, numeric.end))
+						operation = checkedIndex(vmNumeric)
+						if numeric.backreference {
+							operation = checkedIndex(vmBackref)
+							valid = reference < len(closed) && closed[reference] > 0
 						}
 					}
+				} else {
+					valid = false
+				}
+			} else if simpleLiteralChar(atom) {
+				operation = checkedIndex(vmLiteral)
+				member = checkedChar(atom)
+				position = checkedAdd(position, 1)
+			} else {
+				valid = false
+			}
+			if valid == false {
+				break
+			}
+			node = checkedIndex(len(nodes))
+			checkedAdd(len(nodes), 1)
+			nodes = append(nodes, copycaptureNode(makeCaptureNode(operation, 0, 0, reference, member, 0, 1, 0)))
+			if operation == vmBackref {
+				backreferences = true
+				if assertionDepth > 0 {
+					valid = false
 				}
 			}
+			hasAtom = true
 		}
 		if hasAtom && valid {
 			basicStarLiteral = nodes[node].operation == vmBegin
@@ -2286,51 +2165,47 @@ func compileCaptureProgramAtoms(source []rune, tokenEnds []int, syntax rune, val
 						lower = checkedIndex(1)
 					}
 					position = checkedAdd(position, 1)
-				} else {
-					if (syntax != 'b' || basicBound) && quantifier == '{' && quantifierEnd > checkedAdd(position, 1) && checkedSubtract(len(source), position) >= 2 && (int(checkedChar(source[checkedAdd(position, 1)]))) >= 48 && (int(checkedChar(source[checkedAdd(position, 1)]))) <= 57 {
-						repeated = true
-						fixed = true
+				} else if (syntax != 'b' || basicBound) && quantifier == '{' && quantifierEnd > checkedAdd(position, 1) && checkedSubtract(len(source), position) >= 2 && (int(checkedChar(source[checkedAdd(position, 1)]))) >= 48 && (int(checkedChar(source[checkedAdd(position, 1)]))) <= 57 {
+					repeated = true
+					fixed = true
+					position = checkedAdd(position, 1)
+					for position < len(source) && (int(checkedChar(source[position]))) >= 48 && (int(checkedChar(source[position]))) <= 57 {
+						double := checkedAdd(lower, lower)
+						four := checkedAdd(double, double)
+						lower = checkedIndex(checkedAdd(checkedAdd(checkedAdd(four, four), double), checkedIndex((checkedSubtract((int(checkedChar(source[position]))), 48)))))
 						position = checkedAdd(position, 1)
+						if lower > 255 {
+							valid = false
+							break
+						}
+					}
+					upper = checkedIndex(lower)
+					if position < len(source) && source[position] == ',' {
+						fixed = false
+						position = checkedAdd(position, 1)
+						upper = checkedIndex(0)
+						unbounded = true
 						for position < len(source) && (int(checkedChar(source[position]))) >= 48 && (int(checkedChar(source[position]))) <= 57 {
-							double := checkedAdd(lower, lower)
+							unbounded = false
+							double := checkedAdd(upper, upper)
 							four := checkedAdd(double, double)
-							lower = checkedIndex(checkedAdd(checkedAdd(checkedAdd(four, four), double), checkedIndex((checkedSubtract((int(checkedChar(source[position]))), 48)))))
+							upper = checkedIndex(checkedAdd(checkedAdd(checkedAdd(four, four), double), checkedIndex((checkedSubtract((int(checkedChar(source[position]))), 48)))))
 							position = checkedAdd(position, 1)
-							if lower > 255 {
+							if upper > 255 {
 								valid = false
 								break
 							}
 						}
-						upper = checkedIndex(lower)
-						if position < len(source) && source[position] == ',' {
-							fixed = false
-							position = checkedAdd(position, 1)
-							upper = checkedIndex(0)
-							unbounded = true
-							for position < len(source) && (int(checkedChar(source[position]))) >= 48 && (int(checkedChar(source[position]))) <= 57 {
-								unbounded = false
-								double := checkedAdd(upper, upper)
-								four := checkedAdd(double, double)
-								upper = checkedIndex(checkedAdd(checkedAdd(checkedAdd(four, four), double), checkedIndex((checkedSubtract((int(checkedChar(source[position]))), 48)))))
-								position = checkedAdd(position, 1)
-								if upper > 255 {
-									valid = false
-									break
-								}
-							}
-						}
-						if basicBound && position < len(source) && source[position] == '\\' {
-							position = checkedAdd(position, 1)
-						} else {
-							if basicBound {
-								valid = false
-							}
-						}
-						if position == len(source) || source[position] != '}' || (unbounded == false && upper < lower) {
-							valid = false
-						} else {
-							position = checkedAdd(position, 1)
-						}
+					}
+					if basicBound && position < len(source) && source[position] == '\\' {
+						position = checkedAdd(position, 1)
+					} else if basicBound {
+						valid = false
+					}
+					if position == len(source) || source[position] != '}' || (unbounded == false && upper < lower) {
+						valid = false
+					} else {
+						position = checkedAdd(position, 1)
 					}
 				}
 				if basicBound && repeated == false {
@@ -2422,63 +2297,51 @@ func compileCaptureProgramAtoms(source []rune, tokenEnds []int, syntax rune, val
 			if node.operation == vmLiteral {
 				firstLiteral = checkedIndex(checkedAdd((checkedIndex((int(checkedChar(node.atom))))), 1))
 				lastLiteral = checkedIndex(firstLiteral)
-			} else {
-				if node.operation == vmNumeric {
-					firstLiteral = checkedIndex(checkedAdd(node.group, 1))
-					lastLiteral = checkedIndex(firstLiteral)
-				}
+			} else if node.operation == vmNumeric {
+				firstLiteral = checkedIndex(checkedAdd(node.group, 1))
+				lastLiteral = checkedIndex(firstLiteral)
 			}
-		} else {
-			if node.operation == vmBackref {
-				minimum = checkedIndex(captureMinimums[node.group])
-				maximum = checkedIndex(captureMaximums[node.group])
-			} else {
-				if node.operation == nodeSequence {
-					minimum = checkedIndex(captureWidthSum(minimums[node.left], minimums[node.right]))
-					maximum = checkedIndex(captureWidthSum(maximums[node.left], maximums[node.right]))
-					if minimums[node.left] > 0 {
-						firstLiteral = checkedIndex(firstLiterals[node.left])
-					}
-					if minimums[node.right] > 0 {
-						lastLiteral = checkedIndex(lastLiterals[node.right])
-					}
-				} else {
-					if node.operation == nodeAlternative {
-						minimum = checkedIndex(minimums[node.left])
-						if minimums[node.right] < minimum {
-							minimum = checkedIndex(minimums[node.right])
-						}
-						maximum = checkedIndex(maximums[node.left])
-						if maximums[node.right] > maximum {
-							maximum = checkedIndex(maximums[node.right])
-						}
-						if firstLiterals[node.left] == firstLiterals[node.right] {
-							firstLiteral = checkedIndex(firstLiterals[node.left])
-						}
-						if lastLiterals[node.left] == lastLiterals[node.right] {
-							lastLiteral = checkedIndex(lastLiterals[node.left])
-						}
-					} else {
-						if node.operation == nodeGroup {
-							minimum = checkedIndex(minimums[node.left])
-							maximum = checkedIndex(maximums[node.left])
-							firstLiteral = checkedIndex(firstLiterals[node.left])
-							lastLiteral = checkedIndex(lastLiterals[node.left])
-						} else {
-							if node.operation == nodeRepeat {
-								minimum = checkedIndex(captureWidthRepeat(minimums[node.left], node.lower))
-								maximum = checkedIndex(captureWidthRepeat(maximums[node.left], node.upper))
-								if node.unbounded && maximums[node.left] > 0 {
-									maximum = checkedIndex(maxCaptureWork)
-								}
-								if node.lower > 0 && minimums[node.left] > 0 {
-									firstLiteral = checkedIndex(firstLiterals[node.left])
-									lastLiteral = checkedIndex(lastLiterals[node.left])
-								}
-							}
-						}
-					}
-				}
+		} else if node.operation == vmBackref {
+			minimum = checkedIndex(captureMinimums[node.group])
+			maximum = checkedIndex(captureMaximums[node.group])
+		} else if node.operation == nodeSequence {
+			minimum = checkedIndex(captureWidthSum(minimums[node.left], minimums[node.right]))
+			maximum = checkedIndex(captureWidthSum(maximums[node.left], maximums[node.right]))
+			if minimums[node.left] > 0 {
+				firstLiteral = checkedIndex(firstLiterals[node.left])
+			}
+			if minimums[node.right] > 0 {
+				lastLiteral = checkedIndex(lastLiterals[node.right])
+			}
+		} else if node.operation == nodeAlternative {
+			minimum = checkedIndex(minimums[node.left])
+			if minimums[node.right] < minimum {
+				minimum = checkedIndex(minimums[node.right])
+			}
+			maximum = checkedIndex(maximums[node.left])
+			if maximums[node.right] > maximum {
+				maximum = checkedIndex(maximums[node.right])
+			}
+			if firstLiterals[node.left] == firstLiterals[node.right] {
+				firstLiteral = checkedIndex(firstLiterals[node.left])
+			}
+			if lastLiterals[node.left] == lastLiterals[node.right] {
+				lastLiteral = checkedIndex(lastLiterals[node.left])
+			}
+		} else if node.operation == nodeGroup {
+			minimum = checkedIndex(minimums[node.left])
+			maximum = checkedIndex(maximums[node.left])
+			firstLiteral = checkedIndex(firstLiterals[node.left])
+			lastLiteral = checkedIndex(lastLiterals[node.left])
+		} else if node.operation == nodeRepeat {
+			minimum = checkedIndex(captureWidthRepeat(minimums[node.left], node.lower))
+			maximum = checkedIndex(captureWidthRepeat(maximums[node.left], node.upper))
+			if node.unbounded && maximums[node.left] > 0 {
+				maximum = checkedIndex(maxCaptureWork)
+			}
+			if node.lower > 0 && minimums[node.left] > 0 {
+				firstLiteral = checkedIndex(firstLiterals[node.left])
+				lastLiteral = checkedIndex(lastLiterals[node.left])
 			}
 		}
 		if node.operation == nodeGroup && node.group > 0 {
@@ -2551,94 +2414,86 @@ func compileCaptureProgramAtoms(source []rune, tokenEnds []int, syntax rune, val
 		node := nodes[task.node]
 		if node.operation == nodeEmpty {
 			instructions[task.entry] = copycaptureInstruction(makeCaptureStep(vmJump, task.exit, 0, 0, ' '))
-		} else {
-			if node.operation == nodeSequence {
-				middle := len(instructions)
+		} else if node.operation == nodeSequence {
+			middle := len(instructions)
+			checkedAdd(len(instructions), 1)
+			instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmJump, 0, 0, 0, ' ')))
+			checkedAdd(len(tasks), 1)
+			tasks = append(tasks, copycaptureBuildTask(captureBuildTask{node: node.left, entry: task.entry, exit: middle}))
+			checkedAdd(len(tasks), 1)
+			tasks = append(tasks, copycaptureBuildTask(captureBuildTask{node: node.right, entry: middle, exit: task.exit}))
+		} else if node.operation == nodeAlternative {
+			left := len(instructions)
+			checkedAdd(len(instructions), 1)
+			instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmJump, 0, 0, 0, ' ')))
+			right := len(instructions)
+			checkedAdd(len(instructions), 1)
+			instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmJump, 0, 0, 0, ' ')))
+			instructions[task.entry] = copycaptureInstruction(makeCaptureStep(vmSplit, left, right, 0, ' '))
+			checkedAdd(len(tasks), 1)
+			tasks = append(tasks, copycaptureBuildTask(captureBuildTask{node: node.left, entry: left, exit: task.exit}))
+			checkedAdd(len(tasks), 1)
+			tasks = append(tasks, copycaptureBuildTask(captureBuildTask{node: node.right, entry: right, exit: task.exit}))
+		} else if node.operation == nodeGroup {
+			begin := len(instructions)
+			instructions[task.entry] = copycaptureInstruction(makeCaptureStep(vmJump, begin, 0, 0, ' '))
+			checkedAdd(len(instructions), 1)
+			instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmClear, node.first, node.last, 0, ' ')))
+			if node.group > 0 {
+				checkedAdd(len(instructions), 1)
+				instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmOpen, 0, 0, node.group, ' ')))
+			}
+			inner := len(instructions)
+			checkedAdd(len(instructions), 1)
+			instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmJump, 0, 0, 0, ' ')))
+			end := len(instructions)
+			if node.group > 0 {
+				checkedAdd(len(instructions), 1)
+				instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmClose, 0, 0, node.group, ' ')))
+			}
+			checkedAdd(len(instructions), 1)
+			instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmJump, task.exit, 0, 0, ' ')))
+			checkedAdd(len(tasks), 1)
+			tasks = append(tasks, copycaptureBuildTask(captureBuildTask{node: node.left, entry: inner, exit: end}))
+		} else if node.operation == nodeRepeat {
+			entry := task.entry
+			copies := node.upper
+			if node.unbounded {
+				copies = checkedIndex(checkedAdd(node.lower, 1))
+			}
+			count := 0
+			for count < copies {
+				begin := len(instructions)
+				checkedAdd(len(instructions), 1)
+				instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmClear, node.first, node.last, 0, ' ')))
+				inner := len(instructions)
 				checkedAdd(len(instructions), 1)
 				instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmJump, 0, 0, 0, ' ')))
-				checkedAdd(len(tasks), 1)
-				tasks = append(tasks, copycaptureBuildTask(captureBuildTask{node: node.left, entry: task.entry, exit: middle}))
-				checkedAdd(len(tasks), 1)
-				tasks = append(tasks, copycaptureBuildTask(captureBuildTask{node: node.right, entry: middle, exit: task.exit}))
-			} else {
-				if node.operation == nodeAlternative {
-					left := len(instructions)
-					checkedAdd(len(instructions), 1)
-					instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmJump, 0, 0, 0, ' ')))
-					right := len(instructions)
-					checkedAdd(len(instructions), 1)
-					instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmJump, 0, 0, 0, ' ')))
-					instructions[task.entry] = copycaptureInstruction(makeCaptureStep(vmSplit, left, right, 0, ' '))
-					checkedAdd(len(tasks), 1)
-					tasks = append(tasks, copycaptureBuildTask(captureBuildTask{node: node.left, entry: left, exit: task.exit}))
-					checkedAdd(len(tasks), 1)
-					tasks = append(tasks, copycaptureBuildTask(captureBuildTask{node: node.right, entry: right, exit: task.exit}))
+				next := len(instructions)
+				checkedAdd(len(instructions), 1)
+				instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmJump, task.exit, 0, 0, ' ')))
+				if count < node.lower {
+					instructions[entry] = copycaptureInstruction(makeCaptureStep(vmJump, begin, 0, 0, ' '))
 				} else {
-					if node.operation == nodeGroup {
-						begin := len(instructions)
-						instructions[task.entry] = copycaptureInstruction(makeCaptureStep(vmJump, begin, 0, 0, ' '))
-						checkedAdd(len(instructions), 1)
-						instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmClear, node.first, node.last, 0, ' ')))
-						if node.group > 0 {
-							checkedAdd(len(instructions), 1)
-							instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmOpen, 0, 0, node.group, ' ')))
-						}
-						inner := len(instructions)
-						checkedAdd(len(instructions), 1)
-						instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmJump, 0, 0, 0, ' ')))
-						end := len(instructions)
-						if node.group > 0 {
-							checkedAdd(len(instructions), 1)
-							instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmClose, 0, 0, node.group, ' ')))
-						}
-						checkedAdd(len(instructions), 1)
-						instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmJump, task.exit, 0, 0, ' ')))
-						checkedAdd(len(tasks), 1)
-						tasks = append(tasks, copycaptureBuildTask(captureBuildTask{node: node.left, entry: inner, exit: end}))
-					} else {
-						if node.operation == nodeRepeat {
-							entry := task.entry
-							copies := node.upper
-							if node.unbounded {
-								copies = checkedIndex(checkedAdd(node.lower, 1))
-							}
-							count := 0
-							for count < copies {
-								begin := len(instructions)
-								checkedAdd(len(instructions), 1)
-								instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmClear, node.first, node.last, 0, ' ')))
-								inner := len(instructions)
-								checkedAdd(len(instructions), 1)
-								instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmJump, 0, 0, 0, ' ')))
-								next := len(instructions)
-								checkedAdd(len(instructions), 1)
-								instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmJump, task.exit, 0, 0, ' ')))
-								if count < node.lower {
-									instructions[entry] = copycaptureInstruction(makeCaptureStep(vmJump, begin, 0, 0, ' '))
-								} else {
-									instructions[entry] = copycaptureInstruction(makeCaptureStep(vmSplit, begin, task.exit, 0, ' '))
-								}
-								exit := next
-								if node.unbounded && count == node.lower {
-									exit = checkedIndex(entry)
-								}
-								checkedAdd(len(tasks), 1)
-								tasks = append(tasks, copycaptureBuildTask(captureBuildTask{node: node.left, entry: inner, exit: exit}))
-								entry = checkedIndex(next)
-								count = checkedAdd(count, 1)
-							}
-							instructions[entry] = copycaptureInstruction(makeCaptureStep(vmJump, task.exit, 0, 0, ' '))
-						} else {
-							begin := len(instructions)
-							instructions[task.entry] = copycaptureInstruction(makeCaptureStep(vmJump, begin, 0, 0, ' '))
-							checkedAdd(len(instructions), 1)
-							instructions = append(instructions, copycaptureInstruction(makeCaptureStep(node.operation, 0, 0, node.group, node.atom)))
-							checkedAdd(len(instructions), 1)
-							instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmJump, task.exit, 0, 0, ' ')))
-						}
-					}
+					instructions[entry] = copycaptureInstruction(makeCaptureStep(vmSplit, begin, task.exit, 0, ' '))
 				}
+				exit := next
+				if node.unbounded && count == node.lower {
+					exit = checkedIndex(entry)
+				}
+				checkedAdd(len(tasks), 1)
+				tasks = append(tasks, copycaptureBuildTask(captureBuildTask{node: node.left, entry: inner, exit: exit}))
+				entry = checkedIndex(next)
+				count = checkedAdd(count, 1)
 			}
+			instructions[entry] = copycaptureInstruction(makeCaptureStep(vmJump, task.exit, 0, 0, ' '))
+		} else {
+			begin := len(instructions)
+			instructions[task.entry] = copycaptureInstruction(makeCaptureStep(vmJump, begin, 0, 0, ' '))
+			checkedAdd(len(instructions), 1)
+			instructions = append(instructions, copycaptureInstruction(makeCaptureStep(node.operation, 0, 0, node.group, node.atom)))
+			checkedAdd(len(instructions), 1)
+			instructions = append(instructions, copycaptureInstruction(makeCaptureStep(vmJump, task.exit, 0, 0, ' ')))
 		}
 	}
 	if len(instructions) > maxCaptureInstructions {
@@ -2802,369 +2657,325 @@ func executeCaptureTree(program *CompiledRegex, subject string, from int, exactE
 				if phase == dissectEnter && (checkedSubtract(frame.end, frame.begin) < minimum || checkedSubtract(frame.end, frame.begin) > maximum) {
 					success = false
 					complete = true
-				} else {
-					if phase == dissectEnter {
-						success = false
-						returned = checkedIndex(frame.capture)
-						if node.operation == nodeSequence {
-							span := checkedSubtract(frame.end, frame.begin)
-							leftMinimum := program.minimums[node.left]
-							rightMinimum := program.minimums[node.right]
-							if leftMinimum > span || rightMinimum > span {
+				} else if phase == dissectEnter {
+					success = false
+					returned = checkedIndex(frame.capture)
+					if node.operation == nodeSequence {
+						span := checkedSubtract(frame.end, frame.begin)
+						leftMinimum := program.minimums[node.left]
+						rightMinimum := program.minimums[node.right]
+						if leftMinimum > span || rightMinimum > span {
+							complete = true
+						} else {
+							lower := checkedAdd(frame.begin, leftMinimum)
+							if program.maximums[node.right] < span && checkedSubtract(frame.end, program.maximums[node.right]) > lower {
+								lower = checkedIndex(checkedSubtract(frame.end, program.maximums[node.right]))
+							}
+							upper := checkedSubtract(frame.end, rightMinimum)
+							if program.maximums[node.left] < span && checkedAdd(frame.begin, program.maximums[node.left]) < upper {
+								upper = checkedIndex(checkedAdd(frame.begin, program.maximums[node.left]))
+							}
+							if lower > upper {
 								complete = true
 							} else {
-								lower := checkedAdd(frame.begin, leftMinimum)
-								if program.maximums[node.right] < span && checkedSubtract(frame.end, program.maximums[node.right]) > lower {
-									lower = checkedIndex(checkedSubtract(frame.end, program.maximums[node.right]))
+								cursor = checkedIndex(upper)
+								if childShortest {
+									cursor = checkedIndex(lower)
 								}
-								upper := checkedSubtract(frame.end, rightMinimum)
-								if program.maximums[node.left] < span && checkedAdd(frame.begin, program.maximums[node.left]) < upper {
-									upper = checkedIndex(checkedAdd(frame.begin, program.maximums[node.left]))
+								phase = checkedIndex(dissectLeft)
+								possible := true
+								if cursor > frame.begin && captureBoundaryMatches(program.lastLiterals[node.left], haystack[checkedSubtract(cursor, 1)], caseSensitive) == false {
+									possible = false
 								}
-								if lower > upper {
-									complete = true
+								if cursor < frame.end && captureBoundaryMatches(program.firstLiterals[node.right], haystack[cursor], caseSensitive) == false {
+									possible = false
+								}
+								if possible == false {
+									advance = true
 								} else {
-									cursor = checkedIndex(upper)
-									if childShortest {
-										cursor = checkedIndex(lower)
-									}
-									phase = checkedIndex(dissectLeft)
-									possible := true
-									if cursor > frame.begin && captureBoundaryMatches(program.lastLiterals[node.left], haystack[checkedSubtract(cursor, 1)], caseSensitive) == false {
-										possible = false
-									}
-									if cursor < frame.end && captureBoundaryMatches(program.firstLiterals[node.right], haystack[cursor], caseSensitive) == false {
-										possible = false
-									}
-									if possible == false {
-										advance = true
-									} else {
-										child = true
-										childEnd = checkedIndex(cursor)
-									}
-								}
-							}
-						} else {
-							if node.operation == nodeAlternative {
-								child = true
-								phase = checkedIndex(dissectAlternative)
-							} else {
-								if node.operation == nodeGroup {
 									child = true
-									clear = true
-									phase = checkedIndex(dissectGroup)
-								} else {
-									if node.operation >= nodeLookahead && node.operation <= nodeNotLookbehind {
-										if frame.begin != frame.end {
-											complete = true
-										} else {
-											available := checkedSubtract(len(haystack), frame.begin)
-											if node.operation >= nodeLookbehind {
-												available = checkedIndex(frame.begin)
-											}
-											minimumWidth := program.minimums[node.left]
-											maximumWidth := program.maximums[node.left]
-											if maximumWidth > available {
-												maximumWidth = checkedIndex(available)
-											}
-											if minimumWidth > available {
-												success = node.operation == nodeNotLookahead || node.operation == nodeNotLookbehind
-												complete = true
-											} else {
-												cursor = checkedIndex(checkedAdd(frame.begin, minimumWidth))
-												childEnd = checkedIndex(cursor)
-												if node.operation >= nodeLookbehind {
-													cursor = checkedIndex(checkedSubtract(frame.begin, maximumWidth))
-													childBegin = checkedIndex(cursor)
-													childEnd = checkedIndex(frame.begin)
-												}
-												child = true
-												phase = checkedIndex(dissectAssertion)
-											}
-										}
-									} else {
-										if node.operation == nodeRepeat && repeatedReference == false {
-											if frame.prefix == false && lower > 0 && program.references[node.left] == 0 {
-												cursor = checkedIndex(frame.end)
-												if node.preference == 2 {
-													cursor = checkedIndex(frame.begin)
-												}
-												child = true
-												childNode = checkedIndex(frame.node)
-												childPrefix = true
-												childEnd = checkedIndex(cursor)
-												phase = checkedIndex(dissectPrefix)
-											} else {
-												if upper == 0 && node.unbounded == false {
-													success = frame.begin == frame.end
-													complete = true
-												} else {
-													if childShortest && lower == 0 && frame.begin == frame.end {
-														success = true
-														complete = true
-													} else {
-														endpoint := captureRepeatEndpoint(frame.begin, frame.end, program.minimums[node.left], program.maximums[node.left], childShortest)
-														path = checkedIndex(len(paths))
-														checkedAdd(len(paths), 1)
-														paths = append(paths, copycaptureRepeatPath(captureRepeatPath{begin: frame.begin, cursor: endpoint, capture: frame.capture, count: 0, previous: 0}))
-														phase = checkedIndex(dissectIteration)
-													}
-												}
-											}
-										} else {
-											matched := false
-											end := frame.begin
-											if node.operation == nodeEmpty {
-												matched = true
-											} else {
-												if captureAssertion(node.operation) {
-													before := end > 0 && zeroWidthWord(haystack[checkedSubtract(end, 1)])
-													after := end < len(haystack) && zeroWidthWord(haystack[end])
-													previousNewline := end > 0 && haystack[checkedSubtract(end, 1)] == '\n'
-													nextNewline := end < len(haystack) && haystack[end] == '\n'
-													matched = captureAssertionMatches(node.operation, end, len(haystack), before, after, previousNewline, nextNewline, lineAnchors)
-												} else {
-													if node.operation == vmBackref || repeatedReference {
-														reference := node.group
-														minimumRepeats := 1
-														maximumRepeats := 1
-														unboundedRepeats := false
-														if repeatedReference {
-															reference = checkedIndex(program.nodes[node.left].group)
-															minimumRepeats = checkedIndex(lower)
-															maximumRepeats = checkedIndex(upper)
-															unboundedRepeats = node.unbounded
-														}
-														register := captures[checkedAdd(frame.capture, reference)]
-														length := checkedSubtract(register.end, register.start)
-														matched = register.status == 2
-														if length == 0 {
-															matched = matched && end == frame.end
-														} else {
-															repeats := 0
-															for matched && end < frame.end {
-																matched = length <= checkedSubtract(frame.end, end) && (unboundedRepeats || repeats < maximumRepeats)
-																offset := 0
-																for matched && offset < length {
-																	if work == maxCaptureWork {
-																		return captureTreeResult(2, 0, work)
-																	}
-																	work = checkedAdd(work, 1)
-																	actual := haystack[checkedAdd(end, offset)]
-																	expected := haystack[checkedAdd(register.start, offset)]
-																	matched = actual == expected || (caseSensitive == false && asciiLowercase(actual) == asciiLowercase(expected))
-																	offset = checkedAdd(offset, 1)
-																}
-																if matched {
-																	end = checkedAdd(end, length)
-																	repeats = checkedAdd(repeats, 1)
-																}
-															}
-															matched = matched && repeats >= minimumRepeats
-														}
-													} else {
-														if node.operation == vmClass {
-															if end < len(haystack) {
-																classPosition := node.group
-																included := false
-																for program.classMembers[classPosition].kind > 0 {
-																	if work == maxCaptureWork {
-																		return captureTreeResult(2, 0, work)
-																	}
-																	work = checkedAdd(work, 1)
-																	if captureClassMemberMatches(program.classMembers[classPosition], haystack[end], caseSensitive) {
-																		included = true
-																	}
-																	classPosition = checkedAdd(classPosition, 1)
-																}
-																negated := node.atom == '^'
-																matched = included != negated && (negated == false || dotCrossesNewline || haystack[end] != '\n')
-																if matched {
-																	end = checkedAdd(end, 1)
-																}
-															}
-														} else {
-															if end < len(haystack) {
-																actual := haystack[end]
-																numericLower := node.group
-																if numericLower >= 65 && numericLower <= 90 {
-																	numericLower = checkedAdd(numericLower, 32)
-																}
-																matched = (node.operation == vmAny && (dotCrossesNewline || actual != '\n')) || (node.operation == vmWord && zeroWidthWord(actual)) || (node.operation == vmNumeric && ((checkedIndex((int(checkedChar(actual))))) == node.group || (caseSensitive == false && (checkedIndex((int(checkedChar(asciiLowercase(actual)))))) == numericLower))) || (node.operation == vmLiteral && (actual == node.atom || (caseSensitive == false && asciiLowercase(actual) == asciiLowercase(node.atom))))
-																if matched {
-																	end = checkedAdd(end, 1)
-																}
-															}
-														}
-													}
-												}
-											}
-											success = matched && end == frame.end
-											complete = true
-										}
-									}
+									childEnd = checkedIndex(cursor)
 								}
 							}
+						}
+					} else if node.operation == nodeAlternative {
+						child = true
+						phase = checkedIndex(dissectAlternative)
+					} else if node.operation == nodeGroup {
+						child = true
+						clear = true
+						phase = checkedIndex(dissectGroup)
+					} else if node.operation >= nodeLookahead && node.operation <= nodeNotLookbehind {
+						if frame.begin != frame.end {
+							complete = true
+						} else {
+							available := checkedSubtract(len(haystack), frame.begin)
+							if node.operation >= nodeLookbehind {
+								available = checkedIndex(frame.begin)
+							}
+							minimumWidth := program.minimums[node.left]
+							maximumWidth := program.maximums[node.left]
+							if maximumWidth > available {
+								maximumWidth = checkedIndex(available)
+							}
+							if minimumWidth > available {
+								success = node.operation == nodeNotLookahead || node.operation == nodeNotLookbehind
+								complete = true
+							} else {
+								cursor = checkedIndex(checkedAdd(frame.begin, minimumWidth))
+								childEnd = checkedIndex(cursor)
+								if node.operation >= nodeLookbehind {
+									cursor = checkedIndex(checkedSubtract(frame.begin, maximumWidth))
+									childBegin = checkedIndex(cursor)
+									childEnd = checkedIndex(frame.begin)
+								}
+								child = true
+								phase = checkedIndex(dissectAssertion)
+							}
+						}
+					} else if node.operation == nodeRepeat && repeatedReference == false {
+						if frame.prefix == false && lower > 0 && program.references[node.left] == 0 {
+							cursor = checkedIndex(frame.end)
+							if node.preference == 2 {
+								cursor = checkedIndex(frame.begin)
+							}
+							child = true
+							childNode = checkedIndex(frame.node)
+							childPrefix = true
+							childEnd = checkedIndex(cursor)
+							phase = checkedIndex(dissectPrefix)
+						} else if upper == 0 && node.unbounded == false {
+							success = frame.begin == frame.end
+							complete = true
+						} else if childShortest && lower == 0 && frame.begin == frame.end {
+							success = true
+							complete = true
+						} else {
+							endpoint := captureRepeatEndpoint(frame.begin, frame.end, program.minimums[node.left], program.maximums[node.left], childShortest)
+							path = checkedIndex(len(paths))
+							checkedAdd(len(paths), 1)
+							paths = append(paths, copycaptureRepeatPath(captureRepeatPath{begin: frame.begin, cursor: endpoint, capture: frame.capture, count: 0, previous: 0}))
+							phase = checkedIndex(dissectIteration)
 						}
 					} else {
-						if phase == dissectLeft || phase == dissectPrefix {
-							if success {
-								child = true
-								childBegin = checkedIndex(cursor)
-								childCapture = checkedIndex(returned)
-								childNode = checkedIndex(node.right)
-								phase = checkedIndex(dissectRight)
-								if node.operation == nodeRepeat {
-									childNode = checkedIndex(node.left)
-									phase = checkedIndex(dissectLastRepeat)
-									clear = true
-								}
-							} else {
-								advance = true
+						matched := false
+						end := frame.begin
+						if node.operation == nodeEmpty {
+							matched = true
+						} else if captureAssertion(node.operation) {
+							before := end > 0 && zeroWidthWord(haystack[checkedSubtract(end, 1)])
+							after := end < len(haystack) && zeroWidthWord(haystack[end])
+							previousNewline := end > 0 && haystack[checkedSubtract(end, 1)] == '\n'
+							nextNewline := end < len(haystack) && haystack[end] == '\n'
+							matched = captureAssertionMatches(node.operation, end, len(haystack), before, after, previousNewline, nextNewline, lineAnchors)
+						} else if node.operation == vmBackref || repeatedReference {
+							reference := node.group
+							minimumRepeats := 1
+							maximumRepeats := 1
+							unboundedRepeats := false
+							if repeatedReference {
+								reference = checkedIndex(program.nodes[node.left].group)
+								minimumRepeats = checkedIndex(lower)
+								maximumRepeats = checkedIndex(upper)
+								unboundedRepeats = node.unbounded
 							}
-						} else {
-							if phase == dissectRight || phase == dissectLastRepeat {
-								if success {
-									complete = true
-								} else {
-									advance = true
-								}
+							register := captures[checkedAdd(frame.capture, reference)]
+							length := checkedSubtract(register.end, register.start)
+							matched = register.status == 2
+							if length == 0 {
+								matched = matched && end == frame.end
 							} else {
-								if phase == dissectGroup {
-									if success && width > 0 && node.group > 0 {
-										snapshot := len(captures)
-										group = checkedIndex(0)
-										for group < width {
-											if work == maxCaptureWork {
-												return captureTreeResult(2, 0, work)
-											}
-											work = checkedAdd(work, 1)
-											if group == node.group {
-												checkedAdd(len(captures), 1)
-												captures = append(captures, copycaptureRegister(captureRegister{start: frame.begin, end: frame.end, status: 2}))
-											} else {
-												checkedAdd(len(captures), 1)
-												captures = append(captures, copycaptureRegister(captures[checkedAdd(returned, group)]))
-											}
-											group = checkedAdd(group, 1)
+								repeats := 0
+								for matched && end < frame.end {
+									matched = length <= checkedSubtract(frame.end, end) && (unboundedRepeats || repeats < maximumRepeats)
+									offset := 0
+									for matched && offset < length {
+										if work == maxCaptureWork {
+											return captureTreeResult(2, 0, work)
 										}
-										returned = checkedIndex(snapshot)
+										work = checkedAdd(work, 1)
+										actual := haystack[checkedAdd(end, offset)]
+										expected := haystack[checkedAdd(register.start, offset)]
+										matched = actual == expected || (caseSensitive == false && asciiLowercase(actual) == asciiLowercase(expected))
+										offset = checkedAdd(offset, 1)
 									}
-									complete = true
-								} else {
-									if phase == dissectAlternative {
-										if success {
-											complete = true
-										} else {
-											child = true
-											childNode = checkedIndex(node.right)
-											phase = checkedIndex(dissectLastAlternative)
-										}
-									} else {
-										if phase == dissectLastAlternative {
-											complete = true
-										} else {
-											if phase == dissectAssertion {
-												if success {
-													success = node.operation == nodeLookahead || node.operation == nodeLookbehind
-													returned = checkedIndex(frame.capture)
-													complete = true
-												} else {
-													limit := len(haystack)
-													if node.operation >= nodeLookbehind {
-														limit = checkedIndex(checkedSubtract(frame.begin, program.minimums[node.left]))
-													} else {
-														if program.maximums[node.left] < checkedSubtract(len(haystack), frame.begin) {
-															limit = checkedIndex(checkedAdd(frame.begin, program.maximums[node.left]))
-														}
-													}
-													if cursor == limit {
-														success = node.operation == nodeNotLookahead || node.operation == nodeNotLookbehind
-														returned = checkedIndex(frame.capture)
-														complete = true
-													} else {
-														cursor = checkedAdd(cursor, 1)
-														child = true
-														if node.operation >= nodeLookbehind {
-															childBegin = checkedIndex(cursor)
-															childEnd = checkedIndex(frame.begin)
-														} else {
-															childEnd = checkedIndex(cursor)
-														}
-													}
-												}
-											} else {
-												if phase == dissectIteration {
-													current := paths[path]
-													count := checkedAdd(current.count, 1)
-													minimum := lower
-													if minimum == 0 {
-														minimum = checkedIndex(1)
-													}
-													maximum := checkedSubtract(frame.end, frame.begin)
-													if node.unbounded == false && upper < maximum {
-														maximum = checkedIndex(upper)
-													}
-													if maximum < minimum {
-														maximum = checkedIndex(minimum)
-													}
-													if (current.cursor == current.begin && current.cursor != frame.end && (count >= minimum || checkedSubtract(minimum, count) < checkedSubtract(frame.end, current.cursor))) || (count == maximum && current.cursor != frame.end) || (current.cursor == frame.end && count < minimum) {
-														phase = checkedIndex(dissectIterationAdvance)
-													} else {
-														child = true
-														childBegin = checkedIndex(current.begin)
-														childEnd = checkedIndex(current.cursor)
-														childCapture = checkedIndex(current.capture)
-														clear = true
-														phase = checkedIndex(dissectIterationResult)
-													}
-												} else {
-													if phase == dissectIterationResult {
-														current := paths[path]
-														if success && current.cursor == frame.end {
-															complete = true
-														} else {
-															if success {
-																endpoint := captureRepeatEndpoint(current.cursor, frame.end, program.minimums[node.left], program.maximums[node.left], childShortest)
-																previous := path
-																path = checkedIndex(len(paths))
-																checkedAdd(len(paths), 1)
-																paths = append(paths, copycaptureRepeatPath(captureRepeatPath{begin: current.cursor, cursor: endpoint, capture: returned, count: checkedAdd(current.count, 1), previous: previous}))
-																phase = checkedIndex(dissectIteration)
-															} else {
-																phase = checkedIndex(dissectIterationAdvance)
-															}
-														}
-													} else {
-														if phase == dissectIterationAdvance {
-															current := paths[path]
-															endpoint := current.cursor
-															limit := captureRepeatEndpoint(current.begin, frame.end, program.minimums[node.left], program.maximums[node.left], childShortest == false)
-															if endpoint == limit {
-																path = checkedIndex(current.previous)
-																if path == 0 {
-																	success = lower == 0 && frame.begin == frame.end
-																	returned = checkedIndex(frame.capture)
-																	complete = true
-																}
-															} else {
-																if childShortest {
-																	endpoint = checkedAdd(endpoint, 1)
-																} else {
-																	endpoint = checkedIndex(checkedSubtract(endpoint, 1))
-																}
-																paths[path] = copycaptureRepeatPath(captureRepeatPath{begin: current.begin, cursor: endpoint, capture: current.capture, count: current.count, previous: current.previous})
-																phase = checkedIndex(dissectIteration)
-															}
-														}
-													}
-												}
-											}
-										}
+									if matched {
+										end = checkedAdd(end, length)
+										repeats = checkedAdd(repeats, 1)
 									}
 								}
+								matched = matched && repeats >= minimumRepeats
+							}
+						} else if node.operation == vmClass {
+							if end < len(haystack) {
+								classPosition := node.group
+								included := false
+								for program.classMembers[classPosition].kind > 0 {
+									if work == maxCaptureWork {
+										return captureTreeResult(2, 0, work)
+									}
+									work = checkedAdd(work, 1)
+									if captureClassMemberMatches(program.classMembers[classPosition], haystack[end], caseSensitive) {
+										included = true
+									}
+									classPosition = checkedAdd(classPosition, 1)
+								}
+								negated := node.atom == '^'
+								matched = included != negated && (negated == false || dotCrossesNewline || haystack[end] != '\n')
+								if matched {
+									end = checkedAdd(end, 1)
+								}
+							}
+						} else if end < len(haystack) {
+							actual := haystack[end]
+							numericLower := node.group
+							if numericLower >= 65 && numericLower <= 90 {
+								numericLower = checkedAdd(numericLower, 32)
+							}
+							matched = (node.operation == vmAny && (dotCrossesNewline || actual != '\n')) || (node.operation == vmWord && zeroWidthWord(actual)) || (node.operation == vmNumeric && ((checkedIndex((int(checkedChar(actual))))) == node.group || (caseSensitive == false && (checkedIndex((int(checkedChar(asciiLowercase(actual)))))) == numericLower))) || (node.operation == vmLiteral && (actual == node.atom || (caseSensitive == false && asciiLowercase(actual) == asciiLowercase(node.atom))))
+							if matched {
+								end = checkedAdd(end, 1)
 							}
 						}
+						success = matched && end == frame.end
+						complete = true
+					}
+				} else if phase == dissectLeft || phase == dissectPrefix {
+					if success {
+						child = true
+						childBegin = checkedIndex(cursor)
+						childCapture = checkedIndex(returned)
+						childNode = checkedIndex(node.right)
+						phase = checkedIndex(dissectRight)
+						if node.operation == nodeRepeat {
+							childNode = checkedIndex(node.left)
+							phase = checkedIndex(dissectLastRepeat)
+							clear = true
+						}
+					} else {
+						advance = true
+					}
+				} else if phase == dissectRight || phase == dissectLastRepeat {
+					if success {
+						complete = true
+					} else {
+						advance = true
+					}
+				} else if phase == dissectGroup {
+					if success && width > 0 && node.group > 0 {
+						snapshot := len(captures)
+						group = checkedIndex(0)
+						for group < width {
+							if work == maxCaptureWork {
+								return captureTreeResult(2, 0, work)
+							}
+							work = checkedAdd(work, 1)
+							if group == node.group {
+								checkedAdd(len(captures), 1)
+								captures = append(captures, copycaptureRegister(captureRegister{start: frame.begin, end: frame.end, status: 2}))
+							} else {
+								checkedAdd(len(captures), 1)
+								captures = append(captures, copycaptureRegister(captures[checkedAdd(returned, group)]))
+							}
+							group = checkedAdd(group, 1)
+						}
+						returned = checkedIndex(snapshot)
+					}
+					complete = true
+				} else if phase == dissectAlternative {
+					if success {
+						complete = true
+					} else {
+						child = true
+						childNode = checkedIndex(node.right)
+						phase = checkedIndex(dissectLastAlternative)
+					}
+				} else if phase == dissectLastAlternative {
+					complete = true
+				} else if phase == dissectAssertion {
+					if success {
+						success = node.operation == nodeLookahead || node.operation == nodeLookbehind
+						returned = checkedIndex(frame.capture)
+						complete = true
+					} else {
+						limit := len(haystack)
+						if node.operation >= nodeLookbehind {
+							limit = checkedIndex(checkedSubtract(frame.begin, program.minimums[node.left]))
+						} else if program.maximums[node.left] < checkedSubtract(len(haystack), frame.begin) {
+							limit = checkedIndex(checkedAdd(frame.begin, program.maximums[node.left]))
+						}
+						if cursor == limit {
+							success = node.operation == nodeNotLookahead || node.operation == nodeNotLookbehind
+							returned = checkedIndex(frame.capture)
+							complete = true
+						} else {
+							cursor = checkedAdd(cursor, 1)
+							child = true
+							if node.operation >= nodeLookbehind {
+								childBegin = checkedIndex(cursor)
+								childEnd = checkedIndex(frame.begin)
+							} else {
+								childEnd = checkedIndex(cursor)
+							}
+						}
+					}
+				} else if phase == dissectIteration {
+					current := paths[path]
+					count := checkedAdd(current.count, 1)
+					minimum := lower
+					if minimum == 0 {
+						minimum = checkedIndex(1)
+					}
+					maximum := checkedSubtract(frame.end, frame.begin)
+					if node.unbounded == false && upper < maximum {
+						maximum = checkedIndex(upper)
+					}
+					if maximum < minimum {
+						maximum = checkedIndex(minimum)
+					}
+					if (current.cursor == current.begin && current.cursor != frame.end && (count >= minimum || checkedSubtract(minimum, count) < checkedSubtract(frame.end, current.cursor))) || (count == maximum && current.cursor != frame.end) || (current.cursor == frame.end && count < minimum) {
+						phase = checkedIndex(dissectIterationAdvance)
+					} else {
+						child = true
+						childBegin = checkedIndex(current.begin)
+						childEnd = checkedIndex(current.cursor)
+						childCapture = checkedIndex(current.capture)
+						clear = true
+						phase = checkedIndex(dissectIterationResult)
+					}
+				} else if phase == dissectIterationResult {
+					current := paths[path]
+					if success && current.cursor == frame.end {
+						complete = true
+					} else if success {
+						endpoint := captureRepeatEndpoint(current.cursor, frame.end, program.minimums[node.left], program.maximums[node.left], childShortest)
+						previous := path
+						path = checkedIndex(len(paths))
+						checkedAdd(len(paths), 1)
+						paths = append(paths, copycaptureRepeatPath(captureRepeatPath{begin: current.cursor, cursor: endpoint, capture: returned, count: checkedAdd(current.count, 1), previous: previous}))
+						phase = checkedIndex(dissectIteration)
+					} else {
+						phase = checkedIndex(dissectIterationAdvance)
+					}
+				} else if phase == dissectIterationAdvance {
+					current := paths[path]
+					endpoint := current.cursor
+					limit := captureRepeatEndpoint(current.begin, frame.end, program.minimums[node.left], program.maximums[node.left], childShortest == false)
+					if endpoint == limit {
+						path = checkedIndex(current.previous)
+						if path == 0 {
+							success = lower == 0 && frame.begin == frame.end
+							returned = checkedIndex(frame.capture)
+							complete = true
+						}
+					} else {
+						if childShortest {
+							endpoint = checkedAdd(endpoint, 1)
+						} else {
+							endpoint = checkedIndex(checkedSubtract(endpoint, 1))
+						}
+						paths[path] = copycaptureRepeatPath(captureRepeatPath{begin: current.begin, cursor: endpoint, capture: current.capture, count: current.count, previous: current.previous})
+						phase = checkedIndex(dissectIteration)
 					}
 				}
 				if advance {
@@ -3312,12 +3123,10 @@ func executeCaptureTree(program *CompiledRegex, subject string, from int, exactE
 				} else {
 					matchEnd = checkedAdd(matchEnd, 1)
 				}
+			} else if matchEnd == minimumEnd {
+				searching = false
 			} else {
-				if matchEnd == minimumEnd {
-					searching = false
-				} else {
-					matchEnd = checkedIndex(checkedSubtract(matchEnd, 1))
-				}
+				matchEnd = checkedIndex(checkedSubtract(matchEnd, 1))
 			}
 		}
 		if exactMatch {
@@ -3365,29 +3174,21 @@ func executeCaptureProgram(program *CompiledRegex, subject string, from int, cas
 	from = checkedIndex(from)
 	if program.caseMode == 'i' {
 		caseSensitive = false
-	} else {
-		if program.caseMode == 'c' {
-			caseSensitive = true
-		}
+	} else if program.caseMode == 'c' {
+		caseSensitive = true
 	}
 	if program.newlineMode == 'm' || program.newlineMode == 'n' {
 		dotCrossesNewline = false
 		lineAnchors = true
-	} else {
-		if program.newlineMode == 'p' {
-			dotCrossesNewline = false
-			lineAnchors = false
-		} else {
-			if program.newlineMode == 'w' {
-				dotCrossesNewline = true
-				lineAnchors = true
-			} else {
-				if program.newlineMode == 's' {
-					dotCrossesNewline = true
-					lineAnchors = false
-				}
-			}
-		}
+	} else if program.newlineMode == 'p' {
+		dotCrossesNewline = false
+		lineAnchors = false
+	} else if program.newlineMode == 'w' {
+		dotCrossesNewline = true
+		lineAnchors = true
+	} else if program.newlineMode == 's' {
+		dotCrossesNewline = true
+		lineAnchors = false
 	}
 	if program.interpreted && program.prefilter == false {
 		return executeCaptureTreeSearch(program, subject, from, 0, false, caseSensitive, dotCrossesNewline, lineAnchors, counting, capturing, collecting, 0)
@@ -3458,8 +3259,30 @@ func executeCaptureProgram(program *CompiledRegex, subject string, from int, cas
 							bestStart = checkedIndex(start)
 							bestEnd = checkedIndex(position)
 						}
-					} else {
-						if projected && (step.operation == vmBackref || (step.operation >= nodeLookahead && step.operation <= nodeNotLookbehind)) {
+					} else if projected && (step.operation == vmBackref || (step.operation >= nodeLookahead && step.operation <= nodeNotLookbehind)) {
+						resumed := patternWorkState{pattern: checkedAdd(instruction, 1), subject: start}
+						if stackLen == len(stack) {
+							checkedAdd(len(stack), 1)
+							stack = append(stack, copypatternWorkState(resumed))
+						} else {
+							stack[stackLen] = copypatternWorkState(resumed)
+						}
+						stackLen = checkedAdd(stackLen, 1)
+						if step.operation == vmBackref && position < len(haystack) {
+							if nextLen == len(next) {
+								checkedAdd(len(next), 1)
+								next = append(next, copypatternWorkState(state))
+							} else {
+								next[nextLen] = copypatternWorkState(state)
+							}
+							nextLen = checkedAdd(nextLen, 1)
+						}
+					} else if captureAssertion(step.operation) {
+						before := position > 0 && zeroWidthWord(haystack[checkedSubtract(position, 1)])
+						after := position < len(haystack) && zeroWidthWord(haystack[position])
+						previousNewline := position > 0 && haystack[checkedSubtract(position, 1)] == '\n'
+						nextNewline := position < len(haystack) && haystack[position] == '\n'
+						if captureAssertionMatches(step.operation, position, len(haystack), before, after, previousNewline, nextNewline, lineAnchors) {
 							resumed := patternWorkState{pattern: checkedAdd(instruction, 1), subject: start}
 							if stackLen == len(stack) {
 								checkedAdd(len(stack), 1)
@@ -3468,120 +3291,86 @@ func executeCaptureProgram(program *CompiledRegex, subject string, from int, cas
 								stack[stackLen] = copypatternWorkState(resumed)
 							}
 							stackLen = checkedAdd(stackLen, 1)
-							if step.operation == vmBackref && position < len(haystack) {
+						}
+					} else if step.operation == vmSplit {
+						skipped := patternWorkState{pattern: step.alternate, subject: start}
+						if stackLen == len(stack) {
+							checkedAdd(len(stack), 1)
+							stack = append(stack, copypatternWorkState(skipped))
+						} else {
+							stack[stackLen] = copypatternWorkState(skipped)
+						}
+						stackLen = checkedAdd(stackLen, 1)
+						branch := patternWorkState{pattern: step.target, subject: start}
+						if stackLen == len(stack) {
+							checkedAdd(len(stack), 1)
+							stack = append(stack, copypatternWorkState(branch))
+						} else {
+							stack[stackLen] = copypatternWorkState(branch)
+						}
+						stackLen = checkedAdd(stackLen, 1)
+					} else if step.operation == vmJump || step.operation == vmClear || step.operation == vmOpen || step.operation == vmClose {
+						target := checkedAdd(instruction, 1)
+						if step.operation == vmJump {
+							target = checkedIndex(step.target)
+						}
+						resumed := patternWorkState{pattern: target, subject: start}
+						if stackLen == len(stack) {
+							checkedAdd(len(stack), 1)
+							stack = append(stack, copypatternWorkState(resumed))
+						} else {
+							stack[stackLen] = copypatternWorkState(resumed)
+						}
+						stackLen = checkedAdd(stackLen, 1)
+					} else if step.operation == vmClass {
+						if position < len(haystack) {
+							classPosition := step.group
+							included := false
+							for program.classMembers[classPosition].kind > 0 {
+								if work == maxCaptureWork {
+									if projected {
+										return executeCaptureTreeSearch(program, subject, from, 0, false, caseSensitive, dotCrossesNewline, lineAnchors, counting, capturing, collecting, 0)
+									}
+									return makeCaptureRunResult(2, 0, 0, 0)
+								}
+								work = checkedAdd(work, 1)
+								if captureClassMemberMatches(program.classMembers[classPosition], haystack[position], caseSensitive) {
+									included = true
+								}
+								classPosition = checkedAdd(classPosition, 1)
+							}
+							negated := step.atom == '^'
+							matched := included != negated && (negated == false || dotCrossesNewline || haystack[position] != '\n')
+							if matched {
+								resumed := patternWorkState{pattern: checkedAdd(instruction, 1), subject: start}
 								if nextLen == len(next) {
 									checkedAdd(len(next), 1)
-									next = append(next, copypatternWorkState(state))
+									next = append(next, copypatternWorkState(resumed))
 								} else {
-									next[nextLen] = copypatternWorkState(state)
+									next[nextLen] = copypatternWorkState(resumed)
 								}
 								nextLen = checkedAdd(nextLen, 1)
 							}
-						} else {
-							if captureAssertion(step.operation) {
-								before := position > 0 && zeroWidthWord(haystack[checkedSubtract(position, 1)])
-								after := position < len(haystack) && zeroWidthWord(haystack[position])
-								previousNewline := position > 0 && haystack[checkedSubtract(position, 1)] == '\n'
-								nextNewline := position < len(haystack) && haystack[position] == '\n'
-								if captureAssertionMatches(step.operation, position, len(haystack), before, after, previousNewline, nextNewline, lineAnchors) {
-									resumed := patternWorkState{pattern: checkedAdd(instruction, 1), subject: start}
-									if stackLen == len(stack) {
-										checkedAdd(len(stack), 1)
-										stack = append(stack, copypatternWorkState(resumed))
-									} else {
-										stack[stackLen] = copypatternWorkState(resumed)
-									}
-									stackLen = checkedAdd(stackLen, 1)
-								}
+						}
+					} else if position < len(haystack) {
+						actual := haystack[position]
+						codepoint := int(checkedChar(actual))
+						lowercase := int(checkedChar(asciiLowercase(actual)))
+						word := (codepoint >= 48 && codepoint <= 57) || (lowercase >= 97 && lowercase <= 122) || actual == '_'
+						numericLower := step.group
+						if numericLower >= 65 && numericLower <= 90 {
+							numericLower = checkedAdd(numericLower, 32)
+						}
+						matched := (step.operation == vmAny && (dotCrossesNewline || actual != '\n')) || (step.operation == vmWord && word) || (step.operation == vmNumeric && (checkedIndex((int(checkedChar(actual)))) == step.group || (caseSensitive == false && checkedIndex((int(checkedChar(asciiLowercase(actual))))) == numericLower))) || (step.operation == vmLiteral && (actual == step.atom || (caseSensitive == false && asciiLowercase(actual) == asciiLowercase(step.atom))))
+						if matched {
+							resumed := patternWorkState{pattern: checkedAdd(instruction, 1), subject: start}
+							if nextLen == len(next) {
+								checkedAdd(len(next), 1)
+								next = append(next, copypatternWorkState(resumed))
 							} else {
-								if step.operation == vmSplit {
-									skipped := patternWorkState{pattern: step.alternate, subject: start}
-									if stackLen == len(stack) {
-										checkedAdd(len(stack), 1)
-										stack = append(stack, copypatternWorkState(skipped))
-									} else {
-										stack[stackLen] = copypatternWorkState(skipped)
-									}
-									stackLen = checkedAdd(stackLen, 1)
-									branch := patternWorkState{pattern: step.target, subject: start}
-									if stackLen == len(stack) {
-										checkedAdd(len(stack), 1)
-										stack = append(stack, copypatternWorkState(branch))
-									} else {
-										stack[stackLen] = copypatternWorkState(branch)
-									}
-									stackLen = checkedAdd(stackLen, 1)
-								} else {
-									if step.operation == vmJump || step.operation == vmClear || step.operation == vmOpen || step.operation == vmClose {
-										target := checkedAdd(instruction, 1)
-										if step.operation == vmJump {
-											target = checkedIndex(step.target)
-										}
-										resumed := patternWorkState{pattern: target, subject: start}
-										if stackLen == len(stack) {
-											checkedAdd(len(stack), 1)
-											stack = append(stack, copypatternWorkState(resumed))
-										} else {
-											stack[stackLen] = copypatternWorkState(resumed)
-										}
-										stackLen = checkedAdd(stackLen, 1)
-									} else {
-										if step.operation == vmClass {
-											if position < len(haystack) {
-												classPosition := step.group
-												included := false
-												for program.classMembers[classPosition].kind > 0 {
-													if work == maxCaptureWork {
-														if projected {
-															return executeCaptureTreeSearch(program, subject, from, 0, false, caseSensitive, dotCrossesNewline, lineAnchors, counting, capturing, collecting, 0)
-														}
-														return makeCaptureRunResult(2, 0, 0, 0)
-													}
-													work = checkedAdd(work, 1)
-													if captureClassMemberMatches(program.classMembers[classPosition], haystack[position], caseSensitive) {
-														included = true
-													}
-													classPosition = checkedAdd(classPosition, 1)
-												}
-												negated := step.atom == '^'
-												matched := included != negated && (negated == false || dotCrossesNewline || haystack[position] != '\n')
-												if matched {
-													resumed := patternWorkState{pattern: checkedAdd(instruction, 1), subject: start}
-													if nextLen == len(next) {
-														checkedAdd(len(next), 1)
-														next = append(next, copypatternWorkState(resumed))
-													} else {
-														next[nextLen] = copypatternWorkState(resumed)
-													}
-													nextLen = checkedAdd(nextLen, 1)
-												}
-											}
-										} else {
-											if position < len(haystack) {
-												actual := haystack[position]
-												codepoint := int(checkedChar(actual))
-												lowercase := int(checkedChar(asciiLowercase(actual)))
-												word := (codepoint >= 48 && codepoint <= 57) || (lowercase >= 97 && lowercase <= 122) || actual == '_'
-												numericLower := step.group
-												if numericLower >= 65 && numericLower <= 90 {
-													numericLower = checkedAdd(numericLower, 32)
-												}
-												matched := (step.operation == vmAny && (dotCrossesNewline || actual != '\n')) || (step.operation == vmWord && word) || (step.operation == vmNumeric && (checkedIndex((int(checkedChar(actual)))) == step.group || (caseSensitive == false && checkedIndex((int(checkedChar(asciiLowercase(actual))))) == numericLower))) || (step.operation == vmLiteral && (actual == step.atom || (caseSensitive == false && asciiLowercase(actual) == asciiLowercase(step.atom))))
-												if matched {
-													resumed := patternWorkState{pattern: checkedAdd(instruction, 1), subject: start}
-													if nextLen == len(next) {
-														checkedAdd(len(next), 1)
-														next = append(next, copypatternWorkState(resumed))
-													} else {
-														next[nextLen] = copypatternWorkState(resumed)
-													}
-													nextLen = checkedAdd(nextLen, 1)
-												}
-											}
-										}
-									}
-								}
+								next[nextLen] = copypatternWorkState(resumed)
 							}
+							nextLen = checkedAdd(nextLen, 1)
 						}
 					}
 				}

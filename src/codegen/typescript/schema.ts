@@ -1,3 +1,4 @@
+import { checkTypescriptArtifacts } from '../shared/check-rust-transpile.js'
 import { join, dirname } from 'node:path'
 import ts from 'typescript'
 import type { CatalogSnapshot, ColumnInfo, TableInfo, ViewInfo } from '../../catalog/types.js'
@@ -192,9 +193,15 @@ export function renderTypescriptSchemaArtifacts(
       for (const [name, content] of exported) {
         artifacts.push({ path: join(outDir, schemaDirectory(schema), name), content })
       }
-      if (checks.rust)
+      if (checks.rustFiles)
+        for (const artifact of checkTypescriptArtifacts(checks.rustFiles))
+          artifacts.push({
+            ...artifact,
+            path: join(outDir, schemaDirectory(schema), 'checks-rust', artifact.path),
+          })
+      else if (checks.rust)
         artifacts.push({
-          path: join(outDir, schemaDirectory(schema), 'checks-rust.ts'),
+          path: join(outDir, schemaDirectory(schema), 'checks-rust', 'checks.ts'),
           content: checks.rust,
         })
       artifacts.push({

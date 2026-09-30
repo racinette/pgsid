@@ -571,17 +571,22 @@ class Transpiler {
             f.createBlock([binding, ...this.statements(value.body, branchLocals)], true),
           ),
         )
-      } else if (value.kind === 'if')
+      } else if (value.kind === 'if') {
+        const alternate = value.elseBody
+          ? this.statements(value.elseBody, new Map(locals))
+          : undefined
         result.push(
           f.createIfStatement(
             this.expression(value.condition, locals),
             f.createBlock(this.statements(value.body, new Map(locals)), true),
-            value.elseBody
-              ? f.createBlock(this.statements(value.elseBody, new Map(locals)), true)
-              : undefined,
+            alternate?.length === 1 && ts.isIfStatement(alternate[0]!)
+              ? alternate[0]
+              : alternate
+                ? f.createBlock(alternate, true)
+                : undefined,
           ),
         )
-      else if (value.kind === 'while')
+      } else if (value.kind === 'while')
         result.push(
           f.createWhileStatement(
             this.expression(value.condition, locals),

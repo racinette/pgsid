@@ -377,7 +377,15 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 			branch := &ast.IfStmt{Cond: condition, Body: &ast.BlockStmt{List: body}}
 			if value.ElseBody != nil {
 				g.locals, g.localTypes = cloneLocals(originalLocals), cloneTypes(originalTypes)
-				branch.Else = &ast.BlockStmt{List: g.goStatements(value.ElseBody)}
+				alternate := g.goStatements(value.ElseBody)
+				if len(alternate) == 1 {
+					if continuation, ok := alternate[0].(*ast.IfStmt); ok {
+						branch.Else = continuation
+					}
+				}
+				if branch.Else == nil {
+					branch.Else = &ast.BlockStmt{List: alternate}
+				}
 				g.locals, g.localTypes = originalLocals, originalTypes
 			}
 			result = append(result, branch)

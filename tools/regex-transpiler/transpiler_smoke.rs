@@ -289,6 +289,14 @@ pub enum ConditionMode {
     Stop,
 }
 
+pub fn select_condition_mode(mode: ConditionMode, stop: bool) -> ConditionMode {
+    let mut selected = mode;
+    if stop {
+        selected = ConditionMode::Stop;
+    }
+    selected
+}
+
 pub fn matches_literal(value: &str) -> bool {
     value == "a\"b\\c\n\u{1f600}\0"
 }

@@ -1,9 +1,10 @@
+import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
 import { parse } from 'libpg-query'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { execFile } from 'node:child_process'
@@ -130,7 +131,11 @@ describe('catalog CHECK lowering', () => {
     try {
       await writeFile(join(directory, 'package.json'), '{"type":"module"}\n')
       await writeFile(join(directory, 'checks.ts'), typescript.checks)
-      await writeFile(join(directory, 'checks-rust.ts'), typescript.rust!)
+      for (const artifact of checkTypescriptArtifacts(typescript.rustFiles!)) {
+        const path = join(directory, 'checks-rust', artifact.path)
+        await mkdir(dirname(path), { recursive: true })
+        await writeFile(path, artifact.content)
+      }
       await run('node_modules/.bin/tsc', [
         '--strict',
         '--skipLibCheck',
@@ -143,7 +148,7 @@ describe('catalog CHECK lowering', () => {
         '--outDir',
         join(directory, 'js'),
         join(directory, 'checks.ts'),
-        join(directory, 'checks-rust.ts'),
+        join(directory, 'checks-rust/checks.ts'),
       ])
       const generated = await import(pathToFileURL(join(directory, 'js', 'checks.js')).href)
       const result = generated.evaluatePublicRegulatedChecks({ email: 'b', amount: 1 }) as {
@@ -265,14 +270,34 @@ describe('catalog CHECK lowering', () => {
 
       await writeFile(join(directory, 'go.mod'), 'module check-rust-production\n\ngo 1.24\n')
       await writeFile(join(directory, 'checks.go'), go.checks)
-      await mkdir(join(directory, 'checkrust'))
-      await writeFile(join(directory, 'checkrust', 'checks.go'), go.rust!)
+      await mkdir(join(directory, 'checkrust', 'pg_catalog'), { recursive: true })
+      await mkdir(join(directory, 'checkrust', 'regexengine'), { recursive: true })
+      await mkdir(join(directory, 'checkrust', 'checkruntime'), { recursive: true })
+      await mkdir(join(directory, 'checkrust', 'langruntime'), { recursive: true })
+      await writeFile(
+        join(directory, 'checkrust', 'checkruntime', 'runtime.go'),
+        go.rustFiles!.runtime,
+      )
+      await writeFile(
+        join(directory, 'checkrust', 'langruntime', 'runtime.go'),
+        go.rustFiles!.language,
+      )
+      await writeFile(join(directory, 'checkrust', 'checks.go'), go.rustFiles!.checks)
+      await writeFile(
+        join(directory, 'checkrust', 'pg_catalog', 'operations.go'),
+        go.rustFiles!.operations,
+      )
+      if (go.rustFiles!.regex)
+        await writeFile(
+          join(directory, 'checkrust', 'regexengine', 'regex.go'),
+          go.rustFiles!.regex,
+        )
       await writeFile(
         join(directory, 'checks_test.go'),
         `package mixed
 import (
   "testing"
-  checkrust "check-rust-production/checkrust"
+  checkruntime "check-rust-production/checkrust/checkruntime"
 )
 func ptr[T any](value T) *T { return &value }
 func TestMixedChecks(t *testing.T) {
@@ -293,11 +318,11 @@ func TestMixedChecks(t *testing.T) {
   for _, check := range empty { if check.Constraint == "email_length" && (!check.Result.Certain || !check.Result.Value.Valid || check.Result.Value.Value) { t.Fatalf("empty length: %+v", check.Result) } }
   knownId := EvaluatePublicRegulatedChecks(PublicRegulatedCheckInput{Id: KnownCheckValue(int64(1))})
   for _, check := range knownId { if check.Constraint == "id_positive" && (!check.Result.Certain || !check.Result.Value.Valid || !check.Result.Value.Value) { t.Fatalf("fallback CHECK: %+v", check.Result) } }
-  if value := checkRustInt4(KnownCheckValue(int64(2147483648))); value.Kind != checkrust.Int4ValueUnknown { t.Fatalf("int4 range: %+v", value) }
-  if value := checkRustText(NullCheckValue[*string]()); value.Kind != checkrust.TextValueNull { t.Fatalf("SQL null: %+v", value) }
+  if value := checkRustInt4(KnownCheckValue(int64(2147483648))); value.Kind != checkruntime.Int4ValueUnknown { t.Fatalf("int4 range: %+v", value) }
+  if value := checkRustText(NullCheckValue[*string]()); value.Kind != checkruntime.TextValueNull { t.Fatalf("SQL null: %+v", value) }
   incoming := checkRustInt4(KnownCheckValue(SqlInteger{Error: "22003"}))
-  if incoming.Kind != checkrust.Int4ValueError { t.Fatalf("input error: %+v", incoming) }
-  outgoing := checkRustOutcome(checkrust.CheckOutcome{Kind: checkrust.CheckOutcomeError, Error: incoming.Error})
+  if incoming.Kind != checkruntime.Int4ValueError { t.Fatalf("input error: %+v", incoming) }
+  outgoing := checkRustOutcome(checkruntime.CheckOutcome{Kind: checkruntime.CheckOutcomeError, Error: incoming.Error})
   if !outgoing.Certain || outgoing.Value.Error != "22003" { t.Fatalf("SQLSTATE round trip: %+v", outgoing) }
   caseRows := EvaluatePublicCaseRustChecks(PublicCaseRustCheckInput{Amount: KnownCheckValue(ptr(int32(-2))), Flag: KnownCheckValue(ptr(false)), Note: NullCheckValue[*string]()})
   caseResults := map[string]EvalBool{}
@@ -866,16 +891,20 @@ func TestPartialCheckInputs(t *testing.T) {
       {},
       {
         catalog,
-        checkRustModuleSpecifier: './query.check-rust.js',
+        checkRustModuleSpecifier: './query.check-rust/checks.js',
       },
     )
     expect(rustQuery.checkRust).not.toBeNull()
-    expect(rustQuery.runtime).toContain('from "./query.check-rust.js"')
+    expect(rustQuery.runtime).toContain('from "./query.check-rust/checks.js"')
     const rustDirectory = await mkdtemp(join(tmpdir(), 'pgsid-query-rust-ts-'))
     try {
       await writeFile(join(rustDirectory, 'package.json'), '{"type":"module"}\n')
       await writeFile(join(rustDirectory, 'query.ts'), rustQuery.runtime!)
-      await writeFile(join(rustDirectory, 'query.check-rust.ts'), rustQuery.checkRust!)
+      for (const artifact of checkTypescriptArtifacts(rustQuery.checkRustFiles!)) {
+        const path = join(rustDirectory, 'query.check-rust', artifact.path)
+        await mkdir(dirname(path), { recursive: true })
+        await writeFile(path, artifact.content)
+      }
       await writeFile(join(rustDirectory, 'types.d.ts'), rustQuery.types!)
       await run('node_modules/.bin/tsc', [
         '--strict',
@@ -888,7 +917,7 @@ func TestPartialCheckInputs(t *testing.T) {
         '--moduleResolution',
         'nodenext',
         join(rustDirectory, 'query.ts'),
-        join(rustDirectory, 'query.check-rust.ts'),
+        join(rustDirectory, 'query.check-rust/checks.ts'),
         join(rustDirectory, 'types.d.ts'),
       ])
     } finally {
@@ -919,8 +948,28 @@ func TestPartialCheckInputs(t *testing.T) {
       )
       expect(goSupport.rust).not.toBeNull()
       await writeFile(join(helperDir, 'checks.go'), goSupport.checks)
-      await mkdir(join(helperDir, 'checkrust'))
-      await writeFile(join(helperDir, 'checkrust', 'checks.go'), goSupport.rust!)
+      await mkdir(join(helperDir, 'checkrust', 'pg_catalog'), { recursive: true })
+      await mkdir(join(helperDir, 'checkrust', 'regexengine'), { recursive: true })
+      await mkdir(join(helperDir, 'checkrust', 'checkruntime'), { recursive: true })
+      await mkdir(join(helperDir, 'checkrust', 'langruntime'), { recursive: true })
+      await writeFile(
+        join(helperDir, 'checkrust', 'checkruntime', 'runtime.go'),
+        goSupport.rustFiles!.runtime,
+      )
+      await writeFile(
+        join(helperDir, 'checkrust', 'langruntime', 'runtime.go'),
+        goSupport.rustFiles!.language,
+      )
+      await writeFile(join(helperDir, 'checkrust', 'checks.go'), goSupport.rustFiles!.checks)
+      await writeFile(
+        join(helperDir, 'checkrust', 'pg_catalog', 'operations.go'),
+        goSupport.rustFiles!.operations,
+      )
+      if (goSupport.rustFiles!.regex)
+        await writeFile(
+          join(helperDir, 'checkrust', 'regexengine', 'regex.go'),
+          goSupport.rustFiles!.regex,
+        )
       await writeFile(join(directory, 'query.go'), goQuery.types!)
       await writeFile(
         join(directory, 'query_test.go'),

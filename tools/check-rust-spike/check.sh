@@ -15,9 +15,8 @@ rustc --edition 2021 --crate-name check_spike --crate-type lib "$artifact_dir/ch
 rustc --edition 2021 --test tools/check-rust-spike/rust_test.rs --extern check_spike="$artifact_dir/libcheck_spike.rlib" -o "$artifact_dir/rust-test"
 "$artifact_dir/rust-test"
 
-cargo run --locked --manifest-path tools/regex-transpiler/Cargo.toml -- --ast "$artifact_dir/check.rs" "$artifact_dir/check.ast.json"
-node --import tsx tools/regex-transpiler/typescript/transpile.ts "$artifact_dir/check.ast.json" "$artifact_dir/check.ts"
-GOCACHE=/tmp/pgsid-check-rust-go-cache go -C tools/regex-transpiler/go run ./cmd/transpile "$artifact_dir/check.ast.json" "$artifact_dir/go/check.go"
+cargo run --locked --manifest-path tools/check-transpiler/Cargo.toml -- --ast "$artifact_dir/check.sources.json" "$artifact_dir/check.ast.json"
+node --import tsx tools/check-transpiler/typescript/transpile-file.ts "$artifact_dir/check.sources.json" "$artifact_dir/check.ts" "$artifact_dir/go/check.go"
 
 node_modules/.bin/tsc --strict --noEmit --target es2022 --module esnext --skipLibCheck "$artifact_dir/check.ts"
 node --import tsx tools/check-rust-spike/check.ts "$artifact_dir/check.ts"

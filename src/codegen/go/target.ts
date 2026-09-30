@@ -139,8 +139,51 @@ export function createGoCodegenTarget(
                           {
                             kind: 'helpers' as const,
                             path: join(dirname(helper.path), 'checkrust', 'checks.go'),
-                            content: checkSupport.rust,
+                            content: checkSupport.rustFiles?.checks ?? checkSupport.rust,
                           },
+                          ...(checkSupport.rustFiles
+                            ? [
+                                ...(
+                                  [
+                                    ['checkruntime', checkSupport.rustFiles.runtime],
+                                    ['langruntime', checkSupport.rustFiles.language],
+                                  ] as const
+                                ).map(([module, content]) => ({
+                                  kind: 'helpers' as const,
+                                  path: join(
+                                    dirname(helper.path),
+                                    'checkrust',
+                                    module,
+                                    'runtime.go',
+                                  ),
+                                  content,
+                                })),
+                                {
+                                  kind: 'helpers' as const,
+                                  path: join(
+                                    dirname(helper.path),
+                                    'checkrust',
+                                    'pg_catalog',
+                                    'operations.go',
+                                  ),
+                                  content: checkSupport.rustFiles.operations,
+                                },
+                                ...(checkSupport.rustFiles.regex
+                                  ? [
+                                      {
+                                        kind: 'helpers' as const,
+                                        path: join(
+                                          dirname(helper.path),
+                                          'checkrust',
+                                          'regexengine',
+                                          'regex.go',
+                                        ),
+                                        content: checkSupport.rustFiles.regex,
+                                      },
+                                    ]
+                                  : []),
+                              ]
+                            : []),
                         ]
                       : []),
                     ...(Object.values(target.mappings.column).some(

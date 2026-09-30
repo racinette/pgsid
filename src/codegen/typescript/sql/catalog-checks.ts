@@ -4,7 +4,7 @@ import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
 import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
 import { prepareCheckRustGroup } from '../../shared/check-rust-source.js'
-import { transpileCheckRust } from '../../shared/check-rust-transpile.js'
+import { transpileCheckRustFiles } from '../../shared/check-rust-transpile.js'
 import { exportModifier, factory, identifier, printFile } from '../ast.js'
 import { typeName } from '../type-mapping.js'
 import { typescriptEvalBoolBackend } from './check.js'
@@ -27,14 +27,33 @@ export function renderTypescriptSchemaCheckArtifacts(
   selectedDomains: readonly DomainInfo[] = domains,
   options: { typedInputs?: boolean; rustModuleSpecifier?: string } = {},
   rust = true,
-): { checks: string; rust: string | null } {
+): {
+  checks: string
+  rust: string | null
+  rustFiles: {
+    regex: string
+    operations: string
+    runtime: string
+    language: string
+    checks: string
+  } | null
+} {
   const typedInputs = options.typedInputs ?? false
   const groups = catalogCheckGroups(tables, domains, selectedDomains)
-  if (!groups.length) return { checks: '', rust: null }
+  if (!groups.length) return { checks: '', rust: null, rustFiles: null }
   const rustGroup = rust
     ? prepareCheckRustGroup(
         groups.flatMap((group) =>
-          group.checks.map(({ plan }) => portableCheckAtoms(plan.expression)),
+          group.checks.map(({ plan, source }) => ({
+            expression: portableCheckAtoms(plan.expression),
+            identity: {
+              schema: group.source.schema,
+              kind: group.kind,
+              owner: group.source.name,
+              constraint: plan.name,
+              declaredOn: { schema: source.schema, owner: source.name },
+            },
+          })),
         ),
       )
     : null
@@ -182,6 +201,7 @@ export function renderTypescriptSchemaCheckArtifacts(
       undefined,
     )
   }
+  const rustFiles = rustGroup?.source ? transpileCheckRustFiles(rustGroup.source).typescript : null
   return {
     checks: printFile([
       ...(rustGroup?.source
@@ -193,7 +213,7 @@ export function renderTypescriptSchemaCheckArtifacts(
                 undefined,
                 factory.createNamespaceImport(identifier('_checkRust')),
               ),
-              factory.createStringLiteral(options.rustModuleSpecifier ?? './checks-rust.js'),
+              factory.createStringLiteral(options.rustModuleSpecifier ?? './checks-rust/checks.js'),
             ),
           ]
         : []),
@@ -277,7 +297,8 @@ export function renderTypescriptSchemaCheckArtifacts(
         ),
       ),
     ]),
-    rust: rustGroup?.source ? transpileCheckRust(rustGroup.source).typescript : null,
+    rust: rustFiles?.checks ?? null,
+    rustFiles,
   }
 }
 

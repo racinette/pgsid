@@ -123,3 +123,5 @@ assert.throws(() => generated.overwritePosition(positions, 1, 4), RangeError)
 
 assert.equal(generated.conditionLiterals({ kind: 'Run' }), 1)
 assert.equal(generated.conditionLiterals({ kind: 'Stop' }), 0)
+assert.deepEqual(generated.selectConditionMode({ kind: 'Run' }, true), { kind: 'Stop' })
+assert.deepEqual(generated.selectConditionMode({ kind: 'Run' }, false), { kind: 'Run' })

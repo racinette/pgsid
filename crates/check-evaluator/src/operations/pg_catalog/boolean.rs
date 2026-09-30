@@ -1,4 +1,4 @@
-fn sql__pg_catalog__booleq__y6qu(left: BoolValue, right: BoolValue) -> BoolValue {
+pub fn sql__pg_catalog__booleq__y6qu(left: BoolValue, right: BoolValue) -> BoolValue {
     if let BoolValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -19,7 +19,7 @@ fn sql__pg_catalog__booleq__y6qu(left: BoolValue, right: BoolValue) -> BoolValue
     BoolValue::Unknown
 }
 
-fn sql__pg_catalog__boolne__zlce(left: BoolValue, right: BoolValue) -> BoolValue {
+pub fn sql__pg_catalog__boolne__zlce(left: BoolValue, right: BoolValue) -> BoolValue {
     if let BoolValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -40,7 +40,7 @@ fn sql__pg_catalog__boolne__zlce(left: BoolValue, right: BoolValue) -> BoolValue
     BoolValue::Unknown
 }
 
-fn sql__pg_catalog__boollt__cgkk(left: BoolValue, right: BoolValue) -> BoolValue {
+pub fn sql__pg_catalog__boollt__cgkk(left: BoolValue, right: BoolValue) -> BoolValue {
     if let BoolValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -61,7 +61,7 @@ fn sql__pg_catalog__boollt__cgkk(left: BoolValue, right: BoolValue) -> BoolValue
     BoolValue::Unknown
 }
 
-fn sql__pg_catalog__boolle__0cme(left: BoolValue, right: BoolValue) -> BoolValue {
+pub fn sql__pg_catalog__boolle__0cme(left: BoolValue, right: BoolValue) -> BoolValue {
     if let BoolValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -82,7 +82,7 @@ fn sql__pg_catalog__boolle__0cme(left: BoolValue, right: BoolValue) -> BoolValue
     BoolValue::Unknown
 }
 
-fn sql__pg_catalog__boolgt__6vb2(left: BoolValue, right: BoolValue) -> BoolValue {
+pub fn sql__pg_catalog__boolgt__6vb2(left: BoolValue, right: BoolValue) -> BoolValue {
     if let BoolValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -103,7 +103,7 @@ fn sql__pg_catalog__boolgt__6vb2(left: BoolValue, right: BoolValue) -> BoolValue
     BoolValue::Unknown
 }
 
-fn sql__pg_catalog__boolge__gviq(left: BoolValue, right: BoolValue) -> BoolValue {
+pub fn sql__pg_catalog__boolge__gviq(left: BoolValue, right: BoolValue) -> BoolValue {
     if let BoolValue::Error(error) = left {
         return BoolValue::Error(error);
     }

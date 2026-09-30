@@ -234,8 +234,27 @@ export function renderGoSchemaArtifacts(
       if (checks.rust)
         artifacts.push({
           path: join(outDir, directory, 'checkrust', 'checks.go'),
-          content: checks.rust,
+          content: checks.rustFiles?.checks ?? checks.rust,
         })
+      if (checks.rustFiles) {
+        for (const [module, content] of [
+          ['checkruntime', checks.rustFiles.runtime],
+          ['langruntime', checks.rustFiles.language],
+        ] as const)
+          artifacts.push({
+            path: join(outDir, directory, 'checkrust', module, 'runtime.go'),
+            content,
+          })
+        artifacts.push({
+          path: join(outDir, directory, 'checkrust', 'pg_catalog', 'operations.go'),
+          content: checks.rustFiles.operations,
+        })
+        if (checks.rustFiles.regex)
+          artifacts.push({
+            path: join(outDir, directory, 'checkrust', 'regexengine', 'regex.go'),
+            content: checks.rustFiles.regex,
+          })
+      }
     }
     assertAcyclicPackages(dependencies)
     const diagnostics: GoSchemaArtifacts['diagnostics'][number][] = []

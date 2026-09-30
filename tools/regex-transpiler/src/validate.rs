@@ -587,7 +587,13 @@ fn infer_expr_type(
             let source = infer_expr_type(&assign.right, locals, semantics)?
                 .ok_or("assignment source has no shared type")?;
             match &*assign.left {
-                Expr::Path(_) if scalar(&destination) => {}
+                Expr::Path(_)
+                    if scalar(&destination)
+                        || (semantics.copy.contains(&destination)
+                            && semantics
+                                .variants
+                                .keys()
+                                .any(|(name, _)| name == &destination)) => {}
                 Expr::Index(_)
                     if destination == "usize"
                         || destination == "char"
@@ -595,7 +601,8 @@ fn infer_expr_type(
                             && semantics.copy.contains(&destination)) => {}
                 _ => {
                     return Err(
-                        "assignment target must be a scalar binding or vector element".into(),
+                        "assignment target must be a scalar or Copy enum binding or vector element"
+                            .into(),
                     )
                 }
             }
@@ -716,7 +723,11 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
             }
             Item::Enum(enumeration) => {
                 let name = enumeration.ident.to_string();
-                if derives(&enumeration.attrs)?.contains("PartialEq") {
+                let traits = derives(&enumeration.attrs)?;
+                if traits.contains("Copy") {
+                    semantics.copy.insert(name.clone());
+                }
+                if traits.contains("PartialEq") {
                     semantics.equality.insert(name.clone());
                 }
                 for variant in &enumeration.variants {

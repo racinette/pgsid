@@ -1,5 +1,6 @@
-import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
+import { writeFileSync } from 'node:fs'
+import { assembleCheckRust } from '../../src/codegen/shared/check-rust-source.js'
+import { writeCheckRustSources } from '../check-rust/sources.js'
 import { emitCheckRustEvaluator } from '../../src/codegen/shared/check-rust-evaluator.js'
 import { builtinCallables } from '../../src/postgres/builtins/inventory.js'
 import type { EvalBoolExpression } from '../../src/sql-semantics/check-expressions.js'
@@ -68,29 +69,17 @@ const expression: EvalBoolExpression = {
 }
 
 const evaluator = emitCheckRustEvaluator(expression)
-const regexEngine = readFileSync(
-  fileURLToPath(new URL('../../crates/regex-engine/src/lib.rs', import.meta.url)),
-  'utf8',
-)
-const operations = new URL('../../crates/check-evaluator/src/operations/', import.meta.url)
-const semantics = [
-  '../../crates/check-evaluator/src/values.rs',
-  ...readdirSync(operations)
-    .filter((name) => name.endsWith('.rs'))
-    .sort()
-    .map((name) => `../../crates/check-evaluator/src/operations/${name}`),
-  '../../crates/check-evaluator/src/logic.rs',
-]
-  .map((path) => readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8'))
-  .join('\n')
+const source = assembleCheckRust(evaluator)
 const catalogNames = new Set(
   builtinCallables()
     .filter((callable) => callable.kind === 'function')
     .map((callable) => callable.rustName),
 )
-const implementationNames = [...semantics.matchAll(/\bfn (sql__[a-z0-9_]+)\s*\(/gu)].map(
-  (match) => match[1]!,
-)
+const implementationNames = [
+  ...source.modules.flatMap((module) =>
+    module.files.flatMap((file) => [...file.source.matchAll(/\bfn (sql__[a-z0-9_]+)\s*\(/gu)]),
+  ),
+].map((match) => match[1]!)
 if (new Set(implementationNames).size !== implementationNames.length)
   throw new Error('Duplicate Rust SQL implementation name')
 for (const name of implementationNames)
@@ -99,11 +88,10 @@ for (const name of implementationNames)
 for (const name of evaluator.callables)
   if (!implementationNames.includes(name))
     throw new Error(`Rust CHECK callable has no implementation: ${name}`)
-const source = `${regexEngine}\n${semantics}\n${evaluator.source}`
 
 const output = process.argv[2]
 const evaluatorOutput = process.argv[3]
 if (!output || !evaluatorOutput)
   throw new Error('usage: generate.ts OUTPUT_RUST OUTPUT_EVALUATOR_RUST')
-writeFileSync(output, source)
+writeCheckRustSources(output, source)
 writeFileSync(evaluatorOutput, evaluator.source)

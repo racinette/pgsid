@@ -1,6 +1,8 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { PGlite } from '@electric-sql/pglite'
+import { assembleCheckRust } from '../../src/codegen/shared/check-rust-source.js'
+import { writeCheckRustSources } from '../check-rust/sources.js'
 import { builtinCallables } from '../../src/postgres/builtins/inventory.js'
 
 type Shape =
@@ -28,10 +30,9 @@ if (!rustOutput || !fixtureOutput || !rustTestOutput || !goTestOutput)
 
 const readSource = (path: string): string =>
   readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
-const values = readSource('../../crates/check-evaluator/src/values.rs')
-const boolean = readSource('../../crates/check-evaluator/src/operations/boolean.rs')
-const integer = readSource('../../crates/check-evaluator/src/operations/integer.rs')
-const textSource = readSource('../../crates/check-evaluator/src/operations/text.rs')
+const boolean = readSource('../../crates/check-evaluator/src/operations/pg_catalog/boolean.rs')
+const integer = readSource('../../crates/check-evaluator/src/operations/pg_catalog/integer.rs')
+const textSource = readSource('../../crates/check-evaluator/src/operations/pg_catalog/text.rs')
 const names = [
   ...`${boolean}\n${integer}\n${textSource}`.matchAll(/\bfn (sql__[a-z0-9_]+)\s*\(/gu),
 ].map((match) => match[1]!)
@@ -238,7 +239,7 @@ const wrappers = fixtures
     return `pub fn ${item.wrapper}(${parameters.join(', ')}) -> ${resultType(item.shape)} {\n    ${item.rustName}(${arguments_.join(', ')})\n}`
   })
   .join('\n\n')
-writeFileSync(rustOutput, `${values}\n${boolean}\n${integer}\n${textSource}\n${wrappers}\n`)
+writeCheckRustSources(rustOutput, assembleCheckRust({ source: wrappers, callables: names }))
 writeFileSync(fixtureOutput, JSON.stringify(fixtures, null, 2) + '\n')
 
 const rustString = (input: string): string => {

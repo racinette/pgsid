@@ -1,14 +1,14 @@
-fn and_stops(left: CheckOutcome) -> bool {
+pub fn and_stops(left: CheckOutcome) -> bool {
     if left == CheckOutcome::False {
         return true;
     }
-    if let CheckOutcome::Error(_error) = left {
+    if let CheckOutcome::Error(_) = left {
         return true;
     }
     false
 }
 
-fn and_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
+pub fn and_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
     if let CheckOutcome::Error(error) = left {
         return CheckOutcome::Error(error);
     }
@@ -27,17 +27,17 @@ fn and_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
     CheckOutcome::True
 }
 
-fn or_stops(left: CheckOutcome) -> bool {
+pub fn or_stops(left: CheckOutcome) -> bool {
     if left == CheckOutcome::True {
         return true;
     }
-    if let CheckOutcome::Error(_error) = left {
+    if let CheckOutcome::Error(_) = left {
         return true;
     }
     false
 }
 
-fn or_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
+pub fn or_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
     if let CheckOutcome::Error(error) = left {
         return CheckOutcome::Error(error);
     }
@@ -56,7 +56,7 @@ fn or_finish(left: CheckOutcome, right: CheckOutcome) -> CheckOutcome {
     CheckOutcome::False
 }
 
-fn not_finish(value: CheckOutcome) -> CheckOutcome {
+pub fn not_finish(value: CheckOutcome) -> CheckOutcome {
     if value == CheckOutcome::True {
         return CheckOutcome::False;
     }
@@ -66,16 +66,16 @@ fn not_finish(value: CheckOutcome) -> CheckOutcome {
     value
 }
 
-fn case_guard_stops(value: CheckOutcome) -> bool {
+pub fn case_guard_stops(value: CheckOutcome) -> bool {
     if value == CheckOutcome::Unknown {
         return true;
     }
-    if let CheckOutcome::Error(_error) = value {
+    if let CheckOutcome::Error(_) = value {
         return true;
     }
     false
 }
 
-fn case_guard_takes(value: CheckOutcome) -> bool {
+pub fn case_guard_takes(value: CheckOutcome) -> bool {
     value == CheckOutcome::True
 }

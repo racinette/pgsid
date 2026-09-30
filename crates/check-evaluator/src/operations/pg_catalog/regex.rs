@@ -1,4 +1,6 @@
-fn eval_regex(subject: TextValue, pattern: TextValue) -> BoolValue {
+const SQLSTATE_INVALID_REGEX: u32 = 3452591;
+
+pub fn eval_regex(subject: TextValue, pattern: TextValue) -> BoolValue {
     if let TextValue::Error(error) = subject {
         return BoolValue::Error(error);
     }

@@ -946,881 +946,313 @@ fn capture_assertion_matches(
         || (operation == VM_NOT_BOUNDARY && before == after)
 }
 
-fn capture_collating_value(name: Vec<char>) -> u32 {
-    if name.len() == 1 {
-        return name[0] as u32;
+struct CollatingName {
+    characters: Vec<char>,
+}
+
+fn collating_name_eq(name: &CollatingName, expected: &str) -> bool {
+    let characters: Vec<char> = expected.chars().collect();
+    if name.characters.len() != characters.len() {
+        return false;
     }
-    if name.len() == 3 && name[0] == 'N' && name[1] == 'U' && name[2] == 'L' {
+    let mut index = 0;
+    while index < characters.len() {
+        if name.characters[index] != characters[index] {
+            return false;
+        }
+        index += 1;
+    }
+    true
+}
+
+fn capture_collating_value(characters: Vec<char>) -> u32 {
+    if characters.len() == 1 {
+        return characters[0] as u32;
+    }
+    let name = CollatingName { characters };
+    if collating_name_eq(&name, "NUL") {
         return 0;
     }
-    if name.len() == 3 && name[0] == 'S' && name[1] == 'O' && name[2] == 'H' {
+    if collating_name_eq(&name, "SOH") {
         return 1;
     }
-    if name.len() == 3 && name[0] == 'S' && name[1] == 'T' && name[2] == 'X' {
+    if collating_name_eq(&name, "STX") {
         return 2;
     }
-    if name.len() == 3 && name[0] == 'E' && name[1] == 'T' && name[2] == 'X' {
+    if collating_name_eq(&name, "ETX") {
         return 3;
     }
-    if name.len() == 3 && name[0] == 'E' && name[1] == 'O' && name[2] == 'T' {
+    if collating_name_eq(&name, "EOT") {
         return 4;
     }
-    if name.len() == 3 && name[0] == 'E' && name[1] == 'N' && name[2] == 'Q' {
+    if collating_name_eq(&name, "ENQ") {
         return 5;
     }
-    if name.len() == 3 && name[0] == 'A' && name[1] == 'C' && name[2] == 'K' {
+    if collating_name_eq(&name, "ACK") {
         return 6;
     }
-    if name.len() == 3 && name[0] == 'B' && name[1] == 'E' && name[2] == 'L' {
+    if collating_name_eq(&name, "BEL") {
         return 7;
     }
-    if name.len() == 5
-        && name[0] == 'a'
-        && name[1] == 'l'
-        && name[2] == 'e'
-        && name[3] == 'r'
-        && name[4] == 't'
-    {
+    if collating_name_eq(&name, "alert") {
         return 7;
     }
-    if name.len() == 2 && name[0] == 'B' && name[1] == 'S' {
+    if collating_name_eq(&name, "BS") {
         return 8;
     }
-    if name.len() == 9
-        && name[0] == 'b'
-        && name[1] == 'a'
-        && name[2] == 'c'
-        && name[3] == 'k'
-        && name[4] == 's'
-        && name[5] == 'p'
-        && name[6] == 'a'
-        && name[7] == 'c'
-        && name[8] == 'e'
-    {
+    if collating_name_eq(&name, "backspace") {
         return 8;
     }
-    if name.len() == 2 && name[0] == 'H' && name[1] == 'T' {
+    if collating_name_eq(&name, "HT") {
         return 9;
     }
-    if name.len() == 3 && name[0] == 't' && name[1] == 'a' && name[2] == 'b' {
+    if collating_name_eq(&name, "tab") {
         return 9;
     }
-    if name.len() == 2 && name[0] == 'L' && name[1] == 'F' {
+    if collating_name_eq(&name, "LF") {
         return 10;
     }
-    if name.len() == 7
-        && name[0] == 'n'
-        && name[1] == 'e'
-        && name[2] == 'w'
-        && name[3] == 'l'
-        && name[4] == 'i'
-        && name[5] == 'n'
-        && name[6] == 'e'
-    {
+    if collating_name_eq(&name, "newline") {
         return 10;
     }
-    if name.len() == 2 && name[0] == 'V' && name[1] == 'T' {
+    if collating_name_eq(&name, "VT") {
         return 11;
     }
-    if name.len() == 12
-        && name[0] == 'v'
-        && name[1] == 'e'
-        && name[2] == 'r'
-        && name[3] == 't'
-        && name[4] == 'i'
-        && name[5] == 'c'
-        && name[6] == 'a'
-        && name[7] == 'l'
-        && name[8] == '-'
-        && name[9] == 't'
-        && name[10] == 'a'
-        && name[11] == 'b'
-    {
+    if collating_name_eq(&name, "vertical-tab") {
         return 11;
     }
-    if name.len() == 2 && name[0] == 'F' && name[1] == 'F' {
+    if collating_name_eq(&name, "FF") {
         return 12;
     }
-    if name.len() == 9
-        && name[0] == 'f'
-        && name[1] == 'o'
-        && name[2] == 'r'
-        && name[3] == 'm'
-        && name[4] == '-'
-        && name[5] == 'f'
-        && name[6] == 'e'
-        && name[7] == 'e'
-        && name[8] == 'd'
-    {
+    if collating_name_eq(&name, "form-feed") {
         return 12;
     }
-    if name.len() == 2 && name[0] == 'C' && name[1] == 'R' {
+    if collating_name_eq(&name, "CR") {
         return 13;
     }
-    if name.len() == 15
-        && name[0] == 'c'
-        && name[1] == 'a'
-        && name[2] == 'r'
-        && name[3] == 'r'
-        && name[4] == 'i'
-        && name[5] == 'a'
-        && name[6] == 'g'
-        && name[7] == 'e'
-        && name[8] == '-'
-        && name[9] == 'r'
-        && name[10] == 'e'
-        && name[11] == 't'
-        && name[12] == 'u'
-        && name[13] == 'r'
-        && name[14] == 'n'
-    {
+    if collating_name_eq(&name, "carriage-return") {
         return 13;
     }
-    if name.len() == 2 && name[0] == 'S' && name[1] == 'O' {
+    if collating_name_eq(&name, "SO") {
         return 14;
     }
-    if name.len() == 2 && name[0] == 'S' && name[1] == 'I' {
+    if collating_name_eq(&name, "SI") {
         return 15;
     }
-    if name.len() == 3 && name[0] == 'D' && name[1] == 'L' && name[2] == 'E' {
+    if collating_name_eq(&name, "DLE") {
         return 16;
     }
-    if name.len() == 3 && name[0] == 'D' && name[1] == 'C' && name[2] == '1' {
+    if collating_name_eq(&name, "DC1") {
         return 17;
     }
-    if name.len() == 3 && name[0] == 'D' && name[1] == 'C' && name[2] == '2' {
+    if collating_name_eq(&name, "DC2") {
         return 18;
     }
-    if name.len() == 3 && name[0] == 'D' && name[1] == 'C' && name[2] == '3' {
+    if collating_name_eq(&name, "DC3") {
         return 19;
     }
-    if name.len() == 3 && name[0] == 'D' && name[1] == 'C' && name[2] == '4' {
+    if collating_name_eq(&name, "DC4") {
         return 20;
     }
-    if name.len() == 3 && name[0] == 'N' && name[1] == 'A' && name[2] == 'K' {
+    if collating_name_eq(&name, "NAK") {
         return 21;
     }
-    if name.len() == 3 && name[0] == 'S' && name[1] == 'Y' && name[2] == 'N' {
+    if collating_name_eq(&name, "SYN") {
         return 22;
     }
-    if name.len() == 3 && name[0] == 'E' && name[1] == 'T' && name[2] == 'B' {
+    if collating_name_eq(&name, "ETB") {
         return 23;
     }
-    if name.len() == 3 && name[0] == 'C' && name[1] == 'A' && name[2] == 'N' {
+    if collating_name_eq(&name, "CAN") {
         return 24;
     }
-    if name.len() == 2 && name[0] == 'E' && name[1] == 'M' {
+    if collating_name_eq(&name, "EM") {
         return 25;
     }
-    if name.len() == 3 && name[0] == 'S' && name[1] == 'U' && name[2] == 'B' {
+    if collating_name_eq(&name, "SUB") {
         return 26;
     }
-    if name.len() == 3 && name[0] == 'E' && name[1] == 'S' && name[2] == 'C' {
+    if collating_name_eq(&name, "ESC") {
         return 27;
     }
-    if name.len() == 3 && name[0] == 'I' && name[1] == 'S' && name[2] == '4' {
+    if collating_name_eq(&name, "IS4") {
         return 28;
     }
-    if name.len() == 2 && name[0] == 'F' && name[1] == 'S' {
+    if collating_name_eq(&name, "FS") {
         return 28;
     }
-    if name.len() == 3 && name[0] == 'I' && name[1] == 'S' && name[2] == '3' {
+    if collating_name_eq(&name, "IS3") {
         return 29;
     }
-    if name.len() == 2 && name[0] == 'G' && name[1] == 'S' {
+    if collating_name_eq(&name, "GS") {
         return 29;
     }
-    if name.len() == 3 && name[0] == 'I' && name[1] == 'S' && name[2] == '2' {
+    if collating_name_eq(&name, "IS2") {
         return 30;
     }
-    if name.len() == 2 && name[0] == 'R' && name[1] == 'S' {
+    if collating_name_eq(&name, "RS") {
         return 30;
     }
-    if name.len() == 3 && name[0] == 'I' && name[1] == 'S' && name[2] == '1' {
+    if collating_name_eq(&name, "IS1") {
         return 31;
     }
-    if name.len() == 2 && name[0] == 'U' && name[1] == 'S' {
+    if collating_name_eq(&name, "US") {
         return 31;
     }
-    if name.len() == 5
-        && name[0] == 's'
-        && name[1] == 'p'
-        && name[2] == 'a'
-        && name[3] == 'c'
-        && name[4] == 'e'
-    {
+    if collating_name_eq(&name, "space") {
         return 32;
     }
-    if name.len() == 16
-        && name[0] == 'e'
-        && name[1] == 'x'
-        && name[2] == 'c'
-        && name[3] == 'l'
-        && name[4] == 'a'
-        && name[5] == 'm'
-        && name[6] == 'a'
-        && name[7] == 't'
-        && name[8] == 'i'
-        && name[9] == 'o'
-        && name[10] == 'n'
-        && name[11] == '-'
-        && name[12] == 'm'
-        && name[13] == 'a'
-        && name[14] == 'r'
-        && name[15] == 'k'
-    {
+    if collating_name_eq(&name, "exclamation-mark") {
         return 33;
     }
-    if name.len() == 14
-        && name[0] == 'q'
-        && name[1] == 'u'
-        && name[2] == 'o'
-        && name[3] == 't'
-        && name[4] == 'a'
-        && name[5] == 't'
-        && name[6] == 'i'
-        && name[7] == 'o'
-        && name[8] == 'n'
-        && name[9] == '-'
-        && name[10] == 'm'
-        && name[11] == 'a'
-        && name[12] == 'r'
-        && name[13] == 'k'
-    {
+    if collating_name_eq(&name, "quotation-mark") {
         return 34;
     }
-    if name.len() == 11
-        && name[0] == 'n'
-        && name[1] == 'u'
-        && name[2] == 'm'
-        && name[3] == 'b'
-        && name[4] == 'e'
-        && name[5] == 'r'
-        && name[6] == '-'
-        && name[7] == 's'
-        && name[8] == 'i'
-        && name[9] == 'g'
-        && name[10] == 'n'
-    {
+    if collating_name_eq(&name, "number-sign") {
         return 35;
     }
-    if name.len() == 11
-        && name[0] == 'd'
-        && name[1] == 'o'
-        && name[2] == 'l'
-        && name[3] == 'l'
-        && name[4] == 'a'
-        && name[5] == 'r'
-        && name[6] == '-'
-        && name[7] == 's'
-        && name[8] == 'i'
-        && name[9] == 'g'
-        && name[10] == 'n'
-    {
+    if collating_name_eq(&name, "dollar-sign") {
         return 36;
     }
-    if name.len() == 12
-        && name[0] == 'p'
-        && name[1] == 'e'
-        && name[2] == 'r'
-        && name[3] == 'c'
-        && name[4] == 'e'
-        && name[5] == 'n'
-        && name[6] == 't'
-        && name[7] == '-'
-        && name[8] == 's'
-        && name[9] == 'i'
-        && name[10] == 'g'
-        && name[11] == 'n'
-    {
+    if collating_name_eq(&name, "percent-sign") {
         return 37;
     }
-    if name.len() == 9
-        && name[0] == 'a'
-        && name[1] == 'm'
-        && name[2] == 'p'
-        && name[3] == 'e'
-        && name[4] == 'r'
-        && name[5] == 's'
-        && name[6] == 'a'
-        && name[7] == 'n'
-        && name[8] == 'd'
-    {
+    if collating_name_eq(&name, "ampersand") {
         return 38;
     }
-    if name.len() == 10
-        && name[0] == 'a'
-        && name[1] == 'p'
-        && name[2] == 'o'
-        && name[3] == 's'
-        && name[4] == 't'
-        && name[5] == 'r'
-        && name[6] == 'o'
-        && name[7] == 'p'
-        && name[8] == 'h'
-        && name[9] == 'e'
-    {
+    if collating_name_eq(&name, "apostrophe") {
         return 39;
     }
-    if name.len() == 16
-        && name[0] == 'l'
-        && name[1] == 'e'
-        && name[2] == 'f'
-        && name[3] == 't'
-        && name[4] == '-'
-        && name[5] == 'p'
-        && name[6] == 'a'
-        && name[7] == 'r'
-        && name[8] == 'e'
-        && name[9] == 'n'
-        && name[10] == 't'
-        && name[11] == 'h'
-        && name[12] == 'e'
-        && name[13] == 's'
-        && name[14] == 'i'
-        && name[15] == 's'
-    {
+    if collating_name_eq(&name, "left-parenthesis") {
         return 40;
     }
-    if name.len() == 17
-        && name[0] == 'r'
-        && name[1] == 'i'
-        && name[2] == 'g'
-        && name[3] == 'h'
-        && name[4] == 't'
-        && name[5] == '-'
-        && name[6] == 'p'
-        && name[7] == 'a'
-        && name[8] == 'r'
-        && name[9] == 'e'
-        && name[10] == 'n'
-        && name[11] == 't'
-        && name[12] == 'h'
-        && name[13] == 'e'
-        && name[14] == 's'
-        && name[15] == 'i'
-        && name[16] == 's'
-    {
+    if collating_name_eq(&name, "right-parenthesis") {
         return 41;
     }
-    if name.len() == 8
-        && name[0] == 'a'
-        && name[1] == 's'
-        && name[2] == 't'
-        && name[3] == 'e'
-        && name[4] == 'r'
-        && name[5] == 'i'
-        && name[6] == 's'
-        && name[7] == 'k'
-    {
+    if collating_name_eq(&name, "asterisk") {
         return 42;
     }
-    if name.len() == 9
-        && name[0] == 'p'
-        && name[1] == 'l'
-        && name[2] == 'u'
-        && name[3] == 's'
-        && name[4] == '-'
-        && name[5] == 's'
-        && name[6] == 'i'
-        && name[7] == 'g'
-        && name[8] == 'n'
-    {
+    if collating_name_eq(&name, "plus-sign") {
         return 43;
     }
-    if name.len() == 5
-        && name[0] == 'c'
-        && name[1] == 'o'
-        && name[2] == 'm'
-        && name[3] == 'm'
-        && name[4] == 'a'
-    {
+    if collating_name_eq(&name, "comma") {
         return 44;
     }
-    if name.len() == 6
-        && name[0] == 'h'
-        && name[1] == 'y'
-        && name[2] == 'p'
-        && name[3] == 'h'
-        && name[4] == 'e'
-        && name[5] == 'n'
-    {
+    if collating_name_eq(&name, "hyphen") {
         return 45;
     }
-    if name.len() == 12
-        && name[0] == 'h'
-        && name[1] == 'y'
-        && name[2] == 'p'
-        && name[3] == 'h'
-        && name[4] == 'e'
-        && name[5] == 'n'
-        && name[6] == '-'
-        && name[7] == 'm'
-        && name[8] == 'i'
-        && name[9] == 'n'
-        && name[10] == 'u'
-        && name[11] == 's'
-    {
+    if collating_name_eq(&name, "hyphen-minus") {
         return 45;
     }
-    if name.len() == 6
-        && name[0] == 'p'
-        && name[1] == 'e'
-        && name[2] == 'r'
-        && name[3] == 'i'
-        && name[4] == 'o'
-        && name[5] == 'd'
-    {
+    if collating_name_eq(&name, "period") {
         return 46;
     }
-    if name.len() == 9
-        && name[0] == 'f'
-        && name[1] == 'u'
-        && name[2] == 'l'
-        && name[3] == 'l'
-        && name[4] == '-'
-        && name[5] == 's'
-        && name[6] == 't'
-        && name[7] == 'o'
-        && name[8] == 'p'
-    {
+    if collating_name_eq(&name, "full-stop") {
         return 46;
     }
-    if name.len() == 5
-        && name[0] == 's'
-        && name[1] == 'l'
-        && name[2] == 'a'
-        && name[3] == 's'
-        && name[4] == 'h'
-    {
+    if collating_name_eq(&name, "slash") {
         return 47;
     }
-    if name.len() == 7
-        && name[0] == 's'
-        && name[1] == 'o'
-        && name[2] == 'l'
-        && name[3] == 'i'
-        && name[4] == 'd'
-        && name[5] == 'u'
-        && name[6] == 's'
-    {
+    if collating_name_eq(&name, "solidus") {
         return 47;
     }
-    if name.len() == 4 && name[0] == 'z' && name[1] == 'e' && name[2] == 'r' && name[3] == 'o' {
+    if collating_name_eq(&name, "zero") {
         return 48;
     }
-    if name.len() == 3 && name[0] == 'o' && name[1] == 'n' && name[2] == 'e' {
+    if collating_name_eq(&name, "one") {
         return 49;
     }
-    if name.len() == 3 && name[0] == 't' && name[1] == 'w' && name[2] == 'o' {
+    if collating_name_eq(&name, "two") {
         return 50;
     }
-    if name.len() == 5
-        && name[0] == 't'
-        && name[1] == 'h'
-        && name[2] == 'r'
-        && name[3] == 'e'
-        && name[4] == 'e'
-    {
+    if collating_name_eq(&name, "three") {
         return 51;
     }
-    if name.len() == 4 && name[0] == 'f' && name[1] == 'o' && name[2] == 'u' && name[3] == 'r' {
+    if collating_name_eq(&name, "four") {
         return 52;
     }
-    if name.len() == 4 && name[0] == 'f' && name[1] == 'i' && name[2] == 'v' && name[3] == 'e' {
+    if collating_name_eq(&name, "five") {
         return 53;
     }
-    if name.len() == 3 && name[0] == 's' && name[1] == 'i' && name[2] == 'x' {
+    if collating_name_eq(&name, "six") {
         return 54;
     }
-    if name.len() == 5
-        && name[0] == 's'
-        && name[1] == 'e'
-        && name[2] == 'v'
-        && name[3] == 'e'
-        && name[4] == 'n'
-    {
+    if collating_name_eq(&name, "seven") {
         return 55;
     }
-    if name.len() == 5
-        && name[0] == 'e'
-        && name[1] == 'i'
-        && name[2] == 'g'
-        && name[3] == 'h'
-        && name[4] == 't'
-    {
+    if collating_name_eq(&name, "eight") {
         return 56;
     }
-    if name.len() == 4 && name[0] == 'n' && name[1] == 'i' && name[2] == 'n' && name[3] == 'e' {
+    if collating_name_eq(&name, "nine") {
         return 57;
     }
-    if name.len() == 5
-        && name[0] == 'c'
-        && name[1] == 'o'
-        && name[2] == 'l'
-        && name[3] == 'o'
-        && name[4] == 'n'
-    {
+    if collating_name_eq(&name, "colon") {
         return 58;
     }
-    if name.len() == 9
-        && name[0] == 's'
-        && name[1] == 'e'
-        && name[2] == 'm'
-        && name[3] == 'i'
-        && name[4] == 'c'
-        && name[5] == 'o'
-        && name[6] == 'l'
-        && name[7] == 'o'
-        && name[8] == 'n'
-    {
+    if collating_name_eq(&name, "semicolon") {
         return 59;
     }
-    if name.len() == 14
-        && name[0] == 'l'
-        && name[1] == 'e'
-        && name[2] == 's'
-        && name[3] == 's'
-        && name[4] == '-'
-        && name[5] == 't'
-        && name[6] == 'h'
-        && name[7] == 'a'
-        && name[8] == 'n'
-        && name[9] == '-'
-        && name[10] == 's'
-        && name[11] == 'i'
-        && name[12] == 'g'
-        && name[13] == 'n'
-    {
+    if collating_name_eq(&name, "less-than-sign") {
         return 60;
     }
-    if name.len() == 11
-        && name[0] == 'e'
-        && name[1] == 'q'
-        && name[2] == 'u'
-        && name[3] == 'a'
-        && name[4] == 'l'
-        && name[5] == 's'
-        && name[6] == '-'
-        && name[7] == 's'
-        && name[8] == 'i'
-        && name[9] == 'g'
-        && name[10] == 'n'
-    {
+    if collating_name_eq(&name, "equals-sign") {
         return 61;
     }
-    if name.len() == 17
-        && name[0] == 'g'
-        && name[1] == 'r'
-        && name[2] == 'e'
-        && name[3] == 'a'
-        && name[4] == 't'
-        && name[5] == 'e'
-        && name[6] == 'r'
-        && name[7] == '-'
-        && name[8] == 't'
-        && name[9] == 'h'
-        && name[10] == 'a'
-        && name[11] == 'n'
-        && name[12] == '-'
-        && name[13] == 's'
-        && name[14] == 'i'
-        && name[15] == 'g'
-        && name[16] == 'n'
-    {
+    if collating_name_eq(&name, "greater-than-sign") {
         return 62;
     }
-    if name.len() == 13
-        && name[0] == 'q'
-        && name[1] == 'u'
-        && name[2] == 'e'
-        && name[3] == 's'
-        && name[4] == 't'
-        && name[5] == 'i'
-        && name[6] == 'o'
-        && name[7] == 'n'
-        && name[8] == '-'
-        && name[9] == 'm'
-        && name[10] == 'a'
-        && name[11] == 'r'
-        && name[12] == 'k'
-    {
+    if collating_name_eq(&name, "question-mark") {
         return 63;
     }
-    if name.len() == 13
-        && name[0] == 'c'
-        && name[1] == 'o'
-        && name[2] == 'm'
-        && name[3] == 'm'
-        && name[4] == 'e'
-        && name[5] == 'r'
-        && name[6] == 'c'
-        && name[7] == 'i'
-        && name[8] == 'a'
-        && name[9] == 'l'
-        && name[10] == '-'
-        && name[11] == 'a'
-        && name[12] == 't'
-    {
+    if collating_name_eq(&name, "commercial-at") {
         return 64;
     }
-    if name.len() == 19
-        && name[0] == 'l'
-        && name[1] == 'e'
-        && name[2] == 'f'
-        && name[3] == 't'
-        && name[4] == '-'
-        && name[5] == 's'
-        && name[6] == 'q'
-        && name[7] == 'u'
-        && name[8] == 'a'
-        && name[9] == 'r'
-        && name[10] == 'e'
-        && name[11] == '-'
-        && name[12] == 'b'
-        && name[13] == 'r'
-        && name[14] == 'a'
-        && name[15] == 'c'
-        && name[16] == 'k'
-        && name[17] == 'e'
-        && name[18] == 't'
-    {
+    if collating_name_eq(&name, "left-square-bracket") {
         return 91;
     }
-    if name.len() == 9
-        && name[0] == 'b'
-        && name[1] == 'a'
-        && name[2] == 'c'
-        && name[3] == 'k'
-        && name[4] == 's'
-        && name[5] == 'l'
-        && name[6] == 'a'
-        && name[7] == 's'
-        && name[8] == 'h'
-    {
+    if collating_name_eq(&name, "backslash") {
         return 92;
     }
-    if name.len() == 15
-        && name[0] == 'r'
-        && name[1] == 'e'
-        && name[2] == 'v'
-        && name[3] == 'e'
-        && name[4] == 'r'
-        && name[5] == 's'
-        && name[6] == 'e'
-        && name[7] == '-'
-        && name[8] == 's'
-        && name[9] == 'o'
-        && name[10] == 'l'
-        && name[11] == 'i'
-        && name[12] == 'd'
-        && name[13] == 'u'
-        && name[14] == 's'
-    {
+    if collating_name_eq(&name, "reverse-solidus") {
         return 92;
     }
-    if name.len() == 20
-        && name[0] == 'r'
-        && name[1] == 'i'
-        && name[2] == 'g'
-        && name[3] == 'h'
-        && name[4] == 't'
-        && name[5] == '-'
-        && name[6] == 's'
-        && name[7] == 'q'
-        && name[8] == 'u'
-        && name[9] == 'a'
-        && name[10] == 'r'
-        && name[11] == 'e'
-        && name[12] == '-'
-        && name[13] == 'b'
-        && name[14] == 'r'
-        && name[15] == 'a'
-        && name[16] == 'c'
-        && name[17] == 'k'
-        && name[18] == 'e'
-        && name[19] == 't'
-    {
+    if collating_name_eq(&name, "right-square-bracket") {
         return 93;
     }
-    if name.len() == 10
-        && name[0] == 'c'
-        && name[1] == 'i'
-        && name[2] == 'r'
-        && name[3] == 'c'
-        && name[4] == 'u'
-        && name[5] == 'm'
-        && name[6] == 'f'
-        && name[7] == 'l'
-        && name[8] == 'e'
-        && name[9] == 'x'
-    {
+    if collating_name_eq(&name, "circumflex") {
         return 94;
     }
-    if name.len() == 17
-        && name[0] == 'c'
-        && name[1] == 'i'
-        && name[2] == 'r'
-        && name[3] == 'c'
-        && name[4] == 'u'
-        && name[5] == 'm'
-        && name[6] == 'f'
-        && name[7] == 'l'
-        && name[8] == 'e'
-        && name[9] == 'x'
-        && name[10] == '-'
-        && name[11] == 'a'
-        && name[12] == 'c'
-        && name[13] == 'c'
-        && name[14] == 'e'
-        && name[15] == 'n'
-        && name[16] == 't'
-    {
+    if collating_name_eq(&name, "circumflex-accent") {
         return 94;
     }
-    if name.len() == 10
-        && name[0] == 'u'
-        && name[1] == 'n'
-        && name[2] == 'd'
-        && name[3] == 'e'
-        && name[4] == 'r'
-        && name[5] == 's'
-        && name[6] == 'c'
-        && name[7] == 'o'
-        && name[8] == 'r'
-        && name[9] == 'e'
-    {
+    if collating_name_eq(&name, "underscore") {
         return 95;
     }
-    if name.len() == 8
-        && name[0] == 'l'
-        && name[1] == 'o'
-        && name[2] == 'w'
-        && name[3] == '-'
-        && name[4] == 'l'
-        && name[5] == 'i'
-        && name[6] == 'n'
-        && name[7] == 'e'
-    {
+    if collating_name_eq(&name, "low-line") {
         return 95;
     }
-    if name.len() == 12
-        && name[0] == 'g'
-        && name[1] == 'r'
-        && name[2] == 'a'
-        && name[3] == 'v'
-        && name[4] == 'e'
-        && name[5] == '-'
-        && name[6] == 'a'
-        && name[7] == 'c'
-        && name[8] == 'c'
-        && name[9] == 'e'
-        && name[10] == 'n'
-        && name[11] == 't'
-    {
+    if collating_name_eq(&name, "grave-accent") {
         return 96;
     }
-    if name.len() == 10
-        && name[0] == 'l'
-        && name[1] == 'e'
-        && name[2] == 'f'
-        && name[3] == 't'
-        && name[4] == '-'
-        && name[5] == 'b'
-        && name[6] == 'r'
-        && name[7] == 'a'
-        && name[8] == 'c'
-        && name[9] == 'e'
-    {
+    if collating_name_eq(&name, "left-brace") {
         return 123;
     }
-    if name.len() == 18
-        && name[0] == 'l'
-        && name[1] == 'e'
-        && name[2] == 'f'
-        && name[3] == 't'
-        && name[4] == '-'
-        && name[5] == 'c'
-        && name[6] == 'u'
-        && name[7] == 'r'
-        && name[8] == 'l'
-        && name[9] == 'y'
-        && name[10] == '-'
-        && name[11] == 'b'
-        && name[12] == 'r'
-        && name[13] == 'a'
-        && name[14] == 'c'
-        && name[15] == 'k'
-        && name[16] == 'e'
-        && name[17] == 't'
-    {
+    if collating_name_eq(&name, "left-curly-bracket") {
         return 123;
     }
-    if name.len() == 13
-        && name[0] == 'v'
-        && name[1] == 'e'
-        && name[2] == 'r'
-        && name[3] == 't'
-        && name[4] == 'i'
-        && name[5] == 'c'
-        && name[6] == 'a'
-        && name[7] == 'l'
-        && name[8] == '-'
-        && name[9] == 'l'
-        && name[10] == 'i'
-        && name[11] == 'n'
-        && name[12] == 'e'
-    {
+    if collating_name_eq(&name, "vertical-line") {
         return 124;
     }
-    if name.len() == 11
-        && name[0] == 'r'
-        && name[1] == 'i'
-        && name[2] == 'g'
-        && name[3] == 'h'
-        && name[4] == 't'
-        && name[5] == '-'
-        && name[6] == 'b'
-        && name[7] == 'r'
-        && name[8] == 'a'
-        && name[9] == 'c'
-        && name[10] == 'e'
-    {
+    if collating_name_eq(&name, "right-brace") {
         return 125;
     }
-    if name.len() == 19
-        && name[0] == 'r'
-        && name[1] == 'i'
-        && name[2] == 'g'
-        && name[3] == 'h'
-        && name[4] == 't'
-        && name[5] == '-'
-        && name[6] == 'c'
-        && name[7] == 'u'
-        && name[8] == 'r'
-        && name[9] == 'l'
-        && name[10] == 'y'
-        && name[11] == '-'
-        && name[12] == 'b'
-        && name[13] == 'r'
-        && name[14] == 'a'
-        && name[15] == 'c'
-        && name[16] == 'k'
-        && name[17] == 'e'
-        && name[18] == 't'
-    {
+    if collating_name_eq(&name, "right-curly-bracket") {
         return 125;
     }
-    if name.len() == 5
-        && name[0] == 't'
-        && name[1] == 'i'
-        && name[2] == 'l'
-        && name[3] == 'd'
-        && name[4] == 'e'
-    {
+    if collating_name_eq(&name, "tilde") {
         return 126;
     }
-    if name.len() == 3 && name[0] == 'D' && name[1] == 'E' && name[2] == 'L' {
+    if collating_name_eq(&name, "DEL") {
         return 127;
     }
     2147483647

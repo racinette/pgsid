@@ -534,15 +534,11 @@ function compilePatternSource(pattern: string, options: RegexOptions, capturing:
     if (equalSyntax(options.syntax, { kind: "Basic" })) {
         syntax = checkedChar("b");
     }
-    else {
-        if (equalSyntax(options.syntax, { kind: "Extended" })) {
-            syntax = checkedChar("e");
-        }
-        else {
-            if (equalSyntax(options.syntax, { kind: "Literal" })) {
-                syntax = checkedChar("q");
-            }
-        }
+    else if (equalSyntax(options.syntax, { kind: "Extended" })) {
+        syntax = checkedChar("e");
+    }
+    else if (equalSyntax(options.syntax, { kind: "Literal" })) {
+        syntax = checkedChar("q");
     }
     const parsed: CaptureSource = capturePatternSource(pattern, syntax, options.expanded);
     return compileCaptureProgramAtoms(parsed.atoms, parsed.tokenEnds, parsed.syntax, parsed.valid, parsed.caseMode, parsed.newlineMode, capturing, options.caseSensitive, equalNewlineMode(options.newline, { kind: "Ordinary" }) || equalNewlineMode(options.newline, { kind: "Anchors" }), equalNewlineMode(options.newline, { kind: "Sensitive" }) || equalNewlineMode(options.newline, { kind: "Anchors" }));
@@ -931,70 +927,66 @@ function parseCaptureNumeric(source: string[], groups: number, basic: boolean): 
             end = checkedIndex(3);
         }
     }
+    else if (marker === "x" || marker === "u" || marker === "U") {
+        let digits: number = 0;
+        let limit: number = 255;
+        if (marker === "u") {
+            limit = checkedIndex(4);
+        }
+        else if (marker === "U") {
+            limit = checkedIndex(8);
+        }
+        while (end < source.length && digits < limit) {
+            const digit: number = captureDigitValue(indexChar(source, checkedIndex(end)));
+            if (digit === 16) {
+                break;
+            }
+            const number: CaptureInteger = captureWrappingDigit(value, 16, digit);
+            value = checkedIndex(number.value);
+            high = checkedBool(number.high);
+            end = checkedAdd(end, 1);
+            digits = checkedAdd(digits, 1);
+        }
+        valid = checkedBool(high === false && value <= 2147483646 && digits > 0 && (marker === "x" || digits === limit));
+    }
     else {
-        if (marker === "x" || marker === "u" || marker === "U") {
-            let digits: number = 0;
-            let limit: number = 255;
-            if (marker === "u") {
-                limit = checkedIndex(4);
-            }
-            else {
-                if (marker === "U") {
-                    limit = checkedIndex(8);
-                }
-            }
-            while (end < source.length && digits < limit) {
+        let digits: number = 0;
+        end = checkedIndex(1);
+        if (!(marker === "0")) {
+            while (end < source.length && digits < 255) {
                 const digit: number = captureDigitValue(indexChar(source, checkedIndex(end)));
-                if (digit === 16) {
+                if (digit > 9 || (basic && digits === 1)) {
                     break;
                 }
-                const number: CaptureInteger = captureWrappingDigit(value, 16, digit);
+                const number: CaptureInteger = captureWrappingDigit(value, 10, digit);
                 value = checkedIndex(number.value);
                 high = checkedBool(number.high);
                 end = checkedAdd(end, 1);
                 digits = checkedAdd(digits, 1);
             }
-            valid = checkedBool(high === false && value <= 2147483646 && digits > 0 && (marker === "x" || digits === limit));
+            backreference = checkedBool(digits === 1 || (high === false && value > 0 && value <= 2147483646 && (checkedIndex(value)) <= groups));
+        }
+        if (backreference) {
+            valid = checkedBool(high === false && value > 0 && value <= 2147483646 && (checkedIndex(value)) <= groups);
         }
         else {
-            let digits: number = 0;
             end = checkedIndex(1);
-            if (!(marker === "0")) {
-                while (end < source.length && digits < 255) {
-                    const digit: number = captureDigitValue(indexChar(source, checkedIndex(end)));
-                    if (digit > 9 || (basic && digits === 1)) {
-                        break;
-                    }
-                    const number: CaptureInteger = captureWrappingDigit(value, 10, digit);
-                    value = checkedIndex(number.value);
-                    high = checkedBool(number.high);
-                    end = checkedAdd(end, 1);
-                    digits = checkedAdd(digits, 1);
+            digits = checkedIndex(0);
+            value = checkedIndex(0);
+            while (end < source.length && digits < 3) {
+                const digit: number = captureDigitValue(indexChar(source, checkedIndex(end)));
+                if (digit > 7) {
+                    break;
                 }
-                backreference = checkedBool(digits === 1 || (high === false && value > 0 && value <= 2147483646 && (checkedIndex(value)) <= groups));
-            }
-            if (backreference) {
-                valid = checkedBool(high === false && value > 0 && value <= 2147483646 && (checkedIndex(value)) <= groups);
-            }
-            else {
-                end = checkedIndex(1);
-                digits = checkedIndex(0);
-                value = checkedIndex(0);
-                while (end < source.length && digits < 3) {
-                    const digit: number = captureDigitValue(indexChar(source, checkedIndex(end)));
-                    if (digit > 7) {
-                        break;
-                    }
-                    const candidate: number = captureWrappingDigit(value, 8, digit).value;
-                    if (candidate > 255) {
-                        break;
-                    }
-                    value = checkedIndex(candidate);
-                    end = checkedAdd(end, 1);
-                    digits = checkedAdd(digits, 1);
+                const candidate: number = captureWrappingDigit(value, 8, digit).value;
+                if (candidate > 255) {
+                    break;
                 }
-                valid = checkedBool(digits > 0);
+                value = checkedIndex(candidate);
+                end = checkedAdd(end, 1);
+                digits = checkedAdd(digits, 1);
             }
+            valid = checkedBool(digits > 0);
         }
     }
     return { valid: valid, backreference: backreference, value: value, end: end };
@@ -1014,294 +1006,317 @@ function captureAssertionMatches(operation: number, position: number, length: nu
     lineAnchors = checkedBool(lineAnchors);
     return (operation === vmBegin && (position === 0 || (lineAnchors && previousNewline))) || (operation === vmEnd && (position === length || (lineAnchors && nextNewline))) || (operation === vmAbsoluteBegin && position === 0) || (operation === vmAbsoluteEnd && position === length) || (operation === vmWordBegin && before === false && after) || (operation === vmWordEnd && before && after === false) || (operation === vmBoundary && !(before === after)) || (operation === vmNotBoundary && before === after);
 }
-function captureCollatingValue(name: string[]): number {
-    name = checkedChars(name);
-    if (name.length === 1) {
-        return checkedChar(indexChar(name, checkedIndex(0))).codePointAt(0)!;
+interface CollatingName {
+    characters: string[];
+}
+function copyCollatingName(value: CollatingName): CollatingName {
+    return { characters: checkedChars(value.characters) };
+}
+function collatingNameEq(name: CollatingName, expected: string): boolean {
+    name = copyCollatingName(name);
+    expected = checkedString(expected);
+    const characters: string[] = Array.from(expected);
+    if (!(name.characters.length === characters.length)) {
+        return false;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "N" && indexChar(name, checkedIndex(1)) === "U" && indexChar(name, checkedIndex(2)) === "L") {
+    let index: number = 0;
+    while (index < characters.length) {
+        if (!(indexChar(name.characters, checkedIndex(index)) === indexChar(characters, checkedIndex(index)))) {
+            return false;
+        }
+        index = checkedAdd(index, 1);
+    }
+    return true;
+}
+function captureCollatingValue(characters: string[]): number {
+    characters = checkedChars(characters);
+    if (characters.length === 1) {
+        return checkedChar(indexChar(characters, checkedIndex(0))).codePointAt(0)!;
+    }
+    const name: CollatingName = { characters: characters };
+    if (collatingNameEq(name, "NUL")) {
         return 0;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "S" && indexChar(name, checkedIndex(1)) === "O" && indexChar(name, checkedIndex(2)) === "H") {
+    if (collatingNameEq(name, "SOH")) {
         return 1;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "S" && indexChar(name, checkedIndex(1)) === "T" && indexChar(name, checkedIndex(2)) === "X") {
+    if (collatingNameEq(name, "STX")) {
         return 2;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "E" && indexChar(name, checkedIndex(1)) === "T" && indexChar(name, checkedIndex(2)) === "X") {
+    if (collatingNameEq(name, "ETX")) {
         return 3;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "E" && indexChar(name, checkedIndex(1)) === "O" && indexChar(name, checkedIndex(2)) === "T") {
+    if (collatingNameEq(name, "EOT")) {
         return 4;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "E" && indexChar(name, checkedIndex(1)) === "N" && indexChar(name, checkedIndex(2)) === "Q") {
+    if (collatingNameEq(name, "ENQ")) {
         return 5;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "A" && indexChar(name, checkedIndex(1)) === "C" && indexChar(name, checkedIndex(2)) === "K") {
+    if (collatingNameEq(name, "ACK")) {
         return 6;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "B" && indexChar(name, checkedIndex(1)) === "E" && indexChar(name, checkedIndex(2)) === "L") {
+    if (collatingNameEq(name, "BEL")) {
         return 7;
     }
-    if (name.length === 5 && indexChar(name, checkedIndex(0)) === "a" && indexChar(name, checkedIndex(1)) === "l" && indexChar(name, checkedIndex(2)) === "e" && indexChar(name, checkedIndex(3)) === "r" && indexChar(name, checkedIndex(4)) === "t") {
+    if (collatingNameEq(name, "alert")) {
         return 7;
     }
-    if (name.length === 2 && indexChar(name, checkedIndex(0)) === "B" && indexChar(name, checkedIndex(1)) === "S") {
+    if (collatingNameEq(name, "BS")) {
         return 8;
     }
-    if (name.length === 9 && indexChar(name, checkedIndex(0)) === "b" && indexChar(name, checkedIndex(1)) === "a" && indexChar(name, checkedIndex(2)) === "c" && indexChar(name, checkedIndex(3)) === "k" && indexChar(name, checkedIndex(4)) === "s" && indexChar(name, checkedIndex(5)) === "p" && indexChar(name, checkedIndex(6)) === "a" && indexChar(name, checkedIndex(7)) === "c" && indexChar(name, checkedIndex(8)) === "e") {
+    if (collatingNameEq(name, "backspace")) {
         return 8;
     }
-    if (name.length === 2 && indexChar(name, checkedIndex(0)) === "H" && indexChar(name, checkedIndex(1)) === "T") {
+    if (collatingNameEq(name, "HT")) {
         return 9;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "t" && indexChar(name, checkedIndex(1)) === "a" && indexChar(name, checkedIndex(2)) === "b") {
+    if (collatingNameEq(name, "tab")) {
         return 9;
     }
-    if (name.length === 2 && indexChar(name, checkedIndex(0)) === "L" && indexChar(name, checkedIndex(1)) === "F") {
+    if (collatingNameEq(name, "LF")) {
         return 10;
     }
-    if (name.length === 7 && indexChar(name, checkedIndex(0)) === "n" && indexChar(name, checkedIndex(1)) === "e" && indexChar(name, checkedIndex(2)) === "w" && indexChar(name, checkedIndex(3)) === "l" && indexChar(name, checkedIndex(4)) === "i" && indexChar(name, checkedIndex(5)) === "n" && indexChar(name, checkedIndex(6)) === "e") {
+    if (collatingNameEq(name, "newline")) {
         return 10;
     }
-    if (name.length === 2 && indexChar(name, checkedIndex(0)) === "V" && indexChar(name, checkedIndex(1)) === "T") {
+    if (collatingNameEq(name, "VT")) {
         return 11;
     }
-    if (name.length === 12 && indexChar(name, checkedIndex(0)) === "v" && indexChar(name, checkedIndex(1)) === "e" && indexChar(name, checkedIndex(2)) === "r" && indexChar(name, checkedIndex(3)) === "t" && indexChar(name, checkedIndex(4)) === "i" && indexChar(name, checkedIndex(5)) === "c" && indexChar(name, checkedIndex(6)) === "a" && indexChar(name, checkedIndex(7)) === "l" && indexChar(name, checkedIndex(8)) === "-" && indexChar(name, checkedIndex(9)) === "t" && indexChar(name, checkedIndex(10)) === "a" && indexChar(name, checkedIndex(11)) === "b") {
+    if (collatingNameEq(name, "vertical-tab")) {
         return 11;
     }
-    if (name.length === 2 && indexChar(name, checkedIndex(0)) === "F" && indexChar(name, checkedIndex(1)) === "F") {
+    if (collatingNameEq(name, "FF")) {
         return 12;
     }
-    if (name.length === 9 && indexChar(name, checkedIndex(0)) === "f" && indexChar(name, checkedIndex(1)) === "o" && indexChar(name, checkedIndex(2)) === "r" && indexChar(name, checkedIndex(3)) === "m" && indexChar(name, checkedIndex(4)) === "-" && indexChar(name, checkedIndex(5)) === "f" && indexChar(name, checkedIndex(6)) === "e" && indexChar(name, checkedIndex(7)) === "e" && indexChar(name, checkedIndex(8)) === "d") {
+    if (collatingNameEq(name, "form-feed")) {
         return 12;
     }
-    if (name.length === 2 && indexChar(name, checkedIndex(0)) === "C" && indexChar(name, checkedIndex(1)) === "R") {
+    if (collatingNameEq(name, "CR")) {
         return 13;
     }
-    if (name.length === 15 && indexChar(name, checkedIndex(0)) === "c" && indexChar(name, checkedIndex(1)) === "a" && indexChar(name, checkedIndex(2)) === "r" && indexChar(name, checkedIndex(3)) === "r" && indexChar(name, checkedIndex(4)) === "i" && indexChar(name, checkedIndex(5)) === "a" && indexChar(name, checkedIndex(6)) === "g" && indexChar(name, checkedIndex(7)) === "e" && indexChar(name, checkedIndex(8)) === "-" && indexChar(name, checkedIndex(9)) === "r" && indexChar(name, checkedIndex(10)) === "e" && indexChar(name, checkedIndex(11)) === "t" && indexChar(name, checkedIndex(12)) === "u" && indexChar(name, checkedIndex(13)) === "r" && indexChar(name, checkedIndex(14)) === "n") {
+    if (collatingNameEq(name, "carriage-return")) {
         return 13;
     }
-    if (name.length === 2 && indexChar(name, checkedIndex(0)) === "S" && indexChar(name, checkedIndex(1)) === "O") {
+    if (collatingNameEq(name, "SO")) {
         return 14;
     }
-    if (name.length === 2 && indexChar(name, checkedIndex(0)) === "S" && indexChar(name, checkedIndex(1)) === "I") {
+    if (collatingNameEq(name, "SI")) {
         return 15;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "D" && indexChar(name, checkedIndex(1)) === "L" && indexChar(name, checkedIndex(2)) === "E") {
+    if (collatingNameEq(name, "DLE")) {
         return 16;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "D" && indexChar(name, checkedIndex(1)) === "C" && indexChar(name, checkedIndex(2)) === "1") {
+    if (collatingNameEq(name, "DC1")) {
         return 17;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "D" && indexChar(name, checkedIndex(1)) === "C" && indexChar(name, checkedIndex(2)) === "2") {
+    if (collatingNameEq(name, "DC2")) {
         return 18;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "D" && indexChar(name, checkedIndex(1)) === "C" && indexChar(name, checkedIndex(2)) === "3") {
+    if (collatingNameEq(name, "DC3")) {
         return 19;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "D" && indexChar(name, checkedIndex(1)) === "C" && indexChar(name, checkedIndex(2)) === "4") {
+    if (collatingNameEq(name, "DC4")) {
         return 20;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "N" && indexChar(name, checkedIndex(1)) === "A" && indexChar(name, checkedIndex(2)) === "K") {
+    if (collatingNameEq(name, "NAK")) {
         return 21;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "S" && indexChar(name, checkedIndex(1)) === "Y" && indexChar(name, checkedIndex(2)) === "N") {
+    if (collatingNameEq(name, "SYN")) {
         return 22;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "E" && indexChar(name, checkedIndex(1)) === "T" && indexChar(name, checkedIndex(2)) === "B") {
+    if (collatingNameEq(name, "ETB")) {
         return 23;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "C" && indexChar(name, checkedIndex(1)) === "A" && indexChar(name, checkedIndex(2)) === "N") {
+    if (collatingNameEq(name, "CAN")) {
         return 24;
     }
-    if (name.length === 2 && indexChar(name, checkedIndex(0)) === "E" && indexChar(name, checkedIndex(1)) === "M") {
+    if (collatingNameEq(name, "EM")) {
         return 25;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "S" && indexChar(name, checkedIndex(1)) === "U" && indexChar(name, checkedIndex(2)) === "B") {
+    if (collatingNameEq(name, "SUB")) {
         return 26;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "E" && indexChar(name, checkedIndex(1)) === "S" && indexChar(name, checkedIndex(2)) === "C") {
+    if (collatingNameEq(name, "ESC")) {
         return 27;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "I" && indexChar(name, checkedIndex(1)) === "S" && indexChar(name, checkedIndex(2)) === "4") {
+    if (collatingNameEq(name, "IS4")) {
         return 28;
     }
-    if (name.length === 2 && indexChar(name, checkedIndex(0)) === "F" && indexChar(name, checkedIndex(1)) === "S") {
+    if (collatingNameEq(name, "FS")) {
         return 28;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "I" && indexChar(name, checkedIndex(1)) === "S" && indexChar(name, checkedIndex(2)) === "3") {
+    if (collatingNameEq(name, "IS3")) {
         return 29;
     }
-    if (name.length === 2 && indexChar(name, checkedIndex(0)) === "G" && indexChar(name, checkedIndex(1)) === "S") {
+    if (collatingNameEq(name, "GS")) {
         return 29;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "I" && indexChar(name, checkedIndex(1)) === "S" && indexChar(name, checkedIndex(2)) === "2") {
+    if (collatingNameEq(name, "IS2")) {
         return 30;
     }
-    if (name.length === 2 && indexChar(name, checkedIndex(0)) === "R" && indexChar(name, checkedIndex(1)) === "S") {
+    if (collatingNameEq(name, "RS")) {
         return 30;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "I" && indexChar(name, checkedIndex(1)) === "S" && indexChar(name, checkedIndex(2)) === "1") {
+    if (collatingNameEq(name, "IS1")) {
         return 31;
     }
-    if (name.length === 2 && indexChar(name, checkedIndex(0)) === "U" && indexChar(name, checkedIndex(1)) === "S") {
+    if (collatingNameEq(name, "US")) {
         return 31;
     }
-    if (name.length === 5 && indexChar(name, checkedIndex(0)) === "s" && indexChar(name, checkedIndex(1)) === "p" && indexChar(name, checkedIndex(2)) === "a" && indexChar(name, checkedIndex(3)) === "c" && indexChar(name, checkedIndex(4)) === "e") {
+    if (collatingNameEq(name, "space")) {
         return 32;
     }
-    if (name.length === 16 && indexChar(name, checkedIndex(0)) === "e" && indexChar(name, checkedIndex(1)) === "x" && indexChar(name, checkedIndex(2)) === "c" && indexChar(name, checkedIndex(3)) === "l" && indexChar(name, checkedIndex(4)) === "a" && indexChar(name, checkedIndex(5)) === "m" && indexChar(name, checkedIndex(6)) === "a" && indexChar(name, checkedIndex(7)) === "t" && indexChar(name, checkedIndex(8)) === "i" && indexChar(name, checkedIndex(9)) === "o" && indexChar(name, checkedIndex(10)) === "n" && indexChar(name, checkedIndex(11)) === "-" && indexChar(name, checkedIndex(12)) === "m" && indexChar(name, checkedIndex(13)) === "a" && indexChar(name, checkedIndex(14)) === "r" && indexChar(name, checkedIndex(15)) === "k") {
+    if (collatingNameEq(name, "exclamation-mark")) {
         return 33;
     }
-    if (name.length === 14 && indexChar(name, checkedIndex(0)) === "q" && indexChar(name, checkedIndex(1)) === "u" && indexChar(name, checkedIndex(2)) === "o" && indexChar(name, checkedIndex(3)) === "t" && indexChar(name, checkedIndex(4)) === "a" && indexChar(name, checkedIndex(5)) === "t" && indexChar(name, checkedIndex(6)) === "i" && indexChar(name, checkedIndex(7)) === "o" && indexChar(name, checkedIndex(8)) === "n" && indexChar(name, checkedIndex(9)) === "-" && indexChar(name, checkedIndex(10)) === "m" && indexChar(name, checkedIndex(11)) === "a" && indexChar(name, checkedIndex(12)) === "r" && indexChar(name, checkedIndex(13)) === "k") {
+    if (collatingNameEq(name, "quotation-mark")) {
         return 34;
     }
-    if (name.length === 11 && indexChar(name, checkedIndex(0)) === "n" && indexChar(name, checkedIndex(1)) === "u" && indexChar(name, checkedIndex(2)) === "m" && indexChar(name, checkedIndex(3)) === "b" && indexChar(name, checkedIndex(4)) === "e" && indexChar(name, checkedIndex(5)) === "r" && indexChar(name, checkedIndex(6)) === "-" && indexChar(name, checkedIndex(7)) === "s" && indexChar(name, checkedIndex(8)) === "i" && indexChar(name, checkedIndex(9)) === "g" && indexChar(name, checkedIndex(10)) === "n") {
+    if (collatingNameEq(name, "number-sign")) {
         return 35;
     }
-    if (name.length === 11 && indexChar(name, checkedIndex(0)) === "d" && indexChar(name, checkedIndex(1)) === "o" && indexChar(name, checkedIndex(2)) === "l" && indexChar(name, checkedIndex(3)) === "l" && indexChar(name, checkedIndex(4)) === "a" && indexChar(name, checkedIndex(5)) === "r" && indexChar(name, checkedIndex(6)) === "-" && indexChar(name, checkedIndex(7)) === "s" && indexChar(name, checkedIndex(8)) === "i" && indexChar(name, checkedIndex(9)) === "g" && indexChar(name, checkedIndex(10)) === "n") {
+    if (collatingNameEq(name, "dollar-sign")) {
         return 36;
     }
-    if (name.length === 12 && indexChar(name, checkedIndex(0)) === "p" && indexChar(name, checkedIndex(1)) === "e" && indexChar(name, checkedIndex(2)) === "r" && indexChar(name, checkedIndex(3)) === "c" && indexChar(name, checkedIndex(4)) === "e" && indexChar(name, checkedIndex(5)) === "n" && indexChar(name, checkedIndex(6)) === "t" && indexChar(name, checkedIndex(7)) === "-" && indexChar(name, checkedIndex(8)) === "s" && indexChar(name, checkedIndex(9)) === "i" && indexChar(name, checkedIndex(10)) === "g" && indexChar(name, checkedIndex(11)) === "n") {
+    if (collatingNameEq(name, "percent-sign")) {
         return 37;
     }
-    if (name.length === 9 && indexChar(name, checkedIndex(0)) === "a" && indexChar(name, checkedIndex(1)) === "m" && indexChar(name, checkedIndex(2)) === "p" && indexChar(name, checkedIndex(3)) === "e" && indexChar(name, checkedIndex(4)) === "r" && indexChar(name, checkedIndex(5)) === "s" && indexChar(name, checkedIndex(6)) === "a" && indexChar(name, checkedIndex(7)) === "n" && indexChar(name, checkedIndex(8)) === "d") {
+    if (collatingNameEq(name, "ampersand")) {
         return 38;
     }
-    if (name.length === 10 && indexChar(name, checkedIndex(0)) === "a" && indexChar(name, checkedIndex(1)) === "p" && indexChar(name, checkedIndex(2)) === "o" && indexChar(name, checkedIndex(3)) === "s" && indexChar(name, checkedIndex(4)) === "t" && indexChar(name, checkedIndex(5)) === "r" && indexChar(name, checkedIndex(6)) === "o" && indexChar(name, checkedIndex(7)) === "p" && indexChar(name, checkedIndex(8)) === "h" && indexChar(name, checkedIndex(9)) === "e") {
+    if (collatingNameEq(name, "apostrophe")) {
         return 39;
     }
-    if (name.length === 16 && indexChar(name, checkedIndex(0)) === "l" && indexChar(name, checkedIndex(1)) === "e" && indexChar(name, checkedIndex(2)) === "f" && indexChar(name, checkedIndex(3)) === "t" && indexChar(name, checkedIndex(4)) === "-" && indexChar(name, checkedIndex(5)) === "p" && indexChar(name, checkedIndex(6)) === "a" && indexChar(name, checkedIndex(7)) === "r" && indexChar(name, checkedIndex(8)) === "e" && indexChar(name, checkedIndex(9)) === "n" && indexChar(name, checkedIndex(10)) === "t" && indexChar(name, checkedIndex(11)) === "h" && indexChar(name, checkedIndex(12)) === "e" && indexChar(name, checkedIndex(13)) === "s" && indexChar(name, checkedIndex(14)) === "i" && indexChar(name, checkedIndex(15)) === "s") {
+    if (collatingNameEq(name, "left-parenthesis")) {
         return 40;
     }
-    if (name.length === 17 && indexChar(name, checkedIndex(0)) === "r" && indexChar(name, checkedIndex(1)) === "i" && indexChar(name, checkedIndex(2)) === "g" && indexChar(name, checkedIndex(3)) === "h" && indexChar(name, checkedIndex(4)) === "t" && indexChar(name, checkedIndex(5)) === "-" && indexChar(name, checkedIndex(6)) === "p" && indexChar(name, checkedIndex(7)) === "a" && indexChar(name, checkedIndex(8)) === "r" && indexChar(name, checkedIndex(9)) === "e" && indexChar(name, checkedIndex(10)) === "n" && indexChar(name, checkedIndex(11)) === "t" && indexChar(name, checkedIndex(12)) === "h" && indexChar(name, checkedIndex(13)) === "e" && indexChar(name, checkedIndex(14)) === "s" && indexChar(name, checkedIndex(15)) === "i" && indexChar(name, checkedIndex(16)) === "s") {
+    if (collatingNameEq(name, "right-parenthesis")) {
         return 41;
     }
-    if (name.length === 8 && indexChar(name, checkedIndex(0)) === "a" && indexChar(name, checkedIndex(1)) === "s" && indexChar(name, checkedIndex(2)) === "t" && indexChar(name, checkedIndex(3)) === "e" && indexChar(name, checkedIndex(4)) === "r" && indexChar(name, checkedIndex(5)) === "i" && indexChar(name, checkedIndex(6)) === "s" && indexChar(name, checkedIndex(7)) === "k") {
+    if (collatingNameEq(name, "asterisk")) {
         return 42;
     }
-    if (name.length === 9 && indexChar(name, checkedIndex(0)) === "p" && indexChar(name, checkedIndex(1)) === "l" && indexChar(name, checkedIndex(2)) === "u" && indexChar(name, checkedIndex(3)) === "s" && indexChar(name, checkedIndex(4)) === "-" && indexChar(name, checkedIndex(5)) === "s" && indexChar(name, checkedIndex(6)) === "i" && indexChar(name, checkedIndex(7)) === "g" && indexChar(name, checkedIndex(8)) === "n") {
+    if (collatingNameEq(name, "plus-sign")) {
         return 43;
     }
-    if (name.length === 5 && indexChar(name, checkedIndex(0)) === "c" && indexChar(name, checkedIndex(1)) === "o" && indexChar(name, checkedIndex(2)) === "m" && indexChar(name, checkedIndex(3)) === "m" && indexChar(name, checkedIndex(4)) === "a") {
+    if (collatingNameEq(name, "comma")) {
         return 44;
     }
-    if (name.length === 6 && indexChar(name, checkedIndex(0)) === "h" && indexChar(name, checkedIndex(1)) === "y" && indexChar(name, checkedIndex(2)) === "p" && indexChar(name, checkedIndex(3)) === "h" && indexChar(name, checkedIndex(4)) === "e" && indexChar(name, checkedIndex(5)) === "n") {
+    if (collatingNameEq(name, "hyphen")) {
         return 45;
     }
-    if (name.length === 12 && indexChar(name, checkedIndex(0)) === "h" && indexChar(name, checkedIndex(1)) === "y" && indexChar(name, checkedIndex(2)) === "p" && indexChar(name, checkedIndex(3)) === "h" && indexChar(name, checkedIndex(4)) === "e" && indexChar(name, checkedIndex(5)) === "n" && indexChar(name, checkedIndex(6)) === "-" && indexChar(name, checkedIndex(7)) === "m" && indexChar(name, checkedIndex(8)) === "i" && indexChar(name, checkedIndex(9)) === "n" && indexChar(name, checkedIndex(10)) === "u" && indexChar(name, checkedIndex(11)) === "s") {
+    if (collatingNameEq(name, "hyphen-minus")) {
         return 45;
     }
-    if (name.length === 6 && indexChar(name, checkedIndex(0)) === "p" && indexChar(name, checkedIndex(1)) === "e" && indexChar(name, checkedIndex(2)) === "r" && indexChar(name, checkedIndex(3)) === "i" && indexChar(name, checkedIndex(4)) === "o" && indexChar(name, checkedIndex(5)) === "d") {
+    if (collatingNameEq(name, "period")) {
         return 46;
     }
-    if (name.length === 9 && indexChar(name, checkedIndex(0)) === "f" && indexChar(name, checkedIndex(1)) === "u" && indexChar(name, checkedIndex(2)) === "l" && indexChar(name, checkedIndex(3)) === "l" && indexChar(name, checkedIndex(4)) === "-" && indexChar(name, checkedIndex(5)) === "s" && indexChar(name, checkedIndex(6)) === "t" && indexChar(name, checkedIndex(7)) === "o" && indexChar(name, checkedIndex(8)) === "p") {
+    if (collatingNameEq(name, "full-stop")) {
         return 46;
     }
-    if (name.length === 5 && indexChar(name, checkedIndex(0)) === "s" && indexChar(name, checkedIndex(1)) === "l" && indexChar(name, checkedIndex(2)) === "a" && indexChar(name, checkedIndex(3)) === "s" && indexChar(name, checkedIndex(4)) === "h") {
+    if (collatingNameEq(name, "slash")) {
         return 47;
     }
-    if (name.length === 7 && indexChar(name, checkedIndex(0)) === "s" && indexChar(name, checkedIndex(1)) === "o" && indexChar(name, checkedIndex(2)) === "l" && indexChar(name, checkedIndex(3)) === "i" && indexChar(name, checkedIndex(4)) === "d" && indexChar(name, checkedIndex(5)) === "u" && indexChar(name, checkedIndex(6)) === "s") {
+    if (collatingNameEq(name, "solidus")) {
         return 47;
     }
-    if (name.length === 4 && indexChar(name, checkedIndex(0)) === "z" && indexChar(name, checkedIndex(1)) === "e" && indexChar(name, checkedIndex(2)) === "r" && indexChar(name, checkedIndex(3)) === "o") {
+    if (collatingNameEq(name, "zero")) {
         return 48;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "o" && indexChar(name, checkedIndex(1)) === "n" && indexChar(name, checkedIndex(2)) === "e") {
+    if (collatingNameEq(name, "one")) {
         return 49;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "t" && indexChar(name, checkedIndex(1)) === "w" && indexChar(name, checkedIndex(2)) === "o") {
+    if (collatingNameEq(name, "two")) {
         return 50;
     }
-    if (name.length === 5 && indexChar(name, checkedIndex(0)) === "t" && indexChar(name, checkedIndex(1)) === "h" && indexChar(name, checkedIndex(2)) === "r" && indexChar(name, checkedIndex(3)) === "e" && indexChar(name, checkedIndex(4)) === "e") {
+    if (collatingNameEq(name, "three")) {
         return 51;
     }
-    if (name.length === 4 && indexChar(name, checkedIndex(0)) === "f" && indexChar(name, checkedIndex(1)) === "o" && indexChar(name, checkedIndex(2)) === "u" && indexChar(name, checkedIndex(3)) === "r") {
+    if (collatingNameEq(name, "four")) {
         return 52;
     }
-    if (name.length === 4 && indexChar(name, checkedIndex(0)) === "f" && indexChar(name, checkedIndex(1)) === "i" && indexChar(name, checkedIndex(2)) === "v" && indexChar(name, checkedIndex(3)) === "e") {
+    if (collatingNameEq(name, "five")) {
         return 53;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "s" && indexChar(name, checkedIndex(1)) === "i" && indexChar(name, checkedIndex(2)) === "x") {
+    if (collatingNameEq(name, "six")) {
         return 54;
     }
-    if (name.length === 5 && indexChar(name, checkedIndex(0)) === "s" && indexChar(name, checkedIndex(1)) === "e" && indexChar(name, checkedIndex(2)) === "v" && indexChar(name, checkedIndex(3)) === "e" && indexChar(name, checkedIndex(4)) === "n") {
+    if (collatingNameEq(name, "seven")) {
         return 55;
     }
-    if (name.length === 5 && indexChar(name, checkedIndex(0)) === "e" && indexChar(name, checkedIndex(1)) === "i" && indexChar(name, checkedIndex(2)) === "g" && indexChar(name, checkedIndex(3)) === "h" && indexChar(name, checkedIndex(4)) === "t") {
+    if (collatingNameEq(name, "eight")) {
         return 56;
     }
-    if (name.length === 4 && indexChar(name, checkedIndex(0)) === "n" && indexChar(name, checkedIndex(1)) === "i" && indexChar(name, checkedIndex(2)) === "n" && indexChar(name, checkedIndex(3)) === "e") {
+    if (collatingNameEq(name, "nine")) {
         return 57;
     }
-    if (name.length === 5 && indexChar(name, checkedIndex(0)) === "c" && indexChar(name, checkedIndex(1)) === "o" && indexChar(name, checkedIndex(2)) === "l" && indexChar(name, checkedIndex(3)) === "o" && indexChar(name, checkedIndex(4)) === "n") {
+    if (collatingNameEq(name, "colon")) {
         return 58;
     }
-    if (name.length === 9 && indexChar(name, checkedIndex(0)) === "s" && indexChar(name, checkedIndex(1)) === "e" && indexChar(name, checkedIndex(2)) === "m" && indexChar(name, checkedIndex(3)) === "i" && indexChar(name, checkedIndex(4)) === "c" && indexChar(name, checkedIndex(5)) === "o" && indexChar(name, checkedIndex(6)) === "l" && indexChar(name, checkedIndex(7)) === "o" && indexChar(name, checkedIndex(8)) === "n") {
+    if (collatingNameEq(name, "semicolon")) {
         return 59;
     }
-    if (name.length === 14 && indexChar(name, checkedIndex(0)) === "l" && indexChar(name, checkedIndex(1)) === "e" && indexChar(name, checkedIndex(2)) === "s" && indexChar(name, checkedIndex(3)) === "s" && indexChar(name, checkedIndex(4)) === "-" && indexChar(name, checkedIndex(5)) === "t" && indexChar(name, checkedIndex(6)) === "h" && indexChar(name, checkedIndex(7)) === "a" && indexChar(name, checkedIndex(8)) === "n" && indexChar(name, checkedIndex(9)) === "-" && indexChar(name, checkedIndex(10)) === "s" && indexChar(name, checkedIndex(11)) === "i" && indexChar(name, checkedIndex(12)) === "g" && indexChar(name, checkedIndex(13)) === "n") {
+    if (collatingNameEq(name, "less-than-sign")) {
         return 60;
     }
-    if (name.length === 11 && indexChar(name, checkedIndex(0)) === "e" && indexChar(name, checkedIndex(1)) === "q" && indexChar(name, checkedIndex(2)) === "u" && indexChar(name, checkedIndex(3)) === "a" && indexChar(name, checkedIndex(4)) === "l" && indexChar(name, checkedIndex(5)) === "s" && indexChar(name, checkedIndex(6)) === "-" && indexChar(name, checkedIndex(7)) === "s" && indexChar(name, checkedIndex(8)) === "i" && indexChar(name, checkedIndex(9)) === "g" && indexChar(name, checkedIndex(10)) === "n") {
+    if (collatingNameEq(name, "equals-sign")) {
         return 61;
     }
-    if (name.length === 17 && indexChar(name, checkedIndex(0)) === "g" && indexChar(name, checkedIndex(1)) === "r" && indexChar(name, checkedIndex(2)) === "e" && indexChar(name, checkedIndex(3)) === "a" && indexChar(name, checkedIndex(4)) === "t" && indexChar(name, checkedIndex(5)) === "e" && indexChar(name, checkedIndex(6)) === "r" && indexChar(name, checkedIndex(7)) === "-" && indexChar(name, checkedIndex(8)) === "t" && indexChar(name, checkedIndex(9)) === "h" && indexChar(name, checkedIndex(10)) === "a" && indexChar(name, checkedIndex(11)) === "n" && indexChar(name, checkedIndex(12)) === "-" && indexChar(name, checkedIndex(13)) === "s" && indexChar(name, checkedIndex(14)) === "i" && indexChar(name, checkedIndex(15)) === "g" && indexChar(name, checkedIndex(16)) === "n") {
+    if (collatingNameEq(name, "greater-than-sign")) {
         return 62;
     }
-    if (name.length === 13 && indexChar(name, checkedIndex(0)) === "q" && indexChar(name, checkedIndex(1)) === "u" && indexChar(name, checkedIndex(2)) === "e" && indexChar(name, checkedIndex(3)) === "s" && indexChar(name, checkedIndex(4)) === "t" && indexChar(name, checkedIndex(5)) === "i" && indexChar(name, checkedIndex(6)) === "o" && indexChar(name, checkedIndex(7)) === "n" && indexChar(name, checkedIndex(8)) === "-" && indexChar(name, checkedIndex(9)) === "m" && indexChar(name, checkedIndex(10)) === "a" && indexChar(name, checkedIndex(11)) === "r" && indexChar(name, checkedIndex(12)) === "k") {
+    if (collatingNameEq(name, "question-mark")) {
         return 63;
     }
-    if (name.length === 13 && indexChar(name, checkedIndex(0)) === "c" && indexChar(name, checkedIndex(1)) === "o" && indexChar(name, checkedIndex(2)) === "m" && indexChar(name, checkedIndex(3)) === "m" && indexChar(name, checkedIndex(4)) === "e" && indexChar(name, checkedIndex(5)) === "r" && indexChar(name, checkedIndex(6)) === "c" && indexChar(name, checkedIndex(7)) === "i" && indexChar(name, checkedIndex(8)) === "a" && indexChar(name, checkedIndex(9)) === "l" && indexChar(name, checkedIndex(10)) === "-" && indexChar(name, checkedIndex(11)) === "a" && indexChar(name, checkedIndex(12)) === "t") {
+    if (collatingNameEq(name, "commercial-at")) {
         return 64;
     }
-    if (name.length === 19 && indexChar(name, checkedIndex(0)) === "l" && indexChar(name, checkedIndex(1)) === "e" && indexChar(name, checkedIndex(2)) === "f" && indexChar(name, checkedIndex(3)) === "t" && indexChar(name, checkedIndex(4)) === "-" && indexChar(name, checkedIndex(5)) === "s" && indexChar(name, checkedIndex(6)) === "q" && indexChar(name, checkedIndex(7)) === "u" && indexChar(name, checkedIndex(8)) === "a" && indexChar(name, checkedIndex(9)) === "r" && indexChar(name, checkedIndex(10)) === "e" && indexChar(name, checkedIndex(11)) === "-" && indexChar(name, checkedIndex(12)) === "b" && indexChar(name, checkedIndex(13)) === "r" && indexChar(name, checkedIndex(14)) === "a" && indexChar(name, checkedIndex(15)) === "c" && indexChar(name, checkedIndex(16)) === "k" && indexChar(name, checkedIndex(17)) === "e" && indexChar(name, checkedIndex(18)) === "t") {
+    if (collatingNameEq(name, "left-square-bracket")) {
         return 91;
     }
-    if (name.length === 9 && indexChar(name, checkedIndex(0)) === "b" && indexChar(name, checkedIndex(1)) === "a" && indexChar(name, checkedIndex(2)) === "c" && indexChar(name, checkedIndex(3)) === "k" && indexChar(name, checkedIndex(4)) === "s" && indexChar(name, checkedIndex(5)) === "l" && indexChar(name, checkedIndex(6)) === "a" && indexChar(name, checkedIndex(7)) === "s" && indexChar(name, checkedIndex(8)) === "h") {
+    if (collatingNameEq(name, "backslash")) {
         return 92;
     }
-    if (name.length === 15 && indexChar(name, checkedIndex(0)) === "r" && indexChar(name, checkedIndex(1)) === "e" && indexChar(name, checkedIndex(2)) === "v" && indexChar(name, checkedIndex(3)) === "e" && indexChar(name, checkedIndex(4)) === "r" && indexChar(name, checkedIndex(5)) === "s" && indexChar(name, checkedIndex(6)) === "e" && indexChar(name, checkedIndex(7)) === "-" && indexChar(name, checkedIndex(8)) === "s" && indexChar(name, checkedIndex(9)) === "o" && indexChar(name, checkedIndex(10)) === "l" && indexChar(name, checkedIndex(11)) === "i" && indexChar(name, checkedIndex(12)) === "d" && indexChar(name, checkedIndex(13)) === "u" && indexChar(name, checkedIndex(14)) === "s") {
+    if (collatingNameEq(name, "reverse-solidus")) {
         return 92;
     }
-    if (name.length === 20 && indexChar(name, checkedIndex(0)) === "r" && indexChar(name, checkedIndex(1)) === "i" && indexChar(name, checkedIndex(2)) === "g" && indexChar(name, checkedIndex(3)) === "h" && indexChar(name, checkedIndex(4)) === "t" && indexChar(name, checkedIndex(5)) === "-" && indexChar(name, checkedIndex(6)) === "s" && indexChar(name, checkedIndex(7)) === "q" && indexChar(name, checkedIndex(8)) === "u" && indexChar(name, checkedIndex(9)) === "a" && indexChar(name, checkedIndex(10)) === "r" && indexChar(name, checkedIndex(11)) === "e" && indexChar(name, checkedIndex(12)) === "-" && indexChar(name, checkedIndex(13)) === "b" && indexChar(name, checkedIndex(14)) === "r" && indexChar(name, checkedIndex(15)) === "a" && indexChar(name, checkedIndex(16)) === "c" && indexChar(name, checkedIndex(17)) === "k" && indexChar(name, checkedIndex(18)) === "e" && indexChar(name, checkedIndex(19)) === "t") {
+    if (collatingNameEq(name, "right-square-bracket")) {
         return 93;
     }
-    if (name.length === 10 && indexChar(name, checkedIndex(0)) === "c" && indexChar(name, checkedIndex(1)) === "i" && indexChar(name, checkedIndex(2)) === "r" && indexChar(name, checkedIndex(3)) === "c" && indexChar(name, checkedIndex(4)) === "u" && indexChar(name, checkedIndex(5)) === "m" && indexChar(name, checkedIndex(6)) === "f" && indexChar(name, checkedIndex(7)) === "l" && indexChar(name, checkedIndex(8)) === "e" && indexChar(name, checkedIndex(9)) === "x") {
+    if (collatingNameEq(name, "circumflex")) {
         return 94;
     }
-    if (name.length === 17 && indexChar(name, checkedIndex(0)) === "c" && indexChar(name, checkedIndex(1)) === "i" && indexChar(name, checkedIndex(2)) === "r" && indexChar(name, checkedIndex(3)) === "c" && indexChar(name, checkedIndex(4)) === "u" && indexChar(name, checkedIndex(5)) === "m" && indexChar(name, checkedIndex(6)) === "f" && indexChar(name, checkedIndex(7)) === "l" && indexChar(name, checkedIndex(8)) === "e" && indexChar(name, checkedIndex(9)) === "x" && indexChar(name, checkedIndex(10)) === "-" && indexChar(name, checkedIndex(11)) === "a" && indexChar(name, checkedIndex(12)) === "c" && indexChar(name, checkedIndex(13)) === "c" && indexChar(name, checkedIndex(14)) === "e" && indexChar(name, checkedIndex(15)) === "n" && indexChar(name, checkedIndex(16)) === "t") {
+    if (collatingNameEq(name, "circumflex-accent")) {
         return 94;
     }
-    if (name.length === 10 && indexChar(name, checkedIndex(0)) === "u" && indexChar(name, checkedIndex(1)) === "n" && indexChar(name, checkedIndex(2)) === "d" && indexChar(name, checkedIndex(3)) === "e" && indexChar(name, checkedIndex(4)) === "r" && indexChar(name, checkedIndex(5)) === "s" && indexChar(name, checkedIndex(6)) === "c" && indexChar(name, checkedIndex(7)) === "o" && indexChar(name, checkedIndex(8)) === "r" && indexChar(name, checkedIndex(9)) === "e") {
+    if (collatingNameEq(name, "underscore")) {
         return 95;
     }
-    if (name.length === 8 && indexChar(name, checkedIndex(0)) === "l" && indexChar(name, checkedIndex(1)) === "o" && indexChar(name, checkedIndex(2)) === "w" && indexChar(name, checkedIndex(3)) === "-" && indexChar(name, checkedIndex(4)) === "l" && indexChar(name, checkedIndex(5)) === "i" && indexChar(name, checkedIndex(6)) === "n" && indexChar(name, checkedIndex(7)) === "e") {
+    if (collatingNameEq(name, "low-line")) {
         return 95;
     }
-    if (name.length === 12 && indexChar(name, checkedIndex(0)) === "g" && indexChar(name, checkedIndex(1)) === "r" && indexChar(name, checkedIndex(2)) === "a" && indexChar(name, checkedIndex(3)) === "v" && indexChar(name, checkedIndex(4)) === "e" && indexChar(name, checkedIndex(5)) === "-" && indexChar(name, checkedIndex(6)) === "a" && indexChar(name, checkedIndex(7)) === "c" && indexChar(name, checkedIndex(8)) === "c" && indexChar(name, checkedIndex(9)) === "e" && indexChar(name, checkedIndex(10)) === "n" && indexChar(name, checkedIndex(11)) === "t") {
+    if (collatingNameEq(name, "grave-accent")) {
         return 96;
     }
-    if (name.length === 10 && indexChar(name, checkedIndex(0)) === "l" && indexChar(name, checkedIndex(1)) === "e" && indexChar(name, checkedIndex(2)) === "f" && indexChar(name, checkedIndex(3)) === "t" && indexChar(name, checkedIndex(4)) === "-" && indexChar(name, checkedIndex(5)) === "b" && indexChar(name, checkedIndex(6)) === "r" && indexChar(name, checkedIndex(7)) === "a" && indexChar(name, checkedIndex(8)) === "c" && indexChar(name, checkedIndex(9)) === "e") {
+    if (collatingNameEq(name, "left-brace")) {
         return 123;
     }
-    if (name.length === 18 && indexChar(name, checkedIndex(0)) === "l" && indexChar(name, checkedIndex(1)) === "e" && indexChar(name, checkedIndex(2)) === "f" && indexChar(name, checkedIndex(3)) === "t" && indexChar(name, checkedIndex(4)) === "-" && indexChar(name, checkedIndex(5)) === "c" && indexChar(name, checkedIndex(6)) === "u" && indexChar(name, checkedIndex(7)) === "r" && indexChar(name, checkedIndex(8)) === "l" && indexChar(name, checkedIndex(9)) === "y" && indexChar(name, checkedIndex(10)) === "-" && indexChar(name, checkedIndex(11)) === "b" && indexChar(name, checkedIndex(12)) === "r" && indexChar(name, checkedIndex(13)) === "a" && indexChar(name, checkedIndex(14)) === "c" && indexChar(name, checkedIndex(15)) === "k" && indexChar(name, checkedIndex(16)) === "e" && indexChar(name, checkedIndex(17)) === "t") {
+    if (collatingNameEq(name, "left-curly-bracket")) {
         return 123;
     }
-    if (name.length === 13 && indexChar(name, checkedIndex(0)) === "v" && indexChar(name, checkedIndex(1)) === "e" && indexChar(name, checkedIndex(2)) === "r" && indexChar(name, checkedIndex(3)) === "t" && indexChar(name, checkedIndex(4)) === "i" && indexChar(name, checkedIndex(5)) === "c" && indexChar(name, checkedIndex(6)) === "a" && indexChar(name, checkedIndex(7)) === "l" && indexChar(name, checkedIndex(8)) === "-" && indexChar(name, checkedIndex(9)) === "l" && indexChar(name, checkedIndex(10)) === "i" && indexChar(name, checkedIndex(11)) === "n" && indexChar(name, checkedIndex(12)) === "e") {
+    if (collatingNameEq(name, "vertical-line")) {
         return 124;
     }
-    if (name.length === 11 && indexChar(name, checkedIndex(0)) === "r" && indexChar(name, checkedIndex(1)) === "i" && indexChar(name, checkedIndex(2)) === "g" && indexChar(name, checkedIndex(3)) === "h" && indexChar(name, checkedIndex(4)) === "t" && indexChar(name, checkedIndex(5)) === "-" && indexChar(name, checkedIndex(6)) === "b" && indexChar(name, checkedIndex(7)) === "r" && indexChar(name, checkedIndex(8)) === "a" && indexChar(name, checkedIndex(9)) === "c" && indexChar(name, checkedIndex(10)) === "e") {
+    if (collatingNameEq(name, "right-brace")) {
         return 125;
     }
-    if (name.length === 19 && indexChar(name, checkedIndex(0)) === "r" && indexChar(name, checkedIndex(1)) === "i" && indexChar(name, checkedIndex(2)) === "g" && indexChar(name, checkedIndex(3)) === "h" && indexChar(name, checkedIndex(4)) === "t" && indexChar(name, checkedIndex(5)) === "-" && indexChar(name, checkedIndex(6)) === "c" && indexChar(name, checkedIndex(7)) === "u" && indexChar(name, checkedIndex(8)) === "r" && indexChar(name, checkedIndex(9)) === "l" && indexChar(name, checkedIndex(10)) === "y" && indexChar(name, checkedIndex(11)) === "-" && indexChar(name, checkedIndex(12)) === "b" && indexChar(name, checkedIndex(13)) === "r" && indexChar(name, checkedIndex(14)) === "a" && indexChar(name, checkedIndex(15)) === "c" && indexChar(name, checkedIndex(16)) === "k" && indexChar(name, checkedIndex(17)) === "e" && indexChar(name, checkedIndex(18)) === "t") {
+    if (collatingNameEq(name, "right-curly-bracket")) {
         return 125;
     }
-    if (name.length === 5 && indexChar(name, checkedIndex(0)) === "t" && indexChar(name, checkedIndex(1)) === "i" && indexChar(name, checkedIndex(2)) === "l" && indexChar(name, checkedIndex(3)) === "d" && indexChar(name, checkedIndex(4)) === "e") {
+    if (collatingNameEq(name, "tilde")) {
         return 126;
     }
-    if (name.length === 3 && indexChar(name, checkedIndex(0)) === "D" && indexChar(name, checkedIndex(1)) === "E" && indexChar(name, checkedIndex(2)) === "L") {
+    if (collatingNameEq(name, "DEL")) {
         return 127;
     }
     return 2147483647;
@@ -1338,97 +1353,67 @@ function parseCaptureClassAtom(source: string[], syntax: string, groups: number)
                     end = checkedAdd(end, 2);
                 }
             }
-            else {
-                if (indexChar(source, checkedIndex(checkedAdd(position, 1))) === ":" && checkedSubtract(source.length, position) >= 8) {
-                    kind = checkedIndex(posixClassKind(indexChar(source, checkedIndex(checkedAdd(position, 2))), indexChar(source, checkedIndex(checkedAdd(position, 3))), indexChar(source, checkedIndex(checkedAdd(position, 4))), indexChar(source, checkedIndex(checkedAdd(position, 5))), indexChar(source, checkedIndex(checkedAdd(position, 6))), indexChar(source, checkedIndex(checkedAdd(position, 7)))));
-                    if (kind > 0) {
-                        end = checkedIndex(checkedSubtract(checkedAdd(position, posixClassWidth(kind)), 2));
-                        valid = checkedBool(end <= source.length && indexChar(source, checkedIndex(checkedSubtract(end, 2))) === ":" && indexChar(source, checkedIndex(checkedSubtract(end, 1))) === "]");
-                    }
+            else if (indexChar(source, checkedIndex(checkedAdd(position, 1))) === ":" && checkedSubtract(source.length, position) >= 8) {
+                kind = checkedIndex(posixClassKind(indexChar(source, checkedIndex(checkedAdd(position, 2))), indexChar(source, checkedIndex(checkedAdd(position, 3))), indexChar(source, checkedIndex(checkedAdd(position, 4))), indexChar(source, checkedIndex(checkedAdd(position, 5))), indexChar(source, checkedIndex(checkedAdd(position, 6))), indexChar(source, checkedIndex(checkedAdd(position, 7)))));
+                if (kind > 0) {
+                    end = checkedIndex(checkedSubtract(checkedAdd(position, posixClassWidth(kind)), 2));
+                    valid = checkedBool(end <= source.length && indexChar(source, checkedIndex(checkedSubtract(end, 2))) === ":" && indexChar(source, checkedIndex(checkedSubtract(end, 1))) === "]");
                 }
             }
         }
-        else {
-            if (atom === "\\" && syntax === "a") {
-                valid = checkedBool(end < source.length);
-                if (valid) {
-                    const escaped: string = indexChar(source, checkedIndex(end));
-                    end = checkedAdd(end, 1);
-                    value = checkedIndex(checkedChar(escaped).codePointAt(0)!);
-                    if (escaped === "x" || escaped === "u" || escaped === "U" || escaped === "c" || (value >= 48 && value <= 57)) {
-                        const numeric: CaptureNumeric = parseCaptureNumeric(source, groups, false);
-                        valid = checkedBool(numeric.valid && numeric.backreference === false);
-                        value = checkedIndex(numeric.value);
-                        end = checkedIndex(numeric.end);
-                    }
-                    else {
-                        if (escaped === "d" || escaped === "D") {
-                            kind = checkedIndex(1);
-                            complement = checkedBool(escaped === "D");
-                        }
-                        else {
-                            if (escaped === "s" || escaped === "S") {
-                                kind = checkedIndex(4);
-                                complement = checkedBool(escaped === "S");
-                            }
-                            else {
-                                if (escaped === "w" || escaped === "W") {
-                                    kind = checkedIndex(14);
-                                    complement = checkedBool(escaped === "W");
-                                }
-                                else {
-                                    if (escaped === "a") {
-                                        value = checkedIndex(7);
-                                    }
-                                    else {
-                                        if (escaped === "b") {
-                                            value = checkedIndex(8);
-                                        }
-                                        else {
-                                            if (escaped === "B") {
-                                                value = checkedIndex(92);
-                                            }
-                                            else {
-                                                if (escaped === "e") {
-                                                    value = checkedIndex(27);
-                                                }
-                                                else {
-                                                    if (escaped === "f") {
-                                                        value = checkedIndex(12);
-                                                    }
-                                                    else {
-                                                        if (escaped === "n") {
-                                                            value = checkedIndex(10);
-                                                        }
-                                                        else {
-                                                            if (escaped === "r") {
-                                                                value = checkedIndex(13);
-                                                            }
-                                                            else {
-                                                                if (escaped === "t") {
-                                                                    value = checkedIndex(9);
-                                                                }
-                                                                else {
-                                                                    if (escaped === "v") {
-                                                                        value = checkedIndex(11);
-                                                                    }
-                                                                    else {
-                                                                        if ((value >= 48 && value <= 57) || (value >= 65 && value <= 90) || (value >= 97 && value <= 122)) {
-                                                                            valid = checkedBool(false);
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+        else if (atom === "\\" && syntax === "a") {
+            valid = checkedBool(end < source.length);
+            if (valid) {
+                const escaped: string = indexChar(source, checkedIndex(end));
+                end = checkedAdd(end, 1);
+                value = checkedIndex(checkedChar(escaped).codePointAt(0)!);
+                if (escaped === "x" || escaped === "u" || escaped === "U" || escaped === "c" || (value >= 48 && value <= 57)) {
+                    const numeric: CaptureNumeric = parseCaptureNumeric(source, groups, false);
+                    valid = checkedBool(numeric.valid && numeric.backreference === false);
+                    value = checkedIndex(numeric.value);
+                    end = checkedIndex(numeric.end);
+                }
+                else if (escaped === "d" || escaped === "D") {
+                    kind = checkedIndex(1);
+                    complement = checkedBool(escaped === "D");
+                }
+                else if (escaped === "s" || escaped === "S") {
+                    kind = checkedIndex(4);
+                    complement = checkedBool(escaped === "S");
+                }
+                else if (escaped === "w" || escaped === "W") {
+                    kind = checkedIndex(14);
+                    complement = checkedBool(escaped === "W");
+                }
+                else if (escaped === "a") {
+                    value = checkedIndex(7);
+                }
+                else if (escaped === "b") {
+                    value = checkedIndex(8);
+                }
+                else if (escaped === "B") {
+                    value = checkedIndex(92);
+                }
+                else if (escaped === "e") {
+                    value = checkedIndex(27);
+                }
+                else if (escaped === "f") {
+                    value = checkedIndex(12);
+                }
+                else if (escaped === "n") {
+                    value = checkedIndex(10);
+                }
+                else if (escaped === "r") {
+                    value = checkedIndex(13);
+                }
+                else if (escaped === "t") {
+                    value = checkedIndex(9);
+                }
+                else if (escaped === "v") {
+                    value = checkedIndex(11);
+                }
+                else if ((value >= 48 && value <= 57) || (value >= 65 && value <= 90) || (value >= 97 && value <= 122)) {
+                    valid = checkedBool(false);
                 }
             }
         }
@@ -1506,10 +1491,8 @@ function captureClassMemberMatches(member: CaptureClassMember, actual: string, s
             if (upper) {
                 alternate = checkedAdd(alternate, 32);
             }
-            else {
-                if (lower) {
-                    alternate = checkedIndex(checkedSubtract(alternate, 32));
-                }
+            else if (lower) {
+                alternate = checkedIndex(checkedSubtract(alternate, 32));
             }
             matched = checkedBool(matched || (alternate >= member.lower && alternate <= member.upper));
         }
@@ -1540,29 +1523,21 @@ function capturePatternSource(pattern: string, syntax: string, expanded: boolean
             if (option === "b" || option === "e" || option === "q") {
                 syntax = checkedChar(option);
             }
+            else if (option === "i" || option === "c") {
+                caseMode = checkedChar(option);
+            }
+            else if (option === "n" || option === "m" || option === "p" || option === "w" || option === "s") {
+                newlineMode = checkedChar(option);
+            }
+            else if (option === "x") {
+                effectiveExpanded = checkedBool(true);
+            }
+            else if (option === "t") {
+                effectiveExpanded = checkedBool(false);
+            }
             else {
-                if (option === "i" || option === "c") {
-                    caseMode = checkedChar(option);
-                }
-                else {
-                    if (option === "n" || option === "m" || option === "p" || option === "w" || option === "s") {
-                        newlineMode = checkedChar(option);
-                    }
-                    else {
-                        if (option === "x") {
-                            effectiveExpanded = checkedBool(true);
-                        }
-                        else {
-                            if (option === "t") {
-                                effectiveExpanded = checkedBool(false);
-                            }
-                            else {
-                                valid = checkedBool(false);
-                                break;
-                            }
-                        }
-                    }
-                }
+                valid = checkedBool(false);
+                break;
             }
             position = checkedAdd(position, 1);
         }
@@ -1586,146 +1561,122 @@ function capturePatternSource(pattern: string, syntax: string, expanded: boolean
             pushChar(atoms, atom);
             position = checkedAdd(position, 1);
         }
-        else {
-            if (atom === "[") {
-                pushChar(atoms, atom);
+        else if (atom === "[") {
+            pushChar(atoms, atom);
+            position = checkedAdd(position, 1);
+            if (position < source.length && indexChar(source, checkedIndex(position)) === "^") {
+                pushChar(atoms, indexChar(source, checkedIndex(position)));
                 position = checkedAdd(position, 1);
-                if (position < source.length && indexChar(source, checkedIndex(position)) === "^") {
+            }
+            const first: number = position;
+            let special: string = " ";
+            while (position < source.length) {
+                const current: string = indexChar(source, checkedIndex(position));
+                pushChar(atoms, current);
+                position = checkedAdd(position, 1);
+                if (special === " " && syntax === "a" && current === "\\" && position < source.length) {
+                    const marker: string = indexChar(source, checkedIndex(position));
+                    pushChar(atoms, marker);
+                    position = checkedAdd(position, 1);
+                    if (marker === "c" && position < source.length) {
+                        pushChar(atoms, indexChar(source, checkedIndex(position)));
+                        position = checkedAdd(position, 1);
+                    }
+                }
+                else if (!(special === " ")) {
+                    if (current === special && position < source.length && indexChar(source, checkedIndex(position)) === "]") {
+                        pushChar(atoms, "]");
+                        position = checkedAdd(position, 1);
+                        special = checkedChar(" ");
+                    }
+                }
+                else if (current === "[" && position < source.length && (indexChar(source, checkedIndex(position)) === ":" || indexChar(source, checkedIndex(position)) === "." || indexChar(source, checkedIndex(position)) === "=")) {
+                    special = checkedChar(indexChar(source, checkedIndex(position)));
+                    pushChar(atoms, special);
+                    position = checkedAdd(position, 1);
+                }
+                else if (current === "]" && position > checkedAdd(first, 1)) {
+                    break;
+                }
+            }
+        }
+        else if (atom === "\\") {
+            pushChar(atoms, atom);
+            position = checkedAdd(position, 1);
+            if (position < source.length) {
+                const marker: string = indexChar(source, checkedIndex(position));
+                pushChar(atoms, marker);
+                position = checkedAdd(position, 1);
+                if (syntax === "a" && marker === "c" && position < source.length) {
                     pushChar(atoms, indexChar(source, checkedIndex(position)));
                     position = checkedAdd(position, 1);
                 }
-                const first: number = position;
-                let special: string = " ";
-                while (position < source.length) {
-                    const current: string = indexChar(source, checkedIndex(position));
-                    pushChar(atoms, current);
-                    position = checkedAdd(position, 1);
-                    if (special === " " && syntax === "a" && current === "\\" && position < source.length) {
-                        const marker: string = indexChar(source, checkedIndex(position));
-                        pushChar(atoms, marker);
-                        position = checkedAdd(position, 1);
-                        if (marker === "c" && position < source.length) {
-                            pushChar(atoms, indexChar(source, checkedIndex(position)));
-                            position = checkedAdd(position, 1);
-                        }
+                else if (syntax === "a" && (marker === "x" || marker === "u" || marker === "U" || ((checkedChar(marker).codePointAt(0)!) >= 48 && (checkedChar(marker).codePointAt(0)!) <= 57))) {
+                    let limit: number = 255;
+                    if (marker === "u") {
+                        limit = checkedIndex(4);
                     }
-                    else {
-                        if (!(special === " ")) {
-                            if (current === special && position < source.length && indexChar(source, checkedIndex(position)) === "]") {
-                                pushChar(atoms, "]");
-                                position = checkedAdd(position, 1);
-                                special = checkedChar(" ");
-                            }
+                    else if (marker === "U") {
+                        limit = checkedIndex(8);
+                    }
+                    let digits: number = 0;
+                    while (position < source.length && digits < limit) {
+                        const digit: number = captureDigitValue(indexChar(source, checkedIndex(position)));
+                        if (digit === 16 || ((checkedChar(marker).codePointAt(0)!) >= 48 && (checkedChar(marker).codePointAt(0)!) <= 57 && digit > 9)) {
+                            break;
                         }
-                        else {
-                            if (current === "[" && position < source.length && (indexChar(source, checkedIndex(position)) === ":" || indexChar(source, checkedIndex(position)) === "." || indexChar(source, checkedIndex(position)) === "=")) {
-                                special = checkedChar(indexChar(source, checkedIndex(position)));
-                                pushChar(atoms, special);
-                                position = checkedAdd(position, 1);
-                            }
-                            else {
-                                if (current === "]" && position > checkedAdd(first, 1)) {
-                                    break;
-                                }
-                            }
-                        }
+                        pushChar(atoms, indexChar(source, checkedIndex(position)));
+                        position = checkedAdd(position, 1);
+                        digits = checkedAdd(digits, 1);
                     }
                 }
             }
-            else {
-                if (atom === "\\") {
-                    pushChar(atoms, atom);
+        }
+        else if (syntax === "a" && atom === "(" && checkedSubtract(source.length, position) >= 3 && indexChar(source, checkedIndex(checkedAdd(position, 1))) === "?" && indexChar(source, checkedIndex(checkedAdd(position, 2))) === "#") {
+            position = checkedAdd(position, 3);
+            while (position < source.length && !(indexChar(source, checkedIndex(position)) === ")")) {
+                position = checkedAdd(position, 1);
+            }
+            if (position < source.length) {
+                position = checkedAdd(position, 1);
+            }
+        }
+        else if (syntax === "a" && atom === "(") {
+            pushChar(atoms, atom);
+            position = checkedAdd(position, 1);
+            if (position < source.length && indexChar(source, checkedIndex(position)) === "?") {
+                pushChar(atoms, "?");
+                position = checkedAdd(position, 1);
+                if (position < source.length) {
+                    const marker: string = indexChar(source, checkedIndex(position));
+                    pushChar(atoms, marker);
                     position = checkedAdd(position, 1);
-                    if (position < source.length) {
-                        const marker: string = indexChar(source, checkedIndex(position));
-                        pushChar(atoms, marker);
+                    if (marker === "<" && position < source.length) {
+                        pushChar(atoms, indexChar(source, checkedIndex(position)));
                         position = checkedAdd(position, 1);
-                        if (syntax === "a" && marker === "c" && position < source.length) {
-                            pushChar(atoms, indexChar(source, checkedIndex(position)));
-                            position = checkedAdd(position, 1);
-                        }
-                        else {
-                            if (syntax === "a" && (marker === "x" || marker === "u" || marker === "U" || ((checkedChar(marker).codePointAt(0)!) >= 48 && (checkedChar(marker).codePointAt(0)!) <= 57))) {
-                                let limit: number = 255;
-                                if (marker === "u") {
-                                    limit = checkedIndex(4);
-                                }
-                                else {
-                                    if (marker === "U") {
-                                        limit = checkedIndex(8);
-                                    }
-                                }
-                                let digits: number = 0;
-                                while (position < source.length && digits < limit) {
-                                    const digit: number = captureDigitValue(indexChar(source, checkedIndex(position)));
-                                    if (digit === 16 || ((checkedChar(marker).codePointAt(0)!) >= 48 && (checkedChar(marker).codePointAt(0)!) <= 57 && digit > 9)) {
-                                        break;
-                                    }
-                                    pushChar(atoms, indexChar(source, checkedIndex(position)));
-                                    position = checkedAdd(position, 1);
-                                    digits = checkedAdd(digits, 1);
-                                }
-                            }
-                        }
-                    }
-                }
-                else {
-                    if (syntax === "a" && atom === "(" && checkedSubtract(source.length, position) >= 3 && indexChar(source, checkedIndex(checkedAdd(position, 1))) === "?" && indexChar(source, checkedIndex(checkedAdd(position, 2))) === "#") {
-                        position = checkedAdd(position, 3);
-                        while (position < source.length && !(indexChar(source, checkedIndex(position)) === ")")) {
-                            position = checkedAdd(position, 1);
-                        }
-                        if (position < source.length) {
-                            position = checkedAdd(position, 1);
-                        }
-                    }
-                    else {
-                        if (syntax === "a" && atom === "(") {
-                            pushChar(atoms, atom);
-                            position = checkedAdd(position, 1);
-                            if (position < source.length && indexChar(source, checkedIndex(position)) === "?") {
-                                pushChar(atoms, "?");
-                                position = checkedAdd(position, 1);
-                                if (position < source.length) {
-                                    const marker: string = indexChar(source, checkedIndex(position));
-                                    pushChar(atoms, marker);
-                                    position = checkedAdd(position, 1);
-                                    if (marker === "<" && position < source.length) {
-                                        pushChar(atoms, indexChar(source, checkedIndex(position)));
-                                        position = checkedAdd(position, 1);
-                                    }
-                                }
-                            }
-                        }
-                        else {
-                            if (syntax === "a" && (atom === "*" || atom === "+" || atom === "?")) {
-                                pushChar(atoms, atom);
-                                position = checkedAdd(position, 1);
-                                if (position < source.length && indexChar(source, checkedIndex(position)) === "?") {
-                                    pushChar(atoms, "?");
-                                    position = checkedAdd(position, 1);
-                                }
-                            }
-                            else {
-                                if (effectiveExpanded && atom === "#") {
-                                    while (position < source.length && !(indexChar(source, checkedIndex(position)) === "\n")) {
-                                        position = checkedAdd(position, 1);
-                                    }
-                                }
-                                else {
-                                    if (effectiveExpanded && (atom === " " || ((checkedChar(atom).codePointAt(0)!) >= 9 && (checkedChar(atom).codePointAt(0)!) <= 13))) {
-                                        position = checkedAdd(position, 1);
-                                    }
-                                    else {
-                                        pushChar(atoms, atom);
-                                        position = checkedAdd(position, 1);
-                                    }
-                                }
-                            }
-                        }
                     }
                 }
             }
+        }
+        else if (syntax === "a" && (atom === "*" || atom === "+" || atom === "?")) {
+            pushChar(atoms, atom);
+            position = checkedAdd(position, 1);
+            if (position < source.length && indexChar(source, checkedIndex(position)) === "?") {
+                pushChar(atoms, "?");
+                position = checkedAdd(position, 1);
+            }
+        }
+        else if (effectiveExpanded && atom === "#") {
+            while (position < source.length && !(indexChar(source, checkedIndex(position)) === "\n")) {
+                position = checkedAdd(position, 1);
+            }
+        }
+        else if (effectiveExpanded && (atom === " " || ((checkedChar(atom).codePointAt(0)!) >= 9 && (checkedChar(atom).codePointAt(0)!) <= 13))) {
+            position = checkedAdd(position, 1);
+        }
+        else {
+            pushChar(atoms, atom);
+            position = checkedAdd(position, 1);
         }
         if (!(syntax === "q") && atoms.length > tokenStart) {
             const basicBound: boolean = syntax === "b" && checkedSubtract(atoms.length, tokenStart) === 2 && indexChar(atoms, checkedIndex(tokenStart)) === "\\" && indexChar(atoms, checkedIndex(checkedAdd(tokenStart, 1))) === "{";
@@ -1737,47 +1688,41 @@ function capturePatternSource(pattern: string, syntax: string, expanded: boolean
                     if (effectiveExpanded && (current === " " || ((checkedChar(current).codePointAt(0)!) >= 9 && (checkedChar(current).codePointAt(0)!) <= 13))) {
                         position = checkedAdd(position, 1);
                     }
+                    else if (effectiveExpanded && current === "#") {
+                        while (position < source.length && !(indexChar(source, checkedIndex(position)) === "\n")) {
+                            position = checkedAdd(position, 1);
+                        }
+                    }
                     else {
-                        if (effectiveExpanded && current === "#") {
-                            while (position < source.length && !(indexChar(source, checkedIndex(position)) === "\n")) {
+                        if (first && (checkedChar(current).codePointAt(0)!) >= 48 && (checkedChar(current).codePointAt(0)!) <= 57) {
+                            inBound = checkedBool(true);
+                        }
+                        first = checkedBool(false);
+                        if (inBound === false) {
+                            break;
+                        }
+                        pushChar(atoms, current);
+                        position = checkedAdd(position, 1);
+                        if (basicBound && current === "\\") {
+                            if (position < source.length && indexChar(source, checkedIndex(position)) === "}") {
+                                pushChar(atoms, "}");
                                 position = checkedAdd(position, 1);
                             }
-                        }
-                        else {
-                            if (first && (checkedChar(current).codePointAt(0)!) >= 48 && (checkedChar(current).codePointAt(0)!) <= 57) {
-                                inBound = checkedBool(true);
-                            }
-                            first = checkedBool(false);
-                            if (inBound === false) {
-                                break;
-                            }
-                            pushChar(atoms, current);
-                            position = checkedAdd(position, 1);
-                            if (basicBound && current === "\\") {
-                                if (position < source.length && indexChar(source, checkedIndex(position)) === "}") {
-                                    pushChar(atoms, "}");
-                                    position = checkedAdd(position, 1);
-                                }
-                                else {
-                                    valid = checkedBool(false);
-                                }
-                                break;
-                            }
                             else {
-                                if (basicBound === false && current === "}") {
-                                    if (syntax === "a" && position < source.length && indexChar(source, checkedIndex(position)) === "?") {
-                                        pushChar(atoms, "?");
-                                        position = checkedAdd(position, 1);
-                                    }
-                                    break;
-                                }
-                                else {
-                                    if (!(current === ",") && ((checkedChar(current).codePointAt(0)!) < 48 || (checkedChar(current).codePointAt(0)!) > 57)) {
-                                        valid = checkedBool(false);
-                                        break;
-                                    }
-                                }
+                                valid = checkedBool(false);
                             }
+                            break;
+                        }
+                        else if (basicBound === false && current === "}") {
+                            if (syntax === "a" && position < source.length && indexChar(source, checkedIndex(position)) === "?") {
+                                pushChar(atoms, "?");
+                                position = checkedAdd(position, 1);
+                            }
+                            break;
+                        }
+                        else if (!(current === ",") && ((checkedChar(current).codePointAt(0)!) < 48 || (checkedChar(current).codePointAt(0)!) > 57)) {
+                            valid = checkedBool(false);
+                            break;
                         }
                     }
                 }
@@ -1823,25 +1768,17 @@ function compileCaptureProgramAtoms(source: string[], tokenEnds: number[], synta
                 position = checkedAdd(position, 1);
                 atom = checkedChar(indexChar(source, checkedIndex(position)));
             }
-            else {
-                if (atom === "+" || atom === "?" || atom === "|" || atom === "(" || atom === ")" || atom === "{" || atom === "}") {
-                    literal = checkedBool(true);
-                }
-                else {
-                    if (atom === "^" && indexStruct(frames, checkedIndex(checkedSubtract(frameCount, 1)), copyCaptureFrame).sequence > 0) {
-                        literal = checkedBool(true);
-                    }
-                    else {
-                        if (atom === "$" && checkedAdd(position, 1) < source.length && (checkedSubtract(source.length, position) < 3 || !(indexChar(source, checkedIndex(checkedAdd(position, 1))) === "\\") || !(indexChar(source, checkedIndex(checkedAdd(position, 2))) === ")"))) {
-                            literal = checkedBool(true);
-                        }
-                        else {
-                            if (atom === "*" && basicStarLiteral) {
-                                literal = checkedBool(true);
-                            }
-                        }
-                    }
-                }
+            else if (atom === "+" || atom === "?" || atom === "|" || atom === "(" || atom === ")" || atom === "{" || atom === "}") {
+                literal = checkedBool(true);
+            }
+            else if (atom === "^" && indexStruct(frames, checkedIndex(checkedSubtract(frameCount, 1)), copyCaptureFrame).sequence > 0) {
+                literal = checkedBool(true);
+            }
+            else if (atom === "$" && checkedAdd(position, 1) < source.length && (checkedSubtract(source.length, position) < 3 || !(indexChar(source, checkedIndex(checkedAdd(position, 1))) === "\\") || !(indexChar(source, checkedIndex(checkedAdd(position, 2))) === ")"))) {
+                literal = checkedBool(true);
+            }
+            else if (atom === "*" && basicStarLiteral) {
+                literal = checkedBool(true);
             }
         }
         if (syntax === "e" && atom === ")" && frameCount === 1) {
@@ -1858,364 +1795,304 @@ function compileCaptureProgramAtoms(source: string[], tokenEnds: number[], synta
             position = checkedAdd(position, 1);
             hasAtom = checkedBool(true);
         }
-        else {
-            if (atom === "(") {
-                basicStarLiteral = checkedBool(true);
-                let group: number = 0;
-                const first: number = checkedAdd(groups, 1);
-                let operation: number = nodeGroup;
+        else if (atom === "(") {
+            basicStarLiteral = checkedBool(true);
+            let group: number = 0;
+            const first: number = checkedAdd(groups, 1);
+            let operation: number = nodeGroup;
+            position = checkedAdd(position, 1);
+            if (!(syntax === "b") && position < source.length && indexChar(source, checkedIndex(position)) === "?" && indexNumber(tokenEnds, checkedIndex(checkedSubtract(position, 1))) > position) {
+                if (!(syntax === "a")) {
+                    valid = checkedBool(false);
+                }
                 position = checkedAdd(position, 1);
-                if (!(syntax === "b") && position < source.length && indexChar(source, checkedIndex(position)) === "?" && indexNumber(tokenEnds, checkedIndex(checkedSubtract(position, 1))) > position) {
-                    if (!(syntax === "a")) {
-                        valid = checkedBool(false);
-                    }
+                if (position < source.length && indexChar(source, checkedIndex(position)) === ":") {
                     position = checkedAdd(position, 1);
-                    if (position < source.length && indexChar(source, checkedIndex(position)) === ":") {
+                }
+                else {
+                    let behind: boolean = false;
+                    if (position < source.length && indexChar(source, checkedIndex(position)) === "<") {
+                        behind = checkedBool(true);
                         position = checkedAdd(position, 1);
                     }
-                    else {
-                        let behind: boolean = false;
-                        if (position < source.length && indexChar(source, checkedIndex(position)) === "<") {
-                            behind = checkedBool(true);
-                            position = checkedAdd(position, 1);
+                    if (position < source.length && (indexChar(source, checkedIndex(position)) === "=" || indexChar(source, checkedIndex(position)) === "!")) {
+                        operation = checkedIndex(nodeLookahead);
+                        if (behind) {
+                            operation = checkedIndex(nodeLookbehind);
                         }
-                        if (position < source.length && (indexChar(source, checkedIndex(position)) === "=" || indexChar(source, checkedIndex(position)) === "!")) {
-                            operation = checkedIndex(nodeLookahead);
+                        if (indexChar(source, checkedIndex(position)) === "!") {
+                            operation = checkedIndex(nodeNotLookahead);
                             if (behind) {
-                                operation = checkedIndex(nodeLookbehind);
-                            }
-                            if (indexChar(source, checkedIndex(position)) === "!") {
-                                operation = checkedIndex(nodeNotLookahead);
-                                if (behind) {
-                                    operation = checkedIndex(nodeNotLookbehind);
-                                }
-                            }
-                            position = checkedAdd(position, 1);
-                            assertions = checkedBool(true);
-                            assertionDepth = checkedAdd(assertionDepth, 1);
-                            if (assertionDepth > 64) {
-                                limited = checkedBool(true);
-                                valid = checkedBool(false);
+                                operation = checkedIndex(nodeNotLookbehind);
                             }
                         }
-                        else {
+                        position = checkedAdd(position, 1);
+                        assertions = checkedBool(true);
+                        assertionDepth = checkedAdd(assertionDepth, 1);
+                        if (assertionDepth > 64) {
+                            limited = checkedBool(true);
                             valid = checkedBool(false);
                         }
                     }
-                }
-                else {
-                    if (assertionDepth === 0) {
-                        groups = checkedAdd(groups, 1);
-                        group = checkedIndex(groups);
-                        pushIndex(closed, 0);
+                    else {
+                        valid = checkedBool(false);
                     }
                 }
-                const frame: CaptureFrame = copyCaptureFrame({ operation: operation, sequence: 0, alternative: 0, group: group, first: first, branched: false });
-                if (frameCount === frames.length) {
-                    pushStruct(frames, frame, copyCaptureFrame);
-                }
-                else {
-                    frames[checkedIndexIn(frames, frameCount)] = copyCaptureFrame(frame);
-                }
-                frameCount = checkedAdd(frameCount, 1);
+            }
+            else if (assertionDepth === 0) {
+                groups = checkedAdd(groups, 1);
+                group = checkedIndex(groups);
+                pushIndex(closed, 0);
+            }
+            const frame: CaptureFrame = copyCaptureFrame({ operation: operation, sequence: 0, alternative: 0, group: group, first: first, branched: false });
+            if (frameCount === frames.length) {
+                pushStruct(frames, frame, copyCaptureFrame);
             }
             else {
-                if (atom === "|") {
-                    const frame: CaptureFrame = copyCaptureFrame(indexStruct(frames, checkedIndex(checkedSubtract(frameCount, 1)), copyCaptureFrame));
-                    let alternative: number = frame.sequence;
-                    if (frame.branched) {
-                        alternative = checkedIndex(nodes.length);
-                        pushStruct(nodes, makeCaptureNode(nodeAlternative, frame.alternative, frame.sequence, 0, " ", 1, frame.first, groups), copyCaptureNode);
-                    }
-                    frames[checkedIndexIn(frames, checkedSubtract(frameCount, 1))] = copyCaptureFrame({ operation: frame.operation, sequence: 0, alternative: alternative, branched: true, group: frame.group, first: frame.first });
+                frames[checkedIndexIn(frames, frameCount)] = copyCaptureFrame(frame);
+            }
+            frameCount = checkedAdd(frameCount, 1);
+        }
+        else if (atom === "|") {
+            const frame: CaptureFrame = copyCaptureFrame(indexStruct(frames, checkedIndex(checkedSubtract(frameCount, 1)), copyCaptureFrame));
+            let alternative: number = frame.sequence;
+            if (frame.branched) {
+                alternative = checkedIndex(nodes.length);
+                pushStruct(nodes, makeCaptureNode(nodeAlternative, frame.alternative, frame.sequence, 0, " ", 1, frame.first, groups), copyCaptureNode);
+            }
+            frames[checkedIndexIn(frames, checkedSubtract(frameCount, 1))] = copyCaptureFrame({ operation: frame.operation, sequence: 0, alternative: alternative, branched: true, group: frame.group, first: frame.first });
+            position = checkedAdd(position, 1);
+        }
+        else if (atom === ")") {
+            if (frameCount === 1) {
+                valid = checkedBool(false);
+            }
+            else {
+                frameCount = checkedIndex(checkedSubtract(frameCount, 1));
+                const frame: CaptureFrame = copyCaptureFrame(indexStruct(frames, checkedIndex(frameCount), copyCaptureFrame));
+                let inner: number = frame.sequence;
+                if (frame.branched) {
+                    inner = checkedIndex(nodes.length);
+                    pushStruct(nodes, makeCaptureNode(nodeAlternative, frame.alternative, frame.sequence, 0, " ", 1, frame.first, groups), copyCaptureNode);
+                }
+                let preference: number = indexStruct(nodes, checkedIndex(inner), copyCaptureNode).preference;
+                if (!(frame.operation === nodeGroup)) {
+                    preference = checkedIndex(0);
+                    assertionDepth = checkedIndex(checkedSubtract(assertionDepth, 1));
+                }
+                node = checkedIndex(nodes.length);
+                pushStruct(nodes, makeCaptureNode(frame.operation, inner, 0, frame.group, " ", preference, frame.first, groups), copyCaptureNode);
+                if (frame.group > 0) {
+                    closed[checkedIndexIn(closed, frame.group)] = checkedIndex(1);
+                }
+                position = checkedAdd(position, 1);
+                hasAtom = checkedBool(true);
+            }
+        }
+        else if (atom === "^" || atom === "$") {
+            let operation: number = vmBegin;
+            if (atom === "$") {
+                operation = checkedIndex(vmEnd);
+            }
+            node = checkedIndex(nodes.length);
+            pushStruct(nodes, makeCaptureNode(operation, 0, 0, 0, " ", 0, 1, 0), copyCaptureNode);
+            position = checkedAdd(position, 1);
+            hasAtom = checkedBool(true);
+        }
+        else {
+            let operation: number = 0;
+            let member: string = " ";
+            let reference: number = 0;
+            if (atom === ".") {
+                operation = checkedIndex(vmAny);
+                position = checkedAdd(position, 1);
+            }
+            else if (atom === "[" && checkedSubtract(source.length, position) >= 7 && indexChar(source, checkedIndex(checkedAdd(position, 1))) === "[" && indexChar(source, checkedIndex(checkedAdd(position, 2))) === ":" && (indexChar(source, checkedIndex(checkedAdd(position, 3))) === "<" || indexChar(source, checkedIndex(checkedAdd(position, 3))) === ">") && indexChar(source, checkedIndex(checkedAdd(position, 4))) === ":" && indexChar(source, checkedIndex(checkedAdd(position, 5))) === "]" && indexChar(source, checkedIndex(checkedAdd(position, 6))) === "]") {
+                operation = checkedIndex(vmWordBegin);
+                if (indexChar(source, checkedIndex(checkedAdd(position, 3))) === ">") {
+                    operation = checkedIndex(vmWordEnd);
+                }
+                position = checkedAdd(position, 7);
+            }
+            else if (atom === "[") {
+                operation = checkedIndex(vmClass);
+                reference = checkedIndex(classMembers.length);
+                let classAtoms: string[] = [];
+                pushChar(classAtoms, "[");
+                position = checkedAdd(position, 1);
+                if (position < source.length && indexChar(source, checkedIndex(position)) === "^") {
+                    pushChar(classAtoms, "^");
                     position = checkedAdd(position, 1);
                 }
-                else {
-                    if (atom === ")") {
-                        if (frameCount === 1) {
-                            valid = checkedBool(false);
-                        }
-                        else {
-                            frameCount = checkedIndex(checkedSubtract(frameCount, 1));
-                            const frame: CaptureFrame = copyCaptureFrame(indexStruct(frames, checkedIndex(frameCount), copyCaptureFrame));
-                            let inner: number = frame.sequence;
-                            if (frame.branched) {
-                                inner = checkedIndex(nodes.length);
-                                pushStruct(nodes, makeCaptureNode(nodeAlternative, frame.alternative, frame.sequence, 0, " ", 1, frame.first, groups), copyCaptureNode);
-                            }
-                            let preference: number = indexStruct(nodes, checkedIndex(inner), copyCaptureNode).preference;
-                            if (!(frame.operation === nodeGroup)) {
-                                preference = checkedIndex(0);
-                                assertionDepth = checkedIndex(checkedSubtract(assertionDepth, 1));
-                            }
-                            node = checkedIndex(nodes.length);
-                            pushStruct(nodes, makeCaptureNode(frame.operation, inner, 0, frame.group, " ", preference, frame.first, groups), copyCaptureNode);
-                            if (frame.group > 0) {
-                                closed[checkedIndexIn(closed, frame.group)] = checkedIndex(1);
-                            }
+                const first: number = position;
+                let special: string = " ";
+                while (position < source.length) {
+                    const current: string = indexChar(source, checkedIndex(position));
+                    pushChar(classAtoms, current);
+                    position = checkedAdd(position, 1);
+                    if (special === " " && syntax === "a" && current === "\\" && position < source.length) {
+                        const marker: string = indexChar(source, checkedIndex(position));
+                        pushChar(classAtoms, marker);
+                        position = checkedAdd(position, 1);
+                        if (marker === "c" && position < source.length) {
+                            pushChar(classAtoms, indexChar(source, checkedIndex(position)));
                             position = checkedAdd(position, 1);
-                            hasAtom = checkedBool(true);
                         }
                     }
-                    else {
-                        if (atom === "^" || atom === "$") {
-                            let operation: number = vmBegin;
-                            if (atom === "$") {
-                                operation = checkedIndex(vmEnd);
-                            }
-                            node = checkedIndex(nodes.length);
-                            pushStruct(nodes, makeCaptureNode(operation, 0, 0, 0, " ", 0, 1, 0), copyCaptureNode);
+                    else if (!(special === " ")) {
+                        if (current === special && position < source.length && indexChar(source, checkedIndex(position)) === "]") {
+                            pushChar(classAtoms, "]");
                             position = checkedAdd(position, 1);
-                            hasAtom = checkedBool(true);
+                            special = checkedChar(" ");
                         }
-                        else {
-                            let operation: number = 0;
-                            let member: string = " ";
-                            let reference: number = 0;
-                            if (atom === ".") {
-                                operation = checkedIndex(vmAny);
-                                position = checkedAdd(position, 1);
-                            }
-                            else {
-                                if (atom === "[" && checkedSubtract(source.length, position) >= 7 && indexChar(source, checkedIndex(checkedAdd(position, 1))) === "[" && indexChar(source, checkedIndex(checkedAdd(position, 2))) === ":" && (indexChar(source, checkedIndex(checkedAdd(position, 3))) === "<" || indexChar(source, checkedIndex(checkedAdd(position, 3))) === ">") && indexChar(source, checkedIndex(checkedAdd(position, 4))) === ":" && indexChar(source, checkedIndex(checkedAdd(position, 5))) === "]" && indexChar(source, checkedIndex(checkedAdd(position, 6))) === "]") {
-                                    operation = checkedIndex(vmWordBegin);
-                                    if (indexChar(source, checkedIndex(checkedAdd(position, 3))) === ">") {
-                                        operation = checkedIndex(vmWordEnd);
-                                    }
-                                    position = checkedAdd(position, 7);
-                                }
-                                else {
-                                    if (atom === "[") {
-                                        operation = checkedIndex(vmClass);
-                                        reference = checkedIndex(classMembers.length);
-                                        let classAtoms: string[] = [];
-                                        pushChar(classAtoms, "[");
-                                        position = checkedAdd(position, 1);
-                                        if (position < source.length && indexChar(source, checkedIndex(position)) === "^") {
-                                            pushChar(classAtoms, "^");
-                                            position = checkedAdd(position, 1);
-                                        }
-                                        const first: number = position;
-                                        let special: string = " ";
-                                        while (position < source.length) {
-                                            const current: string = indexChar(source, checkedIndex(position));
-                                            pushChar(classAtoms, current);
-                                            position = checkedAdd(position, 1);
-                                            if (special === " " && syntax === "a" && current === "\\" && position < source.length) {
-                                                const marker: string = indexChar(source, checkedIndex(position));
-                                                pushChar(classAtoms, marker);
-                                                position = checkedAdd(position, 1);
-                                                if (marker === "c" && position < source.length) {
-                                                    pushChar(classAtoms, indexChar(source, checkedIndex(position)));
-                                                    position = checkedAdd(position, 1);
-                                                }
-                                            }
-                                            else {
-                                                if (!(special === " ")) {
-                                                    if (current === special && position < source.length && indexChar(source, checkedIndex(position)) === "]") {
-                                                        pushChar(classAtoms, "]");
-                                                        position = checkedAdd(position, 1);
-                                                        special = checkedChar(" ");
-                                                    }
-                                                }
-                                                else {
-                                                    if (current === "[" && position < source.length && (indexChar(source, checkedIndex(position)) === ":" || indexChar(source, checkedIndex(position)) === "." || indexChar(source, checkedIndex(position)) === "=")) {
-                                                        special = checkedChar(indexChar(source, checkedIndex(position)));
-                                                        pushChar(classAtoms, special);
-                                                        position = checkedAdd(position, 1);
-                                                    }
-                                                    else {
-                                                        if (current === "]" && position > checkedAdd(first, 1)) {
-                                                            break;
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        const parsedClass: CaptureClass = parseCaptureClass(classAtoms, syntax, groups);
-                                        valid = checkedBool(parsedClass.valid);
-                                        if (parsedClass.negated) {
-                                            member = checkedChar("^");
-                                        }
-                                        let index: number = 0;
-                                        while (index < parsedClass.members.length) {
-                                            pushStruct(classMembers, indexStruct(parsedClass.members, checkedIndex(index), copyCaptureClassMember), copyCaptureClassMember);
-                                            index = checkedAdd(index, 1);
-                                        }
-                                    }
-                                    else {
-                                        if (atom === "\\" && checkedSubtract(source.length, position) >= 2) {
-                                            const escaped: string = indexChar(source, checkedIndex(checkedAdd(position, 1)));
-                                            const escapeStart: number = position;
-                                            position = checkedAdd(position, 2);
-                                            if (syntax === "e" || (syntax === "b" && !(escaped === "<") && !(escaped === ">") && ((checkedChar(escaped).codePointAt(0)!) < 49 || (checkedChar(escaped).codePointAt(0)!) > 57))) {
-                                                operation = checkedIndex(vmLiteral);
-                                                member = checkedChar(escaped);
-                                                if (syntax === "b" && escaped === "{") {
-                                                    valid = checkedBool(false);
-                                                }
-                                            }
-                                            else {
-                                                if (syntax === "b" && (escaped === "<" || escaped === ">")) {
-                                                    operation = checkedIndex(vmWordBegin);
-                                                    if (escaped === ">") {
-                                                        operation = checkedIndex(vmWordEnd);
-                                                    }
-                                                }
-                                                else {
-                                                    if (escaped === "A" || escaped === "Z" || escaped === "m" || escaped === "y" || escaped === "Y") {
-                                                        operation = checkedIndex(vmAbsoluteBegin);
-                                                        if (escaped === "Z") {
-                                                            operation = checkedIndex(vmAbsoluteEnd);
-                                                        }
-                                                        else {
-                                                            if (escaped === "m") {
-                                                                operation = checkedIndex(vmWordBegin);
-                                                            }
-                                                            else {
-                                                                if (escaped === "y") {
-                                                                    operation = checkedIndex(vmBoundary);
-                                                                }
-                                                                else {
-                                                                    if (escaped === "Y") {
-                                                                        operation = checkedIndex(vmNotBoundary);
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                    else {
-                                                        if (escaped === "d" || escaped === "D" || escaped === "s" || escaped === "S" || escaped === "W") {
-                                                            operation = checkedIndex(vmClass);
-                                                            reference = checkedIndex(classMembers.length);
-                                                            let kind: number = 14;
-                                                            if (escaped === "d" || escaped === "D") {
-                                                                kind = checkedIndex(1);
-                                                            }
-                                                            else {
-                                                                if (escaped === "s" || escaped === "S") {
-                                                                    kind = checkedIndex(4);
-                                                                }
-                                                            }
-                                                            pushStruct(classMembers, { kind: kind, lower: 0, upper: 0, complement: escaped === "D" || escaped === "S" || escaped === "W" }, copyCaptureClassMember);
-                                                            pushStruct(classMembers, { kind: 0, lower: 0, upper: 0, complement: false }, copyCaptureClassMember);
-                                                        }
-                                                        else {
-                                                            if (escaped === "a" || escaped === "b" || escaped === "B" || escaped === "e" || escaped === "f" || escaped === "t" || escaped === "v") {
-                                                                operation = checkedIndex(vmNumeric);
-                                                                reference = checkedIndex(7);
-                                                                if (escaped === "b") {
-                                                                    reference = checkedIndex(8);
-                                                                }
-                                                                else {
-                                                                    if (escaped === "B") {
-                                                                        reference = checkedIndex(92);
-                                                                    }
-                                                                    else {
-                                                                        if (escaped === "e") {
-                                                                            reference = checkedIndex(27);
-                                                                        }
-                                                                        else {
-                                                                            if (escaped === "f") {
-                                                                                reference = checkedIndex(12);
-                                                                            }
-                                                                            else {
-                                                                                if (escaped === "t") {
-                                                                                    reference = checkedIndex(9);
-                                                                                }
-                                                                                else {
-                                                                                    if (escaped === "v") {
-                                                                                        reference = checkedIndex(11);
-                                                                                    }
-                                                                                }
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                            else {
-                                                                if (escaped === "w") {
-                                                                    operation = checkedIndex(vmWord);
-                                                                }
-                                                                else {
-                                                                    if (escaped === "M") {
-                                                                        operation = checkedIndex(vmWordEnd);
-                                                                    }
-                                                                    else {
-                                                                        if (escaped === "n" || escaped === "r" || ((checkedChar(escaped).codePointAt(0)!) < 48 || (checkedChar(escaped).codePointAt(0)!) > 57) && ((checkedChar(escaped).codePointAt(0)!) < 65 || (checkedChar(escaped).codePointAt(0)!) > 90) && ((checkedChar(escaped).codePointAt(0)!) < 97 || (checkedChar(escaped).codePointAt(0)!) > 122)) {
-                                                                            operation = checkedIndex(vmLiteral);
-                                                                            member = checkedChar(escaped);
-                                                                            if (escaped === "n") {
-                                                                                member = checkedChar("\n");
-                                                                            }
-                                                                            else {
-                                                                                if (escaped === "r") {
-                                                                                    member = checkedChar("\r");
-                                                                                }
-                                                                            }
-                                                                        }
-                                                                        else {
-                                                                            if (escaped === "c" || escaped === "x" || escaped === "u" || escaped === "U" || ((checkedChar(escaped).codePointAt(0)!) >= 48 && (checkedChar(escaped).codePointAt(0)!) <= 57)) {
-                                                                                const limit: number = indexNumber(tokenEnds, checkedIndex(escapeStart));
-                                                                                let window: string[] = [];
-                                                                                let next: number = escapeStart;
-                                                                                while (next < limit && checkedSubtract(next, escapeStart) < 257) {
-                                                                                    pushChar(window, indexChar(source, checkedIndex(next)));
-                                                                                    next = checkedAdd(next, 1);
-                                                                                }
-                                                                                const numeric: CaptureNumeric = parseCaptureNumeric(window, groups, syntax === "b");
-                                                                                valid = checkedBool(numeric.valid);
-                                                                                if (valid) {
-                                                                                    reference = checkedIndex(checkedIndex(numeric.value));
-                                                                                    position = checkedIndex(checkedAdd(escapeStart, numeric.end));
-                                                                                    operation = checkedIndex(vmNumeric);
-                                                                                    if (numeric.backreference) {
-                                                                                        operation = checkedIndex(vmBackref);
-                                                                                        valid = checkedBool(reference < closed.length && indexNumber(closed, checkedIndex(reference)) > 0);
-                                                                                    }
-                                                                                }
-                                                                            }
-                                                                            else {
-                                                                                valid = checkedBool(false);
-                                                                            }
-                                                                        }
-                                                                    }
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        else {
-                                            if (simpleLiteralChar(atom)) {
-                                                operation = checkedIndex(vmLiteral);
-                                                member = checkedChar(atom);
-                                                position = checkedAdd(position, 1);
-                                            }
-                                            else {
-                                                valid = checkedBool(false);
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                            if (valid === false) {
-                                break;
-                            }
-                            node = checkedIndex(nodes.length);
-                            pushStruct(nodes, makeCaptureNode(operation, 0, 0, reference, member, 0, 1, 0), copyCaptureNode);
-                            if (operation === vmBackref) {
-                                backreferences = checkedBool(true);
-                                if (assertionDepth > 0) {
-                                    valid = checkedBool(false);
-                                }
-                            }
-                            hasAtom = checkedBool(true);
+                    }
+                    else if (current === "[" && position < source.length && (indexChar(source, checkedIndex(position)) === ":" || indexChar(source, checkedIndex(position)) === "." || indexChar(source, checkedIndex(position)) === "=")) {
+                        special = checkedChar(indexChar(source, checkedIndex(position)));
+                        pushChar(classAtoms, special);
+                        position = checkedAdd(position, 1);
+                    }
+                    else if (current === "]" && position > checkedAdd(first, 1)) {
+                        break;
+                    }
+                }
+                const parsedClass: CaptureClass = parseCaptureClass(classAtoms, syntax, groups);
+                valid = checkedBool(parsedClass.valid);
+                if (parsedClass.negated) {
+                    member = checkedChar("^");
+                }
+                let index: number = 0;
+                while (index < parsedClass.members.length) {
+                    pushStruct(classMembers, indexStruct(parsedClass.members, checkedIndex(index), copyCaptureClassMember), copyCaptureClassMember);
+                    index = checkedAdd(index, 1);
+                }
+            }
+            else if (atom === "\\" && checkedSubtract(source.length, position) >= 2) {
+                const escaped: string = indexChar(source, checkedIndex(checkedAdd(position, 1)));
+                const escapeStart: number = position;
+                position = checkedAdd(position, 2);
+                if (syntax === "e" || (syntax === "b" && !(escaped === "<") && !(escaped === ">") && ((checkedChar(escaped).codePointAt(0)!) < 49 || (checkedChar(escaped).codePointAt(0)!) > 57))) {
+                    operation = checkedIndex(vmLiteral);
+                    member = checkedChar(escaped);
+                    if (syntax === "b" && escaped === "{") {
+                        valid = checkedBool(false);
+                    }
+                }
+                else if (syntax === "b" && (escaped === "<" || escaped === ">")) {
+                    operation = checkedIndex(vmWordBegin);
+                    if (escaped === ">") {
+                        operation = checkedIndex(vmWordEnd);
+                    }
+                }
+                else if (escaped === "A" || escaped === "Z" || escaped === "m" || escaped === "y" || escaped === "Y") {
+                    operation = checkedIndex(vmAbsoluteBegin);
+                    if (escaped === "Z") {
+                        operation = checkedIndex(vmAbsoluteEnd);
+                    }
+                    else if (escaped === "m") {
+                        operation = checkedIndex(vmWordBegin);
+                    }
+                    else if (escaped === "y") {
+                        operation = checkedIndex(vmBoundary);
+                    }
+                    else if (escaped === "Y") {
+                        operation = checkedIndex(vmNotBoundary);
+                    }
+                }
+                else if (escaped === "d" || escaped === "D" || escaped === "s" || escaped === "S" || escaped === "W") {
+                    operation = checkedIndex(vmClass);
+                    reference = checkedIndex(classMembers.length);
+                    let kind: number = 14;
+                    if (escaped === "d" || escaped === "D") {
+                        kind = checkedIndex(1);
+                    }
+                    else if (escaped === "s" || escaped === "S") {
+                        kind = checkedIndex(4);
+                    }
+                    pushStruct(classMembers, { kind: kind, lower: 0, upper: 0, complement: escaped === "D" || escaped === "S" || escaped === "W" }, copyCaptureClassMember);
+                    pushStruct(classMembers, { kind: 0, lower: 0, upper: 0, complement: false }, copyCaptureClassMember);
+                }
+                else if (escaped === "a" || escaped === "b" || escaped === "B" || escaped === "e" || escaped === "f" || escaped === "t" || escaped === "v") {
+                    operation = checkedIndex(vmNumeric);
+                    reference = checkedIndex(7);
+                    if (escaped === "b") {
+                        reference = checkedIndex(8);
+                    }
+                    else if (escaped === "B") {
+                        reference = checkedIndex(92);
+                    }
+                    else if (escaped === "e") {
+                        reference = checkedIndex(27);
+                    }
+                    else if (escaped === "f") {
+                        reference = checkedIndex(12);
+                    }
+                    else if (escaped === "t") {
+                        reference = checkedIndex(9);
+                    }
+                    else if (escaped === "v") {
+                        reference = checkedIndex(11);
+                    }
+                }
+                else if (escaped === "w") {
+                    operation = checkedIndex(vmWord);
+                }
+                else if (escaped === "M") {
+                    operation = checkedIndex(vmWordEnd);
+                }
+                else if (escaped === "n" || escaped === "r" || ((checkedChar(escaped).codePointAt(0)!) < 48 || (checkedChar(escaped).codePointAt(0)!) > 57) && ((checkedChar(escaped).codePointAt(0)!) < 65 || (checkedChar(escaped).codePointAt(0)!) > 90) && ((checkedChar(escaped).codePointAt(0)!) < 97 || (checkedChar(escaped).codePointAt(0)!) > 122)) {
+                    operation = checkedIndex(vmLiteral);
+                    member = checkedChar(escaped);
+                    if (escaped === "n") {
+                        member = checkedChar("\n");
+                    }
+                    else if (escaped === "r") {
+                        member = checkedChar("\r");
+                    }
+                }
+                else if (escaped === "c" || escaped === "x" || escaped === "u" || escaped === "U" || ((checkedChar(escaped).codePointAt(0)!) >= 48 && (checkedChar(escaped).codePointAt(0)!) <= 57)) {
+                    const limit: number = indexNumber(tokenEnds, checkedIndex(escapeStart));
+                    let window: string[] = [];
+                    let next: number = escapeStart;
+                    while (next < limit && checkedSubtract(next, escapeStart) < 257) {
+                        pushChar(window, indexChar(source, checkedIndex(next)));
+                        next = checkedAdd(next, 1);
+                    }
+                    const numeric: CaptureNumeric = parseCaptureNumeric(window, groups, syntax === "b");
+                    valid = checkedBool(numeric.valid);
+                    if (valid) {
+                        reference = checkedIndex(checkedIndex(numeric.value));
+                        position = checkedIndex(checkedAdd(escapeStart, numeric.end));
+                        operation = checkedIndex(vmNumeric);
+                        if (numeric.backreference) {
+                            operation = checkedIndex(vmBackref);
+                            valid = checkedBool(reference < closed.length && indexNumber(closed, checkedIndex(reference)) > 0);
                         }
                     }
                 }
+                else {
+                    valid = checkedBool(false);
+                }
             }
+            else if (simpleLiteralChar(atom)) {
+                operation = checkedIndex(vmLiteral);
+                member = checkedChar(atom);
+                position = checkedAdd(position, 1);
+            }
+            else {
+                valid = checkedBool(false);
+            }
+            if (valid === false) {
+                break;
+            }
+            node = checkedIndex(nodes.length);
+            pushStruct(nodes, makeCaptureNode(operation, 0, 0, reference, member, 0, 1, 0), copyCaptureNode);
+            if (operation === vmBackref) {
+                backreferences = checkedBool(true);
+                if (assertionDepth > 0) {
+                    valid = checkedBool(false);
+                }
+            }
+            hasAtom = checkedBool(true);
         }
         if (hasAtom && valid) {
             basicStarLiteral = checkedBool(indexStruct(nodes, checkedIndex(node), copyCaptureNode).operation === vmBegin);
@@ -2242,53 +2119,49 @@ function compileCaptureProgramAtoms(source: string[], tokenEnds: number[], synta
                     }
                     position = checkedAdd(position, 1);
                 }
-                else {
-                    if ((!(syntax === "b") || basicBound) && quantifier === "{" && quantifierEnd > checkedAdd(position, 1) && checkedSubtract(source.length, position) >= 2 && (checkedChar(indexChar(source, checkedIndex(checkedAdd(position, 1)))).codePointAt(0)!) >= 48 && (checkedChar(indexChar(source, checkedIndex(checkedAdd(position, 1)))).codePointAt(0)!) <= 57) {
-                        repeated = checkedBool(true);
-                        fixed = checkedBool(true);
+                else if ((!(syntax === "b") || basicBound) && quantifier === "{" && quantifierEnd > checkedAdd(position, 1) && checkedSubtract(source.length, position) >= 2 && (checkedChar(indexChar(source, checkedIndex(checkedAdd(position, 1)))).codePointAt(0)!) >= 48 && (checkedChar(indexChar(source, checkedIndex(checkedAdd(position, 1)))).codePointAt(0)!) <= 57) {
+                    repeated = checkedBool(true);
+                    fixed = checkedBool(true);
+                    position = checkedAdd(position, 1);
+                    while (position < source.length && (checkedChar(indexChar(source, checkedIndex(position))).codePointAt(0)!) >= 48 && (checkedChar(indexChar(source, checkedIndex(position))).codePointAt(0)!) <= 57) {
+                        const double: number = checkedAdd(lower, lower);
+                        const four: number = checkedAdd(double, double);
+                        lower = checkedIndex(checkedAdd(checkedAdd(checkedAdd(four, four), double), checkedIndex((checkedSubtract((checkedChar(indexChar(source, checkedIndex(position))).codePointAt(0)!), 48)))));
                         position = checkedAdd(position, 1);
+                        if (lower > 255) {
+                            valid = checkedBool(false);
+                            break;
+                        }
+                    }
+                    upper = checkedIndex(lower);
+                    if (position < source.length && indexChar(source, checkedIndex(position)) === ",") {
+                        fixed = checkedBool(false);
+                        position = checkedAdd(position, 1);
+                        upper = checkedIndex(0);
+                        unbounded = checkedBool(true);
                         while (position < source.length && (checkedChar(indexChar(source, checkedIndex(position))).codePointAt(0)!) >= 48 && (checkedChar(indexChar(source, checkedIndex(position))).codePointAt(0)!) <= 57) {
-                            const double: number = checkedAdd(lower, lower);
+                            unbounded = checkedBool(false);
+                            const double: number = checkedAdd(upper, upper);
                             const four: number = checkedAdd(double, double);
-                            lower = checkedIndex(checkedAdd(checkedAdd(checkedAdd(four, four), double), checkedIndex((checkedSubtract((checkedChar(indexChar(source, checkedIndex(position))).codePointAt(0)!), 48)))));
+                            upper = checkedIndex(checkedAdd(checkedAdd(checkedAdd(four, four), double), checkedIndex((checkedSubtract((checkedChar(indexChar(source, checkedIndex(position))).codePointAt(0)!), 48)))));
                             position = checkedAdd(position, 1);
-                            if (lower > 255) {
+                            if (upper > 255) {
                                 valid = checkedBool(false);
                                 break;
                             }
                         }
-                        upper = checkedIndex(lower);
-                        if (position < source.length && indexChar(source, checkedIndex(position)) === ",") {
-                            fixed = checkedBool(false);
-                            position = checkedAdd(position, 1);
-                            upper = checkedIndex(0);
-                            unbounded = checkedBool(true);
-                            while (position < source.length && (checkedChar(indexChar(source, checkedIndex(position))).codePointAt(0)!) >= 48 && (checkedChar(indexChar(source, checkedIndex(position))).codePointAt(0)!) <= 57) {
-                                unbounded = checkedBool(false);
-                                const double: number = checkedAdd(upper, upper);
-                                const four: number = checkedAdd(double, double);
-                                upper = checkedIndex(checkedAdd(checkedAdd(checkedAdd(four, four), double), checkedIndex((checkedSubtract((checkedChar(indexChar(source, checkedIndex(position))).codePointAt(0)!), 48)))));
-                                position = checkedAdd(position, 1);
-                                if (upper > 255) {
-                                    valid = checkedBool(false);
-                                    break;
-                                }
-                            }
-                        }
-                        if (basicBound && position < source.length && indexChar(source, checkedIndex(position)) === "\\") {
-                            position = checkedAdd(position, 1);
-                        }
-                        else {
-                            if (basicBound) {
-                                valid = checkedBool(false);
-                            }
-                        }
-                        if (position === source.length || !(indexChar(source, checkedIndex(position)) === "}") || (unbounded === false && upper < lower)) {
-                            valid = checkedBool(false);
-                        }
-                        else {
-                            position = checkedAdd(position, 1);
-                        }
+                    }
+                    if (basicBound && position < source.length && indexChar(source, checkedIndex(position)) === "\\") {
+                        position = checkedAdd(position, 1);
+                    }
+                    else if (basicBound) {
+                        valid = checkedBool(false);
+                    }
+                    if (position === source.length || !(indexChar(source, checkedIndex(position)) === "}") || (unbounded === false && upper < lower)) {
+                        valid = checkedBool(false);
+                    }
+                    else {
+                        position = checkedAdd(position, 1);
                     }
                 }
                 if (basicBound && repeated === false) {
@@ -2375,68 +2248,56 @@ function compileCaptureProgramAtoms(source: string[], tokenEnds: number[], synta
                 firstLiteral = checkedIndex(checkedAdd((checkedIndex((checkedChar(node.atom).codePointAt(0)!))), 1));
                 lastLiteral = checkedIndex(firstLiteral);
             }
-            else {
-                if (node.operation === vmNumeric) {
-                    firstLiteral = checkedIndex(checkedAdd(node.group, 1));
-                    lastLiteral = checkedIndex(firstLiteral);
-                }
+            else if (node.operation === vmNumeric) {
+                firstLiteral = checkedIndex(checkedAdd(node.group, 1));
+                lastLiteral = checkedIndex(firstLiteral);
             }
         }
-        else {
-            if (node.operation === vmBackref) {
-                minimum = checkedIndex(indexNumber(captureMinimums, checkedIndex(node.group)));
-                maximum = checkedIndex(indexNumber(captureMaximums, checkedIndex(node.group)));
+        else if (node.operation === vmBackref) {
+            minimum = checkedIndex(indexNumber(captureMinimums, checkedIndex(node.group)));
+            maximum = checkedIndex(indexNumber(captureMaximums, checkedIndex(node.group)));
+        }
+        else if (node.operation === nodeSequence) {
+            minimum = checkedIndex(captureWidthSum(indexNumber(minimums, checkedIndex(node.left)), indexNumber(minimums, checkedIndex(node.right))));
+            maximum = checkedIndex(captureWidthSum(indexNumber(maximums, checkedIndex(node.left)), indexNumber(maximums, checkedIndex(node.right))));
+            if (indexNumber(minimums, checkedIndex(node.left)) > 0) {
+                firstLiteral = checkedIndex(indexNumber(firstLiterals, checkedIndex(node.left)));
             }
-            else {
-                if (node.operation === nodeSequence) {
-                    minimum = checkedIndex(captureWidthSum(indexNumber(minimums, checkedIndex(node.left)), indexNumber(minimums, checkedIndex(node.right))));
-                    maximum = checkedIndex(captureWidthSum(indexNumber(maximums, checkedIndex(node.left)), indexNumber(maximums, checkedIndex(node.right))));
-                    if (indexNumber(minimums, checkedIndex(node.left)) > 0) {
-                        firstLiteral = checkedIndex(indexNumber(firstLiterals, checkedIndex(node.left)));
-                    }
-                    if (indexNumber(minimums, checkedIndex(node.right)) > 0) {
-                        lastLiteral = checkedIndex(indexNumber(lastLiterals, checkedIndex(node.right)));
-                    }
-                }
-                else {
-                    if (node.operation === nodeAlternative) {
-                        minimum = checkedIndex(indexNumber(minimums, checkedIndex(node.left)));
-                        if (indexNumber(minimums, checkedIndex(node.right)) < minimum) {
-                            minimum = checkedIndex(indexNumber(minimums, checkedIndex(node.right)));
-                        }
-                        maximum = checkedIndex(indexNumber(maximums, checkedIndex(node.left)));
-                        if (indexNumber(maximums, checkedIndex(node.right)) > maximum) {
-                            maximum = checkedIndex(indexNumber(maximums, checkedIndex(node.right)));
-                        }
-                        if (indexNumber(firstLiterals, checkedIndex(node.left)) === indexNumber(firstLiterals, checkedIndex(node.right))) {
-                            firstLiteral = checkedIndex(indexNumber(firstLiterals, checkedIndex(node.left)));
-                        }
-                        if (indexNumber(lastLiterals, checkedIndex(node.left)) === indexNumber(lastLiterals, checkedIndex(node.right))) {
-                            lastLiteral = checkedIndex(indexNumber(lastLiterals, checkedIndex(node.left)));
-                        }
-                    }
-                    else {
-                        if (node.operation === nodeGroup) {
-                            minimum = checkedIndex(indexNumber(minimums, checkedIndex(node.left)));
-                            maximum = checkedIndex(indexNumber(maximums, checkedIndex(node.left)));
-                            firstLiteral = checkedIndex(indexNumber(firstLiterals, checkedIndex(node.left)));
-                            lastLiteral = checkedIndex(indexNumber(lastLiterals, checkedIndex(node.left)));
-                        }
-                        else {
-                            if (node.operation === nodeRepeat) {
-                                minimum = checkedIndex(captureWidthRepeat(indexNumber(minimums, checkedIndex(node.left)), node.lower));
-                                maximum = checkedIndex(captureWidthRepeat(indexNumber(maximums, checkedIndex(node.left)), node.upper));
-                                if (node.unbounded && indexNumber(maximums, checkedIndex(node.left)) > 0) {
-                                    maximum = checkedIndex(maxCaptureWork);
-                                }
-                                if (node.lower > 0 && indexNumber(minimums, checkedIndex(node.left)) > 0) {
-                                    firstLiteral = checkedIndex(indexNumber(firstLiterals, checkedIndex(node.left)));
-                                    lastLiteral = checkedIndex(indexNumber(lastLiterals, checkedIndex(node.left)));
-                                }
-                            }
-                        }
-                    }
-                }
+            if (indexNumber(minimums, checkedIndex(node.right)) > 0) {
+                lastLiteral = checkedIndex(indexNumber(lastLiterals, checkedIndex(node.right)));
+            }
+        }
+        else if (node.operation === nodeAlternative) {
+            minimum = checkedIndex(indexNumber(minimums, checkedIndex(node.left)));
+            if (indexNumber(minimums, checkedIndex(node.right)) < minimum) {
+                minimum = checkedIndex(indexNumber(minimums, checkedIndex(node.right)));
+            }
+            maximum = checkedIndex(indexNumber(maximums, checkedIndex(node.left)));
+            if (indexNumber(maximums, checkedIndex(node.right)) > maximum) {
+                maximum = checkedIndex(indexNumber(maximums, checkedIndex(node.right)));
+            }
+            if (indexNumber(firstLiterals, checkedIndex(node.left)) === indexNumber(firstLiterals, checkedIndex(node.right))) {
+                firstLiteral = checkedIndex(indexNumber(firstLiterals, checkedIndex(node.left)));
+            }
+            if (indexNumber(lastLiterals, checkedIndex(node.left)) === indexNumber(lastLiterals, checkedIndex(node.right))) {
+                lastLiteral = checkedIndex(indexNumber(lastLiterals, checkedIndex(node.left)));
+            }
+        }
+        else if (node.operation === nodeGroup) {
+            minimum = checkedIndex(indexNumber(minimums, checkedIndex(node.left)));
+            maximum = checkedIndex(indexNumber(maximums, checkedIndex(node.left)));
+            firstLiteral = checkedIndex(indexNumber(firstLiterals, checkedIndex(node.left)));
+            lastLiteral = checkedIndex(indexNumber(lastLiterals, checkedIndex(node.left)));
+        }
+        else if (node.operation === nodeRepeat) {
+            minimum = checkedIndex(captureWidthRepeat(indexNumber(minimums, checkedIndex(node.left)), node.lower));
+            maximum = checkedIndex(captureWidthRepeat(indexNumber(maximums, checkedIndex(node.left)), node.upper));
+            if (node.unbounded && indexNumber(maximums, checkedIndex(node.left)) > 0) {
+                maximum = checkedIndex(maxCaptureWork);
+            }
+            if (node.lower > 0 && indexNumber(minimums, checkedIndex(node.left)) > 0) {
+                firstLiteral = checkedIndex(indexNumber(firstLiterals, checkedIndex(node.left)));
+                lastLiteral = checkedIndex(indexNumber(lastLiterals, checkedIndex(node.left)));
             }
         }
         if (node.operation === nodeGroup && node.group > 0) {
@@ -2503,80 +2364,72 @@ function compileCaptureProgramAtoms(source: string[], tokenEnds: number[], synta
         if (node.operation === nodeEmpty) {
             instructions[checkedIndexIn(instructions, task.entry)] = copyCaptureInstruction(makeCaptureStep(vmJump, task.exit, 0, 0, " "));
         }
-        else {
-            if (node.operation === nodeSequence) {
-                const middle: number = instructions.length;
-                pushStruct(instructions, makeCaptureStep(vmJump, 0, 0, 0, " "), copyCaptureInstruction);
-                pushStruct(tasks, { node: node.left, entry: task.entry, exit: middle }, copyCaptureBuildTask);
-                pushStruct(tasks, { node: node.right, entry: middle, exit: task.exit }, copyCaptureBuildTask);
+        else if (node.operation === nodeSequence) {
+            const middle: number = instructions.length;
+            pushStruct(instructions, makeCaptureStep(vmJump, 0, 0, 0, " "), copyCaptureInstruction);
+            pushStruct(tasks, { node: node.left, entry: task.entry, exit: middle }, copyCaptureBuildTask);
+            pushStruct(tasks, { node: node.right, entry: middle, exit: task.exit }, copyCaptureBuildTask);
+        }
+        else if (node.operation === nodeAlternative) {
+            const left: number = instructions.length;
+            pushStruct(instructions, makeCaptureStep(vmJump, 0, 0, 0, " "), copyCaptureInstruction);
+            const right: number = instructions.length;
+            pushStruct(instructions, makeCaptureStep(vmJump, 0, 0, 0, " "), copyCaptureInstruction);
+            instructions[checkedIndexIn(instructions, task.entry)] = copyCaptureInstruction(makeCaptureStep(vmSplit, left, right, 0, " "));
+            pushStruct(tasks, { node: node.left, entry: left, exit: task.exit }, copyCaptureBuildTask);
+            pushStruct(tasks, { node: node.right, entry: right, exit: task.exit }, copyCaptureBuildTask);
+        }
+        else if (node.operation === nodeGroup) {
+            const begin: number = instructions.length;
+            instructions[checkedIndexIn(instructions, task.entry)] = copyCaptureInstruction(makeCaptureStep(vmJump, begin, 0, 0, " "));
+            pushStruct(instructions, makeCaptureStep(vmClear, node.first, node.last, 0, " "), copyCaptureInstruction);
+            if (node.group > 0) {
+                pushStruct(instructions, makeCaptureStep(vmOpen, 0, 0, node.group, " "), copyCaptureInstruction);
             }
-            else {
-                if (node.operation === nodeAlternative) {
-                    const left: number = instructions.length;
-                    pushStruct(instructions, makeCaptureStep(vmJump, 0, 0, 0, " "), copyCaptureInstruction);
-                    const right: number = instructions.length;
-                    pushStruct(instructions, makeCaptureStep(vmJump, 0, 0, 0, " "), copyCaptureInstruction);
-                    instructions[checkedIndexIn(instructions, task.entry)] = copyCaptureInstruction(makeCaptureStep(vmSplit, left, right, 0, " "));
-                    pushStruct(tasks, { node: node.left, entry: left, exit: task.exit }, copyCaptureBuildTask);
-                    pushStruct(tasks, { node: node.right, entry: right, exit: task.exit }, copyCaptureBuildTask);
+            const inner: number = instructions.length;
+            pushStruct(instructions, makeCaptureStep(vmJump, 0, 0, 0, " "), copyCaptureInstruction);
+            const end: number = instructions.length;
+            if (node.group > 0) {
+                pushStruct(instructions, makeCaptureStep(vmClose, 0, 0, node.group, " "), copyCaptureInstruction);
+            }
+            pushStruct(instructions, makeCaptureStep(vmJump, task.exit, 0, 0, " "), copyCaptureInstruction);
+            pushStruct(tasks, { node: node.left, entry: inner, exit: end }, copyCaptureBuildTask);
+        }
+        else if (node.operation === nodeRepeat) {
+            let entry: number = task.entry;
+            let copies: number = node.upper;
+            if (node.unbounded) {
+                copies = checkedIndex(checkedAdd(node.lower, 1));
+            }
+            let count: number = 0;
+            while (count < copies) {
+                const begin: number = instructions.length;
+                pushStruct(instructions, makeCaptureStep(vmClear, node.first, node.last, 0, " "), copyCaptureInstruction);
+                const inner: number = instructions.length;
+                pushStruct(instructions, makeCaptureStep(vmJump, 0, 0, 0, " "), copyCaptureInstruction);
+                const next: number = instructions.length;
+                pushStruct(instructions, makeCaptureStep(vmJump, task.exit, 0, 0, " "), copyCaptureInstruction);
+                if (count < node.lower) {
+                    instructions[checkedIndexIn(instructions, entry)] = copyCaptureInstruction(makeCaptureStep(vmJump, begin, 0, 0, " "));
                 }
                 else {
-                    if (node.operation === nodeGroup) {
-                        const begin: number = instructions.length;
-                        instructions[checkedIndexIn(instructions, task.entry)] = copyCaptureInstruction(makeCaptureStep(vmJump, begin, 0, 0, " "));
-                        pushStruct(instructions, makeCaptureStep(vmClear, node.first, node.last, 0, " "), copyCaptureInstruction);
-                        if (node.group > 0) {
-                            pushStruct(instructions, makeCaptureStep(vmOpen, 0, 0, node.group, " "), copyCaptureInstruction);
-                        }
-                        const inner: number = instructions.length;
-                        pushStruct(instructions, makeCaptureStep(vmJump, 0, 0, 0, " "), copyCaptureInstruction);
-                        const end: number = instructions.length;
-                        if (node.group > 0) {
-                            pushStruct(instructions, makeCaptureStep(vmClose, 0, 0, node.group, " "), copyCaptureInstruction);
-                        }
-                        pushStruct(instructions, makeCaptureStep(vmJump, task.exit, 0, 0, " "), copyCaptureInstruction);
-                        pushStruct(tasks, { node: node.left, entry: inner, exit: end }, copyCaptureBuildTask);
-                    }
-                    else {
-                        if (node.operation === nodeRepeat) {
-                            let entry: number = task.entry;
-                            let copies: number = node.upper;
-                            if (node.unbounded) {
-                                copies = checkedIndex(checkedAdd(node.lower, 1));
-                            }
-                            let count: number = 0;
-                            while (count < copies) {
-                                const begin: number = instructions.length;
-                                pushStruct(instructions, makeCaptureStep(vmClear, node.first, node.last, 0, " "), copyCaptureInstruction);
-                                const inner: number = instructions.length;
-                                pushStruct(instructions, makeCaptureStep(vmJump, 0, 0, 0, " "), copyCaptureInstruction);
-                                const next: number = instructions.length;
-                                pushStruct(instructions, makeCaptureStep(vmJump, task.exit, 0, 0, " "), copyCaptureInstruction);
-                                if (count < node.lower) {
-                                    instructions[checkedIndexIn(instructions, entry)] = copyCaptureInstruction(makeCaptureStep(vmJump, begin, 0, 0, " "));
-                                }
-                                else {
-                                    instructions[checkedIndexIn(instructions, entry)] = copyCaptureInstruction(makeCaptureStep(vmSplit, begin, task.exit, 0, " "));
-                                }
-                                let exit: number = next;
-                                if (node.unbounded && count === node.lower) {
-                                    exit = checkedIndex(entry);
-                                }
-                                pushStruct(tasks, { node: node.left, entry: inner, exit: exit }, copyCaptureBuildTask);
-                                entry = checkedIndex(next);
-                                count = checkedAdd(count, 1);
-                            }
-                            instructions[checkedIndexIn(instructions, entry)] = copyCaptureInstruction(makeCaptureStep(vmJump, task.exit, 0, 0, " "));
-                        }
-                        else {
-                            const begin: number = instructions.length;
-                            instructions[checkedIndexIn(instructions, task.entry)] = copyCaptureInstruction(makeCaptureStep(vmJump, begin, 0, 0, " "));
-                            pushStruct(instructions, makeCaptureStep(node.operation, 0, 0, node.group, node.atom), copyCaptureInstruction);
-                            pushStruct(instructions, makeCaptureStep(vmJump, task.exit, 0, 0, " "), copyCaptureInstruction);
-                        }
-                    }
+                    instructions[checkedIndexIn(instructions, entry)] = copyCaptureInstruction(makeCaptureStep(vmSplit, begin, task.exit, 0, " "));
                 }
+                let exit: number = next;
+                if (node.unbounded && count === node.lower) {
+                    exit = checkedIndex(entry);
+                }
+                pushStruct(tasks, { node: node.left, entry: inner, exit: exit }, copyCaptureBuildTask);
+                entry = checkedIndex(next);
+                count = checkedAdd(count, 1);
             }
+            instructions[checkedIndexIn(instructions, entry)] = copyCaptureInstruction(makeCaptureStep(vmJump, task.exit, 0, 0, " "));
+        }
+        else {
+            const begin: number = instructions.length;
+            instructions[checkedIndexIn(instructions, task.entry)] = copyCaptureInstruction(makeCaptureStep(vmJump, begin, 0, 0, " "));
+            pushStruct(instructions, makeCaptureStep(node.operation, 0, 0, node.group, node.atom), copyCaptureInstruction);
+            pushStruct(instructions, makeCaptureStep(vmJump, task.exit, 0, 0, " "), copyCaptureInstruction);
         }
     }
     if (instructions.length > maxCaptureInstructions) {
@@ -2748,405 +2601,361 @@ function executeCaptureTree(program: CompiledRegex, subject: string, from: numbe
                     success = checkedBool(false);
                     complete = checkedBool(true);
                 }
-                else {
-                    if (phase === dissectEnter) {
-                        success = checkedBool(false);
-                        returned = checkedIndex(frame.capture);
-                        if (node.operation === nodeSequence) {
-                            const span: number = checkedSubtract(frame.end, frame.begin);
-                            const leftMinimum: number = indexNumber(program.minimums, checkedIndex(node.left));
-                            const rightMinimum: number = indexNumber(program.minimums, checkedIndex(node.right));
-                            if (leftMinimum > span || rightMinimum > span) {
+                else if (phase === dissectEnter) {
+                    success = checkedBool(false);
+                    returned = checkedIndex(frame.capture);
+                    if (node.operation === nodeSequence) {
+                        const span: number = checkedSubtract(frame.end, frame.begin);
+                        const leftMinimum: number = indexNumber(program.minimums, checkedIndex(node.left));
+                        const rightMinimum: number = indexNumber(program.minimums, checkedIndex(node.right));
+                        if (leftMinimum > span || rightMinimum > span) {
+                            complete = checkedBool(true);
+                        }
+                        else {
+                            let lower: number = checkedAdd(frame.begin, leftMinimum);
+                            if (indexNumber(program.maximums, checkedIndex(node.right)) < span && checkedSubtract(frame.end, indexNumber(program.maximums, checkedIndex(node.right))) > lower) {
+                                lower = checkedIndex(checkedSubtract(frame.end, indexNumber(program.maximums, checkedIndex(node.right))));
+                            }
+                            let upper: number = checkedSubtract(frame.end, rightMinimum);
+                            if (indexNumber(program.maximums, checkedIndex(node.left)) < span && checkedAdd(frame.begin, indexNumber(program.maximums, checkedIndex(node.left))) < upper) {
+                                upper = checkedIndex(checkedAdd(frame.begin, indexNumber(program.maximums, checkedIndex(node.left))));
+                            }
+                            if (lower > upper) {
                                 complete = checkedBool(true);
                             }
                             else {
-                                let lower: number = checkedAdd(frame.begin, leftMinimum);
-                                if (indexNumber(program.maximums, checkedIndex(node.right)) < span && checkedSubtract(frame.end, indexNumber(program.maximums, checkedIndex(node.right))) > lower) {
-                                    lower = checkedIndex(checkedSubtract(frame.end, indexNumber(program.maximums, checkedIndex(node.right))));
+                                cursor = checkedIndex(upper);
+                                if (childShortest) {
+                                    cursor = checkedIndex(lower);
                                 }
-                                let upper: number = checkedSubtract(frame.end, rightMinimum);
-                                if (indexNumber(program.maximums, checkedIndex(node.left)) < span && checkedAdd(frame.begin, indexNumber(program.maximums, checkedIndex(node.left))) < upper) {
-                                    upper = checkedIndex(checkedAdd(frame.begin, indexNumber(program.maximums, checkedIndex(node.left))));
+                                phase = checkedIndex(dissectLeft);
+                                let possible: boolean = true;
+                                if (cursor > frame.begin && captureBoundaryMatches(indexNumber(program.lastLiterals, checkedIndex(node.left)), indexChar(haystack, checkedIndex(checkedSubtract(cursor, 1))), caseSensitive) === false) {
+                                    possible = checkedBool(false);
                                 }
-                                if (lower > upper) {
-                                    complete = checkedBool(true);
+                                if (cursor < frame.end && captureBoundaryMatches(indexNumber(program.firstLiterals, checkedIndex(node.right)), indexChar(haystack, checkedIndex(cursor)), caseSensitive) === false) {
+                                    possible = checkedBool(false);
+                                }
+                                if (possible === false) {
+                                    advance = checkedBool(true);
                                 }
                                 else {
-                                    cursor = checkedIndex(upper);
-                                    if (childShortest) {
-                                        cursor = checkedIndex(lower);
-                                    }
-                                    phase = checkedIndex(dissectLeft);
-                                    let possible: boolean = true;
-                                    if (cursor > frame.begin && captureBoundaryMatches(indexNumber(program.lastLiterals, checkedIndex(node.left)), indexChar(haystack, checkedIndex(checkedSubtract(cursor, 1))), caseSensitive) === false) {
-                                        possible = checkedBool(false);
-                                    }
-                                    if (cursor < frame.end && captureBoundaryMatches(indexNumber(program.firstLiterals, checkedIndex(node.right)), indexChar(haystack, checkedIndex(cursor)), caseSensitive) === false) {
-                                        possible = checkedBool(false);
-                                    }
-                                    if (possible === false) {
-                                        advance = checkedBool(true);
-                                    }
-                                    else {
-                                        child = checkedBool(true);
-                                        childEnd = checkedIndex(cursor);
-                                    }
-                                }
-                            }
-                        }
-                        else {
-                            if (node.operation === nodeAlternative) {
-                                child = checkedBool(true);
-                                phase = checkedIndex(dissectAlternative);
-                            }
-                            else {
-                                if (node.operation === nodeGroup) {
                                     child = checkedBool(true);
-                                    clear = checkedBool(true);
-                                    phase = checkedIndex(dissectGroup);
-                                }
-                                else {
-                                    if (node.operation >= nodeLookahead && node.operation <= nodeNotLookbehind) {
-                                        if (!(frame.begin === frame.end)) {
-                                            complete = checkedBool(true);
-                                        }
-                                        else {
-                                            let available: number = checkedSubtract(haystack.length, frame.begin);
-                                            if (node.operation >= nodeLookbehind) {
-                                                available = checkedIndex(frame.begin);
-                                            }
-                                            const minimumWidth: number = indexNumber(program.minimums, checkedIndex(node.left));
-                                            let maximumWidth: number = indexNumber(program.maximums, checkedIndex(node.left));
-                                            if (maximumWidth > available) {
-                                                maximumWidth = checkedIndex(available);
-                                            }
-                                            if (minimumWidth > available) {
-                                                success = checkedBool(node.operation === nodeNotLookahead || node.operation === nodeNotLookbehind);
-                                                complete = checkedBool(true);
-                                            }
-                                            else {
-                                                cursor = checkedIndex(checkedAdd(frame.begin, minimumWidth));
-                                                childEnd = checkedIndex(cursor);
-                                                if (node.operation >= nodeLookbehind) {
-                                                    cursor = checkedIndex(checkedSubtract(frame.begin, maximumWidth));
-                                                    childBegin = checkedIndex(cursor);
-                                                    childEnd = checkedIndex(frame.begin);
-                                                }
-                                                child = checkedBool(true);
-                                                phase = checkedIndex(dissectAssertion);
-                                            }
-                                        }
-                                    }
-                                    else {
-                                        if (node.operation === nodeRepeat && repeatedReference === false) {
-                                            if (frame.prefix === false && lower > 0 && indexNumber(program.references, checkedIndex(node.left)) === 0) {
-                                                cursor = checkedIndex(frame.end);
-                                                if (node.preference === 2) {
-                                                    cursor = checkedIndex(frame.begin);
-                                                }
-                                                child = checkedBool(true);
-                                                childNode = checkedIndex(frame.node);
-                                                childPrefix = checkedBool(true);
-                                                childEnd = checkedIndex(cursor);
-                                                phase = checkedIndex(dissectPrefix);
-                                            }
-                                            else {
-                                                if (upper === 0 && node.unbounded === false) {
-                                                    success = checkedBool(frame.begin === frame.end);
-                                                    complete = checkedBool(true);
-                                                }
-                                                else {
-                                                    if (childShortest && lower === 0 && frame.begin === frame.end) {
-                                                        success = checkedBool(true);
-                                                        complete = checkedBool(true);
-                                                    }
-                                                    else {
-                                                        const endpoint: number = captureRepeatEndpoint(frame.begin, frame.end, indexNumber(program.minimums, checkedIndex(node.left)), indexNumber(program.maximums, checkedIndex(node.left)), childShortest);
-                                                        path = checkedIndex(paths.length);
-                                                        pushStruct(paths, { begin: frame.begin, cursor: endpoint, capture: frame.capture, count: 0, previous: 0 }, copyCaptureRepeatPath);
-                                                        phase = checkedIndex(dissectIteration);
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        else {
-                                            let matched: boolean = false;
-                                            let end: number = frame.begin;
-                                            if (node.operation === nodeEmpty) {
-                                                matched = checkedBool(true);
-                                            }
-                                            else {
-                                                if (captureAssertion(node.operation)) {
-                                                    const before: boolean = end > 0 && zeroWidthWord(indexChar(haystack, checkedIndex(checkedSubtract(end, 1))));
-                                                    const after: boolean = end < haystack.length && zeroWidthWord(indexChar(haystack, checkedIndex(end)));
-                                                    const previousNewline: boolean = end > 0 && indexChar(haystack, checkedIndex(checkedSubtract(end, 1))) === "\n";
-                                                    const nextNewline: boolean = end < haystack.length && indexChar(haystack, checkedIndex(end)) === "\n";
-                                                    matched = checkedBool(captureAssertionMatches(node.operation, end, haystack.length, before, after, previousNewline, nextNewline, lineAnchors));
-                                                }
-                                                else {
-                                                    if (node.operation === vmBackref || repeatedReference) {
-                                                        let reference: number = node.group;
-                                                        let minimumRepeats: number = 1;
-                                                        let maximumRepeats: number = 1;
-                                                        let unboundedRepeats: boolean = false;
-                                                        if (repeatedReference) {
-                                                            reference = checkedIndex(indexStruct(program.nodes, checkedIndex(node.left), copyCaptureNode).group);
-                                                            minimumRepeats = checkedIndex(lower);
-                                                            maximumRepeats = checkedIndex(upper);
-                                                            unboundedRepeats = checkedBool(node.unbounded);
-                                                        }
-                                                        const register: CaptureRegister = copyCaptureRegister(indexStruct(captures, checkedIndex(checkedAdd(frame.capture, reference)), copyCaptureRegister));
-                                                        const length: number = checkedSubtract(register.end, register.start);
-                                                        matched = checkedBool(register.status === 2);
-                                                        if (length === 0) {
-                                                            matched = checkedBool(matched && end === frame.end);
-                                                        }
-                                                        else {
-                                                            let repeats: number = 0;
-                                                            while (matched && end < frame.end) {
-                                                                matched = checkedBool(length <= checkedSubtract(frame.end, end) && (unboundedRepeats || repeats < maximumRepeats));
-                                                                let offset: number = 0;
-                                                                while (matched && offset < length) {
-                                                                    if (work === maxCaptureWork) {
-                                                                        return captureTreeResult(2, 0, work);
-                                                                    }
-                                                                    work = checkedAdd(work, 1);
-                                                                    const actual: string = indexChar(haystack, checkedIndex(checkedAdd(end, offset)));
-                                                                    const expected: string = indexChar(haystack, checkedIndex(checkedAdd(register.start, offset)));
-                                                                    matched = checkedBool(actual === expected || (caseSensitive === false && asciiLowercase(actual) === asciiLowercase(expected)));
-                                                                    offset = checkedAdd(offset, 1);
-                                                                }
-                                                                if (matched) {
-                                                                    end = checkedAdd(end, length);
-                                                                    repeats = checkedAdd(repeats, 1);
-                                                                }
-                                                            }
-                                                            matched = checkedBool(matched && repeats >= minimumRepeats);
-                                                        }
-                                                    }
-                                                    else {
-                                                        if (node.operation === vmClass) {
-                                                            if (end < haystack.length) {
-                                                                let classPosition: number = node.group;
-                                                                let included: boolean = false;
-                                                                while (indexStruct(program.classMembers, checkedIndex(classPosition), copyCaptureClassMember).kind > 0) {
-                                                                    if (work === maxCaptureWork) {
-                                                                        return captureTreeResult(2, 0, work);
-                                                                    }
-                                                                    work = checkedAdd(work, 1);
-                                                                    if (captureClassMemberMatches(indexStruct(program.classMembers, checkedIndex(classPosition), copyCaptureClassMember), indexChar(haystack, checkedIndex(end)), caseSensitive)) {
-                                                                        included = checkedBool(true);
-                                                                    }
-                                                                    classPosition = checkedAdd(classPosition, 1);
-                                                                }
-                                                                const negated: boolean = node.atom === "^";
-                                                                matched = checkedBool(!(included === negated) && (negated === false || dotCrossesNewline || !(indexChar(haystack, checkedIndex(end)) === "\n")));
-                                                                if (matched) {
-                                                                    end = checkedAdd(end, 1);
-                                                                }
-                                                            }
-                                                        }
-                                                        else {
-                                                            if (end < haystack.length) {
-                                                                const actual: string = indexChar(haystack, checkedIndex(end));
-                                                                let numericLower: number = node.group;
-                                                                if (numericLower >= 65 && numericLower <= 90) {
-                                                                    numericLower = checkedAdd(numericLower, 32);
-                                                                }
-                                                                matched = checkedBool((node.operation === vmAny && (dotCrossesNewline || !(actual === "\n"))) || (node.operation === vmWord && zeroWidthWord(actual)) || (node.operation === vmNumeric && ((checkedIndex((checkedChar(actual).codePointAt(0)!))) === node.group || (caseSensitive === false && (checkedIndex((checkedChar(asciiLowercase(actual)).codePointAt(0)!))) === numericLower))) || (node.operation === vmLiteral && (actual === node.atom || (caseSensitive === false && asciiLowercase(actual) === asciiLowercase(node.atom)))));
-                                                                if (matched) {
-                                                                    end = checkedAdd(end, 1);
-                                                                }
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            success = checkedBool(matched && end === frame.end);
-                                            complete = checkedBool(true);
-                                        }
-                                    }
+                                    childEnd = checkedIndex(cursor);
                                 }
                             }
                         }
                     }
-                    else {
-                        if (phase === dissectLeft || phase === dissectPrefix) {
-                            if (success) {
-                                child = checkedBool(true);
-                                childBegin = checkedIndex(cursor);
-                                childCapture = checkedIndex(returned);
-                                childNode = checkedIndex(node.right);
-                                phase = checkedIndex(dissectRight);
-                                if (node.operation === nodeRepeat) {
-                                    childNode = checkedIndex(node.left);
-                                    phase = checkedIndex(dissectLastRepeat);
-                                    clear = checkedBool(true);
-                                }
-                            }
-                            else {
-                                advance = checkedBool(true);
-                            }
+                    else if (node.operation === nodeAlternative) {
+                        child = checkedBool(true);
+                        phase = checkedIndex(dissectAlternative);
+                    }
+                    else if (node.operation === nodeGroup) {
+                        child = checkedBool(true);
+                        clear = checkedBool(true);
+                        phase = checkedIndex(dissectGroup);
+                    }
+                    else if (node.operation >= nodeLookahead && node.operation <= nodeNotLookbehind) {
+                        if (!(frame.begin === frame.end)) {
+                            complete = checkedBool(true);
                         }
                         else {
-                            if (phase === dissectRight || phase === dissectLastRepeat) {
-                                if (success) {
-                                    complete = checkedBool(true);
-                                }
-                                else {
-                                    advance = checkedBool(true);
-                                }
+                            let available: number = checkedSubtract(haystack.length, frame.begin);
+                            if (node.operation >= nodeLookbehind) {
+                                available = checkedIndex(frame.begin);
+                            }
+                            const minimumWidth: number = indexNumber(program.minimums, checkedIndex(node.left));
+                            let maximumWidth: number = indexNumber(program.maximums, checkedIndex(node.left));
+                            if (maximumWidth > available) {
+                                maximumWidth = checkedIndex(available);
+                            }
+                            if (minimumWidth > available) {
+                                success = checkedBool(node.operation === nodeNotLookahead || node.operation === nodeNotLookbehind);
+                                complete = checkedBool(true);
                             }
                             else {
-                                if (phase === dissectGroup) {
-                                    if (success && width > 0 && node.group > 0) {
-                                        const snapshot: number = captures.length;
-                                        group = checkedIndex(0);
-                                        while (group < width) {
-                                            if (work === maxCaptureWork) {
-                                                return captureTreeResult(2, 0, work);
-                                            }
-                                            work = checkedAdd(work, 1);
-                                            if (group === node.group) {
-                                                pushStruct(captures, { start: frame.begin, end: frame.end, status: 2 }, copyCaptureRegister);
-                                            }
-                                            else {
-                                                pushStruct(captures, indexStruct(captures, checkedIndex(checkedAdd(returned, group)), copyCaptureRegister), copyCaptureRegister);
-                                            }
-                                            group = checkedAdd(group, 1);
-                                        }
-                                        returned = checkedIndex(snapshot);
-                                    }
-                                    complete = checkedBool(true);
+                                cursor = checkedIndex(checkedAdd(frame.begin, minimumWidth));
+                                childEnd = checkedIndex(cursor);
+                                if (node.operation >= nodeLookbehind) {
+                                    cursor = checkedIndex(checkedSubtract(frame.begin, maximumWidth));
+                                    childBegin = checkedIndex(cursor);
+                                    childEnd = checkedIndex(frame.begin);
                                 }
-                                else {
-                                    if (phase === dissectAlternative) {
-                                        if (success) {
-                                            complete = checkedBool(true);
+                                child = checkedBool(true);
+                                phase = checkedIndex(dissectAssertion);
+                            }
+                        }
+                    }
+                    else if (node.operation === nodeRepeat && repeatedReference === false) {
+                        if (frame.prefix === false && lower > 0 && indexNumber(program.references, checkedIndex(node.left)) === 0) {
+                            cursor = checkedIndex(frame.end);
+                            if (node.preference === 2) {
+                                cursor = checkedIndex(frame.begin);
+                            }
+                            child = checkedBool(true);
+                            childNode = checkedIndex(frame.node);
+                            childPrefix = checkedBool(true);
+                            childEnd = checkedIndex(cursor);
+                            phase = checkedIndex(dissectPrefix);
+                        }
+                        else if (upper === 0 && node.unbounded === false) {
+                            success = checkedBool(frame.begin === frame.end);
+                            complete = checkedBool(true);
+                        }
+                        else if (childShortest && lower === 0 && frame.begin === frame.end) {
+                            success = checkedBool(true);
+                            complete = checkedBool(true);
+                        }
+                        else {
+                            const endpoint: number = captureRepeatEndpoint(frame.begin, frame.end, indexNumber(program.minimums, checkedIndex(node.left)), indexNumber(program.maximums, checkedIndex(node.left)), childShortest);
+                            path = checkedIndex(paths.length);
+                            pushStruct(paths, { begin: frame.begin, cursor: endpoint, capture: frame.capture, count: 0, previous: 0 }, copyCaptureRepeatPath);
+                            phase = checkedIndex(dissectIteration);
+                        }
+                    }
+                    else {
+                        let matched: boolean = false;
+                        let end: number = frame.begin;
+                        if (node.operation === nodeEmpty) {
+                            matched = checkedBool(true);
+                        }
+                        else if (captureAssertion(node.operation)) {
+                            const before: boolean = end > 0 && zeroWidthWord(indexChar(haystack, checkedIndex(checkedSubtract(end, 1))));
+                            const after: boolean = end < haystack.length && zeroWidthWord(indexChar(haystack, checkedIndex(end)));
+                            const previousNewline: boolean = end > 0 && indexChar(haystack, checkedIndex(checkedSubtract(end, 1))) === "\n";
+                            const nextNewline: boolean = end < haystack.length && indexChar(haystack, checkedIndex(end)) === "\n";
+                            matched = checkedBool(captureAssertionMatches(node.operation, end, haystack.length, before, after, previousNewline, nextNewline, lineAnchors));
+                        }
+                        else if (node.operation === vmBackref || repeatedReference) {
+                            let reference: number = node.group;
+                            let minimumRepeats: number = 1;
+                            let maximumRepeats: number = 1;
+                            let unboundedRepeats: boolean = false;
+                            if (repeatedReference) {
+                                reference = checkedIndex(indexStruct(program.nodes, checkedIndex(node.left), copyCaptureNode).group);
+                                minimumRepeats = checkedIndex(lower);
+                                maximumRepeats = checkedIndex(upper);
+                                unboundedRepeats = checkedBool(node.unbounded);
+                            }
+                            const register: CaptureRegister = copyCaptureRegister(indexStruct(captures, checkedIndex(checkedAdd(frame.capture, reference)), copyCaptureRegister));
+                            const length: number = checkedSubtract(register.end, register.start);
+                            matched = checkedBool(register.status === 2);
+                            if (length === 0) {
+                                matched = checkedBool(matched && end === frame.end);
+                            }
+                            else {
+                                let repeats: number = 0;
+                                while (matched && end < frame.end) {
+                                    matched = checkedBool(length <= checkedSubtract(frame.end, end) && (unboundedRepeats || repeats < maximumRepeats));
+                                    let offset: number = 0;
+                                    while (matched && offset < length) {
+                                        if (work === maxCaptureWork) {
+                                            return captureTreeResult(2, 0, work);
                                         }
-                                        else {
-                                            child = checkedBool(true);
-                                            childNode = checkedIndex(node.right);
-                                            phase = checkedIndex(dissectLastAlternative);
-                                        }
+                                        work = checkedAdd(work, 1);
+                                        const actual: string = indexChar(haystack, checkedIndex(checkedAdd(end, offset)));
+                                        const expected: string = indexChar(haystack, checkedIndex(checkedAdd(register.start, offset)));
+                                        matched = checkedBool(actual === expected || (caseSensitive === false && asciiLowercase(actual) === asciiLowercase(expected)));
+                                        offset = checkedAdd(offset, 1);
                                     }
-                                    else {
-                                        if (phase === dissectLastAlternative) {
-                                            complete = checkedBool(true);
-                                        }
-                                        else {
-                                            if (phase === dissectAssertion) {
-                                                if (success) {
-                                                    success = checkedBool(node.operation === nodeLookahead || node.operation === nodeLookbehind);
-                                                    returned = checkedIndex(frame.capture);
-                                                    complete = checkedBool(true);
-                                                }
-                                                else {
-                                                    let limit: number = haystack.length;
-                                                    if (node.operation >= nodeLookbehind) {
-                                                        limit = checkedIndex(checkedSubtract(frame.begin, indexNumber(program.minimums, checkedIndex(node.left))));
-                                                    }
-                                                    else {
-                                                        if (indexNumber(program.maximums, checkedIndex(node.left)) < checkedSubtract(haystack.length, frame.begin)) {
-                                                            limit = checkedIndex(checkedAdd(frame.begin, indexNumber(program.maximums, checkedIndex(node.left))));
-                                                        }
-                                                    }
-                                                    if (cursor === limit) {
-                                                        success = checkedBool(node.operation === nodeNotLookahead || node.operation === nodeNotLookbehind);
-                                                        returned = checkedIndex(frame.capture);
-                                                        complete = checkedBool(true);
-                                                    }
-                                                    else {
-                                                        cursor = checkedAdd(cursor, 1);
-                                                        child = checkedBool(true);
-                                                        if (node.operation >= nodeLookbehind) {
-                                                            childBegin = checkedIndex(cursor);
-                                                            childEnd = checkedIndex(frame.begin);
-                                                        }
-                                                        else {
-                                                            childEnd = checkedIndex(cursor);
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                            else {
-                                                if (phase === dissectIteration) {
-                                                    const current: CaptureRepeatPath = copyCaptureRepeatPath(indexStruct(paths, checkedIndex(path), copyCaptureRepeatPath));
-                                                    const count: number = checkedAdd(current.count, 1);
-                                                    let minimum: number = lower;
-                                                    if (minimum === 0) {
-                                                        minimum = checkedIndex(1);
-                                                    }
-                                                    let maximum: number = checkedSubtract(frame.end, frame.begin);
-                                                    if (node.unbounded === false && upper < maximum) {
-                                                        maximum = checkedIndex(upper);
-                                                    }
-                                                    if (maximum < minimum) {
-                                                        maximum = checkedIndex(minimum);
-                                                    }
-                                                    if ((current.cursor === current.begin && !(current.cursor === frame.end) && (count >= minimum || checkedSubtract(minimum, count) < checkedSubtract(frame.end, current.cursor))) || (count === maximum && !(current.cursor === frame.end)) || (current.cursor === frame.end && count < minimum)) {
-                                                        phase = checkedIndex(dissectIterationAdvance);
-                                                    }
-                                                    else {
-                                                        child = checkedBool(true);
-                                                        childBegin = checkedIndex(current.begin);
-                                                        childEnd = checkedIndex(current.cursor);
-                                                        childCapture = checkedIndex(current.capture);
-                                                        clear = checkedBool(true);
-                                                        phase = checkedIndex(dissectIterationResult);
-                                                    }
-                                                }
-                                                else {
-                                                    if (phase === dissectIterationResult) {
-                                                        const current: CaptureRepeatPath = copyCaptureRepeatPath(indexStruct(paths, checkedIndex(path), copyCaptureRepeatPath));
-                                                        if (success && current.cursor === frame.end) {
-                                                            complete = checkedBool(true);
-                                                        }
-                                                        else {
-                                                            if (success) {
-                                                                const endpoint: number = captureRepeatEndpoint(current.cursor, frame.end, indexNumber(program.minimums, checkedIndex(node.left)), indexNumber(program.maximums, checkedIndex(node.left)), childShortest);
-                                                                const previous: number = path;
-                                                                path = checkedIndex(paths.length);
-                                                                pushStruct(paths, { begin: current.cursor, cursor: endpoint, capture: returned, count: checkedAdd(current.count, 1), previous: previous }, copyCaptureRepeatPath);
-                                                                phase = checkedIndex(dissectIteration);
-                                                            }
-                                                            else {
-                                                                phase = checkedIndex(dissectIterationAdvance);
-                                                            }
-                                                        }
-                                                    }
-                                                    else {
-                                                        if (phase === dissectIterationAdvance) {
-                                                            const current: CaptureRepeatPath = copyCaptureRepeatPath(indexStruct(paths, checkedIndex(path), copyCaptureRepeatPath));
-                                                            let endpoint: number = current.cursor;
-                                                            const limit: number = captureRepeatEndpoint(current.begin, frame.end, indexNumber(program.minimums, checkedIndex(node.left)), indexNumber(program.maximums, checkedIndex(node.left)), childShortest === false);
-                                                            if (endpoint === limit) {
-                                                                path = checkedIndex(current.previous);
-                                                                if (path === 0) {
-                                                                    success = checkedBool(lower === 0 && frame.begin === frame.end);
-                                                                    returned = checkedIndex(frame.capture);
-                                                                    complete = checkedBool(true);
-                                                                }
-                                                            }
-                                                            else {
-                                                                if (childShortest) {
-                                                                    endpoint = checkedAdd(endpoint, 1);
-                                                                }
-                                                                else {
-                                                                    endpoint = checkedIndex(checkedSubtract(endpoint, 1));
-                                                                }
-                                                                paths[checkedIndexIn(paths, path)] = copyCaptureRepeatPath({ begin: current.begin, cursor: endpoint, capture: current.capture, count: current.count, previous: current.previous });
-                                                                phase = checkedIndex(dissectIteration);
-                                                            }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
+                                    if (matched) {
+                                        end = checkedAdd(end, length);
+                                        repeats = checkedAdd(repeats, 1);
                                     }
+                                }
+                                matched = checkedBool(matched && repeats >= minimumRepeats);
+                            }
+                        }
+                        else if (node.operation === vmClass) {
+                            if (end < haystack.length) {
+                                let classPosition: number = node.group;
+                                let included: boolean = false;
+                                while (indexStruct(program.classMembers, checkedIndex(classPosition), copyCaptureClassMember).kind > 0) {
+                                    if (work === maxCaptureWork) {
+                                        return captureTreeResult(2, 0, work);
+                                    }
+                                    work = checkedAdd(work, 1);
+                                    if (captureClassMemberMatches(indexStruct(program.classMembers, checkedIndex(classPosition), copyCaptureClassMember), indexChar(haystack, checkedIndex(end)), caseSensitive)) {
+                                        included = checkedBool(true);
+                                    }
+                                    classPosition = checkedAdd(classPosition, 1);
+                                }
+                                const negated: boolean = node.atom === "^";
+                                matched = checkedBool(!(included === negated) && (negated === false || dotCrossesNewline || !(indexChar(haystack, checkedIndex(end)) === "\n")));
+                                if (matched) {
+                                    end = checkedAdd(end, 1);
                                 }
                             }
                         }
+                        else if (end < haystack.length) {
+                            const actual: string = indexChar(haystack, checkedIndex(end));
+                            let numericLower: number = node.group;
+                            if (numericLower >= 65 && numericLower <= 90) {
+                                numericLower = checkedAdd(numericLower, 32);
+                            }
+                            matched = checkedBool((node.operation === vmAny && (dotCrossesNewline || !(actual === "\n"))) || (node.operation === vmWord && zeroWidthWord(actual)) || (node.operation === vmNumeric && ((checkedIndex((checkedChar(actual).codePointAt(0)!))) === node.group || (caseSensitive === false && (checkedIndex((checkedChar(asciiLowercase(actual)).codePointAt(0)!))) === numericLower))) || (node.operation === vmLiteral && (actual === node.atom || (caseSensitive === false && asciiLowercase(actual) === asciiLowercase(node.atom)))));
+                            if (matched) {
+                                end = checkedAdd(end, 1);
+                            }
+                        }
+                        success = checkedBool(matched && end === frame.end);
+                        complete = checkedBool(true);
+                    }
+                }
+                else if (phase === dissectLeft || phase === dissectPrefix) {
+                    if (success) {
+                        child = checkedBool(true);
+                        childBegin = checkedIndex(cursor);
+                        childCapture = checkedIndex(returned);
+                        childNode = checkedIndex(node.right);
+                        phase = checkedIndex(dissectRight);
+                        if (node.operation === nodeRepeat) {
+                            childNode = checkedIndex(node.left);
+                            phase = checkedIndex(dissectLastRepeat);
+                            clear = checkedBool(true);
+                        }
+                    }
+                    else {
+                        advance = checkedBool(true);
+                    }
+                }
+                else if (phase === dissectRight || phase === dissectLastRepeat) {
+                    if (success) {
+                        complete = checkedBool(true);
+                    }
+                    else {
+                        advance = checkedBool(true);
+                    }
+                }
+                else if (phase === dissectGroup) {
+                    if (success && width > 0 && node.group > 0) {
+                        const snapshot: number = captures.length;
+                        group = checkedIndex(0);
+                        while (group < width) {
+                            if (work === maxCaptureWork) {
+                                return captureTreeResult(2, 0, work);
+                            }
+                            work = checkedAdd(work, 1);
+                            if (group === node.group) {
+                                pushStruct(captures, { start: frame.begin, end: frame.end, status: 2 }, copyCaptureRegister);
+                            }
+                            else {
+                                pushStruct(captures, indexStruct(captures, checkedIndex(checkedAdd(returned, group)), copyCaptureRegister), copyCaptureRegister);
+                            }
+                            group = checkedAdd(group, 1);
+                        }
+                        returned = checkedIndex(snapshot);
+                    }
+                    complete = checkedBool(true);
+                }
+                else if (phase === dissectAlternative) {
+                    if (success) {
+                        complete = checkedBool(true);
+                    }
+                    else {
+                        child = checkedBool(true);
+                        childNode = checkedIndex(node.right);
+                        phase = checkedIndex(dissectLastAlternative);
+                    }
+                }
+                else if (phase === dissectLastAlternative) {
+                    complete = checkedBool(true);
+                }
+                else if (phase === dissectAssertion) {
+                    if (success) {
+                        success = checkedBool(node.operation === nodeLookahead || node.operation === nodeLookbehind);
+                        returned = checkedIndex(frame.capture);
+                        complete = checkedBool(true);
+                    }
+                    else {
+                        let limit: number = haystack.length;
+                        if (node.operation >= nodeLookbehind) {
+                            limit = checkedIndex(checkedSubtract(frame.begin, indexNumber(program.minimums, checkedIndex(node.left))));
+                        }
+                        else if (indexNumber(program.maximums, checkedIndex(node.left)) < checkedSubtract(haystack.length, frame.begin)) {
+                            limit = checkedIndex(checkedAdd(frame.begin, indexNumber(program.maximums, checkedIndex(node.left))));
+                        }
+                        if (cursor === limit) {
+                            success = checkedBool(node.operation === nodeNotLookahead || node.operation === nodeNotLookbehind);
+                            returned = checkedIndex(frame.capture);
+                            complete = checkedBool(true);
+                        }
+                        else {
+                            cursor = checkedAdd(cursor, 1);
+                            child = checkedBool(true);
+                            if (node.operation >= nodeLookbehind) {
+                                childBegin = checkedIndex(cursor);
+                                childEnd = checkedIndex(frame.begin);
+                            }
+                            else {
+                                childEnd = checkedIndex(cursor);
+                            }
+                        }
+                    }
+                }
+                else if (phase === dissectIteration) {
+                    const current: CaptureRepeatPath = copyCaptureRepeatPath(indexStruct(paths, checkedIndex(path), copyCaptureRepeatPath));
+                    const count: number = checkedAdd(current.count, 1);
+                    let minimum: number = lower;
+                    if (minimum === 0) {
+                        minimum = checkedIndex(1);
+                    }
+                    let maximum: number = checkedSubtract(frame.end, frame.begin);
+                    if (node.unbounded === false && upper < maximum) {
+                        maximum = checkedIndex(upper);
+                    }
+                    if (maximum < minimum) {
+                        maximum = checkedIndex(minimum);
+                    }
+                    if ((current.cursor === current.begin && !(current.cursor === frame.end) && (count >= minimum || checkedSubtract(minimum, count) < checkedSubtract(frame.end, current.cursor))) || (count === maximum && !(current.cursor === frame.end)) || (current.cursor === frame.end && count < minimum)) {
+                        phase = checkedIndex(dissectIterationAdvance);
+                    }
+                    else {
+                        child = checkedBool(true);
+                        childBegin = checkedIndex(current.begin);
+                        childEnd = checkedIndex(current.cursor);
+                        childCapture = checkedIndex(current.capture);
+                        clear = checkedBool(true);
+                        phase = checkedIndex(dissectIterationResult);
+                    }
+                }
+                else if (phase === dissectIterationResult) {
+                    const current: CaptureRepeatPath = copyCaptureRepeatPath(indexStruct(paths, checkedIndex(path), copyCaptureRepeatPath));
+                    if (success && current.cursor === frame.end) {
+                        complete = checkedBool(true);
+                    }
+                    else if (success) {
+                        const endpoint: number = captureRepeatEndpoint(current.cursor, frame.end, indexNumber(program.minimums, checkedIndex(node.left)), indexNumber(program.maximums, checkedIndex(node.left)), childShortest);
+                        const previous: number = path;
+                        path = checkedIndex(paths.length);
+                        pushStruct(paths, { begin: current.cursor, cursor: endpoint, capture: returned, count: checkedAdd(current.count, 1), previous: previous }, copyCaptureRepeatPath);
+                        phase = checkedIndex(dissectIteration);
+                    }
+                    else {
+                        phase = checkedIndex(dissectIterationAdvance);
+                    }
+                }
+                else if (phase === dissectIterationAdvance) {
+                    const current: CaptureRepeatPath = copyCaptureRepeatPath(indexStruct(paths, checkedIndex(path), copyCaptureRepeatPath));
+                    let endpoint: number = current.cursor;
+                    const limit: number = captureRepeatEndpoint(current.begin, frame.end, indexNumber(program.minimums, checkedIndex(node.left)), indexNumber(program.maximums, checkedIndex(node.left)), childShortest === false);
+                    if (endpoint === limit) {
+                        path = checkedIndex(current.previous);
+                        if (path === 0) {
+                            success = checkedBool(lower === 0 && frame.begin === frame.end);
+                            returned = checkedIndex(frame.capture);
+                            complete = checkedBool(true);
+                        }
+                    }
+                    else {
+                        if (childShortest) {
+                            endpoint = checkedAdd(endpoint, 1);
+                        }
+                        else {
+                            endpoint = checkedIndex(checkedSubtract(endpoint, 1));
+                        }
+                        paths[checkedIndexIn(paths, path)] = copyCaptureRepeatPath({ begin: current.begin, cursor: endpoint, capture: current.capture, count: current.count, previous: current.previous });
+                        phase = checkedIndex(dissectIteration);
                     }
                 }
                 if (advance) {
@@ -3294,13 +3103,11 @@ function executeCaptureTree(program: CompiledRegex, subject: string, from: numbe
                     matchEnd = checkedAdd(matchEnd, 1);
                 }
             }
+            else if (matchEnd === minimumEnd) {
+                searching = checkedBool(false);
+            }
             else {
-                if (matchEnd === minimumEnd) {
-                    searching = checkedBool(false);
-                }
-                else {
-                    matchEnd = checkedIndex(checkedSubtract(matchEnd, 1));
-                }
+                matchEnd = checkedIndex(checkedSubtract(matchEnd, 1));
             }
         }
         if (exactMatch) {
@@ -3364,32 +3171,24 @@ function executeCaptureProgram(program: CompiledRegex, subject: string, from: nu
     if (program.caseMode === "i") {
         caseSensitive = checkedBool(false);
     }
-    else {
-        if (program.caseMode === "c") {
-            caseSensitive = checkedBool(true);
-        }
+    else if (program.caseMode === "c") {
+        caseSensitive = checkedBool(true);
     }
     if (program.newlineMode === "m" || program.newlineMode === "n") {
         dotCrossesNewline = checkedBool(false);
         lineAnchors = checkedBool(true);
     }
-    else {
-        if (program.newlineMode === "p") {
-            dotCrossesNewline = checkedBool(false);
-            lineAnchors = checkedBool(false);
-        }
-        else {
-            if (program.newlineMode === "w") {
-                dotCrossesNewline = checkedBool(true);
-                lineAnchors = checkedBool(true);
-            }
-            else {
-                if (program.newlineMode === "s") {
-                    dotCrossesNewline = checkedBool(true);
-                    lineAnchors = checkedBool(false);
-                }
-            }
-        }
+    else if (program.newlineMode === "p") {
+        dotCrossesNewline = checkedBool(false);
+        lineAnchors = checkedBool(false);
+    }
+    else if (program.newlineMode === "w") {
+        dotCrossesNewline = checkedBool(true);
+        lineAnchors = checkedBool(true);
+    }
+    else if (program.newlineMode === "s") {
+        dotCrossesNewline = checkedBool(true);
+        lineAnchors = checkedBool(false);
     }
     if (program.interpreted && program.prefilter === false) {
         return executeCaptureTreeSearch(program, subject, from, 0, false, caseSensitive, dotCrossesNewline, lineAnchors, counting, capturing, collecting, 0);
@@ -3459,8 +3258,31 @@ function executeCaptureProgram(program: CompiledRegex, subject: string, from: nu
                             bestEnd = checkedIndex(position);
                         }
                     }
-                    else {
-                        if (projected && (step.operation === vmBackref || (step.operation >= nodeLookahead && step.operation <= nodeNotLookbehind))) {
+                    else if (projected && (step.operation === vmBackref || (step.operation >= nodeLookahead && step.operation <= nodeNotLookbehind))) {
+                        const resumed: PatternWorkState = copyPatternWorkState({ pattern: checkedAdd(instruction, 1), subject: start });
+                        if (stackLen === stack.length) {
+                            pushStruct(stack, resumed, copyPatternWorkState);
+                        }
+                        else {
+                            stack[checkedIndexIn(stack, stackLen)] = copyPatternWorkState(resumed);
+                        }
+                        stackLen = checkedAdd(stackLen, 1);
+                        if (step.operation === vmBackref && position < haystack.length) {
+                            if (nextLen === next.length) {
+                                pushStruct(next, state, copyPatternWorkState);
+                            }
+                            else {
+                                next[checkedIndexIn(next, nextLen)] = copyPatternWorkState(state);
+                            }
+                            nextLen = checkedAdd(nextLen, 1);
+                        }
+                    }
+                    else if (captureAssertion(step.operation)) {
+                        const before: boolean = position > 0 && zeroWidthWord(indexChar(haystack, checkedIndex(checkedSubtract(position, 1))));
+                        const after: boolean = position < haystack.length && zeroWidthWord(indexChar(haystack, checkedIndex(position)));
+                        const previousNewline: boolean = position > 0 && indexChar(haystack, checkedIndex(checkedSubtract(position, 1))) === "\n";
+                        const nextNewline: boolean = position < haystack.length && indexChar(haystack, checkedIndex(position)) === "\n";
+                        if (captureAssertionMatches(step.operation, position, haystack.length, before, after, previousNewline, nextNewline, lineAnchors)) {
                             const resumed: PatternWorkState = copyPatternWorkState({ pattern: checkedAdd(instruction, 1), subject: start });
                             if (stackLen === stack.length) {
                                 pushStruct(stack, resumed, copyPatternWorkState);
@@ -3469,125 +3291,90 @@ function executeCaptureProgram(program: CompiledRegex, subject: string, from: nu
                                 stack[checkedIndexIn(stack, stackLen)] = copyPatternWorkState(resumed);
                             }
                             stackLen = checkedAdd(stackLen, 1);
-                            if (step.operation === vmBackref && position < haystack.length) {
+                        }
+                    }
+                    else if (step.operation === vmSplit) {
+                        const skipped: PatternWorkState = copyPatternWorkState({ pattern: step.alternate, subject: start });
+                        if (stackLen === stack.length) {
+                            pushStruct(stack, skipped, copyPatternWorkState);
+                        }
+                        else {
+                            stack[checkedIndexIn(stack, stackLen)] = copyPatternWorkState(skipped);
+                        }
+                        stackLen = checkedAdd(stackLen, 1);
+                        const branch: PatternWorkState = copyPatternWorkState({ pattern: step.target, subject: start });
+                        if (stackLen === stack.length) {
+                            pushStruct(stack, branch, copyPatternWorkState);
+                        }
+                        else {
+                            stack[checkedIndexIn(stack, stackLen)] = copyPatternWorkState(branch);
+                        }
+                        stackLen = checkedAdd(stackLen, 1);
+                    }
+                    else if (step.operation === vmJump || step.operation === vmClear || step.operation === vmOpen || step.operation === vmClose) {
+                        let target: number = checkedAdd(instruction, 1);
+                        if (step.operation === vmJump) {
+                            target = checkedIndex(step.target);
+                        }
+                        const resumed: PatternWorkState = copyPatternWorkState({ pattern: target, subject: start });
+                        if (stackLen === stack.length) {
+                            pushStruct(stack, resumed, copyPatternWorkState);
+                        }
+                        else {
+                            stack[checkedIndexIn(stack, stackLen)] = copyPatternWorkState(resumed);
+                        }
+                        stackLen = checkedAdd(stackLen, 1);
+                    }
+                    else if (step.operation === vmClass) {
+                        if (position < haystack.length) {
+                            let classPosition: number = step.group;
+                            let included: boolean = false;
+                            while (indexStruct(program.classMembers, checkedIndex(classPosition), copyCaptureClassMember).kind > 0) {
+                                if (work === maxCaptureWork) {
+                                    if (projected) {
+                                        return executeCaptureTreeSearch(program, subject, from, 0, false, caseSensitive, dotCrossesNewline, lineAnchors, counting, capturing, collecting, 0);
+                                    }
+                                    return makeCaptureRunResult(2, 0, 0, 0);
+                                }
+                                work = checkedAdd(work, 1);
+                                if (captureClassMemberMatches(indexStruct(program.classMembers, checkedIndex(classPosition), copyCaptureClassMember), indexChar(haystack, checkedIndex(position)), caseSensitive)) {
+                                    included = checkedBool(true);
+                                }
+                                classPosition = checkedAdd(classPosition, 1);
+                            }
+                            const negated: boolean = step.atom === "^";
+                            const matched: boolean = !(included === negated) && (negated === false || dotCrossesNewline || !(indexChar(haystack, checkedIndex(position)) === "\n"));
+                            if (matched) {
+                                const resumed: PatternWorkState = copyPatternWorkState({ pattern: checkedAdd(instruction, 1), subject: start });
                                 if (nextLen === next.length) {
-                                    pushStruct(next, state, copyPatternWorkState);
+                                    pushStruct(next, resumed, copyPatternWorkState);
                                 }
                                 else {
-                                    next[checkedIndexIn(next, nextLen)] = copyPatternWorkState(state);
+                                    next[checkedIndexIn(next, nextLen)] = copyPatternWorkState(resumed);
                                 }
                                 nextLen = checkedAdd(nextLen, 1);
                             }
                         }
-                        else {
-                            if (captureAssertion(step.operation)) {
-                                const before: boolean = position > 0 && zeroWidthWord(indexChar(haystack, checkedIndex(checkedSubtract(position, 1))));
-                                const after: boolean = position < haystack.length && zeroWidthWord(indexChar(haystack, checkedIndex(position)));
-                                const previousNewline: boolean = position > 0 && indexChar(haystack, checkedIndex(checkedSubtract(position, 1))) === "\n";
-                                const nextNewline: boolean = position < haystack.length && indexChar(haystack, checkedIndex(position)) === "\n";
-                                if (captureAssertionMatches(step.operation, position, haystack.length, before, after, previousNewline, nextNewline, lineAnchors)) {
-                                    const resumed: PatternWorkState = copyPatternWorkState({ pattern: checkedAdd(instruction, 1), subject: start });
-                                    if (stackLen === stack.length) {
-                                        pushStruct(stack, resumed, copyPatternWorkState);
-                                    }
-                                    else {
-                                        stack[checkedIndexIn(stack, stackLen)] = copyPatternWorkState(resumed);
-                                    }
-                                    stackLen = checkedAdd(stackLen, 1);
-                                }
+                    }
+                    else if (position < haystack.length) {
+                        const actual: string = indexChar(haystack, checkedIndex(position));
+                        const codepoint: number = checkedChar(actual).codePointAt(0)!;
+                        const lowercase: number = checkedChar(asciiLowercase(actual)).codePointAt(0)!;
+                        const word: boolean = (codepoint >= 48 && codepoint <= 57) || (lowercase >= 97 && lowercase <= 122) || actual === "_";
+                        let numericLower: number = step.group;
+                        if (numericLower >= 65 && numericLower <= 90) {
+                            numericLower = checkedAdd(numericLower, 32);
+                        }
+                        const matched: boolean = (step.operation === vmAny && (dotCrossesNewline || !(actual === "\n"))) || (step.operation === vmWord && word) || (step.operation === vmNumeric && (checkedIndex((checkedChar(actual).codePointAt(0)!)) === step.group || (caseSensitive === false && checkedIndex((checkedChar(asciiLowercase(actual)).codePointAt(0)!)) === numericLower))) || (step.operation === vmLiteral && (actual === step.atom || (caseSensitive === false && asciiLowercase(actual) === asciiLowercase(step.atom))));
+                        if (matched) {
+                            const resumed: PatternWorkState = copyPatternWorkState({ pattern: checkedAdd(instruction, 1), subject: start });
+                            if (nextLen === next.length) {
+                                pushStruct(next, resumed, copyPatternWorkState);
                             }
                             else {
-                                if (step.operation === vmSplit) {
-                                    const skipped: PatternWorkState = copyPatternWorkState({ pattern: step.alternate, subject: start });
-                                    if (stackLen === stack.length) {
-                                        pushStruct(stack, skipped, copyPatternWorkState);
-                                    }
-                                    else {
-                                        stack[checkedIndexIn(stack, stackLen)] = copyPatternWorkState(skipped);
-                                    }
-                                    stackLen = checkedAdd(stackLen, 1);
-                                    const branch: PatternWorkState = copyPatternWorkState({ pattern: step.target, subject: start });
-                                    if (stackLen === stack.length) {
-                                        pushStruct(stack, branch, copyPatternWorkState);
-                                    }
-                                    else {
-                                        stack[checkedIndexIn(stack, stackLen)] = copyPatternWorkState(branch);
-                                    }
-                                    stackLen = checkedAdd(stackLen, 1);
-                                }
-                                else {
-                                    if (step.operation === vmJump || step.operation === vmClear || step.operation === vmOpen || step.operation === vmClose) {
-                                        let target: number = checkedAdd(instruction, 1);
-                                        if (step.operation === vmJump) {
-                                            target = checkedIndex(step.target);
-                                        }
-                                        const resumed: PatternWorkState = copyPatternWorkState({ pattern: target, subject: start });
-                                        if (stackLen === stack.length) {
-                                            pushStruct(stack, resumed, copyPatternWorkState);
-                                        }
-                                        else {
-                                            stack[checkedIndexIn(stack, stackLen)] = copyPatternWorkState(resumed);
-                                        }
-                                        stackLen = checkedAdd(stackLen, 1);
-                                    }
-                                    else {
-                                        if (step.operation === vmClass) {
-                                            if (position < haystack.length) {
-                                                let classPosition: number = step.group;
-                                                let included: boolean = false;
-                                                while (indexStruct(program.classMembers, checkedIndex(classPosition), copyCaptureClassMember).kind > 0) {
-                                                    if (work === maxCaptureWork) {
-                                                        if (projected) {
-                                                            return executeCaptureTreeSearch(program, subject, from, 0, false, caseSensitive, dotCrossesNewline, lineAnchors, counting, capturing, collecting, 0);
-                                                        }
-                                                        return makeCaptureRunResult(2, 0, 0, 0);
-                                                    }
-                                                    work = checkedAdd(work, 1);
-                                                    if (captureClassMemberMatches(indexStruct(program.classMembers, checkedIndex(classPosition), copyCaptureClassMember), indexChar(haystack, checkedIndex(position)), caseSensitive)) {
-                                                        included = checkedBool(true);
-                                                    }
-                                                    classPosition = checkedAdd(classPosition, 1);
-                                                }
-                                                const negated: boolean = step.atom === "^";
-                                                const matched: boolean = !(included === negated) && (negated === false || dotCrossesNewline || !(indexChar(haystack, checkedIndex(position)) === "\n"));
-                                                if (matched) {
-                                                    const resumed: PatternWorkState = copyPatternWorkState({ pattern: checkedAdd(instruction, 1), subject: start });
-                                                    if (nextLen === next.length) {
-                                                        pushStruct(next, resumed, copyPatternWorkState);
-                                                    }
-                                                    else {
-                                                        next[checkedIndexIn(next, nextLen)] = copyPatternWorkState(resumed);
-                                                    }
-                                                    nextLen = checkedAdd(nextLen, 1);
-                                                }
-                                            }
-                                        }
-                                        else {
-                                            if (position < haystack.length) {
-                                                const actual: string = indexChar(haystack, checkedIndex(position));
-                                                const codepoint: number = checkedChar(actual).codePointAt(0)!;
-                                                const lowercase: number = checkedChar(asciiLowercase(actual)).codePointAt(0)!;
-                                                const word: boolean = (codepoint >= 48 && codepoint <= 57) || (lowercase >= 97 && lowercase <= 122) || actual === "_";
-                                                let numericLower: number = step.group;
-                                                if (numericLower >= 65 && numericLower <= 90) {
-                                                    numericLower = checkedAdd(numericLower, 32);
-                                                }
-                                                const matched: boolean = (step.operation === vmAny && (dotCrossesNewline || !(actual === "\n"))) || (step.operation === vmWord && word) || (step.operation === vmNumeric && (checkedIndex((checkedChar(actual).codePointAt(0)!)) === step.group || (caseSensitive === false && checkedIndex((checkedChar(asciiLowercase(actual)).codePointAt(0)!)) === numericLower))) || (step.operation === vmLiteral && (actual === step.atom || (caseSensitive === false && asciiLowercase(actual) === asciiLowercase(step.atom))));
-                                                if (matched) {
-                                                    const resumed: PatternWorkState = copyPatternWorkState({ pattern: checkedAdd(instruction, 1), subject: start });
-                                                    if (nextLen === next.length) {
-                                                        pushStruct(next, resumed, copyPatternWorkState);
-                                                    }
-                                                    else {
-                                                        next[checkedIndexIn(next, nextLen)] = copyPatternWorkState(resumed);
-                                                    }
-                                                    nextLen = checkedAdd(nextLen, 1);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+                                next[checkedIndexIn(next, nextLen)] = copyPatternWorkState(resumed);
                             }
+                            nextLen = checkedAdd(nextLen, 1);
                         }
                     }
                 }

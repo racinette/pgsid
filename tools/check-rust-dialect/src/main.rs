@@ -1,4 +1,7 @@
-use std::{collections::BTreeSet, env, fs};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    env, fs,
+};
 
 use syn::{Expr, FnArg, Item, Pat, ReturnType, Stmt, Type, Visibility};
 
@@ -7,15 +10,20 @@ fn digits(value: &str) -> bool {
 }
 
 fn entry_name(name: &str) -> bool {
-    name == "evaluate_check" || name.strip_prefix("evaluate_check_").is_some_and(digits)
-}
-
-fn part_name(name: &str) -> bool {
-    name.strip_prefix("check_part_").is_some_and(digits)
-        || name
-            .strip_prefix("check_")
-            .and_then(|value| value.split_once("_part_"))
-            .is_some_and(|(check, part)| digits(check) && digits(part))
+    name == "evaluate_check"
+        || name.strip_prefix("evaluate_check_").is_some_and(|suffix| {
+            let Some((readable, hash)) = suffix.rsplit_once("_h") else {
+                return false;
+            };
+            !readable.is_empty()
+                && readable
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+                && hash.len() == 4
+                && hash
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit())
+        })
 }
 
 fn type_name(ty: &Type) -> Result<&'static str, String> {
@@ -87,7 +95,7 @@ fn int4_minimum(expr: &Expr) -> bool {
         && positive_literal(&binary.right) == Some(1)
 }
 
-fn call(expr: &Expr, bindings: &BTreeSet<String>) -> Result<(), String> {
+fn call(expr: &Expr, bindings: &BTreeMap<String, bool>) -> Result<(), String> {
     let Expr::Call(call) = expr else {
         return Err("expected a direct function call".into());
     };
@@ -106,7 +114,7 @@ fn call(expr: &Expr, bindings: &BTreeSet<String>) -> Result<(), String> {
     }
     for arg in &call.args {
         match arg {
-            Expr::Path(_) if bindings.contains(&identifier(arg)?) => {}
+            Expr::Path(_) if bindings.contains_key(&identifier(arg)?) => {}
             Expr::Lit(_) if positive_literal(arg).is_some() => {}
             Expr::Unary(_) if negative_literal(arg).is_some() => {}
             Expr::Binary(_) if int4_minimum(arg) => {}
@@ -115,6 +123,116 @@ fn call(expr: &Expr, bindings: &BTreeSet<String>) -> Result<(), String> {
             Expr::Lit(literal)
                 if literal.attrs.is_empty() && matches!(&literal.lit, syn::Lit::Bool(_)) => {}
             _ => return Err("call argument is outside the CHECK subset".into()),
+        }
+    }
+    Ok(())
+}
+
+fn value(expr: &Expr, bindings: &BTreeMap<String, bool>) -> Result<(), String> {
+    if let Ok(name) = identifier(expr) {
+        if bindings.contains_key(&name) {
+            return Ok(());
+        }
+        return Err(format!("unbound identifier {name}"));
+    }
+    call(expr, bindings)
+}
+
+fn condition(expr: &Expr, bindings: &BTreeMap<String, bool>) -> Result<(), String> {
+    if let Expr::Binary(binary) = expr {
+        if !binary.attrs.is_empty() || !matches!(binary.op, syn::BinOp::Eq(_)) {
+            return Err("conditional is outside the CHECK subset".into());
+        }
+        let Expr::Lit(right) = &*binary.right else {
+            return Err("conditional must compare a call with false".into());
+        };
+        if !right.attrs.is_empty() || !matches!(&right.lit, syn::Lit::Bool(value) if !value.value) {
+            return Err("conditional must compare a call with false".into());
+        }
+        return call(&binary.left, bindings);
+    }
+    call(expr, bindings)
+}
+
+fn check_if(branch: &syn::ExprIf, bindings: &BTreeMap<String, bool>) -> Result<(), String> {
+    if !branch.attrs.is_empty() {
+        return Err("conditional attributes are outside the CHECK subset".into());
+    }
+    condition(&branch.cond, bindings)?;
+    check_block(&branch.then_branch, &mut bindings.clone(), false)?;
+    if let Some((_, alternate)) = &branch.else_branch {
+        match &**alternate {
+            Expr::Block(block) if block.attrs.is_empty() => {
+                check_block(&block.block, &mut bindings.clone(), false)?
+            }
+            Expr::If(continuation) => check_if(continuation, bindings)?,
+            _ => return Err("else branch is outside the CHECK subset".into()),
+        }
+    }
+    Ok(())
+}
+
+fn check_block(
+    block: &syn::Block,
+    bindings: &mut BTreeMap<String, bool>,
+    function_body: bool,
+) -> Result<(), String> {
+    if function_body && block.stmts.is_empty() {
+        return Err("function needs a tail value".into());
+    }
+    for (index, statement) in block.stmts.iter().enumerate() {
+        let last = index + 1 == block.stmts.len();
+        match statement {
+            Stmt::Local(local) if !function_body || !last => {
+                if !local.attrs.is_empty() {
+                    return Err("local binding is outside the CHECK subset".into());
+                }
+                let (pattern, mutable) = match &local.pat {
+                    Pat::Ident(pattern) if pattern.mutability.is_none() => (pattern, false),
+                    Pat::Type(typed)
+                        if typed.attrs.is_empty() && type_name(&typed.ty)? == "CheckOutcome" =>
+                    {
+                        let Pat::Ident(pattern) = &*typed.pat else {
+                            return Err("mutable result must bind an identifier".into());
+                        };
+                        if pattern.mutability.is_none() {
+                            return Err("typed result must be mutable".into());
+                        }
+                        (pattern, true)
+                    }
+                    _ => return Err("local binding is outside the CHECK subset".into()),
+                };
+                if !pattern.attrs.is_empty() || pattern.by_ref.is_some() || pattern.subpat.is_some()
+                {
+                    return Err("local binding is outside the CHECK subset".into());
+                }
+                let initializer = local.init.as_ref().ok_or("local needs an initializer")?;
+                if initializer.diverge.is_some() {
+                    return Err("let-else is outside the CHECK subset".into());
+                }
+                value(&initializer.expr, bindings)?;
+                if bindings
+                    .insert(pattern.ident.to_string(), mutable)
+                    .is_some()
+                {
+                    return Err("duplicate local binding".into());
+                }
+            }
+            Stmt::Expr(Expr::Assign(assign), Some(_)) if !function_body || !last => {
+                if !assign.attrs.is_empty() {
+                    return Err("assignment attributes are outside the CHECK subset".into());
+                }
+                let target = identifier(&assign.left)?;
+                if bindings.get(&target) != Some(&true) {
+                    return Err("assignment target must be a mutable local".into());
+                }
+                value(&assign.right, bindings)?;
+            }
+            Stmt::Expr(Expr::If(branch), _) if !function_body || !last => {
+                check_if(branch, bindings)?;
+            }
+            Stmt::Expr(expr, None) if function_body && last => value(expr, bindings)?,
+            _ => return Err("statement is outside the CHECK subset".into()),
         }
     }
     Ok(())
@@ -136,21 +254,14 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
     if !names.insert(name.clone()) {
         return Err(format!("duplicate function {name}"));
     }
-    let entry = entry_name(&name);
-    if !matches!(
-        (&function.vis, entry),
-        (Visibility::Public(_), true) | (Visibility::Inherited, false)
-    ) {
-        return Err("only evaluate_check may be public".into());
-    }
-    if !entry && !part_name(&name) {
-        return Err("private function must be a generated check_part".into());
+    if !entry_name(&name) || !matches!(&function.vis, Visibility::Public(_)) {
+        return Err("only CHECK evaluator entries may be public".into());
     }
     if !matches!(&function.sig.output, ReturnType::Type(_, ty) if type_name(ty).as_deref() == Ok("CheckOutcome"))
     {
         return Err("function must return CheckOutcome".into());
     }
-    let mut bindings = BTreeSet::new();
+    let mut bindings = BTreeMap::new();
     for input in &function.sig.inputs {
         let FnArg::Typed(parameter) = input else {
             return Err("receiver is outside the CHECK subset".into());
@@ -173,65 +284,11 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
         {
             return Err("parameter must be an immutable identifier".into());
         }
-        if !bindings.insert(pattern.ident.to_string()) {
+        if bindings.insert(pattern.ident.to_string(), false).is_some() {
             return Err("duplicate parameter".into());
         }
     }
-    let statements = &function.block.stmts;
-    if statements.is_empty() {
-        return Err("function needs a tail call".into());
-    }
-    for (index, statement) in statements.iter().enumerate() {
-        let last = index + 1 == statements.len();
-        match statement {
-            Stmt::Local(local) if !last => {
-                if !local.attrs.is_empty() {
-                    return Err("local binding is outside the CHECK subset".into());
-                }
-                let Pat::Ident(pattern) = &local.pat else {
-                    return Err("local binding must be an identifier".into());
-                };
-                if !pattern.attrs.is_empty()
-                    || pattern.mutability.is_some()
-                    || pattern.by_ref.is_some()
-                    || pattern.subpat.is_some()
-                {
-                    return Err("local binding must be immutable".into());
-                }
-                let initializer = local
-                    .init
-                    .as_ref()
-                    .ok_or("local needs a call initializer")?;
-                if initializer.diverge.is_some() {
-                    return Err("let-else is outside the CHECK subset".into());
-                }
-                call(&initializer.expr, &bindings)?;
-                if !bindings.insert(pattern.ident.to_string()) {
-                    return Err("duplicate local binding".into());
-                }
-            }
-            Stmt::Expr(Expr::If(branch), _) if !last => {
-                if !branch.attrs.is_empty() || branch.else_branch.is_some() {
-                    return Err("conditional is outside the CHECK subset".into());
-                }
-                call(&branch.cond, &bindings)?;
-                let [Stmt::Expr(Expr::Return(ret), Some(_))] = branch.then_branch.stmts.as_slice()
-                else {
-                    return Err("conditional must contain one early return".into());
-                };
-                if !ret.attrs.is_empty() {
-                    return Err("return is outside the CHECK subset".into());
-                }
-                let value = ret.expr.as_deref().ok_or("return needs a value")?;
-                if !identifier(value).is_ok_and(|name| bindings.contains(&name)) {
-                    call(value, &bindings)?;
-                }
-            }
-            Stmt::Expr(expr, None) if last => call(expr, &bindings)?,
-            _ => return Err("statement is outside the CHECK subset".into()),
-        }
-    }
-    Ok(())
+    check_block(&function.block, &mut bindings, true)
 }
 
 fn check_source(source: &str) -> Result<(), String> {
@@ -247,7 +304,7 @@ fn check_source(source: &str) -> Result<(), String> {
         check_function(function, &mut names)?;
     }
     if !names.iter().any(|name| entry_name(name)) {
-        return Err("missing public evaluate_check".into());
+        return Err("missing public CHECK evaluator".into());
     }
     Ok(())
 }
@@ -268,151 +325,122 @@ mod tests {
     use super::check_source;
 
     const VALID: &str = r#"
-fn check_part_0(amount: Int4Value) -> CheckOutcome {
-    let zero = make_int4_value(0);
-    eval_int4_gt(amount, zero)
-}
-pub fn evaluate_check(amount: Int4Value) -> CheckOutcome {
-    let left = check_part_0(amount);
-    if and_stops(left) { return left; }
-    and_finish(left, left)
+pub fn evaluate_check(amount: Int4Value, flag: BoolValue) -> CheckOutcome {
+    let floor = make_int4_value(-2147483647 - 1);
+    let compared = eval_int4_gt(amount, floor);
+    let first = check_from_bool(compared);
+    let mut result: CheckOutcome = first;
+    if or_stops(first) == false {
+        let null_test = bool_is_null(flag);
+        let second = check_from_bool(null_test);
+        result = or_finish(first, second);
+    }
+    result
 }
 "#;
 
     #[test]
-    fn accepts_small_generated_shape() {
+    fn accepts_sequential_evaluator() {
         check_source(VALID).unwrap();
     }
 
     #[test]
-    fn rejects_mutation_and_loops() {
-        assert!(check_source(&VALID.replace("let left", "let mut left")).is_err());
-        assert!(check_source(&VALID.replace(
-            "if and_stops(left) { return left; }",
-            "while and_stops(left) { return left; }"
-        ))
-        .is_err());
+    fn accepts_nested_lazy_branches() {
+        let source = r#"
+pub fn evaluate_check(flag: BoolValue, amount: Int4Value) -> CheckOutcome {
+    let mut result: CheckOutcome = check_unknown();
+    let guard_value = bool_is_null(flag);
+    let guard = check_from_bool(guard_value);
+    if case_guard_stops(guard) {
+        result = guard;
+    } else if case_guard_takes(guard) {
+        let floor = make_int4_value(-1);
+        let compared = eval_int4_gt(amount, floor);
+        let selected = check_from_bool(compared);
+        result = selected;
+    } else {
+        let other = check_unknown();
+        result = other;
+    }
+    result
+}
+"#;
+        check_source(source).unwrap();
+        assert!(check_source(&source.replace("result = other;", "result = selected;")).is_err());
     }
 
     #[test]
-    fn rejects_nested_calls_and_control_flow_in_arguments() {
+    fn rejects_unsupported_mutation_and_control_flow() {
+        assert!(check_source(&VALID.replace("let mut result", "let result")).is_err());
+        assert!(check_source(&VALID.replace("result: CheckOutcome", "result: BoolValue")).is_err());
         assert!(check_source(&VALID.replace(
-            "and_finish(left, left)",
-            "and_finish(left, check_part_0(amount))"
+            "result = or_finish(first, second);",
+            "flag = or_finish(first, second);"
         ))
         .is_err());
         assert!(check_source(&VALID.replace(
-            "and_finish(left, left)",
-            "and_finish(left, { return left; })"
+            "if or_stops(first) == false",
+            "while or_stops(first) == false"
         ))
         .is_err());
-    }
-
-    #[test]
-    fn rejects_declarations_and_other_public_functions() {
-        assert!(check_source(&format!("enum State {{ Unknown }}\n{VALID}")).is_err());
-        assert!(check_source(&VALID.replace("fn check_part_0", "pub fn check_part_0")).is_err());
-    }
-
-    #[test]
-    fn rejects_generic_and_non_decimal_calls() {
         assert!(check_source(
-            &VALID.replace("and_finish(left, left)", "and_finish::<u32>(left, left)")
+            &VALID.replace("or_stops(first) == false", "or_stops(first) == true")
         )
         .is_err());
-        assert!(
-            check_source(&VALID.replace("make_int4_value(0)", "make_int4_value(0x0)")).is_err()
-        );
+        assert!(check_source(
+            &VALID.replace("or_stops(first) == false", "or_stops(first) || true")
+        )
+        .is_err());
     }
 
     #[test]
-    fn accepts_string_literals_and_rejects_byte_strings() {
+    fn rejects_nested_calls_and_unbound_values() {
+        assert!(check_source(&VALID.replace(
+            "or_finish(first, second)",
+            "or_finish(first, check_from_bool(null_test))"
+        ))
+        .is_err());
+        assert!(check_source(
+            &VALID.replace("result = or_finish(first, second);", "result = missing;")
+        )
+        .is_err());
+        assert!(check_source(&VALID.replace("result\n}", "missing\n}")).is_err());
+    }
+
+    #[test]
+    fn accepts_only_public_evaluator_functions() {
+        check_source(&VALID.replace(
+            "evaluate_check(",
+            "evaluate_check_public_table_orders_amount_positive_h1234(",
+        ))
+        .unwrap();
+        assert!(check_source(&VALID.replace("evaluate_check(", "evaluate_check_0(")).is_err());
+        assert!(check_source(&VALID.replace(
+            "evaluate_check(",
+            "evaluate_check_public_table_orders_check_h12345("
+        ))
+        .is_err());
+        assert!(
+            check_source(&VALID.replace("pub fn evaluate_check", "fn evaluate_check")).is_err()
+        );
+        assert!(check_source(&VALID.replace("evaluate_check(", "check_part_0(")).is_err());
+        assert!(check_source(&format!("enum State {{ Unknown }}\n{VALID}")).is_err());
+    }
+
+    #[test]
+    fn accepts_literals_within_the_narrow_range() {
         let source = r#"
-fn check_part_0(status: TextValue) -> CheckOutcome {
-    let housed = make_text_value("housed");
-    compare_status(status, housed)
-}
-pub fn evaluate_check(status: TextValue) -> CheckOutcome {
-    check_part_0(status)
+pub fn evaluate_check(status: TextValue, enabled: BoolValue) -> CheckOutcome {
+    let expected = make_text_value("housed");
+    let boolean = make_bool_value(true);
+    let result = compare_status(status, expected);
+    let checked = check_from_bool(result);
+    checked
 }
 "#;
         check_source(source).unwrap();
         assert!(check_source(&source.replace("\"housed\"", "b\"housed\"")).is_err());
-        assert!(check_source(&source.replace("\"housed\"", "r#\"housed\"#")).is_ok());
-    }
-
-    #[test]
-    fn accepts_boolean_inputs_and_literals() {
-        let source = r#"
-fn check_part_0(enabled: BoolValue) -> CheckOutcome {
-    let expected = make_bool_value(true);
-    let result = bool_is_null(enabled);
-    check_from_bool(result)
-}
-pub fn evaluate_check(enabled: BoolValue) -> CheckOutcome {
-    check_part_0(enabled)
-}
-"#;
-        check_source(source).unwrap();
-        assert!(check_source(&source.replace("true", "true || false")).is_err());
-    }
-
-    #[test]
-    fn accepts_numbered_group_entries() {
-        let source = r#"
-fn check_0_part_0(amount: Int4Value) -> CheckOutcome {
-    let result = int4_is_null(amount);
-    check_from_bool(result)
-}
-pub fn evaluate_check_0(amount: Int4Value) -> CheckOutcome {
-    check_0_part_0(amount)
-}
-fn check_1_part_0(enabled: BoolValue) -> CheckOutcome {
-    let result = bool_is_null(enabled);
-    check_from_bool(result)
-}
-pub fn evaluate_check_1(enabled: BoolValue) -> CheckOutcome {
-    check_1_part_0(enabled)
-}
-"#;
-        check_source(source).unwrap();
-        assert!(check_source(&source.replace("evaluate_check_1", "evaluate_check_bad")).is_err());
-    }
-
-    #[test]
-    fn accepts_signed_int4_literals_and_lazy_case_branch() {
-        let source = r#"
-fn check_part_0(amount: Int4Value) -> CheckOutcome {
-    let floor = make_int4_value(-1);
-    let minimum = make_int4_value(-2147483647 - 1);
-    let condition = sql__pg_catalog__int4gt__example(amount, floor);
-    let guard = check_from_bool(condition);
-    if case_guard_stops(guard) { return guard; }
-    if case_guard_takes(guard) { return check_part_1(amount); }
-    check_part_2(minimum)
-}
-fn check_part_1(amount: Int4Value) -> CheckOutcome {
-    let result = int4_is_null(amount);
-    check_from_bool(result)
-}
-fn check_part_2(amount: Int4Value) -> CheckOutcome {
-    let result = int4_is_null(amount);
-    check_from_bool(result)
-}
-pub fn evaluate_check(amount: Int4Value) -> CheckOutcome {
-    check_part_0(amount)
-}
-"#;
-        check_source(source).unwrap();
-        assert!(check_source(
-            &source.replace("make_int4_value(-1)", "make_int4_value(-2147483648)")
-        )
-        .is_err());
-        assert!(check_source(&source.replace("-2147483647 - 1", "-2147483646 - 2")).is_err());
-        assert!(check_source(&source.replace(
-            "return check_part_1(amount)",
-            "return check_part_1(make_int4_value(0))"
-        ))
-        .is_err());
+        assert!(check_source(&VALID.replace("-2147483647 - 1", "-2147483648")).is_err());
+        assert!(check_source(&VALID.replace("-2147483647 - 1", "-2147483646 - 2")).is_err());
     }
 }
