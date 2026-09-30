@@ -12,6 +12,7 @@ import { lowerTableCheck } from '../../src/sql-semantics/catalog-checks.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { renderGoSchemaCheckArtifacts } from '../../src/codegen/go/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { prepareCheckRust } from '../../src/codegen/shared/check-rust-source.js'
 import { parseConfigString } from '../../src/config/loader.js'
 
 const run = promisify(execFile)
@@ -30,6 +31,17 @@ const definitions = {
   computed_subject: '(amount + 1) IN (0, 1)',
   nested: "CASE WHEN amount IN (0, 1) THEN flag ELSE note NOT IN ('a', '😀') END",
   scalar: '(amount IN (0, NULL)) IS NULL',
+  between: 'amount BETWEEN other AND 1',
+  not_between: 'amount NOT BETWEEN other AND 1',
+  symmetric: 'amount BETWEEN SYMMETRIC other AND 1',
+  not_symmetric: 'amount NOT BETWEEN SYMMETRIC other AND 1',
+  lazy_between: 'amount BETWEEN 1 AND other + 1',
+  lazy_not_between: 'amount NOT BETWEEN 1 AND other + 1',
+  text_between: "note BETWEEN 'a' AND '😀'",
+  bool_between: 'flag BETWEEN false AND true',
+  between_scalar: '(amount BETWEEN other AND 1) IS NULL',
+  between_nested:
+    'CASE WHEN flag THEN amount BETWEEN other AND 1 ELSE amount NOT BETWEEN other AND 1 END',
 }
 type Row = {
   amount?: number | null
@@ -41,13 +53,14 @@ type Outcome = boolean | null | undefined | '22003'
 const rows: Row[] = [
   { amount: 0, other: 0, flag: true, note: 'a' },
   { amount: 2, other: 0, flag: false, note: 'z' },
+  { amount: 2, other: 3, flag: true, note: 'z' },
   { amount: null, other: null, flag: null, note: null },
   { amount: 0, other: 2147483647, flag: true, note: '😀' },
   { amount: 2147483647, other: 0, flag: false, note: null },
   { amount: 0, note: 'a' },
 ]
 
-describe('CHECK membership validators', () => {
+describe('CHECK list and range validators', () => {
   let pg: PGlite
   let catalog: CatalogSnapshot
   let table: TableInfo
@@ -55,20 +68,20 @@ describe('CHECK membership validators', () => {
   beforeAll(async () => {
     pg = await PGlite.create()
     await pg.exec(
-      `CREATE TABLE public.membership_checks (amount int4, other int4, flag bool, note text COLLATE "C", ${Object.entries(
+      `CREATE TABLE public.predicate_checks (amount int4, other int4, flag bool, note text COLLATE "C", ${Object.entries(
         definitions,
       )
-        .map(([name, sql]) => `CONSTRAINT ${name} CHECK (${sql})`)
+        .map(([name, sql]) => `CONSTRAINT "${name}" CHECK (${sql})`)
         .join(', ')})`,
     )
     await pg.exec(
-      'CREATE TABLE membership_inputs (amount int4, other int4, flag bool, note text COLLATE "C")',
+      'CREATE TABLE predicate_inputs (amount int4, other int4, flag bool, note text COLLATE "C")',
     )
     catalog = await snapshotCatalog(pg)
-    table = catalog.tables.find((item) => item.name === 'membership_checks')!
+    table = catalog.tables.find((item) => item.name === 'predicate_checks')!
     for (const row of rows.slice(0, -1)) {
-      await pg.exec('TRUNCATE membership_inputs')
-      await pg.query('INSERT INTO membership_inputs VALUES ($1,$2,$3,$4)', [
+      await pg.exec('TRUNCATE predicate_inputs')
+      await pg.query('INSERT INTO predicate_inputs VALUES ($1,$2,$3,$4)', [
         row.amount,
         row.other,
         row.flag,
@@ -79,7 +92,7 @@ describe('CHECK membership validators', () => {
         try {
           results[name] = (
             await pg.query<{ value: boolean | null }>(
-              `SELECT (${sql}) AS value FROM membership_inputs`,
+              `SELECT (${sql}) AS value FROM predicate_inputs`,
             )
           ).rows[0]!.value
         } catch (error) {
@@ -104,12 +117,22 @@ describe('CHECK membership validators', () => {
       computed_subject: true,
       nested: undefined,
       scalar: false,
+      between: undefined,
+      not_between: undefined,
+      symmetric: undefined,
+      not_symmetric: undefined,
+      lazy_between: false,
+      lazy_not_between: true,
+      text_between: true,
+      bool_between: undefined,
+      between_scalar: undefined,
+      between_nested: undefined,
     })
   })
   afterAll(async () => pg.close())
 
   it.each([true, false])(
-    'runs PostgreSQL membership semantics through validators (Rust=%s)',
+    'runs PostgreSQL list and range semantics through validators (Rust=%s)',
     async (rust) => {
       const typescript = renderTypescriptSchemaCheckArtifacts([table], [], [], {}, rust)
       const go = renderGoSchemaCheckArtifacts(
@@ -120,7 +143,7 @@ describe('CHECK membership validators', () => {
         catalog,
         parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go: {}\n'),
         undefined,
-        'membership-production',
+        'predicate-production',
         rust,
       )
       if (rust) {
@@ -133,7 +156,7 @@ describe('CHECK membership validators', () => {
           )
         }
       }
-      const directory = await mkdtemp(join(tmpdir(), 'pgsid-membership-validator-'))
+      const directory = await mkdtemp(join(tmpdir(), 'pgsid-predicate-validator-'))
       try {
         await writeFile(join(directory, 'package.json'), '{"type":"module"}\n')
         await writeFile(join(directory, 'checks.ts'), typescript.checks)
@@ -159,11 +182,11 @@ describe('CHECK membership validators', () => {
         const generated = await import(pathToFileURL(join(directory, 'js/checks.js')).href)
         for (const [index, row] of rows.entries()) {
           if (Object.values(expected[index]!).includes('22003')) {
-            expect(() => generated.evaluatePublicMembershipChecksChecks(row)).toThrowError(
+            expect(() => generated.evaluatePublicPredicateChecksChecks(row)).toThrowError(
               expect.objectContaining({ code: '22003' }),
             )
           } else {
-            const results = generated.evaluatePublicMembershipChecksChecks(row) as {
+            const results = generated.evaluatePublicPredicateChecksChecks(row) as {
               constraint: string
               result: { certain: boolean; value?: boolean | null }
             }[]
@@ -177,7 +200,7 @@ describe('CHECK membership validators', () => {
             ).toEqual(expected[index])
           }
         }
-        await writeFile(join(directory, 'go.mod'), 'module membership-production\n\ngo 1.24\n')
+        await writeFile(join(directory, 'go.mod'), 'module predicate-production\n\ngo 1.24\n')
         await writeFile(join(directory, 'checks.go'), go.checks)
         if (go.rustFiles)
           for (const [name, source] of Object.entries(go.rustFiles)) {
@@ -200,7 +223,7 @@ describe('CHECK membership validators', () => {
           }
         const goRows = rows.map(
           (row) =>
-            'PublicMembershipChecksCheckInput{' +
+            'PublicPredicateChecksCheckInput{' +
             Object.entries(row)
               .map(([name, value]) => {
                 const field = name[0]!.toUpperCase() + name.slice(1)
@@ -218,7 +241,7 @@ describe('CHECK membership validators', () => {
         )
         await writeFile(
           join(directory, 'checks_test.go'),
-          `package checks\nimport "testing"\nfunc ptr[T any](value T) *T {return &value}\nfunc TestMembership(t *testing.T) {\nrows := []PublicMembershipChecksCheckInput{${goRows.join(', ')}}\nresults := []map[string]EvalBool{}\nfor _, row := range rows {values := map[string]EvalBool{}; for _, check := range EvaluatePublicMembershipChecksChecks(row) {values[check.Constraint] = check.Result}; results = append(results,values)}\n${assertions.join('\n')}\n}`,
+          `package checks\nimport "testing"\nfunc ptr[T any](value T) *T {return &value}\nfunc TestPredicates(t *testing.T) {\nrows := []PublicPredicateChecksCheckInput{${goRows.join(', ')}}\nresults := []map[string]EvalBool{}\nfor _, row := range rows {values := map[string]EvalBool{}; for _, check := range EvaluatePublicPredicateChecksChecks(row) {values[check.Constraint] = check.Result}; results = append(results,values)}\n${assertions.join('\n')}\n}`,
         )
         await run('go', ['test', './...'], {
           cwd: directory,
@@ -242,7 +265,7 @@ describe('CHECK membership validators', () => {
     }).outputText
     const evaluate = Function(
       'exports',
-      `${js}; return evaluatePublicMembershipChecksChecks`,
+      `${js}; return evaluatePublicPredicateChecksChecks`,
     )({}) as (row: Row) => { result: { certain: boolean; value?: boolean | null } }[]
     let reads = 0
     expect(
@@ -254,6 +277,94 @@ describe('CHECK membership validators', () => {
       })[0]!.result,
     ).toEqual({ certain: true, value: true })
     expect(reads).toBe(1)
+  })
+
+  it('preserves PostgreSQL range expansion and repeated subject evaluation', async () => {
+    for (const [sql, expanded] of [
+      ['amount BETWEEN other AND 1', 'amount >= other AND amount <= 1'],
+      ['amount NOT BETWEEN other AND 1', 'amount < other OR amount > 1'],
+      [
+        'amount BETWEEN SYMMETRIC other AND 1',
+        '(amount >= other AND amount <= 1) OR (amount >= 1 AND amount <= other)',
+      ],
+      [
+        'amount NOT BETWEEN SYMMETRIC other AND 1',
+        '(amount < other OR amount > 1) AND (amount < 1 OR amount > other)',
+      ],
+    ]) {
+      const bind = (sql: string) =>
+        lowerTableCheck(table, { name: 'range', type: 'check', definition: `CHECK (${sql})` })!
+          .expression
+      expect(bind(sql!)).toEqual({
+        kind: 'eval-scalar',
+        expression: { kind: 'check', type: 'pg_catalog.bool', expression: bind(expanded!) },
+      })
+    }
+    const single = {
+      ...table,
+      constraints: [
+        {
+          ...table.constraints[0]!,
+          name: 'range',
+          type: 'check' as const,
+          definition: 'CHECK ((amount + 1) BETWEEN other AND 1)',
+        },
+      ],
+    }
+    const source = renderTypescriptSchemaCheckArtifacts([single], [], [], {}, false).checks
+    const ts = await import('typescript')
+    const js = ts.transpileModule(source, {
+      compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+    }).outputText
+    const evaluate = Function(
+      'exports',
+      `${js}; return evaluatePublicPredicateChecksChecks`,
+    )({}) as (row: Row) => { result: { certain: boolean; value?: boolean | null } }[]
+    for (const [amount, expected, expectedReads] of [
+      [0, true, 2],
+      [-2, false, 1],
+    ] as const) {
+      let reads = 0
+      expect(
+        evaluate({
+          other: 0,
+          get amount() {
+            reads++
+            return amount
+          },
+        })[0]!.result,
+      ).toEqual({ certain: true, value: expected })
+      expect(reads).toBe(expectedReads)
+    }
+  })
+
+  it('preserves existing type and collation boundaries for ranges', () => {
+    const host = {
+      columns: [
+        ...table.columns,
+        { name: 'plain', typeName: 'text', collationIsC: false },
+        { name: 'large', typeName: 'bigint', collationIsC: false },
+      ],
+    }
+    for (const [sql, expanded] of [
+      ["plain BETWEEN 'a' AND 'z'", "plain >= 'a' AND plain <= 'z'"],
+      ['large BETWEEN 0 AND 1', 'large >= 0 AND large <= 1'],
+    ]) {
+      const bind = (sql: string) =>
+        lowerTableCheck(host, { name: 'unsupported', type: 'check', definition: `CHECK (${sql})` })!
+          .expression
+      expect(bind(sql!)).toEqual({
+        kind: 'eval-scalar',
+        expression: { kind: 'check', type: 'pg_catalog.bool', expression: bind(expanded!) },
+      })
+      if (sql!.startsWith('large')) expect(prepareCheckRust(bind(sql!)).kind).toBe('unsupported')
+      else
+        expect(bind(sql!)).toMatchObject({
+          expression: {
+            expression: { operands: [{ kind: 'uncertain' }, { kind: 'uncertain' }] },
+          },
+        })
+    }
   })
 
   it('keeps unsupported membership forms uncertain', () => {

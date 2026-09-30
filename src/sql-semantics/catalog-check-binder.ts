@@ -111,6 +111,16 @@ const candidate = (
       ? [{ signature, item, operands: operands as EvalExpression[] }]
       : []
   })
+  if (kind === 'operator' && args.length === 2) {
+    const types = args.map(
+      (arg) => arg.type ?? (arg.literal?.kind === 'integer' ? 'pg_catalog.int4' : null),
+    )
+    const known = types.filter((type) => type !== null)
+    if (known.length === 1 && args.some((arg, index) => types[index] === null && arg.literal)) {
+      const exact = matches.filter(({ item }) => item.args.every((type) => type === known[0]))
+      if (exact.length === 1) return exact[0]!
+    }
+  }
   return matches.length === 1 ? matches[0]! : null
 }
 
@@ -375,6 +385,50 @@ export function bindCatalogCheck(
       }
     }
     const operator = fields(wrapper['A_Expr'])
+    if (
+      operator &&
+      ['AEXPR_BETWEEN', 'AEXPR_NOT_BETWEEN', 'AEXPR_BETWEEN_SYM', 'AEXPR_NOT_BETWEEN_SYM'].includes(
+        String(operator['kind']),
+      )
+    ) {
+      const bounds = fields(fields(operator['rexpr'])?.['List'])?.['items']
+      if (!Array.isArray(bounds) || bounds.length !== 2 || operator['lexpr'] === undefined)
+        return unknown
+      const negated = String(operator['kind']).startsWith('AEXPR_NOT_')
+      const symmetric = String(operator['kind']).endsWith('_SYM')
+      const compare = (name: string, bound: unknown): unknown => ({
+        A_Expr: {
+          kind: 'AEXPR_OP',
+          name: [{ String: { sval: name } }],
+          lexpr: operator['lexpr'],
+          rexpr: bound,
+        },
+      })
+      const range = (low: unknown, high: unknown): unknown => ({
+        BoolExpr: {
+          boolop: negated ? 'OR_EXPR' : 'AND_EXPR',
+          args: [compare(negated ? '<' : '>=', low), compare(negated ? '>' : '<=', high)],
+        },
+      })
+      const forward = range(bounds[0], bounds[1])
+      return {
+        type: 'pg_catalog.bool',
+        value: {
+          kind: 'check',
+          type: 'pg_catalog.bool',
+          expression: lower(
+            symmetric
+              ? {
+                  BoolExpr: {
+                    boolop: negated ? 'AND_EXPR' : 'OR_EXPR',
+                    args: [forward, range(bounds[1], bounds[0])],
+                  },
+                }
+              : forward,
+          ),
+        },
+      }
+    }
     if (
       operator &&
       ['AEXPR_IN', 'AEXPR_OP_ANY', 'AEXPR_OP_ALL'].includes(String(operator['kind']))
