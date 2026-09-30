@@ -26,6 +26,12 @@ export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpr
         : { kind: 'uncertain', type: value.call.type }
     if (value.kind === 'boolean-logic' || value.kind === 'coalesce')
       return { ...value, operands: value.operands.map(scalar) }
+    if (value.kind === 'membership')
+      return {
+        ...value,
+        subject: scalar(value.subject),
+        groups: value.groups.map((group) => group.map(scalar)),
+      }
     if (value.kind === 'null-test') return { ...value, operand: scalar(value.operand) }
     if (value.kind === 'case')
       return {
