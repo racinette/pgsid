@@ -60,6 +60,7 @@ export function renderTypescriptSchemaCheckArtifacts(
   let rustIndex = 0
   const row = identifier('row')
   const inputHelpers = new Set<string>()
+  const rustInputAdapters = new Set<string>()
   const callInput = (helper: string, name: string): ts.Expression => {
     inputHelpers.add(helper)
     return factory.createCallExpression(identifier(helper), undefined, [
@@ -69,7 +70,8 @@ export function renderTypescriptSchemaCheckArtifacts(
   }
   const inputHelper = (type: string): string | null => {
     if (type === 'pg_catalog.bool') return 'checkInputBoolean'
-    if (/^pg_catalog\.int[248]$/u.test(type)) return 'checkInputInteger'
+    if (type === 'pg_catalog.int8') return 'checkInputInt8'
+    if (/^pg_catalog\.int[24]$/u.test(type)) return 'checkInputInteger'
     if (/^pg_catalog\.float[48]$/u.test(type)) return 'checkInputFloat'
     if (['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type))
       return 'checkInputText'
@@ -96,20 +98,25 @@ export function renderTypescriptSchemaCheckArtifacts(
       const prepared = rustGroup?.checks[rustIndex++]
       if (prepared?.kind === 'supported') {
         const args = prepared.inputs.map((item) => {
-          if (!['Int4Value', 'TextValue', 'BoolValue'].includes(item.rustType))
+          if (!['Int4Value', 'Int8Value', 'TextValue', 'BoolValue'].includes(item.rustType))
             throw new Error(`Unsupported TypeScript Rust CHECK input: ${item.rustType}`)
           const helper =
             item.rustType === 'Int4Value'
               ? 'checkRustInt4'
-              : item.rustType === 'TextValue'
-                ? 'checkRustText'
-                : 'checkRustBool'
+              : item.rustType === 'Int8Value'
+                ? 'checkRustInt8'
+                : item.rustType === 'TextValue'
+                  ? 'checkRustText'
+                  : 'checkRustBool'
+          rustInputAdapters.add(helper)
           inputHelpers.add(
-            item.rustType === 'Int4Value'
-              ? 'checkInputInteger'
-              : item.rustType === 'TextValue'
-                ? 'checkInputText'
-                : 'checkInputBoolean',
+            item.rustType === 'Int8Value'
+              ? 'checkInputInt8'
+              : item.rustType === 'Int4Value'
+                ? 'checkInputInteger'
+                : item.rustType === 'TextValue'
+                  ? 'checkInputText'
+                  : 'checkInputBoolean',
           )
           return factory.createCallExpression(identifier(helper), undefined, [
             row,
@@ -242,7 +249,15 @@ export function renderTypescriptSchemaCheckArtifacts(
         emitted.flatMap((group) => group.results.flatMap((result) => result.helpers)),
       ),
       ...checkInputStatements(inputHelpers),
-      ...(rustGroup?.source ? synthesizedStatements(typescriptRustAdapterSource) : []),
+      ...(rustGroup?.source
+        ? synthesizedStatements(typescriptRustAdapterSource).filter(
+            (statement) =>
+              ts.isFunctionDeclaration(statement) &&
+              statement.name &&
+              (statement.name.text === 'checkRustOutcome' ||
+                rustInputAdapters.has(statement.name.text)),
+          )
+        : []),
       ...(typedInputs
         ? groups.map((group) =>
             factory.createTypeAliasDeclaration(
@@ -308,6 +323,13 @@ const typescriptRustAdapterSource = `function checkRustInt4(row: object, name: s
   if (input.value === null) return _checkRust.int4Null()
   if (input.value < -2147483648n || input.value > 2147483647n) return _checkRust.int4Unknown()
   return _checkRust.makeInt4Value(Number(input.value))
+}
+function checkRustInt8(row: object, name: string): _checkRust.Int8Value {
+  const input = checkInputInt8(row, name)
+  if (!input.certain) return _checkRust.int8Unknown()
+  if (input.value === null) return _checkRust.int8Null()
+  if (input.value < -9223372036854775808n || input.value > 9223372036854775807n) return _checkRust.int8Unknown()
+  return _checkRust.makeInt8Value(input.value)
 }
 function checkRustText(row: object, name: string): _checkRust.TextValue {
   const input = checkInputText(row, name)
@@ -386,6 +408,17 @@ const checkInputHelpers: Record<string, { dependencies: readonly string[]; sourc
   if (typeof value === 'bigint') return { certain: true, value }
   if (typeof value === 'number' && Number.isSafeInteger(value)) return { certain: true, value: BigInt(value) }
   return { certain: false }
+}`,
+  },
+  checkInputInt8: {
+    dependencies: ['checkRawInput', 'checkInputInteger'],
+    source: `function checkInputInt8(row: object, name: string): EvalValue<bigint> {
+  const value = checkRawInput(row, name)
+  if (typeof value !== 'string') return checkInputInteger(row, name)
+  if (!/^-?(?:0|[1-9][0-9]{0,18})$/.test(value)) return { certain: false }
+  const integer = BigInt(value)
+  if (integer < -9223372036854775808n || integer > 9223372036854775807n) return { certain: false }
+  return { certain: true, value: integer }
 }`,
   },
   checkInputFloat: {

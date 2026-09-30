@@ -32,10 +32,15 @@ import them. Keep schema-only helpers with their callables.
   operations implement C-collation behavior, and parity comparisons use that
   collation. Text ordering compares Unicode scalars.
 - The operation parity command discovers the immutable, strict
-  `int4 × int4 → bool`, `bool × bool → bool`, and `text × text → bool`
+  `int4 × int4 → bool`, `int8 × int8 → bool`, mixed `int4`/`int8` comparisons,
+  `bool × bool → bool`, and `text × text → bool`
   implementations in the operation sources, including `starts_with`, plus
   `int4 × int4 → int4` arithmetic and `text → int4`, and tests them
   automatically.
+- Int8 payloads use Rust `i64`, Go `int64`, and TypeScript `bigint`. Write
+  decimal Rust literals with an `i64` suffix. Widen an int4 payload with
+  `as i64` into a distinct local before comparing it with an int8 payload.
+  I64 arithmetic, narrowing casts, and variable negation are outside this subset.
 - If a callable needs a new value representation, primitive, SQL error, or
   Rust syntax rule, surface that as a separate foundation change before
   porting more functions that depend on it. The CHECK transpiler's own `AGENTS.md`

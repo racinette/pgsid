@@ -34,8 +34,12 @@ export type EvalExpression =
   | {
       kind: 'case'
       type: ScalarType
-      scrutinee?: { expression: EvalExpression; equality: SqlCallableExpression }
-      branches: readonly { when: EvalExpression; then: EvalExpression }[]
+      scrutinee?: { expression: EvalExpression }
+      branches: readonly {
+        when: EvalExpression
+        then: EvalExpression
+        equality?: SqlCallableExpression
+      }[]
       otherwise: EvalExpression
     }
   | {
@@ -238,7 +242,7 @@ export function emitEvalExpression<Ast>(
         const branches = node.branches.map((branch) => ({
           when:
             scrutinee && node.scrutinee
-              ? emitCall(node.scrutinee.equality, [scrutinee, emit(branch.when)])
+              ? emitCall(branch.equality!, [scrutinee, emit(branch.when)])
               : emit(branch.when),
           then: emit(branch.then),
         }))

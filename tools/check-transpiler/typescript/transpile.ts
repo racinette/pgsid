@@ -7,7 +7,7 @@ type TypeNode =
 
 type Expr =
   | { kind: 'path'; segments: string[] }
-  | { kind: 'integer'; digits: string }
+  | { kind: 'integer'; digits: string; integerType?: 'i64' }
   | { kind: 'character'; scalar: string }
   | { kind: 'boolean'; state: boolean }
   | { kind: 'string'; text: string }
@@ -179,7 +179,7 @@ class Transpiler {
   private immutableField(type: TypeNode): boolean {
     const name = this.path(type)
     return (
-      ['usize', 'u32', 'i32', 'bool', 'char', '&str'].includes(name) ||
+      ['usize', 'u32', 'i32', 'i64', 'bool', 'char', '&str'].includes(name) ||
       this.immutableValues.has(name)
     )
   }
@@ -203,6 +203,7 @@ class Transpiler {
   private typeName(name: string): ts.TypeNode {
     if (['usize', 'u32', 'i32'].includes(name))
       return f.createKeywordTypeNode(ts.SyntaxKind.NumberKeyword)
+    if (name === 'i64') return f.createKeywordTypeNode(ts.SyntaxKind.BigIntKeyword)
     if (name === 'bool') return f.createKeywordTypeNode(ts.SyntaxKind.BooleanKeyword)
     if (['char', 'str', '&str'].includes(name))
       return f.createKeywordTypeNode(ts.SyntaxKind.StringKeyword)
@@ -229,6 +230,7 @@ class Transpiler {
     const name = typeof type === 'string' ? type : this.path(type)
     if (name === 'usize' || name === 'u32') return call('checkedIndex', value)
     if (name === 'i32') return call('checkedI32', value)
+    if (name === 'i64') return call('checkedI64', value)
     if (name === 'bool') return call('checkedBool', value)
     if (name === 'char') return call('checkedChar', value)
     if (name === '&str') return call('checkedString', value)
@@ -265,7 +267,7 @@ class Transpiler {
           locals.get(value.segments.join('::')) ?? this.constants.get(value.segments.join('::'))
         )
       case 'integer':
-        return 'usize'
+        return value.integerType ?? 'usize'
       case 'character':
         return 'char'
       case 'boolean':
@@ -346,6 +348,12 @@ class Transpiler {
         return object([['kind', f.createStringLiteral(variant!)]])
       }
       case 'integer':
+        if (value.integerType === 'i64') {
+          const literal = f.createBigIntLiteral(`${value.digits.replace(/^-/, '')}n`)
+          return value.digits.startsWith('-')
+            ? f.createPrefixUnaryExpression(ts.SyntaxKind.MinusToken, literal)
+            : literal
+        }
         return f.createNumericLiteral(value.digits)
       case 'character':
         return f.createStringLiteral(value.scalar)
@@ -361,6 +369,8 @@ class Transpiler {
         if (value.operator !== 'negate') throw new Error('unsupported unary operator')
         return call('checkedSignedNegate', this.expression(value.value, locals))
       case 'cast':
+        if (this.path(value.targetType) === 'i64')
+          return call('BigInt', call('checkedI32', this.expression(value.value, locals)))
         if (this.path(value.targetType) === 'u32')
           return f.createNonNullExpression(
             f.createCallExpression(

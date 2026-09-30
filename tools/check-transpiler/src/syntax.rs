@@ -95,7 +95,7 @@ fn expr(expr: &Expr) -> Result {
             self::expr(&node.expr)
         }
         Expr::Cast(node) if node.attrs.is_empty() => {
-            if !matches!(&*node.ty, Type::Path(target) if target.path.is_ident("u32") || target.path.is_ident("usize"))
+            if !matches!(&*node.ty, Type::Path(target) if target.path.is_ident("u32") || target.path.is_ident("usize") || target.path.is_ident("i64"))
             {
                 return Err("cast target is outside the syntax subset".into());
             }

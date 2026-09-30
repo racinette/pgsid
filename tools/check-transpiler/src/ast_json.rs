@@ -47,7 +47,7 @@ fn check_type(
             let name = type_name(value)?;
             if !matches!(
                 name.as_str(),
-                "usize" | "u32" | "i32" | "bool" | "char" | "Vec<char>" | "Vec<usize>"
+                "usize" | "u32" | "i32" | "i64" | "bool" | "char" | "Vec<char>" | "Vec<usize>"
             ) && !declarations.contains(&name)
                 && !name
                     .strip_prefix("Vec<")
@@ -252,6 +252,29 @@ fn integer(value: &syn::LitInt) -> Result<String> {
     Ok(number.to_string())
 }
 
+fn int64_literal(value: &syn::LitInt, negative: bool) -> Result<Value> {
+    let source = value.to_string();
+    let digits = source
+        .strip_suffix("i64")
+        .ok_or("expected an i64 literal")?;
+    if digits.is_empty() || !digits.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err("i64 literal must use decimal syntax".into());
+    }
+    let magnitude = digits
+        .parse::<u64>()
+        .map_err(|_| "i64 literal is out of range")?;
+    let limit = i64::MAX as u64 + u64::from(negative);
+    if magnitude > limit {
+        return Err("i64 literal is out of range".into());
+    }
+    let digits = if negative {
+        format!("-{magnitude}")
+    } else {
+        magnitude.to_string()
+    };
+    Ok(json!({ "kind": "integer", "digits": digits, "integerType": "i64" }))
+}
+
 fn operator(value: &BinOp) -> Result<&'static str> {
     match value {
         BinOp::Add(_) => Ok("add"),
@@ -312,6 +335,7 @@ fn expr(value: &Expr) -> Result<Value> {
     match value {
         Expr::Path(node) => Ok(json!({ "kind": "path", "segments": segments(&node.path) })),
         Expr::Lit(node) => match &node.lit {
+            syn::Lit::Int(number) if number.suffix() == "i64" => int64_literal(number, false),
             syn::Lit::Int(number) => Ok(json!({ "kind": "integer", "digits": integer(number)? })),
             syn::Lit::Char(character) => {
                 Ok(json!({ "kind": "character", "scalar": character.value().to_string() }))
@@ -322,6 +346,18 @@ fn expr(value: &Expr) -> Result<Value> {
         },
         Expr::Paren(node) => Ok(json!({ "kind": "parenthesized", "inner": expr(&node.expr)? })),
         Expr::Group(node) => expr(&node.expr),
+        Expr::Unary(node)
+            if matches!(node.op, syn::UnOp::Neg(_))
+                && matches!(&*node.expr, Expr::Lit(lit) if matches!(&lit.lit, syn::Lit::Int(number) if number.suffix() == "i64")) =>
+        {
+            let Expr::Lit(lit) = &*node.expr else {
+                unreachable!()
+            };
+            let syn::Lit::Int(number) = &lit.lit else {
+                unreachable!()
+            };
+            int64_literal(number, true)
+        }
         Expr::Unary(node) if matches!(node.op, syn::UnOp::Neg(_)) => Ok(json!({
             "kind": "unary",
             "operator": "negate",
@@ -620,6 +656,43 @@ mod tests {
             .unwrap();
         assert_eq!(destructured["body"][0]["value"]["kind"], "if-let");
         assert_eq!(destructured["body"][0]["value"]["payloadBinding"], "text");
+    }
+
+    #[test]
+    fn int64_literals_and_widening_preserve_exact_types() {
+        for literal in [
+            "0i64",
+            "9007199254740993i64",
+            "9223372036854775807i64",
+            "-9223372036854775808i64",
+        ] {
+            let source = format!("pub fn f(value: i64) -> bool {{ value == {literal} }}");
+            let tree: serde_json::Value = serde_json::from_str(&parse(&source).unwrap()).unwrap();
+            let integer = &tree["items"][0]["body"][0]["value"]["right"];
+            assert_eq!(integer["integerType"], "i64");
+            assert_eq!(integer["digits"], literal.strip_suffix("i64").unwrap());
+        }
+        assert!(parse("pub fn f(value: i32) -> i64 { value as i64 }").is_ok());
+        for source in [
+            "pub fn f() -> i64 { 9223372036854775808i64 }",
+            "pub fn f() -> i64 { -9223372036854775809i64 }",
+            "pub fn f() -> i64 { 9_007_199_254_740_993i64 }",
+            "pub fn f() -> i64 { 0xffi64 }",
+            "pub fn f() -> i64 { 9007199254740993 }",
+            "pub fn f(value: u32) -> i64 { value as i64 }",
+            "pub fn f(value: i64) -> usize { value as usize }",
+            "pub fn f(value: i64) -> bool { value == 0 }",
+            "pub fn f(value: i64) -> i64 { value + 1i64 }",
+            "pub fn f(value: i64) -> i64 { -value }",
+            "pub fn f() -> i64 { 0 }",
+            "pub fn f() -> i64 { return 0; }",
+            "pub fn f() -> i64 { let result: i64 = 0; result }",
+            "const ZERO: i64 = 0;",
+            "enum Value { Number(i64) } pub fn f() -> Value { Value::Number(0) }",
+            "struct Value { number: i64 } pub fn f() -> Value { Value { number: 0 } }",
+        ] {
+            assert!(parse(source).is_err(), "accepted {source}");
+        }
     }
 
     #[test]

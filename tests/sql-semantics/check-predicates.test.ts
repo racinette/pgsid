@@ -343,12 +343,12 @@ describe('CHECK list and range validators', () => {
       columns: [
         ...table.columns,
         { name: 'plain', typeName: 'text', collationIsC: false },
-        { name: 'large', typeName: 'bigint', collationIsC: false },
+        { name: 'tiny', typeName: 'smallint', collationIsC: false },
       ],
     }
     for (const [sql, expanded] of [
       ["plain BETWEEN 'a' AND 'z'", "plain >= 'a' AND plain <= 'z'"],
-      ['large BETWEEN 0 AND 1', 'large >= 0 AND large <= 1'],
+      ['tiny BETWEEN 0 AND 1', 'tiny >= 0 AND tiny <= 1'],
     ]) {
       const bind = (sql: string) =>
         lowerTableCheck(host, { name: 'unsupported', type: 'check', definition: `CHECK (${sql})` })!
@@ -357,7 +357,7 @@ describe('CHECK list and range validators', () => {
         kind: 'eval-scalar',
         expression: { kind: 'check', type: 'pg_catalog.bool', expression: bind(expanded!) },
       })
-      if (sql!.startsWith('large')) expect(prepareCheckRust(bind(sql!)).kind).toBe('unsupported')
+      if (sql!.startsWith('tiny')) expect(prepareCheckRust(bind(sql!)).kind).toBe('unsupported')
       else
         expect(bind(sql!)).toMatchObject({
           expression: {

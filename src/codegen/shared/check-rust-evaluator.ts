@@ -9,6 +9,7 @@ export class UnsupportedCheckRustExpression extends Error {}
 
 const rustType = (type: string): string => {
   if (type === 'pg_catalog.int4') return 'Int4Value'
+  if (type === 'pg_catalog.int8') return 'Int8Value'
   if (type === 'pg_catalog.text') return 'TextValue'
   if (type === 'pg_catalog.bool') return 'BoolValue'
   throw new UnsupportedCheckRustExpression(`Unsupported Rust CHECK input type: ${type}`)
@@ -137,9 +138,11 @@ export function emitCheckRustEvaluator(
       const helper =
         kind === 'Int4Value'
           ? 'int4_unknown'
-          : kind === 'TextValue'
-            ? 'text_unknown'
-            : 'bool_unknown'
+          : kind === 'Int8Value'
+            ? 'int8_unknown'
+            : kind === 'TextValue'
+              ? 'text_unknown'
+              : 'bool_unknown'
       return { name: bind(`${helper}()`), type: node.type }
     }
     if (node.kind === 'certain') {
@@ -158,6 +161,19 @@ export function emitCheckRustEvaluator(
           ),
           type: value.type,
         }
+      if (value.kind === 'integer' && value.type === 'pg_catalog.int8') {
+        if (value.value === null) return { name: bind('int8_null()'), type: value.type }
+        if (!/^-?(?:0|[1-9][0-9]*)$/u.test(value.value))
+          throw new UnsupportedCheckRustExpression(
+            `Unsupported Rust CHECK int8 literal: ${value.value}`,
+          )
+        const integer = BigInt(value.value)
+        if (integer < -9223372036854775808n || integer > 9223372036854775807n)
+          throw new UnsupportedCheckRustExpression(
+            `Unsupported Rust CHECK int8 literal: ${value.value}`,
+          )
+        return { name: bind(`make_int8_value(${integer}i64)`), type: value.type }
+      }
       if (value.kind === 'integer' && value.type === 'pg_catalog.int4') {
         if (value.value === null) return { name: bind('int4_null()'), type: value.type }
         if (!/^-?(?:0|[1-9][0-9]*)$/u.test(value.value))
@@ -180,9 +196,11 @@ export function emitCheckRustEvaluator(
       const helper =
         kind === 'Int4Value'
           ? 'int4_is_null'
-          : kind === 'TextValue'
-            ? 'text_is_null'
-            : 'bool_is_null'
+          : kind === 'Int8Value'
+            ? 'int8_is_null'
+            : kind === 'TextValue'
+              ? 'text_is_null'
+              : 'bool_is_null'
       const result = bind(`${helper}(${operand.name})`)
       return {
         name: node.negated ? bind(`bool_not_value(${result})`) : result,
@@ -246,7 +264,14 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'case') {
       if (!node.branches.length) throw new UnsupportedCheckRustExpression('Expected a CASE branch')
       const kind = rustType(node.type)
-      const prefix = kind === 'Int4Value' ? 'int4' : kind === 'TextValue' ? 'text' : 'bool'
+      const prefix =
+        kind === 'Int4Value'
+          ? 'int4'
+          : kind === 'Int8Value'
+            ? 'int8'
+            : kind === 'TextValue'
+              ? 'text'
+              : 'bool'
       const scrutinee = node.scrutinee
         ? emitScalar(node.scrutinee.expression, bindings, used)
         : null
@@ -263,7 +288,9 @@ export function emitCheckRustEvaluator(
         const branch = node.branches[position]!
         let condition = emitScalar(branch.when, lines, used)
         if (scrutinee && node.scrutinee) {
-          condition = emitCall(node.scrutinee.equality, [scrutinee, condition], lines)
+          if (!branch.equality)
+            throw new UnsupportedCheckRustExpression('Simple CASE needs equality for each WHEN')
+          condition = emitCall(branch.equality, [scrutinee, condition], lines)
         }
         if (condition.type !== 'pg_catalog.bool')
           throw new UnsupportedCheckRustExpression('CASE guard must return bool')

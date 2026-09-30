@@ -88,6 +88,7 @@ export function renderGoSchemaCheckArtifacts(
   let rustIndex = 0
   const row = go.ident('row')
   const inputHelpers = new Set<string>()
+  const rustInputAdapters = new Set<string>()
   const callInput = (helper: string, name: string): GoExpression => {
     inputHelpers.add(helper)
     return go.call(go.ident(helper), [go.selector(row, goName(name))])
@@ -184,16 +185,19 @@ export function renderGoSchemaCheckArtifacts(
       const prepared = rustGroup?.checks[rustIndex++]
       if (prepared?.kind === 'supported') {
         const arguments_ = prepared.inputs.map((item) => {
-          if (!['Int4Value', 'TextValue', 'BoolValue'].includes(item.rustType))
+          if (!['Int4Value', 'Int8Value', 'TextValue', 'BoolValue'].includes(item.rustType))
             throw new Error(`Unsupported Go Rust CHECK input: ${item.rustType}`)
           const helper =
             item.rustType === 'Int4Value'
               ? 'checkRustInt4'
-              : item.rustType === 'TextValue'
-                ? 'checkRustText'
-                : 'checkRustBool'
+              : item.rustType === 'Int8Value'
+                ? 'checkRustInt8'
+                : item.rustType === 'TextValue'
+                  ? 'checkRustText'
+                  : 'checkRustBool'
+          rustInputAdapters.add(helper)
           inputHelpers.add(
-            item.rustType === 'Int4Value'
+            item.rustType === 'Int4Value' || item.rustType === 'Int8Value'
               ? 'checkInputInteger'
               : item.rustType === 'TextValue'
                 ? 'checkInputText'
@@ -269,7 +273,22 @@ func NullCheckValue[T any]() CheckOptional[T] { return CheckOptional[T]{Set: tru
 
 ${inputSource.source}
 
-${rustGroup?.source ? goRustAdapterSource : ''}
+${
+  rustGroup?.source
+    ? goRustAdapterSource
+        .split(/(?=^func )/mu)
+        .filter((source) => {
+          const name = /^func ([a-zA-Z0-9]+)/u.exec(source)?.[1]
+          return (
+            name &&
+            (rustInputAdapters.has(name) ||
+              name === 'checkRustState' ||
+              name === 'checkRustOutcome')
+          )
+        })
+        .join('')
+    : ''
+}
 
 type CheckViolationError struct { Owner, Constraint string }
 func (e *CheckViolationError) Error() string {
@@ -347,6 +366,18 @@ const goRustAdapterSource = `func checkRustInt4[T any](field CheckOptional[T]) c
   number := value.Value.Value
   if number < -2147483648 || number > 2147483647 { return checkruntime.Int4Unknown() }
   return checkruntime.MakeInt4Value(int(number))
+}
+func checkRustInt8[T any](field CheckOptional[T]) checkruntime.Int8Value {
+  value := checkInputInteger(field)
+  if !value.Certain { return checkruntime.Int8Unknown() }
+  if value.Value.Error != "" {
+    if state, ok := checkRustState(value.Value.Error); ok {
+      return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: state}
+    }
+    return checkruntime.Int8Unknown()
+  }
+  if !value.Value.Valid { return checkruntime.Int8Null() }
+  return checkruntime.MakeInt8Value(value.Value.Value)
 }
 func checkRustText[T any](field CheckOptional[T]) checkruntime.TextValue {
   value := checkInputText(field)

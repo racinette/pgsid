@@ -36,5 +36,9 @@ change to the regex transpiler unless the regex engine itself changes.
   A wildcard tests only the variant and emits no payload access or local binding.
 - When adding syntax, first show a CHECK expression that needs it, then add a
   focused parser acceptance test and target behavior in Go and TypeScript.
+- Bigint CHECKs use `i64` payloads with explicit decimal `i64` literals and
+  signed literals through the i64 minimum. Lower them to Go `int64` and
+  TypeScript `bigint`. Widening supports `i32 as i64`; i64 arithmetic,
+  variable negation, and narrowing casts are rejected.
 - Run `bash tools/check-rust/check.sh` and the relevant codegen golden checks
   after changing parsing, lowering, file boundaries, or names.

@@ -12,6 +12,7 @@ pub mod pg_catalog {
 
     include!("operations/pg_catalog/boolean.rs");
     include!("operations/pg_catalog/integer.rs");
+    include!("operations/pg_catalog/bigint.rs");
     include!("operations/pg_catalog/text.rs");
     include!("operations/pg_catalog/regex.rs");
 }

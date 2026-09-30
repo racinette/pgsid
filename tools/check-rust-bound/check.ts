@@ -83,9 +83,7 @@ try {
   for (const expression of expressions.slice(3, 6))
     assert.equal(prepareCheckRust(expression).kind, 'supported')
   const wide = prepareCheckRust(expressions[6]!)
-  assert.equal(wide.kind, 'unsupported')
-  if (wide.kind === 'unsupported')
-    assert.match(wide.reason, /Unsupported Rust CHECK input type: pg_catalog.int8/u)
+  assert.equal(wide.kind, 'supported')
   assert.equal(prepareCheckRust(expressions[7]!).kind, 'supported')
   assert.equal(prepareCheckRust(expressions[8]!).kind, 'supported')
   expected = []
@@ -160,7 +158,7 @@ assert.deepEqual(
     'supported',
     'supported',
     'supported',
-    'unsupported',
+    'supported',
     'supported',
     'supported',
   ],

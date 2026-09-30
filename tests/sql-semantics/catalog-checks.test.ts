@@ -146,7 +146,7 @@ describe('catalog CHECK lowering', () => {
       )
       expect(go.checks).toMatch(new RegExp(`Constraint: "${name}",\\s*Result: checkRustOutcome`))
     }
-    expect(typescript.checks).toMatch(/constraint: "id_positive", result: \(\(\) =>/u)
+    expect(typescript.checks).toMatch(/constraint: "id_positive", result: checkRustOutcome/u)
 
     const directory = await mkdtemp(join(tmpdir(), 'pgsid-check-rust-production-'))
     try {
