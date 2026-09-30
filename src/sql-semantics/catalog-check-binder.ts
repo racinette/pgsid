@@ -123,9 +123,115 @@ export function bindCatalogCheck(
   } | null)[],
 ): { expression: EvalBoolExpression; inputs: readonly string[] } {
   const inputs = new Set<string>()
-  const bind = (node: unknown): Bound => {
+  const bind = (node: unknown, expectedType?: ScalarType): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
+    const caseExpression = fields(wrapper['CaseExpr'])
+    if (caseExpression) {
+      const args = caseExpression['args']
+      if (!Array.isArray(args) || !args.length) return unknown
+      const branches = args.map((item) => fields(fields(item)?.['CaseWhen']))
+      if (branches.some((branch) => !branch || !branch['expr'] || !branch['result'])) return unknown
+      const results = branches.map((branch) => bind(branch!['result']))
+      const otherwise = caseExpression['defresult']
+        ? bind(caseExpression['defresult'])
+        : ({ type: null, value: null, literal: { kind: 'null', value: null } } as Bound)
+      const arms = [...results, otherwise]
+      const typed = arms.flatMap((arm) => (arm.type ? [arm.type] : []))
+      const type =
+        expectedType ??
+        typed[0] ??
+        (arms.some((arm) => arm.literal?.kind === 'integer')
+          ? 'pg_catalog.int4'
+          : 'pg_catalog.text')
+      if (typed.some((other) => other !== type)) return unknown
+      const values = arms.map((arm) => materialize(arm, type))
+      if (type !== 'pg_catalog.bool' && values.some((value) => !value)) return unknown
+      const textArms = arms.filter((arm) => arm.type === 'pg_catalog.text')
+      const collation = textArms.some((arm) => arm.collation === 'other')
+        ? 'other'
+        : textArms.some((arm) => arm.collation === 'C')
+          ? 'C'
+          : undefined
+      const scrutinee = caseExpression['arg'] === undefined ? null : bind(caseExpression['arg'])
+      let simple: Extract<EvalExpression, { kind: 'case' }>['scrutinee']
+      let conditions: EvalExpression[]
+      if (scrutinee) {
+        const matches = branches.map((branch) => bind(branch!['expr']))
+        const compareType =
+          scrutinee.type ??
+          matches.find((match) => match.type)?.type ??
+          (scrutinee.literal?.kind === 'integer' ? 'pg_catalog.int4' : 'pg_catalog.text')
+        const value = materialize(scrutinee, compareType)
+        if (!value) return unknown
+        const resolved = matches.map((match) =>
+          candidate('operator', '=', [
+            { ...scrutinee, type: compareType, value, literal: undefined },
+            match,
+          ]),
+        )
+        if (resolved.some((match) => !match)) return unknown
+        const first = resolved[0]!
+        if (resolved.some((match) => match!.signature !== first.signature)) return unknown
+        simple = {
+          expression: value,
+          equality: {
+            kind: 'operator',
+            signature: first.signature,
+            type: 'pg_catalog.bool',
+            collation:
+              scrutinee.collation === 'C' || matches.some((match) => match.collation === 'C')
+                ? 'C'
+                : undefined,
+          },
+        }
+        conditions = resolved.map((match) => match!.operands[1]!)
+      } else {
+        conditions = branches.map((branch) => ({
+          kind: 'check',
+          type: 'pg_catalog.bool',
+          expression: lower(branch!['expr']),
+        }))
+      }
+      return {
+        type,
+        collation,
+        value: {
+          kind: 'case',
+          type,
+          ...(simple ? { scrutinee: simple } : {}),
+          branches: results.map((_, index) => ({
+            when: conditions[index]!,
+            then:
+              type === 'pg_catalog.bool'
+                ? {
+                    kind: 'check',
+                    type: 'pg_catalog.bool',
+                    expression: lower(branches[index]!['result']),
+                  }
+                : values[index]!,
+          })),
+          otherwise:
+            type === 'pg_catalog.bool'
+              ? caseExpression['defresult']
+                ? {
+                    kind: 'check',
+                    type: 'pg_catalog.bool',
+                    expression: lower(caseExpression['defresult']),
+                  }
+                : {
+                    kind: 'certain',
+                    expression: { kind: 'boolean', type: 'pg_catalog.bool', value: null },
+                  }
+              : values.at(-1)!,
+        },
+      }
+    }
+    if (fields(wrapper['BoolExpr']))
+      return {
+        type: 'pg_catalog.bool',
+        value: { kind: 'check', type: 'pg_catalog.bool', expression: lower(node) },
+      }
     const cast = fields(wrapper['TypeCast'])
     if (cast) {
       const names = strings(fields(cast['typeName'])?.['names'])
@@ -274,7 +380,7 @@ export function bindCatalogCheck(
     name: string,
     nodes: readonly unknown[],
   ): Bound => {
-    const args = nodes.map(bind)
+    const args = nodes.map((node) => bind(node))
     if (args.some((arg) => !arg.value && !arg.literal)) return unknown
     const resolved = candidate(kind, name, args)
     if (!resolved) return unknown
@@ -304,7 +410,12 @@ export function bindCatalogCheck(
     if (!wrapper) return { kind: 'uncertain' }
     const caseExpression = fields(wrapper['CaseExpr'])
     if (caseExpression) {
-      if (caseExpression['arg'] !== undefined) return { kind: 'uncertain' }
+      if (caseExpression['arg'] !== undefined) {
+        const value = bind(node, 'pg_catalog.bool')
+        return value.type === 'pg_catalog.bool' && value.value
+          ? { kind: 'eval-scalar', expression: value.value }
+          : { kind: 'uncertain' }
+      }
       const args = caseExpression['args']
       if (!Array.isArray(args) || args.length === 0) return { kind: 'uncertain' }
       const branches = args.map((item) => fields(fields(item)?.['CaseWhen']))

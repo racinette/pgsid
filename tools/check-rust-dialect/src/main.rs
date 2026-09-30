@@ -189,9 +189,8 @@ fn check_block(
                 }
                 let (pattern, mutable) = match &local.pat {
                     Pat::Ident(pattern) if pattern.mutability.is_none() => (pattern, false),
-                    Pat::Type(typed)
-                        if typed.attrs.is_empty() && type_name(&typed.ty)? == "CheckOutcome" =>
-                    {
+                    Pat::Type(typed) if typed.attrs.is_empty() => {
+                        type_name(&typed.ty)?;
                         let Pat::Ident(pattern) = &*typed.pat else {
                             return Err("mutable result must bind an identifier".into());
                         };
@@ -370,9 +369,36 @@ pub fn evaluate_check(flag: BoolValue, amount: Int4Value) -> CheckOutcome {
     }
 
     #[test]
+    fn accepts_scalar_case_result_locals() {
+        for (ty, constructor) in [
+            ("Int4Value", "int4_unknown"),
+            ("TextValue", "text_unknown"),
+            ("BoolValue", "bool_unknown"),
+        ] {
+            let source = format!(
+                r#"
+pub fn evaluate_check(flag: BoolValue, input: {ty}) -> CheckOutcome {{
+    let mut result: {ty} = {constructor}();
+    let guard = check_from_bool(flag);
+    if case_guard_takes(guard) {{
+        result = input;
+    }}
+    let null_test = scalar_is_null(result);
+    let outcome = check_from_bool(null_test);
+    outcome
+}}
+"#
+            );
+            check_source(&source).unwrap();
+            assert!(check_source(&source.replace("result = input;", "input = result;")).is_err());
+            assert!(check_source(&source.replace("let mut result", "let result")).is_err());
+        }
+    }
+
+    #[test]
     fn rejects_unsupported_mutation_and_control_flow() {
         assert!(check_source(&VALID.replace("let mut result", "let result")).is_err());
-        assert!(check_source(&VALID.replace("result: CheckOutcome", "result: BoolValue")).is_err());
+        assert!(check_source(&VALID.replace("result: CheckOutcome", "result: i32")).is_err());
         assert!(check_source(&VALID.replace(
             "result = or_finish(first, second);",
             "flag = or_finish(first, second);"

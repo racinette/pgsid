@@ -29,7 +29,8 @@ update its tests when that boundary changes.
   string literals, or boolean literals. The `int4` minimum uses
   `-2147483647 - 1`.
 - Bodies contain local bindings initialized by direct calls or bound values.
-  Mutable `CheckOutcome` locals hold results shared across branches and may be
+  Mutable `CheckOutcome`, `Int4Value`, `TextValue`, and `BoolValue` locals hold
+  results shared across branches and may be
   assigned a direct call or bound value. `if` and `else` branches may contain
   those same statements; conditions are direct calls or a direct call compared
   with `false`. The final expression is a bound result or direct call.

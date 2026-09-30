@@ -135,3 +135,30 @@ pub fn bool_not_value(value: BoolValue) -> BoolValue {
     }
     value
 }
+
+pub fn bool_from_check(value: CheckOutcome) -> BoolValue {
+    if let CheckOutcome::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == CheckOutcome::Unknown {
+        return BoolValue::Unknown;
+    }
+    if value == CheckOutcome::Null {
+        return BoolValue::Null;
+    }
+    BoolValue::Value(value == CheckOutcome::True)
+}
+
+pub fn int4_from_case_guard(value: CheckOutcome) -> Int4Value {
+    if let CheckOutcome::Error(error) = value {
+        return Int4Value::Error(error);
+    }
+    Int4Value::Unknown
+}
+
+pub fn text_from_case_guard(value: CheckOutcome) -> TextValue<'static> {
+    if let CheckOutcome::Error(error) = value {
+        return TextValue::Error(error);
+    }
+    TextValue::Unknown
+}

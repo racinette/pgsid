@@ -72,6 +72,61 @@ export function emitCheckRustEvaluator(
       bindings.push(`let ${name} = ${call};`)
       return name
     }
+    const emitCall = (
+      call: Extract<EvalExpression, { kind: 'call' }>['call'],
+      operands: readonly { name: string; type: string }[],
+      destination = bindings,
+    ): { name: string; type: string } => {
+      if ((call.kind !== 'operator' && call.kind !== 'function') || call.signature === null)
+        throw new UnsupportedCheckRustExpression('Unsupported Rust CHECK callable kind')
+      const metadata = builtinMetadata(call.signature)
+      const implementation =
+        metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+      if (
+        metadata.kind !== call.kind ||
+        implementation.kind !== 'function' ||
+        implementation.result !== call.type ||
+        !implementation.strict ||
+        implementation.volatility !== 'i' ||
+        implementation.returnsSet ||
+        implementation.args.length !== operands.length
+      )
+        throw new UnsupportedCheckRustExpression(
+          `Unsupported Rust CHECK callable: ${call.signature}`,
+        )
+      if (implementation.args.includes('pg_catalog.text') && call.collation !== 'C')
+        throw new UnsupportedCheckRustExpression(
+          `Rust CHECK text callable requires C collation: ${call.signature}`,
+        )
+      rustType(call.type)
+      if (implementation.args.some((type, index) => operands[index]?.type !== type))
+        throw new UnsupportedCheckRustExpression(
+          `Unsupported Rust CHECK callable arguments: ${call.signature}`,
+        )
+      for (const type of implementation.args) rustType(type)
+      callables.add(implementation.rustName)
+      const name = fresh('value')
+      destination.push(
+        `let ${name} = ${implementation.rustName}(${operands.map((operand) => operand.name).join(', ')});`,
+      )
+      return { name, type: call.type }
+    }
+    if (node.kind === 'check') {
+      if (node.expression.kind === 'eval-scalar')
+        return emitScalar(node.expression.expression, bindings, used)
+      if (node.expression.kind === 'certain')
+        return emitScalar(
+          { kind: 'certain', expression: node.expression.expression },
+          bindings,
+          used,
+        )
+      if (node.expression.kind === 'uncertain')
+        return { name: bind('bool_unknown()'), type: 'pg_catalog.bool' }
+      const outcome = emit(node.expression)
+      bindings.push(...outcome.lines)
+      for (const input of outcome.inputs) used.add(input)
+      return { name: bind(`bool_from_check(${outcome.name})`), type: 'pg_catalog.bool' }
+    }
     if (node.kind === 'input') {
       const item = input(node.name, node.type)
       used.add(item.name)
@@ -134,43 +189,65 @@ export function emitCheckRustEvaluator(
         type: 'pg_catalog.bool',
       }
     }
-    if (node.kind === 'call') {
-      const call = node.call
-      if ((call.kind !== 'operator' && call.kind !== 'function') || call.signature === null)
-        throw new UnsupportedCheckRustExpression('Unsupported Rust CHECK callable kind')
-      const metadata = builtinMetadata(call.signature)
-      const implementation =
-        metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
-      if (
-        metadata.kind !== call.kind ||
-        implementation.kind !== 'function' ||
-        implementation.result !== call.type ||
-        !implementation.strict ||
-        implementation.volatility !== 'i' ||
-        implementation.returnsSet ||
-        implementation.args.length !== node.operands.length
+    if (node.kind === 'call')
+      return emitCall(
+        node.call,
+        node.operands.map((operand) => emitScalar(operand, bindings, used)),
       )
-        throw new UnsupportedCheckRustExpression(
-          `Unsupported Rust CHECK callable: ${call.signature}`,
-        )
-      if (implementation.args.includes('pg_catalog.text') && call.collation !== 'C')
-        throw new UnsupportedCheckRustExpression(
-          `Rust CHECK text callable requires C collation: ${call.signature}`,
-        )
-      rustType(call.type)
-      const operands = node.operands.map((operand) => emitScalar(operand, bindings, used))
-      if (implementation.args.some((type, index) => operands[index]?.type !== type))
-        throw new UnsupportedCheckRustExpression(
-          `Unsupported Rust CHECK callable arguments: ${call.signature}`,
-        )
-      for (const type of implementation.args) rustType(type)
-      callables.add(implementation.rustName)
-      return {
-        name: bind(
-          `${implementation.rustName}(${operands.map((operand) => operand.name).join(', ')})`,
-        ),
-        type: call.type,
+    if (node.kind === 'boolean-logic') {
+      const outcome = emit({
+        kind: 'eval-boolean-logic',
+        operation: node.operation,
+        operands: node.operands.map((expression) => ({ kind: 'eval-scalar', expression })),
+      })
+      bindings.push(...outcome.lines)
+      for (const input of outcome.inputs) used.add(input)
+      return { name: bind(`bool_from_check(${outcome.name})`), type: node.type }
+    }
+    if (node.kind === 'case') {
+      if (!node.branches.length) throw new UnsupportedCheckRustExpression('Expected a CASE branch')
+      const kind = rustType(node.type)
+      const prefix = kind === 'Int4Value' ? 'int4' : kind === 'TextValue' ? 'text' : 'bool'
+      const scrutinee = node.scrutinee
+        ? emitScalar(node.scrutinee.expression, bindings, used)
+        : null
+      const name = fresh('case_result')
+      bindings.push(`let mut ${name}: ${kind} = ${prefix}_unknown();`)
+      const branchLines = (position: number): string[] => {
+        const lines: string[] = []
+        if (position === node.branches.length) {
+          const otherwise = emitScalar(node.otherwise, lines, used)
+          if (otherwise.type !== node.type)
+            throw new UnsupportedCheckRustExpression('CASE result type mismatch')
+          return [...lines, `${name} = ${otherwise.name};`]
+        }
+        const branch = node.branches[position]!
+        let condition = emitScalar(branch.when, lines, used)
+        if (scrutinee && node.scrutinee) {
+          condition = emitCall(node.scrutinee.equality, [scrutinee, condition], lines)
+        }
+        if (condition.type !== 'pg_catalog.bool')
+          throw new UnsupportedCheckRustExpression('CASE guard must return bool')
+        const guard = fresh('case_guard')
+        lines.push(`let ${guard} = check_from_bool(${condition.name});`)
+        const selectedLines: string[] = []
+        const selected = emitScalar(branch.then, selectedLines, used)
+        if (selected.type !== node.type)
+          throw new UnsupportedCheckRustExpression('CASE result type mismatch')
+        return [
+          ...lines,
+          `if case_guard_stops(${guard}) {`,
+          `    ${name} = ${prefix === 'bool' ? 'bool_from_check' : `${prefix}_from_case_guard`}(${guard});`,
+          `} else if case_guard_takes(${guard}) {`,
+          ...indent(selectedLines),
+          `    ${name} = ${selected.name};`,
+          '} else {',
+          ...indent(branchLines(position + 1)),
+          '};',
+        ]
       }
+      bindings.push(...branchLines(0))
+      return { name, type: node.type }
     }
     throw new UnsupportedCheckRustExpression(`Unsupported Rust CHECK scalar: ${node.kind}`)
   }
@@ -234,7 +311,7 @@ export function emitCheckRustEvaluator(
           `    ${name} = ${selected.name};`,
           '} else {',
           ...indent(branchLines(position + 1)),
-          '}',
+          '};',
         ]
       }
       return {
