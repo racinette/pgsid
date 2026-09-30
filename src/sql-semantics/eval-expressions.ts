@@ -21,6 +21,14 @@ export type EvalExpression =
       operation: 'and' | 'or' | 'not'
       operands: readonly EvalExpression[]
     }
+  | {
+      kind: 'membership'
+      type: 'pg_catalog.bool'
+      subject: EvalExpression
+      groups: readonly (readonly EvalExpression[])[]
+      comparison: SqlCallableExpression
+      operation: 'and' | 'or'
+    }
   | { kind: 'null-test'; type: 'pg_catalog.bool'; negated: boolean; operand: EvalExpression }
   | { kind: 'coalesce'; type: ScalarType; operands: readonly EvalExpression[] }
   | {
@@ -80,6 +88,13 @@ export interface EvalExpressionBackend<Ast> {
     type: string,
     operand: EmittedEvalExpression<Ast>,
     body: (bound: EmittedEvalExpression<Ast>) => EmittedEvalExpression<Ast>,
+    name?: string,
+  ) => { expression: Ast; helpers: readonly string[] }
+  bindList: (
+    type: string,
+    operands: readonly EmittedEvalExpression<Ast>[],
+    names: readonly string[],
+    body: (bound: readonly EmittedEvalExpression<Ast>[]) => EmittedEvalExpression<Ast>,
   ) => { expression: Ast; helpers: readonly string[] }
   regexCount: (
     operands: readonly EmittedEvalExpression<Ast>[],
@@ -94,6 +109,7 @@ export function emitEvalExpression<Ast>(
   backend: EvalExpressionBackend<Ast>,
   emitBoolean?: (expression: EvalBoolExpression) => Ast,
 ): { value: TypedSqlExpression<Ast>; helpers: readonly string[] } {
+  let nextBinding = 0
   const helpers = new Set<string>()
   const include = (names: readonly string[]): void => {
     for (const name of names) helpers.add(name)
@@ -154,6 +170,39 @@ export function emitEvalExpression<Ast>(
         return { type: node.type, expression: result.expression, effect: 'total' }
       }
       const result = backend.logic(node.operation, operands)
+      include(result.helpers)
+      return { type: node.type, expression: result.expression, effect: 'partial' }
+    }
+    if (node.kind === 'membership') {
+      if (!node.groups.length || node.groups.some((group) => !group.length))
+        throw new Error('Invalid membership expression')
+      const combine = (
+        operands: readonly EmittedEvalExpression<Ast>[],
+      ): EmittedEvalExpression<Ast> =>
+        operands.slice(1).reduce((left, right) => {
+          const result = backend.logic(node.operation, [left, right])
+          include(result.helpers)
+          return { type: node.type, expression: result.expression, effect: 'partial' }
+        }, operands[0]!)
+      const result = backend.bind(
+        node.type,
+        emit(node.subject),
+        (subject) =>
+          combine(
+            node.groups.map((group) => {
+              const result = backend.bindList(
+                node.type,
+                group.map(emit),
+                group.map(() => `membership_member_${nextBinding++}`),
+                (members) =>
+                  combine(members.map((member) => emitCall(node.comparison, [subject, member]))),
+              )
+              include(result.helpers)
+              return { type: node.type, expression: result.expression, effect: 'partial' }
+            }),
+          ),
+        `membership_subject_${nextBinding++}`,
+      )
       include(result.helpers)
       return { type: node.type, expression: result.expression, effect: 'partial' }
     }

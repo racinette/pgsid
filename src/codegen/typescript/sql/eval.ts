@@ -203,8 +203,8 @@ export const typescriptEvalBackend: EvalExpressionBackend<ts.Expression> = {
         : []),
     ],
   }),
-  bind: (_type, operand, body) => {
-    const result = body({ ...operand, effect: 'partial', expression: identifier('scrutinee') })
+  bind: (_type, operand, body, name = 'scrutinee') => {
+    const result = body({ ...operand, effect: 'partial', expression: identifier(name) })
     return {
       expression: factory.createCallExpression(
         factory.createParenthesizedExpression(
@@ -215,7 +215,7 @@ export const typescriptEvalBackend: EvalExpressionBackend<ts.Expression> = {
               factory.createParameterDeclaration(
                 undefined,
                 undefined,
-                'scrutinee',
+                name,
                 undefined,
                 factory.createTypeReferenceNode('EvalValue', [sqlValueType(operand.type).type]),
                 undefined,
@@ -233,6 +233,47 @@ export const typescriptEvalBackend: EvalExpressionBackend<ts.Expression> = {
         'EvalValue',
         ...sqlValueType(operand.type).helpers,
         ...(operand.effect === 'total' || result.effect === 'total' ? ['evalValueCertain'] : []),
+      ],
+    }
+  },
+  bindList: (_type, operands, names, body) => {
+    const result = body(
+      operands.map((operand, index) => ({
+        ...operand,
+        effect: 'partial',
+        expression: identifier(names[index]!),
+      })),
+    )
+    return {
+      expression: factory.createCallExpression(
+        factory.createParenthesizedExpression(
+          factory.createArrowFunction(
+            undefined,
+            undefined,
+            operands.map((operand, index) =>
+              factory.createParameterDeclaration(
+                undefined,
+                undefined,
+                names[index]!,
+                undefined,
+                factory.createTypeReferenceNode('EvalValue', [sqlValueType(operand.type).type]),
+                undefined,
+              ),
+            ),
+            undefined,
+            factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+            lifted(result),
+          ),
+        ),
+        undefined,
+        operands.map(lifted),
+      ),
+      helpers: [
+        'EvalValue',
+        ...operands.flatMap((operand) => sqlValueType(operand.type).helpers),
+        ...(operands.some((operand) => operand.effect === 'total') || result.effect === 'total'
+          ? ['evalValueCertain']
+          : []),
       ],
     }
   },

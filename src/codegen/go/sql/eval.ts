@@ -188,15 +188,27 @@ export const goEvalBackend: EvalExpressionBackend<GoExpression> = {
       helpers: ['EvalValue', 'SqlBoolean', sqlValueType(type)],
     }
   },
-  bind: (type, operand, body) => {
-    const result = body({ ...operand, expression: go.ident('scrutinee') })
+  bind: (type, operand, body, name = 'scrutinee') => {
+    const result = body({ ...operand, expression: go.ident(name) })
     return {
       expression: iife(type, [
-        go.assign([go.ident('scrutinee')], [operand.expression]),
+        go.assign([go.ident(name)], [operand.expression]),
+        errorGuard(type, name, operand),
         go.return(lifted(result)),
       ]),
       helpers: ['EvalValue', sqlValueType(type)],
     }
+  },
+  bindList: (type, operands, names, body) => {
+    const result = body(
+      operands.map((operand, index) => ({ ...operand, expression: go.ident(names[index]!) })),
+    )
+    const statements = operands.map((operand, index) =>
+      go.assign([go.ident(names[index]!)], [operand.expression]),
+    )
+    statements.push(...operands.map((operand, index) => errorGuard(type, names[index]!, operand)))
+    statements.push(go.return(lifted(result)))
+    return { expression: iife(type, statements), helpers: ['EvalValue', sqlValueType(type)] }
   },
   regexCount: (operands, pattern, flags) => {
     void pattern

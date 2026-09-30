@@ -204,6 +204,45 @@ export function emitCheckRustEvaluator(
       for (const input of outcome.inputs) used.add(input)
       return { name: bind(`bool_from_check(${outcome.name})`), type: node.type }
     }
+    if (node.kind === 'membership') {
+      if (!node.groups.length || node.groups.some((group) => !group.length))
+        throw new UnsupportedCheckRustExpression('Expected a membership list')
+      const subject = emitScalar(node.subject, bindings, used)
+      const finish = node.operation === 'or' ? 'or_finish' : 'and_finish'
+      const stop = node.operation === 'or' ? 'or_stops' : 'and_stops'
+      const emitGroup = (group: readonly EvalExpression[], lines: string[]): string => {
+        const members = group.map((member) => emitScalar(member, lines, used))
+        let result: string | null = null
+        for (const member of members) {
+          const comparison = emitCall(node.comparison, [subject, member], lines)
+          const outcome = fresh('membership_comparison')
+          lines.push(`let ${outcome} = check_from_bool(${comparison.name});`)
+          if (result === null) result = outcome
+          else {
+            const combined = fresh('membership_group')
+            lines.push(`let ${combined} = ${finish}(${result}, ${outcome});`)
+            result = combined
+          }
+        }
+        return result!
+      }
+      const first = emitGroup(node.groups[0]!, bindings)
+      if (node.groups.length === 1)
+        return { name: bind(`bool_from_check(${first})`), type: node.type }
+      const name = fresh('membership_result')
+      bindings.push(`let mut ${name}: CheckOutcome = ${first};`)
+      for (const group of node.groups.slice(1)) {
+        const lines: string[] = []
+        const selected = emitGroup(group, lines)
+        bindings.push(
+          `if ${stop}(${name}) == false {`,
+          ...indent(lines),
+          `    ${name} = ${finish}(${name}, ${selected});`,
+          '}',
+        )
+      }
+      return { name: bind(`bool_from_check(${name})`), type: node.type }
+    }
     if (node.kind === 'case') {
       if (!node.branches.length) throw new UnsupportedCheckRustExpression('Expected a CASE branch')
       const kind = rustType(node.type)
