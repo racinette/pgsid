@@ -14,7 +14,11 @@ export interface CatalogCheckGroup {
   name: string
   kind: 'table' | 'domain'
   source: { schema: string; name: string }
-  checks: readonly { owner: string; plan: CatalogCheckPlan }[]
+  checks: readonly {
+    owner: string
+    source: { schema: string; name: string }
+    plan: CatalogCheckPlan
+  }[]
 }
 
 type Fields = Record<string, unknown>
@@ -197,7 +201,15 @@ export function catalogCheckGroups(
       .filter((constraint) => constraint.type === 'check' && constraint.enforced)
       .flatMap((constraint) => {
         const plan = lowerTableCheck(table, constraint)
-        return plan ? [{ owner: `${table.schema}.${table.name}`, plan }] : []
+        return plan
+          ? [
+              {
+                owner: `${table.schema}.${table.name}`,
+                source: { schema: table.schema, name: table.name },
+                plan,
+              },
+            ]
+          : []
       })
     if (checks.length)
       groups.push({
@@ -224,7 +236,15 @@ export function catalogCheckGroups(
           { ...layer, baseTypeName, collationIsC: domain.collationIsC },
           check,
         )
-        return plan ? [{ owner: `${layer.schema}.${layer.name}`, plan }] : []
+        return plan
+          ? [
+              {
+                owner: `${layer.schema}.${layer.name}`,
+                source: { schema: layer.schema, name: layer.name },
+                plan,
+              },
+            ]
+          : []
       }),
     )
     if (checks.length)

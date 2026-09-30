@@ -801,6 +801,21 @@ mod tests {
     }
 
     #[test]
+    fn copy_enum_bindings_can_be_reassigned() {
+        let function = "pub fn f(value: Mode) -> Mode { let mut selected = value; selected = Mode::Stop; selected }";
+        assert!(parse(&format!(
+            "#[derive(Clone, Copy)] enum Mode {{ Run, Stop }} {function}"
+        ))
+        .is_ok());
+        assert!(parse(&format!("enum Mode {{ Run, Stop }} {function}")).is_err());
+        assert!(parse(&format!(
+            "#[derive(Clone, Copy)] enum Mode {{ Run, Stop }} {}",
+            function.replace("let mut selected", "let selected")
+        ))
+        .is_err());
+    }
+
+    #[test]
     fn state_operations_require_mutable_index_vectors() {
         for source in [
             "pub fn f() -> usize { let positions: Vec<usize> = Vec::new(); positions.push(1); positions.len() }",

@@ -18,25 +18,26 @@ update its tests when that boundary changes.
   checks types, call signatures, and references after the fragment is combined
   with its operations. Passing the checker alone does not establish parity.
 
-## Initial language
+## Generated language
 
-- Emit functions with explicit `CheckOutcome` returns. A single evaluator
-  exports `evaluate_check`; a group may export numbered `evaluate_check_*`
-  entries. Helper functions are private `check_part_*` or numbered
-  `check_*_part_*` functions.
+- Emit one function with an explicit `CheckOutcome` return per constraint. A
+  standalone expression exports `evaluate_check`; catalog entries derive their
+  names from schema, table/domain, constraint, and a short identity hash.
+  Inherited domain entries also identify the declaring domain. Keep expression parts inside that function.
 - Parameters are immutable named values of `Int4Value`, `TextValue`, or
   `BoolValue`. Calls take bound identifiers, in-range signed `int4` literals,
   string literals, or boolean literals. The `int4` minimum uses
   `-2147483647 - 1`.
-- Bodies contain immutable `let` bindings initialized by direct calls,
-  optional `if` statements whose condition is a direct call and whose body
-  returns one bound value or a direct call, and a final direct call as the tail
-  expression.
+- Bodies contain local bindings initialized by direct calls or bound values.
+  Mutable `CheckOutcome` locals hold results shared across branches and may be
+  assigned a direct call or bound value. `if` and `else` branches may contain
+  those same statements; conditions are direct calls or a direct call compared
+  with `false`. The final expression is a bound result or direct call.
 - Keep evaluation order visible in statements. A deciding boolean result must
-  return before code for the unselected operand runs.
-- Do not add syntax for convenience. Mutation, loops, generics, methods,
-  nested calls, closures, and extra declarations require a concrete CHECK
-  expression that cannot be emitted with the accepted forms.
+  skip code for the unselected operand.
+- Do not add syntax for convenience. Loops, generics, methods, nested calls,
+  closures, and extra declarations require a concrete CHECK expression that
+  cannot be emitted with the accepted forms.
 
 ## Growing the boundary
 
@@ -47,6 +48,6 @@ update its tests when that boundary changes.
 - Compile the assembled Rust source. Generate both targets and exercise the
   same values, NULL, unknown, errors, and lazy branches in each target.
   Compare supported SQL behavior with PostgreSQL or PGlite fixtures.
-- Run `bash tools/check-rust-spike/check.sh` from the repository root while
-  this spike is the consumer. Follow the downstream transpiler's own rules
-  and verification gates when changing its accepted syntax or lowering.
+- Run `bash tools/check-rust/check.sh` from the repository root. Follow the
+  downstream transpiler's own rules and verification gates when changing its
+  accepted syntax or lowering.

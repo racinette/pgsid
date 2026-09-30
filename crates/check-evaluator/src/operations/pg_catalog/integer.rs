@@ -1,4 +1,4 @@
-fn sql__pg_catalog__int4gt__5vlv(left: Int4Value, right: Int4Value) -> BoolValue {
+pub fn sql__pg_catalog__int4gt__5vlv(left: Int4Value, right: Int4Value) -> BoolValue {
     if let Int4Value::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -19,7 +19,7 @@ fn sql__pg_catalog__int4gt__5vlv(left: Int4Value, right: Int4Value) -> BoolValue
     BoolValue::Unknown
 }
 
-fn sql__pg_catalog__int4eq__lrxe(left: Int4Value, right: Int4Value) -> BoolValue {
+pub fn sql__pg_catalog__int4eq__lrxe(left: Int4Value, right: Int4Value) -> BoolValue {
     if let Int4Value::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -40,7 +40,7 @@ fn sql__pg_catalog__int4eq__lrxe(left: Int4Value, right: Int4Value) -> BoolValue
     BoolValue::Unknown
 }
 
-fn sql__pg_catalog__int4ge__2xvk(left: Int4Value, right: Int4Value) -> BoolValue {
+pub fn sql__pg_catalog__int4ge__2xvk(left: Int4Value, right: Int4Value) -> BoolValue {
     if let Int4Value::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -61,7 +61,7 @@ fn sql__pg_catalog__int4ge__2xvk(left: Int4Value, right: Int4Value) -> BoolValue
     BoolValue::Unknown
 }
 
-fn sql__pg_catalog__int4le__9wb6(left: Int4Value, right: Int4Value) -> BoolValue {
+pub fn sql__pg_catalog__int4le__9wb6(left: Int4Value, right: Int4Value) -> BoolValue {
     if let Int4Value::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -82,7 +82,7 @@ fn sql__pg_catalog__int4le__9wb6(left: Int4Value, right: Int4Value) -> BoolValue
     BoolValue::Unknown
 }
 
-fn sql__pg_catalog__int4lt__9gej(left: Int4Value, right: Int4Value) -> BoolValue {
+pub fn sql__pg_catalog__int4lt__9gej(left: Int4Value, right: Int4Value) -> BoolValue {
     if let Int4Value::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -103,7 +103,7 @@ fn sql__pg_catalog__int4lt__9gej(left: Int4Value, right: Int4Value) -> BoolValue
     BoolValue::Unknown
 }
 
-fn sql__pg_catalog__int4ne__qhun(left: Int4Value, right: Int4Value) -> BoolValue {
+pub fn sql__pg_catalog__int4ne__qhun(left: Int4Value, right: Int4Value) -> BoolValue {
     if let Int4Value::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -126,7 +126,7 @@ fn sql__pg_catalog__int4ne__qhun(left: Int4Value, right: Int4Value) -> BoolValue
 
 const SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE: u32 = 3452547;
 
-fn sql__pg_catalog__int4pl__sj3s(left: Int4Value, right: Int4Value) -> Int4Value {
+pub fn sql__pg_catalog__int4pl__sj3s(left: Int4Value, right: Int4Value) -> Int4Value {
     if let Int4Value::Error(error) = left {
         return Int4Value::Error(error);
     }
@@ -154,7 +154,7 @@ fn sql__pg_catalog__int4pl__sj3s(left: Int4Value, right: Int4Value) -> Int4Value
     Int4Value::Unknown
 }
 
-fn sql__pg_catalog__int4mi__dtqk(left: Int4Value, right: Int4Value) -> Int4Value {
+pub fn sql__pg_catalog__int4mi__dtqk(left: Int4Value, right: Int4Value) -> Int4Value {
     if let Int4Value::Error(error) = left {
         return Int4Value::Error(error);
     }

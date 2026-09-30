@@ -161,4 +161,8 @@ func TestCompositeLiteralsInConditions(t *testing.T) {
 	if ConditionLiterals(ConditionMode{Kind: ConditionModeRun}) != 1 || ConditionLiterals(ConditionMode{Kind: ConditionModeStop}) != 0 {
 		t.Fatal("enum literal comparison changed branch or loop behavior")
 	}
+	if SelectConditionMode(ConditionMode{Kind: ConditionModeRun}, true).Kind != ConditionModeStop ||
+		SelectConditionMode(ConditionMode{Kind: ConditionModeRun}, false).Kind != ConditionModeRun {
+		t.Fatal("Copy enum assignment changed branch behavior")
+	}
 }

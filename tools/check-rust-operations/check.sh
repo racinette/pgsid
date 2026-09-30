@@ -11,9 +11,8 @@ rustc --edition 2021 --crate-name check_operations --crate-type lib "$artifact_d
 rustc --edition 2021 --test "$artifact_dir/rust_test.rs" --extern check_operations="$artifact_dir/libcheck_operations.rlib" -o "$artifact_dir/rust-test"
 "$artifact_dir/rust-test"
 
-cargo run --quiet --locked --manifest-path tools/regex-transpiler/Cargo.toml -- --ast "$artifact_dir/operations.rs" "$artifact_dir/operations.ast.json"
-node --import tsx tools/regex-transpiler/typescript/transpile.ts "$artifact_dir/operations.ast.json" "$artifact_dir/operations.ts"
-GOCACHE=/tmp/pgsid-check-rust-go-cache go -C tools/regex-transpiler/go run ./cmd/transpile "$artifact_dir/operations.ast.json" "$artifact_dir/go/operations.go"
+cargo run --quiet --locked --manifest-path tools/check-transpiler/Cargo.toml -- --ast "$artifact_dir/operations.sources.json" "$artifact_dir/operations.ast.json"
+node --import tsx tools/check-transpiler/typescript/transpile-file.ts "$artifact_dir/operations.sources.json" "$artifact_dir/operations.ts" "$artifact_dir/go/operations.go"
 
 node_modules/.bin/tsc --strict --noEmit --target es2022 --module esnext --skipLibCheck "$artifact_dir/operations.ts"
 node --import tsx tools/check-rust-operations/check.ts "$artifact_dir/operations.ts" "$artifact_dir/fixtures.json"

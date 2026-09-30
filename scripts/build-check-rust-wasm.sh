@@ -11,20 +11,30 @@ if [[ ! -d "$wasm_lib_dir" ]]; then
   exit 1
 fi
 
-cargo build --locked --manifest-path "$repo_dir/tools/regex-transpiler/Cargo.toml" \
+cargo build --locked --manifest-path "$repo_dir/tools/check-transpiler/Cargo.toml" \
   --target wasm32-unknown-unknown --lib --release --target-dir "$target_dir"
-cp "$target_dir/wasm32-unknown-unknown/release/pgsid_regex_transpiler.wasm" \
+cp "$target_dir/wasm32-unknown-unknown/release/pgsid_check_transpiler.wasm" \
   "$asset_dir/check-rust-parser.wasm"
 bash "$repo_dir/scripts/build-tinygo-wasm.sh" \
-  "$repo_dir/tools/regex-transpiler/go/wasm" "$asset_dir/check-go-transpiler.wasm"
-cat \
-  "$repo_dir/crates/check-evaluator/src/values.rs" \
-  "$repo_dir/crates/check-evaluator/src/operations/boolean.rs" \
-  "$repo_dir/crates/check-evaluator/src/operations/integer.rs" \
-  "$repo_dir/crates/check-evaluator/src/operations/text.rs" \
-  "$repo_dir/crates/check-evaluator/src/logic.rs" \
-  > "$asset_dir/check-rust-integer.rs"
-cat \
-  "$repo_dir/crates/regex-engine/src/lib.rs" \
-  "$repo_dir/crates/check-evaluator/src/operations/regex.rs" \
-  > "$asset_dir/check-rust-regex.rs"
+  "$repo_dir/tools/check-transpiler/go/wasm" "$asset_dir/check-go-transpiler.wasm"
+node --input-type=module - "$repo_dir" "$asset_dir" <<'JS'
+import { readFileSync, readdirSync, writeFileSync } from 'node:fs'
+const [repo, assets] = process.argv.slice(2)
+const read = path => ({ path, source: readFileSync(`${repo}/${path}`, 'utf8') })
+const schema = 'crates/check-evaluator/src/operations/pg_catalog'
+const files = readdirSync(`${repo}/${schema}`).filter(name => name.endsWith('.rs')).sort()
+writeFileSync(`${assets}/check-rust-sources.json`, JSON.stringify({
+  schemaVersion: 1,
+  modules: [
+    { name: 'regex_engine', dependencies: [], files: [read('crates/regex-engine/src/lib.rs')] },
+    { name: 'checkruntime', dependencies: [], files: [
+      read('crates/check-evaluator/src/values.rs'),
+      read('crates/check-evaluator/src/logic.rs'),
+    ] },
+    { name: 'pg_catalog', dependencies: ['checkruntime', 'regex_engine'], files: files.map(name => read(`${schema}/${name}`)) },
+  ],
+}, null, 2) + '\n')
+JS
+rm -f "$asset_dir/check-rust-integer.rs" "$asset_dir/check-rust-regex.rs" "$asset_dir/check-rust-regex-operation.rs"
+cp "$repo_dir/tools/check-transpiler/typescript/runtime-prelude.ts" \
+  "$asset_dir/check-ts-prelude.ts"

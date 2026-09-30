@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { transpileCheckRust } from '../../src/codegen/shared/check-rust-transpile.js'
+import {
+  transpileCheckRust,
+  transpileCheckRustFiles,
+} from '../../src/codegen/shared/check-rust-transpile.js'
 import { assembleCheckRust } from '../../src/codegen/shared/check-rust-source.js'
 import { emitCheckRustEvaluator } from '../../src/codegen/shared/check-rust-evaluator.js'
 
 const artifact = new URL('../../artifacts/check-rust-spike/', import.meta.url)
-const generated = transpileCheckRust(readFileSync(new URL('check.rs', artifact), 'utf8'))
+const generated = transpileCheckRust(readFileSync(new URL('check.sources.json', artifact), 'utf8'))
 assert.equal(generated.typescript, readFileSync(new URL('check.ts', artifact), 'utf8'))
 assert.equal(generated.go, readFileSync(new URL('go/check.go', artifact), 'utf8'))
 
@@ -27,3 +30,8 @@ const evaluator = emitCheckRustEvaluator({
 const standalone = transpileCheckRust(assembleCheckRust(evaluator))
 assert.match(standalone.typescript, /function evaluateCheck\(/u)
 assert.match(standalone.go, /func EvaluateCheck\(/u)
+const standaloneFiles = transpileCheckRustFiles(assembleCheckRust(evaluator))
+assert.equal(standaloneFiles.typescript.regex, '')
+assert.equal(standaloneFiles.go.regex, '')
+assert.match(standaloneFiles.typescript.checks, /function evaluateCheck\(/u)
+assert.match(standaloneFiles.go.checks, /func EvaluateCheck\(/u)

@@ -4,7 +4,7 @@ import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
 import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
 import { prepareCheckRustGroup } from '../../shared/check-rust-source.js'
-import { transpileCheckRust } from '../../shared/check-rust-transpile.js'
+import { transpileCheckRustFiles } from '../../shared/check-rust-transpile.js'
 import { go, printGoFile, type GoExpression } from '../ast.js'
 import { normalizeGoImports } from '../imports.js'
 import { goName } from '../names.js'
@@ -54,13 +54,32 @@ export function renderGoSchemaCheckArtifacts(
   context?: GoTypeContext,
   rustImportPath?: string,
   rust = true,
-): { checks: string; rust: string | null } {
+): {
+  checks: string
+  rust: string | null
+  rustFiles: {
+    regex: string
+    operations: string
+    runtime: string
+    language: string
+    checks: string
+  } | null
+} {
   const groups = catalogCheckGroups(tables, domains, selectedDomains)
-  if (!groups.length) return { checks: '', rust: null }
+  if (!groups.length) return { checks: '', rust: null, rustFiles: null }
   const rustGroup = rust
     ? prepareCheckRustGroup(
         groups.flatMap((group) =>
-          group.checks.map(({ plan }) => portableCheckAtoms(plan.expression)),
+          group.checks.map(({ plan, source }) => ({
+            expression: portableCheckAtoms(plan.expression),
+            identity: {
+              schema: group.source.schema,
+              kind: group.kind,
+              owner: group.source.name,
+              constraint: plan.name,
+              declaredOn: { schema: source.schema, owner: source.name },
+            },
+          })),
         ),
       )
     : null
@@ -222,6 +241,16 @@ export function renderGoSchemaCheckArtifacts(
   const resultType = go.ident('CheckEvaluation')
   const inputSource = goCheckInputSource(inputHelpers)
   if (inputSource.reflect) imports.push({ path: 'reflect' })
+  const rustFiles = rustGroup?.source
+    ? (Object.fromEntries(
+        Object.entries(
+          transpileCheckRustFiles(rustGroup.source, `${rustImportPath}/checkrust/pg_catalog`).go,
+        ).map(([name, source]) => [
+          name,
+          name === 'checks' ? source.replace(/^package generated\b/u, 'package checkrust') : source,
+        ]),
+      ) as { regex: string; operations: string; runtime: string; language: string; checks: string })
+    : null
   return {
     checks: printGoFile({
       package: packageName,
@@ -229,6 +258,9 @@ export function renderGoSchemaCheckArtifacts(
         ...imports,
         ...(rustGroup?.source ? [{ path: 'strconv' }, { path: 'strings' }] : []),
         ...(rustGroup?.source ? [{ path: `${rustImportPath}/checkrust`, as: 'checkrust' }] : []),
+        ...(rustGroup?.source
+          ? [{ path: `${rustImportPath}/checkrust/checkruntime`, as: 'checkruntime' }]
+          : []),
       ]),
       source: `${goSqlRuntime([...inputSource.runtime, ...emitted.flatMap((group) => group.results.flatMap((result) => result.helpers))], packageName)}
 type CheckOptional[T any] struct { V T; Set bool; Null bool }
@@ -297,66 +329,62 @@ func ValidateCheckInputs[T any](input T, evaluate func(T) []CheckEvaluation) err
         ),
       ],
     }),
-    rust: rustGroup?.source
-      ? transpileCheckRust(rustGroup.source).go.replace(
-          /^package generated\b/u,
-          'package checkrust',
-        )
-      : null,
+    rust: rustFiles?.checks ?? null,
+    rustFiles,
   }
 }
 
-const goRustAdapterSource = `func checkRustInt4[T any](field CheckOptional[T]) checkrust.Int4Value {
+const goRustAdapterSource = `func checkRustInt4[T any](field CheckOptional[T]) checkruntime.Int4Value {
   value := checkInputInteger(field)
-  if !value.Certain { return checkrust.Int4Unknown() }
+  if !value.Certain { return checkruntime.Int4Unknown() }
   if value.Value.Error != "" {
     if state, ok := checkRustState(value.Value.Error); ok {
-      return checkrust.Int4Value{Kind: checkrust.Int4ValueError, Error: state}
+      return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: state}
     }
-    return checkrust.Int4Unknown()
+    return checkruntime.Int4Unknown()
   }
-  if !value.Value.Valid { return checkrust.Int4Null() }
+  if !value.Value.Valid { return checkruntime.Int4Null() }
   number := value.Value.Value
-  if number < -2147483648 || number > 2147483647 { return checkrust.Int4Unknown() }
-  return checkrust.MakeInt4Value(int(number))
+  if number < -2147483648 || number > 2147483647 { return checkruntime.Int4Unknown() }
+  return checkruntime.MakeInt4Value(int(number))
 }
-func checkRustText[T any](field CheckOptional[T]) checkrust.TextValue {
+func checkRustText[T any](field CheckOptional[T]) checkruntime.TextValue {
   value := checkInputText(field)
-  if !value.Certain { return checkrust.TextUnknown() }
+  if !value.Certain { return checkruntime.TextUnknown() }
   if value.Value.Error != "" {
     if state, ok := checkRustState(value.Value.Error); ok {
-      return checkrust.TextValue{Kind: checkrust.TextValueError, Error: state}
+      return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: state}
     }
-    return checkrust.TextUnknown()
+    return checkruntime.TextUnknown()
   }
-  if !value.Value.Valid { return checkrust.TextNull() }
-  return checkrust.MakeTextValue(value.Value.Value)
+  if !value.Value.Valid { return checkruntime.TextNull() }
+  return checkruntime.MakeTextValue(value.Value.Value)
 }
-func checkRustBool[T any](field CheckOptional[T]) checkrust.BoolValue {
+func checkRustBool[T any](field CheckOptional[T]) checkruntime.BoolValue {
   value := checkInputBoolean(field)
-  if !value.Certain { return checkrust.BoolUnknown() }
+  if !value.Certain { return checkruntime.BoolUnknown() }
   if value.Value.Error != "" {
     if state, ok := checkRustState(value.Value.Error); ok {
-      return checkrust.BoolValue{Kind: checkrust.BoolValueError, Error: state}
+      return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: state}
     }
-    return checkrust.BoolUnknown()
+    return checkruntime.BoolUnknown()
   }
-  if !value.Value.Valid { return checkrust.BoolNull() }
-  return checkrust.MakeBoolValue(value.Value.Value)
+  if !value.Value.Valid { return checkruntime.BoolNull() }
+  return checkruntime.MakeBoolValue(value.Value.Value)
 }
-func checkRustState(value string) (checkrust.SqlError, bool) {
-  if len(value) != 5 { return checkrust.SqlError{}, false }
+func checkRustState(value string) (checkruntime.SqlError, bool) {
+  if len(value) != 5 { return checkruntime.SqlError{}, false }
   state, error := strconv.ParseUint(value, 36, 32)
-  if error != nil { return checkrust.SqlError{}, false }
-  return checkrust.MakeSqlError(int(state)), true
+  if error != nil { return checkruntime.SqlError{}, false }
+  return checkruntime.MakeSqlError(int(state)), true
 }
-func checkRustOutcome(value checkrust.CheckOutcome) EvalBool {
+func checkRustOutcome(value checkruntime.CheckOutcome) EvalBool {
   switch value.Kind {
-  case checkrust.CheckOutcomeTrue: return evalBoolCertain(SqlBoolean{Value: true, Valid: true})
-  case checkrust.CheckOutcomeFalse: return evalBoolCertain(SqlBoolean{Value: false, Valid: true})
-  case checkrust.CheckOutcomeNull: return evalBoolCertain(SqlBoolean{})
-  case checkrust.CheckOutcomeUnknown: return evalBoolUncertain()
-  case checkrust.CheckOutcomeError:
+  case checkruntime.CheckOutcomeTrue: return evalBoolCertain(SqlBoolean{Value: true, Valid: true})
+  case checkruntime.CheckOutcomeFalse: return evalBoolCertain(SqlBoolean{Value: false, Valid: true})
+  case checkruntime.CheckOutcomeNull: return evalBoolCertain(SqlBoolean{})
+  case checkruntime.CheckOutcomeUnknown: return evalBoolUncertain()
+  case checkruntime.CheckOutcomeError:
     state := strings.ToUpper(strconv.FormatInt(int64(value.Error.State), 36))
     for len(state) < 5 { state = "0" + state }
     return evalBoolCertain(SqlBoolean{Error: state})

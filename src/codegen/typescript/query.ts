@@ -71,6 +71,13 @@ export interface TypescriptQueryArtifacts {
   types: string | null
   runtime: string | null
   checkRust: string | null
+  checkRustFiles?: {
+    regex: string
+    operations: string
+    runtime: string
+    language: string
+    checks: string
+  } | null
   diagnostics: readonly TypescriptQueryDiagnostic[]
 }
 
@@ -280,6 +287,7 @@ export function renderTypescriptQueryArtifacts(
     types,
     runtime: options.emitRuntime === false ? null : runtime,
     checkRust: options.emitRuntime === false ? null : checkRuntime.rust,
+    checkRustFiles: options.emitRuntime === false ? null : checkRuntime.rustFiles,
     diagnostics,
   }
 }

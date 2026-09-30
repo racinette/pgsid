@@ -1,3 +1,4 @@
+import { checkTypescriptArtifacts } from '../shared/check-rust-transpile.js'
 import picomatch from 'picomatch'
 import ts from 'typescript'
 import { dirname, isAbsolute, posix, resolve, sep, join } from 'node:path'
@@ -200,7 +201,7 @@ export function createTypescriptCodegenTarget(
               join(jsonTypesDirectory, 'index.d.ts'),
             ),
             typesModuleSpecifier: runtime ? typescriptModuleSpecifier(runtime, types) : undefined,
-            checkRustModuleSpecifier: `./${analysis.query.name}.check-rust.js`,
+            checkRustModuleSpecifier: `./${analysis.query.name}.check-rust/checks.js`,
             queryableModuleSpecifier:
               runtime && helper ? typescriptModuleSpecifier(runtime, helper) : undefined,
             jsonSchemaRuntimeModuleSpecifier:
@@ -231,13 +232,18 @@ export function createTypescriptCodegenTarget(
                 ? [{ kind: 'runtime', path: runtime, content: rendered.runtime }]
                 : []),
               ...(runtime && rendered.checkRust !== null
-                ? [
-                    {
-                      kind: 'runtime' as const,
-                      path: join(runtimeDirectory!, `${analysis.query.name}.check-rust.ts`),
-                      content: rendered.checkRust,
-                    },
-                  ]
+                ? (rendered.checkRustFiles
+                    ? checkTypescriptArtifacts(rendered.checkRustFiles)
+                    : [{ path: 'checks.ts', content: rendered.checkRust }]
+                  ).map((artifact) => ({
+                    kind: 'runtime' as const,
+                    path: join(
+                      runtimeDirectory!,
+                      `${analysis.query.name}.check-rust`,
+                      artifact.path,
+                    ),
+                    content: artifact.content,
+                  }))
                 : []),
             ],
             diagnostics: rendered.diagnostics,

@@ -3,9 +3,9 @@
 These instructions apply throughout this tool. The root `AGENTS.md`
 also applies. Keep the Rust source valid Rust and keep both generated targets
 faithful to the behavior of that source. Use stored PGlite fixtures as the
-behavioral oracle. Expand the engine only through the shared dialect.
+behavioral oracle. Expand the engine only through the regex dialect.
 
-## Write Rust in the shared dialect
+## Write Rust in the regex dialect
 
 - Use constants, named-field structs, unit or single-payload enums, and
   functions with explicit return types. Supported derives are `Clone`, `Copy`,
@@ -28,10 +28,10 @@ behavioral oracle. Expand the engine only through the shared dialect.
 - A mutable `Vec<usize>`, `Vec<char>`, or `Vec` of a declared `Copy` struct may
   be initialized with an explicitly typed `Vec::new()` local, grown with
   `push`, and read or written by index. Direct `=` assignment is limited to
-  mutable scalar bindings and elements of these mutable vectors. Keep vector
-  indexing within bounds in Rust; the generated targets reject out-of-bounds
-  access too. Generated targets copy struct elements and validate their fields
-  at input, read, push, and assignment boundaries.
+  mutable scalar or declared `Copy` enum bindings and elements of these mutable
+  vectors. Keep vector indexing within bounds in Rust; the generated targets
+  reject out-of-bounds access too. Generated targets copy struct elements and
+  validate their fields at input, read, push, and assignment boundaries.
 - Use the supported arithmetic, comparisons, field access, vector indexing,
   struct literals, enum variants, `char as u32` and checked `u32 as usize`
   casts, and methods only where the validator can establish a shared meaning.

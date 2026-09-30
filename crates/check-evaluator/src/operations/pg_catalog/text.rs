@@ -34,7 +34,7 @@ fn text_codepoint_before(left: &str, right: &str) -> bool {
     left_chars.len() < right_chars.len()
 }
 
-fn sql__pg_catalog__length__ehpe(value: TextValue) -> Int4Value {
+pub fn sql__pg_catalog__length__ehpe(value: TextValue) -> Int4Value {
     if let TextValue::Error(error) = value {
         return Int4Value::Error(error);
     }
@@ -57,7 +57,7 @@ fn sql__pg_catalog__length__ehpe(value: TextValue) -> Int4Value {
     Int4Value::Unknown
 }
 
-fn sql__pg_catalog__texteq__aet8(left: TextValue, right: TextValue) -> BoolValue {
+pub fn sql__pg_catalog__texteq__aet8(left: TextValue, right: TextValue) -> BoolValue {
     if let TextValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -78,7 +78,7 @@ fn sql__pg_catalog__texteq__aet8(left: TextValue, right: TextValue) -> BoolValue
     BoolValue::Unknown
 }
 
-fn sql__pg_catalog__textne__1urq(left: TextValue, right: TextValue) -> BoolValue {
+pub fn sql__pg_catalog__textne__1urq(left: TextValue, right: TextValue) -> BoolValue {
     if let TextValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -99,7 +99,7 @@ fn sql__pg_catalog__textne__1urq(left: TextValue, right: TextValue) -> BoolValue
     BoolValue::Unknown
 }
 
-fn sql__pg_catalog__text_lt__zinq(left: TextValue, right: TextValue) -> BoolValue {
+pub fn sql__pg_catalog__text_lt__zinq(left: TextValue, right: TextValue) -> BoolValue {
     if let TextValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -120,7 +120,7 @@ fn sql__pg_catalog__text_lt__zinq(left: TextValue, right: TextValue) -> BoolValu
     BoolValue::Unknown
 }
 
-fn sql__pg_catalog__text_le__wb3z(left: TextValue, right: TextValue) -> BoolValue {
+pub fn sql__pg_catalog__text_le__wb3z(left: TextValue, right: TextValue) -> BoolValue {
     if let TextValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -143,7 +143,7 @@ fn sql__pg_catalog__text_le__wb3z(left: TextValue, right: TextValue) -> BoolValu
     BoolValue::Unknown
 }
 
-fn sql__pg_catalog__text_gt__rb7n(left: TextValue, right: TextValue) -> BoolValue {
+pub fn sql__pg_catalog__text_gt__rb7n(left: TextValue, right: TextValue) -> BoolValue {
     if let TextValue::Error(error) = left {
         return BoolValue::Error(error);
     }
@@ -164,7 +164,7 @@ fn sql__pg_catalog__text_gt__rb7n(left: TextValue, right: TextValue) -> BoolValu
     BoolValue::Unknown
 }
 
-fn sql__pg_catalog__starts_with__6ctf(text: TextValue, prefix: TextValue) -> BoolValue {
+pub fn sql__pg_catalog__starts_with__6ctf(text: TextValue, prefix: TextValue) -> BoolValue {
     if let TextValue::Error(error) = text {
         return BoolValue::Error(error);
     }
@@ -185,7 +185,7 @@ fn sql__pg_catalog__starts_with__6ctf(text: TextValue, prefix: TextValue) -> Boo
     BoolValue::Unknown
 }
 
-fn sql__pg_catalog__text_ge__t8pg(left: TextValue, right: TextValue) -> BoolValue {
+pub fn sql__pg_catalog__text_ge__t8pg(left: TextValue, right: TextValue) -> BoolValue {
     if let TextValue::Error(error) = left {
         return BoolValue::Error(error);
     }

@@ -1,0 +1,132 @@
+package generated
+
+import "unicode/utf8"
+
+func checkedOpaqueBorrow[T any](value *T) *T {
+	if value == nil {
+		panic("nil borrowed value")
+	}
+	return value
+}
+
+func checkedBorrowed[T any](value *T, copyValue func(T) T) *T {
+	if value == nil {
+		panic("nil borrowed value")
+	}
+	copied := copyValue(*value)
+	return &copied
+}
+
+const maxSharedIndex = 2147483647
+const minSharedI32 = -2147483648
+
+func checkedIndex(value int) int {
+	if value < 0 || value > maxSharedIndex {
+		panic("index outside shared numeric range")
+	}
+	return value
+}
+
+func checkedI32(value int) int {
+	if value < -2147483648 || value > maxSharedIndex {
+		panic("signed integer outside shared numeric range")
+	}
+	return value
+}
+
+func checkedAdd(left int, right int) int {
+	checkedIndex(left)
+	checkedIndex(right)
+	if right > maxSharedIndex-left {
+		panic("shared numeric overflow")
+	}
+	return left + right
+}
+
+func checkedSubtract(left int, right int) int {
+	checkedIndex(left)
+	checkedIndex(right)
+	if right > left {
+		panic("shared numeric underflow")
+	}
+	return left - right
+}
+
+func checkedSignedNegate(value int) int {
+	checkedI32(value)
+	if value == minSharedI32 {
+		panic("signed integer overflow")
+	}
+	return -value
+}
+
+func checkedSignedAdd(left int, right int) int {
+	checkedI32(left)
+	checkedI32(right)
+	if (right > 0 && left > maxSharedIndex-right) || (right < 0 && left < minSharedI32-right) {
+		panic("signed integer overflow")
+	}
+	return left + right
+}
+
+func checkedSignedSubtract(left int, right int) int {
+	checkedI32(left)
+	checkedI32(right)
+	if (right < 0 && left > maxSharedIndex+right) || (right > 0 && left < minSharedI32+right) {
+		panic("signed integer overflow")
+	}
+	return left - right
+}
+
+func checkedChar(value rune) rune {
+	if value < 0 || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff) {
+		panic("invalid Unicode scalar")
+	}
+	return value
+}
+
+func asciiLowercase(value rune) rune {
+	checkedChar(value)
+	if value >= 'A' && value <= 'Z' {
+		return value + ('a' - 'A')
+	}
+	return value
+}
+
+func checkedString(value string) string {
+	if len(value) > maxSharedIndex || !utf8.ValidString(value) {
+		panic("invalid or oversized string")
+	}
+	return value
+}
+
+func checkedChars(value []rune) []rune {
+	if len(value) > maxSharedIndex {
+		panic("vector outside shared numeric range")
+	}
+	result := make([]rune, len(value))
+	for index, character := range value {
+		result[index] = checkedChar(character)
+	}
+	return result
+}
+
+func checkedIndices(value []int) []int {
+	if len(value) > maxSharedIndex {
+		panic("vector outside shared numeric range")
+	}
+	result := make([]int, len(value))
+	for index, position := range value {
+		result[index] = checkedIndex(position)
+	}
+	return result
+}
+
+func checkedStructs[T any](value []T, copyValue func(T) T) []T {
+	checkedIndex(len(value))
+	result := make([]T, len(value))
+	for index, entry := range value {
+		result[index] = copyValue(entry)
+	}
+	return result
+}

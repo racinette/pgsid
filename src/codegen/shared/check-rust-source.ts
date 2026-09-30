@@ -1,33 +1,74 @@
+import { assertUniqueCheckEntryNames, type CheckConstraintIdentity } from './check-rust-names.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import { checkRustAsset } from './check-rust-assets.js'
 import { emitCheckRustEvaluator, UnsupportedCheckRustExpression } from './check-rust-evaluator.js'
+
+export type CheckRustSource = {
+  schemaVersion: 1
+  modules: {
+    name: string
+    dependencies: string[]
+    files: { path: string; source: string }[]
+  }[]
+}
 
 export function assembleCheckRust(evaluator: {
   source: string
   callables: readonly string[]
   requiresRegex?: boolean
-}): string {
-  const asset = (name: string): string => {
-    return checkRustAsset(name).toString('utf8')
-  }
-  const operations = asset('check-rust-integer.rs')
+}): CheckRustSource {
+  const maintained = JSON.parse(
+    checkRustAsset('check-rust-sources.json').toString('utf8'),
+  ) as CheckRustSource
+  const modules = maintained.modules.flatMap((module) => {
+    if (module.name === 'regex_engine' && !evaluator.requiresRegex) return []
+    return [
+      {
+        ...module,
+        dependencies: module.dependencies.filter(
+          (name) => evaluator.requiresRegex || name !== 'regex_engine',
+        ),
+        files: module.files.filter(
+          (file) => evaluator.requiresRegex || !file.path.endsWith('/regex.rs'),
+        ),
+      },
+    ]
+  })
   const available = new Set(
-    [...operations.matchAll(/\bfn (sql__[a-z0-9_]+)\s*\(/gu)].map((match) => match[1]!),
+    modules.flatMap((module) =>
+      module.files.flatMap((file) =>
+        [...file.source.matchAll(/\bfn (sql__[a-z0-9_]+)\s*\(/gu)].map((match) => match[1]!),
+      ),
+    ),
   )
   for (const name of evaluator.callables)
     if (!available.has(name))
       throw new UnsupportedCheckRustExpression(`Rust CHECK callable has no implementation: ${name}`)
-  return `${evaluator.requiresRegex ? asset('check-rust-regex.rs') : ''}\n${operations}\n${evaluator.source}`
+  return {
+    schemaVersion: 1,
+    modules: [
+      ...modules,
+      {
+        name: 'checks',
+        dependencies: ['checkruntime', 'pg_catalog'],
+        files: [{ path: 'evaluators.rs', source: evaluator.source }],
+      },
+    ],
+  }
 }
 
 export function prepareCheckRust(
   expression: EvalBoolExpression,
-  index?: number,
+  identity?: CheckConstraintIdentity,
 ):
-  | { kind: 'supported'; evaluator: ReturnType<typeof emitCheckRustEvaluator>; source: string }
+  | {
+      kind: 'supported'
+      evaluator: ReturnType<typeof emitCheckRustEvaluator>
+      source: CheckRustSource
+    }
   | { kind: 'unsupported'; reason: string } {
   try {
-    const evaluator = emitCheckRustEvaluator(expression, index)
+    const evaluator = emitCheckRustEvaluator(expression, identity)
     return { kind: 'supported', evaluator, source: assembleCheckRust(evaluator) }
   } catch (error) {
     if (error instanceof UnsupportedCheckRustExpression)
@@ -36,7 +77,9 @@ export function prepareCheckRust(
   }
 }
 
-export function prepareCheckRustGroup(expressions: readonly EvalBoolExpression[]): {
+export function prepareCheckRustGroup(
+  constraints: readonly { expression: EvalBoolExpression; identity: CheckConstraintIdentity }[],
+): {
   checks: readonly (
     | {
         kind: 'supported'
@@ -46,9 +89,13 @@ export function prepareCheckRustGroup(expressions: readonly EvalBoolExpression[]
     | { kind: 'unsupported'; reason: string }
   )[]
   evaluatorSource: string | null
-  source: string | null
+  source: CheckRustSource | null
+  requiresRegex: boolean
 } {
-  const prepared = expressions.map((expression, index) => prepareCheckRust(expression, index))
+  assertUniqueCheckEntryNames(constraints.map((constraint) => constraint.identity))
+  const prepared = constraints.map(({ expression, identity }) =>
+    prepareCheckRust(expression, identity),
+  )
   const supported = prepared.flatMap((item) => (item.kind === 'supported' ? [item.evaluator] : []))
   const evaluatorSource = supported.length ? supported.map((item) => item.source).join('\n') : null
   return {
@@ -58,6 +105,7 @@ export function prepareCheckRustGroup(expressions: readonly EvalBoolExpression[]
         : item,
     ),
     evaluatorSource,
+    requiresRegex: supported.some((item) => item.requiresRegex),
     source: evaluatorSource
       ? assembleCheckRust({
           source: evaluatorSource,
