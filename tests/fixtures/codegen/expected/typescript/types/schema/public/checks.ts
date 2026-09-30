@@ -1,3 +1,4 @@
+import * as _checkRust from "./checks-rust/checks.js";
 import type { DefaultEventId, EventId } from "./domains.js";
 type EvalValue<T> = {
     readonly certain: false;
@@ -5,30 +6,9 @@ type EvalValue<T> = {
     readonly certain: true;
     readonly value: T | null;
 };
-class SqlIntegerError extends Error {
-    readonly code = "22003";
-    constructor() { super("integer out of range"); }
-}
-function sqlIntegerRange(value: bigint | null, min: bigint, max: bigint): bigint | null {
-    if (value === null)
-        return null;
-    if (value < min || value > max)
-        throw new SqlIntegerError();
-    return value;
-}
-function sqlIntegerInput(value: string | null, min: bigint, max: bigint): bigint | null {
-    return sqlIntegerRange(value === null ? null : BigInt(value), min, max);
-}
-function int4Input(value: string | null): bigint | null { return sqlIntegerInput(value, -2147483648n, 2147483647n); }
-function integerGt(left: bigint | null, right: bigint | null): boolean | null {
-    return left === null || right === null ? null : left > right;
-}
-function evalValueCertain<T>(value: T | null): EvalValue<T> {
-    return { certain: true, value };
-}
-function evalValueUncertain<T>(): EvalValue<T> {
-    return { certain: false };
-}
+type EvalBool = EvalValue<boolean>;
+function evalBoolCertain(value: boolean | null): EvalBool { return { certain: true, value }; }
+function evalBoolUncertain(): EvalBool { return { certain: false }; }
 function checkRawInput(row: object, name: string): unknown {
     return Object.hasOwn(row, name) ? Reflect.get(row, name) : undefined;
 }
@@ -42,6 +22,39 @@ function checkInputInteger(row: object, name: string): EvalValue<bigint> {
         return { certain: true, value: BigInt(value) };
     return { certain: false };
 }
+function checkInputInt8(row: object, name: string): EvalValue<bigint> {
+    const value = checkRawInput(row, name);
+    if (typeof value !== "string")
+        return checkInputInteger(row, name);
+    if (!/^-?(?:0|[1-9][0-9]{0,18})$/.test(value))
+        return { certain: false };
+    const integer = BigInt(value);
+    if (integer < -9223372036854775808n || integer > 9223372036854775807n)
+        return { certain: false };
+    return { certain: true, value: integer };
+}
+function checkRustInt8(row: object, name: string): _checkRust.Int8Value {
+    const input = checkInputInt8(row, name);
+    if (!input.certain)
+        return _checkRust.int8Unknown();
+    if (input.value === null)
+        return _checkRust.int8Null();
+    if (input.value < -9223372036854775808n || input.value > 9223372036854775807n)
+        return _checkRust.int8Unknown();
+    return _checkRust.makeInt8Value(input.value);
+}
+function checkRustOutcome(value: _checkRust.CheckOutcome): EvalBool {
+    switch (value.kind) {
+        case "True": return evalBoolCertain(true);
+        case "False": return evalBoolCertain(false);
+        case "Null": return evalBoolCertain(null);
+        case "Unknown": return evalBoolUncertain();
+        case "Error": throw Object.assign(new Error("check constraint evaluation failed"), {
+            code: value.value.state.toString(36).toUpperCase().padStart(5, "0"),
+        });
+    }
+    throw new Error("invalid Rust CHECK outcome");
+}
 export type PublicDefaultEventIdCheckInput = {
     value?: DefaultEventId | null;
 };
@@ -50,25 +63,11 @@ export type PublicEventIdCheckInput = {
 };
 export function evaluatePublicDefaultEventIdDomainChecks(row: PublicDefaultEventIdCheckInput) {
     return [
-        { owner: "public.event_id", constraint: "event_id_check", result: (() => {
-                const argument0 = checkInputInteger(row, "value");
-                const argument1 = int4Input("0");
-                if (!argument0.certain) {
-                    return evalValueUncertain<boolean>();
-                }
-                return evalValueCertain(integerGt(argument0.value, argument1));
-            })() }
+        { owner: "public.event_id", constraint: "event_id_check", result: checkRustOutcome(_checkRust.evaluateCheckPublicDomainDefaultEventIdFromPublicEventIdEventIdCheckH7azw(checkRustInt8(row, "value"))) }
     ];
 }
 export function evaluatePublicEventIdDomainChecks(row: PublicEventIdCheckInput) {
     return [
-        { owner: "public.event_id", constraint: "event_id_check", result: (() => {
-                const argument0 = checkInputInteger(row, "value");
-                const argument1 = int4Input("0");
-                if (!argument0.certain) {
-                    return evalValueUncertain<boolean>();
-                }
-                return evalValueCertain(integerGt(argument0.value, argument1));
-            })() }
+        { owner: "public.event_id", constraint: "event_id_check", result: checkRustOutcome(_checkRust.evaluateCheckPublicDomainEventIdEventIdCheckHcydw(checkRustInt8(row, "value"))) }
     ];
 }

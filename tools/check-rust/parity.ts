@@ -12,7 +12,7 @@ import {
 import { writeCheckRustSources } from './sources.js'
 
 export type Input =
-  | { kind: 'Value'; value: number | boolean | string }
+  | { kind: 'Value'; value: number | bigint | boolean | string }
   | { kind: 'Null' }
   | { kind: 'Unknown' }
   | { kind: 'Error'; value: { state: number } }
@@ -59,18 +59,24 @@ export async function runCheckParity(
   }
   const inputCode = (input: Input, type: string, target: 'rust' | 'go'): string => {
     const prefix =
-      type === 'pg_catalog.int4' ? 'int4' : type === 'pg_catalog.bool' ? 'bool' : 'text'
+      type === 'pg_catalog.int4'
+        ? 'int4'
+        : type === 'pg_catalog.int8'
+          ? 'int8'
+          : type === 'pg_catalog.bool'
+            ? 'bool'
+            : 'text'
     if (target === 'rust') {
       if (input.kind === 'Null' || input.kind === 'Unknown')
         return `${prefix}_${input.kind.toLowerCase()}()`
       if (input.kind === 'Error')
         return `${pascal(prefix)}Value::Error(make_sql_error(${input.value.state}))`
-      return `make_${prefix}_value(${JSON.stringify(input.value)})`
+      return `make_${prefix}_value(${prefix === 'int8' ? `${input.value}i64` : typeof input.value === 'bigint' ? input.value.toString() : JSON.stringify(input.value)})`
     }
     if (input.kind === 'Null' || input.kind === 'Unknown') return `${pascal(prefix)}${input.kind}()`
     if (input.kind === 'Error')
       return `${pascal(prefix)}Value{Kind: ${pascal(prefix)}ValueError, Error: SqlError{State: ${input.value.state}}}`
-    return `Make${pascal(prefix)}Value(${JSON.stringify(input.value)})`
+    return `Make${pascal(prefix)}Value(${typeof input.value === 'bigint' ? input.value.toString() : JSON.stringify(input.value)})`
   }
   const rustAssertions: string[] = []
   const goAssertions: string[] = []
@@ -89,9 +95,17 @@ export async function runCheckParity(
       `if actual := ${pascal(check.entryName)}(${args('go')}); actual != (${goExpected}) { t.Fatalf("${fixture.name} ${index}: %+v", actual) }`,
     )
   }
+  const batches = (assertions: readonly string[]): string[] => {
+    const result: string[] = []
+    for (let index = 0; index < assertions.length; index += 250)
+      result.push(assertions.slice(index, index + 250).join('\n'))
+    return result
+  }
   await writeFile(
     join(directory, 'checks_test.rs'),
-    `include!("checks.rs");\n#[test]\nfn checks_match_postgres() {\n${rustAssertions.join('\n')}\n}\n`,
+    `include!("checks.rs");\n${batches(rustAssertions)
+      .map((batch, index) => `#[test]\nfn checks_match_postgres_${index}() {\n${batch}\n}`)
+      .join('\n')}\n`,
   )
   await run('rustc', [
     '--edition',
@@ -125,7 +139,9 @@ export async function runCheckParity(
   await writeFile(join(directory, 'go/go.mod'), `module ${moduleName}\n\ngo 1.25\n`)
   await writeFile(
     join(directory, 'go/checks_test.go'),
-    `package generated\nimport ("testing"; . "${moduleName}/checkruntime")\nfunc TestChecks(t *testing.T) {\n${goAssertions.join('\n')}\n}\n`,
+    `package generated\nimport ("testing"; . "${moduleName}/checkruntime")\n${batches(goAssertions)
+      .map((batch, index) => `func TestChecks${index}(t *testing.T) {\n${batch}\n}`)
+      .join('\n')}\n`,
   )
   await run('go', ['test', './...'], {
     cwd: join(directory, 'go'),
@@ -154,6 +170,10 @@ export async function runCheckParity(
     const result = generated[camel(check.entryName)](
       ...check.inputs.map((input) => fixture.row[input.name]!),
     )
-    assert.deepEqual(result, fixture.expected, `${fixture.name}: ${JSON.stringify(fixture.row)}`)
+    assert.deepEqual(
+      result,
+      fixture.expected,
+      `${fixture.name}: ${JSON.stringify(fixture.row, (_key, value) => (typeof value === 'bigint' ? value.toString() : value))}`,
+    )
   }
 }

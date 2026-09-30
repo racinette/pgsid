@@ -7,6 +7,14 @@ pub enum Int4Value {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Int8Value {
+    Unknown,
+    Null,
+    Value(i64),
+    Error(SqlError),
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TextValue<'a> {
     Unknown,
     Null,
@@ -24,6 +32,18 @@ pub fn int4_null() -> Int4Value {
 
 pub fn make_int4_value(value: i32) -> Int4Value {
     Int4Value::Value(value)
+}
+
+pub fn int8_unknown() -> Int8Value {
+    Int8Value::Unknown
+}
+
+pub fn int8_null() -> Int8Value {
+    Int8Value::Null
+}
+
+pub fn make_int8_value(value: i64) -> Int8Value {
+    Int8Value::Value(value)
 }
 
 pub fn text_unknown() -> TextValue<'static> {
@@ -106,6 +126,16 @@ pub fn int4_is_null(value: Int4Value) -> BoolValue {
     BoolValue::Value(value == Int4Value::Null)
 }
 
+pub fn int8_is_null(value: Int8Value) -> BoolValue {
+    if let Int8Value::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == Int8Value::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(value == Int8Value::Null)
+}
+
 pub fn text_is_null(value: TextValue) -> BoolValue {
     if let TextValue::Error(error) = value {
         return BoolValue::Error(error);
@@ -154,6 +184,13 @@ pub fn int4_from_case_guard(value: CheckOutcome) -> Int4Value {
         return Int4Value::Error(error);
     }
     Int4Value::Unknown
+}
+
+pub fn int8_from_case_guard(value: CheckOutcome) -> Int8Value {
+    if let CheckOutcome::Error(error) = value {
+        return Int8Value::Error(error);
+    }
+    Int8Value::Unknown
 }
 
 pub fn text_from_case_guard(value: CheckOutcome) -> TextValue<'static> {

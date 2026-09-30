@@ -59,13 +59,22 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
     if (type === 'pg_catalog.bool') return { kind: 'boolean', type, value: null }
     if (type === 'pg_catalog.text') return { kind: 'text', type, value: null }
     if (/^pg_catalog\.int[248]$/u.test(type))
-      return { kind: 'integer', type: type as 'pg_catalog.int4', value: null }
+      return {
+        kind: 'integer',
+        type: type as 'pg_catalog.int2' | 'pg_catalog.int4' | 'pg_catalog.int8',
+        value: null,
+      }
     return null
   }
   if (literal.kind === 'string' && type === 'pg_catalog.text')
     return { kind: 'text', type, value: literal.value }
-  if (literal.kind === 'integer' && type === 'pg_catalog.int4')
-    return { kind: 'integer', type, value: literal.value }
+  if (literal.kind === 'integer' && (type === 'pg_catalog.int4' || type === 'pg_catalog.int8')) {
+    const integer = BigInt(literal.value!)
+    const limit = type === 'pg_catalog.int4' ? 2147483647n : 9223372036854775807n
+    return integer >= -limit - 1n && integer <= limit
+      ? { kind: 'integer', type, value: literal.value }
+      : null
+  }
   return null
 }
 const materialize = (bound: Bound, type: ScalarType): EvalExpression | null => {
@@ -111,14 +120,18 @@ const candidate = (
       ? [{ signature, item, operands: operands as EvalExpression[] }]
       : []
   })
+  const types = args.map(
+    (arg) => arg.type ?? (arg.literal?.kind === 'integer' ? 'pg_catalog.int4' : null),
+  )
+  const exact = matches.filter(({ item }) =>
+    item.args.every((type, index) => type === types[index]),
+  )
+  if (exact.length === 1) return exact[0]!
   if (kind === 'operator' && args.length === 2) {
-    const types = args.map(
-      (arg) => arg.type ?? (arg.literal?.kind === 'integer' ? 'pg_catalog.int4' : null),
-    )
     const known = types.filter((type) => type !== null)
     if (known.length === 1 && args.some((arg, index) => types[index] === null && arg.literal)) {
-      const exact = matches.filter(({ item }) => item.args.every((type) => type === known[0]))
-      if (exact.length === 1) return exact[0]!
+      const assumed = matches.filter(({ item }) => item.args.every((type) => type === known[0]))
+      if (assumed.length === 1) return assumed[0]!
     }
   }
   return matches.length === 1 ? matches[0]! : null
@@ -199,6 +212,8 @@ export function bindCatalogCheck(
           : undefined
       const scrutinee = caseExpression['arg'] === undefined ? null : bind(caseExpression['arg'])
       let simple: Extract<EvalExpression, { kind: 'case' }>['scrutinee']
+      let equalities: Extract<EvalExpression, { kind: 'case' }>['branches'][number]['equality'][] =
+        []
       let conditions: EvalExpression[]
       if (scrutinee) {
         const matches = branches.map((branch) => bind(branch!['expr']))
@@ -215,20 +230,14 @@ export function bindCatalogCheck(
           ]),
         )
         if (resolved.some((match) => !match)) return unknown
-        const first = resolved[0]!
-        if (resolved.some((match) => match!.signature !== first.signature)) return unknown
-        simple = {
-          expression: value,
-          equality: {
-            kind: 'operator',
-            signature: first.signature,
-            type: 'pg_catalog.bool',
-            collation:
-              scrutinee.collation === 'C' || matches.some((match) => match.collation === 'C')
-                ? 'C'
-                : undefined,
-          },
-        }
+        simple = { expression: value }
+        equalities = resolved.map((match, index) => ({
+          kind: 'operator',
+          signature: match!.signature,
+          type: 'pg_catalog.bool',
+          collation:
+            scrutinee.collation === 'C' || matches[index]!.collation === 'C' ? 'C' : undefined,
+        }))
         conditions = resolved.map((match) => match!.operands[1]!)
       } else {
         conditions = branches.map((branch) => ({
@@ -245,6 +254,7 @@ export function bindCatalogCheck(
           type,
           ...(simple ? { scrutinee: simple } : {}),
           branches: results.map((_, index) => ({
+            ...(simple ? { equality: equalities[index]! } : {}),
             when: conditions[index]!,
             then:
               type === 'pg_catalog.bool'
@@ -284,13 +294,14 @@ export function bindCatalogCheck(
       if (!type) return unknown
       const operand = bind(cast['arg'])
       if (
-        type === 'pg_catalog.int4' &&
+        (type === 'pg_catalog.int4' || type === 'pg_catalog.int8') &&
         operand.literal?.kind === 'string' &&
         typeof operand.literal.value === 'string' &&
         /^-?(?:0|[1-9][0-9]*)$/u.test(operand.literal.value)
       ) {
         const integer = BigInt(operand.literal.value)
-        if (integer >= -2147483648n && integer <= 2147483647n)
+        const limit = type === 'pg_catalog.int4' ? 2147483647n : 9223372036854775807n
+        if (integer >= -limit - 1n && integer <= limit)
           return {
             type,
             value: {
@@ -306,7 +317,7 @@ export function bindCatalogCheck(
             kind: 'certain',
             expression: {
               kind: 'integer',
-              type: type as 'pg_catalog.int4',
+              type: type as 'pg_catalog.int2' | 'pg_catalog.int4' | 'pg_catalog.int8',
               value: operand.literal.value,
             },
           },
@@ -336,6 +347,14 @@ export function bindCatalogCheck(
         const integer = BigInt(float)
         if (integer >= -2147483648n && integer <= 2147483647n)
           return { type: null, value: null, literal: { kind: 'integer', value: float } }
+        if (integer >= -9223372036854775808n && integer <= 9223372036854775807n)
+          return {
+            type: 'pg_catalog.int8',
+            value: {
+              kind: 'certain',
+              expression: { kind: 'integer', type: 'pg_catalog.int8', value: float },
+            },
+          }
       }
       const booleanNode = fields(constant['boolval'])
       if (booleanNode) {

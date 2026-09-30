@@ -28,6 +28,7 @@ type node struct {
 	TargetType     *node       `json:"targetType"`
 	Inner          *node       `json:"inner"`
 	Value          *node       `json:"value"`
+	IntegerType    string      `json:"integerType"`
 	Digits         string      `json:"digits"`
 	Scalar         string      `json:"scalar"`
 	Text           string      `json:"text"`
@@ -285,6 +286,9 @@ func (g *generator) inferType(value *node) *node {
 			}
 		}
 	case "integer":
+		if value.IntegerType == "i64" {
+			return namedType("i64")
+		}
 		return namedType("usize")
 	case "unary":
 		if value.Operator == "negate" {
@@ -643,7 +647,7 @@ func (g *generator) immutableField(value *node) bool {
 		return path(value.Inner) == "str"
 	}
 	switch path(value) {
-	case "usize", "u32", "i32", "bool", "char":
+	case "usize", "u32", "i32", "i64", "bool", "char":
 		return true
 	default:
 		return g.immutable[path(value)]

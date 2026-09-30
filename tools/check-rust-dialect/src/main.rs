@@ -31,6 +31,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("Int4Value") => {
             Ok("Int4Value")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("Int8Value") => {
+            Ok("Int8Value")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("TextValue") => {
             Ok("TextValue")
         }
@@ -95,6 +98,33 @@ fn int4_minimum(expr: &Expr) -> bool {
         && positive_literal(&binary.right) == Some(1)
 }
 
+fn int8_literal(expr: &Expr) -> bool {
+    let (literal, negative) = match expr {
+        Expr::Lit(literal) if literal.attrs.is_empty() => (literal, false),
+        Expr::Unary(unary) if unary.attrs.is_empty() && matches!(unary.op, syn::UnOp::Neg(_)) => {
+            let Expr::Lit(literal) = &*unary.expr else {
+                return false;
+            };
+            if !literal.attrs.is_empty() {
+                return false;
+            }
+            (literal, true)
+        }
+        _ => return false,
+    };
+    let syn::Lit::Int(integer) = &literal.lit else {
+        return false;
+    };
+    let source = integer.to_string();
+    let Some(digits) = source.strip_suffix("i64") else {
+        return false;
+    };
+    self::digits(digits)
+        && digits
+            .parse::<u64>()
+            .is_ok_and(|value| value <= i64::MAX as u64 + u64::from(negative))
+}
+
 fn call(expr: &Expr, bindings: &BTreeMap<String, bool>) -> Result<(), String> {
     let Expr::Call(call) = expr else {
         return Err("expected a direct function call".into());
@@ -114,6 +144,7 @@ fn call(expr: &Expr, bindings: &BTreeMap<String, bool>) -> Result<(), String> {
     }
     for arg in &call.args {
         match arg {
+            _ if int8_literal(arg) => {}
             Expr::Path(_) if bindings.contains_key(&identifier(arg)?) => {}
             Expr::Lit(_) if positive_literal(arg).is_some() => {}
             Expr::Unary(_) if negative_literal(arg).is_some() => {}
@@ -268,7 +299,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
         if !parameter.attrs.is_empty()
             || !matches!(
                 type_name(&parameter.ty)?,
-                "Int4Value" | "TextValue" | "BoolValue"
+                "Int4Value" | "Int8Value" | "TextValue" | "BoolValue"
             )
         {
             return Err("parameter is outside the CHECK subset".into());
@@ -339,6 +370,33 @@ pub fn evaluate_check(amount: Int4Value, flag: BoolValue) -> CheckOutcome {
 "#;
 
     #[test]
+    fn accepts_int8_values_and_exact_literals() {
+        let source = "pub fn evaluate_check(amount: Int8Value) -> CheckOutcome { let constant = make_int8_value(0i64); let compared = compare(amount, constant); check_from_bool(compared) }";
+        for literal in [
+            "0i64",
+            "9007199254740993i64",
+            "9223372036854775807i64",
+            "-9223372036854775808i64",
+        ] {
+            check_source(&source.replace("0i64", literal)).unwrap();
+        }
+        for literal in [
+            "9223372036854775808i64",
+            "-9223372036854775809i64",
+            "9007199254740993",
+            "0u64",
+            "9_000i64",
+            "0xffi64",
+        ] {
+            assert!(
+                check_source(&source.replace("0i64", literal)).is_err(),
+                "accepted {literal}"
+            );
+        }
+        assert!(check_source(&source.replace("amount: Int8Value", "amount: i64")).is_err());
+    }
+
+    #[test]
     fn accepts_sequential_evaluator() {
         check_source(VALID).unwrap();
     }
@@ -372,6 +430,7 @@ pub fn evaluate_check(flag: BoolValue, amount: Int4Value) -> CheckOutcome {
     fn accepts_scalar_case_result_locals() {
         for (ty, constructor) in [
             ("Int4Value", "int4_unknown"),
+            ("Int8Value", "int8_unknown"),
             ("TextValue", "text_unknown"),
             ("BoolValue", "bool_unknown"),
         ] {

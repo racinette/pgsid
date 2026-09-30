@@ -6,7 +6,14 @@ import { writeCheckRustSources } from '../check-rust/sources.js'
 import { builtinCallables } from '../../src/postgres/builtins/inventory.js'
 
 type Shape =
-  'int4_pair_bool' | 'int4_pair_int4' | 'bool_pair_bool' | 'text_pair_bool' | 'text_single_int4'
+  | 'int8_pair_bool'
+  | 'int84_pair_bool'
+  | 'int48_pair_bool'
+  | 'int4_pair_bool'
+  | 'int4_pair_int4'
+  | 'bool_pair_bool'
+  | 'text_pair_bool'
+  | 'text_single_int4'
 type State =
   | { kind: 'Value'; value: boolean | number | string }
   | { kind: 'Null' | 'Unknown' }
@@ -31,18 +38,23 @@ if (!rustOutput || !fixtureOutput || !rustTestOutput || !goTestOutput)
 const readSource = (path: string): string =>
   readFileSync(fileURLToPath(new URL(path, import.meta.url)), 'utf8')
 const boolean = readSource('../../crates/check-evaluator/src/operations/pg_catalog/boolean.rs')
+const bigint = readSource('../../crates/check-evaluator/src/operations/pg_catalog/bigint.rs')
 const integer = readSource('../../crates/check-evaluator/src/operations/pg_catalog/integer.rs')
 const textSource = readSource('../../crates/check-evaluator/src/operations/pg_catalog/text.rs')
 const names = [
-  ...`${boolean}\n${integer}\n${textSource}`.matchAll(/\bfn (sql__[a-z0-9_]+)\s*\(/gu),
+  ...`${boolean}\n${integer}\n${bigint}\n${textSource}`.matchAll(/\bfn (sql__[a-z0-9_]+)\s*\(/gu),
 ].map((match) => match[1]!)
 const catalog = new Map(
   builtinCallables()
+    .filter((callable) => 'rustName' in callable)
     .filter((callable) => callable.kind === 'function')
     .map((callable) => [callable.rustName, callable]),
 )
 const shapeOf = (args: readonly string[], result: string): Shape | null => {
   if (result === 'pg_catalog.bool') {
+    if (args.join(',') === 'pg_catalog.int8,pg_catalog.int8') return 'int8_pair_bool'
+    if (args.join(',') === 'pg_catalog.int8,pg_catalog.int4') return 'int84_pair_bool'
+    if (args.join(',') === 'pg_catalog.int4,pg_catalog.int8') return 'int48_pair_bool'
     if (args.join(',') === 'pg_catalog.int4,pg_catalog.int4') return 'int4_pair_bool'
     if (args.join(',') === 'pg_catalog.bool,pg_catalog.bool') return 'bool_pair_bool'
     if (args.join(',') === 'pg_catalog.text,pg_catalog.text') return 'text_pair_bool'
@@ -139,33 +151,66 @@ const textSingleSamples: readonly (readonly [string | null])[] = [
   ['a\u0301'],
   [null],
 ]
+const int8Values = [
+  '-9223372036854775808',
+  '-9007199254740993',
+  '-2147483649',
+  '-1',
+  '0',
+  '1',
+  '2147483648',
+  '9007199254740992',
+  '9007199254740993',
+  '9223372036854775807',
+  null,
+] as const
+const int8Samples = int8Values.flatMap((left) => int8Values.map((right) => [left, right]))
+const mixedSamples = int8Values.flatMap((left) =>
+  [-2147483648, -1, 0, 1, 2147483647, null].map((right) => [left, right]),
+)
 const samplesOf = (shape: Shape): readonly (readonly (boolean | number | string | null)[])[] =>
-  shape === 'int4_pair_bool'
-    ? int4Samples
-    : shape === 'int4_pair_int4'
-      ? int4ArithmeticSamples
+  shape === 'int8_pair_bool'
+    ? int8Samples
+    : shape === 'int84_pair_bool'
+      ? mixedSamples
+      : shape === 'int48_pair_bool'
+        ? mixedSamples.map((sample) => [sample[1]!, sample[0]!])
+        : shape === 'int4_pair_bool'
+          ? int4Samples
+          : shape === 'int4_pair_int4'
+            ? int4ArithmeticSamples
+            : shape === 'bool_pair_bool'
+              ? boolSamples
+              : shape === 'text_pair_bool'
+                ? textSamples
+                : textSingleSamples
+const inputType = (
+  shape: Shape,
+  index = 0,
+): 'Int4Value' | 'Int8Value' | 'BoolValue' | 'TextValue' =>
+  shape === 'int8_pair_bool' ||
+  (shape === 'int84_pair_bool' && index === 0) ||
+  (shape === 'int48_pair_bool' && index === 1)
+    ? 'Int8Value'
+    : ['int4_pair_bool', 'int4_pair_int4', 'int84_pair_bool', 'int48_pair_bool'].includes(shape)
+      ? 'Int4Value'
       : shape === 'bool_pair_bool'
-        ? boolSamples
-        : shape === 'text_pair_bool'
-          ? textSamples
-          : textSingleSamples
-const inputType = (shape: Shape): 'Int4Value' | 'BoolValue' | 'TextValue' =>
-  shape === 'int4_pair_bool' || shape === 'int4_pair_int4'
-    ? 'Int4Value'
-    : shape === 'bool_pair_bool'
-      ? 'BoolValue'
-      : 'TextValue'
+        ? 'BoolValue'
+        : 'TextValue'
 const resultType = (shape: Shape): 'BoolValue' | 'Int4Value' =>
   shape === 'text_single_int4' || shape === 'int4_pair_int4' ? 'Int4Value' : 'BoolValue'
 const inputCount = (shape: Shape): number => (shape === 'text_single_int4' ? 1 : 2)
 const queryOf = (shape: Shape, functionName: string): string => {
-  const args = Array.from({ length: inputCount(shape) }, (_, index) =>
-    shape === 'int4_pair_bool' || shape === 'int4_pair_int4'
-      ? `$${index + 1}::int4`
-      : shape === 'bool_pair_bool'
-        ? `$${index + 1}::bool`
-        : `($${index + 1}::text) COLLATE "C"`,
-  )
+  const args = Array.from({ length: inputCount(shape) }, (_, index) => {
+    const type = inputType(shape, index)
+    return type === 'Int8Value'
+      ? `$${index + 1}::int8`
+      : type === 'Int4Value'
+        ? `$${index + 1}::int4`
+        : type === 'BoolValue'
+          ? `$${index + 1}::bool`
+          : `($${index + 1}::text) COLLATE "C"`
+  })
   return `SELECT pg_catalog.${functionName}(${args.join(', ')}) AS value`
 }
 const state = (input: boolean | number | string | null): State =>
@@ -193,16 +238,19 @@ try {
       }
       cases.push({ inputs: sample.map(state), expected })
     }
-    const ordinary = state(
-      fn.shape === 'int4_pair_bool' || fn.shape === 'int4_pair_int4'
-        ? 0
-        : fn.shape === 'bool_pair_bool'
-          ? false
-          : 'a',
-    )
+    const ordinary = (index: number) =>
+      state(
+        inputType(fn.shape, index) === 'Int8Value'
+          ? '0'
+          : inputType(fn.shape, index) === 'Int4Value'
+            ? 0
+            : fn.shape === 'bool_pair_bool'
+              ? false
+              : 'a',
+      )
     const error = { kind: 'Error', state: 3452591 } as const
     for (let position = 0; position < inputCount(fn.shape); position++) {
-      const inputs = Array.from({ length: inputCount(fn.shape) }, () => ordinary)
+      const inputs = Array.from({ length: inputCount(fn.shape) }, (_, index) => ordinary(index))
       cases.push({
         inputs: inputs.map((input, index) => (index === position ? { kind: 'Unknown' } : input)),
         expected: { kind: 'Unknown' },
@@ -227,10 +275,9 @@ try {
 
 const wrappers = fixtures
   .map((item) => {
-    const type = inputType(item.shape)
     const parameters = Array.from(
       { length: inputCount(item.shape) },
-      (_, index) => `input_${index}: ${type}`,
+      (_, index) => `input_${index}: ${inputType(item.shape, index)}`,
     )
     const arguments_ = Array.from(
       { length: inputCount(item.shape) },
@@ -272,14 +319,16 @@ const goString = (input: string): string => {
   }
   return `${encoded}"`
 }
-const rustInput = (shape: Shape, input: State): string => {
-  const type = inputType(shape)
+const rustInput = (shape: Shape, input: State, index: number): string => {
+  const type = inputType(shape, index)
   if (input.kind === 'Value')
-    return type === 'Int4Value'
-      ? `make_int4_value(${input.value})`
-      : type === 'BoolValue'
-        ? `make_bool_value(${input.value})`
-        : `make_text_value(${rustString(String(input.value))})`
+    return type === 'Int8Value'
+      ? `make_int8_value(${input.value}i64)`
+      : type === 'Int4Value'
+        ? `make_int4_value(${input.value})`
+        : type === 'BoolValue'
+          ? `make_bool_value(${input.value})`
+          : `make_text_value(${rustString(String(input.value))})`
   if (input.kind === 'Error') return `${type}::Error(make_sql_error(${input.state}))`
   return `${type}::${input.kind}`
 }
@@ -295,7 +344,7 @@ writeFileSync(
     .flatMap((item) =>
       item.cases.map(
         (test) =>
-          `    assert!(${item.wrapper}(${test.inputs.map((input) => rustInput(item.shape, input)).join(', ')}) == ${rustExpected(item.shape, test.expected)});`,
+          `    assert!(${item.wrapper}(${test.inputs.map((input, index) => rustInput(item.shape, input, index)).join(', ')}) == ${rustExpected(item.shape, test.expected)});`,
       ),
     )
     .join('\n')}\n}\n`,
@@ -305,14 +354,16 @@ const goTarget = (wrapper: string): string =>
   wrapper
     .replace(/^evaluate/u, 'Evaluate')
     .replace(/_([a-z0-9])/gu, (_, part: string) => part.toUpperCase())
-const goInput = (shape: Shape, input: State): string => {
-  const type = inputType(shape)
+const goInput = (shape: Shape, input: State, index: number): string => {
+  const type = inputType(shape, index)
   if (input.kind === 'Value')
-    return type === 'Int4Value'
-      ? `MakeInt4Value(${input.value})`
-      : type === 'BoolValue'
-        ? `MakeBoolValue(${input.value})`
-        : `MakeTextValue(${goString(String(input.value))})`
+    return type === 'Int8Value'
+      ? `MakeInt8Value(${input.value})`
+      : type === 'Int4Value'
+        ? `MakeInt4Value(${input.value})`
+        : type === 'BoolValue'
+          ? `MakeBoolValue(${input.value})`
+          : `MakeTextValue(${goString(String(input.value))})`
   if (input.kind === 'Error')
     return `${type}{Kind: ${type}Error, Error: SqlError{State: ${input.state}}}`
   return `${type}{Kind: ${type}${input.kind}}`
@@ -330,12 +381,12 @@ writeFileSync(
     .flatMap((item) =>
       item.cases.map(
         (test) =>
-          `    if actual := ${goTarget(item.wrapper)}(${test.inputs.map((input) => goInput(item.shape, input)).join(', ')}); actual != (${goExpected(item.shape, test.expected)}) { t.Errorf("${item.functionName}: got %+v", actual) }`,
+          `    if actual := ${goTarget(item.wrapper)}(${test.inputs.map((input, index) => goInput(item.shape, input, index)).join(', ')}); actual != (${goExpected(item.shape, test.expected)}) { t.Errorf("${item.functionName}: got %+v", actual) }`,
       ),
     )
     .join('\n')}\n}\n`,
 )
 const counted = (shape: Shape): number => fixtures.filter((item) => item.shape === shape).length
 console.log(
-  `checked ${counted('int4_pair_bool')} Rust int4 comparisons, ${counted('int4_pair_int4')} Rust int4 arithmetic functions, ${counted('bool_pair_bool')} Rust boolean comparisons, ${counted('text_pair_bool')} Rust text boolean functions, and ${counted('text_single_int4')} Rust text-to-int4 functions against PGlite`,
+  `checked ${counted('int8_pair_bool') + counted('int84_pair_bool') + counted('int48_pair_bool')} Rust int8/mixed comparisons, ${counted('int4_pair_bool')} Rust int4 comparisons, ${counted('int4_pair_int4')} Rust int4 arithmetic functions, ${counted('bool_pair_bool')} Rust boolean comparisons, ${counted('text_pair_bool')} Rust text boolean functions, and ${counted('text_single_int4')} Rust text-to-int4 functions against PGlite`,
 )

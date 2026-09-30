@@ -12,6 +12,13 @@ function checkedI32(value: number): number {
   return value
 }
 
+function checkedI64(value: bigint): bigint {
+  if (typeof value !== 'bigint') throw new TypeError('expected a bigint')
+  if (value < -9223372036854775808n || value > 9223372036854775807n)
+    throw new RangeError('integer outside i64 range')
+  return value
+}
+
 function checkedBool(value: boolean): boolean {
   if (typeof value !== 'boolean') throw new TypeError('expected a boolean')
   return value

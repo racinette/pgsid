@@ -40,6 +40,7 @@ export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpr
           ? { scrutinee: { ...value.scrutinee, expression: scalar(value.scrutinee.expression) } }
           : {}),
         branches: value.branches.map((branch) => ({
+          ...branch,
           when: scalar(branch.when),
           then: scalar(branch.then),
         })),

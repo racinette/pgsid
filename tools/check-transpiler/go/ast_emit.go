@@ -82,6 +82,8 @@ func (g *generator) goType(value *node) ast.Expr {
 	switch name {
 	case "usize", "u32", "i32":
 		return goIdent("int")
+	case "i64":
+		return goIdent("int64")
 	case "bool":
 		return goIdent("bool")
 	case "char":
@@ -121,6 +123,8 @@ func (g *generator) goDetach(value ast.Expr, valueType *node) ast.Expr {
 		return goCall("checkedIndex", value)
 	case "i32":
 		return goCall("checkedI32", value)
+	case "i64":
+		return value
 	case "char":
 		return goCall("checkedChar", value)
 	case "Vec":
@@ -166,6 +170,9 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		}
 		reject("unknown path " + strings.Join(value.Segments, "::"))
 	case "integer":
+		if value.IntegerType == "i64" {
+			return goCall("int64", goInteger(value.Digits))
+		}
 		return goInteger(value.Digits)
 	case "character":
 		characters := []rune(value.Scalar)
@@ -191,6 +198,8 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		return goCall("checkedSignedNegate", g.goExpression(value.Value))
 	case "cast":
 		switch path(value.TargetType) {
+		case "i64":
+			return goCall("int64", goCall("checkedI32", g.goExpression(value.Value)))
 		case "u32":
 			return goCall("int", goCall("checkedChar", g.goExpression(value.Value)))
 		case "usize":

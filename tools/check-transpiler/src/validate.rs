@@ -25,7 +25,7 @@ pub fn type_name(ty: &Type) -> Result<String> {
                 syn::PathArguments::AngleBracketed(arguments) if name != "Vec" => {
                     if !matches!(
                         name.as_str(),
-                        "usize" | "u32" | "i32" | "bool" | "char" | "str"
+                        "usize" | "u32" | "i32" | "i64" | "bool" | "char" | "str"
                     ) && arguments.args.len() == 1
                         && matches!(&arguments.args[0], syn::GenericArgument::Lifetime(_))
                     {
@@ -87,7 +87,10 @@ fn derives(attrs: &[syn::Attribute]) -> Result<BTreeSet<String>> {
 }
 
 fn scalar(name: &str) -> bool {
-    matches!(name, "usize" | "u32" | "i32" | "bool" | "char" | "&str")
+    matches!(
+        name,
+        "usize" | "u32" | "i32" | "i64" | "bool" | "char" | "&str"
+    )
 }
 
 pub fn inspect(file: &syn::File) -> Result<()> {
@@ -209,6 +212,7 @@ pub fn inspect(file: &syn::File) -> Result<()> {
 }
 
 struct Semantics {
+    return_type: Option<String>,
     fields: BTreeMap<String, BTreeMap<String, String>>,
     copy: BTreeSet<String>,
     equality: BTreeSet<String>,
@@ -255,7 +259,7 @@ fn is_new_index_vector(value: &Expr) -> bool {
 }
 
 fn numeric(name: &str) -> bool {
-    matches!(name, "usize" | "u32" | "i32")
+    matches!(name, "usize" | "u32" | "i32" | "i64")
 }
 
 fn checked_arithmetic(name: &str) -> bool {
@@ -328,9 +332,16 @@ fn infer_expr_type(
             Ok(Some(name))
         }
         Expr::Lit(syn::ExprLit {
-            lit: syn::Lit::Int(_),
+            lit: syn::Lit::Int(number),
             ..
-        }) => Ok(Some("usize".into())),
+        }) => Ok(Some(
+            if number.suffix() == "i64" {
+                "i64"
+            } else {
+                "usize"
+            }
+            .into(),
+        )),
         Expr::Lit(syn::ExprLit {
             lit: syn::Lit::Char(_),
             ..
@@ -354,6 +365,9 @@ fn infer_expr_type(
                     ..
                 })
             );
+            if literal && source.as_deref() == Some("i64") {
+                return Ok(Some("i64".into()));
+            }
             if source.as_deref() != Some("i32") && !(literal && source.as_deref() == Some("usize"))
             {
                 return Err("unary minus requires an i32 operand".into());
@@ -373,6 +387,7 @@ fn infer_expr_type(
             let source = infer_expr_type(&cast.expr, locals, semantics)?;
             if (target == "u32" && source.as_deref() == Some("char"))
                 || (target == "usize" && source.as_deref() == Some("u32"))
+                || (target == "i64" && source.as_deref() == Some("i32"))
             {
                 return Ok(Some(target));
             }
@@ -381,6 +396,19 @@ fn infer_expr_type(
         Expr::Binary(binary) => {
             let left = infer_expr_type(&binary.left, locals, semantics)?;
             let right = infer_expr_type(&binary.right, locals, semantics)?;
+            if matches!(
+                binary.op,
+                syn::BinOp::Eq(_)
+                    | syn::BinOp::Ne(_)
+                    | syn::BinOp::Lt(_)
+                    | syn::BinOp::Le(_)
+                    | syn::BinOp::Gt(_)
+                    | syn::BinOp::Ge(_)
+            ) && (left.as_deref() == Some("i64") || right.as_deref() == Some("i64"))
+                && left != right
+            {
+                return Err("i64 comparisons require i64 operands".into());
+            }
             match binary.op {
                 syn::BinOp::Eq(_) | syn::BinOp::Ne(_) => {
                     let ty = left
@@ -523,10 +551,15 @@ fn infer_expr_type(
                 return Err(format!("struct {name} needs all declared fields"));
             }
             for field in &structure.fields {
-                infer_expr_type(&field.expr, locals, semantics)?;
+                let actual = infer_expr_type(&field.expr, locals, semantics)?;
                 let syn::Member::Named(member) = &field.member else {
                     unreachable!();
                 };
+                if declared.get(&member.to_string()).map(String::as_str) == Some("i64")
+                    && actual.as_deref() != Some("i64")
+                {
+                    return Err("i64 fields require explicitly typed values".into());
+                }
                 if !declared.contains_key(&member.to_string()) {
                     return Err(format!("unknown field {name}.{member}"));
                 }
@@ -581,6 +614,16 @@ fn infer_expr_type(
                 Some(Some(_))
             ) {
                 return Err("call is not a declared enum constructor".into());
+            }
+            if semantics
+                .variants
+                .get(&(name.clone(), path.path.segments[1].ident.to_string()))
+                .and_then(Clone::clone)
+                .as_deref()
+                == Some("i64")
+                && infer_expr_type(&call.args[0], locals, semantics)?.as_deref() != Some("i64")
+            {
+                return Err("i64 payloads require explicitly typed values".into());
             }
             Ok(Some(name))
         }
@@ -638,7 +681,12 @@ fn infer_expr_type(
         }
         Expr::Return(ret) => {
             if let Some(value) = &ret.expr {
-                infer_expr_type(value, locals, semantics)?;
+                let actual = infer_expr_type(value, locals, semantics)?;
+                if semantics.return_type.as_deref() == Some("i64")
+                    && actual.as_deref() != Some("i64")
+                {
+                    return Err("i64 returns require explicitly typed values".into());
+                }
             }
             Ok(None)
         }
@@ -674,7 +722,11 @@ fn check_body_methods(
                 } else {
                     let inferred = infer_expr_type(initializer, locals, semantics)?;
                     if let Pat::Type(typed) = &local.pat {
-                        type_name(&typed.ty)?
+                        let declared = type_name(&typed.ty)?;
+                        if declared == "i64" && inferred.as_deref() != Some("i64") {
+                            return Err("i64 locals require explicitly typed values".into());
+                        }
+                        declared
                     } else {
                         inferred.ok_or_else(|| format!("cannot infer type of {name}"))?
                     }
@@ -695,6 +747,7 @@ fn check_body_methods(
 
 pub fn check_operations(file: &syn::File) -> Result<()> {
     let mut semantics = Semantics {
+        return_type: None,
         fields: BTreeMap::new(),
         copy: BTreeSet::new(),
         equality: BTreeSet::new(),
@@ -775,7 +828,19 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
         .map(|(name, ty)| ty.map(|ty| (name, Binding { ty, mutable: false })))
         .collect::<Result<Bindings>>()?;
     for item in &file.items {
+        if let Item::Const(constant) = item {
+            if type_name(&constant.ty)? == "i64"
+                && infer_expr_type(&constant.expr, &constants, &semantics)?.as_deref()
+                    != Some("i64")
+            {
+                return Err("i64 constants require explicitly typed values".into());
+            }
+        }
         if let Item::Fn(function) = item {
+            let syn::ReturnType::Type(_, ty) = &function.sig.output else {
+                unreachable!()
+            };
+            semantics.return_type = Some(type_name(ty)?);
             let mut locals = constants.clone();
             for parameter in &function.sig.inputs {
                 let FnArg::Typed(parameter) = parameter else {
@@ -791,6 +856,15 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
                 );
             }
             check_body_methods(&function.block, &mut locals, &semantics)?;
+            if semantics.return_type.as_deref() == Some("i64") {
+                if let Some(Stmt::Expr(tail, None)) = function.block.stmts.last() {
+                    if !matches!(tail, Expr::Return(_))
+                        && infer_expr_type(tail, &locals, &semantics)?.as_deref() != Some("i64")
+                    {
+                        return Err("i64 returns require explicitly typed values".into());
+                    }
+                }
+            }
         }
     }
     Ok(())
