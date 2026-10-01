@@ -30,6 +30,7 @@ export type EvalExpression =
       operation: 'and' | 'or'
     }
   | { kind: 'null-test'; type: 'pg_catalog.bool'; negated: boolean; operand: EvalExpression }
+  | { kind: 'input-null-test'; type: 'pg_catalog.bool'; negated: boolean; name: string }
   | { kind: 'coalesce'; type: ScalarType; operands: readonly EvalExpression[] }
   | {
       kind: 'case'
@@ -77,6 +78,10 @@ export interface EvalExpressionBackend<Ast> {
   ) => { expression: Ast; helpers: readonly string[] }
   nullTest: (
     operand: EmittedEvalExpression<Ast>,
+    negated: boolean,
+  ) => { expression: Ast; helpers: readonly string[] }
+  inputNullTest?: (
+    name: string,
     negated: boolean,
   ) => { expression: Ast; helpers: readonly string[] }
   coalesce: (
@@ -207,6 +212,12 @@ export function emitEvalExpression<Ast>(
           ),
         `membership_subject_${nextBinding++}`,
       )
+      include(result.helpers)
+      return { type: node.type, expression: result.expression, effect: 'partial' }
+    }
+    if (node.kind === 'input-null-test') {
+      if (!backend.inputNullTest) throw new Error(`No NULL input binding for ${node.name}`)
+      const result = backend.inputNullTest(node.name, node.negated)
       include(result.helpers)
       return { type: node.type, expression: result.expression, effect: 'partial' }
     }

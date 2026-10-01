@@ -3,7 +3,7 @@ import { builtinMetadata } from '../../postgres/builtins/inventory.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 
-type Input = { name: string; type: string; rustName: string; rustType: string }
+type Input = { name: string; type: string; rustName: string; rustType: string; nullness?: true }
 
 export class UnsupportedCheckRustExpression extends Error {}
 
@@ -46,15 +46,31 @@ export function emitCheckRustEvaluator(
   const entryName = identity ? checkRustEntryName(identity) : 'evaluate_check'
   const fresh = (prefix: string): string => `${prefix}_${next++}`
   const indent = (lines: readonly string[]): string[] => lines.map((line) => `    ${line}`)
-  const input = (name: string, type: string): Input => {
-    const existing = inputs.get(name)
+  const input = (name: string, type: string, nullness = false): Input => {
+    const key = JSON.stringify([name, nullness])
+    const existing = inputs.get(key)
     if (existing) {
       if (existing.type !== type) throw new Error(`Conflicting CHECK input type: ${name}`)
       return existing
     }
-    const rustName = /^[a-z][a-z0-9_]*$/u.test(name) ? `input_${name}` : `input_${inputs.size}`
-    const result = { name, type, rustName, rustType: rustType(type) }
-    inputs.set(name, result)
+    const baseName = /^[a-z][a-z0-9_]*$/u.test(name) ? `input_${name}` : `input_${inputs.size}`
+    const preferred = nullness ? `${baseName}_nullness` : baseName
+    let rustName = preferred
+    let suffix = 0
+    while (
+      [...inputs.values()].some(
+        (item) => item.rustName.replaceAll('_', '') === rustName.replaceAll('_', ''),
+      )
+    )
+      rustName = `${preferred}_${++suffix}`
+    const result: Input = {
+      name,
+      type,
+      rustName,
+      rustType: nullness ? 'BoolValue' : rustType(type),
+      ...(nullness ? { nullness: true } : {}),
+    }
+    inputs.set(key, result)
     return result
   }
   const ordered = (names: ReadonlySet<string>): Input[] =>
@@ -190,7 +206,28 @@ export function emitCheckRustEvaluator(
       }
       throw new UnsupportedCheckRustExpression(`Unsupported Rust CHECK constant: ${value.kind}`)
     }
+    if (node.kind === 'input-null-test') {
+      const item = input(node.name, node.type, true)
+      used.add(item.name)
+      return {
+        name: node.negated ? bind(`bool_not_value(${item.rustName})`) : item.rustName,
+        type: node.type,
+      }
+    }
     if (node.kind === 'null-test') {
+      if (
+        node.operand.kind === 'input' &&
+        !['pg_catalog.int4', 'pg_catalog.int8', 'pg_catalog.text', 'pg_catalog.bool'].includes(
+          node.operand.type,
+        )
+      ) {
+        const item = input(node.operand.name, node.operand.type, true)
+        used.add(item.name)
+        return {
+          name: node.negated ? bind(`bool_not_value(${item.rustName})`) : item.rustName,
+          type: node.type,
+        }
+      }
       const operand = emitScalar(node.operand, bindings, used)
       const kind = rustType(operand.type)
       const helper =

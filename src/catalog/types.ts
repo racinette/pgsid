@@ -39,6 +39,8 @@ export interface ColumnInfo {
   typeOid: number
   /** Canonical type name from `format_type(oid, typmod)`, e.g. "bigint", "text". */
   typeName: string
+  /** Whether the type, after unwrapping domains, has PostgreSQL row NULL semantics. */
+  isRowType?: boolean
   /** Type modifier (`atttypmod`), e.g. length for varchar; -1/null when none. */
   typeMod: number | null
   notNull: boolean
@@ -543,6 +545,8 @@ export interface DomainInfo {
   oid: number
   baseTypeOid: number
   baseTypeName: string
+  /** Whether the base type, after unwrapping domains, has row NULL semantics. */
+  isRowType?: boolean
   /** Whether text values of this domain use the C collation. */
   collationIsC?: boolean | null
   notNull: boolean

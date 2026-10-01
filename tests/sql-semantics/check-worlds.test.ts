@@ -11,12 +11,12 @@ import { PGlite } from '@electric-sql/pglite'
 import { plpgsql_check } from '@electric-sql/pglite-plpgsql-check'
 import { getStatements, parseSql } from '../../src/ast.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
-import type { CatalogSnapshot, TableInfo } from '../../src/catalog/types.js'
+import type { CatalogSnapshot } from '../../src/catalog/types.js'
 import { catalogCheckGroups } from '../../src/sql-semantics/catalog-checks.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
-import { goName } from '../../src/codegen/go/names.js'
+import { renderGoCheckTests, type GoCheckCase } from './check-codegen.js'
 import { typeName } from '../../src/codegen/typescript/type-mapping.js'
 import { parseConfigString } from '../../src/config/loader.js'
 
@@ -110,29 +110,6 @@ const normalized = (results: Result[]): Result[] =>
       : { certain: false },
   }))
 
-const goInput = (table: TableInfo, row: Record<string, unknown>): string => {
-  const fields = table.columns.flatMap((column) => {
-    if (!Object.hasOwn(row, column.name)) return []
-    const value = row[column.name]
-    const type = (
-      { integer: 'int32', bigint: 'int64', boolean: 'bool', text: 'string' } as Record<
-        string,
-        string
-      >
-    )[column.typeName]
-    if (!type) return []
-    const nullable = !column.notNull
-    if (value === null)
-      return nullable ? [`${goName(column.name)}: NullCheckValue[*${type}]()`] : []
-    const literal = type === 'string' ? JSON.stringify(value) : String(value)
-    const expression = `${type}(${literal})`
-    return [
-      `${goName(column.name)}: KnownCheckValue(${nullable ? `ptr(${expression})` : expression})`,
-    ]
-  })
-  return `${goName(table.schema + '_' + table.name)}CheckInput{${fields.join(',')}}`
-}
-
 describe('world CHECK INSERT parity', () => {
   let pg: PGlite
   let directory: string
@@ -140,7 +117,7 @@ describe('world CHECK INSERT parity', () => {
   let generated: Record<string, (row: Record<string, unknown>) => Result[]>
   const inputs = new Map<string, Record<string, unknown>>()
   const typescriptResults = new Map<string, Result[]>()
-  const goAssertions = new Map<string, string[]>()
+  const goCases = new Map<string, GoCheckCase[]>()
   const coverage = new Map<
     string,
     {
@@ -264,26 +241,14 @@ describe('world CHECK INSERT parity', () => {
         generated[`evaluate${typeName(table.schema + '_' + table.name)}Checks`]!(row),
       )
       typescriptResults.set(item.name, results)
-      const assertions = results.map(({ constraint, result }) => {
-        const assertion = !result.certain
-          ? 'actual.Certain'
-          : result.error
-            ? `!actual.Certain || actual.Value.Error != ${JSON.stringify(result.error)}`
-            : result.value === null
-              ? '!actual.Certain || actual.Value.Valid || actual.Value.Error != ""'
-              : `!actual.Certain || !actual.Value.Valid || actual.Value.Error != "" || actual.Value.Value != ${result.value}`
-        return `if actual, exists := results[${JSON.stringify(constraint)}]; !exists || ${assertion} { t.Fatalf(${JSON.stringify(constraint + ': %+v')}, actual) }`
-      })
-      const statements = goAssertions.get(item.schema) ?? []
-      statements.push(
-        `t.Run(${JSON.stringify(item.name)}, func(t *testing.T) { results := map[string]EvalBool{}; for _, check := range Evaluate${goName(table.schema + '_' + table.name)}Checks(${goInput(table, row)}) { results[check.Constraint] = check.Result }; ${assertions.join('\n')} })`,
-      )
-      goAssertions.set(item.schema, statements)
+      const schemaCases = goCases.get(item.schema) ?? []
+      schemaCases.push({ name: item.name, table, row, results })
+      goCases.set(item.schema, schemaCases)
     }
-    for (const [schema, assertions] of goAssertions)
+    for (const [schema, schemaCases] of goCases)
       await writeFile(
         join(directory, 'schema', schema, 'checks_test.go'),
-        `package ${schema}\nimport "testing"\nfunc ptr[T any](value T)*T{return &value}\nfunc TestWorldChecks(t *testing.T){\n${assertions.join('\n')}\n}\n`,
+        renderGoCheckTests(schema, schemaCases),
       )
     await run('go', ['test', '-mod=mod', './...'], {
       cwd: directory,

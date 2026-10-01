@@ -100,8 +100,9 @@ export function renderTypescriptSchemaCheckArtifacts(
         const args = prepared.inputs.map((item) => {
           if (!['Int4Value', 'Int8Value', 'TextValue', 'BoolValue'].includes(item.rustType))
             throw new Error(`Unsupported TypeScript Rust CHECK input: ${item.rustType}`)
-          const helper =
-            item.rustType === 'Int4Value'
+          const helper = item.nullness
+            ? 'checkRustNullness'
+            : item.rustType === 'Int4Value'
               ? 'checkRustInt4'
               : item.rustType === 'Int8Value'
                 ? 'checkRustInt8'
@@ -110,13 +111,15 @@ export function renderTypescriptSchemaCheckArtifacts(
                   : 'checkRustBool'
           rustInputAdapters.add(helper)
           inputHelpers.add(
-            item.rustType === 'Int8Value'
-              ? 'checkInputInt8'
-              : item.rustType === 'Int4Value'
-                ? 'checkInputInteger'
-                : item.rustType === 'TextValue'
-                  ? 'checkInputText'
-                  : 'checkInputBoolean',
+            item.nullness
+              ? 'checkInputNullness'
+              : item.rustType === 'Int8Value'
+                ? 'checkInputInt8'
+                : item.rustType === 'Int4Value'
+                  ? 'checkInputInteger'
+                  : item.rustType === 'TextValue'
+                    ? 'checkInputText'
+                    : 'checkInputBoolean',
           )
           return factory.createCallExpression(identifier(helper), undefined, [
             row,
@@ -148,6 +151,14 @@ export function renderTypescriptSchemaCheckArtifacts(
           ...backend,
           scalar: {
             ...backend.scalar,
+            inputNullTest: (name, negated) => {
+              const expression = callInput('checkInputNullness', name)
+              return negated
+                ? backend.scalar.logic('not', [
+                    { type: 'pg_catalog.bool', expression, effect: 'partial' },
+                  ])
+                : { expression, helpers: ['EvalValue'] }
+            },
             input: (type, name) => {
               const helper = inputHelper(type)
               if (!helper) throw new Error(`Unsupported CHECK input type: ${type}`)
@@ -343,6 +354,10 @@ function checkRustBool(row: object, name: string): _checkRust.BoolValue {
   if (input.value === null) return _checkRust.boolNull()
   return _checkRust.makeBoolValue(input.value)
 }
+function checkRustNullness(row: object, name: string): _checkRust.BoolValue {
+  const input = checkInputNullness(row, name)
+  return input.certain ? _checkRust.makeBoolValue(input.value!) : _checkRust.boolUnknown()
+}
 function checkRustOutcome(value: _checkRust.CheckOutcome): EvalBool {
   switch (value.kind) {
     case 'True': return evalBoolCertain(true)
@@ -367,6 +382,13 @@ const synthesizedStatements = (source: string): ts.Statement[] => {
 }
 
 const checkInputHelpers: Record<string, { dependencies: readonly string[]; source: string }> = {
+  checkInputNullness: {
+    dependencies: ['checkRawInput'],
+    source: `function checkInputNullness(row: object, name: string): EvalValue<boolean> {
+  const value = checkRawInput(row, name)
+  return value === undefined ? { certain: false } : { certain: true, value: value === null }
+}`,
+  },
   checkRawInput: {
     dependencies: [],
     source: `function checkRawInput(row: object, name: string): unknown {

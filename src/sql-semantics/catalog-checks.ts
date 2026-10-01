@@ -40,7 +40,9 @@ const textType = (name: string): TextType | null => {
   return null
 }
 
-type CheckTable = { columns: readonly Pick<ColumnInfo, 'name' | 'typeName' | 'collationIsC'>[] }
+type CheckTable = {
+  columns: readonly Pick<ColumnInfo, 'name' | 'typeName' | 'collationIsC' | 'isRowType'>[]
+}
 type CheckConstraint = Pick<ConstraintInfo, 'name' | 'type' | 'definition'>
 
 export function lowerTableCheck(
@@ -182,6 +184,7 @@ export function lowerDomainCheck(
         {
           name: 'value',
           typeName: domain.baseTypeName,
+          isRowType: domain.isRowType,
           collationIsC: domain.collationIsC,
         },
       ],

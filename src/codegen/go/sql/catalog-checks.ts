@@ -187,8 +187,9 @@ export function renderGoSchemaCheckArtifacts(
         const arguments_ = prepared.inputs.map((item) => {
           if (!['Int4Value', 'Int8Value', 'TextValue', 'BoolValue'].includes(item.rustType))
             throw new Error(`Unsupported Go Rust CHECK input: ${item.rustType}`)
-          const helper =
-            item.rustType === 'Int4Value'
+          const helper = item.nullness
+            ? 'checkRustNullness'
+            : item.rustType === 'Int4Value'
               ? 'checkRustInt4'
               : item.rustType === 'Int8Value'
                 ? 'checkRustInt8'
@@ -197,11 +198,13 @@ export function renderGoSchemaCheckArtifacts(
                   : 'checkRustBool'
           rustInputAdapters.add(helper)
           inputHelpers.add(
-            item.rustType === 'Int4Value' || item.rustType === 'Int8Value'
-              ? 'checkInputInteger'
-              : item.rustType === 'TextValue'
-                ? 'checkInputText'
-                : 'checkInputBoolean',
+            item.nullness
+              ? 'checkInputNullness'
+              : item.rustType === 'Int4Value' || item.rustType === 'Int8Value'
+                ? 'checkInputInteger'
+                : item.rustType === 'TextValue'
+                  ? 'checkInputText'
+                  : 'checkInputBoolean',
           )
           return go.call(go.ident(helper), [go.selector(row, goName(item.name))])
         })
@@ -229,6 +232,14 @@ export function renderGoSchemaCheckArtifacts(
           ...backend,
           scalar: {
             ...backend.scalar,
+            inputNullTest: (name, negated) => {
+              const expression = callInput('checkInputNullness', name)
+              return negated
+                ? backend.scalar.logic('not', [
+                    { type: 'pg_catalog.bool', expression, effect: 'partial' },
+                  ])
+                : { expression, helpers: ['EvalValue', 'SqlBoolean'] }
+            },
             input: (type, name) => {
               const helper = inputHelper(type)
               if (!helper) throw new Error(`Unsupported CHECK input type: ${type}`)
@@ -366,6 +377,11 @@ const goRustAdapterSource = `func checkRustInt4[T any](field CheckOptional[T]) c
   number := value.Value.Value
   if number < -2147483648 || number > 2147483647 { return checkruntime.Int4Unknown() }
   return checkruntime.MakeInt4Value(int(number))
+}
+func checkRustNullness[T any](field CheckOptional[T]) checkruntime.BoolValue {
+  input := checkInputNullness(field)
+  if !input.Certain { return checkruntime.BoolUnknown() }
+  return checkruntime.MakeBoolValue(input.Value.Value)
 }
 func checkRustInt8[T any](field CheckOptional[T]) checkruntime.Int8Value {
   value := checkInputInteger(field)

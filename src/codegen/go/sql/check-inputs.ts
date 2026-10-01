@@ -1,4 +1,32 @@
 const helpers: Record<string, { dependencies: readonly string[]; source: string }> = {
+  checkInputNullness: {
+    dependencies: ['checkNullRaw'],
+    source: `func checkInputNullness[T any](field CheckOptional[T]) EvalValue[SqlBoolean] {
+  if !field.Set { return EvalValue[SqlBoolean]{} }
+  return EvalValue[SqlBoolean]{Certain: true, Value: SqlBoolean{Value: field.Null || checkNullRaw(any(field.V)), Valid: true}}
+}`,
+  },
+  checkNullRaw: {
+    dependencies: [],
+    source: `func checkNullRaw(raw any) bool {
+  if raw == nil { return true }
+  value := reflect.ValueOf(raw)
+  for value.Kind() == reflect.Pointer || value.Kind() == reflect.Interface {
+    if value.IsNil() { return true }
+    if nullable, ok := value.Interface().(interface { SQLValid() bool }); ok {
+      return !nullable.SQLValid()
+    }
+    value = value.Elem()
+  }
+  if nullable, ok := value.Interface().(interface { SQLValid() bool }); ok {
+    return !nullable.SQLValid()
+  }
+  switch value.Kind() {
+  case reflect.Slice, reflect.Map: return value.IsNil()
+  }
+  return false
+}`,
+  },
   checkPrimitive: {
     dependencies: [],
     source: `func checkPrimitive(raw any) (any, bool) {
@@ -196,11 +224,13 @@ export function goCheckInputSource(required: ReadonlySet<string>): {
   for (const name of required) include(name)
   return {
     source: source.join('\n'),
-    reflect: included.has('checkPrimitive'),
+    reflect: included.has('checkPrimitive') || included.has('checkNullRaw'),
     runtime: [
       ...(included.has('checkTextRaw') ? ['SqlText'] : []),
       ...(included.has('checkIntegerRaw') ? ['SqlInteger'] : []),
-      ...(included.has('checkBooleanRaw') ? ['SqlBoolean'] : []),
+      ...(included.has('checkBooleanRaw') || included.has('checkInputNullness')
+        ? ['SqlBoolean']
+        : []),
       ...(included.has('checkFloatRaw') ? ['SqlFloat'] : []),
     ],
   }
