@@ -33,7 +33,13 @@ function worldDirs(): string[] {
 
 function fixtureFiles(dir: string): string[] {
   return readdirSync(dir)
-    .filter((file) => file.endsWith('.sql') && file !== 'schema.sql' && file !== 'data.sql')
+    .filter(
+      (file) =>
+        file.endsWith('.sql') &&
+        file !== 'schema.sql' &&
+        file !== 'data.sql' &&
+        file !== 'check-seed.sql',
+    )
     .sort()
 }
 

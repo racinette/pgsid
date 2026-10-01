@@ -313,7 +313,10 @@ async function measureWorld(name, paths, read) {
     }
 
     const fixturePaths = paths.filter(
-      (path) => !path.endsWith('/schema.sql') && !path.endsWith('/data.sql'),
+      (path) =>
+        !path.endsWith('/schema.sql') &&
+        !path.endsWith('/data.sql') &&
+        !path.endsWith('/check-seed.sql'),
     )
     if (fixturePaths.length === 0) {
       violation('has no fixtures — a world with no questions is dead schema')

@@ -79,6 +79,7 @@ describe('Espalier query-fixture rule', () => {
     const rules = [
       'worlds/[world]/[fixture].sql.mjs',
       'worlds/[world]/data.sql.mjs',
+      'worlds/[world]/check-seed.sql.mjs',
       'worlds/[world]/schema.sql.mjs',
     ]
     const checks = await Promise.all(

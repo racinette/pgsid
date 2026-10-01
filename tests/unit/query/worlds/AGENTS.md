@@ -3,7 +3,7 @@
 # pgsid query analysis tests — `worlds/`
 
 Each directory is one independently understandable database world. Its schema,
-seed data, and queries travel together. Query fixtures state the complete
+seed data, CHECK input cases, and queries travel together. Query fixtures state the complete
 contract expected from the engine; PostgreSQL execution then adjudicates the
 claims.
 
@@ -302,15 +302,26 @@ shared world on behalf of everyone who never needed it.
 ## Project layout
 
     worlds/
-    └─ [world]/          (zero or more, any name)
+    └─ [world]/           (zero or more, any name)
        │
-       ├─ data.sql       the witness rows for one isolated database world
-       │                 (required)
+       ├─ check-seed.sql  independent INSERT cases for generated CHECK evaluator
+       │                  parity (required)
        │
-       ├─ schema.sql     the schema of one isolated database world (required)
+       ├─ data.sql        the witness rows for one isolated database world
+       │                  (required)
        │
-       └─ [fixture].sql  a hand-authored query with an independently stated
-                         contract (zero or more, any name)
+       ├─ schema.sql      the schema of one isolated database world (required)
+       │
+       └─ [fixture].sql   a hand-authored query with an independently stated
+                          contract (zero or more, any name)
+
+## `[world]/check-seed.sql` — independent INSERT cases for generated CHECK evaluator parity
+
+Write independent, single-row INSERT VALUES statements with explicit
+column lists and literal values. Include accepted and rejected rows using the
+world's seeded foreign keys. PostgreSQL supplies the expected outcomes; do not
+record them in annotations. Every statement runs against the seed state and is
+rolled back. Name cases with SQL name comments for readable failure reports.
 
 ## `[world]/data.sql` — the witness rows for one isolated database world
 

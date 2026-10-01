@@ -1,0 +1,473 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { execFile } from 'node:child_process'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+import { pathToFileURL, fileURLToPath } from 'node:url'
+import { promisify } from 'node:util'
+import type { Node } from 'libpg-query'
+import { deparseSync } from 'pgsql-deparser'
+import { PGlite } from '@electric-sql/pglite'
+import { plpgsql_check } from '@electric-sql/pglite-plpgsql-check'
+import { getStatements, parseSql } from '../../src/ast.js'
+import { snapshotCatalog } from '../../src/catalog/snapshot.js'
+import type { CatalogSnapshot, TableInfo } from '../../src/catalog/types.js'
+import { catalogCheckGroups } from '../../src/sql-semantics/catalog-checks.js'
+import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
+import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
+import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
+import { goName } from '../../src/codegen/go/names.js'
+import { typeName } from '../../src/codegen/typescript/type-mapping.js'
+import { parseConfigString } from '../../src/config/loader.js'
+
+const run = promisify(execFile)
+const worldsDirectory = fileURLToPath(new URL('../unit/query/worlds/', import.meta.url))
+const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"'
+type Result = {
+  constraint: string
+  result: { certain: boolean; value?: boolean | null; error?: string }
+}
+type Case = {
+  name: string
+  schema: string
+  relation: string
+  sql: string
+  values: Map<string, Node>
+}
+const worlds = (await readdir(worldsDirectory, { withFileTypes: true }))
+  .filter((entry) => entry.isDirectory())
+  .map((entry) => ({ name: entry.name, schema: 'world_' + entry.name }))
+  .sort((left, right) => left.name.localeCompare(right.name))
+const cases: Case[] = []
+for (const world of worlds) {
+  const source = await readFile(join(worldsDirectory, world.name, 'check-seed.sql'), 'utf8')
+  const statements = getStatements(await parseSql(source), Buffer.from(source))
+  const labels = [...source.matchAll(/^--\s*name:\s*(\S+)\s*$/gmu)].map((match) => match[1]!)
+  if (labels.length !== statements.length || new Set(labels).size !== labels.length)
+    throw new Error(`${world.name}: every CHECK case needs a unique name comment`)
+  for (const [index, statement] of statements.entries()) {
+    const insert = 'InsertStmt' in statement.stmt ? statement.stmt.InsertStmt : undefined
+    const select = insert?.selectStmt
+    const rows = select && 'SelectStmt' in select ? select.SelectStmt.valuesLists : undefined
+    if (
+      !insert?.relation?.relname ||
+      !insert.cols?.length ||
+      rows?.length !== 1 ||
+      insert.withClause ||
+      insert.onConflictClause
+    )
+      throw new Error(`${world.name}: CHECK case requires a single-row INSERT VALUES`)
+    const first = rows[0]!
+    const values = 'List' in first ? (first.List.items ?? []) : []
+    if (values.length !== insert.cols.length)
+      throw new Error(`${world.name}: INSERT arity mismatch`)
+    const literal = (node: Node): boolean =>
+      'A_Const' in node ||
+      ('TypeCast' in node && Boolean(node.TypeCast.arg) && literal(node.TypeCast.arg!))
+    if (!values.every(literal)) throw new Error(`${world.name}: CHECK case requires literal values`)
+    const label = labels[index]!
+    if (insert.relation.schemaname && insert.relation.schemaname !== world.schema)
+      throw new Error(`${world.name}: CHECK case must address its own world`)
+    cases.push({
+      name: `${world.name}/${label}`,
+      schema: world.schema,
+      relation: insert.relation.relname,
+      sql: statement.text,
+      values: new Map(
+        insert.cols.map((column, index) => {
+          if (!('ResTarget' in column) || !column.ResTarget.name)
+            throw new Error('Missing INSERT column name')
+          return [column.ResTarget.name, values[index]!]
+        }),
+      ),
+    })
+  }
+}
+
+async function loadWorldSql(pg: PGlite, source: string, schema: string): Promise<void> {
+  const parsed = await parseSql(source)
+  const visit = (value: unknown): void => {
+    if (!value || typeof value !== 'object') return
+    const record = value as Record<string, unknown>
+    if (record['schemaname'] === 'public') record['schemaname'] = schema
+    const setting = record['VariableSetStmt'] as { name?: string; args?: Node[] } | undefined
+    if (setting?.name === 'search_path')
+      for (const arg of setting.args ?? [])
+        if ('A_Const' in arg && arg.A_Const.sval?.sval === 'public') arg.A_Const.sval.sval = schema
+    for (const child of Object.values(record)) visit(child)
+  }
+  visit(parsed)
+  await pg.exec(deparseSync(parsed))
+}
+
+const normalized = (results: Result[]): Result[] =>
+  results.map(({ constraint, result }) => ({
+    constraint,
+    result: result.certain
+      ? result.error
+        ? { certain: true, error: result.error }
+        : { certain: true, value: result.value }
+      : { certain: false },
+  }))
+
+const goInput = (table: TableInfo, row: Record<string, unknown>): string => {
+  const fields = table.columns.flatMap((column) => {
+    if (!Object.hasOwn(row, column.name)) return []
+    const value = row[column.name]
+    const type = (
+      { integer: 'int32', bigint: 'int64', boolean: 'bool', text: 'string' } as Record<
+        string,
+        string
+      >
+    )[column.typeName]
+    if (!type) return []
+    const nullable = !column.notNull
+    if (value === null)
+      return nullable ? [`${goName(column.name)}: NullCheckValue[*${type}]()`] : []
+    const literal = type === 'string' ? JSON.stringify(value) : String(value)
+    const expression = `${type}(${literal})`
+    return [
+      `${goName(column.name)}: KnownCheckValue(${nullable ? `ptr(${expression})` : expression})`,
+    ]
+  })
+  return `${goName(table.schema + '_' + table.name)}CheckInput{${fields.join(',')}}`
+}
+
+describe('world CHECK INSERT parity', () => {
+  let pg: PGlite
+  let directory: string
+  let catalog: CatalogSnapshot
+  let generated: Record<string, (row: Record<string, unknown>) => Result[]>
+  const inputs = new Map<string, Record<string, unknown>>()
+  const typescriptResults = new Map<string, Result[]>()
+  const goAssertions = new Map<string, string[]>()
+  const coverage = new Map<
+    string,
+    {
+      constraint: string
+      definition: string
+      true: number
+      false: number
+      null: number
+      unknown: number
+      postgres: { true: number; false: number; null: number }
+    }
+  >()
+  const caseResults: {
+    name: string
+    database: { accepted: boolean; constraint?: string }
+    sql: string
+    checks: (Result & { postgres: boolean | null })[]
+  }[] = []
+  let definite = 0
+  let localRejections = 0
+  let databaseRejections = 0
+  let unknownComparisons = 0
+
+  beforeAll(async () => {
+    pg = await PGlite.create({ extensions: { plpgsql_check } })
+    directory = await mkdtemp(join(tmpdir(), 'pgsid-world-checks-'))
+    await pg.exec('CREATE EXTENSION plpgsql_check')
+    for (const world of worlds) {
+      await pg.exec(
+        `CREATE SCHEMA ${quote(world.schema)}; SET search_path = ${quote(world.schema)}, public`,
+      )
+      for (const file of ['schema.sql', 'data.sql'])
+        await loadWorldSql(
+          pg,
+          await readFile(join(worldsDirectory, world.name, file), 'utf8'),
+          world.schema,
+        )
+    }
+    catalog = await snapshotCatalog(pg)
+    expect(catalog.tables.filter((table) => table.schema === 'public')).toEqual([])
+    expect(
+      catalog.tables
+        .filter((table) => table.name === 'reservations')
+        .map((table) => table.schema)
+        .sort(),
+    ).toEqual(['world_002_library', 'world_008_inventory_allocation'])
+    const tables = catalog.tables.filter((table) =>
+      cases.some((item) => item.schema === table.schema && item.relation === table.name),
+    )
+    for (const table of tables) {
+      expect(table.writeRewritesTree.beforeRow).toEqual([])
+      expect(catalogCheckGroups([table], []).length).toBe(1)
+    }
+    const ts = renderTypescriptSchemaCheckArtifacts(tables)
+    const go = renderGoSchemaArtifacts(
+      { ...catalog, tables, views: [], materializedViews: [] },
+      parseConfigString(
+        'schema: schema.sql\nsql:\n  codegen:\n    go:\n      schema: { outDir: schema }\n',
+      ),
+      {},
+      join(directory, 'schema'),
+      'worldchecks/schema',
+    )
+    expect(go.diagnostics).toEqual([])
+    expect(ts.rustFiles).not.toBeNull()
+    for (const group of catalogCheckGroups(tables, []))
+      for (const { plan } of group.checks)
+        expect(ts.checks).toContain(
+          `constraint: ${JSON.stringify(plan.name)}, result: checkRustOutcome`,
+        )
+    await writeFile(join(directory, 'package.json'), '{"type":"module"}\n')
+    await writeFile(join(directory, 'checks.ts'), ts.checks)
+    for (const artifact of checkTypescriptArtifacts(ts.rustFiles!)) {
+      const path = join(directory, 'checks-rust', artifact.path)
+      await mkdir(dirname(path), { recursive: true })
+      await writeFile(path, artifact.content)
+    }
+    await run('node_modules/.bin/tsc', [
+      '--strict',
+      '--skipLibCheck',
+      '--target',
+      'es2022',
+      '--module',
+      'nodenext',
+      '--moduleResolution',
+      'nodenext',
+      '--outDir',
+      join(directory, 'js'),
+      join(directory, 'checks.ts'),
+    ])
+    generated = await import(pathToFileURL(join(directory, 'js/checks.js')).href)
+    for (const artifact of go.artifacts) {
+      await mkdir(dirname(artifact.path), { recursive: true })
+      await writeFile(artifact.path, artifact.content)
+    }
+    await writeFile(
+      join(directory, 'go.mod'),
+      'module worldchecks\n\ngo 1.25\n\nrequire github.com/jackc/pgx/v5 v5.10.0\n',
+    )
+    await writeFile(
+      join(directory, 'go.sum'),
+      await readFile('tests/fixtures/codegen/project/go.sum', 'utf8'),
+    )
+    for (const item of cases) {
+      const table = tables.find(
+        (table) => table.schema === item.schema && table.name === item.relation,
+      )!
+      const expressions = table.columns
+        .filter((column) => column.generated === 'none')
+        .map((column) => {
+          const value = item.values.get(column.name)
+          if (!value && column.hasDefault)
+            throw new Error(`${item.name}: omitted default needs row materialization`)
+          return `CAST(${value ? deparseSync(value) : 'NULL'} AS ${column.typeName}) AS ${quote(column.name)}`
+        })
+      await pg.exec(`SET search_path = ${quote(item.schema)}, public`)
+      const row = (await pg.query<Record<string, unknown>>(`SELECT ${expressions.join(',')}`))
+        .rows[0]!
+      inputs.set(item.name, row)
+      const results = normalized(
+        generated[`evaluate${typeName(table.schema + '_' + table.name)}Checks`]!(row),
+      )
+      typescriptResults.set(item.name, results)
+      const assertions = results.map(({ constraint, result }) => {
+        const assertion = !result.certain
+          ? 'actual.Certain'
+          : result.error
+            ? `!actual.Certain || actual.Value.Error != ${JSON.stringify(result.error)}`
+            : result.value === null
+              ? '!actual.Certain || actual.Value.Valid || actual.Value.Error != ""'
+              : `!actual.Certain || !actual.Value.Valid || actual.Value.Error != "" || actual.Value.Value != ${result.value}`
+        return `if actual, exists := results[${JSON.stringify(constraint)}]; !exists || ${assertion} { t.Fatalf(${JSON.stringify(constraint + ': %+v')}, actual) }`
+      })
+      const statements = goAssertions.get(item.schema) ?? []
+      statements.push(
+        `t.Run(${JSON.stringify(item.name)}, func(t *testing.T) { results := map[string]EvalBool{}; for _, check := range Evaluate${goName(table.schema + '_' + table.name)}Checks(${goInput(table, row)}) { results[check.Constraint] = check.Result }; ${assertions.join('\n')} })`,
+      )
+      goAssertions.set(item.schema, statements)
+    }
+    for (const [schema, assertions] of goAssertions)
+      await writeFile(
+        join(directory, 'schema', schema, 'checks_test.go'),
+        `package ${schema}\nimport "testing"\nfunc ptr[T any](value T)*T{return &value}\nfunc TestWorldChecks(t *testing.T){\n${assertions.join('\n')}\n}\n`,
+      )
+    await run('go', ['test', '-mod=mod', './...'], {
+      cwd: directory,
+      env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+    })
+  }, 120_000)
+
+  afterAll(async () => {
+    if (pg && !pg.closed) await pg.close()
+    if (directory) await rm(directory, { recursive: true, force: true })
+  })
+
+  it.each(cases)('$name', async (item) => {
+    const table = catalog.tables.find(
+      (table) => table.schema === item.schema && table.name === item.relation,
+    )!
+    await pg.exec(`SET search_path = ${quote(item.schema)}, public; BEGIN`)
+    let rejected: { code: string; constraint: string } | undefined
+    try {
+      await pg.query(item.sql)
+    } catch (error) {
+      const failure = error as { code: string; constraint: string }
+      expect(failure.code, `${item.name}: unrelated INSERT failure`).toBe('23514')
+      rejected = failure
+    } finally {
+      await pg.exec('ROLLBACK')
+    }
+    const results = typescriptResults.get(item.name)!
+    const row = inputs.get(item.name)!
+    const select = table.columns
+      .filter((column) => Object.hasOwn(row, column.name))
+      .map(
+        (column) =>
+          `CAST(${item.values.has(column.name) ? deparseSync(item.values.get(column.name)!) : 'NULL'} AS ${column.typeName}) AS ${quote(column.name)}`,
+      )
+      .join(',')
+    const generatedColumns = table.columns
+      .filter((column) => column.generated !== 'none')
+      .map((column) => {
+        if (!column.defaultExpr) throw new Error(`${item.name}: missing generated expression`)
+        return `(${column.defaultExpr}) AS ${quote(column.name)}`
+      })
+    const candidate = generatedColumns.length
+      ? `SELECT inputs.*, ${generatedColumns.join(',')} FROM (SELECT ${select}) AS inputs`
+      : `SELECT ${select}`
+    const oracleResults: (Result & { postgres: boolean | null })[] = []
+    for (const { constraint, result } of results) {
+      const identity = `${item.schema}.${table.name}.${constraint}`
+      const counts = coverage.get(identity) ?? {
+        constraint: identity,
+        definition: table.constraints.find((candidate) => candidate.name === constraint)!
+          .definition,
+        true: 0,
+        false: 0,
+        null: 0,
+        unknown: 0,
+        postgres: { true: 0, false: 0, null: 0 },
+      }
+      counts[
+        result.certain
+          ? result.value === null
+            ? 'null'
+            : result.value
+              ? 'true'
+              : 'false'
+          : 'unknown'
+      ]++
+      coverage.set(identity, counts)
+      const definition = table.constraints.find(
+        (candidate) => candidate.name === constraint,
+      )!.definition
+      const ast = await parseSql(`ALTER TABLE host ADD CONSTRAINT test ${definition}`)
+      const statement = ast.stmts![0]!.stmt! as {
+        AlterTableStmt: { cmds: { AlterTableCmd: { def: { Constraint: { raw_expr: Node } } } }[] }
+      }
+      const expression = statement.AlterTableStmt.cmds[0]!.AlterTableCmd.def.Constraint.raw_expr
+      const expected = (
+        await pg.query<{ value: boolean | null }>(
+          `SELECT (${deparseSync(expression)}) AS value FROM (${candidate}) AS candidate`,
+        )
+      ).rows[0]!.value
+      counts.postgres[expected === null ? 'null' : expected ? 'true' : 'false']++
+      oracleResults.push({ constraint, result, postgres: expected })
+      if (!result.certain) {
+        unknownComparisons++
+        continue
+      }
+      expect(result, `${item.name}/${constraint}: generated CHECK differs from PostgreSQL`).toEqual(
+        { certain: true, value: expected },
+      )
+      definite++
+      if (expected === false)
+        expect(rejected, `${item.name}/${constraint}: INSERT must reject`).toBeDefined()
+    }
+    if (rejected) {
+      databaseRejections++
+      const result = results.find((result) => result.constraint === rejected!.constraint)?.result
+      expect(
+        result,
+        `${item.name}: database constraint absent from generated validator`,
+      ).toBeDefined()
+      if (result!.certain) {
+        expect(result).toEqual({ certain: true, value: false })
+        localRejections++
+      }
+    } else
+      expect(results.filter(({ result }) => result.certain && result.value === false)).toEqual([])
+    caseResults.push({
+      name: item.name,
+      database: rejected
+        ? { accepted: false, constraint: rejected.constraint }
+        : { accepted: true },
+      sql: item.sql,
+      checks: oracleResults,
+    })
+  })
+
+  it('exercises definite evaluation and local rejection', async () => {
+    expect(definite).toBeGreaterThan(0)
+    expect(localRejections).toBeGreaterThan(0)
+    expect(caseResults).toHaveLength(cases.length)
+    const constraints = [...coverage.values()].sort((left, right) =>
+      left.constraint.localeCompare(right.constraint),
+    )
+    const definiteConstraints = constraints.filter((item) => item.true + item.false + item.null > 0)
+    const corpus = catalogCheckGroups(catalog.tables, []).flatMap((group) =>
+      group.checks.map(({ plan }) => ({
+        constraint: `${group.source.schema}.${group.source.name}.${plan.name}`,
+      })),
+    )
+    const unexercised = corpus
+      .filter((item) => !coverage.has(item.constraint))
+      .map((item) => item.constraint)
+      .sort()
+    const summary = {
+      inserts: cases.length,
+      corpusConstraints: corpus.length,
+      exercisedConstraints: constraints.length,
+      definiteConstraints: definiteConstraints.length,
+      alwaysDefiniteInTestedRows: definiteConstraints.filter((item) => item.unknown === 0).length,
+      partiallyDefiniteInTestedRows: definiteConstraints.filter((item) => item.unknown > 0).length,
+      alwaysUnknownInTestedRows: constraints.length - definiteConstraints.length,
+      unexercisedConstraints: unexercised.length,
+      constraintsWithTrueAndFalse: constraints.filter((item) => item.true > 0 && item.false > 0)
+        .length,
+      true: constraints.reduce((sum, item) => sum + item.true, 0),
+      false: constraints.reduce((sum, item) => sum + item.false, 0),
+      null: constraints.reduce((sum, item) => sum + item.null, 0),
+      unknown: unknownComparisons,
+      postgres: {
+        true: constraints.reduce((sum, item) => sum + item.postgres.true, 0),
+        false: constraints.reduce((sum, item) => sum + item.postgres.false, 0),
+        null: constraints.reduce((sum, item) => sum + item.postgres.null, 0),
+      },
+      databaseRejections,
+      localRejections,
+    }
+    const worldStats = worlds.map((world) => {
+      const checks = constraints.filter((item) => item.constraint.startsWith(world.schema + '.'))
+      return {
+        world: world.name,
+        inserts: cases.filter((item) => item.schema === world.schema).length,
+        exercised: checks.length,
+        definite: checks.filter((item) => item.true + item.false + item.null > 0).length,
+        true: checks.reduce((sum, item) => sum + item.true, 0),
+        false: checks.reduce((sum, item) => sum + item.false, 0),
+        null: checks.reduce((sum, item) => sum + item.null, 0),
+        unknown: checks.reduce((sum, item) => sum + item.unknown, 0),
+      }
+    })
+    const reportDirectory = fileURLToPath(new URL('../../artifacts/check-worlds/', import.meta.url))
+    await mkdir(reportDirectory, { recursive: true })
+    await writeFile(
+      join(reportDirectory, 'report.json'),
+      JSON.stringify(
+        { summary, worlds: worldStats, constraints, unexercised, cases: caseResults },
+        null,
+        2,
+      ) + '\n',
+    )
+    console.table(worldStats)
+    console.info('Detailed CHECK results: artifacts/check-worlds/report.json')
+    console.info(
+      `World CHECK parity: ${cases.length} INSERT cases, ${definiteConstraints.length} distinct constraints with definite results, ${definite} definite CHECK comparisons, ${unknownComparisons} Unknown CHECK results; ${localRejections} of ${databaseRejections} database rejections detected locally; Go and TypeScript agree.`,
+    )
+  })
+})

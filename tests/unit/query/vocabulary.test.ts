@@ -126,7 +126,7 @@ describe('corpus vocabulary', () => {
       for (const name of readdirSync(WORLDS_DIR)) {
         const dir = join(WORLDS_DIR, name)
         if (!statSync(dir).isDirectory()) continue
-        await absorb(readDirSql(dir, ['schema.sql', 'data.sql']), ours)
+        await absorb(readDirSql(dir, ['schema.sql', 'data.sql', 'check-seed.sql']), ours)
       }
 
     if (WITH_REGRESS) {
