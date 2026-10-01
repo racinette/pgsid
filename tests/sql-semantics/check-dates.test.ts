@@ -127,13 +127,8 @@ describe('portable Rust CHECK dates', () => {
   const bind = (sql: string) =>
     lowerTableCheck(table, { name: 'probe', type: 'check', definition: `CHECK (${sql})` })!
       .expression
-  it('keeps session-dependent text and cross-type comparisons unknown', () => {
-    for (const sql of [
-      "a = 'today'::date",
-      "a = '01-02-03'::date",
-      "a > '2000-01-01'::timestamp",
-      'a + 1 > b',
-    ]) {
+  it('keeps cross-type comparisons and date arithmetic unsupported', () => {
+    for (const sql of ["a > '2000-01-01'::timestamp", 'a + 1 > b']) {
       const group = prepareCheckRustGroup([
         {
           expression: bind(sql),

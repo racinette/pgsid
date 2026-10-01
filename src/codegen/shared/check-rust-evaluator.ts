@@ -3,6 +3,7 @@ import { builtinMetadata } from '../../postgres/builtins/inventory.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 import { supportsTextCallableCollation } from '../../sql-semantics/collation.js'
+import { rustStringLiteral } from './rust-literals.js'
 import {
   enumType,
   enumEqualityOperation,
@@ -28,20 +29,6 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.bool') return 'BoolValue'
   if (type.startsWith('enum:')) return 'EnumValue'
   throw new UnsupportedCheckRustExpression(`Unsupported Rust CHECK input type: ${type}`)
-}
-
-const rustString = (input: string): string => {
-  let encoded = '"'
-  for (const character of input) {
-    const code = character.codePointAt(0)!
-    if (character === '\\' || character === '"') encoded += `\\${character}`
-    else if (code === 0x0a) encoded += '\\n'
-    else if (code === 0x0d) encoded += '\\r'
-    else if (code === 0x09) encoded += '\\t'
-    else if (code < 0x20 || code === 0x7f || code > 0x7e) encoded += `\\u{${code.toString(16)}}`
-    else encoded += character
-  }
-  return `${encoded}"`
 }
 
 export function emitCheckRustEvaluator(
@@ -205,28 +192,18 @@ export function emitCheckRustEvaluator(
                   : 'bool_unknown'
       return { name: bind(`${helper}()`), type: node.type }
     }
+    if (node.kind === 'text-to-date') {
+      const operand = emitScalar(node.operand, bindings, used)
+      if (operand.type !== 'pg_catalog.text')
+        throw new UnsupportedCheckRustExpression('A text-to-date cast requires text')
+      return { name: bind(`date_from_text(${operand.name})`), type: node.type }
+    }
     if (node.kind === 'certain') {
       const value = node.expression
       if (value.kind === 'temporal' && value.type === 'pg_catalog.date') {
         if (value.value === null) return { name: bind('date_null()'), type: value.type }
-        const literal = value.value.toLowerCase()
-        if (literal === '-infinity' || literal === 'infinity' || literal === '+infinity')
-          return {
-            name: bind(
-              `make_date_value(${literal === '-infinity' ? '-2147483647 - 1' : '2147483647'})`,
-            ),
-            type: value.type,
-          }
-        const match = /^(\d{4,7})-(\d{2})-(\d{2})( BC)?$/u.exec(value.value)
-        if (!match)
-          throw new UnsupportedCheckRustExpression(
-            `Unsupported Rust CHECK date literal: ${value.value}`,
-          )
-        const year = Number(match[1]) * (match[4] ? -1 : 1)
-        const month = Number(match[2])
-        const day = Number(match[3])
-        const name = bind(`date_from_ymd(${year}, ${month}, ${day})`)
-        return { name, type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`date_from_text(${text})`), type: value.type }
       }
       if (value.kind === 'enum') {
         if (value.type !== enumType(value.enum))
@@ -249,7 +226,9 @@ export function emitCheckRustEvaluator(
       if (value.kind === 'text')
         return {
           name: bind(
-            value.value === null ? 'text_null()' : `make_text_value(${rustString(value.value)})`,
+            value.value === null
+              ? 'text_null()'
+              : `make_text_value(${rustStringLiteral(value.value)})`,
           ),
           type: value.type,
         }
@@ -572,7 +551,7 @@ export function emitCheckRustEvaluator(
       return {
         lines: [
           ...(typeof pattern === 'string'
-            ? [`let ${patternName} = make_text_value(${rustString(pattern)});`]
+            ? [`let ${patternName} = make_text_value(${rustStringLiteral(pattern)});`]
             : []),
           `let ${result} = eval_regex(${subject.rustName}, ${patternName});`,
           `let ${name} = check_from_bool(${result});`,

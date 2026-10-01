@@ -398,6 +398,160 @@ export function textFromCaseGuard(value: CheckOutcome): TextValue {
     return { kind: "Unknown" };
 }
 const dateFieldOverflow = 3452552;
+const invalidDateText = 3452551;
+function dateTextSpace(value: string): boolean {
+    value = langruntime.checkedChar(value);
+    return value === " " || value === "\t" || value === "\n" || value === "\r" || value === "\v" || value === "\f";
+}
+function dateTextDigit(value: string): number {
+    value = langruntime.checkedChar(value);
+    if (value === "0") {
+        return 0;
+    }
+    if (value === "1") {
+        return 1;
+    }
+    if (value === "2") {
+        return 2;
+    }
+    if (value === "3") {
+        return 3;
+    }
+    if (value === "4") {
+        return 4;
+    }
+    if (value === "5") {
+        return 5;
+    }
+    if (value === "6") {
+        return 6;
+    }
+    if (value === "7") {
+        return 7;
+    }
+    if (value === "8") {
+        return 8;
+    }
+    if (value === "9") {
+        return 9;
+    }
+    return langruntime.checkedSignedNegate(1);
+}
+export function dateFromText(value: TextValue): DateValue {
+    value = copyTextValue(value);
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalTextValue(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (equalTextValue(value, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (value.kind === "Value") {
+        const text: string = langruntime.checkedString(value.value);
+        const chars: string[] = Array.from(text);
+        if (chars.length > 128) {
+            return { kind: "Unknown" };
+        }
+        let start: number = 0;
+        let end: number = chars.length;
+        while (start < end && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(start)))) {
+            start = langruntime.checkedAdd(start, 1);
+        }
+        while (start < end && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        }
+        if (start === end) {
+            return { kind: "Error", value: { state: invalidDateText } };
+        }
+        let bc: boolean = false;
+        if (langruntime.checkedSubtract(end, start) >= 2 && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)))) === "c" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 2)))) === "b") {
+            bc = langruntime.checkedBool(true);
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 2));
+        }
+        else if (langruntime.checkedSubtract(end, start) >= 2 && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1)))) === "d" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 2)))) === "a") {
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 2));
+        }
+        while (start < end && dateTextSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        }
+        let infinityStart: number = start;
+        let negative: boolean = false;
+        if (infinityStart < end && langruntime.indexChar(chars, langruntime.checkedIndex(infinityStart)) === "-") {
+            negative = langruntime.checkedBool(true);
+            infinityStart = langruntime.checkedAdd(infinityStart, 1);
+        }
+        else if (infinityStart < end && langruntime.indexChar(chars, langruntime.checkedIndex(infinityStart)) === "+") {
+            infinityStart = langruntime.checkedAdd(infinityStart, 1);
+        }
+        if (langruntime.checkedSubtract(end, infinityStart) === 8) {
+            const infinity: string[] = Array.from("infinity");
+            let index: number = 0;
+            let matches: boolean = true;
+            while (index < infinity.length) {
+                if (!(langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(infinityStart, index)))) === langruntime.indexChar(infinity, langruntime.checkedIndex(index)))) {
+                    matches = langruntime.checkedBool(false);
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            if (matches) {
+                if (negative) {
+                    return { kind: "Value", value: langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1) };
+                }
+                return { kind: "Value", value: 2147483647 };
+            }
+        }
+        let index: number = start;
+        let year: number = 0;
+        let yearDigits: number = 0;
+        while (index < end && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) >= 0) {
+            if (year < 5874898) {
+                year = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(year, 10), dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)))));
+            }
+            yearDigits = langruntime.checkedAdd(yearDigits, 1);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (yearDigits < 4 || index === end || !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-")) {
+            return { kind: "Unknown" };
+        }
+        index = langruntime.checkedAdd(index, 1);
+        let month: number = 0;
+        let monthDigits: number = 0;
+        while (index < end && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) >= 0) {
+            if (monthDigits < 2) {
+                month = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(month, 10), dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)))));
+            }
+            monthDigits = langruntime.checkedAdd(monthDigits, 1);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (monthDigits < 1 || monthDigits > 2 || index === end || !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-")) {
+            return { kind: "Unknown" };
+        }
+        index = langruntime.checkedAdd(index, 1);
+        let day: number = 0;
+        let dayDigits: number = 0;
+        while (index < end && dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) >= 0) {
+            if (dayDigits < 2) {
+                day = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(day, 10), dateTextDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)))));
+            }
+            dayDigits = langruntime.checkedAdd(dayDigits, 1);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (dayDigits === 0 && index === end) {
+            return { kind: "Error", value: { state: invalidDateText } };
+        }
+        if (dayDigits < 1 || dayDigits > 2 || !(index === end)) {
+            return { kind: "Unknown" };
+        }
+        if (bc) {
+            year = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, year));
+        }
+        return dateFromYmd(year, month, day);
+    }
+    return { kind: "Unknown" };
+}
 export function dateFromYmd(year: number, month: number, day: number): DateValue {
     year = langruntime.checkedI32(year);
     month = langruntime.checkedI32(month);

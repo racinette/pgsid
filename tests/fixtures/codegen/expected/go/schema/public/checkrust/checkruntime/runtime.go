@@ -392,7 +392,159 @@ func TextFromCaseGuard(value CheckOutcome) TextValue {
 }
 
 const dateFieldOverflow = 3452552
+const invalidDateText = 3452551
 
+func dateTextSpace(value rune) bool {
+	value = langruntime.CheckedChar(value)
+	return value == ' ' || value == '\t' || value == '\n' || value == '\r' || value == '\v' || value == '\f'
+}
+func dateTextDigit(value rune) int {
+	value = langruntime.CheckedChar(value)
+	if value == '0' {
+		return 0
+	}
+	if value == '1' {
+		return 1
+	}
+	if value == '2' {
+		return 2
+	}
+	if value == '3' {
+		return 3
+	}
+	if value == '4' {
+		return 4
+	}
+	if value == '5' {
+		return 5
+	}
+	if value == '6' {
+		return 6
+	}
+	if value == '7' {
+		return 7
+	}
+	if value == '8' {
+		return 8
+	}
+	if value == '9' {
+		return 9
+	}
+	return langruntime.CheckedSignedNegate(1)
+}
+func DateFromText(value TextValue) DateValue {
+	value = CopyTextValue(value)
+	if value.Kind == TextValueError {
+		error := value.Error
+		return DateValue{Kind: DateValueError, Error: error}
+	}
+	if value == (TextValue{Kind: TextValueUnknown}) {
+		return DateValue{Kind: DateValueUnknown}
+	}
+	if value == (TextValue{Kind: TextValueNull}) {
+		return DateValue{Kind: DateValueNull}
+	}
+	if value.Kind == TextValueValue {
+		text := langruntime.CheckedString(value.Value)
+		chars := []rune(text)
+		if len(chars) > 128 {
+			return DateValue{Kind: DateValueUnknown}
+		}
+		start := 0
+		end := len(chars)
+		for start < end && dateTextSpace(chars[start]) {
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		for start < end && dateTextSpace(chars[langruntime.CheckedSubtract(end, 1)]) {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+		if start == end {
+			return DateValue{Kind: DateValueError, Error: SqlError{State: invalidDateText}}
+		}
+		bc := false
+		if langruntime.CheckedSubtract(end, start) >= 2 && langruntime.AsciiLowercase(chars[langruntime.CheckedSubtract(end, 1)]) == 'c' && langruntime.AsciiLowercase(chars[langruntime.CheckedSubtract(end, 2)]) == 'b' {
+			bc = true
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 2))
+		} else if langruntime.CheckedSubtract(end, start) >= 2 && langruntime.AsciiLowercase(chars[langruntime.CheckedSubtract(end, 1)]) == 'd' && langruntime.AsciiLowercase(chars[langruntime.CheckedSubtract(end, 2)]) == 'a' {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 2))
+		}
+		for start < end && dateTextSpace(chars[langruntime.CheckedSubtract(end, 1)]) {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+		infinityStart := start
+		negative := false
+		if infinityStart < end && chars[infinityStart] == '-' {
+			negative = true
+			infinityStart = langruntime.CheckedAdd(infinityStart, 1)
+		} else if infinityStart < end && chars[infinityStart] == '+' {
+			infinityStart = langruntime.CheckedAdd(infinityStart, 1)
+		}
+		if langruntime.CheckedSubtract(end, infinityStart) == 8 {
+			infinity := []rune("infinity")
+			index := 0
+			matches := true
+			for index < len(infinity) {
+				if langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(infinityStart, index)]) != infinity[index] {
+					matches = false
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if matches {
+				if negative {
+					return DateValue{Kind: DateValueValue, Value: langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1)}
+				}
+				return DateValue{Kind: DateValueValue, Value: 2147483647}
+			}
+		}
+		index := start
+		year := 0
+		yearDigits := 0
+		for index < end && dateTextDigit(chars[index]) >= 0 {
+			if year < 5874898 {
+				year = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(year, 10), dateTextDigit(chars[index])))
+			}
+			yearDigits = langruntime.CheckedAdd(yearDigits, 1)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if yearDigits < 4 || index == end || chars[index] != '-' {
+			return DateValue{Kind: DateValueUnknown}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+		month := 0
+		monthDigits := 0
+		for index < end && dateTextDigit(chars[index]) >= 0 {
+			if monthDigits < 2 {
+				month = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(month, 10), dateTextDigit(chars[index])))
+			}
+			monthDigits = langruntime.CheckedAdd(monthDigits, 1)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if monthDigits < 1 || monthDigits > 2 || index == end || chars[index] != '-' {
+			return DateValue{Kind: DateValueUnknown}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+		day := 0
+		dayDigits := 0
+		for index < end && dateTextDigit(chars[index]) >= 0 {
+			if dayDigits < 2 {
+				day = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(day, 10), dateTextDigit(chars[index])))
+			}
+			dayDigits = langruntime.CheckedAdd(dayDigits, 1)
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if dayDigits == 0 && index == end {
+			return DateValue{Kind: DateValueError, Error: SqlError{State: invalidDateText}}
+		}
+		if dayDigits < 1 || dayDigits > 2 || index != end {
+			return DateValue{Kind: DateValueUnknown}
+		}
+		if bc {
+			year = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, year))
+		}
+		return DateFromYmd(year, month, day)
+	}
+	return DateValue{Kind: DateValueUnknown}
+}
 func DateFromYmd(year int, month int, day int) DateValue {
 	year = langruntime.CheckedI32(year)
 	month = langruntime.CheckedI32(month)

@@ -48,6 +48,13 @@ import them. Keep schema-only helpers with their callables.
   wrapper. Calendar construction and range validation live in Rust and return
   SQLSTATE 22008 for invalid values. Negative constructor years mean BC;
   year zero is invalid. Native target date objects require caller conversion.
+- Text-to-date casts and date literals use the same maintained Rust parser.
+  Its supported forms are year-first ISO dates with at least four year digits,
+  one or two month/day digits, optional case-insensitive BC/AD suffixes, ASCII
+  whitespace, and signed infinities. Invalid supported calendar values return
+  SQLSTATE 22008; empty text and a missing final day return 22007. Other forms
+  and text longer than PostgreSQL's date input buffer remain unknown. Do not
+  parse dates with a target's native date library or assume a session DateStyle.
 - Enum payloads are label ordinals within one concrete enum. Keep schema and
   type identity in bound expressions, and encode inputs against that enum's
   catalog label list. Equality requires the same concrete type on both sides.
