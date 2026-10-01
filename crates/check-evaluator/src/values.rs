@@ -14,6 +14,50 @@ pub enum Int8Value {
     Error(SqlError),
 }
 
+const TIMESTAMPTZ_FIELD_OVERFLOW: u32 = 3452552;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum TimestamptzValue {
+    Unknown,
+    Null,
+    Value(i64),
+    Error(SqlError),
+}
+
+pub fn timestamptz_unknown() -> TimestamptzValue {
+    TimestamptzValue::Unknown
+}
+
+pub fn timestamptz_null() -> TimestamptzValue {
+    TimestamptzValue::Null
+}
+
+pub fn make_timestamptz_value(value: i64) -> TimestamptzValue {
+    if value != -9223372036854775808i64 && value != 9223372036854775807i64 {
+        if value < -211813488000000000i64 || value >= 9223371331200000000i64 {
+            return TimestamptzValue::Error(SqlError { state: TIMESTAMPTZ_FIELD_OVERFLOW });
+        }
+    }
+    TimestamptzValue::Value(value)
+}
+
+pub fn timestamptz_is_null(value: TimestamptzValue) -> BoolValue {
+    if let TimestamptzValue::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == TimestamptzValue::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(value == TimestamptzValue::Null)
+}
+
+pub fn timestamptz_from_case_guard(value: CheckOutcome) -> TimestamptzValue {
+    if let CheckOutcome::Error(error) = value {
+        return TimestamptzValue::Error(error);
+    }
+    TimestamptzValue::Unknown
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum EnumValue {
     Unknown,

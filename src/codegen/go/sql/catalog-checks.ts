@@ -1,7 +1,7 @@
 import type { CatalogSnapshot, ColumnInfo, DomainInfo, TableInfo } from '../../../catalog/types.js'
 import type { Config, GoTypeImport } from '../../../config/schema.js'
 import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
-import { catalogDateType } from '../../../sql-semantics/catalog-check-binder.js'
+import { catalogTemporalType } from '../../../sql-semantics/catalog-check-binder.js'
 import { enumType } from '../../../sql-semantics/expressions.js'
 import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
@@ -67,6 +67,14 @@ export function renderGoSchemaCheckArtifacts(
     checks: string
   } | null
 } {
+  const temporalValueType = (name: string, oid: number | undefined): string | null => {
+    const type = catalogTemporalType(name, oid, domains)
+    return type === 'pg_catalog.date'
+      ? 'DateValue'
+      : type === 'pg_catalog.timestamptz'
+        ? 'TimestamptzValue'
+        : null
+  }
   const groups = catalogCheckGroups(tables, domains, selectedDomains, catalog.enums)
   if (!groups.length) return { checks: '', rust: null, rustFiles: null }
   const rustGroup = rust
@@ -126,12 +134,13 @@ export function renderGoSchemaCheckArtifacts(
     const columns: readonly ColumnInfo[] = table?.columns ?? []
     const fields = table
       ? columns.map((column) => {
-          if (rustGroup?.source && catalogDateType(column.typeName, column.typeOid, domains))
+          const temporal = temporalValueType(column.typeName, column.typeOid)
+          if (rustGroup?.source && temporal)
             return {
               names: [goName(column.name)],
               type: go.index(
                 go.ident('CheckOptional'),
-                go.selector(go.ident('checkruntime'), 'DateValue'),
+                go.selector(go.ident('checkruntime'), temporal),
               ),
             }
           const resolved = schemaTypes
@@ -144,16 +153,14 @@ export function renderGoSchemaCheckArtifacts(
         })
       : domain
         ? (() => {
-            if (
-              rustGroup?.source &&
-              catalogDateType(domain.baseTypeName, domain.baseTypeOid, domains)
-            )
+            const temporal = temporalValueType(domain.baseTypeName, domain.baseTypeOid)
+            if (rustGroup?.source && temporal)
               return [
                 {
                   names: ['Value'],
                   type: go.index(
                     go.ident('CheckOptional'),
-                    go.selector(go.ident('checkruntime'), 'DateValue'),
+                    go.selector(go.ident('checkruntime'), temporal),
                   ),
                 },
               ]
@@ -213,6 +220,7 @@ export function renderGoSchemaCheckArtifacts(
               'Int4Value',
               'Int8Value',
               'DateValue',
+              'TimestamptzValue',
               'EnumValue',
               'TextValue',
               'BoolValue',
@@ -222,19 +230,21 @@ export function renderGoSchemaCheckArtifacts(
           const helper =
             item.rustType === 'DateValue'
               ? 'checkRustDate'
-              : item.nullness
-                ? 'checkRustNullness'
-                : item.enum
-                  ? 'checkRustEnum'
-                  : item.rustType === 'Int4Value'
-                    ? 'checkRustInt4'
-                    : item.rustType === 'Int8Value'
-                      ? 'checkRustInt8'
-                      : item.rustType === 'TextValue'
-                        ? 'checkRustText'
-                        : 'checkRustBool'
+              : item.rustType === 'TimestamptzValue'
+                ? 'checkRustTimestamptz'
+                : item.nullness
+                  ? 'checkRustNullness'
+                  : item.enum
+                    ? 'checkRustEnum'
+                    : item.rustType === 'Int4Value'
+                      ? 'checkRustInt4'
+                      : item.rustType === 'Int8Value'
+                        ? 'checkRustInt8'
+                        : item.rustType === 'TextValue'
+                          ? 'checkRustText'
+                          : 'checkRustBool'
           rustInputAdapters.add(helper)
-          if (item.rustType !== 'DateValue')
+          if (item.rustType !== 'DateValue' && item.rustType !== 'TimestamptzValue')
             inputHelpers.add(
               item.nullness
                 ? 'checkInputNullness'
@@ -305,7 +315,8 @@ export function renderGoSchemaCheckArtifacts(
                   helpers: ['EvalValue', 'SqlEnum', 'enumInput'],
                 }
               }
-              if (type === 'pg_catalog.date') return backend.scalar.uncertain(type)
+              if (type === 'pg_catalog.date' || type === 'pg_catalog.timestamptz')
+                return backend.scalar.uncertain(type)
               const helper = inputHelper(type)
               if (!helper) throw new Error(`Unsupported CHECK input type: ${type}`)
               return {
@@ -429,7 +440,13 @@ func ValidateCheckInputs[T any](input T, evaluate func(T) []CheckEvaluation) err
   }
 }
 
-const goRustAdapterSource = `func checkRustDate[T any](field CheckOptional[T]) checkruntime.DateValue {
+const goRustAdapterSource = `func checkRustTimestamptz[T any](field CheckOptional[T]) checkruntime.TimestamptzValue {
+  if !field.Set { return checkruntime.TimestamptzUnknown() }
+  if field.Null { return checkruntime.TimestamptzNull() }
+  if value, ok := any(field.V).(checkruntime.TimestamptzValue); ok { return value }
+  return checkruntime.TimestamptzUnknown()
+}
+func checkRustDate[T any](field CheckOptional[T]) checkruntime.DateValue {
   if !field.Set { return checkruntime.DateUnknown() }
   if field.Null { return checkruntime.DateNull() }
   if value, ok := any(field.V).(checkruntime.DateValue); ok { return value }
@@ -452,6 +469,7 @@ func checkRustInt4[T any](field CheckOptional[T]) checkruntime.Int4Value {
 func checkRustNullness[T any](field CheckOptional[T]) checkruntime.BoolValue {
   if field.Set && !field.Null {
     if value, ok := any(field.V).(checkruntime.DateValue); ok { return checkruntime.DateIsNull(value) }
+    if value, ok := any(field.V).(checkruntime.TimestamptzValue); ok { return checkruntime.TimestamptzIsNull(value) }
   }
   input := checkInputNullness(field)
   if !input.Certain { return checkruntime.BoolUnknown() }

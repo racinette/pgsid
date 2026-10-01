@@ -24,13 +24,13 @@ update its tests when that boundary changes.
   standalone expression exports `evaluate_check`; catalog entries derive their
   names from schema, table/domain, constraint, and a short identity hash.
   Inherited domain entries also identify the declaring domain. Keep expression parts inside that function.
-- Parameters are immutable named values of `Int4Value`, `Int8Value`, `DateValue`, `EnumValue`, `TextValue`, or
+- Parameters are immutable named values of `Int4Value`, `Int8Value`, `DateValue`, `TimestamptzValue`, `EnumValue`, `TextValue`, or
   `BoolValue`. Calls take bound identifiers, in-range signed `int4`/`int8` literals,
   string literals, or boolean literals. The `int4` minimum uses
   `-2147483647 - 1`. Int8 literals use an explicit `i64` suffix, including
   `-9223372036854775808i64`. Keep integer literals in decimal syntax.
 - Bodies contain local bindings initialized by direct calls or bound values.
-  Mutable `CheckOutcome`, `Int4Value`, `Int8Value`, `DateValue`, `EnumValue`, `TextValue`, and `BoolValue` locals hold
+  Mutable `CheckOutcome`, `Int4Value`, `Int8Value`, `DateValue`, `TimestamptzValue`, `EnumValue`, `TextValue`, and `BoolValue` locals hold
   results shared across branches and may be
   assigned a direct call or bound value. `if` and `else` branches may contain
   those same statements; conditions are direct calls or a direct call compared

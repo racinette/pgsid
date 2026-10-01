@@ -45,6 +45,70 @@ type Int8Value struct {
 	Value int64
 	Error SqlError
 }
+
+const timestamptzFieldOverflow = 3452552
+
+type TimestamptzValueKind uint8
+
+const (
+	TimestamptzValueUnknown TimestamptzValueKind = iota
+	TimestamptzValueNull
+	TimestamptzValueValue
+	TimestamptzValueError
+)
+
+type TimestamptzValue struct {
+	Kind  TimestamptzValueKind
+	Value int64
+	Error SqlError
+}
+
+func CopyTimestamptzValue(value TimestamptzValue) TimestamptzValue {
+	switch value.Kind {
+	case TimestamptzValueUnknown:
+		return TimestamptzValue{Kind: TimestamptzValueUnknown}
+	case TimestamptzValueNull:
+		return TimestamptzValue{Kind: TimestamptzValueNull}
+	case TimestamptzValueValue:
+		return TimestamptzValue{Kind: TimestamptzValueValue, Value: value.Value}
+	case TimestamptzValueError:
+		return TimestamptzValue{Kind: TimestamptzValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
+func TimestamptzUnknown() TimestamptzValue {
+	return TimestamptzValue{Kind: TimestamptzValueUnknown}
+}
+func TimestamptzNull() TimestamptzValue {
+	return TimestamptzValue{Kind: TimestamptzValueNull}
+}
+func MakeTimestamptzValue(value int64) TimestamptzValue {
+	if value != int64(-9223372036854775808) && value != int64(9223372036854775807) {
+		if value < int64(-211813488000000000) || value >= int64(9223371331200000000) {
+			return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestamptzFieldOverflow}}
+		}
+	}
+	return TimestamptzValue{Kind: TimestamptzValueValue, Value: value}
+}
+func TimestamptzIsNull(value TimestamptzValue) BoolValue {
+	value = CopyTimestamptzValue(value)
+	if value.Kind == TimestamptzValueError {
+		error := value.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if value == (TimestamptzValue{Kind: TimestamptzValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: value == (TimestamptzValue{Kind: TimestamptzValueNull})}
+}
+func TimestamptzFromCaseGuard(value CheckOutcome) TimestamptzValue {
+	if value.Kind == CheckOutcomeError {
+		error := value.Error
+		return TimestamptzValue{Kind: TimestamptzValueError, Error: error}
+	}
+	return TimestamptzValue{Kind: TimestamptzValueUnknown}
+}
+
 type EnumValueKind uint8
 
 const (

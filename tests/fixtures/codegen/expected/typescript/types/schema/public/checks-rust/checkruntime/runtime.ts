@@ -47,6 +47,68 @@ export function equalInt8Value(left: Int8Value, right: Int8Value): boolean {
         return equalSqlError(left.value, right.value);
     return true;
 }
+const timestamptzFieldOverflow = 3452552;
+export type TimestamptzValue = {
+    kind: "Unknown";
+} | {
+    kind: "Null";
+} | {
+    kind: "Value";
+    value: bigint;
+} | {
+    kind: "Error";
+    value: SqlError;
+};
+export function copyTimestamptzValue(value: TimestamptzValue): TimestamptzValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: langruntime.checkedI64(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
+export function equalTimestamptzValue(left: TimestamptzValue, right: TimestamptzValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function timestamptzUnknown(): TimestamptzValue {
+    return { kind: "Unknown" };
+}
+export function timestamptzNull(): TimestamptzValue {
+    return { kind: "Null" };
+}
+export function makeTimestamptzValue(value: bigint): TimestamptzValue {
+    value = langruntime.checkedI64(value);
+    if (!(value === -9223372036854775808n) && !(value === 9223372036854775807n)) {
+        if (value < -211813488000000000n || value >= 9223371331200000000n) {
+            return { kind: "Error", value: { state: timestamptzFieldOverflow } };
+        }
+    }
+    return { kind: "Value", value: value };
+}
+export function timestamptzIsNull(value: TimestamptzValue): BoolValue {
+    value = copyTimestamptzValue(value);
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalTimestamptzValue(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: equalTimestamptzValue(value, { kind: "Null" }) };
+}
+export function timestamptzFromCaseGuard(value: CheckOutcome): TimestamptzValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export type EnumValue = {
     kind: "Unknown";
 } | {
