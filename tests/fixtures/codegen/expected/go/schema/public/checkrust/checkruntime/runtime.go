@@ -48,6 +48,10 @@ type Int8Value struct {
 
 const timestampFieldOverflow = 3452552
 
+func timestampMicrosecondsValid(value int64) bool {
+	return value == int64(-9223372036854775808) || value == int64(9223372036854775807) || (value >= int64(-211813488000000000) && value < int64(9223371331200000000))
+}
+
 type TimestampValueKind uint8
 
 const (
@@ -83,10 +87,8 @@ func TimestampNull() TimestampValue {
 	return TimestampValue{Kind: TimestampValueNull}
 }
 func MakeTimestampValue(value int64) TimestampValue {
-	if value != int64(-9223372036854775808) && value != int64(9223372036854775807) {
-		if value < int64(-211813488000000000) || value >= int64(9223371331200000000) {
-			return TimestampValue{Kind: TimestampValueError, Error: SqlError{State: timestampFieldOverflow}}
-		}
+	if timestampMicrosecondsValid(value) == false {
+		return TimestampValue{Kind: TimestampValueError, Error: SqlError{State: timestampFieldOverflow}}
 	}
 	return TimestampValue{Kind: TimestampValueValue, Value: value}
 }
@@ -144,10 +146,8 @@ func TimestamptzNull() TimestamptzValue {
 	return TimestamptzValue{Kind: TimestamptzValueNull}
 }
 func MakeTimestamptzValue(value int64) TimestamptzValue {
-	if value != int64(-9223372036854775808) && value != int64(9223372036854775807) {
-		if value < int64(-211813488000000000) || value >= int64(9223371331200000000) {
-			return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestampFieldOverflow}}
-		}
+	if timestampMicrosecondsValid(value) == false {
+		return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestampFieldOverflow}}
 	}
 	return TimestamptzValue{Kind: TimestamptzValueValue, Value: value}
 }
@@ -764,7 +764,7 @@ func readTimestampNumber(text *timestampText, start int, end int) timestampNumbe
 	}
 	return timestampNumber{next: index, digits: langruntime.CheckedSubtract(index, start), value: value, overflow: overflow}
 }
-func TimestamptzFromCalendar(year int, month int, day int, hour int, minute int, second int, microsecond int, offsetSeconds int) TimestamptzValue {
+func timestampCalendarMicroseconds(year int, month int, day int, hour int, minute int, second int, microsecond int, offsetSeconds int, withTimezone bool) Int8Value {
 	year = langruntime.CheckedI32(year)
 	month = langruntime.CheckedI32(month)
 	day = langruntime.CheckedI32(day)
@@ -774,53 +774,59 @@ func TimestamptzFromCalendar(year int, month int, day int, hour int, minute int,
 	microsecond = langruntime.CheckedI32(microsecond)
 	offsetSeconds = langruntime.CheckedI32(offsetSeconds)
 	if hour < 0 || hour > 24 || minute < 0 || minute > 59 || second < 0 || second > 60 || microsecond < 0 || microsecond > 999999 {
-		return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestampFieldOverflow}}
+		return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
 	}
 	clockSeconds := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(hour, 60), minute)), 60), second)
 	clockWide := int64(langruntime.CheckedI32(clockSeconds))
 	fractionWide := int64(langruntime.CheckedI32(microsecond))
 	clock := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(clockWide, int64(1000000)), fractionWide)
 	if clock > int64(86400000000) {
-		return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestampFieldOverflow}}
+		return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
 	}
 	if offsetSeconds < langruntime.CheckedSignedNegate(57599) || offsetSeconds > 57599 {
-		return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: invalidTimestampZone}}
+		return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampZone}}
 	}
 	days := calendarDaysFromYmd(year, month, day)
 	if days.Kind == Int4ValueError {
 		error := days.Error
-		return TimestamptzValue{Kind: TimestamptzValueError, Error: error}
+		return Int8Value{Kind: Int8ValueError, Error: error}
 	}
 	if days.Kind == Int4ValueValue {
 		dayValue := langruntime.CheckedI32(days.Value)
 		if (year == langruntime.CheckedSignedNegate(4714) && month < 11) || dayValue < langruntime.CheckedSignedNegate(2451546) || dayValue > 106751983 {
-			return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestampFieldOverflow}}
+			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
 		}
 		daysWide := int64(langruntime.CheckedI32(dayValue))
 		local := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(daysWide, int64(86400000000)), clock)
 		offsetWide := int64(langruntime.CheckedI32(offsetSeconds))
-		utc := langruntime.CheckedI64Subtract(local, langruntime.CheckedI64Multiply(offsetWide, int64(1000000)))
-		return MakeTimestamptzValue(utc)
+		microseconds := local
+		if withTimezone {
+			microseconds = langruntime.CheckedI64Subtract(local, langruntime.CheckedI64Multiply(offsetWide, int64(1000000)))
+		}
+		if timestampMicrosecondsValid(microseconds) == false {
+			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
+		}
+		return Int8Value{Kind: Int8ValueValue, Value: microseconds}
 	}
-	return TimestamptzValue{Kind: TimestamptzValueUnknown}
+	return Int8Value{Kind: Int8ValueUnknown}
 }
-func TimestamptzFromText(value TextValue) TimestamptzValue {
+func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
 	value = CopyTextValue(value)
 	if value.Kind == TextValueError {
 		error := value.Error
-		return TimestamptzValue{Kind: TimestamptzValueError, Error: error}
+		return Int8Value{Kind: Int8ValueError, Error: error}
 	}
 	if value == (TextValue{Kind: TextValueUnknown}) {
-		return TimestamptzValue{Kind: TimestamptzValueUnknown}
+		return Int8Value{Kind: Int8ValueUnknown}
 	}
 	if value == (TextValue{Kind: TextValueNull}) {
-		return TimestamptzValue{Kind: TimestamptzValueNull}
+		return Int8Value{Kind: Int8ValueNull}
 	}
 	if value.Kind == TextValueValue {
 		input := langruntime.CheckedString(value.Value)
 		chars := []rune(input)
 		if len(chars) > 128 {
-			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+			return Int8Value{Kind: Int8ValueUnknown}
 		}
 		text := timestampText{chars: chars}
 		start := 0
@@ -832,18 +838,18 @@ func TimestamptzFromText(value TextValue) TimestamptzValue {
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
 		}
 		if start == end {
-			return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: invalidTimestampText}}
+			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: invalidTimestampText}}
 		}
 		bc := false
 		if langruntime.CheckedSubtract(end, start) >= 2 && langruntime.AsciiLowercase(text.chars[langruntime.CheckedSubtract(end, 1)]) == 'c' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedSubtract(end, 2)]) == 'b' {
 			if langruntime.CheckedSubtract(end, start) > 2 && dateTextSpace(text.chars[langruntime.CheckedSubtract(end, 3)]) == false && dateTextDigit(text.chars[langruntime.CheckedSubtract(end, 3)]) < 0 {
-				return TimestamptzValue{Kind: TimestamptzValueUnknown}
+				return Int8Value{Kind: Int8ValueUnknown}
 			}
 			bc = true
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 2))
 		} else if langruntime.CheckedSubtract(end, start) >= 2 && langruntime.AsciiLowercase(text.chars[langruntime.CheckedSubtract(end, 1)]) == 'd' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedSubtract(end, 2)]) == 'a' {
 			if langruntime.CheckedSubtract(end, start) > 2 && dateTextSpace(text.chars[langruntime.CheckedSubtract(end, 3)]) == false && dateTextDigit(text.chars[langruntime.CheckedSubtract(end, 3)]) < 0 {
-				return TimestamptzValue{Kind: TimestamptzValueUnknown}
+				return Int8Value{Kind: Int8ValueUnknown}
 			}
 			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 2))
 		}
@@ -870,25 +876,38 @@ func TimestamptzFromText(value TextValue) TimestamptzValue {
 			}
 			if matches {
 				if negative {
-					return MakeTimestamptzValue(int64(-9223372036854775808))
+					return MakeInt8Value(int64(-9223372036854775808))
 				}
-				return MakeTimestamptzValue(int64(9223372036854775807))
+				return MakeInt8Value(int64(9223372036854775807))
 			}
 		}
 		yearField := readTimestampNumber(&text, start, end)
 		index := yearField.next
 		if yearField.digits < 4 || index == end || text.chars[index] != '-' {
-			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+			return Int8Value{Kind: Int8ValueUnknown}
 		}
 		month := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
 		index = langruntime.CheckedIndex(month.next)
 		if month.digits < 1 || month.digits > 2 || index == end || text.chars[index] != '-' {
-			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+			return Int8Value{Kind: Int8ValueUnknown}
 		}
 		day := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
 		index = langruntime.CheckedIndex(day.next)
-		if day.digits < 1 || day.digits > 2 || index == end {
-			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+		if day.digits < 1 || day.digits > 2 {
+			return Int8Value{Kind: Int8ValueUnknown}
+		}
+		if index == end {
+			if withTimezone {
+				return Int8Value{Kind: Int8ValueUnknown}
+			}
+			if yearField.overflow {
+				return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
+			}
+			year := yearField.value
+			if bc {
+				year = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, year))
+			}
+			return timestampCalendarMicroseconds(year, month.value, day.value, 0, 0, 0, 0, 0, false)
 		}
 		if langruntime.AsciiLowercase(text.chars[index]) == 't' {
 			index = langruntime.CheckedAdd(index, 1)
@@ -897,17 +916,17 @@ func TimestamptzFromText(value TextValue) TimestamptzValue {
 				index = langruntime.CheckedAdd(index, 1)
 			}
 		} else {
-			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+			return Int8Value{Kind: Int8ValueUnknown}
 		}
 		hour := readTimestampNumber(&text, index, end)
 		index = langruntime.CheckedIndex(hour.next)
 		if hour.digits < 1 || index == end || text.chars[index] != ':' {
-			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+			return Int8Value{Kind: Int8ValueUnknown}
 		}
 		minute := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
 		index = langruntime.CheckedIndex(minute.next)
 		if minute.digits < 1 {
-			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+			return Int8Value{Kind: Int8ValueUnknown}
 		}
 		second := 0
 		fraction := 0
@@ -915,14 +934,14 @@ func TimestamptzFromText(value TextValue) TimestamptzValue {
 			seconds := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
 			index = langruntime.CheckedIndex(seconds.next)
 			if seconds.digits < 1 {
-				return TimestamptzValue{Kind: TimestamptzValueUnknown}
+				return Int8Value{Kind: Int8ValueUnknown}
 			}
 			second = langruntime.CheckedI32(seconds.value)
 			if index < end && text.chars[index] == '.' {
 				digits := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
 				index = langruntime.CheckedIndex(digits.next)
 				if digits.digits < 1 || digits.digits > 6 {
-					return TimestamptzValue{Kind: TimestamptzValueUnknown}
+					return Int8Value{Kind: Int8ValueUnknown}
 				}
 				fraction = langruntime.CheckedI32(digits.value)
 				fractionDigits := digits.digits
@@ -943,26 +962,26 @@ func TimestamptzFromText(value TextValue) TimestamptzValue {
 			zoneHour := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
 			index = langruntime.CheckedIndex(zoneHour.next)
 			if zoneHour.digits < 1 || zoneHour.digits > 4 {
-				return TimestamptzValue{Kind: TimestamptzValueUnknown}
+				return Int8Value{Kind: Int8ValueUnknown}
 			}
 			hours := zoneHour.value
 			minutes := 0
 			seconds := 0
 			if index < end && text.chars[index] == ':' {
 				if zoneHour.digits > 2 {
-					return TimestamptzValue{Kind: TimestamptzValueUnknown}
+					return Int8Value{Kind: Int8ValueUnknown}
 				}
 				zoneMinute := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
 				index = langruntime.CheckedIndex(zoneMinute.next)
 				if zoneMinute.digits < 1 {
-					return TimestamptzValue{Kind: TimestamptzValueUnknown}
+					return Int8Value{Kind: Int8ValueUnknown}
 				}
 				minutes = langruntime.CheckedI32(zoneMinute.value)
 				if index < end && text.chars[index] == ':' {
 					zoneSecond := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
 					index = langruntime.CheckedIndex(zoneSecond.next)
 					if zoneSecond.digits < 1 {
-						return TimestamptzValue{Kind: TimestamptzValueUnknown}
+						return Int8Value{Kind: Int8ValueUnknown}
 					}
 					seconds = langruntime.CheckedI32(zoneSecond.value)
 				}
@@ -971,7 +990,7 @@ func TimestamptzFromText(value TextValue) TimestamptzValue {
 				minutes = langruntime.CheckedI32(langruntime.CheckedSignedRemainder(zoneHour.value, 100))
 			}
 			if index != end {
-				return TimestamptzValue{Kind: TimestamptzValueUnknown}
+				return Int8Value{Kind: Int8ValueUnknown}
 			}
 			if hours > 15 || minutes > 59 || seconds > 59 {
 				offset = langruntime.CheckedI32(57600)
@@ -981,22 +1000,83 @@ func TimestamptzFromText(value TextValue) TimestamptzValue {
 					offset = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, offset))
 				}
 			}
-		} else {
-			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+		} else if withTimezone || index != end {
+			return Int8Value{Kind: Int8ValueUnknown}
 		}
 		if index != end {
-			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+			return Int8Value{Kind: Int8ValueUnknown}
 		}
 		if yearField.overflow {
-			return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestampFieldOverflow}}
+			return Int8Value{Kind: Int8ValueError, Error: SqlError{State: timestampFieldOverflow}}
 		}
 		year := yearField.value
 		if bc {
 			year = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, year))
 		}
-		return TimestamptzFromCalendar(year, month.value, day.value, hour.value, minute.value, second, fraction, offset)
+		return timestampCalendarMicroseconds(year, month.value, day.value, hour.value, minute.value, second, fraction, offset, withTimezone)
+	}
+	return Int8Value{Kind: Int8ValueUnknown}
+}
+func timestampFromMicroseconds(value Int8Value) TimestampValue {
+	if value.Kind == Int8ValueError {
+		error := value.Error
+		return TimestampValue{Kind: TimestampValueError, Error: error}
+	}
+	if value.Kind == Int8ValueValue {
+		microseconds := value.Value
+		return MakeTimestampValue(microseconds)
+	}
+	if value == (Int8Value{Kind: Int8ValueNull}) {
+		return TimestampValue{Kind: TimestampValueNull}
+	}
+	return TimestampValue{Kind: TimestampValueUnknown}
+}
+func TimestampFromCalendar(year int, month int, day int, hour int, minute int, second int, microsecond int) TimestampValue {
+	year = langruntime.CheckedI32(year)
+	month = langruntime.CheckedI32(month)
+	day = langruntime.CheckedI32(day)
+	hour = langruntime.CheckedI32(hour)
+	minute = langruntime.CheckedI32(minute)
+	second = langruntime.CheckedI32(second)
+	microsecond = langruntime.CheckedI32(microsecond)
+	parsed := timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, 0, false)
+	return timestampFromMicroseconds(parsed)
+}
+func TimestampFromText(value TextValue) TimestampValue {
+	value = CopyTextValue(value)
+	parsed := parseTimestampText(value, false)
+	return timestampFromMicroseconds(parsed)
+}
+func timestamptzFromMicroseconds(value Int8Value) TimestamptzValue {
+	if value.Kind == Int8ValueError {
+		error := value.Error
+		return TimestamptzValue{Kind: TimestamptzValueError, Error: error}
+	}
+	if value.Kind == Int8ValueValue {
+		microseconds := value.Value
+		return MakeTimestamptzValue(microseconds)
+	}
+	if value == (Int8Value{Kind: Int8ValueNull}) {
+		return TimestamptzValue{Kind: TimestamptzValueNull}
 	}
 	return TimestamptzValue{Kind: TimestamptzValueUnknown}
+}
+func TimestamptzFromCalendar(year int, month int, day int, hour int, minute int, second int, microsecond int, offsetSeconds int) TimestamptzValue {
+	year = langruntime.CheckedI32(year)
+	month = langruntime.CheckedI32(month)
+	day = langruntime.CheckedI32(day)
+	hour = langruntime.CheckedI32(hour)
+	minute = langruntime.CheckedI32(minute)
+	second = langruntime.CheckedI32(second)
+	microsecond = langruntime.CheckedI32(microsecond)
+	offsetSeconds = langruntime.CheckedI32(offsetSeconds)
+	parsed := timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, offsetSeconds, true)
+	return timestamptzFromMicroseconds(parsed)
+}
+func TimestamptzFromText(value TextValue) TimestamptzValue {
+	value = CopyTextValue(value)
+	parsed := parseTimestampText(value, true)
+	return timestamptzFromMicroseconds(parsed)
 }
 func AndStops(left CheckOutcome) bool {
 	if left == (CheckOutcome{Kind: CheckOutcomeFalse}) {

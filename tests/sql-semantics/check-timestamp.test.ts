@@ -32,6 +32,8 @@ const supported: Record<string, string> = {
   less_equal: 'a <= b',
   greater: 'a > b',
   greater_equal: 'a >= b',
+  baseline_literal: "a >= TIMESTAMP '2000-01-01'",
+  ignored_offset_literal: "a = TIMESTAMP '2000-01-01 00:00:00+01'",
   infinity: "a < 'infinity'::timestamp",
   negative_infinity: "a > '-infinity'::timestamp",
   membership: 'a IN (b, NULL)',
@@ -142,7 +144,7 @@ describe('portable Rust CHECK timestamp and explicit UTC', () => {
         },
       },
       ...[
-        "a > '2000-01-01'::timestamp",
+        "a > 'now'::timestamp",
         "timezone('Europe/Paris',a) = instant",
         'a::timestamptz = instant',
         'instant::timestamp = a',

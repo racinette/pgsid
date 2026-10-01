@@ -14,5 +14,5 @@ node --import tsx tools/check-rust-int8/check.ts
 cargo run --quiet --locked --manifest-path tools/check-rust-dialect/Cargo.toml -- artifacts/check-rust-bound/evaluator.rs
 cargo run --quiet --locked --manifest-path tools/check-rust-dialect/Cargo.toml -- artifacts/check-rust-bound/group-evaluator.rs
 bash tools/check-rust-operations/check.sh
-pnpm exec vitest run tests/sql-semantics/check-enums.test.ts tests/sql-semantics/check-collation.test.ts tests/sql-semantics/check-dates.test.ts tests/sql-semantics/check-date-text.test.ts tests/sql-semantics/check-timestamp.test.ts tests/sql-semantics/check-timestamptz.test.ts tests/sql-semantics/check-timestamptz-text.test.ts tests/sql-semantics/check-arithmetic.test.ts
+pnpm exec vitest run tests/sql-semantics/check-enums.test.ts tests/sql-semantics/check-collation.test.ts tests/sql-semantics/check-dates.test.ts tests/sql-semantics/check-date-text.test.ts tests/sql-semantics/check-timestamp-text.test.ts tests/sql-semantics/check-timestamp.test.ts tests/sql-semantics/check-timestamptz.test.ts tests/sql-semantics/check-timestamptz-text.test.ts tests/sql-semantics/check-arithmetic.test.ts
 node --import tsx tools/check-rust/check-wasm.ts

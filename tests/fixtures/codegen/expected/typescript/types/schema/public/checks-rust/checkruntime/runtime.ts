@@ -48,6 +48,10 @@ export function equalInt8Value(left: Int8Value, right: Int8Value): boolean {
     return true;
 }
 const timestampFieldOverflow = 3452552;
+function timestampMicrosecondsValid(value: bigint): boolean {
+    value = langruntime.checkedI64(value);
+    return value === -9223372036854775808n || value === 9223372036854775807n || (value >= -211813488000000000n && value < 9223371331200000000n);
+}
 export type TimestampValue = {
     kind: "Unknown";
 } | {
@@ -84,10 +88,8 @@ export function timestampNull(): TimestampValue {
 }
 export function makeTimestampValue(value: bigint): TimestampValue {
     value = langruntime.checkedI64(value);
-    if (!(value === -9223372036854775808n) && !(value === 9223372036854775807n)) {
-        if (value < -211813488000000000n || value >= 9223371331200000000n) {
-            return { kind: "Error", value: { state: timestampFieldOverflow } };
-        }
+    if (timestampMicrosecondsValid(value) === false) {
+        return { kind: "Error", value: { state: timestampFieldOverflow } };
     }
     return { kind: "Value", value: value };
 }
@@ -145,10 +147,8 @@ export function timestamptzNull(): TimestamptzValue {
 }
 export function makeTimestamptzValue(value: bigint): TimestamptzValue {
     value = langruntime.checkedI64(value);
-    if (!(value === -9223372036854775808n) && !(value === 9223372036854775807n)) {
-        if (value < -211813488000000000n || value >= 9223371331200000000n) {
-            return { kind: "Error", value: { state: timestampFieldOverflow } };
-        }
+    if (timestampMicrosecondsValid(value) === false) {
+        return { kind: "Error", value: { state: timestampFieldOverflow } };
     }
     return { kind: "Value", value: value };
 }
@@ -766,7 +766,7 @@ function readTimestampNumber(text: TimestampText, start: number, end: number): T
     }
     return { next: index, digits: langruntime.checkedSubtract(index, start), value: value, overflow: overflow };
 }
-export function timestamptzFromCalendar(year: number, month: number, day: number, hour: number, minute: number, second: number, microsecond: number, offsetSeconds: number): TimestamptzValue {
+function timestampCalendarMicroseconds(year: number, month: number, day: number, hour: number, minute: number, second: number, microsecond: number, offsetSeconds: number, withTimezone: boolean): Int8Value {
     year = langruntime.checkedI32(year);
     month = langruntime.checkedI32(month);
     day = langruntime.checkedI32(day);
@@ -775,6 +775,7 @@ export function timestamptzFromCalendar(year: number, month: number, day: number
     second = langruntime.checkedI32(second);
     microsecond = langruntime.checkedI32(microsecond);
     offsetSeconds = langruntime.checkedI32(offsetSeconds);
+    withTimezone = langruntime.checkedBool(withTimezone);
     if (hour < 0 || hour > 24 || minute < 0 || minute > 59 || second < 0 || second > 60 || microsecond < 0 || microsecond > 999999) {
         return { kind: "Error", value: { state: timestampFieldOverflow } };
     }
@@ -801,13 +802,20 @@ export function timestamptzFromCalendar(year: number, month: number, day: number
         const daysWide: bigint = BigInt(langruntime.checkedI32(dayValue));
         const local: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply(daysWide, 86400000000n), clock);
         const offsetWide: bigint = BigInt(langruntime.checkedI32(offsetSeconds));
-        const utc: bigint = langruntime.checkedI64Subtract(local, langruntime.checkedI64Multiply(offsetWide, 1000000n));
-        return makeTimestamptzValue(utc);
+        let microseconds: bigint = local;
+        if (withTimezone) {
+            microseconds = langruntime.checkedI64(langruntime.checkedI64Subtract(local, langruntime.checkedI64Multiply(offsetWide, 1000000n)));
+        }
+        if (timestampMicrosecondsValid(microseconds) === false) {
+            return { kind: "Error", value: { state: timestampFieldOverflow } };
+        }
+        return { kind: "Value", value: microseconds };
     }
     return { kind: "Unknown" };
 }
-export function timestamptzFromText(value: TextValue): TimestamptzValue {
+function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value {
     value = copyTextValue(value);
+    withTimezone = langruntime.checkedBool(withTimezone);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -874,9 +882,9 @@ export function timestamptzFromText(value: TextValue): TimestamptzValue {
             }
             if (matches) {
                 if (negative) {
-                    return makeTimestamptzValue(-9223372036854775808n);
+                    return makeInt8Value(-9223372036854775808n);
                 }
-                return makeTimestamptzValue(9223372036854775807n);
+                return makeInt8Value(9223372036854775807n);
             }
         }
         const yearField: TimestampNumber = readTimestampNumber(text, start, end);
@@ -891,8 +899,21 @@ export function timestamptzFromText(value: TextValue): TimestamptzValue {
         }
         const day: TimestampNumber = readTimestampNumber(text, langruntime.checkedAdd(index, 1), end);
         index = langruntime.checkedIndex(day.next);
-        if (day.digits < 1 || day.digits > 2 || index === end) {
+        if (day.digits < 1 || day.digits > 2) {
             return { kind: "Unknown" };
+        }
+        if (index === end) {
+            if (withTimezone) {
+                return { kind: "Unknown" };
+            }
+            if (yearField.overflow) {
+                return { kind: "Error", value: { state: timestampFieldOverflow } };
+            }
+            let year: number = yearField.value;
+            if (bc) {
+                year = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, year));
+            }
+            return timestampCalendarMicroseconds(year, month.value, day.value, 0, 0, 0, 0, 0, false);
         }
         if (langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))) === "t") {
             index = langruntime.checkedAdd(index, 1);
@@ -991,7 +1012,7 @@ export function timestamptzFromText(value: TextValue): TimestamptzValue {
                 }
             }
         }
-        else {
+        else if (withTimezone || !(index === end)) {
             return { kind: "Unknown" };
         }
         if (!(index === end)) {
@@ -1004,9 +1025,70 @@ export function timestamptzFromText(value: TextValue): TimestamptzValue {
         if (bc) {
             year = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, year));
         }
-        return timestamptzFromCalendar(year, month.value, day.value, hour.value, minute.value, second, fraction, offset);
+        return timestampCalendarMicroseconds(year, month.value, day.value, hour.value, minute.value, second, fraction, offset, withTimezone);
     }
     return { kind: "Unknown" };
+}
+function timestampFromMicroseconds(value: Int8Value): TimestampValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (value.kind === "Value") {
+        const microseconds: bigint = langruntime.checkedI64(value.value);
+        return makeTimestampValue(microseconds);
+    }
+    if (equalInt8Value(value, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return { kind: "Unknown" };
+}
+export function timestampFromCalendar(year: number, month: number, day: number, hour: number, minute: number, second: number, microsecond: number): TimestampValue {
+    year = langruntime.checkedI32(year);
+    month = langruntime.checkedI32(month);
+    day = langruntime.checkedI32(day);
+    hour = langruntime.checkedI32(hour);
+    minute = langruntime.checkedI32(minute);
+    second = langruntime.checkedI32(second);
+    microsecond = langruntime.checkedI32(microsecond);
+    const parsed: Int8Value = timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, 0, false);
+    return timestampFromMicroseconds(parsed);
+}
+export function timestampFromText(value: TextValue): TimestampValue {
+    value = copyTextValue(value);
+    const parsed: Int8Value = parseTimestampText(value, false);
+    return timestampFromMicroseconds(parsed);
+}
+function timestamptzFromMicroseconds(value: Int8Value): TimestamptzValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (value.kind === "Value") {
+        const microseconds: bigint = langruntime.checkedI64(value.value);
+        return makeTimestamptzValue(microseconds);
+    }
+    if (equalInt8Value(value, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    return { kind: "Unknown" };
+}
+export function timestamptzFromCalendar(year: number, month: number, day: number, hour: number, minute: number, second: number, microsecond: number, offsetSeconds: number): TimestamptzValue {
+    year = langruntime.checkedI32(year);
+    month = langruntime.checkedI32(month);
+    day = langruntime.checkedI32(day);
+    hour = langruntime.checkedI32(hour);
+    minute = langruntime.checkedI32(minute);
+    second = langruntime.checkedI32(second);
+    microsecond = langruntime.checkedI32(microsecond);
+    offsetSeconds = langruntime.checkedI32(offsetSeconds);
+    const parsed: Int8Value = timestampCalendarMicroseconds(year, month, day, hour, minute, second, microsecond, offsetSeconds, true);
+    return timestamptzFromMicroseconds(parsed);
+}
+export function timestamptzFromText(value: TextValue): TimestamptzValue {
+    value = copyTextValue(value);
+    const parsed: Int8Value = parseTimestampText(value, true);
+    return timestamptzFromMicroseconds(parsed);
 }
 export function andStops(left: CheckOutcome): boolean {
     if (equalCheckOutcome(left, { kind: "False" })) {

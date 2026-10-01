@@ -16,6 +16,11 @@ pub enum Int8Value {
 
 const TIMESTAMP_FIELD_OVERFLOW: u32 = 3452552;
 
+fn timestamp_microseconds_valid(value: i64) -> bool {
+    value == -9223372036854775808i64 || value == 9223372036854775807i64 ||
+        (value >= -211813488000000000i64 && value < 9223371331200000000i64)
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TimestampValue {
     Unknown,
@@ -33,10 +38,8 @@ pub fn timestamp_null() -> TimestampValue {
 }
 
 pub fn make_timestamp_value(value: i64) -> TimestampValue {
-    if value != -9223372036854775808i64 && value != 9223372036854775807i64 {
-        if value < -211813488000000000i64 || value >= 9223371331200000000i64 {
-            return TimestampValue::Error(SqlError { state: TIMESTAMP_FIELD_OVERFLOW });
-        }
+    if timestamp_microseconds_valid(value) == false {
+        return TimestampValue::Error(SqlError { state: TIMESTAMP_FIELD_OVERFLOW });
     }
     TimestampValue::Value(value)
 }
@@ -75,10 +78,8 @@ pub fn timestamptz_null() -> TimestamptzValue {
 }
 
 pub fn make_timestamptz_value(value: i64) -> TimestamptzValue {
-    if value != -9223372036854775808i64 && value != 9223372036854775807i64 {
-        if value < -211813488000000000i64 || value >= 9223371331200000000i64 {
-            return TimestamptzValue::Error(SqlError { state: TIMESTAMP_FIELD_OVERFLOW });
-        }
+    if timestamp_microseconds_valid(value) == false {
+        return TimestamptzValue::Error(SqlError { state: TIMESTAMP_FIELD_OVERFLOW });
     }
     TimestamptzValue::Value(value)
 }

@@ -73,7 +73,13 @@ import them. Keep schema-only helpers with their callables.
   `timezone(text, timestamp)` and `timezone(text, timestamptz)` callables accept
   case-insensitive UTC and preserve the payload. Known infinities bypass zone
   lookup, following PostgreSQL. Other zones and implicit conversions remain
-  unknown. Timestamp text parsing and precision coercions remain unknown.
+  unknown. Timestamp precision coercions remain unknown.
+- Timestamp text casts and literals accept the same year-first ISO date/time
+  fields as timestamptz, plus a date alone and a time without an offset. An
+  explicit Z or numeric offset is validated and then ignored, matching
+  PostgreSQL. Both parsers share calendar construction and text decoding in
+  Rust. Named zones, context-dependent spellings, longer fractions, precision
+  coercions, other formats, and oversized text remain unknown.
 - Text-to-timestamptz casts and literals use the same Rust parser. It accepts
   year-first ISO dates with at least four year digits, a time separated by T
   or ASCII whitespace, and an explicit Z or numeric offset. Fractional seconds
