@@ -71,9 +71,14 @@ import them. Keep schema-only helpers with their callables.
 - Timestamp payloads use the same range, epoch, and infinities as timestamptz,
   measured on a local calendar without timezone interpretation. Explicit
   `timezone(text, timestamp)` and `timezone(text, timestamptz)` callables accept
-  case-insensitive UTC and preserve the payload. Known infinities bypass zone
-  lookup, following PostgreSQL. Other zones and implicit conversions remain
-  unknown. Timestamp precision coercions remain unknown.
+  case-insensitive UTC/GMT or POSIX fixed offsets, either bare or appended to
+  UTC/GMT. Offset fields accept hours, hours:minutes, and hours:minutes:seconds,
+  with optional sign; positive signs mean west of UTC. Hours range through 167,
+  minutes through 59, and seconds through 60. Invalid supported offsets return
+  SQLSTATE 22023; conversions outside the timestamp range return 22008. Known
+  infinities bypass zone lookup, following PostgreSQL. Other zone spellings,
+  abbreviations, named zones, DST rules, and implicit conversions remain unknown.
+  Timestamp precision coercions remain unknown.
 - Timestamp text casts and literals accept the same year-first ISO date/time
   fields as timestamptz, plus a date alone and a time without an offset. An
   explicit Z or numeric offset is validated and then ignored, matching
