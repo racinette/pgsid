@@ -1,6 +1,7 @@
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 import type { SqlBindingGroup } from '../../sql-semantics/signatures.js'
+import { checkRustCallableNames } from './check-rust-source.js'
 import { builtinMetadata } from '../../postgres/builtins/inventory.js'
 import { enumEqualityOperation } from '../../sql-semantics/expressions.js'
 import { goSqlBackend } from '../go/sql/registry.js'
@@ -15,17 +16,26 @@ const signatures = <Ast>(bindings: readonly SqlBindingGroup<Ast>[]): Set<string>
   )
 const go = signatures(goSqlBackend.bindings)
 const typescript = signatures(typescriptSqlBackend.bindings)
-const portable = (signature: string): boolean =>
-  enumEqualityOperation(signature) !== null ||
-  (go.has(signature) && typescript.has(signature) && builtinMetadata(signature).volatility === 'i')
+const portable = (signature: string, rustNames: ReadonlySet<string>): boolean => {
+  if (enumEqualityOperation(signature) !== null) return true
+  const metadata = builtinMetadata(signature)
+  const implementation =
+    metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
+  return (
+    metadata.volatility === 'i' &&
+    ((go.has(signature) && typescript.has(signature)) ||
+      (implementation.kind === 'function' && rustNames.has(implementation.rustName)))
+  )
+}
 
 export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpression {
+  const rustNames = checkRustCallableNames()
   const scalar = (value: EvalExpression): EvalExpression => {
     if (value.kind === 'text-to-date' || value.kind === 'text-to-timestamptz')
       return { ...value, operand: scalar(value.operand) }
     if (value.kind === 'check') return { ...value, expression: bool(value.expression) }
     if (value.kind === 'call')
-      return value.call.signature !== null && portable(value.call.signature)
+      return value.call.signature !== null && portable(value.call.signature, rustNames)
         ? { ...value, operands: value.operands.map(scalar) }
         : { kind: 'uncertain', type: value.call.type }
     if (value.kind === 'boolean-logic' || value.kind === 'coalesce')

@@ -46,7 +46,68 @@ type Int8Value struct {
 	Error SqlError
 }
 
-const timestamptzFieldOverflow = 3452552
+const timestampFieldOverflow = 3452552
+
+type TimestampValueKind uint8
+
+const (
+	TimestampValueUnknown TimestampValueKind = iota
+	TimestampValueNull
+	TimestampValueValue
+	TimestampValueError
+)
+
+type TimestampValue struct {
+	Kind  TimestampValueKind
+	Value int64
+	Error SqlError
+}
+
+func CopyTimestampValue(value TimestampValue) TimestampValue {
+	switch value.Kind {
+	case TimestampValueUnknown:
+		return TimestampValue{Kind: TimestampValueUnknown}
+	case TimestampValueNull:
+		return TimestampValue{Kind: TimestampValueNull}
+	case TimestampValueValue:
+		return TimestampValue{Kind: TimestampValueValue, Value: value.Value}
+	case TimestampValueError:
+		return TimestampValue{Kind: TimestampValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
+func TimestampUnknown() TimestampValue {
+	return TimestampValue{Kind: TimestampValueUnknown}
+}
+func TimestampNull() TimestampValue {
+	return TimestampValue{Kind: TimestampValueNull}
+}
+func MakeTimestampValue(value int64) TimestampValue {
+	if value != int64(-9223372036854775808) && value != int64(9223372036854775807) {
+		if value < int64(-211813488000000000) || value >= int64(9223371331200000000) {
+			return TimestampValue{Kind: TimestampValueError, Error: SqlError{State: timestampFieldOverflow}}
+		}
+	}
+	return TimestampValue{Kind: TimestampValueValue, Value: value}
+}
+func TimestampIsNull(value TimestampValue) BoolValue {
+	value = CopyTimestampValue(value)
+	if value.Kind == TimestampValueError {
+		error := value.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if value == (TimestampValue{Kind: TimestampValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: value == (TimestampValue{Kind: TimestampValueNull})}
+}
+func TimestampFromCaseGuard(value CheckOutcome) TimestampValue {
+	if value.Kind == CheckOutcomeError {
+		error := value.Error
+		return TimestampValue{Kind: TimestampValueError, Error: error}
+	}
+	return TimestampValue{Kind: TimestampValueUnknown}
+}
 
 type TimestamptzValueKind uint8
 
@@ -85,7 +146,7 @@ func TimestamptzNull() TimestamptzValue {
 func MakeTimestamptzValue(value int64) TimestamptzValue {
 	if value != int64(-9223372036854775808) && value != int64(9223372036854775807) {
 		if value < int64(-211813488000000000) || value >= int64(9223371331200000000) {
-			return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestamptzFieldOverflow}}
+			return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestampFieldOverflow}}
 		}
 	}
 	return TimestamptzValue{Kind: TimestamptzValueValue, Value: value}
@@ -713,14 +774,14 @@ func TimestamptzFromCalendar(year int, month int, day int, hour int, minute int,
 	microsecond = langruntime.CheckedI32(microsecond)
 	offsetSeconds = langruntime.CheckedI32(offsetSeconds)
 	if hour < 0 || hour > 24 || minute < 0 || minute > 59 || second < 0 || second > 60 || microsecond < 0 || microsecond > 999999 {
-		return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestamptzFieldOverflow}}
+		return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestampFieldOverflow}}
 	}
 	clockSeconds := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(hour, 60), minute)), 60), second)
 	clockWide := int64(langruntime.CheckedI32(clockSeconds))
 	fractionWide := int64(langruntime.CheckedI32(microsecond))
 	clock := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(clockWide, int64(1000000)), fractionWide)
 	if clock > int64(86400000000) {
-		return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestamptzFieldOverflow}}
+		return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestampFieldOverflow}}
 	}
 	if offsetSeconds < langruntime.CheckedSignedNegate(57599) || offsetSeconds > 57599 {
 		return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: invalidTimestampZone}}
@@ -733,7 +794,7 @@ func TimestamptzFromCalendar(year int, month int, day int, hour int, minute int,
 	if days.Kind == Int4ValueValue {
 		dayValue := langruntime.CheckedI32(days.Value)
 		if (year == langruntime.CheckedSignedNegate(4714) && month < 11) || dayValue < langruntime.CheckedSignedNegate(2451546) || dayValue > 106751983 {
-			return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestamptzFieldOverflow}}
+			return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestampFieldOverflow}}
 		}
 		daysWide := int64(langruntime.CheckedI32(dayValue))
 		local := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(daysWide, int64(86400000000)), clock)
@@ -927,7 +988,7 @@ func TimestamptzFromText(value TextValue) TimestamptzValue {
 			return TimestamptzValue{Kind: TimestamptzValueUnknown}
 		}
 		if yearField.overflow {
-			return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestamptzFieldOverflow}}
+			return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestampFieldOverflow}}
 		}
 		year := yearField.value
 		if bc {

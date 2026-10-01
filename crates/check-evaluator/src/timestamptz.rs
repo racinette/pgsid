@@ -53,7 +53,7 @@ pub fn timestamptz_from_calendar(
         || microsecond > 999999
     {
         return TimestamptzValue::Error(SqlError {
-            state: TIMESTAMPTZ_FIELD_OVERFLOW,
+            state: TIMESTAMP_FIELD_OVERFLOW,
         });
     }
     let clock_seconds: i32 = (hour * 60 + minute) * 60 + second;
@@ -62,7 +62,7 @@ pub fn timestamptz_from_calendar(
     let clock = clock_wide * 1000000i64 + fraction_wide;
     if clock > 86400000000i64 {
         return TimestamptzValue::Error(SqlError {
-            state: TIMESTAMPTZ_FIELD_OVERFLOW,
+            state: TIMESTAMP_FIELD_OVERFLOW,
         });
     }
     if offset_seconds < -57599 || offset_seconds > 57599 {
@@ -77,7 +77,7 @@ pub fn timestamptz_from_calendar(
     if let Int4Value::Value(day_value) = days {
         if (year == -4714 && month < 11) || day_value < -2451546 || day_value > 106751983 {
             return TimestamptzValue::Error(SqlError {
-                state: TIMESTAMPTZ_FIELD_OVERFLOW,
+                state: TIMESTAMP_FIELD_OVERFLOW,
             });
         }
         let days_wide = day_value as i64;
@@ -285,7 +285,7 @@ pub fn timestamptz_from_text(value: TextValue) -> TimestamptzValue {
         }
         if year_field.overflow {
             return TimestamptzValue::Error(SqlError {
-                state: TIMESTAMPTZ_FIELD_OVERFLOW,
+                state: TIMESTAMP_FIELD_OVERFLOW,
             });
         }
         let mut year = year_field.value;

@@ -8,6 +8,7 @@ export type GoCheckCase = {
   row: Record<string, unknown>
   nullViaValue?: boolean
   dateColumns?: readonly string[]
+  timestampColumns?: readonly string[]
   timestamptzColumns?: readonly string[]
   results: {
     constraint: string
@@ -22,12 +23,22 @@ export function renderGoCheckTests(
 ): string {
   const t = go.ident('t')
   let dateRuntimeUsed = false
+  let jsonUsed = false
   const fatal = (message: string, ...args: GoExpression[]): GoStatement =>
     go.expression(go.call(go.selector(t, 'Fatalf'), [go.string(message), ...args]))
   const expect = (actual: GoExpression, expected: GoExpression, label: string): GoStatement =>
     go.if(go.notEqual(actual, expected), [fatal(label + ': got %v', actual)])
   const body = cases.map((item) => {
-    const { name, table, row, nullViaValue, dateColumns, timestamptzColumns, results } = item
+    const {
+      name,
+      table,
+      row,
+      nullViaValue,
+      dateColumns,
+      timestampColumns,
+      timestamptzColumns,
+      results,
+    } = item
     const input = go.ident('input')
     const statements: GoStatement[] = [
       go.assign(
@@ -42,6 +53,21 @@ export function renderGoCheckTests(
       statements.push(go.assign([go.selector(field, 'Set')], [go.ident('true')], '='))
       if (value === null && !nullViaValue) {
         statements.push(go.assign([go.selector(field, 'Null')], [go.ident('true')], '='))
+        continue
+      }
+      if (
+        options.dateRuntime &&
+        (column.typeName === 'timestamp without time zone' ||
+          timestampColumns?.includes(column.name))
+      ) {
+        dateRuntimeUsed = true
+        const wrapped =
+          value === null
+            ? go.call(go.selector(go.ident('checkruntime'), 'TimestampNull'))
+            : go.call(go.selector(go.ident('checkruntime'), 'MakeTimestampValue'), [
+                go.number(BigInt(String(value))),
+              ])
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue
       }
       if (
@@ -83,6 +109,7 @@ export function renderGoCheckTests(
         statements.push(go.assign([go.selector(field, 'V')], [dateValue], '='))
         continue
       }
+      jsonUsed = true
       const encoded =
         typeof value === 'bigint'
           ? value.toString()
@@ -170,7 +197,7 @@ export function renderGoCheckTests(
     package: packageName,
     imports: [
       { path: 'testing' },
-      { path: 'encoding/json' },
+      ...(jsonUsed ? [{ path: 'encoding/json' }] : []),
       ...(dateRuntimeUsed ? [{ path: options.dateRuntime!, alias: 'checkruntime' }] : []),
     ],
     declarations: [

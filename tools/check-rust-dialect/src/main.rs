@@ -37,6 +37,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("DateValue") => {
             Ok("DateValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("TimestampValue") => {
+            Ok("TimestampValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("TimestamptzValue") => {
             Ok("TimestamptzValue")
         }
@@ -311,6 +314,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                 "Int4Value"
                     | "Int8Value"
                     | "DateValue"
+                    | "TimestampValue"
                     | "TimestamptzValue"
                     | "EnumValue"
                     | "TextValue"
@@ -465,6 +469,7 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             ("Int8Value", "int8_unknown"),
             ("EnumValue", "enum_unknown"),
             ("DateValue", "date_unknown"),
+            ("TimestampValue", "timestamp_unknown"),
             ("TimestamptzValue", "timestamptz_unknown"),
             ("TextValue", "text_unknown"),
             ("BoolValue", "bool_unknown"),
@@ -507,6 +512,27 @@ pub fn evaluate_check(input: DateValue) -> CheckOutcome {
     }
 
     #[test]
+    fn timestamp_inputs_remain_concrete_and_immutable() {
+        let source = r#"
+pub fn evaluate_check(input: TimestampValue) -> CheckOutcome {
+    let boundary = make_timestamp_value(0i64);
+    let compared = compare(input, boundary);
+    let result = check_from_bool(compared);
+    result
+}
+"#;
+        check_source(source).unwrap();
+        assert!(check_source(
+            &source.replace("input: TimestampValue", "input: TimestampValue<i64>")
+        )
+        .is_err());
+        assert!(check_source(
+            &source.replace("input: TimestampValue", "mut input: TimestampValue")
+        )
+        .is_err());
+    }
+
+    #[test]
     fn timestamptz_inputs_remain_concrete_and_immutable() {
         let source = r#"
 pub fn evaluate_check(input: TimestamptzValue) -> CheckOutcome {
@@ -517,8 +543,14 @@ pub fn evaluate_check(input: TimestamptzValue) -> CheckOutcome {
 }
 "#;
         check_source(source).unwrap();
-        assert!(check_source(&source.replace("input: TimestamptzValue", "input: TimestamptzValue<i64>")).is_err());
-        assert!(check_source(&source.replace("input: TimestamptzValue", "mut input: TimestamptzValue")).is_err());
+        assert!(check_source(
+            &source.replace("input: TimestamptzValue", "input: TimestamptzValue<i64>")
+        )
+        .is_err());
+        assert!(check_source(
+            &source.replace("input: TimestamptzValue", "mut input: TimestamptzValue")
+        )
+        .is_err());
     }
 
     #[test]

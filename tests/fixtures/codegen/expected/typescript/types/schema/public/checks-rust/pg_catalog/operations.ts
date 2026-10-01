@@ -1322,6 +1322,162 @@ export function textGeT8pg(left: checkruntime.TextValue, right: checkruntime.Tex
     }
     return { kind: "Unknown" };
 }
+export function timestampEqJd79(left: checkruntime.TimestampValue, right: checkruntime.TimestampValue): checkruntime.BoolValue {
+    left = checkruntime.copyTimestampValue(left);
+    right = checkruntime.copyTimestampValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestampValue(left, { kind: "Unknown" }) || checkruntime.equalTimestampValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimestampValue(left, { kind: "Null" }) || checkruntime.equalTimestampValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const rightValue: bigint = langruntime.checkedI64(right.value);
+            return { kind: "Value", value: leftValue === rightValue };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function timestampGe80hi(left: checkruntime.TimestampValue, right: checkruntime.TimestampValue): checkruntime.BoolValue {
+    left = checkruntime.copyTimestampValue(left);
+    right = checkruntime.copyTimestampValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestampValue(left, { kind: "Unknown" }) || checkruntime.equalTimestampValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimestampValue(left, { kind: "Null" }) || checkruntime.equalTimestampValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const rightValue: bigint = langruntime.checkedI64(right.value);
+            return { kind: "Value", value: leftValue >= rightValue };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function timestampGtHxfo(left: checkruntime.TimestampValue, right: checkruntime.TimestampValue): checkruntime.BoolValue {
+    left = checkruntime.copyTimestampValue(left);
+    right = checkruntime.copyTimestampValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestampValue(left, { kind: "Unknown" }) || checkruntime.equalTimestampValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimestampValue(left, { kind: "Null" }) || checkruntime.equalTimestampValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const rightValue: bigint = langruntime.checkedI64(right.value);
+            return { kind: "Value", value: leftValue > rightValue };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function timestampLe1qj4(left: checkruntime.TimestampValue, right: checkruntime.TimestampValue): checkruntime.BoolValue {
+    left = checkruntime.copyTimestampValue(left);
+    right = checkruntime.copyTimestampValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestampValue(left, { kind: "Unknown" }) || checkruntime.equalTimestampValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimestampValue(left, { kind: "Null" }) || checkruntime.equalTimestampValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const rightValue: bigint = langruntime.checkedI64(right.value);
+            return { kind: "Value", value: leftValue <= rightValue };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function timestampLtOgss(left: checkruntime.TimestampValue, right: checkruntime.TimestampValue): checkruntime.BoolValue {
+    left = checkruntime.copyTimestampValue(left);
+    right = checkruntime.copyTimestampValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestampValue(left, { kind: "Unknown" }) || checkruntime.equalTimestampValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimestampValue(left, { kind: "Null" }) || checkruntime.equalTimestampValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const rightValue: bigint = langruntime.checkedI64(right.value);
+            return { kind: "Value", value: leftValue < rightValue };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function timestampNeQsye(left: checkruntime.TimestampValue, right: checkruntime.TimestampValue): checkruntime.BoolValue {
+    left = checkruntime.copyTimestampValue(left);
+    right = checkruntime.copyTimestampValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTimestampValue(left, { kind: "Unknown" }) || checkruntime.equalTimestampValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTimestampValue(left, { kind: "Null" }) || checkruntime.equalTimestampValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const rightValue: bigint = langruntime.checkedI64(right.value);
+            return { kind: "Value", value: !(leftValue === rightValue) };
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function timestamptzEqK4n3(left: checkruntime.TimestamptzValue, right: checkruntime.TimestamptzValue): checkruntime.BoolValue {
     left = checkruntime.copyTimestamptzValue(left);
     right = checkruntime.copyTimestamptzValue(right);
@@ -1474,6 +1630,73 @@ export function timestamptzNe4iy1(left: checkruntime.TimestamptzValue, right: ch
         if (right.kind === "Value") {
             const rightValue: bigint = langruntime.checkedI64(right.value);
             return { kind: "Value", value: !(leftValue === rightValue) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+function timezoneIsUtc(name: string): boolean {
+    name = langruntime.checkedString(name);
+    const chars: string[] = Array.from(name);
+    return chars.length === 3 && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(0))) === "u" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(1))) === "t" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(2))) === "c";
+}
+export function timezone9nbk(zone: checkruntime.TextValue, value: checkruntime.TimestampValue): checkruntime.TimestamptzValue {
+    zone = checkruntime.copyTextValue(zone);
+    value = checkruntime.copyTimestampValue(value);
+    if (zone.kind === "Error") {
+        const error: checkruntime.SqlError = zone.value;
+        return { kind: "Error", value: error };
+    }
+    if (value.kind === "Error") {
+        const error: checkruntime.SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(zone, { kind: "Unknown" }) || checkruntime.equalTimestampValue(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(zone, { kind: "Null" }) || checkruntime.equalTimestampValue(value, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (value.kind === "Value") {
+        const microseconds: bigint = langruntime.checkedI64(value.value);
+        if (microseconds === -9223372036854775808n || microseconds === 9223372036854775807n) {
+            return checkruntime.makeTimestamptzValue(microseconds);
+        }
+        if (zone.kind === "Value") {
+            const name: string = langruntime.checkedString(zone.value);
+            if (timezoneIsUtc(name)) {
+                return checkruntime.makeTimestamptzValue(microseconds);
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function timezoneBlof(zone: checkruntime.TextValue, value: checkruntime.TimestamptzValue): checkruntime.TimestampValue {
+    zone = checkruntime.copyTextValue(zone);
+    value = checkruntime.copyTimestamptzValue(value);
+    if (zone.kind === "Error") {
+        const error: checkruntime.SqlError = zone.value;
+        return { kind: "Error", value: error };
+    }
+    if (value.kind === "Error") {
+        const error: checkruntime.SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(zone, { kind: "Unknown" }) || checkruntime.equalTimestamptzValue(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(zone, { kind: "Null" }) || checkruntime.equalTimestamptzValue(value, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (value.kind === "Value") {
+        const microseconds: bigint = langruntime.checkedI64(value.value);
+        if (microseconds === -9223372036854775808n || microseconds === 9223372036854775807n) {
+            return checkruntime.makeTimestampValue(microseconds);
+        }
+        if (zone.kind === "Value") {
+            const name: string = langruntime.checkedString(zone.value);
+            if (timezoneIsUtc(name)) {
+                return checkruntime.makeTimestampValue(microseconds);
+            }
         }
     }
     return { kind: "Unknown" };

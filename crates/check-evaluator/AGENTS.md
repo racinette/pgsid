@@ -68,6 +68,12 @@ import them. Keep schema-only helpers with their callables.
   timestamp range. Same-type comparisons require no timezone context. Public
   CHECK inputs use the portable wrapper, including for domains. Native query
   parameter date objects remain unknown during prevalidation.
+- Timestamp payloads use the same range, epoch, and infinities as timestamptz,
+  measured on a local calendar without timezone interpretation. Explicit
+  `timezone(text, timestamp)` and `timezone(text, timestamptz)` callables accept
+  case-insensitive UTC and preserve the payload. Known infinities bypass zone
+  lookup, following PostgreSQL. Other zones and implicit conversions remain
+  unknown. Timestamp text parsing and precision coercions remain unknown.
 - Text-to-timestamptz casts and literals use the same Rust parser. It accepts
   year-first ISO dates with at least four year digits, a time separated by T
   or ASCII whitespace, and an explicit Z or numeric offset. Fractional seconds

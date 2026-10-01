@@ -49,9 +49,11 @@ export function renderTypescriptSchemaCheckArtifacts(
     const type = catalogTemporalType(name, oid, domains)
     return type === 'pg_catalog.date'
       ? 'DateValue'
-      : type === 'pg_catalog.timestamptz'
-        ? 'TimestamptzValue'
-        : null
+      : type === 'pg_catalog."timestamp"'
+        ? 'TimestampValue'
+        : type === 'pg_catalog.timestamptz'
+          ? 'TimestamptzValue'
+          : null
   }
   const groups = catalogCheckGroups(tables, domains, selectedDomains, options.enums)
   if (!groups.length) return { checks: '', rust: null, rustFiles: null }
@@ -117,6 +119,7 @@ export function renderTypescriptSchemaCheckArtifacts(
               'Int4Value',
               'Int8Value',
               'DateValue',
+              'TimestampValue',
               'TimestamptzValue',
               'EnumValue',
               'TextValue',
@@ -127,21 +130,27 @@ export function renderTypescriptSchemaCheckArtifacts(
           const helper =
             item.rustType === 'DateValue'
               ? 'checkRustDate'
-              : item.rustType === 'TimestamptzValue'
-                ? 'checkRustTimestamptz'
-                : item.nullness
-                  ? 'checkRustNullness'
-                  : item.enum
-                    ? 'checkRustEnum'
-                    : item.rustType === 'Int4Value'
-                      ? 'checkRustInt4'
-                      : item.rustType === 'Int8Value'
-                        ? 'checkRustInt8'
-                        : item.rustType === 'TextValue'
-                          ? 'checkRustText'
-                          : 'checkRustBool'
+              : item.rustType === 'TimestampValue'
+                ? 'checkRustTimestamp'
+                : item.rustType === 'TimestamptzValue'
+                  ? 'checkRustTimestamptz'
+                  : item.nullness
+                    ? 'checkRustNullness'
+                    : item.enum
+                      ? 'checkRustEnum'
+                      : item.rustType === 'Int4Value'
+                        ? 'checkRustInt4'
+                        : item.rustType === 'Int8Value'
+                          ? 'checkRustInt8'
+                          : item.rustType === 'TextValue'
+                            ? 'checkRustText'
+                            : 'checkRustBool'
           rustInputAdapters.add(helper)
-          if (item.rustType !== 'DateValue' && item.rustType !== 'TimestamptzValue')
+          if (
+            item.rustType !== 'DateValue' &&
+            item.rustType !== 'TimestampValue' &&
+            item.rustType !== 'TimestamptzValue'
+          )
             inputHelpers.add(
               item.nullness
                 ? 'checkInputNullness'
@@ -219,7 +228,11 @@ export function renderTypescriptSchemaCheckArtifacts(
                   helpers: ['EvalValue', 'SqlEnum', 'enumInput'],
                 }
               }
-              if (type === 'pg_catalog.date' || type === 'pg_catalog.timestamptz')
+              if (
+                type === 'pg_catalog.date' ||
+                type === 'pg_catalog."timestamp"' ||
+                type === 'pg_catalog.timestamptz'
+              )
                 return backend.scalar.uncertain(type)
               const helper = inputHelper(type)
               if (!helper) throw new Error(`Unsupported CHECK input type: ${type}`)
@@ -437,7 +450,16 @@ export function renderTypescriptSchemaCheckArtifacts(
   }
 }
 
-const typescriptRustAdapterSource = `function checkRustTimestamptz(row: object, name: string): _checkRust.TimestamptzValue {
+const typescriptRustAdapterSource = `function checkRustTimestamp(row: object, name: string): _checkRust.TimestampValue {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.timestampUnknown()
+  if (value === null) return _checkRust.timestampNull()
+  if (typeof value !== 'object' || !('kind' in value)) return _checkRust.timestampUnknown()
+  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TimestampValue
+  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n) return _checkRust.makeTimestampValue(value.value)
+  return _checkRust.timestampUnknown()
+}
+function checkRustTimestamptz(row: object, name: string): _checkRust.TimestamptzValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.timestamptzUnknown()
   if (value === null) return _checkRust.timestamptzNull()

@@ -12,6 +12,19 @@ export type CheckRustSource = {
   }[]
 }
 
+export function checkRustCallableNames(source?: CheckRustSource): Set<string> {
+  const maintained =
+    source ??
+    (JSON.parse(checkRustAsset('check-rust-sources.json').toString('utf8')) as CheckRustSource)
+  return new Set(
+    maintained.modules.flatMap((module) =>
+      module.files.flatMap((file) =>
+        [...file.source.matchAll(/\bfn (sql__[a-z0-9_]+)\s*\(/gu)].map((match) => match[1]!),
+      ),
+    ),
+  )
+}
+
 export function assembleCheckRust(evaluator: {
   source: string
   callables: readonly string[]
@@ -34,13 +47,7 @@ export function assembleCheckRust(evaluator: {
       },
     ]
   })
-  const available = new Set(
-    modules.flatMap((module) =>
-      module.files.flatMap((file) =>
-        [...file.source.matchAll(/\bfn (sql__[a-z0-9_]+)\s*\(/gu)].map((match) => match[1]!),
-      ),
-    ),
-  )
+  const available = checkRustCallableNames({ schemaVersion: 1, modules })
   for (const name of evaluator.callables)
     if (!available.has(name))
       throw new UnsupportedCheckRustExpression(`Rust CHECK callable has no implementation: ${name}`)

@@ -246,6 +246,13 @@ describe('world CHECK INSERT parity', () => {
       const dateColumns = table.columns
         .filter((column) => catalogDateType(column.typeName, column.typeOid, catalog.domains))
         .map((column) => column.name)
+      const timestampColumns = table.columns
+        .filter(
+          (column) =>
+            catalogTemporalType(column.typeName, column.typeOid, catalog.domains) ===
+            'pg_catalog."timestamp"',
+        )
+        .map((column) => column.name)
       const timestamptzColumns = table.columns
         .filter(
           (column) =>
@@ -267,6 +274,16 @@ describe('world CHECK INSERT parity', () => {
         portableRow[name] = days === null ? { kind: 'Null' } : { kind: 'Value', value: days }
         goRow[name] = days
       }
+      for (const name of timestampColumns) {
+        const hex = (
+          await pg.query<{ binary: string | null }>(
+            `SELECT encode(timestamp_send(${quote(name)}), 'hex') AS binary FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.binary
+        const micros = hex === null ? null : Buffer.from(hex, 'hex').readBigInt64BE()
+        portableRow[name] = micros === null ? { kind: 'Null' } : { kind: 'Value', value: micros }
+        goRow[name] = micros
+      }
       for (const name of timestamptzColumns) {
         const hex = (
           await pg.query<{ binary: string | null }>(
@@ -287,6 +304,7 @@ describe('world CHECK INSERT parity', () => {
         table,
         row: goRow,
         dateColumns,
+        timestampColumns,
         timestamptzColumns,
         results,
       })
