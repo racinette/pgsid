@@ -2,6 +2,7 @@ import { checkRustEntryName, type CheckConstraintIdentity } from './check-rust-n
 import { builtinMetadata } from '../../postgres/builtins/inventory.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
+import { supportsTextCallableCollation } from '../../sql-semantics/collation.js'
 import {
   enumType,
   enumEqualityOperation,
@@ -132,9 +133,12 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression(
           `Unsupported Rust CHECK callable: ${call.signature}`,
         )
-      if (implementation.args.includes('pg_catalog.text') && call.collation !== 'C')
+      if (
+        implementation.args.includes('pg_catalog.text') &&
+        !supportsTextCallableCollation(call.signature, call.collation)
+      )
         throw new UnsupportedCheckRustExpression(
-          `Rust CHECK text callable requires C collation: ${call.signature}`,
+          `Unsupported Rust CHECK text collation: ${call.signature}`,
         )
       rustType(call.type)
       const enumCall = enumEqualityOperation(call.signature) !== null

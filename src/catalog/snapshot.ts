@@ -121,6 +121,7 @@ interface ColumnRow {
   generated: string // 'a' | 's' | ''
   identity: string // 'a' | 'd' | ''
   collation_deterministic: boolean | null
+  collation_oid: number | null
   collation_is_default: boolean | null
   collation_is_c: boolean | null
 }
@@ -227,6 +228,9 @@ interface DomainRow {
   base_type_name: string
   is_row_type: boolean
   collation_is_c: boolean | null
+  collation_deterministic: boolean | null
+  collation_is_default: boolean | null
+  collation_oid: number | null
   not_null: boolean
   default_expr: string | null
   check_exprs: { name: string; definition: string }[] | null
@@ -674,6 +678,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       generationDivergesInTree: false,
       identity: mapIdentity(c.identity),
       collationDeterministic: c.collation_deterministic,
+      collationOid: c.collation_oid,
       collationIsDefault: c.collation_is_default,
       collationIsC: c.collation_is_c,
     }
@@ -998,6 +1003,9 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       baseTypeName: d.base_type_name,
       isRowType: d.is_row_type,
       collationIsC: d.collation_is_c,
+      collationDeterministic: d.collation_deterministic,
+      collationIsDefault: d.collation_is_default,
+      collationOid: d.collation_oid,
       notNull: d.not_null,
       default: d.default_expr,
       checks: d.check_exprs ?? [],
@@ -1231,6 +1239,7 @@ async function queryColumns(pg: PGlite): Promise<ColumnRow[]> {
             a.attgenerated AS generated,
             a.attidentity AS identity,
             co.collisdeterministic AS collation_deterministic,
+            NULLIF(a.attcollation, 0)::int AS collation_oid,
             CASE WHEN a.attcollation = 0 THEN NULL
                  ELSE a.attcollation = 'pg_catalog."default"'::regcollation
             END AS collation_is_default,
@@ -1886,6 +1895,11 @@ async function queryDomains(pg: PGlite): Promise<DomainRow[]> {
             CASE WHEN t.typcollation = 0 THEN NULL
                  ELSE t.typcollation = 'pg_catalog."C"'::regcollation
             END AS collation_is_c,
+            co.collisdeterministic AS collation_deterministic,
+            CASE WHEN t.typcollation = 0 THEN NULL
+                 ELSE t.typcollation = 'pg_catalog."default"'::regcollation
+            END AS collation_is_default,
+            NULLIF(t.typcollation, 0)::int AS collation_oid,
             t.typnotnull AS not_null,
             -- Domain defaults: typdefault is the pre-deparsed SQL text
             -- (e.g. 'unknown'::text). pg_get_expr(typdefaultbin, oid) returns
@@ -1904,6 +1918,7 @@ async function queryDomains(pg: PGlite): Promise<DomainRow[]> {
      FROM pg_type t
      JOIN pg_namespace n ON n.oid = t.typnamespace
      JOIN type_shapes shape ON shape.oid = t.oid
+     LEFT JOIN pg_collation co ON co.oid = t.typcollation
      WHERE t.typtype = 'd' AND ${USER_NS}
      ORDER BY n.nspname, t.typname;`,
   )

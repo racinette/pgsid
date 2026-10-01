@@ -107,7 +107,7 @@ export const go = {
     results,
   }),
   ellipsis: (type: GoExpression): GoExpression => ({ kind: 'ellipsis', type }),
-  number: (value: number): GoExpression => ({ kind: 'number', value: String(value) }),
+  number: (value: number | bigint): GoExpression => ({ kind: 'number', value: String(value) }),
   call: (expression: GoExpression, arguments_: GoExpression[] = []): GoExpression => ({
     kind: 'call',
     expression,

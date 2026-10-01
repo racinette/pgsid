@@ -94,6 +94,8 @@ export interface ColumnInfo {
   collationIsDefault: boolean | null
   /** Whether the column uses the built-in C collation. */
   collationIsC?: boolean | null
+  /** Catalog collation identity used to resolve expression conflicts. */
+  collationOid?: number | null
   /** Identity column: `attidentity` 'a'→always, 'd'→byDefault, ''→null. */
   identity: 'always' | 'byDefault' | null
 }
@@ -551,6 +553,9 @@ export interface DomainInfo {
   isRowType?: boolean
   /** Whether text values of this domain use the C collation. */
   collationIsC?: boolean | null
+  collationDeterministic?: boolean | null
+  collationIsDefault?: boolean | null
+  collationOid?: number | null
   notNull: boolean
   /** Default expression from `pg_get_expr(typdefaultbin, oid)`, or null. */
   default: string | null

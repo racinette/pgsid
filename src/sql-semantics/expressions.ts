@@ -1,12 +1,8 @@
-import {
-  builtinCallables,
-  builtinMetadata,
-  functionMetadata,
-  operatorMetadata,
-} from '../postgres/builtins/inventory.js'
+import { functionMetadata, operatorMetadata } from '../postgres/builtins/inventory.js'
 import type { CallableMetadata } from '../postgres/builtins/catalog.js'
 import type { EnumInfo } from '../catalog/types.js'
 import type { CallableEmitter, SqlBindingGroup, TypedSqlExpression } from './signatures.js'
+import { equalityOperation, supportsTextCallableCollation } from './collation.js'
 
 export type IntegerType = 'pg_catalog.int2' | 'pg_catalog.int4' | 'pg_catalog.int8'
 
@@ -62,26 +58,7 @@ export function enumType(definition: Pick<EnumDefinition, 'schema' | 'name'>): E
 }
 
 export function enumEqualityOperation(signature: string): '=' | '<>' | null {
-  const metadata = builtinMetadata(signature)
-  if (
-    (metadata.kind !== 'operator' && metadata.kind !== 'function') ||
-    metadata.result !== 'pg_catalog.bool' ||
-    metadata.args.length !== 2 ||
-    !metadata.args.every((type) => type === 'pg_catalog.anyenum') ||
-    !metadata.strict ||
-    metadata.volatility !== 'i' ||
-    metadata.returnsSet
-  )
-    return null
-  if (metadata.kind === 'operator')
-    return metadata.name === '=' || metadata.name === '<>' ? metadata.name : null
-  const operators = builtinCallables().filter(
-    (item) =>
-      item.kind === 'operator' &&
-      item.implementation === signature &&
-      (item.name === '=' || item.name === '<>'),
-  )
-  return operators.length === 1 ? (operators[0]!.name as '=' | '<>') : null
+  return equalityOperation(signature, 'pg_catalog.anyenum')
 }
 
 export function arrayType(elementType: ArrayElementType): ArrayType {
@@ -550,7 +527,7 @@ export function emitSqlCallable<Ast>(
           'textgename',
         ].includes(metadata.name))) &&
     node.kind !== 'cast' &&
-    node.collation !== 'C'
+    !supportsTextCallableCollation(signature, node.collation)
   )
     throw new Error('Unsupported text collation: expected C')
   const emitter = binding as unknown as CallableEmitter<CallableMetadata, Ast>
