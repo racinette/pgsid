@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { mkdtemp, writeFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { execFile } from 'node:child_process'
+import { promisify } from 'node:util'
 import { createContext, runInContext } from 'node:vm'
 import ts from 'typescript'
+import { transpileCheckRust } from '../../src/codegen/shared/check-rust-transpile.js'
 
 const context = createContext({})
 runInContext(
@@ -40,4 +46,107 @@ describe('CHECK signed calendar arithmetic', () => {
       (context['checkedSignedMultiply'] as (a: number, b: number) => number)(2147483647, 2),
     ).toThrow()
   })
+})
+
+describe('CHECK timestamp arithmetic', () => {
+  const minimum = -9223372036854775808n
+  const maximum = 9223372036854775807n
+  it.each([
+    ['checkedI64Add', maximum, 0n, maximum],
+    ['checkedI64Add', minimum, maximum, -1n],
+    ['checkedI64Subtract', minimum, minimum, 0n],
+    ['checkedI64Subtract', 9007199254740993n, 9007199254740992n, 1n],
+    ['checkedI64Multiply', minimum, 1n, minimum],
+    ['checkedI64Multiply', maximum, 1n, maximum],
+    ['checkedI64Multiply', -7n, -3n, 21n],
+    ['checkedI64Multiply', minimum, 0n, 0n],
+  ] as const)('%s preserves exact int8 results', (name, left, right, result) => {
+    expect((context[name] as (a: bigint, b: bigint) => bigint)(left, right)).toBe(result)
+  })
+  it.each([
+    ['checkedI64Add', maximum, 1n],
+    ['checkedI64Add', minimum, -1n],
+    ['checkedI64Subtract', minimum, 1n],
+    ['checkedI64Subtract', maximum, -1n],
+    ['checkedI64Multiply', minimum, -1n],
+    ['checkedI64Multiply', -1n, minimum],
+    ['checkedI64Multiply', maximum, 2n],
+    ['checkedI64Multiply', minimum, minimum],
+  ] as const)('%s rejects int8 overflow', (name, left, right) => {
+    expect(() => (context[name] as (a: bigint, b: bigint) => bigint)(left, right)).toThrow()
+  })
+  it('executes timestamp construction arithmetic through Rust and both target emitters', async () => {
+    const source = `pub fn timestamp_parts(day: i32, clock: i64, zone: i32) -> i64 {
+      let days = day as i64;
+      let offset = zone as i64;
+      let local = days * 86400000000i64 + clock;
+      local - offset * 1000000i64
+    }
+    pub fn add(left: i64, right: i64) -> i64 { left + right }
+    pub fn subtract(left: i64, right: i64) -> i64 { left - right }
+    pub fn multiply(left: i64, right: i64) -> i64 { left * right }
+    `
+    const generated = transpileCheckRust(source)
+    const generatedContext = createContext({ exports: {} })
+    runInContext(
+      ts.transpileModule(generated.typescript, {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+      }).outputText,
+      generatedContext,
+    )
+    const functions = generatedContext['exports'] as Record<
+      string,
+      (...args: (number | bigint)[]) => bigint
+    >
+    expect(functions['timestampParts']!(0, 19800000000n, 19800)).toBe(0n)
+    expect(functions['subtract']!(9007199254740993n, 9007199254740992n)).toBe(1n)
+    for (const [name, left, right] of [
+      ['add', maximum, 1n],
+      ['subtract', minimum, 1n],
+      ['multiply', minimum, -1n],
+    ] as const)
+      expect(() => functions[name]!(left, right)).toThrow()
+    const root = await mkdtemp(join(tmpdir(), 'pgsid-check-i64-'))
+    try {
+      await writeFile(join(root, 'runtime.go'), generated.go)
+      await writeFile(join(root, 'go.mod'), 'module arithmetic\n\ngo 1.25\n')
+      await writeFile(
+        join(root, 'arithmetic_test.go'),
+        `package generated
+import "testing"
+func TestArithmetic(t *testing.T) {
+  if TimestampParts(0, 19800000000, 19800) != 0 { t.Fatal("timestamp arithmetic") }
+  if Subtract(9007199254740993, 9007199254740992) != 1 { t.Fatal("lost precision") }
+  for _, operation := range []func(){
+    func(){ Add(9223372036854775807, 1) },
+    func(){ Subtract(-9223372036854775808, 1) },
+    func(){ Multiply(-9223372036854775808, -1) },
+  } { func(){ defer func(){ if recover() == nil { t.Fatal("expected overflow") } }(); operation() }() }
+}
+`,
+      )
+      await writeFile(
+        join(root, 'arithmetic.rs'),
+        source +
+          `
+#[test] fn exact() {
+  assert_eq!(timestamp_parts(0, 19800000000, 19800), 0);
+  assert_eq!(subtract(9007199254740993, 9007199254740992), 1);
+}
+#[test] #[should_panic] fn addition_overflow() { add(9223372036854775807, 1); }
+#[test] #[should_panic] fn subtraction_overflow() { subtract(-9223372036854775808, 1); }
+#[test] #[should_panic] fn multiplication_overflow() { multiply(-9223372036854775808, -1); }
+`,
+      )
+      const run = promisify(execFile)
+      await run('go', ['test', './...'], {
+        cwd: root,
+        env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+      })
+      await run('rustc', ['--test', join(root, 'arithmetic.rs'), '-o', join(root, 'arithmetic')])
+      await run(join(root, 'arithmetic'))
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  }, 120_000)
 })

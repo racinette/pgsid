@@ -41,7 +41,9 @@ import them. Keep schema-only helpers with their callables.
 - Int8 payloads use Rust `i64`, Go `int64`, and TypeScript `bigint`. Write
   decimal Rust literals with an `i64` suffix. Widen an int4 payload with
   `as i64` into a distinct local before comparing it with an int8 payload.
-  I64 arithmetic, narrowing casts, and variable negation are outside this subset.
+  I64 addition, subtraction, and multiplication require two explicitly typed
+  i64 operands and reject overflow. I64 division, remainder, narrowing casts,
+  and variable negation are outside this subset.
 - Date payloads are signed day offsets from 2000-01-01. The signed int4
   minimum and maximum represent negative and positive infinity. Finite payloads
   range from -2451545 through 2145031948. Public CHECK inputs use this portable
@@ -65,9 +67,18 @@ import them. Keep schema-only helpers with their callables.
   represent infinities. Rust validates finite payloads against PostgreSQL's
   timestamp range. Same-type comparisons require no timezone context. Public
   CHECK inputs use the portable wrapper, including for domains. Native query
-  parameter date objects remain unknown during prevalidation. Finite timestamp
-  text, calendar construction, timezone conversions, and arithmetic require
-  separate support; do not implement them in target adapters.
+  parameter date objects remain unknown during prevalidation.
+- Text-to-timestamptz casts and literals use the same Rust parser. It accepts
+  year-first ISO dates with at least four year digits, a time separated by T
+  or ASCII whitespace, and an explicit Z or numeric offset. Fractional seconds
+  accept one through six digits; seconds may be omitted. Numeric offsets accept
+  hour, compact hour/minute, or colon-separated hour/minute/second forms.
+  BC/AD suffixes, ASCII whitespace, and signed infinities are supported.
+  Invalid supported calendar/time values return 22008, offsets return 22009,
+  and empty text returns 22007. Named or implicit timezones, other formats,
+  longer fractions, timestamp precision modifiers, and oversized input remain
+  unknown. Range checks apply after offset adjustment. Keep timezone databases,
+  session settings, and native date libraries out of target adapters.
 - If a callable needs a new value representation, primitive, SQL error, or
   Rust syntax rule, surface that as a separate foundation change before
   porting more functions that depend on it. The CHECK transpiler's own `AGENTS.md`

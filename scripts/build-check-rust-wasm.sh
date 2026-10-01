@@ -30,6 +30,7 @@ writeFileSync(`${assets}/check-rust-sources.json`, JSON.stringify({
     { name: 'checkruntime', dependencies: [], files: [
       read('crates/check-evaluator/src/values.rs'),
       read('crates/check-evaluator/src/date.rs'),
+      read('crates/check-evaluator/src/timestamptz.rs'),
       read('crates/check-evaluator/src/logic.rs'),
     ] },
     { name: 'pg_catalog', dependencies: ['checkruntime', 'regex_engine'], files: files.map(name => read(`${schema}/${name}`)) },

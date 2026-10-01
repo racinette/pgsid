@@ -685,7 +685,7 @@ mod tests {
             "pub fn f(value: u32) -> i64 { value as i64 }",
             "pub fn f(value: i64) -> usize { value as usize }",
             "pub fn f(value: i64) -> bool { value == 0 }",
-            "pub fn f(value: i64) -> i64 { value + 1i64 }",
+            "pub fn f(value: i64) -> i64 { value + 1 }",
             "pub fn f(value: i64) -> i64 { -value }",
             "pub fn f() -> i64 { 0 }",
             "pub fn f() -> i64 { return 0; }",
@@ -969,7 +969,7 @@ mod tests {
     }
 
     #[test]
-    fn calendar_arithmetic_requires_signed_int4_operands() {
+    fn calendar_arithmetic_rejects_unsigned_and_mixed_operands() {
         for operator in ["*", "/", "%"] {
             assert!(parse(&format!(
                 "pub fn f(left: i32, right: i32) -> i32 {{ left {operator} right }}"
@@ -987,11 +987,37 @@ mod tests {
                 "pub fn f(left: usize, right: usize) -> usize {{ left {operator} right }}"
             ))
             .is_err());
+            assert_eq!(
+                parse(&format!(
+                    "pub fn f(left: i64, right: i64) -> i64 {{ left {operator} right }}"
+                ))
+                .is_ok(),
+                operator == "*"
+            );
+        }
+    }
+
+    #[test]
+    fn timestamp_arithmetic_requires_explicit_int8_operands() {
+        for operator in ["+", "-", "*"] {
             assert!(parse(&format!(
                 "pub fn f(left: i64, right: i64) -> i64 {{ left {operator} right }}"
             ))
+            .is_ok());
+            for ty in ["i32", "u32", "usize"] {
+                assert!(parse(&format!(
+                    "pub fn f(left: i64, right: {ty}) -> i64 {{ left {operator} right }}"
+                ))
+                .is_err());
+            }
+            assert!(parse(&format!(
+                "pub fn f(left: i64) -> i64 {{ left {operator} 1 }}"
+            ))
             .is_err());
         }
+        assert!(parse("pub fn f(left: i64, right: i64) -> i64 { left / right }").is_err());
+        assert!(parse("pub fn f(left: i64, right: i64) -> i64 { left % right }").is_err());
+        assert!(parse("pub fn f(left: i64) -> i64 { -left }").is_err());
     }
 
     #[test]

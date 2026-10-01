@@ -21,7 +21,8 @@ const portable = (signature: string): boolean =>
 
 export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpression {
   const scalar = (value: EvalExpression): EvalExpression => {
-    if (value.kind === 'text-to-date') return { ...value, operand: scalar(value.operand) }
+    if (value.kind === 'text-to-date' || value.kind === 'text-to-timestamptz')
+      return { ...value, operand: scalar(value.operand) }
     if (value.kind === 'check') return { ...value, expression: bool(value.expression) }
     if (value.kind === 'call')
       return value.call.signature !== null && portable(value.call.signature)

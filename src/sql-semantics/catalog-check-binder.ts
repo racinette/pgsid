@@ -430,11 +430,22 @@ export function bindCatalogCheck(
       if (names && names.length > 1 && names[0] !== 'pg_catalog') return unknown
       const type = names ? catalogScalarType(names.at(-1)!) : null
       if (!type) return unknown
+      if (
+        type === 'pg_catalog.timestamptz' &&
+        Array.isArray(castType?.['typmods']) &&
+        castType['typmods'].length
+      )
+        return unknown
       const operand = bind(cast['arg'])
       if (type === 'pg_catalog.date' && operand.type === 'pg_catalog.text' && operand.value)
         return {
           type,
           value: { kind: 'text-to-date', type, operand: operand.value },
+        }
+      if (type === 'pg_catalog.timestamptz' && operand.type === 'pg_catalog.text' && operand.value)
+        return {
+          type,
+          value: { kind: 'text-to-timestamptz', type, operand: operand.value },
         }
       if (
         (type === 'pg_catalog.int4' || type === 'pg_catalog.int8') &&

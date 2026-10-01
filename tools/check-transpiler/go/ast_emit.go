@@ -209,6 +209,16 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		}
 	case "binary":
 		left, right := g.goExpression(value.Left), g.goExpression(value.Right)
+		if (value.Operator == "multiply" || value.Operator == "add" || value.Operator == "subtract") && path(g.inferType(value.Left)) == "i64" {
+			switch value.Operator {
+			case "multiply":
+				return goCall("checkedI64Multiply", left, right)
+			case "add":
+				return goCall("checkedI64Add", left, right)
+			case "subtract":
+				return goCall("checkedI64Subtract", left, right)
+			}
+		}
 		switch value.Operator {
 		case "multiply":
 			return goCall("checkedSignedMultiply", left, right)

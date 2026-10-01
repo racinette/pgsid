@@ -17,6 +17,15 @@ export function checkedI64(value: bigint): bigint {
         throw new RangeError('integer outside i64 range');
     return value;
 }
+export function checkedI64Add(left: bigint, right: bigint): bigint {
+    return checkedI64(checkedI64(left) + checkedI64(right));
+}
+export function checkedI64Subtract(left: bigint, right: bigint): bigint {
+    return checkedI64(checkedI64(left) - checkedI64(right));
+}
+export function checkedI64Multiply(left: bigint, right: bigint): bigint {
+    return checkedI64(checkedI64(left) * checkedI64(right));
+}
 export function checkedBool(value: boolean): boolean {
     if (typeof value !== 'boolean')
         throw new TypeError('expected a boolean');
@@ -96,7 +105,7 @@ export function checkedString(value: string): string {
         checkedChar(character);
     return value;
 }
-function checkedChars(value: string[]): string[] {
+export function checkedChars(value: string[]): string[] {
     if (value.length > MAX_SHARED_INDEX)
         throw new RangeError('vector outside shared numeric range');
     return Array.from(value, checkedChar);

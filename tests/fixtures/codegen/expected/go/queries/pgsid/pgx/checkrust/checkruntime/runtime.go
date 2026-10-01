@@ -613,15 +613,30 @@ func DateFromYmd(year int, month int, day int) DateValue {
 	year = langruntime.CheckedI32(year)
 	month = langruntime.CheckedI32(month)
 	day = langruntime.CheckedI32(day)
+	days := calendarDaysFromYmd(year, month, day)
+	if days.Kind == Int4ValueError {
+		error := days.Error
+		return DateValue{Kind: DateValueError, Error: error}
+	}
+	if days.Kind == Int4ValueValue {
+		value := langruntime.CheckedI32(days.Value)
+		return MakeDateValue(value)
+	}
+	return DateValue{Kind: DateValueUnknown}
+}
+func calendarDaysFromYmd(year int, month int, day int) Int4Value {
+	year = langruntime.CheckedI32(year)
+	month = langruntime.CheckedI32(month)
+	day = langruntime.CheckedI32(day)
 	if year == 0 || year == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) {
-		return DateValue{Kind: DateValueError, Error: SqlError{State: dateFieldOverflow}}
+		return Int4Value{Kind: Int4ValueError, Error: SqlError{State: dateFieldOverflow}}
 	}
 	calendarYear := year
 	if year < 0 {
 		calendarYear = langruntime.CheckedI32(langruntime.CheckedSignedAdd(year, 1))
 	}
 	if month < 1 || month > 12 || day < 1 || day > 31 {
-		return DateValue{Kind: DateValueError, Error: SqlError{State: dateFieldOverflow}}
+		return Int4Value{Kind: Int4ValueError, Error: SqlError{State: dateFieldOverflow}}
 	}
 	monthDays := 31
 	if month == 4 || month == 6 || month == 9 || month == 11 {
@@ -633,7 +648,7 @@ func DateFromYmd(year int, month int, day int) DateValue {
 		}
 	}
 	if day > monthDays || calendarYear < langruntime.CheckedSignedNegate(4713) || calendarYear > 5874897 {
-		return DateValue{Kind: DateValueError, Error: SqlError{State: dateFieldOverflow}}
+		return Int4Value{Kind: Int4ValueError, Error: SqlError{State: dateFieldOverflow}}
 	}
 	julianYear := langruntime.CheckedSignedAdd(calendarYear, 4799)
 	julianMonth := langruntime.CheckedSignedAdd(month, 13)
@@ -646,7 +661,281 @@ func DateFromYmd(year int, month int, day int) DateValue {
 	leapAdjustment := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedDivide(julianYear, 4), century), langruntime.CheckedSignedDivide(century, 4))
 	monthAdjustment := langruntime.CheckedSignedAdd(langruntime.CheckedSignedDivide(langruntime.CheckedSignedMultiply(7834, julianMonth), 256), day)
 	julian := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(base, leapAdjustment), monthAdjustment)
-	return MakeDateValue(langruntime.CheckedSignedSubtract(julian, 2451545))
+	return MakeInt4Value(langruntime.CheckedSignedSubtract(julian, 2451545))
+}
+
+const invalidTimestampText = 3452551
+const invalidTimestampZone = 3452553
+
+type timestampText struct {
+	chars []rune
+}
+
+func copytimestampText(value timestampText) timestampText {
+	return timestampText{chars: langruntime.CheckedChars(value.chars)}
+}
+
+type timestampNumber struct {
+	next     int
+	digits   int
+	value    int
+	overflow bool
+}
+
+func copytimestampNumber(value timestampNumber) timestampNumber {
+	return timestampNumber{next: langruntime.CheckedIndex(value.next), digits: langruntime.CheckedIndex(value.digits), value: langruntime.CheckedI32(value.value), overflow: value.overflow}
+}
+func readTimestampNumber(text *timestampText, start int, end int) timestampNumber {
+	text = langruntime.CheckedBorrowed(text, copytimestampText)
+	start = langruntime.CheckedIndex(start)
+	end = langruntime.CheckedIndex(end)
+	index := start
+	value := 0
+	overflow := false
+	for index < end && dateTextDigit(text.chars[index]) >= 0 {
+		if value < 214748364 || (value == 214748364 && dateTextDigit(text.chars[index]) <= 7) {
+			value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(value, 10), dateTextDigit(text.chars[index])))
+		} else {
+			value = langruntime.CheckedI32(2147483647)
+			overflow = true
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return timestampNumber{next: index, digits: langruntime.CheckedSubtract(index, start), value: value, overflow: overflow}
+}
+func TimestamptzFromCalendar(year int, month int, day int, hour int, minute int, second int, microsecond int, offsetSeconds int) TimestamptzValue {
+	year = langruntime.CheckedI32(year)
+	month = langruntime.CheckedI32(month)
+	day = langruntime.CheckedI32(day)
+	hour = langruntime.CheckedI32(hour)
+	minute = langruntime.CheckedI32(minute)
+	second = langruntime.CheckedI32(second)
+	microsecond = langruntime.CheckedI32(microsecond)
+	offsetSeconds = langruntime.CheckedI32(offsetSeconds)
+	if hour < 0 || hour > 24 || minute < 0 || minute > 59 || second < 0 || second > 60 || microsecond < 0 || microsecond > 999999 {
+		return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestamptzFieldOverflow}}
+	}
+	clockSeconds := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(hour, 60), minute)), 60), second)
+	clockWide := int64(langruntime.CheckedI32(clockSeconds))
+	fractionWide := int64(langruntime.CheckedI32(microsecond))
+	clock := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(clockWide, int64(1000000)), fractionWide)
+	if clock > int64(86400000000) {
+		return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestamptzFieldOverflow}}
+	}
+	if offsetSeconds < langruntime.CheckedSignedNegate(57599) || offsetSeconds > 57599 {
+		return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: invalidTimestampZone}}
+	}
+	days := calendarDaysFromYmd(year, month, day)
+	if days.Kind == Int4ValueError {
+		error := days.Error
+		return TimestamptzValue{Kind: TimestamptzValueError, Error: error}
+	}
+	if days.Kind == Int4ValueValue {
+		dayValue := langruntime.CheckedI32(days.Value)
+		if (year == langruntime.CheckedSignedNegate(4714) && month < 11) || dayValue < langruntime.CheckedSignedNegate(2451546) || dayValue > 106751983 {
+			return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestamptzFieldOverflow}}
+		}
+		daysWide := int64(langruntime.CheckedI32(dayValue))
+		local := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(daysWide, int64(86400000000)), clock)
+		offsetWide := int64(langruntime.CheckedI32(offsetSeconds))
+		utc := langruntime.CheckedI64Subtract(local, langruntime.CheckedI64Multiply(offsetWide, int64(1000000)))
+		return MakeTimestamptzValue(utc)
+	}
+	return TimestamptzValue{Kind: TimestamptzValueUnknown}
+}
+func TimestamptzFromText(value TextValue) TimestamptzValue {
+	value = CopyTextValue(value)
+	if value.Kind == TextValueError {
+		error := value.Error
+		return TimestamptzValue{Kind: TimestamptzValueError, Error: error}
+	}
+	if value == (TextValue{Kind: TextValueUnknown}) {
+		return TimestamptzValue{Kind: TimestamptzValueUnknown}
+	}
+	if value == (TextValue{Kind: TextValueNull}) {
+		return TimestamptzValue{Kind: TimestamptzValueNull}
+	}
+	if value.Kind == TextValueValue {
+		input := langruntime.CheckedString(value.Value)
+		chars := []rune(input)
+		if len(chars) > 128 {
+			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+		}
+		text := timestampText{chars: chars}
+		start := 0
+		end := len(text.chars)
+		for start < end && dateTextSpace(text.chars[start]) {
+			start = langruntime.CheckedAdd(start, 1)
+		}
+		for start < end && dateTextSpace(text.chars[langruntime.CheckedSubtract(end, 1)]) {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+		if start == end {
+			return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: invalidTimestampText}}
+		}
+		bc := false
+		if langruntime.CheckedSubtract(end, start) >= 2 && langruntime.AsciiLowercase(text.chars[langruntime.CheckedSubtract(end, 1)]) == 'c' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedSubtract(end, 2)]) == 'b' {
+			if langruntime.CheckedSubtract(end, start) > 2 && dateTextSpace(text.chars[langruntime.CheckedSubtract(end, 3)]) == false && dateTextDigit(text.chars[langruntime.CheckedSubtract(end, 3)]) < 0 {
+				return TimestamptzValue{Kind: TimestamptzValueUnknown}
+			}
+			bc = true
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 2))
+		} else if langruntime.CheckedSubtract(end, start) >= 2 && langruntime.AsciiLowercase(text.chars[langruntime.CheckedSubtract(end, 1)]) == 'd' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedSubtract(end, 2)]) == 'a' {
+			if langruntime.CheckedSubtract(end, start) > 2 && dateTextSpace(text.chars[langruntime.CheckedSubtract(end, 3)]) == false && dateTextDigit(text.chars[langruntime.CheckedSubtract(end, 3)]) < 0 {
+				return TimestamptzValue{Kind: TimestamptzValueUnknown}
+			}
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 2))
+		}
+		for start < end && dateTextSpace(text.chars[langruntime.CheckedSubtract(end, 1)]) {
+			end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+		}
+		infinityStart := start
+		negative := false
+		if infinityStart < end && text.chars[infinityStart] == '-' {
+			negative = true
+			infinityStart = langruntime.CheckedAdd(infinityStart, 1)
+		} else if infinityStart < end && text.chars[infinityStart] == '+' {
+			infinityStart = langruntime.CheckedAdd(infinityStart, 1)
+		}
+		if langruntime.CheckedSubtract(end, infinityStart) == 8 {
+			infinity := []rune("infinity")
+			index := 0
+			matches := true
+			for index < len(infinity) {
+				if langruntime.AsciiLowercase(text.chars[langruntime.CheckedAdd(infinityStart, index)]) != infinity[index] {
+					matches = false
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			if matches {
+				if negative {
+					return MakeTimestamptzValue(int64(-9223372036854775808))
+				}
+				return MakeTimestamptzValue(int64(9223372036854775807))
+			}
+		}
+		yearField := readTimestampNumber(&text, start, end)
+		index := yearField.next
+		if yearField.digits < 4 || index == end || text.chars[index] != '-' {
+			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+		}
+		month := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
+		index = langruntime.CheckedIndex(month.next)
+		if month.digits < 1 || month.digits > 2 || index == end || text.chars[index] != '-' {
+			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+		}
+		day := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
+		index = langruntime.CheckedIndex(day.next)
+		if day.digits < 1 || day.digits > 2 || index == end {
+			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+		}
+		if langruntime.AsciiLowercase(text.chars[index]) == 't' {
+			index = langruntime.CheckedAdd(index, 1)
+		} else if dateTextSpace(text.chars[index]) {
+			for index < end && dateTextSpace(text.chars[index]) {
+				index = langruntime.CheckedAdd(index, 1)
+			}
+		} else {
+			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+		}
+		hour := readTimestampNumber(&text, index, end)
+		index = langruntime.CheckedIndex(hour.next)
+		if hour.digits < 1 || index == end || text.chars[index] != ':' {
+			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+		}
+		minute := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
+		index = langruntime.CheckedIndex(minute.next)
+		if minute.digits < 1 {
+			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+		}
+		second := 0
+		fraction := 0
+		if index < end && text.chars[index] == ':' {
+			seconds := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
+			index = langruntime.CheckedIndex(seconds.next)
+			if seconds.digits < 1 {
+				return TimestamptzValue{Kind: TimestamptzValueUnknown}
+			}
+			second = langruntime.CheckedI32(seconds.value)
+			if index < end && text.chars[index] == '.' {
+				digits := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
+				index = langruntime.CheckedIndex(digits.next)
+				if digits.digits < 1 || digits.digits > 6 {
+					return TimestamptzValue{Kind: TimestamptzValueUnknown}
+				}
+				fraction = langruntime.CheckedI32(digits.value)
+				fractionDigits := digits.digits
+				for fractionDigits < 6 {
+					fraction = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(fraction, 10))
+					fractionDigits = langruntime.CheckedAdd(fractionDigits, 1)
+				}
+			}
+		}
+		for index < end && dateTextSpace(text.chars[index]) {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		offset := 0
+		if index < end && langruntime.AsciiLowercase(text.chars[index]) == 'z' {
+			index = langruntime.CheckedAdd(index, 1)
+		} else if index < end && (text.chars[index] == '+' || text.chars[index] == '-') {
+			sign := text.chars[index]
+			zoneHour := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
+			index = langruntime.CheckedIndex(zoneHour.next)
+			if zoneHour.digits < 1 || zoneHour.digits > 4 {
+				return TimestamptzValue{Kind: TimestamptzValueUnknown}
+			}
+			hours := zoneHour.value
+			minutes := 0
+			seconds := 0
+			if index < end && text.chars[index] == ':' {
+				if zoneHour.digits > 2 {
+					return TimestamptzValue{Kind: TimestamptzValueUnknown}
+				}
+				zoneMinute := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
+				index = langruntime.CheckedIndex(zoneMinute.next)
+				if zoneMinute.digits < 1 {
+					return TimestamptzValue{Kind: TimestamptzValueUnknown}
+				}
+				minutes = langruntime.CheckedI32(zoneMinute.value)
+				if index < end && text.chars[index] == ':' {
+					zoneSecond := readTimestampNumber(&text, langruntime.CheckedAdd(index, 1), end)
+					index = langruntime.CheckedIndex(zoneSecond.next)
+					if zoneSecond.digits < 1 {
+						return TimestamptzValue{Kind: TimestamptzValueUnknown}
+					}
+					seconds = langruntime.CheckedI32(zoneSecond.value)
+				}
+			} else if zoneHour.digits > 2 {
+				hours = langruntime.CheckedI32(langruntime.CheckedSignedDivide(zoneHour.value, 100))
+				minutes = langruntime.CheckedI32(langruntime.CheckedSignedRemainder(zoneHour.value, 100))
+			}
+			if index != end {
+				return TimestamptzValue{Kind: TimestamptzValueUnknown}
+			}
+			if hours > 15 || minutes > 59 || seconds > 59 {
+				offset = langruntime.CheckedI32(57600)
+			} else {
+				offset = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply((langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(hours, 60), minutes)), 60), seconds))
+				if sign == '-' {
+					offset = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, offset))
+				}
+			}
+		} else {
+			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+		}
+		if index != end {
+			return TimestamptzValue{Kind: TimestamptzValueUnknown}
+		}
+		if yearField.overflow {
+			return TimestamptzValue{Kind: TimestamptzValueError, Error: SqlError{State: timestamptzFieldOverflow}}
+		}
+		year := yearField.value
+		if bc {
+			year = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, year))
+		}
+		return TimestamptzFromCalendar(year, month.value, day.value, hour.value, minute.value, second, fraction, offset)
+	}
+	return TimestamptzValue{Kind: TimestamptzValueUnknown}
 }
 func AndStops(left CheckOutcome) bool {
 	if left == (CheckOutcome{Kind: CheckOutcomeFalse}) {

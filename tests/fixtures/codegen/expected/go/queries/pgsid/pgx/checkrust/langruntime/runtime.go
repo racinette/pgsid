@@ -9,7 +9,7 @@ func checkedOpaqueBorrow[T any](value *T) *T {
 	return value
 }
 
-func checkedBorrowed[T any](value *T, copyValue func(T) T) *T {
+func CheckedBorrowed[T any](value *T, copyValue func(T) T) *T {
 	if value == nil {
 		panic("nil borrowed value")
 	}
@@ -19,6 +19,34 @@ func checkedBorrowed[T any](value *T, copyValue func(T) T) *T {
 
 const maxSharedIndex = 2147483647
 const minSharedI32 = -2147483648
+
+const maxSharedI64 int64 = 9223372036854775807
+const minSharedI64 int64 = -9223372036854775808
+
+func CheckedI64Add(left int64, right int64) int64 {
+	if (right > 0 && left > maxSharedI64-right) || (right < 0 && left < minSharedI64-right) {
+		panic("i64 overflow")
+	}
+	return left + right
+}
+
+func CheckedI64Subtract(left int64, right int64) int64 {
+	if (right < 0 && left > maxSharedI64+right) || (right > 0 && left < minSharedI64+right) {
+		panic("i64 overflow")
+	}
+	return left - right
+}
+
+func CheckedI64Multiply(left int64, right int64) int64 {
+	if (left == minSharedI64 && right == -1) || (right == minSharedI64 && left == -1) {
+		panic("i64 overflow")
+	}
+	result := left * right
+	if right != 0 && result/right != left {
+		panic("i64 overflow")
+	}
+	return result
+}
 
 func CheckedIndex(value int) int {
 	if value < 0 || value > maxSharedIndex {
@@ -134,7 +162,7 @@ func CheckedString(value string) string {
 	return value
 }
 
-func checkedChars(value []rune) []rune {
+func CheckedChars(value []rune) []rune {
 	if len(value) > maxSharedIndex {
 		panic("vector outside shared numeric range")
 	}

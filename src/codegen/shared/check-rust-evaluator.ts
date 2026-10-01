@@ -195,30 +195,23 @@ export function emitCheckRustEvaluator(
                     : 'bool_unknown'
       return { name: bind(`${helper}()`), type: node.type }
     }
-    if (node.kind === 'text-to-date') {
+    if (node.kind === 'text-to-date' || node.kind === 'text-to-timestamptz') {
       const operand = emitScalar(node.operand, bindings, used)
       if (operand.type !== 'pg_catalog.text')
-        throw new UnsupportedCheckRustExpression('A text-to-date cast requires text')
-      return { name: bind(`date_from_text(${operand.name})`), type: node.type }
+        throw new UnsupportedCheckRustExpression('A temporal text cast requires text')
+      const helper = node.kind === 'text-to-date' ? 'date_from_text' : 'timestamptz_from_text'
+      return { name: bind(`${helper}(${operand.name})`), type: node.type }
     }
     if (node.kind === 'certain') {
       const value = node.expression
-      if (value.kind === 'temporal' && value.type === 'pg_catalog.timestamptz') {
-        if (value.value === null) return { name: bind('timestamptz_null()'), type: value.type }
-        const literal = value.value.toLowerCase()
-        if (literal === 'infinity' || literal === '+infinity' || literal === '-infinity')
-          return {
-            name: bind(
-              `make_timestamptz_value(${literal === '-infinity' ? '-9223372036854775808' : '9223372036854775807'}i64)`,
-            ),
-            type: value.type,
-          }
-        return { name: bind('timestamptz_unknown()'), type: value.type }
-      }
-      if (value.kind === 'temporal' && value.type === 'pg_catalog.date') {
-        if (value.value === null) return { name: bind('date_null()'), type: value.type }
+      if (
+        value.kind === 'temporal' &&
+        (value.type === 'pg_catalog.date' || value.type === 'pg_catalog.timestamptz')
+      ) {
+        const prefix = value.type === 'pg_catalog.date' ? 'date' : 'timestamptz'
+        if (value.value === null) return { name: bind(`${prefix}_null()`), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
-        return { name: bind(`date_from_text(${text})`), type: value.type }
+        return { name: bind(`${prefix}_from_text(${text})`), type: value.type }
       }
       if (value.kind === 'enum') {
         if (value.type !== enumType(value.enum))
