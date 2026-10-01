@@ -34,6 +34,7 @@ export type EvalExpression =
   | { kind: 'input-null-test'; type: 'pg_catalog.bool'; negated: boolean; name: string }
   | { kind: 'coalesce'; type: ScalarType; operands: readonly EvalExpression[] }
   | { kind: 'text-to-date'; type: 'pg_catalog.date'; operand: EvalExpression }
+  | { kind: 'text-to-timestamp'; type: 'pg_catalog."timestamp"'; operand: EvalExpression }
   | { kind: 'text-to-timestamptz'; type: 'pg_catalog.timestamptz'; operand: EvalExpression }
   | {
       kind: 'case'
@@ -173,7 +174,11 @@ export function emitEvalExpression<Ast>(
       include(result.helpers)
       return { type: node.type, expression: result.expression, effect: 'partial' }
     }
-    if (node.kind === 'text-to-date' || node.kind === 'text-to-timestamptz') {
+    if (
+      node.kind === 'text-to-date' ||
+      node.kind === 'text-to-timestamp' ||
+      node.kind === 'text-to-timestamptz'
+    ) {
       const result = backend.uncertain(node.type)
       include(result.helpers)
       return { type: node.type, expression: result.expression, effect: 'partial' }

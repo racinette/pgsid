@@ -451,6 +451,11 @@ export function bindCatalogCheck(
           type,
           value: { kind: 'text-to-date', type, operand: operand.value },
         }
+      if (type === 'pg_catalog."timestamp"' && operand.type === 'pg_catalog.text' && operand.value)
+        return {
+          type,
+          value: { kind: 'text-to-timestamp', type, operand: operand.value },
+        }
       if (type === 'pg_catalog.timestamptz' && operand.type === 'pg_catalog.text' && operand.value)
         return {
           type,

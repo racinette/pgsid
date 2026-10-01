@@ -31,7 +31,11 @@ const portable = (signature: string, rustNames: ReadonlySet<string>): boolean =>
 export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpression {
   const rustNames = checkRustCallableNames()
   const scalar = (value: EvalExpression): EvalExpression => {
-    if (value.kind === 'text-to-date' || value.kind === 'text-to-timestamptz')
+    if (
+      value.kind === 'text-to-date' ||
+      value.kind === 'text-to-timestamp' ||
+      value.kind === 'text-to-timestamptz'
+    )
       return { ...value, operand: scalar(value.operand) }
     if (value.kind === 'check') return { ...value, expression: bool(value.expression) }
     if (value.kind === 'call')

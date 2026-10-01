@@ -198,34 +198,39 @@ export function emitCheckRustEvaluator(
                       : 'bool_unknown'
       return { name: bind(`${helper}()`), type: node.type }
     }
-    if (node.kind === 'text-to-date' || node.kind === 'text-to-timestamptz') {
+    if (
+      node.kind === 'text-to-date' ||
+      node.kind === 'text-to-timestamp' ||
+      node.kind === 'text-to-timestamptz'
+    ) {
       const operand = emitScalar(node.operand, bindings, used)
       if (operand.type !== 'pg_catalog.text')
         throw new UnsupportedCheckRustExpression('A temporal text cast requires text')
-      const helper = node.kind === 'text-to-date' ? 'date_from_text' : 'timestamptz_from_text'
+      const helper =
+        node.kind === 'text-to-date'
+          ? 'date_from_text'
+          : node.kind === 'text-to-timestamp'
+            ? 'timestamp_from_text'
+            : 'timestamptz_from_text'
       return { name: bind(`${helper}(${operand.name})`), type: node.type }
     }
     if (node.kind === 'certain') {
       const value = node.expression
       if (
         value.kind === 'temporal' &&
-        (value.type === 'pg_catalog.date' || value.type === 'pg_catalog.timestamptz')
+        (value.type === 'pg_catalog.date' ||
+          value.type === 'pg_catalog."timestamp"' ||
+          value.type === 'pg_catalog.timestamptz')
       ) {
-        const prefix = value.type === 'pg_catalog.date' ? 'date' : 'timestamptz'
+        const prefix =
+          value.type === 'pg_catalog.date'
+            ? 'date'
+            : value.type === 'pg_catalog."timestamp"'
+              ? 'timestamp'
+              : 'timestamptz'
         if (value.value === null) return { name: bind(`${prefix}_null()`), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
         return { name: bind(`${prefix}_from_text(${text})`), type: value.type }
-      }
-      if (value.kind === 'temporal' && value.type === 'pg_catalog."timestamp"') {
-        if (value.value === null) return { name: bind('timestamp_null()'), type: value.type }
-        const infinity = value.value.toLowerCase().trim()
-        const helper =
-          infinity === 'infinity' || infinity === '+infinity'
-            ? 'make_timestamp_value(9223372036854775807i64)'
-            : infinity === '-infinity'
-              ? 'make_timestamp_value(-9223372036854775808i64)'
-              : 'timestamp_unknown()'
-        return { name: bind(helper), type: value.type }
       }
       if (value.kind === 'enum') {
         if (value.type !== enumType(value.enum))

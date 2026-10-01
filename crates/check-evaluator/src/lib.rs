@@ -3,6 +3,7 @@ pub use pgsid_regex_engine::*;
 pub mod checkruntime {
     include!("values.rs");
     include!("date.rs");
+    include!("timestamp.rs");
     include!("timestamptz.rs");
     include!("logic.rs");
 }
