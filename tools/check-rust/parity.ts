@@ -64,11 +64,13 @@ export async function runCheckParity(
       ? 'int4'
       : type === 'pg_catalog.int8'
         ? 'int8'
-        : type === 'pg_catalog.date'
-          ? 'date'
-          : type === 'pg_catalog.bool'
-            ? 'bool'
-            : 'text'
+        : type === 'pg_catalog.timestamptz'
+          ? 'timestamptz'
+          : type === 'pg_catalog.date'
+            ? 'date'
+            : type === 'pg_catalog.bool'
+              ? 'bool'
+              : 'text'
   const inputCode = (input: Input, type: string): string => {
     const prefix = prefixOf(type)
     if (input.kind === 'Null' || input.kind === 'Unknown')
@@ -78,7 +80,7 @@ export async function runCheckParity(
     const literal =
       typeof input.value === 'string'
         ? rustStringLiteral(input.value)
-        : prefix === 'int8'
+        : prefix === 'int8' || prefix === 'timestamptz'
           ? `${input.value}i64`
           : String(input.value)
     return `make_${prefix}_value(${literal})`
@@ -186,7 +188,9 @@ export async function runCheckParity(
     '-o',
     join(directory, 'rust-test'),
   ])
-  await run(join(directory, 'rust-test'), [])
+  await run(join(directory, 'rust-test'), []).catch((error: { stdout: string; stderr: string }) => {
+    throw new Error(error.stdout + error.stderr, { cause: error })
+  })
   const split = transpileCheckRustFiles(group.source, `${moduleName}/pg_catalog`)
   for (const [name, source] of Object.entries(split.go)) {
     if (!source) continue
@@ -247,7 +251,12 @@ export async function runCheckParity(
   for (const fixture of fixtures) {
     const check = entries.get(fixture.name)!
     const result = generated[camel(check.entryName)](
-      ...check.inputs.map((input) => projectedInput(fixture.row[input.name]!, input.nullness)),
+      ...check.inputs.map((input) => {
+        const value = projectedInput(fixture.row[input.name]!, input.nullness)
+        return input.type === 'pg_catalog.timestamptz' && value.kind === 'Value'
+          ? generated.makeTimestamptzValue(value.value)
+          : value
+      }),
     )
     assert.deepEqual(
       result,

@@ -8,6 +8,7 @@ export type GoCheckCase = {
   row: Record<string, unknown>
   nullViaValue?: boolean
   dateColumns?: readonly string[]
+  timestamptzColumns?: readonly string[]
   results: {
     constraint: string
     result: { certain: boolean; value?: boolean | null; error?: string }
@@ -25,7 +26,8 @@ export function renderGoCheckTests(
     go.expression(go.call(go.selector(t, 'Fatalf'), [go.string(message), ...args]))
   const expect = (actual: GoExpression, expected: GoExpression, label: string): GoStatement =>
     go.if(go.notEqual(actual, expected), [fatal(label + ': got %v', actual)])
-  const body = cases.map(({ name, table, row, nullViaValue, dateColumns, results }) => {
+  const body = cases.map((item) => {
+    const { name, table, row, nullViaValue, dateColumns, timestamptzColumns, results } = item
     const input = go.ident('input')
     const statements: GoStatement[] = [
       go.assign(
@@ -40,6 +42,21 @@ export function renderGoCheckTests(
       statements.push(go.assign([go.selector(field, 'Set')], [go.ident('true')], '='))
       if (value === null && !nullViaValue) {
         statements.push(go.assign([go.selector(field, 'Null')], [go.ident('true')], '='))
+        continue
+      }
+      if (
+        options.dateRuntime &&
+        (column.typeName === 'timestamp with time zone' ||
+          timestamptzColumns?.includes(column.name))
+      ) {
+        dateRuntimeUsed = true
+        const wrapped =
+          value === null
+            ? go.call(go.selector(go.ident('checkruntime'), 'TimestamptzNull'))
+            : go.call(go.selector(go.ident('checkruntime'), 'MakeTimestamptzValue'), [
+                go.number(BigInt(String(value))),
+              ])
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue
       }
       if (

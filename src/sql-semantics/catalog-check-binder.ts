@@ -84,12 +84,15 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     'double precision': 'pg_catalog.float8',
     float8: 'pg_catalog.float8',
     date: 'pg_catalog.date',
+    timestamptz: 'pg_catalog.timestamptz',
+    'timestamp with time zone': 'pg_catalog.timestamptz',
     text: 'pg_catalog.text',
     'character varying': 'pg_catalog."varchar"',
     character: 'pg_catalog.bpchar',
   }
   if (name.startsWith('character varying(')) return 'pg_catalog."varchar"'
   if (name.startsWith('character(')) return 'pg_catalog.bpchar'
+  if (/^timestamp\(\d+\) with time zone$/u.test(name)) return 'pg_catalog.timestamptz'
   return names[name] ?? null
 }
 
@@ -98,6 +101,14 @@ export function catalogDateType(
   oid: number | undefined,
   domains: readonly DomainInfo[],
 ): boolean {
+  return catalogTemporalType(name, oid, domains) === 'pg_catalog.date'
+}
+
+export function catalogTemporalType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): 'pg_catalog.date' | 'pg_catalog.timestamptz' | null {
   const seen = new Set<number>()
   while (oid !== undefined && !seen.has(oid)) {
     seen.add(oid)
@@ -106,7 +117,8 @@ export function catalogDateType(
     name = domain.baseTypeName
     oid = domain.baseTypeOid
   }
-  return catalogScalarType(name) === 'pg_catalog.date'
+  const type = catalogScalarType(name)
+  return type === 'pg_catalog.date' || type === 'pg_catalog.timestamptz' ? type : null
 }
 
 const callables = PG18_BUILTIN_GROUPS.flatMap(({ inventory }) =>
@@ -126,7 +138,10 @@ type Bound = {
 const unknown: Bound = { type: null, value: null }
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
-  if (type === 'pg_catalog.date' && (literal.kind === 'null' || literal.kind === 'string')) {
+  if (
+    (type === 'pg_catalog.date' || type === 'pg_catalog.timestamptz') &&
+    (literal.kind === 'null' || literal.kind === 'string')
+  ) {
     return { kind: 'temporal', type, value: literal.value }
   }
   if (literal.kind === 'null') {
@@ -531,9 +546,8 @@ export function bindCatalogCheck(
       }
       const type =
         column &&
-        (catalogDateType(column.typeName, column.typeOid, domains)
-          ? 'pg_catalog.date'
-          : catalogScalarType(column.typeName))
+        (catalogTemporalType(column.typeName, column.typeOid, domains) ??
+          catalogScalarType(column.typeName))
       if (type) {
         inputs.add(column.name)
         return {
@@ -730,7 +744,7 @@ export function bindCatalogCheck(
       if (
         column?.isRowType === false &&
         (!catalogScalarType(column.typeName) ||
-          catalogScalarType(column.typeName) === 'pg_catalog.date')
+          catalogTemporalType(column.typeName, column.typeOid, domains) !== null)
       ) {
         inputs.add(column.name)
         return {

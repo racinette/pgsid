@@ -13,7 +13,10 @@ import { getStatements, parseSql } from '../../src/ast.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import type { CatalogSnapshot } from '../../src/catalog/types.js'
 import { catalogCheckGroups } from '../../src/sql-semantics/catalog-checks.js'
-import { catalogDateType } from '../../src/sql-semantics/catalog-check-binder.js'
+import {
+  catalogDateType,
+  catalogTemporalType,
+} from '../../src/sql-semantics/catalog-check-binder.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
@@ -243,6 +246,13 @@ describe('world CHECK INSERT parity', () => {
       const dateColumns = table.columns
         .filter((column) => catalogDateType(column.typeName, column.typeOid, catalog.domains))
         .map((column) => column.name)
+      const timestamptzColumns = table.columns
+        .filter(
+          (column) =>
+            catalogTemporalType(column.typeName, column.typeOid, catalog.domains) ===
+            'pg_catalog.timestamptz',
+        )
+        .map((column) => column.name)
       const portableRow = { ...row }
       const goRow = { ...row }
       for (const name of dateColumns) {
@@ -257,12 +267,29 @@ describe('world CHECK INSERT parity', () => {
         portableRow[name] = days === null ? { kind: 'Null' } : { kind: 'Value', value: days }
         goRow[name] = days
       }
+      for (const name of timestamptzColumns) {
+        const hex = (
+          await pg.query<{ binary: string | null }>(
+            `SELECT encode(timestamptz_send(${quote(name)}), 'hex') AS binary FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.binary
+        const micros = hex === null ? null : Buffer.from(hex, 'hex').readBigInt64BE()
+        portableRow[name] = micros === null ? { kind: 'Null' } : { kind: 'Value', value: micros }
+        goRow[name] = micros
+      }
       const results = normalized(
         generated[`evaluate${typeName(table.schema + '_' + table.name)}Checks`]!(portableRow),
       )
       typescriptResults.set(item.name, results)
       const schemaCases = goCases.get(item.schema) ?? []
-      schemaCases.push({ name: item.name, table, row: goRow, dateColumns, results })
+      schemaCases.push({
+        name: item.name,
+        table,
+        row: goRow,
+        dateColumns,
+        timestamptzColumns,
+        results,
+      })
       goCases.set(item.schema, schemaCases)
     }
     for (const [schema, schemaCases] of goCases)

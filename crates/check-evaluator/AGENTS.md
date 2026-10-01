@@ -60,6 +60,14 @@ import them. Keep schema-only helpers with their callables.
   catalog label list. Equality requires the same concrete type on both sides.
   Unrecognized input labels remain unknown. The CHECK gate also runs the enum
   catalog and operation parity tests.
+- Timestamptz payloads are signed UTC microseconds from 2000-01-01, using
+  Rust i64, Go int64, and TypeScript bigint. The signed minimum and maximum
+  represent infinities. Rust validates finite payloads against PostgreSQL's
+  timestamp range. Same-type comparisons require no timezone context. Public
+  CHECK inputs use the portable wrapper, including for domains. Native query
+  parameter date objects remain unknown during prevalidation. Finite timestamp
+  text, calendar construction, timezone conversions, and arithmetic require
+  separate support; do not implement them in target adapters.
 - If a callable needs a new value representation, primitive, SQL error, or
   Rust syntax rule, surface that as a separate foundation change before
   porting more functions that depend on it. The CHECK transpiler's own `AGENTS.md`

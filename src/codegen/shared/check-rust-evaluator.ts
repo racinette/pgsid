@@ -25,6 +25,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.int4') return 'Int4Value'
   if (type === 'pg_catalog.int8') return 'Int8Value'
   if (type === 'pg_catalog.date') return 'DateValue'
+  if (type === 'pg_catalog.timestamptz') return 'TimestamptzValue'
   if (type === 'pg_catalog.text') return 'TextValue'
   if (type === 'pg_catalog.bool') return 'BoolValue'
   if (type.startsWith('enum:')) return 'EnumValue'
@@ -185,11 +186,13 @@ export function emitCheckRustEvaluator(
             ? 'int8_unknown'
             : kind === 'DateValue'
               ? 'date_unknown'
-              : kind === 'EnumValue'
-                ? 'enum_unknown'
-                : kind === 'TextValue'
-                  ? 'text_unknown'
-                  : 'bool_unknown'
+              : kind === 'TimestamptzValue'
+                ? 'timestamptz_unknown'
+                : kind === 'EnumValue'
+                  ? 'enum_unknown'
+                  : kind === 'TextValue'
+                    ? 'text_unknown'
+                    : 'bool_unknown'
       return { name: bind(`${helper}()`), type: node.type }
     }
     if (node.kind === 'text-to-date') {
@@ -200,6 +203,18 @@ export function emitCheckRustEvaluator(
     }
     if (node.kind === 'certain') {
       const value = node.expression
+      if (value.kind === 'temporal' && value.type === 'pg_catalog.timestamptz') {
+        if (value.value === null) return { name: bind('timestamptz_null()'), type: value.type }
+        const literal = value.value.toLowerCase()
+        if (literal === 'infinity' || literal === '+infinity' || literal === '-infinity')
+          return {
+            name: bind(
+              `make_timestamptz_value(${literal === '-infinity' ? '-9223372036854775808' : '9223372036854775807'}i64)`,
+            ),
+            type: value.type,
+          }
+        return { name: bind('timestamptz_unknown()'), type: value.type }
+      }
       if (value.kind === 'temporal' && value.type === 'pg_catalog.date') {
         if (value.value === null) return { name: bind('date_null()'), type: value.type }
         const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
@@ -277,6 +292,7 @@ export function emitCheckRustEvaluator(
           'pg_catalog.int4',
           'pg_catalog.int8',
           'pg_catalog.date',
+          'pg_catalog.timestamptz',
           'pg_catalog.text',
           'pg_catalog.bool',
         ].includes(node.operand.type)
@@ -297,11 +313,13 @@ export function emitCheckRustEvaluator(
             ? 'int8_is_null'
             : kind === 'DateValue'
               ? 'date_is_null'
-              : kind === 'EnumValue'
-                ? 'enum_is_null'
-                : kind === 'TextValue'
-                  ? 'text_is_null'
-                  : 'bool_is_null'
+              : kind === 'TimestamptzValue'
+                ? 'timestamptz_is_null'
+                : kind === 'EnumValue'
+                  ? 'enum_is_null'
+                  : kind === 'TextValue'
+                    ? 'text_is_null'
+                    : 'bool_is_null'
       const result = bind(`${helper}(${operand.name})`)
       return {
         name: node.negated ? bind(`bool_not_value(${result})`) : result,
@@ -372,11 +390,13 @@ export function emitCheckRustEvaluator(
             ? 'int8'
             : kind === 'DateValue'
               ? 'date'
-              : kind === 'EnumValue'
-                ? 'enum'
-                : kind === 'TextValue'
-                  ? 'text'
-                  : 'bool'
+              : kind === 'TimestamptzValue'
+                ? 'timestamptz'
+                : kind === 'EnumValue'
+                  ? 'enum'
+                  : kind === 'TextValue'
+                    ? 'text'
+                    : 'bool'
       const scrutinee = node.scrutinee
         ? emitScalar(node.scrutinee.expression, bindings, used)
         : null
