@@ -1641,10 +1641,142 @@ func TimestamptzNe4iy1(left checkruntime.TimestamptzValue, right checkruntime.Ti
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
-func timezoneIsUtc(name string) bool {
+
+const invalidTimezoneName = 3452619
+
+type timezoneText struct {
+	chars []rune
+}
+
+func copytimezoneText(value timezoneText) timezoneText {
+	return timezoneText{chars: langruntime.CheckedChars(value.chars)}
+}
+
+type timezoneNumber struct {
+	next  int
+	value int
+	valid bool
+}
+
+func copytimezoneNumber(value timezoneNumber) timezoneNumber {
+	return timezoneNumber{next: langruntime.CheckedIndex(value.next), value: langruntime.CheckedI32(value.value), valid: value.valid}
+}
+func timezoneDigit(value rune) int {
+	value = langruntime.CheckedChar(value)
+	if value == '0' {
+		return 0
+	}
+	if value == '1' {
+		return 1
+	}
+	if value == '2' {
+		return 2
+	}
+	if value == '3' {
+		return 3
+	}
+	if value == '4' {
+		return 4
+	}
+	if value == '5' {
+		return 5
+	}
+	if value == '6' {
+		return 6
+	}
+	if value == '7' {
+		return 7
+	}
+	if value == '8' {
+		return 8
+	}
+	if value == '9' {
+		return 9
+	}
+	return langruntime.CheckedSignedNegate(1)
+}
+func readTimezoneNumber(text *timezoneText, start int, maximum int) timezoneNumber {
+	text = langruntime.CheckedBorrowed(text, copytimezoneText)
+	start = langruntime.CheckedIndex(start)
+	maximum = langruntime.CheckedI32(maximum)
+	index := start
+	value := 0
+	valid := false
+	for index < len(text.chars) && timezoneDigit(text.chars[index]) >= 0 {
+		valid = true
+		value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(value, 10), timezoneDigit(text.chars[index])))
+		if value > maximum {
+			return timezoneNumber{next: index, value: 0, valid: false}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return timezoneNumber{next: index, value: value, valid: valid}
+}
+func timezoneFixedOffset(name string) checkruntime.Int4Value {
 	name = langruntime.CheckedString(name)
 	chars := []rune(name)
-	return len(chars) == 3 && langruntime.AsciiLowercase(chars[0]) == 'u' && langruntime.AsciiLowercase(chars[1]) == 't' && langruntime.AsciiLowercase(chars[2]) == 'c'
+	if len(chars) > 128 {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	text := timezoneText{chars: chars}
+	index := 0
+	if len(text.chars) >= 3 {
+		utc := langruntime.AsciiLowercase(text.chars[0]) == 'u' && langruntime.AsciiLowercase(text.chars[1]) == 't' && langruntime.AsciiLowercase(text.chars[2]) == 'c'
+		gmt := langruntime.AsciiLowercase(text.chars[0]) == 'g' && langruntime.AsciiLowercase(text.chars[1]) == 'm' && langruntime.AsciiLowercase(text.chars[2]) == 't'
+		if utc || gmt {
+			index = langruntime.CheckedIndex(3)
+			if index == len(text.chars) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+			}
+		}
+	}
+	if index < len(text.chars) && timezoneDigit(text.chars[index]) < 0 && text.chars[index] != '+' && text.chars[index] != '-' {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	scan := index
+	for scan < len(text.chars) {
+		character := text.chars[scan]
+		if timezoneDigit(character) < 0 && character != '+' && character != '-' && character != ':' {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+		}
+		scan = langruntime.CheckedAdd(scan, 1)
+	}
+	sign := 1
+	if index < len(text.chars) && (text.chars[index] == '+' || text.chars[index] == '-') {
+		if text.chars[index] == '-' {
+			sign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	hour := readTimezoneNumber(&text, index, 167)
+	if hour.valid == false {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.SqlError{State: invalidTimezoneName}}
+	}
+	index = langruntime.CheckedIndex(hour.next)
+	minute := 0
+	second := 0
+	if index < len(text.chars) && text.chars[index] == ':' {
+		index = langruntime.CheckedAdd(index, 1)
+		number := readTimezoneNumber(&text, index, 59)
+		if number.valid == false {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.SqlError{State: invalidTimezoneName}}
+		}
+		minute = langruntime.CheckedI32(number.value)
+		index = langruntime.CheckedIndex(number.next)
+		if index < len(text.chars) && text.chars[index] == ':' {
+			index = langruntime.CheckedAdd(index, 1)
+			number := readTimezoneNumber(&text, index, 60)
+			if number.valid == false {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.SqlError{State: invalidTimezoneName}}
+			}
+			second = langruntime.CheckedI32(number.value)
+			index = langruntime.CheckedIndex(number.next)
+		}
+	}
+	if index < len(text.chars) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedMultiply(sign, (langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(hour.value, 3600), langruntime.CheckedSignedMultiply(minute, 60)), second)))}
 }
 func Timezone9nbk(zone checkruntime.TextValue, value checkruntime.TimestampValue) checkruntime.TimestamptzValue {
 	zone = checkruntime.CopyTextValue(zone)
@@ -1670,8 +1802,15 @@ func Timezone9nbk(zone checkruntime.TextValue, value checkruntime.TimestampValue
 		}
 		if zone.Kind == checkruntime.TextValueValue {
 			name := langruntime.CheckedString(zone.Value)
-			if timezoneIsUtc(name) {
-				return checkruntime.MakeTimestamptzValue(microseconds)
+			offset := timezoneFixedOffset(name)
+			if offset.Kind == checkruntime.Int4ValueError {
+				error := offset.Error
+				return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+			}
+			if offset.Kind == checkruntime.Int4ValueValue {
+				seconds := langruntime.CheckedI32(offset.Value)
+				wide := int64(langruntime.CheckedI32(seconds))
+				return checkruntime.MakeTimestamptzValue(langruntime.CheckedI64Add(microseconds, langruntime.CheckedI64Multiply(wide, int64(1000000))))
 			}
 		}
 	}
@@ -1701,8 +1840,15 @@ func TimezoneBlof(zone checkruntime.TextValue, value checkruntime.TimestamptzVal
 		}
 		if zone.Kind == checkruntime.TextValueValue {
 			name := langruntime.CheckedString(zone.Value)
-			if timezoneIsUtc(name) {
-				return checkruntime.MakeTimestampValue(microseconds)
+			offset := timezoneFixedOffset(name)
+			if offset.Kind == checkruntime.Int4ValueError {
+				error := offset.Error
+				return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+			}
+			if offset.Kind == checkruntime.Int4ValueValue {
+				seconds := langruntime.CheckedI32(offset.Value)
+				wide := int64(langruntime.CheckedI32(seconds))
+				return checkruntime.MakeTimestampValue(langruntime.CheckedI64Subtract(microseconds, langruntime.CheckedI64Multiply(wide, int64(1000000))))
 			}
 		}
 	}

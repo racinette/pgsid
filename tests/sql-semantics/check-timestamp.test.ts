@@ -79,7 +79,7 @@ const outcome = (value: boolean | null): Outcome => ({
   kind: value === null ? 'Null' : value ? 'True' : 'False',
 })
 
-describe('portable Rust CHECK timestamp and explicit UTC', () => {
+describe('portable Rust CHECK timestamp and fixed timezone offsets', () => {
   let pg: PGlite
   let directory: string
   let catalog: CatalogSnapshot
@@ -96,7 +96,9 @@ describe('portable Rust CHECK timestamp and explicit UTC', () => {
           .map(([name, sql]) => `CONSTRAINT "${name}" CHECK (${sql})`)
           .join(',')});
       CREATE TABLE utc_agreement (local_at nested_local_time, instant_at timestamptz,
-        CONSTRAINT agreement CHECK (timezone('UTC',local_at) = instant_at));`)
+        CONSTRAINT agreement CHECK (timezone('UTC',local_at) = instant_at));
+      CREATE TABLE fixed_agreement (local_at timestamp, instant_at timestamptz, zone text, active bool,
+        CONSTRAINT agreement CHECK (CASE WHEN active THEN timezone(zone,local_at) = instant_at ELSE true END));`)
     catalog = await snapshotCatalog(pg)
     table = catalog.tables.find((table) => table.name === 'timestamp_checks')!
     for (const date of dates) {
@@ -220,6 +222,108 @@ describe('portable Rust CHECK timestamp and explicit UTC', () => {
           : { kind: 'Unknown' }
         for (const name of ['zone_to_utc', 'zone_from_utc']) fixtures.push({ name, row, expected })
       }
+    const fixedZones = [
+      'UTC',
+      'GMT',
+      'uTc+2',
+      'gmt-02:30',
+      'UTC0',
+      'GMT-0',
+      '0',
+      '+0',
+      '-0',
+      '2',
+      '+02',
+      '-02',
+      '+02:30',
+      '-02:30:45',
+      'UTC+002:003:004',
+      'GMT24',
+      '+167:59:60',
+      '-167:59:60',
+      'UTC1:59:60',
+      '',
+      '+',
+      '-',
+      'UTC+',
+      '+168',
+      'UTC0230',
+      'GMT1:60',
+      'UTC1:59:61',
+      'UTC1:',
+      'UTC1::',
+      'UTC1:2:',
+      'UTC--2',
+    ]
+    for (const session of ['UTC', 'America/New_York', 'Asia/Tokyo']) {
+      await pg.exec(`SET timezone = '${session}'`)
+      for (const zone of fixedZones)
+        for (const date of dates)
+          for (const name of ['zone_to_utc', 'zone_from_utc']) {
+            const toInstant = name === 'zone_to_utc'
+            let converted: bigint | null = null
+            let expected: Outcome = { kind: 'True' }
+            try {
+              const binary = (
+                await pg.query<{ binary: string | null }>(
+                  toInstant
+                    ? "SELECT encode(timestamptz_send(timezone($1,$2::timestamp)), 'hex') AS binary"
+                    : "SELECT encode(timestamp_send(timezone($1,timezone('UTC',$2::timestamp))), 'hex') AS binary",
+                  [zone, date],
+                )
+              ).rows[0]!.binary
+              converted = binary === null ? null : Buffer.from(binary, 'hex').readBigInt64BE()
+              if (converted === null) expected = { kind: 'Null' }
+            } catch (error) {
+              const state = (error as { code: string }).code
+              expect(['22008', '22023']).toContain(state)
+              expected = { kind: 'Error', value: { state: Number.parseInt(state, 36) } }
+            }
+            const row: Row = {
+              a: value(toInstant ? microseconds.get(date)! : converted),
+              instant: value(toInstant ? converted : microseconds.get(date)!),
+              zone: value(zone),
+            }
+            fixtures.push({ name, row, expected })
+            if (
+              expected.kind === 'True' &&
+              converted !== null &&
+              converted !== -9223372036854775808n &&
+              converted !== 9223372036854775807n
+            ) {
+              fixtures.push({
+                name,
+                row: {
+                  ...row,
+                  [toInstant ? 'instant' : 'a']: value(
+                    converted === 9223371331199999999n ? converted - 1n : converted + 1n,
+                  ),
+                },
+                expected: { kind: 'False' },
+              })
+            }
+          }
+    }
+    for (const zone of [
+      'Europe/Paris',
+      'EST',
+      'UTC2DST',
+      'UTC2FOO',
+      'UTC:2',
+      ' UTC+2',
+      'UTC+2 ',
+      '+1:02:03:04',
+      '<+02>-2',
+      'Z',
+      'UTC' + '0'.repeat(129),
+    ]) {
+      for (const name of ['zone_to_utc', 'zone_from_utc'])
+        fixtures.push({
+          name,
+          row: { a: value(0n), instant: value(0n), zone: value(zone) },
+          expected: { kind: 'Unknown' },
+        })
+    }
     const unknown: Row = Object.fromEntries(
       table.columns.map((column) => [column.name, { kind: 'Unknown' }]),
     )
@@ -278,9 +382,10 @@ describe('portable Rust CHECK timestamp and explicit UTC', () => {
     )
   }, 120_000)
 
-  it('exposes portable timestamp inputs and UTC conversion through both public APIs', async () => {
+  it('exposes portable timestamp inputs and fixed offsets through both public APIs', async () => {
     const agreement = catalog.tables.find((table) => table.name === 'utc_agreement')!
-    const ts = renderTypescriptSchemaCheckArtifacts([agreement], catalog.domains)
+    const fixedAgreement = catalog.tables.find((table) => table.name === 'fixed_agreement')!
+    const ts = renderTypescriptSchemaCheckArtifacts([agreement, fixedAgreement], catalog.domains)
     await writeFile(join(directory, 'package.json'), '{"type":"module"}')
     await writeFile(join(directory, 'checks.ts'), ts.checks)
     for (const artifact of checkTypescriptArtifacts(ts.rustFiles!)) {
@@ -307,6 +412,7 @@ describe('portable Rust CHECK timestamp and explicit UTC', () => {
     const {
       evaluatePublicUtcAgreementChecks: evaluate,
       evaluatePublicValidLocalTimeDomainChecks: evaluateDomain,
+      evaluatePublicFixedAgreementChecks: evaluateFixed,
     } = await import(pathToFileURL(join(directory, 'js/checks.js')).href)
     const cases: GoCheckCase[] = []
     for (const [local, instant] of [
@@ -346,6 +452,71 @@ describe('portable Rust CHECK timestamp and explicit UTC', () => {
         timestampColumns: ['local_at'],
         timestamptzColumns: ['instant_at'],
         results,
+      })
+    }
+    for (const [zone, local, instant, active] of [
+      ['UTC+2', 0n, 7200000000n, true],
+      ['-02:30:45', 1n, -9044999999n, true],
+      ['GMT24', 0n, 86400000001n, true],
+      ['+168', 0n, 0n, true],
+      ['UTC1:60', 0n, 0n, true],
+      ['-1', -211813488000000000n, 0n, true],
+      ['+1', 9223371331199999999n, 0n, true],
+      ['UTC2DST', 0n, 0n, true],
+      ['UTC+', 9223372036854775807n, 9223372036854775807n, true],
+      ['UTC+', -9223372036854775808n, -9223372036854775808n, true],
+      ['UTC+', null, 0n, true],
+      [null, 0n, 0n, true],
+      ['+168', 0n, 0n, false],
+    ] as const) {
+      const row = { zone, local_at: local, instant_at: instant, active }
+      const wrapped = {
+        ...row,
+        local_at: local === null ? null : runtime.makeTimestampValue(local),
+        instant_at: runtime.makeTimestamptzValue(instant),
+      }
+      const inputSql = (kind: 'timestamp' | 'timestamptz', micros: bigint | null): string =>
+        micros === null
+          ? `NULL::${kind}`
+          : micros === 9223372036854775807n
+            ? `'infinity'::${kind}`
+            : micros === -9223372036854775808n
+              ? `'-infinity'::${kind}`
+              : `${kind} '2000-01-01 00:00:00${kind === 'timestamptz' ? 'Z' : ''}' + INTERVAL '${micros} microseconds'`
+      await pg.exec('BEGIN')
+      let sqlstate: string | undefined
+      try {
+        await pg.query(
+          `INSERT INTO fixed_agreement VALUES (${inputSql('timestamp', local)},
+          ${inputSql('timestamptz', instant)},$1,$2)`,
+          [zone, active],
+        )
+      } catch (error) {
+        sqlstate = (error as { code: string }).code
+      } finally {
+        await pg.exec('ROLLBACK')
+      }
+      const result: GoCheckCase['results'][number]['result'] =
+        zone === 'UTC2DST'
+          ? { certain: false }
+          : sqlstate && sqlstate !== '23514'
+            ? { certain: true, error: sqlstate }
+            : {
+                certain: true,
+                value: active && (zone === null || local === null) ? null : sqlstate !== '23514',
+              }
+      if (result.error)
+        expect(() => evaluateFixed(wrapped)).toThrow(
+          expect.objectContaining({ code: result.error }),
+        )
+      else expect(evaluateFixed(wrapped)[0].result).toEqual(result)
+      cases.push({
+        name: `${zone} / ${local} / ${instant} / ${active}`,
+        table: fixedAgreement,
+        row,
+        timestampColumns: ['local_at'],
+        timestamptzColumns: ['instant_at'],
+        results: [{ constraint: 'agreement', result }],
       })
     }
     expect(evaluate({})[0].result).toEqual({ certain: false })
