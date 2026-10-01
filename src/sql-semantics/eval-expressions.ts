@@ -5,6 +5,7 @@ import {
   type SqlCallableExpression,
   type SqlExpression,
   type ScalarType,
+  type EnumDefinition,
 } from './expressions.js'
 import type { EvalBoolExpression } from './check-expressions.js'
 import type { TypedSqlExpression } from './signatures.js'
@@ -12,7 +13,7 @@ import { builtinMetadata } from '../postgres/builtins/inventory.js'
 
 export type EvalExpression =
   | { kind: 'check'; type: 'pg_catalog.bool'; expression: EvalBoolExpression }
-  | { kind: 'input'; type: ScalarType; name: string }
+  | { kind: 'input'; type: ScalarType; name: string; enum?: EnumDefinition }
   | { kind: 'certain'; expression: SqlExpression }
   | { kind: 'uncertain'; type: string }
   | {
@@ -60,7 +61,11 @@ export interface EmittedEvalExpression<Ast> extends TypedSqlExpression<Ast> {
 }
 
 export interface EvalExpressionBackend<Ast> {
-  input?: (type: ScalarType, name: string) => { expression: Ast; helpers: readonly string[] }
+  input?: (
+    type: ScalarType,
+    name: string,
+    definition?: EnumDefinition,
+  ) => { expression: Ast; helpers: readonly string[] }
   fromBool: (expression: Ast) => { expression: Ast; helpers: readonly string[] }
   certain: (type: string, expression: Ast) => { expression: Ast; helpers: readonly string[] }
   uncertain: (type: string) => { expression: Ast; helpers: readonly string[] }
@@ -152,7 +157,7 @@ export function emitEvalExpression<Ast>(
     }
     if (node.kind === 'input') {
       if (!backend.input) throw new Error(`No partial SQL input binding for ${node.name}`)
-      const result = backend.input(node.type, node.name)
+      const result = backend.input(node.type, node.name, node.enum)
       include(result.helpers)
       return { type: node.type, expression: result.expression, effect: 'partial' }
     }

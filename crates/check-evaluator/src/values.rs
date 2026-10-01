@@ -15,6 +15,43 @@ pub enum Int8Value {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+pub enum EnumValue {
+    Unknown,
+    Null,
+    Value(i32),
+    Error(SqlError),
+}
+
+pub fn enum_unknown() -> EnumValue {
+    EnumValue::Unknown
+}
+
+pub fn enum_null() -> EnumValue {
+    EnumValue::Null
+}
+
+pub fn make_enum_value(value: i32) -> EnumValue {
+    EnumValue::Value(value)
+}
+
+pub fn enum_is_null(value: EnumValue) -> BoolValue {
+    if let EnumValue::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == EnumValue::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(value == EnumValue::Null)
+}
+
+pub fn enum_from_case_guard(value: CheckOutcome) -> EnumValue {
+    if let CheckOutcome::Error(error) = value {
+        return EnumValue::Error(error);
+    }
+    EnumValue::Unknown
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TextValue<'a> {
     Unknown,
     Null,

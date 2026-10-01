@@ -182,6 +182,7 @@ export function renderTypescriptSchemaArtifacts(
       ])
       const checks = renderTypescriptSchemaCheckArtifacts(tables, catalog.domains, domains, {
         typedInputs: true,
+        enums: catalog.enums,
       })
       const files: [string, string][] = [
         ['tables.d.ts', tableFile],

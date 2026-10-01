@@ -206,10 +206,11 @@ export function renderTypescriptQueryArtifacts(
   ]
   const checkRuntime = renderTypescriptSchemaCheckArtifacts(
     checkTables,
-    [],
+    options.catalog?.domains ?? [],
     [],
     {
       rustModuleSpecifier: options.checkRustModuleSpecifier,
+      enums: options.catalog?.enums,
     },
     Boolean(options.checkRustModuleSpecifier),
   )

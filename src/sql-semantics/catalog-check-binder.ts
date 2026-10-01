@@ -1,9 +1,15 @@
-import type { ColumnInfo } from '../catalog/types.js'
+import { parseSync } from 'libpg-query'
+import type { ColumnInfo, DomainInfo, EnumInfo } from '../catalog/types.js'
 import { PG18_BUILTIN_GROUPS } from '../postgres/builtins/groups.generated.js'
 import type { BuiltinCallable } from '../postgres/builtins/taxonomy.js'
 import type { EvalExpression } from './eval-expressions.js'
 import type { EvalBoolExpression } from './check-expressions.js'
-import type { ScalarType, SqlExpression } from './expressions.js'
+import {
+  enumType,
+  enumEqualityOperation,
+  type ScalarType,
+  type SqlExpression,
+} from './expressions.js'
 
 type Fields = Record<string, unknown>
 const fields = (value: unknown): Fields | null =>
@@ -12,6 +18,45 @@ const strings = (value: unknown): string[] | null => {
   if (!Array.isArray(value)) return null
   const names = value.map((entry) => fields(fields(entry)?.['String'])?.['sval'])
   return names.every((name): name is string => typeof name === 'string') ? names : null
+}
+
+export type CheckColumn = Pick<ColumnInfo, 'name' | 'typeName' | 'collationIsC' | 'isRowType'> &
+  Partial<Pick<ColumnInfo, 'typeOid'>>
+
+export function catalogEnumDefinition(
+  name: string,
+  enums: readonly EnumInfo[],
+  oid?: number,
+  domains: readonly DomainInfo[] = [],
+): EnumInfo | null {
+  const seen = new Set<number>()
+  while (oid !== undefined && !seen.has(oid)) {
+    seen.add(oid)
+    const definition = enums.find((item) => item.oid === oid)
+    if (definition) return definition
+    const domain = domains.find((item) => item.oid === oid)
+    if (!domain) break
+    oid = domain.baseTypeOid
+  }
+  if (oid !== undefined) return null
+  try {
+    const parsed = parseSync(`SELECT NULL::${name}`)
+    const select = fields(fields(parsed.stmts?.[0]?.stmt)?.['SelectStmt'])
+    const targets = select?.['targetList']
+    const target = Array.isArray(targets) ? fields(fields(targets[0])?.['ResTarget']) : null
+    const cast = fields(fields(target?.['val'])?.['TypeCast'])
+    const type = fields(cast?.['typeName'])
+    if (Array.isArray(type?.['arrayBounds']) && type['arrayBounds'].length) return null
+    const names = strings(type?.['names'])
+    const matches = enums.filter((item) =>
+      names?.length === 2
+        ? item.schema === names[0] && item.name === names[1]
+        : names?.length === 1 && item.name === names[0],
+    )
+    return matches.length === 1 ? matches[0]! : null
+  } catch {
+    return null
+  }
 }
 
 export const catalogScalarType = (name: string): ScalarType | null => {
@@ -51,6 +96,7 @@ type Bound = {
   value: EvalExpression | null
   literal?: Literal
   collation?: 'C' | 'other'
+  enum?: EnumInfo
 }
 const unknown: Bound = { type: null, value: null }
 
@@ -77,8 +123,22 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
   }
   return null
 }
-const materialize = (bound: Bound, type: ScalarType): EvalExpression | null => {
+const materialize = (
+  bound: Bound,
+  type: ScalarType,
+  definition = bound.enum,
+): EvalExpression | null => {
   if (bound.literal) {
+    if (type.startsWith('enum:') && definition && enumType(definition) === type) {
+      const value = bound.literal.value
+      return bound.literal.kind === 'null' ||
+        (bound.literal.kind === 'string' && value !== null && definition.values.includes(value))
+        ? {
+            kind: 'certain',
+            expression: { kind: 'enum', type: enumType(definition), enum: definition, value },
+          }
+        : null
+    }
     const expression = literalValue(bound.literal, type)
     return expression ? { kind: 'certain', expression } : null
   }
@@ -115,7 +175,18 @@ const candidate = (
       args.some((arg) => arg.literal?.kind === 'string')
     )
       return []
-    const operands = args.map((arg, index) => materialize(arg, item.args[index]! as ScalarType))
+    const definition = args.find((arg) => arg.enum)?.enum
+    const enumCall = item.args.includes('pg_catalog.anyenum')
+    if (enumCall && (!definition || !enumEqualityOperation(signature))) return []
+    const operands = args.map((arg, index) =>
+      materialize(
+        arg,
+        item.args[index] === 'pg_catalog.anyenum'
+          ? enumType(definition!)
+          : (item.args[index]! as ScalarType),
+        definition,
+      ),
+    )
     return operands.every((value): value is EvalExpression => value !== null)
       ? [{ signature, item, operands: operands as EvalExpression[] }]
       : []
@@ -172,12 +243,14 @@ const arrayConstructor = (
 }
 
 export function bindCatalogCheck(
-  columns: readonly Pick<ColumnInfo, 'name' | 'typeName' | 'collationIsC' | 'isRowType'>[],
+  columns: readonly CheckColumn[],
   root: unknown,
   specialForms: readonly ((node: unknown) => {
     expression: EvalBoolExpression
     inputs: readonly string[]
   } | null)[],
+  enums: readonly EnumInfo[] = [],
+  domains: readonly DomainInfo[] = [],
 ): { expression: EvalBoolExpression; inputs: readonly string[] } {
   const inputs = new Set<string>()
   const bind = (node: unknown, expectedType?: ScalarType): Bound => {
@@ -202,7 +275,8 @@ export function bindCatalogCheck(
           ? 'pg_catalog.int4'
           : 'pg_catalog.text')
       if (typed.some((other) => other !== type)) return unknown
-      const values = arms.map((arm) => materialize(arm, type))
+      const definition = arms.find((arm) => arm.enum)?.enum
+      const values = arms.map((arm) => materialize(arm, type, definition))
       if (type !== 'pg_catalog.bool' && values.some((value) => !value)) return unknown
       const textArms = arms.filter((arm) => arm.type === 'pg_catalog.text')
       const collation = textArms.some((arm) => arm.collation === 'other')
@@ -216,7 +290,7 @@ export function bindCatalogCheck(
         []
       let conditions: EvalExpression[]
       if (scrutinee) {
-        const matches = branches.map((branch) => bind(branch!['expr']))
+        const matches = branches.map((branch) => bind(branch!['expr'], scrutinee.type ?? undefined))
         const compareType =
           scrutinee.type ??
           matches.find((match) => match.type)?.type ??
@@ -248,6 +322,7 @@ export function bindCatalogCheck(
       }
       return {
         type,
+        ...(definition ? { enum: definition } : {}),
         collation,
         value: {
           kind: 'case',
@@ -288,7 +363,25 @@ export function bindCatalogCheck(
       }
     const cast = fields(wrapper['TypeCast'])
     if (cast) {
-      const names = strings(fields(cast['typeName'])?.['names'])
+      const castType = fields(cast['typeName'])
+      const names = strings(castType?.['names'])
+      const bounds = castType?.['arrayBounds']
+      if (Array.isArray(bounds) && bounds.length) return unknown
+      const definitions = enums.filter((item) =>
+        names?.length === 2
+          ? item.schema === names[0] && item.name === names[1]
+          : names?.length === 1 && item.name === names[0],
+      )
+      const definition =
+        definitions.length === 1
+          ? definitions[0]
+          : definitions.find((item) => enumType(item) === expectedType)
+      if (definition) {
+        const type = enumType(definition)
+        const operand = bind(cast['arg'])
+        const value = materialize(operand, type, definition)
+        return value ? { type, value, enum: definition } : unknown
+      }
       if (names && names.length > 1 && names[0] !== 'pg_catalog') return unknown
       const type = names ? catalogScalarType(names.at(-1)!) : null
       if (!type) return unknown
@@ -377,6 +470,17 @@ export function bindCatalogCheck(
     const names = strings(fields(wrapper['ColumnRef'])?.['fields'])
     if (names?.length === 1) {
       const column = columns.find((item) => item.name === names[0])
+      const definition =
+        column && catalogEnumDefinition(column.typeName, enums, column.typeOid, domains)
+      if (definition) {
+        inputs.add(column.name)
+        const type = enumType(definition)
+        return {
+          type,
+          enum: definition,
+          value: { kind: 'input', type, name: column.name, enum: definition },
+        }
+      }
       const type = column && catalogScalarType(column.typeName)
       if (type) {
         inputs.add(column.name)
@@ -581,7 +685,12 @@ export function bindCatalogCheck(
     name: string,
     nodes: readonly unknown[],
   ): Bound => {
-    const args = nodes.map((node) => bind(node))
+    let args = nodes.map((node) => bind(node))
+    const enumArgument = args.find((arg) => arg.enum)
+    if (enumArgument?.type)
+      args = args.map((arg, index) =>
+        arg.value || arg.literal ? arg : bind(nodes[index], enumArgument.type!),
+      )
     if (args.some((arg) => !arg.value && !arg.literal)) return unknown
     const resolved = candidate(kind, name, args)
     if (!resolved) return unknown

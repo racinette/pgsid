@@ -169,9 +169,11 @@ describe('world CHECK INSERT parity', () => {
     )
     for (const table of tables) {
       expect(table.writeRewritesTree.beforeRow).toEqual([])
-      expect(catalogCheckGroups([table], []).length).toBe(1)
+      expect(catalogCheckGroups([table], catalog.domains, [], catalog.enums).length).toBe(1)
     }
-    const ts = renderTypescriptSchemaCheckArtifacts(tables)
+    const ts = renderTypescriptSchemaCheckArtifacts(tables, catalog.domains, [], {
+      enums: catalog.enums,
+    })
     const go = renderGoSchemaArtifacts(
       { ...catalog, tables, views: [], materializedViews: [] },
       parseConfigString(
@@ -183,7 +185,7 @@ describe('world CHECK INSERT parity', () => {
     )
     expect(go.diagnostics).toEqual([])
     expect(ts.rustFiles).not.toBeNull()
-    for (const group of catalogCheckGroups(tables, []))
+    for (const group of catalogCheckGroups(tables, catalog.domains, [], catalog.enums))
       for (const { plan } of group.checks)
         expect(ts.checks).toContain(
           `constraint: ${JSON.stringify(plan.name)}, result: checkRustOutcome`,
@@ -374,10 +376,11 @@ describe('world CHECK INSERT parity', () => {
       left.constraint.localeCompare(right.constraint),
     )
     const definiteConstraints = constraints.filter((item) => item.true + item.false + item.null > 0)
-    const corpus = catalogCheckGroups(catalog.tables, []).flatMap((group) =>
-      group.checks.map(({ plan }) => ({
-        constraint: `${group.source.schema}.${group.source.name}.${plan.name}`,
-      })),
+    const corpus = catalogCheckGroups(catalog.tables, catalog.domains, [], catalog.enums).flatMap(
+      (group) =>
+        group.checks.map(({ plan }) => ({
+          constraint: `${group.source.schema}.${group.source.name}.${plan.name}`,
+        })),
     )
     const unexercised = corpus
       .filter((item) => !coverage.has(item.constraint))

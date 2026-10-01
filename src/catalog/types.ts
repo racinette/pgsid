@@ -535,6 +535,8 @@ export interface FunctionInfo {
 export interface EnumInfo {
   schema: string
   name: string
+  /** Catalog identity used to resolve columns independently of the search path. */
+  oid?: number
   values: string[]
 }
 

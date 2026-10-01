@@ -1,5 +1,6 @@
 import ts from 'typescript'
-import type { DomainInfo, TableInfo } from '../../../catalog/types.js'
+import type { DomainInfo, EnumInfo, TableInfo } from '../../../catalog/types.js'
+import { enumType } from '../../../sql-semantics/expressions.js'
 import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
 import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
@@ -15,7 +16,7 @@ export function renderTypescriptSchemaChecks(
   tables: readonly TableInfo[],
   domains: readonly DomainInfo[] = [],
   selectedDomains: readonly DomainInfo[] = domains,
-  options: { typedInputs?: boolean } = {},
+  options: { typedInputs?: boolean; enums?: readonly EnumInfo[] } = {},
 ): string {
   return renderTypescriptSchemaCheckArtifacts(tables, domains, selectedDomains, options, false)
     .checks
@@ -25,7 +26,11 @@ export function renderTypescriptSchemaCheckArtifacts(
   tables: readonly TableInfo[],
   domains: readonly DomainInfo[] = [],
   selectedDomains: readonly DomainInfo[] = domains,
-  options: { typedInputs?: boolean; rustModuleSpecifier?: string } = {},
+  options: {
+    typedInputs?: boolean
+    rustModuleSpecifier?: string
+    enums?: readonly EnumInfo[]
+  } = {},
   rust = true,
 ): {
   checks: string
@@ -39,7 +44,7 @@ export function renderTypescriptSchemaCheckArtifacts(
   } | null
 } {
   const typedInputs = options.typedInputs ?? false
-  const groups = catalogCheckGroups(tables, domains, selectedDomains)
+  const groups = catalogCheckGroups(tables, domains, selectedDomains, options.enums)
   if (!groups.length) return { checks: '', rust: null, rustFiles: null }
   const rustGroup = rust
     ? prepareCheckRustGroup(
@@ -98,17 +103,23 @@ export function renderTypescriptSchemaCheckArtifacts(
       const prepared = rustGroup?.checks[rustIndex++]
       if (prepared?.kind === 'supported') {
         const args = prepared.inputs.map((item) => {
-          if (!['Int4Value', 'Int8Value', 'TextValue', 'BoolValue'].includes(item.rustType))
+          if (
+            !['Int4Value', 'Int8Value', 'EnumValue', 'TextValue', 'BoolValue'].includes(
+              item.rustType,
+            )
+          )
             throw new Error(`Unsupported TypeScript Rust CHECK input: ${item.rustType}`)
           const helper = item.nullness
             ? 'checkRustNullness'
-            : item.rustType === 'Int4Value'
-              ? 'checkRustInt4'
-              : item.rustType === 'Int8Value'
-                ? 'checkRustInt8'
-                : item.rustType === 'TextValue'
-                  ? 'checkRustText'
-                  : 'checkRustBool'
+            : item.enum
+              ? 'checkRustEnum'
+              : item.rustType === 'Int4Value'
+                ? 'checkRustInt4'
+                : item.rustType === 'Int8Value'
+                  ? 'checkRustInt8'
+                  : item.rustType === 'TextValue'
+                    ? 'checkRustText'
+                    : 'checkRustBool'
           rustInputAdapters.add(helper)
           inputHelpers.add(
             item.nullness
@@ -119,11 +130,20 @@ export function renderTypescriptSchemaCheckArtifacts(
                   ? 'checkInputInteger'
                   : item.rustType === 'TextValue'
                     ? 'checkInputText'
-                    : 'checkInputBoolean',
+                    : item.enum
+                      ? 'checkInputText'
+                      : 'checkInputBoolean',
           )
           return factory.createCallExpression(identifier(helper), undefined, [
             row,
             factory.createStringLiteral(item.name),
+            ...(item.enum
+              ? [
+                  factory.createArrayLiteralExpression(
+                    item.enum.values.map((label) => factory.createStringLiteral(label)),
+                  ),
+                ]
+              : []),
           ])
         })
         return {
@@ -159,7 +179,25 @@ export function renderTypescriptSchemaCheckArtifacts(
                   ])
                 : { expression, helpers: ['EvalValue'] }
             },
-            input: (type, name) => {
+            input: (type, name, definition) => {
+              if (definition) {
+                inputHelpers.add('checkInputEnum')
+                return {
+                  expression: factory.createCallExpression(
+                    identifier('checkInputEnum'),
+                    undefined,
+                    [
+                      row,
+                      factory.createStringLiteral(name),
+                      factory.createStringLiteral(enumType(definition)),
+                      factory.createArrayLiteralExpression(
+                        definition.values.map((label) => factory.createStringLiteral(label)),
+                      ),
+                    ],
+                  ),
+                  helpers: ['EvalValue', 'SqlEnum', 'enumInput'],
+                }
+              }
               const helper = inputHelper(type)
               if (!helper) throw new Error(`Unsupported CHECK input type: ${type}`)
               return { expression: callInput(helper, name), helpers: ['EvalValue'] }
@@ -358,6 +396,13 @@ function checkRustNullness(row: object, name: string): _checkRust.BoolValue {
   const input = checkInputNullness(row, name)
   return input.certain ? _checkRust.makeBoolValue(input.value!) : _checkRust.boolUnknown()
 }
+function checkRustEnum(row: object, name: string, labels: readonly string[]): _checkRust.EnumValue {
+  const input = checkInputText(row, name)
+  if (!input.certain) return _checkRust.enumUnknown()
+  if (input.value === null) return _checkRust.enumNull()
+  const order = labels.indexOf(input.value)
+  return order < 0 ? _checkRust.enumUnknown() : _checkRust.makeEnumValue(order)
+}
 function checkRustOutcome(value: _checkRust.CheckOutcome): EvalBool {
   switch (value.kind) {
     case 'True': return evalBoolCertain(true)
@@ -382,6 +427,15 @@ const synthesizedStatements = (source: string): ts.Statement[] => {
 }
 
 const checkInputHelpers: Record<string, { dependencies: readonly string[]; source: string }> = {
+  checkInputEnum: {
+    dependencies: ['checkRawInput'],
+    source: `function checkInputEnum(row: object, name: string, type: string, labels: readonly string[]): EvalValue<SqlEnum> {
+  const value = checkRawInput(row, name)
+  if (value === null) return { certain: true, value: null }
+  if (typeof value !== 'string' || !labels.includes(value)) return { certain: false }
+  return { certain: true, value: enumInput(value, type, labels) }
+}`,
+  },
   checkInputNullness: {
     dependencies: ['checkRawInput'],
     source: `function checkInputNullness(row: object, name: string): EvalValue<boolean> {

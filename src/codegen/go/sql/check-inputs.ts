@@ -1,4 +1,18 @@
 const helpers: Record<string, { dependencies: readonly string[]; source: string }> = {
+  checkInputEnum: {
+    dependencies: ['checkInputText'],
+    source: `func checkInputEnum[T any](field CheckOptional[T], kind string, labels []string) EvalValue[SqlEnum] {
+  input := checkInputText(field)
+  if !input.Certain { return EvalValue[SqlEnum]{} }
+  if !input.Value.Valid { return EvalValue[SqlEnum]{Certain: true} }
+  for _, label := range labels {
+    if label == input.Value.Value {
+      return EvalValue[SqlEnum]{Certain: true, Value: enumInput(label, kind, labels)}
+    }
+  }
+  return EvalValue[SqlEnum]{}
+}`,
+  },
   checkInputNullness: {
     dependencies: ['checkNullRaw'],
     source: `func checkInputNullness[T any](field CheckOptional[T]) EvalValue[SqlBoolean] {
@@ -232,6 +246,7 @@ export function goCheckInputSource(required: ReadonlySet<string>): {
         ? ['SqlBoolean']
         : []),
       ...(included.has('checkFloatRaw') ? ['SqlFloat'] : []),
+      ...(included.has('checkInputEnum') ? ['SqlEnum', 'enumInput'] : []),
     ],
   }
 }

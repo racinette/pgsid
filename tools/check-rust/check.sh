@@ -13,4 +13,5 @@ node --import tsx tools/check-rust-int8/check.ts
 cargo run --quiet --locked --manifest-path tools/check-rust-dialect/Cargo.toml -- artifacts/check-rust-bound/evaluator.rs
 cargo run --quiet --locked --manifest-path tools/check-rust-dialect/Cargo.toml -- artifacts/check-rust-bound/group-evaluator.rs
 bash tools/check-rust-operations/check.sh
+pnpm exec vitest run tests/sql-semantics/check-enums.test.ts
 node --import tsx tools/check-rust/check-wasm.ts

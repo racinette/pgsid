@@ -1,8 +1,8 @@
 import { parseSync, type Node } from 'libpg-query'
-import type { ColumnInfo, ConstraintInfo, DomainInfo, TableInfo } from '../catalog/types.js'
+import type { ConstraintInfo, DomainInfo, EnumInfo, TableInfo } from '../catalog/types.js'
 import type { EvalBoolExpression } from './check-expressions.js'
 import type { SqlExpression, TextType } from './expressions.js'
-import { bindCatalogCheck } from './catalog-check-binder.js'
+import { bindCatalogCheck, type CheckColumn } from './catalog-check-binder.js'
 
 export interface CatalogCheckPlan {
   name: string
@@ -41,13 +41,15 @@ const textType = (name: string): TextType | null => {
 }
 
 type CheckTable = {
-  columns: readonly Pick<ColumnInfo, 'name' | 'typeName' | 'collationIsC' | 'isRowType'>[]
+  columns: readonly CheckColumn[]
 }
 type CheckConstraint = Pick<ConstraintInfo, 'name' | 'type' | 'definition'>
 
 export function lowerTableCheck(
   table: CheckTable,
   constraint: CheckConstraint,
+  enums: readonly EnumInfo[] = [],
+  domains: readonly DomainInfo[] = [],
 ): CatalogCheckPlan | null {
   if (constraint.type !== 'check') throw new Error('Expected a table CHECK constraint')
   let parsed: ReturnType<typeof parseSync>
@@ -170,13 +172,21 @@ export function lowerTableCheck(
         if (value && typeof value !== 'string' && value.kind === 'input') inputs.push(value.name)
     return { expression, inputs }
   }
-  const bound = bindCatalogCheck(table.columns, check['raw_expr'] as Node | undefined, [regexForm])
+  const bound = bindCatalogCheck(
+    table.columns,
+    check['raw_expr'] as Node | undefined,
+    [regexForm],
+    enums,
+    domains,
+  )
   return { name: constraint.name, ...bound }
 }
 
 export function lowerDomainCheck(
   domain: DomainInfo,
   check: DomainInfo['checks'][number],
+  enums: readonly EnumInfo[] = [],
+  domains: readonly DomainInfo[] = [],
 ): CatalogCheckPlan | null {
   return lowerTableCheck(
     {
@@ -184,12 +194,15 @@ export function lowerDomainCheck(
         {
           name: 'value',
           typeName: domain.baseTypeName,
+          typeOid: domain.baseTypeOid,
           isRowType: domain.isRowType,
           collationIsC: domain.collationIsC,
         },
       ],
     },
     { ...check, type: 'check' },
+    enums,
+    domains,
   )
 }
 
@@ -197,13 +210,14 @@ export function catalogCheckGroups(
   tables: readonly TableInfo[],
   domains: readonly DomainInfo[],
   selectedDomains: readonly DomainInfo[] = domains,
+  enums: readonly EnumInfo[] = [],
 ): CatalogCheckGroup[] {
   const groups: CatalogCheckGroup[] = []
   for (const table of tables) {
     const checks = table.constraints
       .filter((constraint) => constraint.type === 'check' && constraint.enforced)
       .flatMap((constraint) => {
-        const plan = lowerTableCheck(table, constraint)
+        const plan = lowerTableCheck(table, constraint, enums, domains)
         return plan
           ? [
               {
@@ -236,8 +250,15 @@ export function catalogCheckGroups(
     const checks = chain.flatMap((layer) =>
       layer.checks.flatMap((check) => {
         const plan = lowerDomainCheck(
-          { ...layer, baseTypeName, collationIsC: domain.collationIsC },
+          {
+            ...layer,
+            baseTypeName,
+            baseTypeOid: chain.at(-1)?.baseTypeOid ?? layer.baseTypeOid,
+            collationIsC: domain.collationIsC,
+          },
           check,
+          enums,
+          domains,
         )
         return plan
           ? [

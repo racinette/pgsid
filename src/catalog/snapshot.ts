@@ -984,6 +984,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       schema: e.schema,
       name: e.name,
       values: enumValuesByType.get(e.oid) ?? [],
+      oid: e.oid,
     }))
     .sort(bySchemaName)
 

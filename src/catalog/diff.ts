@@ -327,7 +327,7 @@ export function comparableStates(snapshot: CatalogSnapshot): Map<EntityId, unkno
 
   // Enums (values compared).
   for (const e of snapshot.enums) {
-    out.set(`${e.schema}.${e.name}`, e)
+    out.set(`${e.schema}.${e.name}`, { schema: e.schema, name: e.name, values: e.values })
   }
 
   // Domains.
