@@ -398,7 +398,11 @@ describe('corpus shape (input-side frontier)', () => {
         await measureQueries(
           dir,
           readdirSync(dir).filter(
-            (f) => f.endsWith('.sql') && f !== 'schema.sql' && f !== 'data.sql',
+            (f) =>
+              f.endsWith('.sql') &&
+              f !== 'schema.sql' &&
+              f !== 'data.sql' &&
+              f !== 'check-seed.sql',
           ),
           worlds,
         )

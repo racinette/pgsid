@@ -131,7 +131,12 @@ function schemaPath(paths: string[]): string | undefined {
 }
 
 function fixturePaths(paths: string[]): string[] {
-  return paths.filter((path) => !path.endsWith('/schema.sql') && !path.endsWith('/data.sql'))
+  return paths.filter(
+    (path) =>
+      !path.endsWith('/schema.sql') &&
+      !path.endsWith('/data.sql') &&
+      !path.endsWith('/check-seed.sql'),
+  )
 }
 
 export async function measureRungReach({

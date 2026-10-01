@@ -3,7 +3,7 @@ description: hand-authored database worlds and their query contracts
 ---
 
 Each directory is one independently understandable database world. Its schema,
-seed data, and queries travel together. Query fixtures state the complete
+seed data, CHECK input cases, and queries travel together. Query fixtures state the complete
 contract expected from the engine; PostgreSQL execution then adjudicates the
 claims.
 
