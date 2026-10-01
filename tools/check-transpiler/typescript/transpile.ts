@@ -387,6 +387,11 @@ class Transpiler {
         const right = this.expression(value.right, locals)
         const signed =
           this.infer(value.left, locals) === 'i32' || this.infer(value.right, locals) === 'i32'
+        if (this.infer(value.left, locals) === 'i64') {
+          if (value.operator === 'multiply') return call('checkedI64Multiply', left, right)
+          if (value.operator === 'add') return call('checkedI64Add', left, right)
+          if (value.operator === 'subtract') return call('checkedI64Subtract', left, right)
+        }
         if (value.operator === 'multiply') return call('checkedSignedMultiply', left, right)
         if (value.operator === 'divide') return call('checkedSignedDivide', left, right)
         if (value.operator === 'remainder') return call('checkedSignedRemainder', left, right)

@@ -53,3 +53,54 @@ func TestSignedCalendarArithmeticRejectsInvalidOperations(t *testing.T) {
 		})
 	}
 }
+
+func TestTimestampArithmetic(t *testing.T) {
+	cases := []struct {
+		name                  string
+		operation             func(int64, int64) int64
+		left, right, expected int64
+	}{
+		{"maximum addition", checkedI64Add, maxSharedI64, 0, maxSharedI64},
+		{"minimum addition", checkedI64Add, minSharedI64, maxSharedI64, -1},
+		{"minimum subtraction", checkedI64Subtract, minSharedI64, minSharedI64, 0},
+		{"exact subtraction", checkedI64Subtract, 9007199254740993, 9007199254740992, 1},
+		{"minimum multiplication", checkedI64Multiply, minSharedI64, 1, minSharedI64},
+		{"maximum multiplication", checkedI64Multiply, maxSharedI64, 1, maxSharedI64},
+		{"negative multiplication", checkedI64Multiply, -7, -3, 21},
+		{"zero multiplication", checkedI64Multiply, minSharedI64, 0, 0},
+	}
+	for _, item := range cases {
+		t.Run(item.name, func(t *testing.T) {
+			if actual := item.operation(item.left, item.right); actual != item.expected {
+				t.Fatalf("got %d, expected %d", actual, item.expected)
+			}
+		})
+	}
+}
+
+func TestTimestampArithmeticRejectsOverflow(t *testing.T) {
+	cases := []struct {
+		name        string
+		operation   func(int64, int64) int64
+		left, right int64
+	}{
+		{"addition overflow", checkedI64Add, maxSharedI64, 1},
+		{"addition underflow", checkedI64Add, minSharedI64, -1},
+		{"subtraction underflow", checkedI64Subtract, minSharedI64, 1},
+		{"subtraction overflow", checkedI64Subtract, maxSharedI64, -1},
+		{"minimum product", checkedI64Multiply, minSharedI64, -1},
+		{"minimum multiplier", checkedI64Multiply, -1, minSharedI64},
+		{"product overflow", checkedI64Multiply, maxSharedI64, 2},
+		{"large product", checkedI64Multiply, minSharedI64, minSharedI64},
+	}
+	for _, item := range cases {
+		t.Run(item.name, func(t *testing.T) {
+			defer func() {
+				if recover() == nil {
+					t.Fatal("expected panic")
+				}
+			}()
+			item.operation(item.left, item.right)
+		})
+	}
+}

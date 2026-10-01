@@ -20,6 +20,34 @@ func checkedBorrowed[T any](value *T, copyValue func(T) T) *T {
 const maxSharedIndex = 2147483647
 const minSharedI32 = -2147483648
 
+const maxSharedI64 int64 = 9223372036854775807
+const minSharedI64 int64 = -9223372036854775808
+
+func checkedI64Add(left int64, right int64) int64 {
+	if (right > 0 && left > maxSharedI64-right) || (right < 0 && left < minSharedI64-right) {
+		panic("i64 overflow")
+	}
+	return left + right
+}
+
+func checkedI64Subtract(left int64, right int64) int64 {
+	if (right < 0 && left > maxSharedI64+right) || (right > 0 && left < minSharedI64+right) {
+		panic("i64 overflow")
+	}
+	return left - right
+}
+
+func checkedI64Multiply(left int64, right int64) int64 {
+	if (left == minSharedI64 && right == -1) || (right == minSharedI64 && left == -1) {
+		panic("i64 overflow")
+	}
+	result := left * right
+	if right != 0 && result/right != left {
+		panic("i64 overflow")
+	}
+	return result
+}
+
 func checkedIndex(value int) int {
 	if value < 0 || value > maxSharedIndex {
 		panic("index outside shared numeric range")

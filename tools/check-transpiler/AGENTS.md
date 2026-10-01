@@ -38,11 +38,14 @@ change to the regex transpiler unless the regex engine itself changes.
   focused parser acceptance test and target behavior in Go and TypeScript.
 - Bigint CHECKs use `i64` payloads with explicit decimal `i64` literals and
   signed literals through the i64 minimum. Lower them to Go `int64` and
-  TypeScript `bigint`. Widening supports `i32 as i64`; i64 arithmetic,
-  variable negation, and narrowing casts are rejected.
+  TypeScript `bigint`. Widening supports `i32 as i64`. Addition, subtraction,
+  and multiplication accept two explicitly typed i64 operands and reject
+  overflow in both targets. I64 division, remainder, variable negation,
+  and narrowing casts are rejected.
 - Calendar constructors use signed `i32` multiplication, division, and remainder.
   Division truncates toward zero. Both division and remainder reject zero
   divisors and the signed minimum with a divisor of negative one. Multiplication
-  rejects overflow. These operations reject `i64`, unsigned, and mixed operands.
+  rejects overflow. Division and remainder reject `i64`; all arithmetic rejects
+  mixed signed/unsigned operands.
 - Run `bash tools/check-rust/check.sh` and the relevant codegen golden checks
   after changing parsing, lowering, file boundaries, or names.

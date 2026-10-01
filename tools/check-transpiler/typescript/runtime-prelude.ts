@@ -19,6 +19,18 @@ function checkedI64(value: bigint): bigint {
   return value
 }
 
+function checkedI64Add(left: bigint, right: bigint): bigint {
+  return checkedI64(checkedI64(left) + checkedI64(right))
+}
+
+function checkedI64Subtract(left: bigint, right: bigint): bigint {
+  return checkedI64(checkedI64(left) - checkedI64(right))
+}
+
+function checkedI64Multiply(left: bigint, right: bigint): bigint {
+  return checkedI64(checkedI64(left) * checkedI64(right))
+}
+
 function checkedBool(value: boolean): boolean {
   if (typeof value !== 'boolean') throw new TypeError('expected a boolean')
   return value

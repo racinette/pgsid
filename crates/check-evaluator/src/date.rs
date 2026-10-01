@@ -166,8 +166,19 @@ pub fn date_from_text(value: TextValue) -> DateValue {
 }
 
 pub fn date_from_ymd(year: i32, month: i32, day: i32) -> DateValue {
+    let days = calendar_days_from_ymd(year, month, day);
+    if let Int4Value::Error(error) = days {
+        return DateValue::Error(error);
+    }
+    if let Int4Value::Value(value) = days {
+        return make_date_value(value);
+    }
+    DateValue::Unknown
+}
+
+fn calendar_days_from_ymd(year: i32, month: i32, day: i32) -> Int4Value {
     if year == 0 || year == -2147483647 - 1 {
-        return DateValue::Error(SqlError {
+        return Int4Value::Error(SqlError {
             state: DATE_FIELD_OVERFLOW,
         });
     }
@@ -176,7 +187,7 @@ pub fn date_from_ymd(year: i32, month: i32, day: i32) -> DateValue {
         calendar_year = year + 1;
     }
     if month < 1 || month > 12 || day < 1 || day > 31 {
-        return DateValue::Error(SqlError {
+        return Int4Value::Error(SqlError {
             state: DATE_FIELD_OVERFLOW,
         });
     }
@@ -190,7 +201,7 @@ pub fn date_from_ymd(year: i32, month: i32, day: i32) -> DateValue {
         }
     }
     if day > month_days || calendar_year < -4713 || calendar_year > 5874897 {
-        return DateValue::Error(SqlError {
+        return Int4Value::Error(SqlError {
             state: DATE_FIELD_OVERFLOW,
         });
     }
@@ -205,5 +216,5 @@ pub fn date_from_ymd(year: i32, month: i32, day: i32) -> DateValue {
     let leap_adjustment = julian_year / 4 - century + century / 4;
     let month_adjustment = 7834 * julian_month / 256 + day;
     let julian = base + leap_adjustment + month_adjustment;
-    make_date_value(julian - 2451545)
+    make_int4_value(julian - 2451545)
 }
