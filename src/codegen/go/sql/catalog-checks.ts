@@ -1,6 +1,7 @@
 import type { CatalogSnapshot, ColumnInfo, DomainInfo, TableInfo } from '../../../catalog/types.js'
 import type { Config, GoTypeImport } from '../../../config/schema.js'
 import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
+import { catalogDateType } from '../../../sql-semantics/catalog-check-binder.js'
 import { enumType } from '../../../sql-semantics/expressions.js'
 import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
@@ -125,6 +126,14 @@ export function renderGoSchemaCheckArtifacts(
     const columns: readonly ColumnInfo[] = table?.columns ?? []
     const fields = table
       ? columns.map((column) => {
+          if (rustGroup?.source && catalogDateType(column.typeName, column.typeOid, domains))
+            return {
+              names: [goName(column.name)],
+              type: go.index(
+                go.ident('CheckOptional'),
+                go.selector(go.ident('checkruntime'), 'DateValue'),
+              ),
+            }
           const resolved = schemaTypes
             ? resolveGoColumnType(table.schema, table.name, column, catalog, config, context)
             : resolveGoPgType(column.typeName, typeConfig, catalog, table.schema, column.typeOid)
@@ -135,6 +144,19 @@ export function renderGoSchemaCheckArtifacts(
         })
       : domain
         ? (() => {
+            if (
+              rustGroup?.source &&
+              catalogDateType(domain.baseTypeName, domain.baseTypeOid, domains)
+            )
+              return [
+                {
+                  names: ['Value'],
+                  type: go.index(
+                    go.ident('CheckOptional'),
+                    go.selector(go.ident('checkruntime'), 'DateValue'),
+                  ),
+                },
+              ]
             const resolved = resolveGoPgType(
               `${domain.schema}.${domain.name}`,
               typeConfig,
@@ -187,34 +209,43 @@ export function renderGoSchemaCheckArtifacts(
       if (prepared?.kind === 'supported') {
         const arguments_ = prepared.inputs.map((item) => {
           if (
-            !['Int4Value', 'Int8Value', 'EnumValue', 'TextValue', 'BoolValue'].includes(
-              item.rustType,
-            )
+            ![
+              'Int4Value',
+              'Int8Value',
+              'DateValue',
+              'EnumValue',
+              'TextValue',
+              'BoolValue',
+            ].includes(item.rustType)
           )
             throw new Error(`Unsupported Go Rust CHECK input: ${item.rustType}`)
-          const helper = item.nullness
-            ? 'checkRustNullness'
-            : item.enum
-              ? 'checkRustEnum'
-              : item.rustType === 'Int4Value'
-                ? 'checkRustInt4'
-                : item.rustType === 'Int8Value'
-                  ? 'checkRustInt8'
-                  : item.rustType === 'TextValue'
-                    ? 'checkRustText'
-                    : 'checkRustBool'
+          const helper =
+            item.rustType === 'DateValue'
+              ? 'checkRustDate'
+              : item.nullness
+                ? 'checkRustNullness'
+                : item.enum
+                  ? 'checkRustEnum'
+                  : item.rustType === 'Int4Value'
+                    ? 'checkRustInt4'
+                    : item.rustType === 'Int8Value'
+                      ? 'checkRustInt8'
+                      : item.rustType === 'TextValue'
+                        ? 'checkRustText'
+                        : 'checkRustBool'
           rustInputAdapters.add(helper)
-          inputHelpers.add(
-            item.nullness
-              ? 'checkInputNullness'
-              : item.rustType === 'Int4Value' || item.rustType === 'Int8Value'
-                ? 'checkInputInteger'
-                : item.rustType === 'TextValue'
-                  ? 'checkInputText'
-                  : item.enum
+          if (item.rustType !== 'DateValue')
+            inputHelpers.add(
+              item.nullness
+                ? 'checkInputNullness'
+                : item.rustType === 'Int4Value' || item.rustType === 'Int8Value'
+                  ? 'checkInputInteger'
+                  : item.rustType === 'TextValue'
                     ? 'checkInputText'
-                    : 'checkInputBoolean',
-          )
+                    : item.enum
+                      ? 'checkInputText'
+                      : 'checkInputBoolean',
+            )
           return go.call(go.ident(helper), [
             go.selector(row, goName(item.name)),
             ...(item.enum
@@ -274,6 +305,7 @@ export function renderGoSchemaCheckArtifacts(
                   helpers: ['EvalValue', 'SqlEnum', 'enumInput'],
                 }
               }
+              if (type === 'pg_catalog.date') return backend.scalar.uncertain(type)
               const helper = inputHelper(type)
               if (!helper) throw new Error(`Unsupported CHECK input type: ${type}`)
               return {
@@ -397,7 +429,13 @@ func ValidateCheckInputs[T any](input T, evaluate func(T) []CheckEvaluation) err
   }
 }
 
-const goRustAdapterSource = `func checkRustInt4[T any](field CheckOptional[T]) checkruntime.Int4Value {
+const goRustAdapterSource = `func checkRustDate[T any](field CheckOptional[T]) checkruntime.DateValue {
+  if !field.Set { return checkruntime.DateUnknown() }
+  if field.Null { return checkruntime.DateNull() }
+  if value, ok := any(field.V).(checkruntime.DateValue); ok { return value }
+  return checkruntime.DateUnknown()
+}
+func checkRustInt4[T any](field CheckOptional[T]) checkruntime.Int4Value {
   value := checkInputInteger(field)
   if !value.Certain { return checkruntime.Int4Unknown() }
   if value.Value.Error != "" {
@@ -412,6 +450,9 @@ const goRustAdapterSource = `func checkRustInt4[T any](field CheckOptional[T]) c
   return checkruntime.MakeInt4Value(int(number))
 }
 func checkRustNullness[T any](field CheckOptional[T]) checkruntime.BoolValue {
+  if field.Set && !field.Null {
+    if value, ok := any(field.V).(checkruntime.DateValue); ok { return checkruntime.DateIsNull(value) }
+  }
   input := checkInputNullness(field)
   if !input.Certain { return checkruntime.BoolUnknown() }
   return checkruntime.MakeBoolValue(input.Value.Value)

@@ -354,7 +354,9 @@ describe('catalog enum CHECKs', () => {
       )
       await writeFile(
         join(root, 'schema/enums_a/checks_test.go'),
-        renderGoCheckTests('enums_a', cases),
+        renderGoCheckTests('enums_a', cases, {
+          dateRuntime: 'enumchecks/schema/enums_a/checkrust/checkruntime',
+        }),
       )
       await writeFile(
         join(root, 'schema/enums_a/operations_test.go'),

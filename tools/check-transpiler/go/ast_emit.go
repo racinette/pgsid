@@ -210,6 +210,12 @@ func (g *generator) goExpression(value *node) ast.Expr {
 	case "binary":
 		left, right := g.goExpression(value.Left), g.goExpression(value.Right)
 		switch value.Operator {
+		case "multiply":
+			return goCall("checkedSignedMultiply", left, right)
+		case "divide":
+			return goCall("checkedSignedDivide", left, right)
+		case "remainder":
+			return goCall("checkedSignedRemainder", left, right)
 		case "add":
 			signed := path(g.inferType(value.Left)) == "i32" || path(g.inferType(value.Right)) == "i32"
 			if signed {

@@ -617,6 +617,196 @@ func BoolgeGviq(left checkruntime.BoolValue, right checkruntime.BoolValue) check
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func MakeDateZ9pv(year checkruntime.Int4Value, month checkruntime.Int4Value, day checkruntime.Int4Value) checkruntime.DateValue {
+	year = checkruntime.CopyInt4Value(year)
+	month = checkruntime.CopyInt4Value(month)
+	day = checkruntime.CopyInt4Value(day)
+	if year.Kind == checkruntime.Int4ValueError {
+		error := year.Error
+		return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: error}
+	}
+	if month.Kind == checkruntime.Int4ValueError {
+		error := month.Error
+		return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: error}
+	}
+	if day.Kind == checkruntime.Int4ValueError {
+		error := day.Error
+		return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: error}
+	}
+	if year == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || month == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || day == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
+	}
+	if year == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || month == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || day == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.DateValue{Kind: checkruntime.DateValueNull}
+	}
+	if year.Kind == checkruntime.Int4ValueValue {
+		yearValue := langruntime.CheckedI32(year.Value)
+		if month.Kind == checkruntime.Int4ValueValue {
+			monthValue := langruntime.CheckedI32(month.Value)
+			if day.Kind == checkruntime.Int4ValueValue {
+				dayValue := langruntime.CheckedI32(day.Value)
+				return checkruntime.DateFromYmd(yearValue, monthValue, dayValue)
+			}
+		}
+	}
+	return checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
+}
+func DateEqD4us(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.BoolValue {
+	left = checkruntime.CopyDateValue(left)
+	right = checkruntime.CopyDateValue(right)
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue == rightValue}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func DateNeNpdb(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.BoolValue {
+	left = checkruntime.CopyDateValue(left)
+	right = checkruntime.CopyDateValue(right)
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue != rightValue}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func DateLt843e(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.BoolValue {
+	left = checkruntime.CopyDateValue(left)
+	right = checkruntime.CopyDateValue(right)
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue < rightValue}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func DateLe5cqw(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.BoolValue {
+	left = checkruntime.CopyDateValue(left)
+	right = checkruntime.CopyDateValue(right)
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue <= rightValue}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func DateGt5025(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.BoolValue {
+	left = checkruntime.CopyDateValue(left)
+	right = checkruntime.CopyDateValue(right)
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue > rightValue}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func DateGe8wil(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.BoolValue {
+	left = checkruntime.CopyDateValue(left)
+	right = checkruntime.CopyDateValue(right)
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue >= rightValue}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
 func EnumEqW63e(left checkruntime.EnumValue, right checkruntime.EnumValue) checkruntime.BoolValue {
 	left = checkruntime.CopyEnumValue(left)
 	right = checkruntime.CopyEnumValue(right)

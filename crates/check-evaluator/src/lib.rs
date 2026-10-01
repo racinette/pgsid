@@ -2,6 +2,7 @@ pub use pgsid_regex_engine::*;
 
 pub mod checkruntime {
     include!("values.rs");
+    include!("date.rs");
     include!("logic.rs");
 }
 
@@ -12,6 +13,7 @@ pub mod pg_catalog {
 
     include!("operations/pg_catalog/boolean.rs");
     include!("operations/pg_catalog/enumeration.rs");
+    include!("operations/pg_catalog/date.rs");
     include!("operations/pg_catalog/integer.rs");
     include!("operations/pg_catalog/bigint.rs");
     include!("operations/pg_catalog/text.rs");

@@ -34,6 +34,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("Int8Value") => {
             Ok("Int8Value")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("DateValue") => {
+            Ok("DateValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("EnumValue") => {
             Ok("EnumValue")
         }
@@ -302,7 +305,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
         if !parameter.attrs.is_empty()
             || !matches!(
                 type_name(&parameter.ty)?,
-                "Int4Value" | "Int8Value" | "EnumValue" | "TextValue" | "BoolValue"
+                "Int4Value" | "Int8Value" | "DateValue" | "EnumValue" | "TextValue" | "BoolValue"
             )
         {
             return Err("parameter is outside the CHECK subset".into());
@@ -452,6 +455,7 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             ("Int4Value", "int4_unknown"),
             ("Int8Value", "int8_unknown"),
             ("EnumValue", "enum_unknown"),
+            ("DateValue", "date_unknown"),
             ("TextValue", "text_unknown"),
             ("BoolValue", "bool_unknown"),
         ] {
@@ -473,6 +477,23 @@ pub fn evaluate_check(flag: BoolValue, input: {ty}) -> CheckOutcome {{
             assert!(check_source(&source.replace("result = input;", "input = result;")).is_err());
             assert!(check_source(&source.replace("let mut result", "let result")).is_err());
         }
+    }
+
+    #[test]
+    fn date_inputs_remain_concrete_and_immutable() {
+        let source = r#"
+pub fn evaluate_check(input: DateValue) -> CheckOutcome {
+    let boundary = date_from_ymd(2000, 1, 1);
+    let compared = sql__pg_catalog__date_ge__8wil(input, boundary);
+    let result = check_from_bool(compared);
+    result
+}
+"#;
+        check_source(source).unwrap();
+        assert!(
+            check_source(&source.replace("input: DateValue", "input: DateValue<i32>")).is_err()
+        );
+        assert!(check_source(&source.replace("input: DateValue", "mut input: DateValue")).is_err());
     }
 
     #[test]

@@ -428,7 +428,11 @@ fn infer_expr_type(
                     }
                     Ok(Some("bool".into()))
                 }
-                syn::BinOp::Add(_) | syn::BinOp::Sub(_) => {
+                syn::BinOp::Add(_)
+                | syn::BinOp::Sub(_)
+                | syn::BinOp::Mul(_)
+                | syn::BinOp::Div(_)
+                | syn::BinOp::Rem(_) => {
                     let signed_literal = |operand: &Expr, ty: &Option<String>| {
                         ty.as_deref() == Some("usize")
                             && matches!(
@@ -447,6 +451,14 @@ fn infer_expr_type(
                             return Err("signed arithmetic requires i32 operands".into());
                         }
                         return Ok(Some("i32".into()));
+                    }
+                    if matches!(
+                        binary.op,
+                        syn::BinOp::Mul(_) | syn::BinOp::Div(_) | syn::BinOp::Rem(_)
+                    ) {
+                        return Err(
+                            "multiplication, division, and remainder require i32 operands".into(),
+                        );
                     }
                     if !left.as_deref().is_some_and(checked_arithmetic)
                         || !right.as_deref().is_some_and(checked_arithmetic)

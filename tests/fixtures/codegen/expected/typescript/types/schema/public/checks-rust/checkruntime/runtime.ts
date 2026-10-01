@@ -103,6 +103,67 @@ export function enumFromCaseGuard(value: CheckOutcome): EnumValue {
     }
     return { kind: "Unknown" };
 }
+export type DateValue = {
+    kind: "Unknown";
+} | {
+    kind: "Null";
+} | {
+    kind: "Value";
+    value: number;
+} | {
+    kind: "Error";
+    value: SqlError;
+};
+export function copyDateValue(value: DateValue): DateValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: langruntime.checkedI32(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
+export function equalDateValue(left: DateValue, right: DateValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function dateUnknown(): DateValue {
+    return { kind: "Unknown" };
+}
+export function dateNull(): DateValue {
+    return { kind: "Null" };
+}
+export function makeDateValue(value: number): DateValue {
+    value = langruntime.checkedI32(value);
+    if (!(value === langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) && !(value === 2147483647)) {
+        if (value < langruntime.checkedSignedNegate(2451545) || value >= 2145031949) {
+            return { kind: "Error", value: { state: dateFieldOverflow } };
+        }
+    }
+    return { kind: "Value", value: value };
+}
+export function dateIsNull(value: DateValue): BoolValue {
+    value = copyDateValue(value);
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalDateValue(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: equalDateValue(value, { kind: "Null" }) };
+}
+export function dateFromCaseGuard(value: CheckOutcome): DateValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export type TextValue = {
     kind: "Unknown";
 } | {
@@ -335,6 +396,47 @@ export function textFromCaseGuard(value: CheckOutcome): TextValue {
         return { kind: "Error", value: error };
     }
     return { kind: "Unknown" };
+}
+const dateFieldOverflow = 3452552;
+export function dateFromYmd(year: number, month: number, day: number): DateValue {
+    year = langruntime.checkedI32(year);
+    month = langruntime.checkedI32(month);
+    day = langruntime.checkedI32(day);
+    if (year === 0 || year === langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) {
+        return { kind: "Error", value: { state: dateFieldOverflow } };
+    }
+    let calendarYear: number = year;
+    if (year < 0) {
+        calendarYear = langruntime.checkedI32(langruntime.checkedSignedAdd(year, 1));
+    }
+    if (month < 1 || month > 12 || day < 1 || day > 31) {
+        return { kind: "Error", value: { state: dateFieldOverflow } };
+    }
+    let monthDays: number = 31;
+    if (month === 4 || month === 6 || month === 9 || month === 11) {
+        monthDays = langruntime.checkedI32(30);
+    }
+    else if (month === 2) {
+        monthDays = langruntime.checkedI32(28);
+        if (langruntime.checkedSignedRemainder(calendarYear, 4) === 0 && (!(langruntime.checkedSignedRemainder(calendarYear, 100) === 0) || langruntime.checkedSignedRemainder(calendarYear, 400) === 0)) {
+            monthDays = langruntime.checkedI32(29);
+        }
+    }
+    if (day > monthDays || calendarYear < langruntime.checkedSignedNegate(4713) || calendarYear > 5874897) {
+        return { kind: "Error", value: { state: dateFieldOverflow } };
+    }
+    let julianYear: number = langruntime.checkedSignedAdd(calendarYear, 4799);
+    let julianMonth: number = langruntime.checkedSignedAdd(month, 13);
+    if (month > 2) {
+        julianYear = langruntime.checkedI32(langruntime.checkedSignedAdd(calendarYear, 4800));
+        julianMonth = langruntime.checkedI32(langruntime.checkedSignedAdd(month, 1));
+    }
+    const century: number = langruntime.checkedSignedDivide(julianYear, 100);
+    const base: number = langruntime.checkedSignedSubtract(langruntime.checkedSignedMultiply(julianYear, 365), 32167);
+    const leapAdjustment: number = langruntime.checkedSignedAdd(langruntime.checkedSignedSubtract(langruntime.checkedSignedDivide(julianYear, 4), century), langruntime.checkedSignedDivide(century, 4));
+    const monthAdjustment: number = langruntime.checkedSignedAdd(langruntime.checkedSignedDivide(langruntime.checkedSignedMultiply(7834, julianMonth), 256), day);
+    const julian: number = langruntime.checkedSignedAdd(langruntime.checkedSignedAdd(base, leapAdjustment), monthAdjustment);
+    return makeDateValue(langruntime.checkedSignedSubtract(julian, 2451545));
 }
 export function andStops(left: CheckOutcome): boolean {
     if (equalCheckOutcome(left, { kind: "False" })) {

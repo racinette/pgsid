@@ -63,9 +63,11 @@ export async function runCheckParity(
       ? 'int4'
       : type === 'pg_catalog.int8'
         ? 'int8'
-        : type === 'pg_catalog.bool'
-          ? 'bool'
-          : 'text'
+        : type === 'pg_catalog.date'
+          ? 'date'
+          : type === 'pg_catalog.bool'
+            ? 'bool'
+            : 'text'
   const inputCode = (input: Input, type: string): string => {
     const prefix = prefixOf(type)
     if (input.kind === 'Null' || input.kind === 'Unknown')
@@ -73,6 +75,10 @@ export async function runCheckParity(
     if (input.kind === 'Error')
       return `${pascal(prefix)}Value::Error(make_sql_error(${input.value.state}))`
     return `make_${prefix}_value(${prefix === 'int8' ? `${input.value}i64` : typeof input.value === 'bigint' ? input.value.toString() : JSON.stringify(input.value)})`
+  }
+  const projectedInput = (input: Input, nullness?: true): Input => {
+    if (!nullness || input.kind === 'Unknown' || input.kind === 'Error') return input
+    return { kind: 'Value', value: input.kind === 'Null' }
   }
   const goInput = (input: Input, type: string): GoExpression => {
     const runtime = (name: string) => go.selector(go.ident('checkruntime'), name)
@@ -100,7 +106,9 @@ export async function runCheckParity(
   for (const [index, fixture] of fixtures.entries()) {
     const check = entries.get(fixture.name)!
     const args = check.inputs
-      .map((input) => inputCode(fixture.row[input.name]!, input.type))
+      .map((input) =>
+        inputCode(projectedInput(fixture.row[input.name]!, input.nullness), input.type),
+      )
       .join(', ')
     const rustExpected = `CheckOutcome::${fixture.expected.kind}${fixture.expected.kind === 'Error' ? `(make_sql_error(${fixture.expected.value.state}))` : ''}`
     rustAssertions.push(
@@ -141,7 +149,9 @@ export async function runCheckParity(
           [
             go.call(
               go.ident(pascal(check.entryName)),
-              check.inputs.map((input) => goInput(fixture.row[input.name]!, input.type)),
+              check.inputs.map((input) =>
+                goInput(projectedInput(fixture.row[input.name]!, input.nullness), input.type),
+              ),
             ),
           ],
         ),
@@ -230,7 +240,7 @@ export async function runCheckParity(
   for (const fixture of fixtures) {
     const check = entries.get(fixture.name)!
     const result = generated[camel(check.entryName)](
-      ...check.inputs.map((input) => fixture.row[input.name]!),
+      ...check.inputs.map((input) => projectedInput(fixture.row[input.name]!, input.nullness)),
     )
     assert.deepEqual(
       result,

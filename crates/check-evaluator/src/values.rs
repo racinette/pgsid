@@ -52,6 +52,48 @@ pub fn enum_from_case_guard(value: CheckOutcome) -> EnumValue {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
+pub enum DateValue {
+    Unknown,
+    Null,
+    Value(i32),
+    Error(SqlError),
+}
+
+pub fn date_unknown() -> DateValue {
+    DateValue::Unknown
+}
+
+pub fn date_null() -> DateValue {
+    DateValue::Null
+}
+
+pub fn make_date_value(value: i32) -> DateValue {
+    if value != -2147483647 - 1 && value != 2147483647 {
+        if value < -2451545 || value >= 2145031949 {
+            return DateValue::Error(SqlError { state: DATE_FIELD_OVERFLOW });
+        }
+    }
+    DateValue::Value(value)
+}
+
+pub fn date_is_null(value: DateValue) -> BoolValue {
+    if let DateValue::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == DateValue::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(value == DateValue::Null)
+}
+
+pub fn date_from_case_guard(value: CheckOutcome) -> DateValue {
+    if let CheckOutcome::Error(error) = value {
+        return DateValue::Error(error);
+    }
+    DateValue::Unknown
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum TextValue<'a> {
     Unknown,
     Null,

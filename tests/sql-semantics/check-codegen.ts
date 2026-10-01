@@ -7,19 +7,25 @@ export type GoCheckCase = {
   table: TableInfo
   row: Record<string, unknown>
   nullViaValue?: boolean
+  dateColumns?: readonly string[]
   results: {
     constraint: string
     result: { certain: boolean; value?: boolean | null; error?: string }
   }[]
 }
 
-export function renderGoCheckTests(packageName: string, cases: readonly GoCheckCase[]): string {
+export function renderGoCheckTests(
+  packageName: string,
+  cases: readonly GoCheckCase[],
+  options: { dateRuntime?: string } = {},
+): string {
   const t = go.ident('t')
+  let dateRuntimeUsed = false
   const fatal = (message: string, ...args: GoExpression[]): GoStatement =>
     go.expression(go.call(go.selector(t, 'Fatalf'), [go.string(message), ...args]))
   const expect = (actual: GoExpression, expected: GoExpression, label: string): GoStatement =>
     go.if(go.notEqual(actual, expected), [fatal(label + ': got %v', actual)])
-  const body = cases.map(({ name, table, row, nullViaValue, results }) => {
+  const body = cases.map(({ name, table, row, nullViaValue, dateColumns, results }) => {
     const input = go.ident('input')
     const statements: GoStatement[] = [
       go.assign(
@@ -34,6 +40,30 @@ export function renderGoCheckTests(packageName: string, cases: readonly GoCheckC
       statements.push(go.assign([go.selector(field, 'Set')], [go.ident('true')], '='))
       if (value === null && !nullViaValue) {
         statements.push(go.assign([go.selector(field, 'Null')], [go.ident('true')], '='))
+        continue
+      }
+      if (
+        options.dateRuntime &&
+        (column.typeName === 'date' || dateColumns?.includes(column.name)) &&
+        (!dateColumns || dateColumns.includes(column.name))
+      ) {
+        dateRuntimeUsed = true
+        let dateValue: GoExpression
+        if (value === null) dateValue = go.call(go.selector(go.ident('checkruntime'), 'DateNull'))
+        else if (typeof value === 'number')
+          dateValue = go.call(go.selector(go.ident('checkruntime'), 'MakeDateValue'), [
+            go.number(value),
+          ])
+        else {
+          const match = /^(\d{4,7})-(\d{2})-(\d{2})( BC)?$/u.exec(String(value))
+          if (!match) throw new Error(`Unsupported calendar fixture: ${String(value)}`)
+          dateValue = go.call(go.selector(go.ident('checkruntime'), 'DateFromYmd'), [
+            go.number(Number(match[1]) * (match[4] ? -1 : 1)),
+            go.number(Number(match[2])),
+            go.number(Number(match[3])),
+          ])
+        }
+        statements.push(go.assign([go.selector(field, 'V')], [dateValue], '='))
         continue
       }
       const encoded =
@@ -121,7 +151,11 @@ export function renderGoCheckTests(packageName: string, cases: readonly GoCheckC
   })
   return printGoFile({
     package: packageName,
-    imports: [{ path: 'testing' }, { path: 'encoding/json' }],
+    imports: [
+      { path: 'testing' },
+      { path: 'encoding/json' },
+      ...(dateRuntimeUsed ? [{ path: options.dateRuntime!, alias: 'checkruntime' }] : []),
+    ],
     declarations: [
       go.function(
         'TestGeneratedChecks',

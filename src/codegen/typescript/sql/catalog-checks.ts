@@ -2,6 +2,7 @@ import ts from 'typescript'
 import type { DomainInfo, EnumInfo, TableInfo } from '../../../catalog/types.js'
 import { enumType } from '../../../sql-semantics/expressions.js'
 import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
+import { catalogDateType } from '../../../sql-semantics/catalog-check-binder.js'
 import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
 import { prepareCheckRustGroup } from '../../shared/check-rust-source.js'
@@ -104,36 +105,45 @@ export function renderTypescriptSchemaCheckArtifacts(
       if (prepared?.kind === 'supported') {
         const args = prepared.inputs.map((item) => {
           if (
-            !['Int4Value', 'Int8Value', 'EnumValue', 'TextValue', 'BoolValue'].includes(
-              item.rustType,
-            )
+            ![
+              'Int4Value',
+              'Int8Value',
+              'DateValue',
+              'EnumValue',
+              'TextValue',
+              'BoolValue',
+            ].includes(item.rustType)
           )
             throw new Error(`Unsupported TypeScript Rust CHECK input: ${item.rustType}`)
-          const helper = item.nullness
-            ? 'checkRustNullness'
-            : item.enum
-              ? 'checkRustEnum'
-              : item.rustType === 'Int4Value'
-                ? 'checkRustInt4'
-                : item.rustType === 'Int8Value'
-                  ? 'checkRustInt8'
-                  : item.rustType === 'TextValue'
-                    ? 'checkRustText'
-                    : 'checkRustBool'
+          const helper =
+            item.rustType === 'DateValue'
+              ? 'checkRustDate'
+              : item.nullness
+                ? 'checkRustNullness'
+                : item.enum
+                  ? 'checkRustEnum'
+                  : item.rustType === 'Int4Value'
+                    ? 'checkRustInt4'
+                    : item.rustType === 'Int8Value'
+                      ? 'checkRustInt8'
+                      : item.rustType === 'TextValue'
+                        ? 'checkRustText'
+                        : 'checkRustBool'
           rustInputAdapters.add(helper)
-          inputHelpers.add(
-            item.nullness
-              ? 'checkInputNullness'
-              : item.rustType === 'Int8Value'
-                ? 'checkInputInt8'
-                : item.rustType === 'Int4Value'
-                  ? 'checkInputInteger'
-                  : item.rustType === 'TextValue'
-                    ? 'checkInputText'
-                    : item.enum
+          if (item.rustType !== 'DateValue')
+            inputHelpers.add(
+              item.nullness
+                ? 'checkInputNullness'
+                : item.rustType === 'Int8Value'
+                  ? 'checkInputInt8'
+                  : item.rustType === 'Int4Value'
+                    ? 'checkInputInteger'
+                    : item.rustType === 'TextValue'
                       ? 'checkInputText'
-                      : 'checkInputBoolean',
-          )
+                      : item.enum
+                        ? 'checkInputText'
+                        : 'checkInputBoolean',
+            )
           return factory.createCallExpression(identifier(helper), undefined, [
             row,
             factory.createStringLiteral(item.name),
@@ -198,6 +208,7 @@ export function renderTypescriptSchemaCheckArtifacts(
                   helpers: ['EvalValue', 'SqlEnum', 'enumInput'],
                 }
               }
+              if (type === 'pg_catalog.date') return backend.scalar.uncertain(type)
               const helper = inputHelper(type)
               if (!helper) throw new Error(`Unsupported CHECK input type: ${type}`)
               return { expression: callInput(helper, name), helpers: ['EvalValue'] }
@@ -225,6 +236,29 @@ export function renderTypescriptSchemaCheckArtifacts(
       undefined,
     )
   const inputType = (group: (typeof groups)[number]): ts.TypeNode => {
+    const table =
+      group.kind === 'table'
+        ? tables.find(
+            (table) => table.schema === group.source.schema && table.name === group.source.name,
+          )
+        : undefined
+    const domain =
+      group.kind === 'domain'
+        ? domains.find(
+            (domain) => domain.schema === group.source.schema && domain.name === group.source.name,
+          )
+        : undefined
+    const dateInputs = new Set(
+      rustGroup?.source
+        ? table
+          ? table.columns
+              .filter((column) => catalogDateType(column.typeName, column.typeOid, domains))
+              .map((column) => column.name)
+          : domain && catalogDateType(domain.baseTypeName, domain.baseTypeOid, domains)
+            ? ['value']
+            : []
+        : [],
+    )
     if (group.kind === 'domain')
       return factory.createTypeLiteralNode([
         factory.createPropertySignature(
@@ -232,7 +266,9 @@ export function renderTypescriptSchemaCheckArtifacts(
           'value',
           factory.createToken(ts.SyntaxKind.QuestionToken),
           factory.createUnionTypeNode([
-            factory.createTypeReferenceNode(typeName(group.source.name)),
+            factory.createTypeReferenceNode(
+              dateInputs.has('value') ? '_checkRust.DateValue' : typeName(group.source.name),
+            ),
             factory.createLiteralTypeNode(factory.createNull()),
           ]),
         ),
@@ -251,7 +287,18 @@ export function renderTypescriptSchemaCheckArtifacts(
       undefined,
       factory.createToken(ts.SyntaxKind.QuestionToken),
       factory.createUnionTypeNode([
-        factory.createIndexedAccessTypeNode(selected, factory.createTypeReferenceNode('K')),
+        dateInputs.size
+          ? factory.createConditionalTypeNode(
+              factory.createTypeReferenceNode('K'),
+              factory.createUnionTypeNode(
+                [...dateInputs].map((name) =>
+                  factory.createLiteralTypeNode(factory.createStringLiteral(name)),
+                ),
+              ),
+              factory.createTypeReferenceNode('_checkRust.DateValue'),
+              factory.createIndexedAccessTypeNode(selected, factory.createTypeReferenceNode('K')),
+            )
+          : factory.createIndexedAccessTypeNode(selected, factory.createTypeReferenceNode('K')),
         factory.createLiteralTypeNode(factory.createNull()),
       ]),
       undefined,
@@ -304,7 +351,9 @@ export function renderTypescriptSchemaCheckArtifacts(
               ts.isFunctionDeclaration(statement) &&
               statement.name &&
               (statement.name.text === 'checkRustOutcome' ||
-                rustInputAdapters.has(statement.name.text)),
+                rustInputAdapters.has(statement.name.text) ||
+                (statement.name.text === 'checkRustDate' &&
+                  rustInputAdapters.has('checkRustNullness'))),
           )
         : []),
       ...(typedInputs
@@ -366,7 +415,16 @@ export function renderTypescriptSchemaCheckArtifacts(
   }
 }
 
-const typescriptRustAdapterSource = `function checkRustInt4(row: object, name: string): _checkRust.Int4Value {
+const typescriptRustAdapterSource = `function checkRustDate(row: object, name: string): _checkRust.DateValue {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.dateUnknown()
+  if (value === null) return _checkRust.dateNull()
+  if (typeof value !== 'object' || !('kind' in value)) return _checkRust.dateUnknown()
+  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.DateValue
+  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'number') return _checkRust.makeDateValue(value.value)
+  return _checkRust.dateUnknown()
+}
+function checkRustInt4(row: object, name: string): _checkRust.Int4Value {
   const input = checkInputInteger(row, name)
   if (!input.certain) return _checkRust.int4Unknown()
   if (input.value === null) return _checkRust.int4Null()
@@ -393,6 +451,10 @@ function checkRustBool(row: object, name: string): _checkRust.BoolValue {
   return _checkRust.makeBoolValue(input.value)
 }
 function checkRustNullness(row: object, name: string): _checkRust.BoolValue {
+  const value = Reflect.get(row, name)
+  if (Object.hasOwn(row, name) && value !== null && typeof value === 'object' && 'kind' in value) {
+    return _checkRust.dateIsNull(checkRustDate(row, name))
+  }
   const input = checkInputNullness(row, name)
   return input.certain ? _checkRust.makeBoolValue(input.value!) : _checkRust.boolUnknown()
 }

@@ -78,6 +78,40 @@ func checkedSignedSubtract(left int, right int) int {
 	return left - right
 }
 
+func checkedSignedMultiply(left int, right int) int {
+	checkedI32(left)
+	checkedI32(right)
+	result := int64(left) * int64(right)
+	if result < minSharedI32 || result > maxSharedIndex {
+		panic("signed integer overflow")
+	}
+	return int(result)
+}
+
+func checkedSignedDivide(left int, right int) int {
+	checkedI32(left)
+	checkedI32(right)
+	if right == 0 {
+		panic("integer division by zero")
+	}
+	if left == minSharedI32 && right == -1 {
+		panic("signed integer overflow")
+	}
+	return left / right
+}
+
+func checkedSignedRemainder(left int, right int) int {
+	checkedI32(left)
+	checkedI32(right)
+	if right == 0 {
+		panic("integer remainder by zero")
+	}
+	if left == minSharedI32 && right == -1 {
+		panic("signed integer overflow")
+	}
+	return left % right
+}
+
 func checkedChar(value rune) rune {
 	if value < 0 || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff) {
 		panic("invalid Unicode scalar")

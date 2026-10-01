@@ -285,7 +285,7 @@ class Transpiler {
       case 'cast':
         return this.path(value.targetType)
       case 'binary':
-        if (value.operator === 'add' || value.operator === 'subtract')
+        if (['add', 'subtract', 'multiply', 'divide', 'remainder'].includes(value.operator))
           return this.infer(value.left, locals) === 'i32' ||
             this.infer(value.right, locals) === 'i32'
             ? 'i32'
@@ -387,6 +387,9 @@ class Transpiler {
         const right = this.expression(value.right, locals)
         const signed =
           this.infer(value.left, locals) === 'i32' || this.infer(value.right, locals) === 'i32'
+        if (value.operator === 'multiply') return call('checkedSignedMultiply', left, right)
+        if (value.operator === 'divide') return call('checkedSignedDivide', left, right)
+        if (value.operator === 'remainder') return call('checkedSignedRemainder', left, right)
         if (value.operator === 'add')
           return call(signed ? 'checkedSignedAdd' : 'checkedAdd', left, right)
         if (value.operator === 'subtract')

@@ -62,6 +62,27 @@ function checkedSignedSubtract(left: number, right: number): number {
   return result
 }
 
+function checkedSignedMultiply(left: number, right: number): number {
+  checkedI32(left)
+  checkedI32(right)
+  return checkedI32(left * right) || 0
+}
+
+function checkedSignedDivide(left: number, right: number): number {
+  checkedI32(left)
+  checkedI32(right)
+  if (right === 0) throw new RangeError('integer division by zero')
+  return checkedI32(Math.trunc(left / right)) || 0
+}
+
+function checkedSignedRemainder(left: number, right: number): number {
+  checkedI32(left)
+  checkedI32(right)
+  if (right === 0) throw new RangeError('integer remainder by zero')
+  if (left === -2147483648 && right === -1) throw new RangeError('signed integer overflow')
+  return left % right || 0
+}
+
 function checkedChar(value: string): string {
   const points = Array.from(value)
   if (points.length !== 1 || (value.codePointAt(0)! >= 0xd800 && value.codePointAt(0)! <= 0xdfff))
