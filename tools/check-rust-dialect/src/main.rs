@@ -34,6 +34,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("Int8Value") => {
             Ok("Int8Value")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("EnumValue") => {
+            Ok("EnumValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("TextValue") => {
             Ok("TextValue")
         }
@@ -299,7 +302,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
         if !parameter.attrs.is_empty()
             || !matches!(
                 type_name(&parameter.ty)?,
-                "Int4Value" | "Int8Value" | "TextValue" | "BoolValue"
+                "Int4Value" | "Int8Value" | "EnumValue" | "TextValue" | "BoolValue"
             )
         {
             return Err("parameter is outside the CHECK subset".into());
@@ -427,10 +430,28 @@ pub fn evaluate_check(flag: BoolValue, amount: Int4Value) -> CheckOutcome {
     }
 
     #[test]
+    fn accepts_enum_comparison_inputs() {
+        let source = r#"
+pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
+    let ready = make_enum_value(1);
+    let compared = sql__pg_catalog__enum_eq__w63e(state, ready);
+    let result = check_from_bool(compared);
+    result
+}
+"#;
+        check_source(source).unwrap();
+        assert!(
+            check_source(&source.replace("state: EnumValue", "state: EnumValue<i32>")).is_err()
+        );
+        assert!(check_source(&source.replace("state: EnumValue", "mut state: EnumValue")).is_err());
+    }
+
+    #[test]
     fn accepts_scalar_case_result_locals() {
         for (ty, constructor) in [
             ("Int4Value", "int4_unknown"),
             ("Int8Value", "int8_unknown"),
+            ("EnumValue", "enum_unknown"),
             ("TextValue", "text_unknown"),
             ("BoolValue", "bool_unknown"),
         ] {

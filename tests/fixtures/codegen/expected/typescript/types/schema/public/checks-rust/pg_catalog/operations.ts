@@ -612,6 +612,58 @@ export function boolgeGviq(left: checkruntime.BoolValue, right: checkruntime.Boo
     }
     return { kind: "Unknown" };
 }
+export function enumEqW63e(left: checkruntime.EnumValue, right: checkruntime.EnumValue): checkruntime.BoolValue {
+    left = checkruntime.copyEnumValue(left);
+    right = checkruntime.copyEnumValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalEnumValue(left, { kind: "Unknown" }) || checkruntime.equalEnumValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalEnumValue(left, { kind: "Null" }) || checkruntime.equalEnumValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: number = langruntime.checkedI32(left.value);
+        if (right.kind === "Value") {
+            const rightValue: number = langruntime.checkedI32(right.value);
+            return { kind: "Value", value: leftValue === rightValue };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function enumNeTph2(left: checkruntime.EnumValue, right: checkruntime.EnumValue): checkruntime.BoolValue {
+    left = checkruntime.copyEnumValue(left);
+    right = checkruntime.copyEnumValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalEnumValue(left, { kind: "Unknown" }) || checkruntime.equalEnumValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalEnumValue(left, { kind: "Null" }) || checkruntime.equalEnumValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: number = langruntime.checkedI32(left.value);
+        if (right.kind === "Value") {
+            const rightValue: number = langruntime.checkedI32(right.value);
+            return { kind: "Value", value: !(leftValue === rightValue) };
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function int4gt5vlv(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
     left = checkruntime.copyInt4Value(left);
     right = checkruntime.copyInt4Value(right);

@@ -1,4 +1,9 @@
-import { functionMetadata, operatorMetadata } from '../postgres/builtins/inventory.js'
+import {
+  builtinCallables,
+  builtinMetadata,
+  functionMetadata,
+  operatorMetadata,
+} from '../postgres/builtins/inventory.js'
 import type { CallableMetadata } from '../postgres/builtins/catalog.js'
 import type { EnumInfo } from '../catalog/types.js'
 import type { CallableEmitter, SqlBindingGroup, TypedSqlExpression } from './signatures.js'
@@ -56,6 +61,29 @@ export function enumType(definition: Pick<EnumDefinition, 'schema' | 'name'>): E
   return `enum:${JSON.stringify([definition.schema, definition.name])}`
 }
 
+export function enumEqualityOperation(signature: string): '=' | '<>' | null {
+  const metadata = builtinMetadata(signature)
+  if (
+    (metadata.kind !== 'operator' && metadata.kind !== 'function') ||
+    metadata.result !== 'pg_catalog.bool' ||
+    metadata.args.length !== 2 ||
+    !metadata.args.every((type) => type === 'pg_catalog.anyenum') ||
+    !metadata.strict ||
+    metadata.volatility !== 'i' ||
+    metadata.returnsSet
+  )
+    return null
+  if (metadata.kind === 'operator')
+    return metadata.name === '=' || metadata.name === '<>' ? metadata.name : null
+  const operators = builtinCallables().filter(
+    (item) =>
+      item.kind === 'operator' &&
+      item.implementation === signature &&
+      (item.name === '=' || item.name === '<>'),
+  )
+  return operators.length === 1 ? (operators[0]!.name as '=' | '<>') : null
+}
+
 export function arrayType(elementType: ArrayElementType): ArrayType {
   return `array:${elementType}`
 }
@@ -75,6 +103,7 @@ function isJsonConvertibleType(type: string): boolean {
 
 function operandMatchesDeclared(declared: string, actual: string): boolean {
   if (actual === declared) return true
+  if (declared === 'pg_catalog.anyenum' && actual.startsWith('enum:')) return true
   if (declared === 'pg_catalog._text' && actual === arrayType('pg_catalog.text')) return true
   if (declared === 'pg_catalog.anyelement' && isJsonConvertibleType(actual)) return true
   if (declared === 'pg_catalog."any"' && isJsonConvertibleType(actual)) return true
@@ -445,6 +474,13 @@ export function emitSqlCallable<Ast>(
     const declared = variadicAny ? 'pg_catalog."any"' : metadata.args[index]!
     if (!operandMatchesDeclared(declared, operands[index]!.type))
       throw new Error(`Operand type mismatch: ${signature}, argument ${index}`)
+  }
+  const enumOperation = enumEqualityOperation(signature)
+  if (enumOperation) {
+    if (operands[0]!.type !== operands[1]!.type || !operands[0]!.type.startsWith('enum:'))
+      throw new Error(`Enum identity mismatch: ${signature}`)
+    const result = backend.compareEnum(enumOperation, operands)
+    return { value: { type: node.type, expression: result.expression }, helpers: result.helpers }
   }
   const binding = backend.bindings
     .map((group) => (operator ? group.operators : group.functions)[signature])

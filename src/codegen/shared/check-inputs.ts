@@ -127,7 +127,7 @@ export function planCheckWrite(
   const resolved = writtenMatches.length === 1 ? writtenMatches : matches
   if (resolved.length !== 1) return null
   const table = resolved[0]!
-  const groups = catalogCheckGroups([table], [])
+  const groups = catalogCheckGroups([table], catalog.domains, [], catalog.enums)
   const used = new Set(groups.flatMap((group) => group.checks.flatMap(({ plan }) => plan.inputs)))
   if (!used.size) return null
 

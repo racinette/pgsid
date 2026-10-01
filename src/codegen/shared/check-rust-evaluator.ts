@@ -2,8 +2,20 @@ import { checkRustEntryName, type CheckConstraintIdentity } from './check-rust-n
 import { builtinMetadata } from '../../postgres/builtins/inventory.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
+import {
+  enumType,
+  enumEqualityOperation,
+  type EnumDefinition,
+} from '../../sql-semantics/expressions.js'
 
-type Input = { name: string; type: string; rustName: string; rustType: string; nullness?: true }
+type Input = {
+  name: string
+  type: string
+  rustName: string
+  rustType: string
+  nullness?: true
+  enum?: EnumDefinition
+}
 
 export class UnsupportedCheckRustExpression extends Error {}
 
@@ -12,6 +24,7 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.int8') return 'Int8Value'
   if (type === 'pg_catalog.text') return 'TextValue'
   if (type === 'pg_catalog.bool') return 'BoolValue'
+  if (type.startsWith('enum:')) return 'EnumValue'
   throw new UnsupportedCheckRustExpression(`Unsupported Rust CHECK input type: ${type}`)
 }
 
@@ -46,7 +59,14 @@ export function emitCheckRustEvaluator(
   const entryName = identity ? checkRustEntryName(identity) : 'evaluate_check'
   const fresh = (prefix: string): string => `${prefix}_${next++}`
   const indent = (lines: readonly string[]): string[] => lines.map((line) => `    ${line}`)
-  const input = (name: string, type: string, nullness = false): Input => {
+  const input = (
+    name: string,
+    type: string,
+    nullness = false,
+    definition?: EnumDefinition,
+  ): Input => {
+    if (type.startsWith('enum:') && !nullness && (!definition || enumType(definition) !== type))
+      throw new UnsupportedCheckRustExpression(`Missing Rust CHECK enum definition: ${name}`)
     const key = JSON.stringify([name, nullness])
     const existing = inputs.get(key)
     if (existing) {
@@ -69,6 +89,7 @@ export function emitCheckRustEvaluator(
       rustName,
       rustType: nullness ? 'BoolValue' : rustType(type),
       ...(nullness ? { nullness: true } : {}),
+      ...(definition ? { enum: definition } : {}),
     }
     inputs.set(key, result)
     return result
@@ -116,11 +137,25 @@ export function emitCheckRustEvaluator(
           `Rust CHECK text callable requires C collation: ${call.signature}`,
         )
       rustType(call.type)
-      if (implementation.args.some((type, index) => operands[index]?.type !== type))
+      const enumCall = enumEqualityOperation(call.signature) !== null
+      if (
+        enumCall &&
+        (operands[0]?.type !== operands[1]?.type || !operands[0]?.type.startsWith('enum:'))
+      )
+        throw new UnsupportedCheckRustExpression(
+          `Rust CHECK enum identity mismatch: ${call.signature}`,
+        )
+      if (
+        implementation.args.some((type, index) =>
+          type === 'pg_catalog.anyenum' && enumCall
+            ? !operands[index]?.type.startsWith('enum:')
+            : operands[index]?.type !== type,
+        )
+      )
         throw new UnsupportedCheckRustExpression(
           `Unsupported Rust CHECK callable arguments: ${call.signature}`,
         )
-      for (const type of implementation.args) rustType(type)
+      for (const operand of operands) rustType(operand.type)
       callables.add(implementation.rustName)
       const name = fresh('value')
       destination.push(
@@ -145,7 +180,7 @@ export function emitCheckRustEvaluator(
       return { name: bind(`bool_from_check(${outcome.name})`), type: 'pg_catalog.bool' }
     }
     if (node.kind === 'input') {
-      const item = input(node.name, node.type)
+      const item = input(node.name, node.type, false, node.enum)
       used.add(item.name)
       return { name: item.rustName, type: node.type }
     }
@@ -156,13 +191,26 @@ export function emitCheckRustEvaluator(
           ? 'int4_unknown'
           : kind === 'Int8Value'
             ? 'int8_unknown'
-            : kind === 'TextValue'
-              ? 'text_unknown'
-              : 'bool_unknown'
+            : kind === 'EnumValue'
+              ? 'enum_unknown'
+              : kind === 'TextValue'
+                ? 'text_unknown'
+                : 'bool_unknown'
       return { name: bind(`${helper}()`), type: node.type }
     }
     if (node.kind === 'certain') {
       const value = node.expression
+      if (value.kind === 'enum') {
+        if (value.type !== enumType(value.enum))
+          throw new UnsupportedCheckRustExpression('Rust CHECK enum literal identity mismatch')
+        if (value.value === null) return { name: bind('enum_null()'), type: value.type }
+        const order = value.enum.values.indexOf(value.value)
+        if (order < 0 || order > 2147483647)
+          throw new UnsupportedCheckRustExpression(
+            `Unsupported Rust CHECK enum label: ${value.value}`,
+          )
+        return { name: bind(`make_enum_value(${order})`), type: value.type }
+      }
       if (value.kind === 'boolean') {
         const helper =
           value.value === null
@@ -217,6 +265,7 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'null-test') {
       if (
         node.operand.kind === 'input' &&
+        !node.operand.type.startsWith('enum:') &&
         !['pg_catalog.int4', 'pg_catalog.int8', 'pg_catalog.text', 'pg_catalog.bool'].includes(
           node.operand.type,
         )
@@ -235,9 +284,11 @@ export function emitCheckRustEvaluator(
           ? 'int4_is_null'
           : kind === 'Int8Value'
             ? 'int8_is_null'
-            : kind === 'TextValue'
-              ? 'text_is_null'
-              : 'bool_is_null'
+            : kind === 'EnumValue'
+              ? 'enum_is_null'
+              : kind === 'TextValue'
+                ? 'text_is_null'
+                : 'bool_is_null'
       const result = bind(`${helper}(${operand.name})`)
       return {
         name: node.negated ? bind(`bool_not_value(${result})`) : result,
@@ -306,9 +357,11 @@ export function emitCheckRustEvaluator(
           ? 'int4'
           : kind === 'Int8Value'
             ? 'int8'
-            : kind === 'TextValue'
-              ? 'text'
-              : 'bool'
+            : kind === 'EnumValue'
+              ? 'enum'
+              : kind === 'TextValue'
+                ? 'text'
+                : 'bool'
       const scrutinee = node.scrutinee
         ? emitScalar(node.scrutinee.expression, bindings, used)
         : null

@@ -41,6 +41,11 @@ import them. Keep schema-only helpers with their callables.
   decimal Rust literals with an `i64` suffix. Widen an int4 payload with
   `as i64` into a distinct local before comparing it with an int8 payload.
   I64 arithmetic, narrowing casts, and variable negation are outside this subset.
+- Enum payloads are label ordinals within one concrete enum. Keep schema and
+  type identity in bound expressions, and encode inputs against that enum's
+  catalog label list. Equality requires the same concrete type on both sides.
+  Unrecognized input labels remain unknown. The CHECK gate also runs the enum
+  catalog and operation parity tests.
 - If a callable needs a new value representation, primitive, SQL error, or
   Rust syntax rule, surface that as a separate foundation change before
   porting more functions that depend on it. The CHECK transpiler's own `AGENTS.md`

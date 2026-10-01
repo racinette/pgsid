@@ -11,6 +11,7 @@ pub mod pg_catalog {
     use super::*;
 
     include!("operations/pg_catalog/boolean.rs");
+    include!("operations/pg_catalog/enumeration.rs");
     include!("operations/pg_catalog/integer.rs");
     include!("operations/pg_catalog/bigint.rs");
     include!("operations/pg_catalog/text.rs");

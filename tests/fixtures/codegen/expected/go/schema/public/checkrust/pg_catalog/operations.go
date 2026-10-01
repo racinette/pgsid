@@ -617,6 +617,58 @@ func BoolgeGviq(left checkruntime.BoolValue, right checkruntime.BoolValue) check
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func EnumEqW63e(left checkruntime.EnumValue, right checkruntime.EnumValue) checkruntime.BoolValue {
+	left = checkruntime.CopyEnumValue(left)
+	right = checkruntime.CopyEnumValue(right)
+	if left.Kind == checkruntime.EnumValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.EnumValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.EnumValue{Kind: checkruntime.EnumValueUnknown}) || right == (checkruntime.EnumValue{Kind: checkruntime.EnumValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.EnumValue{Kind: checkruntime.EnumValueNull}) || right == (checkruntime.EnumValue{Kind: checkruntime.EnumValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.EnumValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.EnumValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue == rightValue}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func EnumNeTph2(left checkruntime.EnumValue, right checkruntime.EnumValue) checkruntime.BoolValue {
+	left = checkruntime.CopyEnumValue(left)
+	right = checkruntime.CopyEnumValue(right)
+	if left.Kind == checkruntime.EnumValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.EnumValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.EnumValue{Kind: checkruntime.EnumValueUnknown}) || right == (checkruntime.EnumValue{Kind: checkruntime.EnumValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.EnumValue{Kind: checkruntime.EnumValueNull}) || right == (checkruntime.EnumValue{Kind: checkruntime.EnumValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.EnumValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.EnumValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue != rightValue}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
 func Int4gt5vlv(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.BoolValue {
 	left = checkruntime.CopyInt4Value(left)
 	right = checkruntime.CopyInt4Value(right)

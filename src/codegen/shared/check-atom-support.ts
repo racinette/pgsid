@@ -2,6 +2,7 @@ import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.j
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 import type { SqlBindingGroup } from '../../sql-semantics/signatures.js'
 import { builtinMetadata } from '../../postgres/builtins/inventory.js'
+import { enumEqualityOperation } from '../../sql-semantics/expressions.js'
 import { goSqlBackend } from '../go/sql/registry.js'
 import { typescriptSqlBackend } from '../typescript/sql/registry.js'
 
@@ -15,7 +16,8 @@ const signatures = <Ast>(bindings: readonly SqlBindingGroup<Ast>[]): Set<string>
 const go = signatures(goSqlBackend.bindings)
 const typescript = signatures(typescriptSqlBackend.bindings)
 const portable = (signature: string): boolean =>
-  go.has(signature) && typescript.has(signature) && builtinMetadata(signature).volatility === 'i'
+  enumEqualityOperation(signature) !== null ||
+  (go.has(signature) && typescript.has(signature) && builtinMetadata(signature).volatility === 'i')
 
 export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpression {
   const scalar = (value: EvalExpression): EvalExpression => {

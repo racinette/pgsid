@@ -47,6 +47,62 @@ export function equalInt8Value(left: Int8Value, right: Int8Value): boolean {
         return equalSqlError(left.value, right.value);
     return true;
 }
+export type EnumValue = {
+    kind: "Unknown";
+} | {
+    kind: "Null";
+} | {
+    kind: "Value";
+    value: number;
+} | {
+    kind: "Error";
+    value: SqlError;
+};
+export function copyEnumValue(value: EnumValue): EnumValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: langruntime.checkedI32(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
+export function equalEnumValue(left: EnumValue, right: EnumValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function enumUnknown(): EnumValue {
+    return { kind: "Unknown" };
+}
+export function enumNull(): EnumValue {
+    return { kind: "Null" };
+}
+export function makeEnumValue(value: number): EnumValue {
+    value = langruntime.checkedI32(value);
+    return { kind: "Value", value: value };
+}
+export function enumIsNull(value: EnumValue): BoolValue {
+    value = copyEnumValue(value);
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalEnumValue(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: equalEnumValue(value, { kind: "Null" }) };
+}
+export function enumFromCaseGuard(value: CheckOutcome): EnumValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export type TextValue = {
     kind: "Unknown";
 } | {

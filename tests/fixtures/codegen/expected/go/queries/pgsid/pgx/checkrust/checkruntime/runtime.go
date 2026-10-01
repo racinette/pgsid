@@ -45,6 +45,63 @@ type Int8Value struct {
 	Value int64
 	Error SqlError
 }
+type EnumValueKind uint8
+
+const (
+	EnumValueUnknown EnumValueKind = iota
+	EnumValueNull
+	EnumValueValue
+	EnumValueError
+)
+
+type EnumValue struct {
+	Kind  EnumValueKind
+	Value int
+	Error SqlError
+}
+
+func CopyEnumValue(value EnumValue) EnumValue {
+	switch value.Kind {
+	case EnumValueUnknown:
+		return EnumValue{Kind: EnumValueUnknown}
+	case EnumValueNull:
+		return EnumValue{Kind: EnumValueNull}
+	case EnumValueValue:
+		return EnumValue{Kind: EnumValueValue, Value: langruntime.CheckedI32(value.Value)}
+	case EnumValueError:
+		return EnumValue{Kind: EnumValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
+func EnumUnknown() EnumValue {
+	return EnumValue{Kind: EnumValueUnknown}
+}
+func EnumNull() EnumValue {
+	return EnumValue{Kind: EnumValueNull}
+}
+func MakeEnumValue(value int) EnumValue {
+	value = langruntime.CheckedI32(value)
+	return EnumValue{Kind: EnumValueValue, Value: value}
+}
+func EnumIsNull(value EnumValue) BoolValue {
+	value = CopyEnumValue(value)
+	if value.Kind == EnumValueError {
+		error := value.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if value == (EnumValue{Kind: EnumValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: value == (EnumValue{Kind: EnumValueNull})}
+}
+func EnumFromCaseGuard(value CheckOutcome) EnumValue {
+	if value.Kind == CheckOutcomeError {
+		error := value.Error
+		return EnumValue{Kind: EnumValueError, Error: error}
+	}
+	return EnumValue{Kind: EnumValueUnknown}
+}
+
 type TextValueKind uint8
 
 const (

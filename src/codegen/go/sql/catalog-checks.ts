@@ -1,6 +1,7 @@
 import type { CatalogSnapshot, ColumnInfo, DomainInfo, TableInfo } from '../../../catalog/types.js'
 import type { Config, GoTypeImport } from '../../../config/schema.js'
 import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
+import { enumType } from '../../../sql-semantics/expressions.js'
 import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
 import { prepareCheckRustGroup } from '../../shared/check-rust-source.js'
@@ -65,7 +66,7 @@ export function renderGoSchemaCheckArtifacts(
     checks: string
   } | null
 } {
-  const groups = catalogCheckGroups(tables, domains, selectedDomains)
+  const groups = catalogCheckGroups(tables, domains, selectedDomains, catalog.enums)
   if (!groups.length) return { checks: '', rust: null, rustFiles: null }
   const rustGroup = rust
     ? prepareCheckRustGroup(
@@ -185,17 +186,23 @@ export function renderGoSchemaCheckArtifacts(
       const prepared = rustGroup?.checks[rustIndex++]
       if (prepared?.kind === 'supported') {
         const arguments_ = prepared.inputs.map((item) => {
-          if (!['Int4Value', 'Int8Value', 'TextValue', 'BoolValue'].includes(item.rustType))
+          if (
+            !['Int4Value', 'Int8Value', 'EnumValue', 'TextValue', 'BoolValue'].includes(
+              item.rustType,
+            )
+          )
             throw new Error(`Unsupported Go Rust CHECK input: ${item.rustType}`)
           const helper = item.nullness
             ? 'checkRustNullness'
-            : item.rustType === 'Int4Value'
-              ? 'checkRustInt4'
-              : item.rustType === 'Int8Value'
-                ? 'checkRustInt8'
-                : item.rustType === 'TextValue'
-                  ? 'checkRustText'
-                  : 'checkRustBool'
+            : item.enum
+              ? 'checkRustEnum'
+              : item.rustType === 'Int4Value'
+                ? 'checkRustInt4'
+                : item.rustType === 'Int8Value'
+                  ? 'checkRustInt8'
+                  : item.rustType === 'TextValue'
+                    ? 'checkRustText'
+                    : 'checkRustBool'
           rustInputAdapters.add(helper)
           inputHelpers.add(
             item.nullness
@@ -204,9 +211,21 @@ export function renderGoSchemaCheckArtifacts(
                 ? 'checkInputInteger'
                 : item.rustType === 'TextValue'
                   ? 'checkInputText'
-                  : 'checkInputBoolean',
+                  : item.enum
+                    ? 'checkInputText'
+                    : 'checkInputBoolean',
           )
-          return go.call(go.ident(helper), [go.selector(row, goName(item.name))])
+          return go.call(go.ident(helper), [
+            go.selector(row, goName(item.name)),
+            ...(item.enum
+              ? [
+                  go.composite(
+                    go.slice(go.ident('string')),
+                    item.enum.values.map((label) => go.string(label)),
+                  ),
+                ]
+              : []),
+          ])
         })
         return {
           value: {
@@ -240,7 +259,21 @@ export function renderGoSchemaCheckArtifacts(
                   ])
                 : { expression, helpers: ['EvalValue', 'SqlBoolean'] }
             },
-            input: (type, name) => {
+            input: (type, name, definition) => {
+              if (definition) {
+                inputHelpers.add('checkInputEnum')
+                return {
+                  expression: go.call(go.ident('checkInputEnum'), [
+                    go.selector(row, goName(name)),
+                    go.string(enumType(definition)),
+                    go.composite(
+                      go.slice(go.ident('string')),
+                      definition.values.map((label) => go.string(label)),
+                    ),
+                  ]),
+                  helpers: ['EvalValue', 'SqlEnum', 'enumInput'],
+                }
+              }
               const helper = inputHelper(type)
               if (!helper) throw new Error(`Unsupported CHECK input type: ${type}`)
               return {
@@ -382,6 +415,15 @@ func checkRustNullness[T any](field CheckOptional[T]) checkruntime.BoolValue {
   input := checkInputNullness(field)
   if !input.Certain { return checkruntime.BoolUnknown() }
   return checkruntime.MakeBoolValue(input.Value.Value)
+}
+func checkRustEnum[T any](field CheckOptional[T], labels []string) checkruntime.EnumValue {
+  input := checkInputText(field)
+  if !input.Certain { return checkruntime.EnumUnknown() }
+  if !input.Value.Valid { return checkruntime.EnumNull() }
+  for order, label := range labels {
+    if label == input.Value.Value { return checkruntime.MakeEnumValue(order) }
+  }
+  return checkruntime.EnumUnknown()
 }
 func checkRustInt8[T any](field CheckOptional[T]) checkruntime.Int8Value {
   value := checkInputInteger(field)
