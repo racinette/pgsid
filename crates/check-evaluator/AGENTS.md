@@ -42,6 +42,12 @@ import them. Keep schema-only helpers with their callables.
   decimal Rust literals with an `i64` suffix. Widen an int4 payload with
   `as i64` into a distinct local before comparing it with an int8 payload.
   I64 arithmetic, narrowing casts, and variable negation are outside this subset.
+- Date payloads are signed day offsets from 2000-01-01. The signed int4
+  minimum and maximum represent negative and positive infinity. Finite payloads
+  range from -2451545 through 2145031948. Public CHECK inputs use this portable
+  wrapper. Calendar construction and range validation live in Rust and return
+  SQLSTATE 22008 for invalid values. Negative constructor years mean BC;
+  year zero is invalid. Native target date objects require caller conversion.
 - Enum payloads are label ordinals within one concrete enum. Keep schema and
   type identity in bound expressions, and encode inputs against that enum's
   catalog label list. Equality requires the same concrete type on both sides.

@@ -303,7 +303,7 @@ func (g *generator) inferType(value *node) *node {
 	case "cast":
 		return value.TargetType
 	case "binary":
-		if value.Operator == "add" || value.Operator == "subtract" {
+		if value.Operator == "add" || value.Operator == "subtract" || value.Operator == "multiply" || value.Operator == "divide" || value.Operator == "remainder" {
 			if path(g.inferType(value.Left)) == "i32" || path(g.inferType(value.Right)) == "i32" {
 				return namedType("i32")
 			}

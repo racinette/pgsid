@@ -106,6 +106,9 @@ fn expr(expr: &Expr) -> Result {
                 node.op,
                 BinOp::Add(_)
                     | BinOp::Sub(_)
+                    | BinOp::Mul(_)
+                    | BinOp::Div(_)
+                    | BinOp::Rem(_)
                     | BinOp::Lt(_)
                     | BinOp::Le(_)
                     | BinOp::Gt(_)
@@ -451,7 +454,7 @@ mod tests {
     fn rejects_unlowered_constructs() {
         for source in [
             "pub fn f() -> usize { loop {} }",
-            "pub fn f() -> usize { let x = 1 * 2; x }",
+            "pub fn f() -> usize { let x = 1 << 2; x }",
             "pub fn f() -> usize { let mut x = 1; let y = x += 1; y }",
             "pub fn f() -> usize { std::mem::size_of::<usize>() }",
             "pub fn f() -> usize { let x = vec![1]; x.len() }",

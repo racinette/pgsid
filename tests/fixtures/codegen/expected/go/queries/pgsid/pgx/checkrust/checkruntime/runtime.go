@@ -102,6 +102,68 @@ func EnumFromCaseGuard(value CheckOutcome) EnumValue {
 	return EnumValue{Kind: EnumValueUnknown}
 }
 
+type DateValueKind uint8
+
+const (
+	DateValueUnknown DateValueKind = iota
+	DateValueNull
+	DateValueValue
+	DateValueError
+)
+
+type DateValue struct {
+	Kind  DateValueKind
+	Value int
+	Error SqlError
+}
+
+func CopyDateValue(value DateValue) DateValue {
+	switch value.Kind {
+	case DateValueUnknown:
+		return DateValue{Kind: DateValueUnknown}
+	case DateValueNull:
+		return DateValue{Kind: DateValueNull}
+	case DateValueValue:
+		return DateValue{Kind: DateValueValue, Value: langruntime.CheckedI32(value.Value)}
+	case DateValueError:
+		return DateValue{Kind: DateValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
+func DateUnknown() DateValue {
+	return DateValue{Kind: DateValueUnknown}
+}
+func DateNull() DateValue {
+	return DateValue{Kind: DateValueNull}
+}
+func MakeDateValue(value int) DateValue {
+	value = langruntime.CheckedI32(value)
+	if value != langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) && value != 2147483647 {
+		if value < langruntime.CheckedSignedNegate(2451545) || value >= 2145031949 {
+			return DateValue{Kind: DateValueError, Error: SqlError{State: dateFieldOverflow}}
+		}
+	}
+	return DateValue{Kind: DateValueValue, Value: value}
+}
+func DateIsNull(value DateValue) BoolValue {
+	value = CopyDateValue(value)
+	if value.Kind == DateValueError {
+		error := value.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if value == (DateValue{Kind: DateValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: value == (DateValue{Kind: DateValueNull})}
+}
+func DateFromCaseGuard(value CheckOutcome) DateValue {
+	if value.Kind == CheckOutcomeError {
+		error := value.Error
+		return DateValue{Kind: DateValueError, Error: error}
+	}
+	return DateValue{Kind: DateValueUnknown}
+}
+
 type TextValueKind uint8
 
 const (
@@ -327,6 +389,48 @@ func TextFromCaseGuard(value CheckOutcome) TextValue {
 		return TextValue{Kind: TextValueError, Error: error}
 	}
 	return TextValue{Kind: TextValueUnknown}
+}
+
+const dateFieldOverflow = 3452552
+
+func DateFromYmd(year int, month int, day int) DateValue {
+	year = langruntime.CheckedI32(year)
+	month = langruntime.CheckedI32(month)
+	day = langruntime.CheckedI32(day)
+	if year == 0 || year == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) {
+		return DateValue{Kind: DateValueError, Error: SqlError{State: dateFieldOverflow}}
+	}
+	calendarYear := year
+	if year < 0 {
+		calendarYear = langruntime.CheckedI32(langruntime.CheckedSignedAdd(year, 1))
+	}
+	if month < 1 || month > 12 || day < 1 || day > 31 {
+		return DateValue{Kind: DateValueError, Error: SqlError{State: dateFieldOverflow}}
+	}
+	monthDays := 31
+	if month == 4 || month == 6 || month == 9 || month == 11 {
+		monthDays = langruntime.CheckedI32(30)
+	} else if month == 2 {
+		monthDays = langruntime.CheckedI32(28)
+		if langruntime.CheckedSignedRemainder(calendarYear, 4) == 0 && (langruntime.CheckedSignedRemainder(calendarYear, 100) != 0 || langruntime.CheckedSignedRemainder(calendarYear, 400) == 0) {
+			monthDays = langruntime.CheckedI32(29)
+		}
+	}
+	if day > monthDays || calendarYear < langruntime.CheckedSignedNegate(4713) || calendarYear > 5874897 {
+		return DateValue{Kind: DateValueError, Error: SqlError{State: dateFieldOverflow}}
+	}
+	julianYear := langruntime.CheckedSignedAdd(calendarYear, 4799)
+	julianMonth := langruntime.CheckedSignedAdd(month, 13)
+	if month > 2 {
+		julianYear = langruntime.CheckedI32(langruntime.CheckedSignedAdd(calendarYear, 4800))
+		julianMonth = langruntime.CheckedI32(langruntime.CheckedSignedAdd(month, 1))
+	}
+	century := langruntime.CheckedSignedDivide(julianYear, 100)
+	base := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedMultiply(julianYear, 365), 32167)
+	leapAdjustment := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedDivide(julianYear, 4), century), langruntime.CheckedSignedDivide(century, 4))
+	monthAdjustment := langruntime.CheckedSignedAdd(langruntime.CheckedSignedDivide(langruntime.CheckedSignedMultiply(7834, julianMonth), 256), day)
+	julian := langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(base, leapAdjustment), monthAdjustment)
+	return MakeDateValue(langruntime.CheckedSignedSubtract(julian, 2451545))
 }
 func AndStops(left CheckOutcome) bool {
 	if left == (CheckOutcome{Kind: CheckOutcomeFalse}) {

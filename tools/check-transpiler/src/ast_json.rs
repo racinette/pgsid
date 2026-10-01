@@ -279,6 +279,9 @@ fn operator(value: &BinOp) -> Result<&'static str> {
     match value {
         BinOp::Add(_) => Ok("add"),
         BinOp::Sub(_) => Ok("subtract"),
+        BinOp::Mul(_) => Ok("multiply"),
+        BinOp::Div(_) => Ok("divide"),
+        BinOp::Rem(_) => Ok("remainder"),
         BinOp::Lt(_) => Ok("less-than"),
         BinOp::Le(_) => Ok("less-or-equal"),
         BinOp::Gt(_) => Ok("greater-than"),
@@ -963,6 +966,32 @@ mod tests {
         assert!(parse("pub fn f(value: usize) -> usize { -value }").is_err());
         assert!(parse("pub fn f(left: i32, right: u32) -> i32 { left + right }").is_err());
         assert!(parse("const TOO_LARGE: usize = 2147483648;").is_err());
+    }
+
+    #[test]
+    fn calendar_arithmetic_requires_signed_int4_operands() {
+        for operator in ["*", "/", "%"] {
+            assert!(parse(&format!(
+                "pub fn f(left: i32, right: i32) -> i32 {{ left {operator} right }}"
+            ))
+            .is_ok());
+            assert!(parse(&format!(
+                "pub fn f(value: i32) -> i32 {{ value {operator} 100 }}"
+            ))
+            .is_ok());
+            assert!(parse(&format!(
+                "pub fn f(left: i32, right: u32) -> i32 {{ left {operator} right }}"
+            ))
+            .is_err());
+            assert!(parse(&format!(
+                "pub fn f(left: usize, right: usize) -> usize {{ left {operator} right }}"
+            ))
+            .is_err());
+            assert!(parse(&format!(
+                "pub fn f(left: i64, right: i64) -> i64 {{ left {operator} right }}"
+            ))
+            .is_err());
+        }
     }
 
     #[test]

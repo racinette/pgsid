@@ -23,6 +23,7 @@ export class UnsupportedCheckRustExpression extends Error {}
 const rustType = (type: string): string => {
   if (type === 'pg_catalog.int4') return 'Int4Value'
   if (type === 'pg_catalog.int8') return 'Int8Value'
+  if (type === 'pg_catalog.date') return 'DateValue'
   if (type === 'pg_catalog.text') return 'TextValue'
   if (type === 'pg_catalog.bool') return 'BoolValue'
   if (type.startsWith('enum:')) return 'EnumValue'
@@ -195,15 +196,38 @@ export function emitCheckRustEvaluator(
           ? 'int4_unknown'
           : kind === 'Int8Value'
             ? 'int8_unknown'
-            : kind === 'EnumValue'
-              ? 'enum_unknown'
-              : kind === 'TextValue'
-                ? 'text_unknown'
-                : 'bool_unknown'
+            : kind === 'DateValue'
+              ? 'date_unknown'
+              : kind === 'EnumValue'
+                ? 'enum_unknown'
+                : kind === 'TextValue'
+                  ? 'text_unknown'
+                  : 'bool_unknown'
       return { name: bind(`${helper}()`), type: node.type }
     }
     if (node.kind === 'certain') {
       const value = node.expression
+      if (value.kind === 'temporal' && value.type === 'pg_catalog.date') {
+        if (value.value === null) return { name: bind('date_null()'), type: value.type }
+        const literal = value.value.toLowerCase()
+        if (literal === '-infinity' || literal === 'infinity' || literal === '+infinity')
+          return {
+            name: bind(
+              `make_date_value(${literal === '-infinity' ? '-2147483647 - 1' : '2147483647'})`,
+            ),
+            type: value.type,
+          }
+        const match = /^(\d{4,7})-(\d{2})-(\d{2})( BC)?$/u.exec(value.value)
+        if (!match)
+          throw new UnsupportedCheckRustExpression(
+            `Unsupported Rust CHECK date literal: ${value.value}`,
+          )
+        const year = Number(match[1]) * (match[4] ? -1 : 1)
+        const month = Number(match[2])
+        const day = Number(match[3])
+        const name = bind(`date_from_ymd(${year}, ${month}, ${day})`)
+        return { name, type: value.type }
+      }
       if (value.kind === 'enum') {
         if (value.type !== enumType(value.enum))
           throw new UnsupportedCheckRustExpression('Rust CHECK enum literal identity mismatch')
@@ -270,9 +294,13 @@ export function emitCheckRustEvaluator(
       if (
         node.operand.kind === 'input' &&
         !node.operand.type.startsWith('enum:') &&
-        !['pg_catalog.int4', 'pg_catalog.int8', 'pg_catalog.text', 'pg_catalog.bool'].includes(
-          node.operand.type,
-        )
+        ![
+          'pg_catalog.int4',
+          'pg_catalog.int8',
+          'pg_catalog.date',
+          'pg_catalog.text',
+          'pg_catalog.bool',
+        ].includes(node.operand.type)
       ) {
         const item = input(node.operand.name, node.operand.type, true)
         used.add(item.name)
@@ -288,11 +316,13 @@ export function emitCheckRustEvaluator(
           ? 'int4_is_null'
           : kind === 'Int8Value'
             ? 'int8_is_null'
-            : kind === 'EnumValue'
-              ? 'enum_is_null'
-              : kind === 'TextValue'
-                ? 'text_is_null'
-                : 'bool_is_null'
+            : kind === 'DateValue'
+              ? 'date_is_null'
+              : kind === 'EnumValue'
+                ? 'enum_is_null'
+                : kind === 'TextValue'
+                  ? 'text_is_null'
+                  : 'bool_is_null'
       const result = bind(`${helper}(${operand.name})`)
       return {
         name: node.negated ? bind(`bool_not_value(${result})`) : result,
@@ -361,11 +391,13 @@ export function emitCheckRustEvaluator(
           ? 'int4'
           : kind === 'Int8Value'
             ? 'int8'
-            : kind === 'EnumValue'
-              ? 'enum'
-              : kind === 'TextValue'
-                ? 'text'
-                : 'bool'
+            : kind === 'DateValue'
+              ? 'date'
+              : kind === 'EnumValue'
+                ? 'enum'
+                : kind === 'TextValue'
+                  ? 'text'
+                  : 'bool'
       const scrutinee = node.scrutinee
         ? emitScalar(node.scrutinee.expression, bindings, used)
         : null
