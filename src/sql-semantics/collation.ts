@@ -24,7 +24,16 @@ export function equalityOperation(signature: string, argumentType: string): '=' 
 }
 
 export function supportsTextCallableCollation(signature: string, collation?: string): boolean {
+  const metadata = builtinMetadata(signature)
+  const utcConversion =
+    metadata.kind === 'function' &&
+    metadata.schema === 'pg_catalog' &&
+    metadata.name === 'timezone' &&
+    metadata.args.length === 2 &&
+    metadata.args[0] === 'pg_catalog.text' &&
+    (metadata.args[1] === 'pg_catalog."timestamp"' || metadata.args[1] === 'pg_catalog.timestamptz')
   return (
+    utcConversion ||
     collation === 'C' ||
     (collation === 'deterministic' && equalityOperation(signature, 'pg_catalog.text') !== null)
   )

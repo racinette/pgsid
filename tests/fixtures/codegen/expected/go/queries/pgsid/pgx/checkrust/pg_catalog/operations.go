@@ -1329,6 +1329,162 @@ func TextGeT8pg(left checkruntime.TextValue, right checkruntime.TextValue) check
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func TimestampEqJd79(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
+	left = checkruntime.CopyTimestampValue(left)
+	right = checkruntime.CopyTimestampValue(right)
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestampValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.TimestampValueValue {
+			rightValue := right.Value
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue == rightValue}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TimestampGe80hi(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
+	left = checkruntime.CopyTimestampValue(left)
+	right = checkruntime.CopyTimestampValue(right)
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestampValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.TimestampValueValue {
+			rightValue := right.Value
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue >= rightValue}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TimestampGtHxfo(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
+	left = checkruntime.CopyTimestampValue(left)
+	right = checkruntime.CopyTimestampValue(right)
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestampValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.TimestampValueValue {
+			rightValue := right.Value
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue > rightValue}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TimestampLe1qj4(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
+	left = checkruntime.CopyTimestampValue(left)
+	right = checkruntime.CopyTimestampValue(right)
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestampValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.TimestampValueValue {
+			rightValue := right.Value
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue <= rightValue}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TimestampLtOgss(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
+	left = checkruntime.CopyTimestampValue(left)
+	right = checkruntime.CopyTimestampValue(right)
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestampValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.TimestampValueValue {
+			rightValue := right.Value
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue < rightValue}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TimestampNeQsye(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
+	left = checkruntime.CopyTimestampValue(left)
+	right = checkruntime.CopyTimestampValue(right)
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestampValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.TimestampValueValue {
+			rightValue := right.Value
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue != rightValue}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
 func TimestamptzEqK4n3(left checkruntime.TimestamptzValue, right checkruntime.TimestamptzValue) checkruntime.BoolValue {
 	left = checkruntime.CopyTimestamptzValue(left)
 	right = checkruntime.CopyTimestamptzValue(right)
@@ -1484,4 +1640,71 @@ func TimestamptzNe4iy1(left checkruntime.TimestamptzValue, right checkruntime.Ti
 		}
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func timezoneIsUtc(name string) bool {
+	name = langruntime.CheckedString(name)
+	chars := []rune(name)
+	return len(chars) == 3 && langruntime.AsciiLowercase(chars[0]) == 'u' && langruntime.AsciiLowercase(chars[1]) == 't' && langruntime.AsciiLowercase(chars[2]) == 'c'
+}
+func Timezone9nbk(zone checkruntime.TextValue, value checkruntime.TimestampValue) checkruntime.TimestamptzValue {
+	zone = checkruntime.CopyTextValue(zone)
+	value = checkruntime.CopyTimestampValue(value)
+	if zone.Kind == checkruntime.TextValueError {
+		error := zone.Error
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	if value.Kind == checkruntime.TimestampValueError {
+		error := value.Error
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	if zone == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || value == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
+	}
+	if zone == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || value == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}
+	}
+	if value.Kind == checkruntime.TimestampValueValue {
+		microseconds := value.Value
+		if microseconds == int64(-9223372036854775808) || microseconds == int64(9223372036854775807) {
+			return checkruntime.MakeTimestamptzValue(microseconds)
+		}
+		if zone.Kind == checkruntime.TextValueValue {
+			name := langruntime.CheckedString(zone.Value)
+			if timezoneIsUtc(name) {
+				return checkruntime.MakeTimestamptzValue(microseconds)
+			}
+		}
+	}
+	return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
+}
+func TimezoneBlof(zone checkruntime.TextValue, value checkruntime.TimestamptzValue) checkruntime.TimestampValue {
+	zone = checkruntime.CopyTextValue(zone)
+	value = checkruntime.CopyTimestamptzValue(value)
+	if zone.Kind == checkruntime.TextValueError {
+		error := zone.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if value.Kind == checkruntime.TimestamptzValueError {
+		error := value.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if zone == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || value == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+	}
+	if zone == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || value == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}
+	}
+	if value.Kind == checkruntime.TimestamptzValueValue {
+		microseconds := value.Value
+		if microseconds == int64(-9223372036854775808) || microseconds == int64(9223372036854775807) {
+			return checkruntime.MakeTimestampValue(microseconds)
+		}
+		if zone.Kind == checkruntime.TextValueValue {
+			name := langruntime.CheckedString(zone.Value)
+			if timezoneIsUtc(name) {
+				return checkruntime.MakeTimestampValue(microseconds)
+			}
+		}
+	}
+	return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
 }

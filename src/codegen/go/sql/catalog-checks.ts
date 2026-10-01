@@ -71,9 +71,11 @@ export function renderGoSchemaCheckArtifacts(
     const type = catalogTemporalType(name, oid, domains)
     return type === 'pg_catalog.date'
       ? 'DateValue'
-      : type === 'pg_catalog.timestamptz'
-        ? 'TimestamptzValue'
-        : null
+      : type === 'pg_catalog."timestamp"'
+        ? 'TimestampValue'
+        : type === 'pg_catalog.timestamptz'
+          ? 'TimestamptzValue'
+          : null
   }
   const groups = catalogCheckGroups(tables, domains, selectedDomains, catalog.enums)
   if (!groups.length) return { checks: '', rust: null, rustFiles: null }
@@ -220,6 +222,7 @@ export function renderGoSchemaCheckArtifacts(
               'Int4Value',
               'Int8Value',
               'DateValue',
+              'TimestampValue',
               'TimestamptzValue',
               'EnumValue',
               'TextValue',
@@ -230,21 +233,27 @@ export function renderGoSchemaCheckArtifacts(
           const helper =
             item.rustType === 'DateValue'
               ? 'checkRustDate'
-              : item.rustType === 'TimestamptzValue'
-                ? 'checkRustTimestamptz'
-                : item.nullness
-                  ? 'checkRustNullness'
-                  : item.enum
-                    ? 'checkRustEnum'
-                    : item.rustType === 'Int4Value'
-                      ? 'checkRustInt4'
-                      : item.rustType === 'Int8Value'
-                        ? 'checkRustInt8'
-                        : item.rustType === 'TextValue'
-                          ? 'checkRustText'
-                          : 'checkRustBool'
+              : item.rustType === 'TimestampValue'
+                ? 'checkRustTimestamp'
+                : item.rustType === 'TimestamptzValue'
+                  ? 'checkRustTimestamptz'
+                  : item.nullness
+                    ? 'checkRustNullness'
+                    : item.enum
+                      ? 'checkRustEnum'
+                      : item.rustType === 'Int4Value'
+                        ? 'checkRustInt4'
+                        : item.rustType === 'Int8Value'
+                          ? 'checkRustInt8'
+                          : item.rustType === 'TextValue'
+                            ? 'checkRustText'
+                            : 'checkRustBool'
           rustInputAdapters.add(helper)
-          if (item.rustType !== 'DateValue' && item.rustType !== 'TimestamptzValue')
+          if (
+            item.rustType !== 'DateValue' &&
+            item.rustType !== 'TimestampValue' &&
+            item.rustType !== 'TimestamptzValue'
+          )
             inputHelpers.add(
               item.nullness
                 ? 'checkInputNullness'
@@ -315,7 +324,11 @@ export function renderGoSchemaCheckArtifacts(
                   helpers: ['EvalValue', 'SqlEnum', 'enumInput'],
                 }
               }
-              if (type === 'pg_catalog.date' || type === 'pg_catalog.timestamptz')
+              if (
+                type === 'pg_catalog.date' ||
+                type === 'pg_catalog."timestamp"' ||
+                type === 'pg_catalog.timestamptz'
+              )
                 return backend.scalar.uncertain(type)
               const helper = inputHelper(type)
               if (!helper) throw new Error(`Unsupported CHECK input type: ${type}`)
@@ -440,7 +453,13 @@ func ValidateCheckInputs[T any](input T, evaluate func(T) []CheckEvaluation) err
   }
 }
 
-const goRustAdapterSource = `func checkRustTimestamptz[T any](field CheckOptional[T]) checkruntime.TimestamptzValue {
+const goRustAdapterSource = `func checkRustTimestamp[T any](field CheckOptional[T]) checkruntime.TimestampValue {
+  if !field.Set { return checkruntime.TimestampUnknown() }
+  if field.Null { return checkruntime.TimestampNull() }
+  if value, ok := any(field.V).(checkruntime.TimestampValue); ok { return value }
+  return checkruntime.TimestampUnknown()
+}
+func checkRustTimestamptz[T any](field CheckOptional[T]) checkruntime.TimestamptzValue {
   if !field.Set { return checkruntime.TimestamptzUnknown() }
   if field.Null { return checkruntime.TimestamptzNull() }
   if value, ok := any(field.V).(checkruntime.TimestamptzValue); ok { return value }
@@ -469,6 +488,7 @@ func checkRustInt4[T any](field CheckOptional[T]) checkruntime.Int4Value {
 func checkRustNullness[T any](field CheckOptional[T]) checkruntime.BoolValue {
   if field.Set && !field.Null {
     if value, ok := any(field.V).(checkruntime.DateValue); ok { return checkruntime.DateIsNull(value) }
+    if value, ok := any(field.V).(checkruntime.TimestampValue); ok { return checkruntime.TimestampIsNull(value) }
     if value, ok := any(field.V).(checkruntime.TimestamptzValue); ok { return checkruntime.TimestamptzIsNull(value) }
   }
   input := checkInputNullness(field)

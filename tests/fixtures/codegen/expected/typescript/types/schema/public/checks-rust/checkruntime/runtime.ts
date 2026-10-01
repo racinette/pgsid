@@ -47,7 +47,68 @@ export function equalInt8Value(left: Int8Value, right: Int8Value): boolean {
         return equalSqlError(left.value, right.value);
     return true;
 }
-const timestamptzFieldOverflow = 3452552;
+const timestampFieldOverflow = 3452552;
+export type TimestampValue = {
+    kind: "Unknown";
+} | {
+    kind: "Null";
+} | {
+    kind: "Value";
+    value: bigint;
+} | {
+    kind: "Error";
+    value: SqlError;
+};
+export function copyTimestampValue(value: TimestampValue): TimestampValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: langruntime.checkedI64(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
+export function equalTimestampValue(left: TimestampValue, right: TimestampValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function timestampUnknown(): TimestampValue {
+    return { kind: "Unknown" };
+}
+export function timestampNull(): TimestampValue {
+    return { kind: "Null" };
+}
+export function makeTimestampValue(value: bigint): TimestampValue {
+    value = langruntime.checkedI64(value);
+    if (!(value === -9223372036854775808n) && !(value === 9223372036854775807n)) {
+        if (value < -211813488000000000n || value >= 9223371331200000000n) {
+            return { kind: "Error", value: { state: timestampFieldOverflow } };
+        }
+    }
+    return { kind: "Value", value: value };
+}
+export function timestampIsNull(value: TimestampValue): BoolValue {
+    value = copyTimestampValue(value);
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalTimestampValue(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: equalTimestampValue(value, { kind: "Null" }) };
+}
+export function timestampFromCaseGuard(value: CheckOutcome): TimestampValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
 export type TimestamptzValue = {
     kind: "Unknown";
 } | {
@@ -86,7 +147,7 @@ export function makeTimestamptzValue(value: bigint): TimestamptzValue {
     value = langruntime.checkedI64(value);
     if (!(value === -9223372036854775808n) && !(value === 9223372036854775807n)) {
         if (value < -211813488000000000n || value >= 9223371331200000000n) {
-            return { kind: "Error", value: { state: timestamptzFieldOverflow } };
+            return { kind: "Error", value: { state: timestampFieldOverflow } };
         }
     }
     return { kind: "Value", value: value };
@@ -715,14 +776,14 @@ export function timestamptzFromCalendar(year: number, month: number, day: number
     microsecond = langruntime.checkedI32(microsecond);
     offsetSeconds = langruntime.checkedI32(offsetSeconds);
     if (hour < 0 || hour > 24 || minute < 0 || minute > 59 || second < 0 || second > 60 || microsecond < 0 || microsecond > 999999) {
-        return { kind: "Error", value: { state: timestamptzFieldOverflow } };
+        return { kind: "Error", value: { state: timestampFieldOverflow } };
     }
     const clockSeconds: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply((langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(hour, 60), minute)), 60), second);
     const clockWide: bigint = BigInt(langruntime.checkedI32(clockSeconds));
     const fractionWide: bigint = BigInt(langruntime.checkedI32(microsecond));
     const clock: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply(clockWide, 1000000n), fractionWide);
     if (clock > 86400000000n) {
-        return { kind: "Error", value: { state: timestamptzFieldOverflow } };
+        return { kind: "Error", value: { state: timestampFieldOverflow } };
     }
     if (offsetSeconds < langruntime.checkedSignedNegate(57599) || offsetSeconds > 57599) {
         return { kind: "Error", value: { state: invalidTimestampZone } };
@@ -735,7 +796,7 @@ export function timestamptzFromCalendar(year: number, month: number, day: number
     if (days.kind === "Value") {
         const dayValue: number = langruntime.checkedI32(days.value);
         if ((year === langruntime.checkedSignedNegate(4714) && month < 11) || dayValue < langruntime.checkedSignedNegate(2451546) || dayValue > 106751983) {
-            return { kind: "Error", value: { state: timestamptzFieldOverflow } };
+            return { kind: "Error", value: { state: timestampFieldOverflow } };
         }
         const daysWide: bigint = BigInt(langruntime.checkedI32(dayValue));
         const local: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply(daysWide, 86400000000n), clock);
@@ -937,7 +998,7 @@ export function timestamptzFromText(value: TextValue): TimestamptzValue {
             return { kind: "Unknown" };
         }
         if (yearField.overflow) {
-            return { kind: "Error", value: { state: timestamptzFieldOverflow } };
+            return { kind: "Error", value: { state: timestampFieldOverflow } };
         }
         let year: number = yearField.value;
         if (bc) {

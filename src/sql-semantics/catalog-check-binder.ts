@@ -84,6 +84,8 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     'double precision': 'pg_catalog.float8',
     float8: 'pg_catalog.float8',
     date: 'pg_catalog.date',
+    timestamp: 'pg_catalog."timestamp"',
+    'timestamp without time zone': 'pg_catalog."timestamp"',
     timestamptz: 'pg_catalog.timestamptz',
     'timestamp with time zone': 'pg_catalog.timestamptz',
     text: 'pg_catalog.text',
@@ -92,6 +94,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
   }
   if (name.startsWith('character varying(')) return 'pg_catalog."varchar"'
   if (name.startsWith('character(')) return 'pg_catalog.bpchar'
+  if (/^timestamp\(\d+\) without time zone$/u.test(name)) return 'pg_catalog."timestamp"'
   if (/^timestamp\(\d+\) with time zone$/u.test(name)) return 'pg_catalog.timestamptz'
   return names[name] ?? null
 }
@@ -108,7 +111,7 @@ export function catalogTemporalType(
   name: string,
   oid: number | undefined,
   domains: readonly DomainInfo[],
-): 'pg_catalog.date' | 'pg_catalog.timestamptz' | null {
+): 'pg_catalog.date' | 'pg_catalog."timestamp"' | 'pg_catalog.timestamptz' | null {
   const seen = new Set<number>()
   while (oid !== undefined && !seen.has(oid)) {
     seen.add(oid)
@@ -118,7 +121,11 @@ export function catalogTemporalType(
     oid = domain.baseTypeOid
   }
   const type = catalogScalarType(name)
-  return type === 'pg_catalog.date' || type === 'pg_catalog.timestamptz' ? type : null
+  return type === 'pg_catalog.date' ||
+    type === 'pg_catalog."timestamp"' ||
+    type === 'pg_catalog.timestamptz'
+    ? type
+    : null
 }
 
 const callables = PG18_BUILTIN_GROUPS.flatMap(({ inventory }) =>
@@ -139,7 +146,9 @@ const unknown: Bound = { type: null, value: null }
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
   if (
-    (type === 'pg_catalog.date' || type === 'pg_catalog.timestamptz') &&
+    (type === 'pg_catalog.date' ||
+      type === 'pg_catalog."timestamp"' ||
+      type === 'pg_catalog.timestamptz') &&
     (literal.kind === 'null' || literal.kind === 'string')
   ) {
     return { kind: 'temporal', type, value: literal.value }
@@ -431,7 +440,7 @@ export function bindCatalogCheck(
       const type = names ? catalogScalarType(names.at(-1)!) : null
       if (!type) return unknown
       if (
-        type === 'pg_catalog.timestamptz' &&
+        (type === 'pg_catalog.timestamptz' || type === 'pg_catalog."timestamp"') &&
         Array.isArray(castType?.['typmods']) &&
         castType['typmods'].length
       )

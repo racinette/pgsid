@@ -16,6 +16,8 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/enumeration.rs");
     include!("operations/pg_catalog/date.rs");
     include!("operations/pg_catalog/timestamptz.rs");
+    include!("operations/pg_catalog/timestamp.rs");
+    include!("operations/pg_catalog/timezone.rs");
     include!("operations/pg_catalog/integer.rs");
     include!("operations/pg_catalog/bigint.rs");
     include!("operations/pg_catalog/text.rs");
