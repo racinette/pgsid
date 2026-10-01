@@ -10,6 +10,7 @@ import {
   transpileCheckRustFiles,
 } from '../../src/codegen/shared/check-rust-transpile.js'
 import { writeCheckRustSources } from './sources.js'
+import { rustStringLiteral } from '../../src/codegen/shared/rust-literals.js'
 import { go, printGoFile, type GoExpression, type GoStatement } from '../../src/codegen/go/ast.js'
 
 export type Input =
@@ -74,7 +75,13 @@ export async function runCheckParity(
       return `${prefix}_${input.kind.toLowerCase()}()`
     if (input.kind === 'Error')
       return `${pascal(prefix)}Value::Error(make_sql_error(${input.value.state}))`
-    return `make_${prefix}_value(${prefix === 'int8' ? `${input.value}i64` : typeof input.value === 'bigint' ? input.value.toString() : JSON.stringify(input.value)})`
+    const literal =
+      typeof input.value === 'string'
+        ? rustStringLiteral(input.value)
+        : prefix === 'int8'
+          ? `${input.value}i64`
+          : String(input.value)
+    return `make_${prefix}_value(${literal})`
   }
   const projectedInput = (input: Input, nullness?: true): Input => {
     if (!nullness || input.kind === 'Unknown' || input.kind === 'Error') return input

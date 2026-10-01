@@ -43,7 +43,7 @@ func CheckedAdd(left int, right int) int {
 	return left + right
 }
 
-func checkedSubtract(left int, right int) int {
+func CheckedSubtract(left int, right int) int {
 	CheckedIndex(left)
 	CheckedIndex(right)
 	if right > left {
@@ -119,7 +119,7 @@ func CheckedChar(value rune) rune {
 	return value
 }
 
-func asciiLowercase(value rune) rune {
+func AsciiLowercase(value rune) rune {
 	CheckedChar(value)
 	if value >= 'A' && value <= 'Z' {
 		return value + ('a' - 'A')

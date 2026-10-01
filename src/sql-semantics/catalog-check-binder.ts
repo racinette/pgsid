@@ -127,11 +127,6 @@ const unknown: Bound = { type: null, value: null }
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
   if (type === 'pg_catalog.date' && (literal.kind === 'null' || literal.kind === 'string')) {
-    if (
-      literal.value !== null &&
-      !/^(?:\d{4,7}-\d{2}-\d{2}(?: BC)?|[+-]?infinity)$/iu.test(literal.value)
-    )
-      return null
     return { kind: 'temporal', type, value: literal.value }
   }
   if (literal.kind === 'null') {
@@ -421,6 +416,11 @@ export function bindCatalogCheck(
       const type = names ? catalogScalarType(names.at(-1)!) : null
       if (!type) return unknown
       const operand = bind(cast['arg'])
+      if (type === 'pg_catalog.date' && operand.type === 'pg_catalog.text' && operand.value)
+        return {
+          type,
+          value: { kind: 'text-to-date', type, operand: operand.value },
+        }
       if (
         (type === 'pg_catalog.int4' || type === 'pg_catalog.int8') &&
         operand.literal?.kind === 'string' &&

@@ -33,6 +33,7 @@ export type EvalExpression =
   | { kind: 'null-test'; type: 'pg_catalog.bool'; negated: boolean; operand: EvalExpression }
   | { kind: 'input-null-test'; type: 'pg_catalog.bool'; negated: boolean; name: string }
   | { kind: 'coalesce'; type: ScalarType; operands: readonly EvalExpression[] }
+  | { kind: 'text-to-date'; type: 'pg_catalog.date'; operand: EvalExpression }
   | {
       kind: 'case'
       type: ScalarType
@@ -167,6 +168,11 @@ export function emitEvalExpression<Ast>(
       return { ...result.value, effect: 'total' }
     }
     if (node.kind === 'uncertain') {
+      const result = backend.uncertain(node.type)
+      include(result.helpers)
+      return { type: node.type, expression: result.expression, effect: 'partial' }
+    }
+    if (node.kind === 'text-to-date') {
       const result = backend.uncertain(node.type)
       include(result.helpers)
       return { type: node.type, expression: result.expression, effect: 'partial' }

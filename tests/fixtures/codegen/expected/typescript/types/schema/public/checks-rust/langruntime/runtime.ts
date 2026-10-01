@@ -29,7 +29,7 @@ export function checkedAdd(left: number, right: number): number {
         throw new RangeError('shared numeric overflow');
     return left + right;
 }
-function checkedSubtract(left: number, right: number): number {
+export function checkedSubtract(left: number, right: number): number {
     checkedIndex(left);
     checkedIndex(right);
     if (right > left)
@@ -85,7 +85,7 @@ export function checkedChar(value: string): string {
         throw new RangeError('invalid Unicode scalar');
     return value;
 }
-function asciiLowercase(value: string): string {
+export function asciiLowercase(value: string): string {
     const codepoint = checkedChar(value).codePointAt(0)!;
     return codepoint >= 65 && codepoint <= 90 ? String.fromCodePoint(codepoint + 32) : value;
 }
