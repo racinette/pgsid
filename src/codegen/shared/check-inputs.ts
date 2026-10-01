@@ -73,9 +73,11 @@ const assignedSource = (
   const value = assignments[0]!.value
   if (directNull(value)) return { kind: 'sql-null' }
   const number = directParameter(value)
+  const parameterType = parameterTypes?.[number === null ? -1 : number - 1] ?? ''
+  const type = catalogScalarType(column.typeName)
   if (
     number !== null &&
-    catalogScalarType(column.typeName) === catalogScalarType(parameterTypes?.[number - 1] ?? '')
+    (type !== null ? type === catalogScalarType(parameterType) : column.typeName === parameterType)
   )
     return { kind: 'parameter', number }
   return { kind: 'unknown' }
@@ -189,18 +191,7 @@ export function planCheckInputs(
   if (!plan?.canPrevalidate) return []
   const columns = plan.columns.flatMap(({ name, source }) => {
     if (source.kind !== 'parameter') return []
-    const column = plan.table.columns.find((item) => item.name === name)!
-    const type = catalogScalarType(column.typeName)
-    return type &&
-      [
-        'pg_catalog.text',
-        'pg_catalog.bool',
-        'pg_catalog.int2',
-        'pg_catalog.int4',
-        'pg_catalog.int8',
-      ].includes(type)
-      ? [{ name, parameter: source.number }]
-      : []
+    return [{ name, parameter: source.number }]
   })
   return columns.length ? [{ table: plan.table, columns }] : []
 }

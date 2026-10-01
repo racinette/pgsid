@@ -59,6 +59,7 @@ function columnState(c: ColumnInfo): Omit<ColumnInfo, 'typeOid'> {
     // does not make visible. It says everything the OID did about which type
     // this is, and keeps saying it after the type is recreated.
     typeName: c.typeName,
+    isRowType: c.isRowType,
     typeMod: c.typeMod,
     notNull: c.notNull,
     // A child gaining or losing the constraint changes what a tree scan of
@@ -195,6 +196,7 @@ function domainState(d: DomainInfo): Omit<DomainInfo, 'oid' | 'baseTypeOid'> {
     schema: d.schema,
     name: d.name,
     baseTypeName: d.baseTypeName,
+    isRowType: d.isRowType,
     collationIsC: d.collationIsC ?? null,
     notNull: d.notNull,
     default: d.default,

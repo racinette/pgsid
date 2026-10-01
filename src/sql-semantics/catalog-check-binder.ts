@@ -172,7 +172,7 @@ const arrayConstructor = (
 }
 
 export function bindCatalogCheck(
-  columns: readonly Pick<ColumnInfo, 'name' | 'typeName' | 'collationIsC'>[],
+  columns: readonly Pick<ColumnInfo, 'name' | 'typeName' | 'collationIsC' | 'isRowType'>[],
   root: unknown,
   specialForms: readonly ((node: unknown) => {
     expression: EvalBoolExpression
@@ -546,10 +546,24 @@ export function bindCatalogCheck(
     }
     const nullTest = fields(wrapper['NullTest'])
     if (nullTest) {
-      const operand = bind(nullTest['arg'])
-      if (!operand.value) return unknown
       if (nullTest['nulltesttype'] !== 'IS_NULL' && nullTest['nulltesttype'] !== 'IS_NOT_NULL')
         return unknown
+      const names = strings(fields(fields(nullTest['arg'])?.['ColumnRef'])?.['fields'])
+      const column = names?.length === 1 ? columns.find((item) => item.name === names[0]) : null
+      if (column?.isRowType === false && !catalogScalarType(column.typeName)) {
+        inputs.add(column.name)
+        return {
+          type: 'pg_catalog.bool',
+          value: {
+            kind: 'input-null-test',
+            type: 'pg_catalog.bool',
+            name: column.name,
+            negated: nullTest['nulltesttype'] === 'IS_NOT_NULL',
+          },
+        }
+      }
+      const operand = bind(nullTest['arg'])
+      if (!operand.value) return unknown
       return {
         type: 'pg_catalog.bool',
         value: {

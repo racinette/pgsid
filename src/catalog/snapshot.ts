@@ -86,6 +86,15 @@ const USER_SCHEMA_EXCLUDE = `('pg_catalog', 'information_schema', 'pg_toast')`
 const NOT_TEMP = `n.nspname NOT LIKE 'pg_temp_%' AND n.nspname NOT LIKE 'pg_toast_temp_%'`
 const USER_NS = `n.nspname NOT IN ${USER_SCHEMA_EXCLUDE} AND ${NOT_TEMP}`
 
+const TYPE_SHAPES = `WITH RECURSIVE type_shapes AS (
+  SELECT oid, (typtype = 'c' OR (typtype = 'p' AND typname = 'record')) AS is_row_type
+  FROM pg_type WHERE typtype <> 'd'
+  UNION ALL
+  SELECT t.oid, base.is_row_type
+  FROM pg_type t JOIN type_shapes base ON base.oid = t.typbasetype
+  WHERE t.typtype = 'd'
+)`
+
 // ---------------------------------------------------------------------------
 // Row types (internal — the raw shape returned by each catalog query).
 // ---------------------------------------------------------------------------
@@ -104,6 +113,7 @@ interface ColumnRow {
   attnum: number
   type_oid: number
   type_name: string
+  is_row_type: boolean
   type_mod: number | null
   not_null: boolean
   has_default: boolean
@@ -215,6 +225,7 @@ interface DomainRow {
   name: string
   base_type_oid: number
   base_type_name: string
+  is_row_type: boolean
   collation_is_c: boolean | null
   not_null: boolean
   default_expr: string | null
@@ -653,6 +664,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       name: c.name,
       typeOid: c.type_oid,
       typeName: c.type_name,
+      isRowType: c.is_row_type,
       typeMod: c.type_mod,
       notNull: c.not_null,
       notNullTree: c.not_null,
@@ -983,6 +995,7 @@ async function readCatalog(pg: PGlite): Promise<CatalogSnapshot> {
       oid: d.oid,
       baseTypeOid: d.base_type_oid,
       baseTypeName: d.base_type_name,
+      isRowType: d.is_row_type,
       collationIsC: d.collation_is_c,
       notNull: d.not_null,
       default: d.default_expr,
@@ -1205,9 +1218,11 @@ async function queryPartitionBounds(pg: PGlite): Promise<PartitionBoundRow[]> {
  */
 async function queryColumns(pg: PGlite): Promise<ColumnRow[]> {
   const res = await pg.query<ColumnRow>(
-    `SELECT a.attrelid, a.attname AS name, a.attnum,
+    `${TYPE_SHAPES}
+     SELECT a.attrelid, a.attname AS name, a.attnum,
             a.atttypid AS type_oid,
             format_type(a.atttypid, a.atttypmod) AS type_name,
+            shape.is_row_type,
             a.atttypmod AS type_mod,
             a.attnotnull AS not_null,
             (ad.adbin IS NOT NULL) AS has_default,
@@ -1222,6 +1237,7 @@ async function queryColumns(pg: PGlite): Promise<ColumnRow[]> {
                  ELSE a.attcollation = 'pg_catalog."C"'::regcollation
             END AS collation_is_c
      FROM pg_attribute a
+     JOIN type_shapes shape ON shape.oid = a.atttypid
      JOIN pg_class c ON c.oid = a.attrelid
      JOIN pg_namespace n ON n.oid = c.relnamespace
      LEFT JOIN pg_attrdef ad ON ad.adrelid = a.attrelid AND ad.adnum = a.attnum
@@ -1861,9 +1877,11 @@ async function queryEnumValues(pg: PGlite): Promise<EnumValueRow[]> {
 
 async function queryDomains(pg: PGlite): Promise<DomainRow[]> {
   const res = await pg.query<DomainRow>(
-    `SELECT t.oid, n.nspname AS schema, t.typname AS name,
+    `${TYPE_SHAPES}
+     SELECT t.oid, n.nspname AS schema, t.typname AS name,
             t.typbasetype AS base_type_oid,
             format_type(t.typbasetype, null) AS base_type_name,
+            shape.is_row_type,
             CASE WHEN t.typcollation = 0 THEN NULL
                  ELSE t.typcollation = 'pg_catalog."C"'::regcollation
             END AS collation_is_c,
@@ -1884,6 +1902,7 @@ async function queryDomains(pg: PGlite): Promise<DomainRow[]> {
               WHERE con.contypid = t.oid AND con.contype = 'c') AS check_exprs
      FROM pg_type t
      JOIN pg_namespace n ON n.oid = t.typnamespace
+     JOIN type_shapes shape ON shape.oid = t.oid
      WHERE t.typtype = 'd' AND ${USER_NS}
      ORDER BY n.nspname, t.typname;`,
   )
