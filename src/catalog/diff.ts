@@ -191,13 +191,15 @@ function functionState(f: FunctionInfo): {
  * dropped; `baseTypeName` says which type it is built on, and the domain's own
  * identity is the entity id.
  */
-function domainState(d: DomainInfo): Omit<DomainInfo, 'oid' | 'baseTypeOid'> {
+function domainState(d: DomainInfo): Omit<DomainInfo, 'oid' | 'baseTypeOid' | 'collationOid'> {
   return {
     schema: d.schema,
     name: d.name,
     baseTypeName: d.baseTypeName,
     isRowType: d.isRowType,
     collationIsC: d.collationIsC ?? null,
+    collationDeterministic: d.collationDeterministic ?? null,
+    collationIsDefault: d.collationIsDefault ?? null,
     notNull: d.notNull,
     default: d.default,
     checks: d.checks,

@@ -5,6 +5,12 @@ import type { BuiltinCallable } from '../postgres/builtins/taxonomy.js'
 import type { EvalExpression } from './eval-expressions.js'
 import type { EvalBoolExpression } from './check-expressions.js'
 import {
+  combineCollations,
+  defaultCollation,
+  supportsTextCallableCollation,
+  type BoundCollation,
+} from './collation.js'
+import {
   enumType,
   enumEqualityOperation,
   type ScalarType,
@@ -21,7 +27,9 @@ const strings = (value: unknown): string[] | null => {
 }
 
 export type CheckColumn = Pick<ColumnInfo, 'name' | 'typeName' | 'collationIsC' | 'isRowType'> &
-  Partial<Pick<ColumnInfo, 'typeOid'>>
+  Partial<
+    Pick<ColumnInfo, 'typeOid' | 'collationDeterministic' | 'collationIsDefault' | 'collationOid'>
+  >
 
 export function catalogEnumDefinition(
   name: string,
@@ -95,7 +103,7 @@ type Bound = {
   type: ScalarType | null
   value: EvalExpression | null
   literal?: Literal
-  collation?: 'C' | 'other'
+  collation?: BoundCollation
   enum?: EnumInfo
 }
 const unknown: Bound = { type: null, value: null }
@@ -149,7 +157,13 @@ const candidate = (
   kind: 'operator' | 'function',
   name: string,
   args: readonly Bound[],
-): { signature: string; item: BuiltinCallable; operands: EvalExpression[] } | null => {
+): {
+  signature: string
+  item: BuiltinCallable
+  operands: EvalExpression[]
+  collation?: BoundCollation
+} | null => {
+  const collation = combineCollations(args.map((arg) => arg.collation))
   const matches = callables.flatMap(({ signature, item }) => {
     if (
       item.kind !== kind ||
@@ -165,9 +179,10 @@ const candidate = (
         ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(arg.type),
     )
     if (
-      textArgs.length &&
-      (textArgs.some((arg) => arg.collation === 'other') ||
-        !textArgs.some((arg) => arg.collation === 'C'))
+      item.args.some((type) =>
+        ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type),
+      ) &&
+      !supportsTextCallableCollation(signature, collation?.kind)
     )
       return []
     if (
@@ -188,7 +203,7 @@ const candidate = (
       ),
     )
     return operands.every((value): value is EvalExpression => value !== null)
-      ? [{ signature, item, operands: operands as EvalExpression[] }]
+      ? [{ signature, item, operands: operands as EvalExpression[], collation }]
       : []
   })
   const types = args.map(
@@ -278,12 +293,8 @@ export function bindCatalogCheck(
       const definition = arms.find((arm) => arm.enum)?.enum
       const values = arms.map((arm) => materialize(arm, type, definition))
       if (type !== 'pg_catalog.bool' && values.some((value) => !value)) return unknown
-      const textArms = arms.filter((arm) => arm.type === 'pg_catalog.text')
-      const collation = textArms.some((arm) => arm.collation === 'other')
-        ? 'other'
-        : textArms.some((arm) => arm.collation === 'C')
-          ? 'C'
-          : undefined
+      const collation =
+        type === 'pg_catalog.text' ? combineCollations(arms.map((arm) => arm.collation)) : undefined
       const scrutinee = caseExpression['arg'] === undefined ? null : bind(caseExpression['arg'])
       let simple: Extract<EvalExpression, { kind: 'case' }>['scrutinee']
       let equalities: Extract<EvalExpression, { kind: 'case' }>['branches'][number]['equality'][] =
@@ -305,12 +316,11 @@ export function bindCatalogCheck(
         )
         if (resolved.some((match) => !match)) return unknown
         simple = { expression: value }
-        equalities = resolved.map((match, index) => ({
+        equalities = resolved.map((match) => ({
           kind: 'operator',
           signature: match!.signature,
           type: 'pg_catalog.bool',
-          collation:
-            scrutinee.collation === 'C' || matches[index]!.collation === 'C' ? 'C' : undefined,
+          collation: match!.collation?.kind,
         }))
         conditions = resolved.map((match) => match!.operands[1]!)
       } else {
@@ -416,7 +426,15 @@ export function bindCatalogCheck(
           },
         }
       const expression = materialize(operand, type)
-      return expression ? { type, value: expression } : unknown
+      return expression
+        ? {
+            type,
+            value: expression,
+            ...(type === 'pg_catalog.text'
+              ? { collation: operand.collation ?? defaultCollation }
+              : {}),
+          }
+        : unknown
     }
     const constant = fields(wrapper['A_Const'])
     if (constant) {
@@ -426,7 +444,12 @@ export function bindCatalogCheck(
       if (stringNode) {
         const string = stringNode['sval'] ?? ''
         if (typeof string === 'string')
-          return { type: null, value: null, literal: { kind: 'string', value: string } }
+          return {
+            type: null,
+            value: null,
+            literal: { kind: 'string', value: string },
+            collation: defaultCollation,
+          }
       }
       const integerNode = fields(constant['ival'])
       if (integerNode) {
@@ -490,7 +513,23 @@ export function bindCatalogCheck(
           ...(type === 'pg_catalog.text' ||
           type === 'pg_catalog."varchar"' ||
           type === 'pg_catalog.bpchar'
-            ? { collation: column.collationIsC === true ? ('C' as const) : ('other' as const) }
+            ? {
+                collation: {
+                  kind:
+                    column.collationIsC === true
+                      ? ('C' as const)
+                      : column.collationDeterministic === true
+                        ? ('deterministic' as const)
+                        : ('other' as const),
+                  identity:
+                    column.collationIsC === true
+                      ? 'C'
+                      : column.collationIsDefault === true
+                        ? 'default'
+                        : (column.collationOid ?? `column:${column.name}`),
+                  ...(column.collationIsDefault === true ? { default: true as const } : {}),
+                },
+              }
             : {}),
         }
       }
@@ -501,10 +540,17 @@ export function bindCatalogCheck(
       const names = strings(collate['collname'])
       return {
         ...inner,
-        collation:
-          (names?.length === 1 || names?.[0] === 'pg_catalog') && names.at(-1) === 'C'
-            ? 'C'
-            : 'other',
+        collation: {
+          kind:
+            (names?.length === 1 || names?.[0] === 'pg_catalog') && names.at(-1) === 'C'
+              ? 'C'
+              : 'other',
+          identity:
+            (names?.length === 1 || names?.[0] === 'pg_catalog') && names.at(-1) === 'C'
+              ? 'C'
+              : `explicit:${JSON.stringify(names)}`,
+          explicit: true,
+        },
       }
     }
     const operator = fields(wrapper['A_Expr'])
@@ -585,10 +631,11 @@ export function bindCatalogCheck(
           : 'pg_catalog.text')
       const value = materialize(subject, type)
       if (!value) return unknown
+      const collation = combineCollations([subject, ...members].map((member) => member.collation))
       const resolved = members.map((member) =>
         candidate('operator', name!, [
-          { ...subject, type, value, literal: undefined },
-          { ...member, type, value: materialize(member, type), literal: undefined },
+          { ...subject, type, value, literal: undefined, collation },
+          { ...member, type, value: materialize(member, type), literal: undefined, collation },
         ]),
       )
       if (resolved.some((member) => !member)) return unknown
@@ -624,10 +671,7 @@ export function bindCatalogCheck(
             kind: 'operator',
             signature: first.signature,
             type: 'pg_catalog.bool',
-            collation:
-              subject.collation === 'C' || members.some((member) => member.collation === 'C')
-                ? 'C'
-                : undefined,
+            collation: collation?.kind,
           },
         },
       }
@@ -695,22 +739,13 @@ export function bindCatalogCheck(
     const resolved = candidate(kind, name, args)
     if (!resolved) return unknown
     const type = resolved.item.result as ScalarType
-    const textArgs = args.filter(
-      (arg) =>
-        arg.type &&
-        ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(arg.type),
-    )
-    const collation =
-      textArgs.some((arg) => arg.collation === 'C') &&
-      !textArgs.some((arg) => arg.collation === 'other')
-        ? ('C' as const)
-        : undefined
+    const collation = resolved.collation
     return {
       type,
       collation,
       value: {
         kind: 'call',
-        call: { kind, signature: resolved.signature, type, collation },
+        call: { kind, signature: resolved.signature, type, collation: collation?.kind },
         operands: resolved.operands,
       },
     }

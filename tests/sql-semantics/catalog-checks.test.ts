@@ -440,7 +440,10 @@ func TestMixedChecks(t *testing.T) {
       expression: { kind: 'null-test', operand: { kind: 'input', name: 'enabled' } },
     })
     expect(plans.get('ordinary_collation')?.expression).toEqual({ kind: 'uncertain' })
-    expect(plans.get('ordinary_equality')?.expression).toEqual({ kind: 'uncertain' })
+    expect(plans.get('ordinary_equality')?.expression).toMatchObject({
+      kind: 'eval-scalar',
+      expression: { kind: 'call', call: { collation: 'deterministic' } },
+    })
     expect(
       lowerTableCheck(table, {
         name: 'foreign_c_collation',
@@ -658,7 +661,7 @@ func TestMixedChecks(t *testing.T) {
     const table = catalog.tables.find((item) => item.name === 'regulated')!
     const unsupported = {
       ...table,
-      constraints: table.constraints.filter((item) => item.name === 'ordinary_equality'),
+      constraints: table.constraints.filter((item) => item.name === 'ordinary_collation'),
     }
     const typescript = renderTypescriptSchemaChecks([unsupported])
     expect(typescript).not.toContain('function checkRawInput(')

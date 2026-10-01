@@ -28,9 +28,10 @@ import them. Keep schema-only helpers with their callables.
 - Add a PostgreSQL/PGlite comparison for migrated behavior and exercise the
   same cases in Rust, generated Go, and generated TypeScript. Run
   `pnpm check-rust:check` from the repository root.
-- CHECK evaluation requires the C collation only. Collation-sensitive
-  operations implement C-collation behavior, and parity comparisons use that
-  collation. Text ordering compares Unicode scalars.
+- Text equality and inequality accept deterministic collations after the
+  binder resolves identity and explicit overrides. Ordering and other
+  collation-sensitive operations require C. Text ordering compares Unicode
+  scalars. Keep nondeterministic and conflicting collations unknown.
 - The operation parity command discovers the immutable, strict
   `int4 × int4 → bool`, `int8 × int8 → bool`, mixed `int4`/`int8` comparisons,
   `bool × bool → bool`, and `text × text → bool`
