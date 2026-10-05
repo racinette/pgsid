@@ -26,6 +26,22 @@ export function checkedI64Subtract(left: bigint, right: bigint): bigint {
 export function checkedI64Multiply(left: bigint, right: bigint): bigint {
     return checkedI64(checkedI64(left) * checkedI64(right));
 }
+export function checkedI64Divide(left: bigint, right: bigint): bigint {
+    checkedI64(left);
+    checkedI64(right);
+    if (right === 0n)
+        throw new RangeError('integer division by zero');
+    return checkedI64(left / right);
+}
+export function checkedI64Remainder(left: bigint, right: bigint): bigint {
+    checkedI64(left);
+    checkedI64(right);
+    if (right === 0n)
+        throw new RangeError('integer remainder by zero');
+    if (left === -9223372036854775808n && right === -1n)
+        throw new RangeError('i64 overflow');
+    return left % right;
+}
 export function checkedBool(value: boolean): boolean {
     if (typeof value !== 'boolean')
         throw new TypeError('expected a boolean');

@@ -45,3 +45,12 @@ VALUES (1, -9007199254740993, 9007199254740993, 9007199254740993, -9007199254740
 
 INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance)
 VALUES (1, 9007199254740993, 1, 2, 9007199254740994, 9007199254740995, 9007199254740992, 9007199254740991, -9007199254740992, -9007199254740991);
+
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product)
+VALUES (1, 9007199254740993, 3, 27021597764222979, false);
+
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder)
+VALUES (1, 9007199254740993, 3, 3002399751580331, 0, false, false);
+
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions)
+VALUES (1, 9007199254740993, 3, 7, 27021597764222979, 63050394783186951, 3002399751580331, 0, 1286742750677284, 0, false, false);

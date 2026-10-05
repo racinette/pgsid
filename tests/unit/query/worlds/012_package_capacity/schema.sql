@@ -190,3 +190,47 @@ CREATE TABLE mixed_bulk_adjustments (
   CONSTRAINT bulk_integer_residual CHECK (delta - integer_adjustment = integer_residual),
   CONSTRAINT integer_bulk_balance CHECK (integer_adjustment - delta = integer_balance)
 );
+
+CREATE TABLE bulk_package_products (
+  id integer PRIMARY KEY,
+  units warehouse_adjustment,
+  packages bigint,
+  total bigint,
+  skip_product boolean,
+  CONSTRAINT bulk_package_product CHECK (CASE WHEN skip_product THEN true ELSE units * packages = total END)
+);
+
+CREATE TABLE bulk_package_divisions (
+  id integer PRIMARY KEY,
+  units warehouse_adjustment,
+  batch_size bigint,
+  batches bigint,
+  loose_units bigint,
+  skip_division boolean,
+  skip_remainder boolean,
+  CONSTRAINT bulk_package_quotient CHECK (CASE WHEN skip_division THEN true ELSE units / batch_size = batches END),
+  CONSTRAINT bulk_package_remainder CHECK (CASE WHEN skip_remainder THEN true ELSE units % batch_size = loose_units END)
+);
+
+CREATE TABLE mixed_bulk_packages (
+  id integer PRIMARY KEY,
+  units warehouse_adjustment,
+  small_batch smallint,
+  integer_batch integer,
+  small_total bigint,
+  integer_total bigint,
+  bulk_small_batches bigint,
+  small_bulk_batches bigint,
+  bulk_integer_batches bigint,
+  integer_bulk_batches bigint,
+  skip_products boolean,
+  skip_divisions boolean,
+  CONSTRAINT bulk_small_product CHECK (CASE WHEN skip_products THEN true ELSE units * small_batch = small_total END),
+  CONSTRAINT small_bulk_product CHECK (CASE WHEN skip_products THEN true ELSE small_batch * units = small_total END),
+  CONSTRAINT bulk_integer_product CHECK (CASE WHEN skip_products THEN true ELSE units * integer_batch = integer_total END),
+  CONSTRAINT integer_bulk_product CHECK (CASE WHEN skip_products THEN true ELSE integer_batch * units = integer_total END),
+  CONSTRAINT bulk_small_quotient CHECK (CASE WHEN skip_divisions THEN true ELSE units / small_batch = bulk_small_batches END),
+  CONSTRAINT small_bulk_quotient CHECK (CASE WHEN skip_divisions THEN true ELSE small_batch / units = small_bulk_batches END),
+  CONSTRAINT bulk_integer_quotient CHECK (CASE WHEN skip_divisions THEN true ELSE units / integer_batch = bulk_integer_batches END),
+  CONSTRAINT integer_bulk_quotient CHECK (CASE WHEN skip_divisions THEN true ELSE integer_batch / units = integer_bulk_batches END)
+);

@@ -60,6 +60,14 @@ describe('CHECK timestamp arithmetic', () => {
     ['checkedI64Multiply', maximum, 1n, maximum],
     ['checkedI64Multiply', -7n, -3n, 21n],
     ['checkedI64Multiply', minimum, 0n, 0n],
+    ['checkedI64Divide', 9007199254740993n, 3n, 3002399751580331n],
+    ['checkedI64Divide', -7n, 3n, -2n],
+    ['checkedI64Divide', 7n, -3n, -2n],
+    ['checkedI64Divide', -1n, 3n, 0n],
+    ['checkedI64Divide', minimum, 1n, minimum],
+    ['checkedI64Remainder', -7n, 3n, -1n],
+    ['checkedI64Remainder', 7n, -3n, 1n],
+    ['checkedI64Remainder', minimum, 3n, -2n],
   ] as const)('%s preserves exact int8 results', (name, left, right, result) => {
     expect((context[name] as (a: bigint, b: bigint) => bigint)(left, right)).toBe(result)
   })
@@ -72,6 +80,10 @@ describe('CHECK timestamp arithmetic', () => {
     ['checkedI64Multiply', -1n, minimum],
     ['checkedI64Multiply', maximum, 2n],
     ['checkedI64Multiply', minimum, minimum],
+    ['checkedI64Divide', minimum, -1n],
+    ['checkedI64Remainder', minimum, -1n],
+    ['checkedI64Divide', 1n, 0n],
+    ['checkedI64Remainder', 1n, 0n],
   ] as const)('%s rejects int8 overflow', (name, left, right) => {
     expect(() => (context[name] as (a: bigint, b: bigint) => bigint)(left, right)).toThrow()
   })
@@ -85,6 +97,8 @@ describe('CHECK timestamp arithmetic', () => {
     pub fn add(left: i64, right: i64) -> i64 { left + right }
     pub fn subtract(left: i64, right: i64) -> i64 { left - right }
     pub fn multiply(left: i64, right: i64) -> i64 { left * right }
+    pub fn divide(left: i64, right: i64) -> i64 { left / right }
+    pub fn remainder(left: i64, right: i64) -> i64 { left % right }
     `
     const generated = transpileCheckRust(source)
     const generatedContext = createContext({ exports: {} })
@@ -100,10 +114,18 @@ describe('CHECK timestamp arithmetic', () => {
     >
     expect(functions['timestampParts']!(0, 19800000000n, 19800)).toBe(0n)
     expect(functions['subtract']!(9007199254740993n, 9007199254740992n)).toBe(1n)
+    expect(functions['divide']!(9007199254740993n, 3n)).toBe(3002399751580331n)
+    expect(functions['divide']!(-7n, 3n)).toBe(-2n)
+    expect(functions['remainder']!(-7n, 3n)).toBe(-1n)
+    expect(functions['remainder']!(minimum, 3n)).toBe(-2n)
     for (const [name, left, right] of [
       ['add', maximum, 1n],
       ['subtract', minimum, 1n],
       ['multiply', minimum, -1n],
+      ['divide', minimum, -1n],
+      ['remainder', minimum, -1n],
+      ['divide', 1n, 0n],
+      ['remainder', 1n, 0n],
     ] as const)
       expect(() => functions[name]!(left, right)).toThrow()
     const root = await mkdtemp(join(tmpdir(), 'pgsid-check-i64-'))
@@ -117,10 +139,16 @@ import "testing"
 func TestArithmetic(t *testing.T) {
   if TimestampParts(0, 19800000000, 19800) != 0 { t.Fatal("timestamp arithmetic") }
   if Subtract(9007199254740993, 9007199254740992) != 1 { t.Fatal("lost precision") }
+  if Divide(9007199254740993, 3) != 3002399751580331 { t.Fatal("division precision") }
+  if Divide(-7, 3) != -2 || Remainder(-7, 3) != -1 || Remainder(-9223372036854775808, 3) != -2 { t.Fatal("signed division") }
   for _, operation := range []func(){
     func(){ Add(9223372036854775807, 1) },
     func(){ Subtract(-9223372036854775808, 1) },
     func(){ Multiply(-9223372036854775808, -1) },
+    func(){ Divide(-9223372036854775808, -1) },
+    func(){ Remainder(-9223372036854775808, -1) },
+    func(){ Divide(1, 0) },
+    func(){ Remainder(1, 0) },
   } { func(){ defer func(){ if recover() == nil { t.Fatal("expected overflow") } }(); operation() }() }
 }
 `,
@@ -132,10 +160,18 @@ func TestArithmetic(t *testing.T) {
 #[test] fn exact() {
   assert_eq!(timestamp_parts(0, 19800000000, 19800), 0);
   assert_eq!(subtract(9007199254740993, 9007199254740992), 1);
+  assert_eq!(divide(9007199254740993, 3), 3002399751580331);
+  assert_eq!(divide(-7, 3), -2);
+  assert_eq!(remainder(-7, 3), -1);
+  assert_eq!(remainder(-9223372036854775808, 3), -2);
 }
 #[test] #[should_panic] fn addition_overflow() { add(9223372036854775807, 1); }
 #[test] #[should_panic] fn subtraction_overflow() { subtract(-9223372036854775808, 1); }
 #[test] #[should_panic] fn multiplication_overflow() { multiply(-9223372036854775808, -1); }
+#[test] #[should_panic] fn division_overflow() { divide(-9223372036854775808, -1); }
+#[test] #[should_panic] fn remainder_overflow() { remainder(-9223372036854775808, -1); }
+#[test] #[should_panic] fn zero_divisor() { divide(1, 0); }
+#[test] #[should_panic] fn zero_remainder_divisor() { remainder(1, 0); }
 `,
       )
       const run = promisify(execFile)
