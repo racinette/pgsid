@@ -17,6 +17,7 @@ pub fn type_name(ty: &Type) -> Result<String> {
         Type::Reference(reference) if reference.mutability.is_none() => {
             Ok(format!("&{}", type_name(&reference.elem)?))
         }
+        Type::Slice(slice) => Ok(format!("[{}]", type_name(&slice.elem)?)),
         Type::Path(path) if path.qself.is_none() && path.path.segments.len() == 1 => {
             let segment = &path.path.segments[0];
             let name = segment.ident.to_string();
@@ -25,7 +26,7 @@ pub fn type_name(ty: &Type) -> Result<String> {
                 syn::PathArguments::AngleBracketed(arguments) if name != "Vec" => {
                     if !matches!(
                         name.as_str(),
-                        "usize" | "u32" | "i32" | "i64" | "bool" | "char" | "str"
+                        "usize" | "u16" | "u32" | "i32" | "i64" | "bool" | "char" | "str"
                     ) && arguments.args.len() == 1
                         && matches!(&arguments.args[0], syn::GenericArgument::Lifetime(_))
                     {
@@ -221,6 +222,12 @@ struct Semantics {
 }
 
 fn shared_vector_element(name: &str, semantics: &Semantics) -> Option<String> {
+    if let Some(element) = name
+        .strip_prefix("&[")
+        .and_then(|value| value.strip_suffix(']'))
+    {
+        return Some(element.to_string());
+    }
     let element = name.strip_prefix("Vec<")?.strip_suffix('>')?;
     if element == "char"
         || element == "usize"
@@ -386,7 +393,7 @@ fn infer_expr_type(
             let target = type_name(&cast.ty)?;
             let source = infer_expr_type(&cast.expr, locals, semantics)?;
             if (target == "u32" && source.as_deref() == Some("char"))
-                || (target == "usize" && source.as_deref() == Some("u32"))
+                || (target == "usize" && matches!(source.as_deref(), Some("u16" | "u32")))
                 || (target == "i64" && source.as_deref() == Some("i32"))
             {
                 return Ok(Some(target));
@@ -853,6 +860,41 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
         .collect::<Result<Bindings>>()?;
     for item in &file.items {
         if let Item::Const(constant) = item {
+            if let Type::Reference(reference) = &*constant.ty {
+                if let Type::Slice(slice) = &*reference.elem {
+                    let element = type_name(&slice.elem)?;
+                    let Expr::Reference(reference) = &*constant.expr else {
+                        unreachable!()
+                    };
+                    let Expr::Array(array) = &*reference.expr else {
+                        unreachable!()
+                    };
+                    for value in &array.elems {
+                        if element == "u16" {
+                            let Expr::Lit(syn::ExprLit {
+                                lit: syn::Lit::Int(number),
+                                ..
+                            }) = value
+                            else {
+                                return Err(
+                                    "u16 table entries require unsigned decimal literals".into()
+                                );
+                            };
+                            if !number.suffix().is_empty() || number.base10_parse::<u16>().is_err()
+                            {
+                                return Err("u16 table literal exceeds its element range".into());
+                            }
+                        }
+                        let inferred = infer_expr_type(value, &constants, &semantics)?;
+                        let numeric_literal = matches!(value, Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(number), .. }) if number.suffix().is_empty());
+                        if inferred.as_deref() != Some(&element)
+                            && !(matches!(element.as_str(), "i32" | "u16") && numeric_literal)
+                        {
+                            return Err("static table literal differs from its element type".into());
+                        }
+                    }
+                }
+            }
             if type_name(&constant.ty)? == "i64"
                 && infer_expr_type(&constant.expr, &constants, &semantics)?.as_deref()
                     != Some("i64")

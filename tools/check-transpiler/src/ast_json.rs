@@ -35,6 +35,7 @@ fn check_type(
     copy_structs: &BTreeSet<String>,
 ) -> Result<()> {
     match value {
+        Type::Reference(reference) if matches!(&*reference.elem, Type::Slice(_)) => {}
         Type::Reference(reference) => {
             let inner = type_name(&reference.elem)?;
             if inner != "str" && !structs.contains(&inner) {
@@ -152,7 +153,10 @@ fn check_types(file: &syn::File) -> Result<()> {
     for item in &file.items {
         match item {
             Item::Const(node) => {
-                reject_stored_struct_borrow(&node.ty)?;
+                if !matches!(&*node.ty, Type::Reference(reference) if matches!(&*reference.elem, Type::Slice(_)))
+                {
+                    reject_stored_struct_borrow(&node.ty)?;
+                }
                 check_type(&node.ty, &declarations, &structs, &copy_structs)?;
             }
             Item::Struct(node) => {
@@ -208,6 +212,7 @@ fn segments(path: &syn::Path) -> Vec<String> {
 
 fn ty(value: &Type) -> Result<Value> {
     match value {
+        Type::Slice(slice) => Ok(json!({ "kind": "slice", "inner": ty(&slice.elem)? })),
         Type::Reference(reference) => Ok(json!({
             "kind": "reference",
             "inner": ty(&reference.elem)?,
@@ -389,6 +394,9 @@ fn expr(value: &Expr) -> Result<Value> {
             };
             Ok(json!({ "kind": "field", "base": expr(&node.base)?, "member": member.to_string() }))
         }
+        Expr::Array(node) => Ok(
+            json!({ "kind": "array", "elements": node.elems.iter().map(expr).collect::<Result<Vec<_>>>()? }),
+        ),
         Expr::Index(node) => Ok(json!({
             "kind": "index",
             "base": expr(&node.expr)?,
@@ -746,6 +754,54 @@ mod tests {
             serde_json::from_str(&parse("pub fn f() -> bool { false }").unwrap()).unwrap();
         assert_eq!(tree["items"][0]["body"][0]["value"]["kind"], "boolean");
         assert_eq!(tree["items"][0]["body"][0]["value"]["state"], false);
+    }
+
+    #[test]
+    fn static_lookup_tables_accept_literal_slices_only() {
+        let document: serde_json::Value = serde_json::from_str(&parse("const A: &[i64] = &[-2i64, 3i64]; const B: &[i32] = &[-1, 2]; const C: &[usize] = &[0, 1]; const N: &[&str] = &[\"UTC\"]; pub fn f(index: usize) -> i64 { A[index] }").unwrap()).unwrap();
+        assert_eq!(document["items"][0]["type"]["inner"]["kind"], "slice");
+        assert_eq!(document["items"][0]["value"]["value"]["kind"], "array");
+        for source in [
+            "pub const A: &[i32] = &[1];",
+            "const A: &[i64] = &[1];",
+            "const A: &[i32] = &[1i64];",
+            "const A: &[usize] = &[-1];",
+            "const A: &[bool] = &[true];",
+            "const A: &[i32] = &[1 + 2];",
+            "const A: &[i32] = &[-(-1)];",
+            "const A: &[i32] = &[1; 2];",
+            "const A: &mut [i32] = &mut [1];",
+            "pub fn f(a: &[i32]) -> i32 { a[0] }",
+            "pub fn f() -> i32 { let a = &[1]; a[0] }",
+            "const A: &[i32] = &[1]; pub fn f() -> i32 { A[0] = 2; A[0] }",
+            "const A: &[usize] = &[1]; pub fn f() -> usize { let mut a = A; a[0] = 2; a[0] }",
+        ] {
+            assert!(parse(source).is_err(), "accepted {source}");
+        }
+    }
+
+    #[test]
+    fn compact_table_indexes_widen_without_narrowing_or_arithmetic() {
+        let tree: serde_json::Value = serde_json::from_str(&parse("const IDS: &[u16] = &[0, 32768, 65535]; pub fn f(index: usize) -> usize { let id = IDS[index]; id as usize }").unwrap()).unwrap();
+        assert_eq!(
+            tree["items"][0]["type"]["inner"]["inner"]["segments"],
+            serde_json::json!(["u16"])
+        );
+        for source in [
+            "const IDS: &[u16] = &[65536];",
+            "const IDS: &[u16] = &[-1];",
+            "const IDS: &[u16] = &[1u16];",
+            "const IDS: &[u16] = &[1i64];",
+            "pub const IDS: &[u16] = &[0];",
+            "const IDS: &[u16] = &[0]; pub fn f() -> usize { let id = IDS[0]; id + 1 }",
+            "const IDS: &[u16] = &[0]; pub fn f() -> i64 { IDS[0] as i64 }",
+            "pub fn f(value: usize) -> usize { let id = value as u16; id as usize }",
+            "pub fn f(value: u16) -> usize { value as usize }",
+            "pub fn f() -> u16 { 0 }",
+            "struct Index { value: u16 }",
+        ] {
+            assert!(parse(source).is_err(), "accepted {source}");
+        }
     }
 
     #[test]

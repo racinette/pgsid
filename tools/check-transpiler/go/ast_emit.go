@@ -50,6 +50,9 @@ func (g *generator) goType(value *node) ast.Expr {
 		reject("missing type")
 	}
 	if value.Kind == "reference" {
+		if value.Inner.Kind == "slice" {
+			return &ast.ArrayType{Elt: g.goType(value.Inner.Inner)}
+		}
 		if path(value.Inner) == "str" {
 			return goIdent("string")
 		}
@@ -80,6 +83,8 @@ func (g *generator) goType(value *node) ast.Expr {
 		}
 	}
 	switch name {
+	case "u16":
+		return goIdent("uint16")
 	case "usize", "u32", "i32":
 		return goIdent("int")
 	case "i64":
@@ -203,6 +208,9 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		case "u32":
 			return goCall("int", goCall("checkedChar", g.goExpression(value.Value)))
 		case "usize":
+			if path(g.inferType(value.Value)) == "u16" {
+				return goCall("checkedIndex", goCall("int", g.goExpression(value.Value)))
+			}
 			return goCall("checkedIndex", g.goExpression(value.Value))
 		default:
 			reject("unsupported cast target")
@@ -446,6 +454,20 @@ func (g *generator) goItem(value *node) []ast.Decl {
 	}
 	switch value.Kind {
 	case "constant":
+		if value.Type.Kind == "reference" && value.Type.Inner.Kind == "slice" {
+			literal := value.Value.Value
+			elements := make([]ast.Expr, 0, len(literal.Elements))
+			for _, element := range literal.Elements {
+				if element.Kind == "unary" && element.Value.Kind == "integer" {
+					elements = append(elements, &ast.UnaryExpr{Op: token.SUB, X: g.goExpression(element.Value)})
+				} else {
+					elements = append(elements, g.goExpression(element))
+				}
+			}
+			return []ast.Decl{&ast.GenDecl{Tok: token.VAR, Specs: []ast.Spec{&ast.ValueSpec{
+				Names: []*ast.Ident{goIdent(g.name(value.Name))}, Values: []ast.Expr{&ast.CompositeLit{Type: g.goType(value.Type), Elts: elements}},
+			}}}}
+		}
 		return []ast.Decl{&ast.GenDecl{Tok: token.CONST, Specs: []ast.Spec{&ast.ValueSpec{
 			Names: []*ast.Ident{goIdent(g.name(value.Name))}, Values: []ast.Expr{g.goExpression(value.Value)},
 		}}}}

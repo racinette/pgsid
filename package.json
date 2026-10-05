@@ -13,6 +13,7 @@
     "build": "pnpm check-rust:build-wasm && tsup",
     "typecheck": "tsc --noEmit",
     "regex-engine:check": "bash tools/regex-transpiler/check.sh",
+    "check-rust:timezones": "pnpm check-rust:build-wasm && node --import tsx tools/check-rust-timezones/check.ts",
     "check-rust:check": "bash tools/check-rust/check.sh",
     "check-rust:build-wasm": "bash scripts/build-check-rust-wasm.sh",
     "builtin-inventory:generate": "node --import tsx scripts/generate-builtin-inventory.ts",

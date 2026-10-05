@@ -4,8 +4,10 @@ import ts from 'typescript'
 type TypeNode =
   | { kind: 'path'; segments: string[]; typeArguments?: TypeNode[] }
   | { kind: 'reference'; inner: TypeNode }
+  | { kind: 'slice'; inner: TypeNode }
 
 type Expr =
+  | { kind: 'array'; elements: Expr[] }
   | { kind: 'path'; segments: string[] }
   | { kind: 'integer'; digits: string; integerType?: 'i64' }
   | { kind: 'character'; scalar: string }
@@ -185,6 +187,7 @@ class Transpiler {
   }
 
   private path(type: TypeNode): string {
+    if (type.kind === 'slice') return `[${this.path(type.inner)}]`
     if (type.kind === 'reference') return `&${this.path(type.inner)}`
     const name = type.segments.join('::')
     return type.typeArguments
@@ -201,7 +204,11 @@ class Transpiler {
   }
 
   private typeName(name: string): ts.TypeNode {
-    if (['usize', 'u32', 'i32'].includes(name))
+    if (name === '&[u16]')
+      return f.createTypeReferenceNode('Readonly', [f.createTypeReferenceNode('Uint16Array')])
+    if (name.startsWith('&[') && name.endsWith(']'))
+      return f.createTypeReferenceNode('ReadonlyArray', [this.typeName(name.slice(2, -1))])
+    if (['usize', 'u16', 'u32', 'i32'].includes(name))
       return f.createKeywordTypeNode(ts.SyntaxKind.NumberKeyword)
     if (name === 'i64') return f.createKeywordTypeNode(ts.SyntaxKind.BigIntKeyword)
     if (name === 'bool') return f.createKeywordTypeNode(ts.SyntaxKind.BooleanKeyword)
@@ -302,7 +309,11 @@ class Transpiler {
       }
       case 'index': {
         const base = this.infer(value.base, locals)
-        return base ? this.vectorElement(base) : undefined
+        return base?.startsWith('&[')
+          ? base.slice(2, -1)
+          : base
+            ? this.vectorElement(base)
+            : undefined
       }
       case 'struct-literal':
         return value.path.join('::')
@@ -331,6 +342,17 @@ class Transpiler {
 
   private expression(value: Expr, locals: Map<string, string>): ts.Expression {
     switch (value.kind) {
+      case 'array':
+        return f.createArrayLiteralExpression(
+          value.elements.map((entry) =>
+            entry.kind === 'unary' && entry.value.kind === 'integer'
+              ? f.createPrefixUnaryExpression(
+                  ts.SyntaxKind.MinusToken,
+                  this.expression(entry.value, locals),
+                )
+              : this.expression(entry, locals),
+          ),
+        )
       case 'path': {
         if (value.segments.length === 1) {
           const name = value.segments[0]!
@@ -425,7 +447,14 @@ class Transpiler {
       case 'field':
         return member(this.expression(value.base, locals), camelCase(value.member))
       case 'index': {
-        const element = this.vectorElement(this.infer(value.base, locals) ?? '')
+        const baseType = this.infer(value.base, locals) ?? ''
+        if (baseType.startsWith('&['))
+          return call(
+            'indexStatic',
+            this.expression(value.base, locals),
+            call('checkedIndex', this.expression(value.index, locals)),
+          )
+        const element = this.vectorElement(baseType)
         const values = this.expression(value.base, locals)
         const index = call('checkedIndex', this.expression(value.index, locals))
         if (element && this.structs.has(element))
@@ -853,7 +882,8 @@ class Transpiler {
     const declarations: ts.Statement[] = [...source.statements]
     for (const item of this.document.items) {
       switch (item.kind) {
-        case 'constant':
+        case 'constant': {
+          const value = this.expression(item.value, new Map())
           declarations.push(
             f.createVariableStatement(
               exported(item.visibility),
@@ -862,8 +892,10 @@ class Transpiler {
                   f.createVariableDeclaration(
                     this.names.get(item.name)!,
                     undefined,
-                    undefined,
-                    this.expression(item.value, new Map()),
+                    this.path(item.type).startsWith('&[') ? this.type(item.type) : undefined,
+                    this.path(item.type) === '&[u16]'
+                      ? f.createNewExpression(identifier('Uint16Array'), undefined, [value])
+                      : value,
                   ),
                 ],
                 ts.NodeFlags.Const,
@@ -871,6 +903,7 @@ class Transpiler {
             ),
           )
           break
+        }
         case 'struct':
           declarations.push(...this.emitStruct(item))
           break
