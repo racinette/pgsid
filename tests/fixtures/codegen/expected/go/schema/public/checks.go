@@ -184,10 +184,10 @@ func (e *CheckViolationError) SQLState() string {
 	return "23514"
 }
 
-type CheckEvaluationError struct{ Owner, Constraint, State string }
+type CheckEvaluationError struct{ Owner, Constraint, State, Message string }
 
 func (e *CheckEvaluationError) Error() string {
-	return "check constraint " + e.Constraint + " evaluation failed: " + e.State
+	return "check constraint " + e.Constraint + " evaluation failed: " + e.Message + " (SQLSTATE " + e.State + ")"
 }
 func (e *CheckEvaluationError) SQLState() string {
 	return e.State
@@ -199,13 +199,26 @@ func ValidateCheckInputs[T any](input T, evaluate func(T) []CheckEvaluation) err
 		}
 		value := check.Result.Value
 		if value.Error != "" {
-			return &CheckEvaluationError{Owner: check.Owner, Constraint: check.Constraint, State: value.Error}
+			return &CheckEvaluationError{Owner: check.Owner, Constraint: check.Constraint, State: value.Error, Message: check.Message}
 		}
 		if value.Valid && !value.Value {
 			return &CheckViolationError{Owner: check.Owner, Constraint: check.Constraint}
 		}
 	}
 	return nil
+}
+func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage string) CheckEvaluation {
+	evaluation := CheckEvaluation{Owner: owner, Constraint: constraint, Result: result}
+	if !result.Certain {
+		evaluation.Message = unknownMessage
+	}
+	if result.Certain && result.Value.Error != "" {
+		evaluation.Message = "SQL evaluation failed (SQLSTATE " + result.Value.Error + ")"
+		if state, valid := checkRustState(result.Value.Error); valid {
+			evaluation.Message = checkruntime.SqlErrorMessage(state).Message
+		}
+	}
+	return evaluation
 }
 
 type PublicDefaultEventIdCheckInput struct {
@@ -218,11 +231,12 @@ type CheckEvaluation struct {
 	Owner      string
 	Constraint string
 	Result     EvalBool
+	Message    string
 }
 
 func EvaluatePublicDefaultEventIdDomainChecks(row PublicDefaultEventIdCheckInput) []CheckEvaluation {
-	return []CheckEvaluation{CheckEvaluation{Owner: "public.event_id", Constraint: "event_id_check", Result: checkRustOutcome(checkrust.EvaluateCheckPublicDomainDefaultEventIdFromPublicEventIdEventIdCheckH7azw(checkRustInt8(row.Value)))}}
+	return []CheckEvaluation{checkEvaluation("public.event_id", "event_id_check", checkRustOutcome(checkrust.EvaluateCheckPublicDomainDefaultEventIdFromPublicEventIdEventIdCheckH7azw(checkRustInt8(row.Value))), "A required input is unavailable, or its value or an evaluated expression is not supported.")}
 }
 func EvaluatePublicEventIdDomainChecks(row PublicEventIdCheckInput) []CheckEvaluation {
-	return []CheckEvaluation{CheckEvaluation{Owner: "public.event_id", Constraint: "event_id_check", Result: checkRustOutcome(checkrust.EvaluateCheckPublicDomainEventIdEventIdCheckHcydw(checkRustInt8(row.Value)))}}
+	return []CheckEvaluation{checkEvaluation("public.event_id", "event_id_check", checkRustOutcome(checkrust.EvaluateCheckPublicDomainEventIdEventIdCheckHcydw(checkRustInt8(row.Value))), "A required input is unavailable, or its value or an evaluated expression is not supported.")}
 }

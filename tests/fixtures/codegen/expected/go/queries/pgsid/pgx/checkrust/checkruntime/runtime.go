@@ -2,6 +2,97 @@ package checkruntime
 
 import langruntime "example.com/pgsid-fixture/generated/go/queries/pgsid/pgx/checkrust/langruntime"
 
+type Int2ValueKind uint8
+
+const (
+	Int2ValueUnknown Int2ValueKind = iota
+	Int2ValueNull
+	Int2ValueValue
+	Int2ValueError
+)
+
+type Int2Value struct {
+	Kind  Int2ValueKind
+	Value int
+	Error SqlError
+}
+
+func CopyInt2Value(value Int2Value) Int2Value {
+	switch value.Kind {
+	case Int2ValueUnknown:
+		return Int2Value{Kind: Int2ValueUnknown}
+	case Int2ValueNull:
+		return Int2Value{Kind: Int2ValueNull}
+	case Int2ValueValue:
+		return Int2Value{Kind: Int2ValueValue, Value: langruntime.CheckedI32(value.Value)}
+	case Int2ValueError:
+		return Int2Value{Kind: Int2ValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
+func Int2Unknown() Int2Value {
+	return Int2Value{Kind: Int2ValueUnknown}
+}
+func Int2Null() Int2Value {
+	return Int2Value{Kind: Int2ValueNull}
+}
+func MakeInt2Value(value int) Int2Value {
+	value = langruntime.CheckedI32(value)
+	if value < langruntime.CheckedSignedNegate(32768) || value > 32767 {
+		return Int2Value{Kind: Int2ValueUnknown}
+	}
+	return Int2Value{Kind: Int2ValueValue, Value: value}
+}
+func Int2IsNull(value Int2Value) BoolValue {
+	value = CopyInt2Value(value)
+	if value.Kind == Int2ValueError {
+		error := value.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if value == (Int2Value{Kind: Int2ValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: value == (Int2Value{Kind: Int2ValueNull})}
+}
+func Int2FromCaseGuard(value CheckOutcome) Int2Value {
+	if value.Kind == CheckOutcomeError {
+		error := value.Error
+		return Int2Value{Kind: Int2ValueError, Error: error}
+	}
+	return Int2Value{Kind: Int2ValueUnknown}
+}
+func Int2ToInt4(value Int2Value) Int4Value {
+	value = CopyInt2Value(value)
+	if value.Kind == Int2ValueError {
+		error := value.Error
+		return Int4Value{Kind: Int4ValueError, Error: error}
+	}
+	if value == (Int2Value{Kind: Int2ValueNull}) {
+		return Int4Value{Kind: Int4ValueNull}
+	}
+	if value.Kind == Int2ValueValue {
+		number := langruntime.CheckedI32(value.Value)
+		return Int4Value{Kind: Int4ValueValue, Value: number}
+	}
+	return Int4Value{Kind: Int4ValueUnknown}
+}
+func Int2ToInt8(value Int2Value) Int8Value {
+	value = CopyInt2Value(value)
+	if value.Kind == Int2ValueError {
+		error := value.Error
+		return Int8Value{Kind: Int8ValueError, Error: error}
+	}
+	if value == (Int2Value{Kind: Int2ValueNull}) {
+		return Int8Value{Kind: Int8ValueNull}
+	}
+	if value.Kind == Int2ValueValue {
+		number := langruntime.CheckedI32(value.Value)
+		widened := int64(langruntime.CheckedI32(number))
+		return Int8Value{Kind: Int8ValueValue, Value: widened}
+	}
+	return Int8Value{Kind: Int8ValueUnknown}
+}
+
 type Int4ValueKind uint8
 
 const (
@@ -377,6 +468,47 @@ type SqlError struct {
 func MakeSqlError(state int) SqlError {
 	state = langruntime.CheckedIndex(state)
 	return SqlError{State: state}
+}
+
+type SqlErrorDescription struct {
+	Message string
+}
+
+func copySqlErrorDescription(value SqlErrorDescription) SqlErrorDescription {
+	return SqlErrorDescription{Message: langruntime.CheckedString(value.Message)}
+}
+
+const sqlErrorNumericOutOfRange = 3452547
+const sqlErrorInvalidDatetimeFormat = 3452551
+const sqlErrorDatetimeFieldOverflow = 3452552
+const sqlErrorTimezoneDisplacement = 3452553
+const sqlErrorDivisionByZero = 3452582
+const sqlErrorInvalidRegex = 3452591
+const sqlErrorInvalidParameter = 3452619
+
+func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorNumericOutOfRange {
+		return SqlErrorDescription{Message: "numeric value out of range"}
+	}
+	if error.State == sqlErrorInvalidDatetimeFormat {
+		return SqlErrorDescription{Message: "invalid date/time format"}
+	}
+	if error.State == sqlErrorDatetimeFieldOverflow {
+		return SqlErrorDescription{Message: "date/time field value out of range"}
+	}
+	if error.State == sqlErrorTimezoneDisplacement {
+		return SqlErrorDescription{Message: "time zone displacement out of range"}
+	}
+	if error.State == sqlErrorDivisionByZero {
+		return SqlErrorDescription{Message: "division by zero"}
+	}
+	if error.State == sqlErrorInvalidRegex {
+		return SqlErrorDescription{Message: "invalid regular expression"}
+	}
+	if error.State == sqlErrorInvalidParameter {
+		return SqlErrorDescription{Message: "invalid parameter value"}
+	}
+	return SqlErrorDescription{Message: "SQL evaluation failed"}
 }
 
 type BoolValueKind uint8

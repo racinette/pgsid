@@ -31,8 +31,10 @@ const worldsDirectory = fileURLToPath(new URL('../unit/query/worlds/', import.me
 const quote = (name: string) => '"' + name.replaceAll('"', '""') + '"'
 type Result = {
   constraint: string
+  message?: string
   result: { certain: boolean; value?: boolean | null; error?: string }
 }
+type OracleOutcome = boolean | null | { error: string }
 type Case = {
   name: string
   schema: string
@@ -113,8 +115,9 @@ async function loadWorldSql(pg: PGlite, source: string, schema: string): Promise
 }
 
 const normalized = (results: Result[]): Result[] =>
-  results.map(({ constraint, result }) => ({
+  results.map(({ constraint, result, message }) => ({
     constraint,
+    ...(message ? { message } : {}),
     result: result.certain
       ? result.error
         ? { certain: true, error: result.error }
@@ -138,15 +141,16 @@ describe('world CHECK INSERT parity', () => {
       true: number
       false: number
       null: number
+      error: number
       unknown: number
-      postgres: { true: number; false: number; null: number }
+      postgres: { true: number; false: number; null: number; error: number }
     }
   >()
   const caseResults: {
     name: string
-    database: { accepted: boolean; constraint?: string }
+    database: { accepted: boolean; constraint?: string; sqlstate?: string }
     sql: string
-    checks: (Result & { postgres: boolean | null })[]
+    checks: (Result & { postgres: OracleOutcome })[]
   }[] = []
   let definite = 0
   let localRejections = 0
@@ -197,11 +201,6 @@ describe('world CHECK INSERT parity', () => {
     )
     expect(go.diagnostics).toEqual([])
     expect(ts.rustFiles).not.toBeNull()
-    for (const group of catalogCheckGroups(tables, catalog.domains, [], catalog.enums))
-      for (const { plan } of group.checks)
-        expect(ts.checks).toContain(
-          `constraint: ${JSON.stringify(plan.name)}, result: checkRustOutcome`,
-        )
     await writeFile(join(directory, 'package.json'), '{"type":"module"}\n')
     await writeFile(join(directory, 'checks.ts'), ts.checks)
     for (const artifact of checkTypescriptArtifacts(ts.rustFiles!)) {
@@ -360,12 +359,14 @@ describe('world CHECK INSERT parity', () => {
       (table) => table.schema === item.schema && table.name === item.relation,
     )!
     await pg.exec(`SET search_path = ${quote(item.schema)}, public; BEGIN`)
-    let rejected: { code: string; constraint: string } | undefined
+    let rejected: { code: string; constraint?: string } | undefined
     try {
       await pg.query(item.sql)
     } catch (error) {
-      const failure = error as { code: string; constraint: string }
-      expect(failure.code, `${item.name}: unrelated INSERT failure`).toBe('23514')
+      const failure = error as { code: string; constraint?: string }
+      expect(failure.code, `${item.name}: unrelated INSERT failure`).toMatch(
+        /^(?:23514|22[A-Z0-9]{3})$/u,
+      )
       rejected = failure
     } finally {
       await pg.exec('ROLLBACK')
@@ -393,8 +394,8 @@ describe('world CHECK INSERT parity', () => {
     const candidate = generatedColumns.length
       ? `SELECT inputs.*, ${generatedColumns.join(',')} FROM (SELECT ${select}) AS inputs`
       : `SELECT ${select}`
-    const oracleResults: (Result & { postgres: boolean | null })[] = []
-    for (const { constraint, result } of results) {
+    const oracleResults: (Result & { postgres: OracleOutcome })[] = []
+    for (const { constraint, result, message } of results) {
       const identity = `${item.schema}.${table.name}.${constraint}`
       const counts = coverage.get(identity) ?? {
         constraint: identity,
@@ -403,16 +404,19 @@ describe('world CHECK INSERT parity', () => {
         true: 0,
         false: 0,
         null: 0,
+        error: 0,
         unknown: 0,
-        postgres: { true: 0, false: 0, null: 0 },
+        postgres: { true: 0, false: 0, null: 0, error: 0 },
       }
       counts[
         result.certain
-          ? result.value === null
-            ? 'null'
-            : result.value
-              ? 'true'
-              : 'false'
+          ? result.error
+            ? 'error'
+            : result.value === null
+              ? 'null'
+              : result.value
+                ? 'true'
+                : 'false'
           : 'unknown'
       ]++
       coverage.set(identity, counts)
@@ -424,25 +428,52 @@ describe('world CHECK INSERT parity', () => {
         AlterTableStmt: { cmds: { AlterTableCmd: { def: { Constraint: { raw_expr: Node } } } }[] }
       }
       const expression = statement.AlterTableStmt.cmds[0]!.AlterTableCmd.def.Constraint.raw_expr
-      const expected = (
-        await pg.query<{ value: boolean | null }>(
-          `SELECT (${deparseSync(expression)}) AS value FROM (${candidate}) AS candidate`,
+      let expected: OracleOutcome
+      try {
+        expected = (
+          await pg.query<{ value: boolean | null }>(
+            `SELECT (${deparseSync(expression)}) AS value FROM (${candidate}) AS candidate`,
+          )
+        ).rows[0]!.value
+      } catch (error) {
+        const code = (error as { code: string }).code
+        expect(code, `${item.name}/${constraint}: unrelated oracle failure`).toMatch(
+          /^22[A-Z0-9]{3}$/u,
         )
-      ).rows[0]!.value
-      counts.postgres[expected === null ? 'null' : expected ? 'true' : 'false']++
-      oracleResults.push({ constraint, result, postgres: expected })
+        expected = { error: code }
+      }
+      const oracleError =
+        expected !== null && typeof expected === 'object' ? expected.error : undefined
+      counts.postgres[
+        oracleError ? 'error' : expected === null ? 'null' : expected ? 'true' : 'false'
+      ]++
+      oracleResults.push({ constraint, result, message, postgres: expected })
       if (!result.certain) {
+        expect(message, `${item.name}/${constraint}: missing diagnostic`).toEqual(
+          expect.any(String),
+        )
+        expect(message!.length).toBeGreaterThan(0)
         unknownComparisons++
         continue
       }
       expect(result, `${item.name}/${constraint}: generated CHECK differs from PostgreSQL`).toEqual(
-        { certain: true, value: expected },
+        oracleError ? { certain: true, error: oracleError } : { certain: true, value: expected },
       )
+      if (oracleError) {
+        expect(
+          rejected,
+          `${item.name}/${constraint}: evaluation errors must reject the INSERT`,
+        ).toBeDefined()
+        expect(message, `${item.name}/${constraint}: missing error diagnostic`).toEqual(
+          expect.any(String),
+        )
+        expect(message!.length).toBeGreaterThan(0)
+      }
       definite++
       if (expected === false)
         expect(rejected, `${item.name}/${constraint}: INSERT must reject`).toBeDefined()
     }
-    if (rejected) {
+    if (rejected?.code === '23514') {
       databaseRejections++
       const result = results.find((result) => result.constraint === rejected!.constraint)?.result
       expect(
@@ -453,12 +484,25 @@ describe('world CHECK INSERT parity', () => {
         expect(result).toEqual({ certain: true, value: false })
         localRejections++
       }
+    } else if (rejected) {
+      databaseRejections++
+      expect(
+        oracleResults.some(
+          ({ postgres }) =>
+            postgres !== null && typeof postgres === 'object' && postgres.error === rejected!.code,
+        ),
+        `${item.name}: INSERT error must originate in a CHECK`,
+      ).toBe(true)
+      if (results.some(({ result }) => result.certain && result.error === rejected!.code))
+        localRejections++
     } else
-      expect(results.filter(({ result }) => result.certain && result.value === false)).toEqual([])
+      expect(
+        results.filter(({ result }) => result.certain && (result.error || result.value === false)),
+      ).toEqual([])
     caseResults.push({
       name: item.name,
       database: rejected
-        ? { accepted: false, constraint: rejected.constraint }
+        ? { accepted: false, constraint: rejected.constraint, sqlstate: rejected.code }
         : { accepted: true },
       sql: item.sql,
       checks: oracleResults,
@@ -469,6 +513,19 @@ describe('world CHECK INSERT parity', () => {
     expect(definite).toBeGreaterThan(0)
     expect(localRejections).toBeGreaterThan(0)
     expect(caseResults).toHaveLength(cases.length)
+    for (const identity of [
+      'world_011_flight_arrivals.flight_arrivals.arrival_interpretation',
+      'world_011_flight_arrivals.arrival_displays.displayed_arrival',
+      'world_012_package_capacity.package_capacity.area_limit',
+      'world_012_package_capacity.package_capacity.slot_limit',
+      'world_012_package_capacity.package_capacity.whole_batches',
+      'world_012_package_capacity.package_capacity.adjustment_limit',
+    ]) {
+      const measured = coverage.get(identity)!
+      expect(measured.error, identity).toBeGreaterThan(0)
+      expect(measured.error, identity).toBe(measured.postgres.error)
+      expect(measured.unknown, identity).toBe(0)
+    }
     const constraints = [...coverage.values()].sort((left, right) =>
       left.constraint.localeCompare(right.constraint),
     )
@@ -488,7 +545,9 @@ describe('world CHECK INSERT parity', () => {
       expect(measured.true, identity).toBeGreaterThan(0)
       expect(measured.false, identity).toBeGreaterThan(0)
     }
-    const definiteConstraints = constraints.filter((item) => item.true + item.false + item.null > 0)
+    const definiteConstraints = constraints.filter(
+      (item) => item.true + item.false + item.null + item.error > 0,
+    )
     const corpus = catalogCheckGroups(catalog.tables, catalog.domains, [], catalog.enums).flatMap(
       (group) =>
         group.checks.map(({ plan }) => ({
@@ -513,11 +572,13 @@ describe('world CHECK INSERT parity', () => {
       true: constraints.reduce((sum, item) => sum + item.true, 0),
       false: constraints.reduce((sum, item) => sum + item.false, 0),
       null: constraints.reduce((sum, item) => sum + item.null, 0),
+      error: constraints.reduce((sum, item) => sum + item.error, 0),
       unknown: unknownComparisons,
       postgres: {
         true: constraints.reduce((sum, item) => sum + item.postgres.true, 0),
         false: constraints.reduce((sum, item) => sum + item.postgres.false, 0),
         null: constraints.reduce((sum, item) => sum + item.postgres.null, 0),
+        error: constraints.reduce((sum, item) => sum + item.postgres.error, 0),
       },
       databaseRejections,
       localRejections,
@@ -528,10 +589,12 @@ describe('world CHECK INSERT parity', () => {
         world: world.name,
         inserts: cases.filter((item) => item.schema === world.schema).length,
         exercised: checks.length,
-        definite: checks.filter((item) => item.true + item.false + item.null > 0).length,
+        definite: checks.filter((item) => item.true + item.false + item.null + item.error > 0)
+          .length,
         true: checks.reduce((sum, item) => sum + item.true, 0),
         false: checks.reduce((sum, item) => sum + item.false, 0),
         null: checks.reduce((sum, item) => sum + item.null, 0),
+        error: checks.reduce((sum, item) => sum + item.error, 0),
         unknown: checks.reduce((sum, item) => sum + item.unknown, 0),
       }
     })

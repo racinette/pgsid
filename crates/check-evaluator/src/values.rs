@@ -1,4 +1,71 @@
 #[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Int2Value {
+    Unknown,
+    Null,
+    Value(i32),
+    Error(SqlError),
+}
+
+pub fn int2_unknown() -> Int2Value {
+    Int2Value::Unknown
+}
+
+pub fn int2_null() -> Int2Value {
+    Int2Value::Null
+}
+
+pub fn make_int2_value(value: i32) -> Int2Value {
+    if value < -32768 || value > 32767 {
+        return Int2Value::Unknown;
+    }
+    Int2Value::Value(value)
+}
+
+pub fn int2_is_null(value: Int2Value) -> BoolValue {
+    if let Int2Value::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == Int2Value::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(value == Int2Value::Null)
+}
+
+pub fn int2_from_case_guard(value: CheckOutcome) -> Int2Value {
+    if let CheckOutcome::Error(error) = value {
+        return Int2Value::Error(error);
+    }
+    Int2Value::Unknown
+}
+
+pub fn int2_to_int4(value: Int2Value) -> Int4Value {
+    if let Int2Value::Error(error) = value {
+        return Int4Value::Error(error);
+    }
+    if value == Int2Value::Null {
+        return Int4Value::Null;
+    }
+    if let Int2Value::Value(number) = value {
+        return Int4Value::Value(number);
+    }
+    Int4Value::Unknown
+}
+
+pub fn int2_to_int8(value: Int2Value) -> Int8Value {
+    if let Int2Value::Error(error) = value {
+        return Int8Value::Error(error);
+    }
+    if value == Int2Value::Null {
+        return Int8Value::Null;
+    }
+    if let Int2Value::Value(number) = value {
+        let widened = number as i64;
+        return Int8Value::Value(widened);
+    }
+    Int8Value::Unknown
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Int4Value {
     Unknown,
     Null,
@@ -259,6 +326,60 @@ pub struct SqlError {
 
 pub fn make_sql_error(state: u32) -> SqlError {
     SqlError { state: state }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct SqlErrorDescription<'a> {
+    pub message: &'a str,
+}
+
+const SQL_ERROR_NUMERIC_OUT_OF_RANGE: u32 = 3452547;
+const SQL_ERROR_INVALID_DATETIME_FORMAT: u32 = 3452551;
+const SQL_ERROR_DATETIME_FIELD_OVERFLOW: u32 = 3452552;
+const SQL_ERROR_TIMEZONE_DISPLACEMENT: u32 = 3452553;
+const SQL_ERROR_DIVISION_BY_ZERO: u32 = 3452582;
+const SQL_ERROR_INVALID_REGEX: u32 = 3452591;
+const SQL_ERROR_INVALID_PARAMETER: u32 = 3452619;
+
+pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
+    if error.state == SQL_ERROR_NUMERIC_OUT_OF_RANGE {
+        return SqlErrorDescription {
+            message: "numeric value out of range",
+        };
+    }
+    if error.state == SQL_ERROR_INVALID_DATETIME_FORMAT {
+        return SqlErrorDescription {
+            message: "invalid date/time format",
+        };
+    }
+    if error.state == SQL_ERROR_DATETIME_FIELD_OVERFLOW {
+        return SqlErrorDescription {
+            message: "date/time field value out of range",
+        };
+    }
+    if error.state == SQL_ERROR_TIMEZONE_DISPLACEMENT {
+        return SqlErrorDescription {
+            message: "time zone displacement out of range",
+        };
+    }
+    if error.state == SQL_ERROR_DIVISION_BY_ZERO {
+        return SqlErrorDescription {
+            message: "division by zero",
+        };
+    }
+    if error.state == SQL_ERROR_INVALID_REGEX {
+        return SqlErrorDescription {
+            message: "invalid regular expression",
+        };
+    }
+    if error.state == SQL_ERROR_INVALID_PARAMETER {
+        return SqlErrorDescription {
+            message: "invalid parameter value",
+        };
+    }
+    SqlErrorDescription {
+        message: "SQL evaluation failed",
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

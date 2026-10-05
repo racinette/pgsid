@@ -11,6 +11,7 @@ type Shape =
   | 'int48_pair_bool'
   | 'int4_pair_bool'
   | 'int4_pair_int4'
+  | 'int4_single_int4'
   | 'bool_pair_bool'
   | 'text_pair_bool'
   | 'text_single_int4'
@@ -27,7 +28,13 @@ const input = (shape: Shape, state: State, index: number): unknown => {
       (shape === 'int84_pair_bool' && index === 0) ||
       (shape === 'int48_pair_bool' && index === 1)
       ? generated.makeInt8Value(BigInt(state.value as string))
-      : ['int4_pair_bool', 'int4_pair_int4', 'int84_pair_bool', 'int48_pair_bool'].includes(shape)
+      : [
+            'int4_pair_bool',
+            'int4_pair_int4',
+            'int4_single_int4',
+            'int84_pair_bool',
+            'int48_pair_bool',
+          ].includes(shape)
         ? generated.makeInt4Value(state.value)
         : shape === 'bool_pair_bool'
           ? generated.makeBoolValue(state.value)

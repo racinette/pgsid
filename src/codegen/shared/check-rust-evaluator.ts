@@ -22,6 +22,7 @@ type Input = {
 export class UnsupportedCheckRustExpression extends Error {}
 
 const rustType = (type: string): string => {
+  if (type === 'pg_catalog.int2') return 'Int2Value'
   if (type === 'pg_catalog.int4') return 'Int4Value'
   if (type === 'pg_catalog.int8') return 'Int8Value'
   if (type === 'pg_catalog."numeric"') return 'NumericValue'
@@ -182,23 +183,25 @@ export function emitCheckRustEvaluator(
     if (node.kind === 'uncertain') {
       const kind = rustType(node.type)
       const helper =
-        kind === 'Int4Value'
-          ? 'int4_unknown'
-          : kind === 'Int8Value'
-            ? 'int8_unknown'
-            : kind === 'NumericValue'
-              ? 'numeric_unknown'
-              : kind === 'DateValue'
-                ? 'date_unknown'
-                : kind === 'TimestampValue'
-                  ? 'timestamp_unknown'
-                  : kind === 'TimestamptzValue'
-                    ? 'timestamptz_unknown'
-                    : kind === 'EnumValue'
-                      ? 'enum_unknown'
-                      : kind === 'TextValue'
-                        ? 'text_unknown'
-                        : 'bool_unknown'
+        kind === 'Int2Value'
+          ? 'int2_unknown'
+          : kind === 'Int4Value'
+            ? 'int4_unknown'
+            : kind === 'Int8Value'
+              ? 'int8_unknown'
+              : kind === 'NumericValue'
+                ? 'numeric_unknown'
+                : kind === 'DateValue'
+                  ? 'date_unknown'
+                  : kind === 'TimestampValue'
+                    ? 'timestamp_unknown'
+                    : kind === 'TimestamptzValue'
+                      ? 'timestamptz_unknown'
+                      : kind === 'EnumValue'
+                        ? 'enum_unknown'
+                        : kind === 'TextValue'
+                          ? 'text_unknown'
+                          : 'bool_unknown'
       return { name: bind(`${helper}()`), type: node.type }
     }
     if (
@@ -284,19 +287,24 @@ export function emitCheckRustEvaluator(
           )
         return { name: bind(`make_int8_value(${integer}i64)`), type: value.type }
       }
-      if (value.kind === 'integer' && value.type === 'pg_catalog.int4') {
-        if (value.value === null) return { name: bind('int4_null()'), type: value.type }
+      if (
+        value.kind === 'integer' &&
+        (value.type === 'pg_catalog.int2' || value.type === 'pg_catalog.int4')
+      ) {
+        const prefix = value.type === 'pg_catalog.int2' ? 'int2' : 'int4'
+        const limit = value.type === 'pg_catalog.int2' ? 32767n : 2147483647n
+        if (value.value === null) return { name: bind(`${prefix}_null()`), type: value.type }
         if (!/^-?(?:0|[1-9][0-9]*)$/u.test(value.value))
           throw new UnsupportedCheckRustExpression(
-            `Unsupported Rust CHECK int4 literal: ${value.value}`,
+            `Unsupported Rust CHECK ${prefix} literal: ${value.value}`,
           )
         const integer = BigInt(value.value)
-        if (integer < -2147483648n || integer > 2147483647n)
+        if (integer < -limit - 1n || integer > limit)
           throw new UnsupportedCheckRustExpression(
-            `Unsupported Rust CHECK int4 literal: ${value.value}`,
+            `Unsupported Rust CHECK ${prefix} literal: ${value.value}`,
           )
         const literal = integer === -2147483648n ? '-2147483647 - 1' : integer.toString()
-        return { name: bind(`make_int4_value(${literal})`), type: value.type }
+        return { name: bind(`make_${prefix}_value(${literal})`), type: value.type }
       }
       throw new UnsupportedCheckRustExpression(`Unsupported Rust CHECK constant: ${value.kind}`)
     }
@@ -313,6 +321,7 @@ export function emitCheckRustEvaluator(
         node.operand.kind === 'input' &&
         !node.operand.type.startsWith('enum:') &&
         ![
+          'pg_catalog.int2',
           'pg_catalog.int4',
           'pg_catalog.int8',
           'pg_catalog."numeric"',
@@ -333,23 +342,25 @@ export function emitCheckRustEvaluator(
       const operand = emitScalar(node.operand, bindings, used)
       const kind = rustType(operand.type)
       const helper =
-        kind === 'Int4Value'
-          ? 'int4_is_null'
-          : kind === 'Int8Value'
-            ? 'int8_is_null'
-            : kind === 'NumericValue'
-              ? 'numeric_is_null'
-              : kind === 'DateValue'
-                ? 'date_is_null'
-                : kind === 'TimestampValue'
-                  ? 'timestamp_is_null'
-                  : kind === 'TimestamptzValue'
-                    ? 'timestamptz_is_null'
-                    : kind === 'EnumValue'
-                      ? 'enum_is_null'
-                      : kind === 'TextValue'
-                        ? 'text_is_null'
-                        : 'bool_is_null'
+        kind === 'Int2Value'
+          ? 'int2_is_null'
+          : kind === 'Int4Value'
+            ? 'int4_is_null'
+            : kind === 'Int8Value'
+              ? 'int8_is_null'
+              : kind === 'NumericValue'
+                ? 'numeric_is_null'
+                : kind === 'DateValue'
+                  ? 'date_is_null'
+                  : kind === 'TimestampValue'
+                    ? 'timestamp_is_null'
+                    : kind === 'TimestamptzValue'
+                      ? 'timestamptz_is_null'
+                      : kind === 'EnumValue'
+                        ? 'enum_is_null'
+                        : kind === 'TextValue'
+                          ? 'text_is_null'
+                          : 'bool_is_null'
       const result = bind(`${helper}(${operand.name})`)
       return {
         name: node.negated ? bind(`bool_not_value(${result})`) : result,
@@ -414,23 +425,25 @@ export function emitCheckRustEvaluator(
       if (!node.branches.length) throw new UnsupportedCheckRustExpression('Expected a CASE branch')
       const kind = rustType(node.type)
       const prefix =
-        kind === 'Int4Value'
-          ? 'int4'
-          : kind === 'Int8Value'
-            ? 'int8'
-            : kind === 'NumericValue'
-              ? 'numeric'
-              : kind === 'DateValue'
-                ? 'date'
-                : kind === 'TimestampValue'
-                  ? 'timestamp'
-                  : kind === 'TimestamptzValue'
-                    ? 'timestamptz'
-                    : kind === 'EnumValue'
-                      ? 'enum'
-                      : kind === 'TextValue'
-                        ? 'text'
-                        : 'bool'
+        kind === 'Int2Value'
+          ? 'int2'
+          : kind === 'Int4Value'
+            ? 'int4'
+            : kind === 'Int8Value'
+              ? 'int8'
+              : kind === 'NumericValue'
+                ? 'numeric'
+                : kind === 'DateValue'
+                  ? 'date'
+                  : kind === 'TimestampValue'
+                    ? 'timestamp'
+                    : kind === 'TimestamptzValue'
+                      ? 'timestamptz'
+                      : kind === 'EnumValue'
+                        ? 'enum'
+                        : kind === 'TextValue'
+                          ? 'text'
+                          : 'bool'
       const scrutinee = node.scrutinee
         ? emitScalar(node.scrutinee.expression, bindings, used)
         : null

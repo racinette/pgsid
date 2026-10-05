@@ -25,6 +25,7 @@ pub mod pg_catalog {
     include!(concat!(env!("OUT_DIR"), "/timezone-tables.rs"));
     include!("operations/pg_catalog/numeric.rs");
     include!("operations/pg_catalog/integer.rs");
+    include!("operations/pg_catalog/smallint.rs");
     include!("operations/pg_catalog/bigint.rs");
     include!("operations/pg_catalog/text.rs");
     include!("operations/pg_catalog/regex.rs");

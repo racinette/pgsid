@@ -2,6 +2,30 @@
 INSERT INTO flight_arrivals (id, arrival_zone, local_arrival, arrival_at)
 VALUES (2, 'America/New_York', '2050-01-15 12:00:00', '2050-01-15 17:00:00+00');
 
+-- name: arrival_zone_offset_out_of_range
+INSERT INTO flight_arrivals (id, arrival_zone, local_arrival, arrival_at)
+VALUES (2, 'UTC168', '2050-01-15 12:00:00', '2050-01-15 17:00:00+00');
+
+-- name: display_zone_minutes_out_of_range
+INSERT INTO arrival_displays (id, display_zone, arrival_at, local_display)
+VALUES (2, 'GMT8:70', '2050-01-15 17:00:00+00', '2050-01-15 12:00:00');
+
+-- name: null_arrival_skips_invalid_zone
+INSERT INTO flight_arrivals (id, arrival_zone, local_arrival, arrival_at)
+VALUES (2, 'UTC168', NULL, NULL);
+
+-- name: null_display_skips_invalid_zone
+INSERT INTO arrival_displays (id, display_zone, arrival_at, local_display)
+VALUES (2, 'GMT8:70', NULL, NULL);
+
+-- name: infinite_arrival_skips_invalid_zone
+INSERT INTO flight_arrivals (id, arrival_zone, local_arrival, arrival_at)
+VALUES (2, 'UTC168', 'infinity', 'infinity');
+
+-- name: infinite_display_skips_invalid_zone
+INSERT INTO arrival_displays (id, display_zone, arrival_at, local_display)
+VALUES (2, 'GMT8:70', '-infinity', '-infinity');
+
 -- name: new_york_summer_arrival
 INSERT INTO flight_arrivals (id, arrival_zone, local_arrival, arrival_at)
 VALUES (2, 'America/New_York', '2050-07-15 12:00:00', '2050-07-15 16:00:00+00');

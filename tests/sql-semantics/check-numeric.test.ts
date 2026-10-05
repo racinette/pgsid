@@ -334,10 +334,11 @@ describe('portable Rust CHECK numeric comparisons', () => {
       join(publicDirectory, 'checks.ts'),
     ])
     const generated = await import(pathToFileURL(join(publicDirectory, 'js/checks.js')).href)
-    const evaluate = (a: unknown, b: unknown) =>
+    const evaluation = (a: unknown, b: unknown) =>
       generated
         .evaluatePublicNumericChecksChecks({ a, b, flag: true })
-        .find((check: { constraint: string }) => check.constraint === 'equal').result
+        .find((check: { constraint: string }) => check.constraint === 'equal')
+    const evaluate = (a: unknown, b: unknown) => evaluation(a, b).result
     expect(evaluate('1.2300', '1.23')).toEqual({ certain: true, value: true })
     expect(evaluate({ kind: 'Value', value: '9007199254740993' }, '9007199254740992')).toEqual({
       certain: true,
@@ -355,9 +356,30 @@ describe('portable Rust CHECK numeric comparisons', () => {
       { kind: 'Value', value: 1 },
     ])
       expect(evaluate(a, '1')).toEqual({ certain: false })
-    expect(() =>
-      evaluate({ kind: 'Error', value: { state: parseInt('22003', 36) } }, '1'),
-    ).toThrow()
+    expect(evaluation(undefined, '1')).toMatchObject({
+      owner: 'public.numeric_checks',
+      constraint: 'equal',
+      result: { certain: false },
+      message: expect.stringContaining('input is unavailable'),
+    })
+    for (const [code, message] of [
+      ['22003', 'numeric value out of range'],
+      ['22007', 'invalid date/time format'],
+      ['22008', 'date/time field value out of range'],
+      ['22009', 'time zone displacement out of range'],
+      ['22012', 'division by zero'],
+      ['2201B', 'invalid regular expression'],
+      ['22023', 'invalid parameter value'],
+      ['XX000', 'SQL evaluation failed'],
+    ])
+      expect(
+        evaluation({ kind: 'Error', value: { state: parseInt(code!, 36) } }, '1'),
+      ).toMatchObject({
+        owner: 'public.numeric_checks',
+        constraint: 'equal',
+        result: { certain: true, error: code },
+        message,
+      })
   })
 
   it('keeps precision coercion, runtime casts, and arithmetic outside the comparison slice', () => {

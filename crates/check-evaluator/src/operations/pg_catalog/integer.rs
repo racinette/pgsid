@@ -181,3 +181,105 @@ pub fn sql__pg_catalog__int4mi__dtqk(left: Int4Value, right: Int4Value) -> Int4V
     }
     Int4Value::Unknown
 }
+
+const SQLSTATE_DIVISION_BY_ZERO: u32 = 3452582;
+
+pub fn sql__pg_catalog__int4mul__284v(left: Int4Value, right: Int4Value) -> Int4Value {
+    if let Int4Value::Error(error) = left {
+        return Int4Value::Error(error);
+    }
+    if let Int4Value::Error(error) = right {
+        return Int4Value::Error(error);
+    }
+    if left == Int4Value::Unknown || right == Int4Value::Unknown {
+        return Int4Value::Unknown;
+    }
+    if left == Int4Value::Null || right == Int4Value::Null {
+        return Int4Value::Null;
+    }
+    if let Int4Value::Value(left_value) = left {
+        if let Int4Value::Value(right_value) = right {
+            let min_value = -2147483647 - 1;
+            if left_value > 0 && right_value > 0 && left_value > 2147483647 / right_value {
+                return Int4Value::Error(make_sql_error(SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE));
+            }
+            if left_value > 0 && right_value < 0 && right_value < min_value / left_value {
+                return Int4Value::Error(make_sql_error(SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE));
+            }
+            if left_value < 0 && right_value > 0 && left_value < min_value / right_value {
+                return Int4Value::Error(make_sql_error(SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE));
+            }
+            if left_value < 0 && right_value < 0 && left_value < 2147483647 / right_value {
+                return Int4Value::Error(make_sql_error(SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE));
+            }
+            return Int4Value::Value(left_value * right_value);
+        }
+    }
+    Int4Value::Unknown
+}
+
+pub fn sql__pg_catalog__int4div__8ogr(left: Int4Value, right: Int4Value) -> Int4Value {
+    if let Int4Value::Error(error) = left {
+        return Int4Value::Error(error);
+    }
+    if let Int4Value::Error(error) = right {
+        return Int4Value::Error(error);
+    }
+    if left == Int4Value::Unknown || right == Int4Value::Unknown {
+        return Int4Value::Unknown;
+    }
+    if left == Int4Value::Null || right == Int4Value::Null {
+        return Int4Value::Null;
+    }
+    if let Int4Value::Value(left_value) = left {
+        if let Int4Value::Value(right_value) = right {
+            if right_value == 0 {
+                return Int4Value::Error(make_sql_error(SQLSTATE_DIVISION_BY_ZERO));
+            }
+            if left_value == -2147483647 - 1 && right_value == -1 {
+                return Int4Value::Error(make_sql_error(SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE));
+            }
+            return Int4Value::Value(left_value / right_value);
+        }
+    }
+    Int4Value::Unknown
+}
+
+pub fn sql__pg_catalog__int4mod__j4pe(left: Int4Value, right: Int4Value) -> Int4Value {
+    if let Int4Value::Error(error) = left {
+        return Int4Value::Error(error);
+    }
+    if let Int4Value::Error(error) = right {
+        return Int4Value::Error(error);
+    }
+    if left == Int4Value::Unknown || right == Int4Value::Unknown {
+        return Int4Value::Unknown;
+    }
+    if left == Int4Value::Null || right == Int4Value::Null {
+        return Int4Value::Null;
+    }
+    if let Int4Value::Value(left_value) = left {
+        if let Int4Value::Value(right_value) = right {
+            if right_value == 0 {
+                return Int4Value::Error(make_sql_error(SQLSTATE_DIVISION_BY_ZERO));
+            }
+            if right_value == -1 {
+                return Int4Value::Value(0);
+            }
+            return Int4Value::Value(left_value % right_value);
+        }
+    }
+    Int4Value::Unknown
+}
+
+pub fn sql__pg_catalog__abs__5ajw(input: Int4Value) -> Int4Value {
+    if let Int4Value::Value(value) = input {
+        if value == -2147483647 - 1 {
+            return Int4Value::Error(make_sql_error(SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE));
+        }
+        if value < 0 {
+            return Int4Value::Value(0 - value);
+        }
+    }
+    input
+}

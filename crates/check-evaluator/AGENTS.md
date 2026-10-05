@@ -23,6 +23,11 @@ import them. Keep schema-only helpers with their callables.
 - Encode a five-character SQLSTATE as its base-36 integer in a named Rust
   constant. Target adapters decode that integer to five uppercase characters.
   Preserve an incoming error before considering unknown or NULL operands.
+- Public constraint evaluators return SQL errors as values. Keep their condition
+  descriptions in Rust; adapters decode SQLSTATE and attach constraint identity.
+  Deferred evaluations carry a diagnostic message. Do not claim an exact cause
+  when an Unknown value has already lost its provenance. Database write wrappers
+  enforce rejection after reading the evaluator's result.
 - Keep operation behavior in Rust. Go and TypeScript adapters only convert row
   values and expose the stable validator interface.
 - Add a PostgreSQL/PGlite comparison for migrated behavior and exercise the
@@ -36,8 +41,12 @@ import them. Keep schema-only helpers with their callables.
   `int4 × int4 → bool`, `int8 × int8 → bool`, mixed `int4`/`int8` comparisons,
   `bool × bool → bool`, and `text × text → bool`
   implementations in the operation sources, including `starts_with`, plus
-  `int4 × int4 → int4` arithmetic and `text → int4`, and tests them
+  `int4 × int4 → int4` and `int4 → int4` arithmetic and `text → int4`, and tests them
   automatically.
+- Int2 payloads use the existing i32 primitive, restricted to the PostgreSQL
+  smallint range. Public inputs are already SQL-coerced; out-of-range values
+  defer. Mixed comparisons widen in Rust before using int4 or int8 comparisons.
+  Smallint arithmetic and runtime narrowing casts require separate slices.
 - Int8 payloads use Rust `i64`, Go `int64`, and TypeScript `bigint`. Write
   decimal Rust literals with an `i64` suffix. Widen an int4 payload with
   `as i64` into a distinct local before comparing it with an int8 payload.

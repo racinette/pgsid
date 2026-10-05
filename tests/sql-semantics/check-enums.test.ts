@@ -463,8 +463,13 @@ fn enum_checks() {
         target({ state: 'invalid', peer: 'queued' }).find((item) => item.constraint === 'equality')!
           .result,
       ).toEqual({ certain: false })
-      expect(() => target({ state: 'ready', amount: 2147483647 })).toThrowError(
-        expect.objectContaining({ code: '22003' }),
+      expect(target({ state: 'ready', amount: 2147483647 })).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            result: { certain: true, error: '22003' },
+            message: expect.any(String),
+          }),
+        ]),
       )
     }
   })

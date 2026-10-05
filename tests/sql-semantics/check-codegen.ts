@@ -172,6 +172,14 @@ export function renderGoCheckTests(
           constraint + ' certainty',
         ),
       )
+      if (!result.certain || result.error)
+        statements.push(
+          expect(
+            go.notEqual(go.selector(check, 'Message'), go.string('')),
+            go.ident('true'),
+            constraint + ' diagnostic presence',
+          ),
+        )
       if (!result.certain) continue
       const value = go.selector(actual, 'Value')
       statements.push(

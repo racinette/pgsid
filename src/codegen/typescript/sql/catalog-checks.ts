@@ -8,6 +8,7 @@ import {
 } from '../../../sql-semantics/catalog-check-binder.js'
 import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
+import { checkUnknownMessage } from '../../shared/check-diagnostics.js'
 import { prepareCheckRustGroup } from '../../shared/check-rust-source.js'
 import { transpileCheckRustFiles } from '../../shared/check-rust-transpile.js'
 import { exportModifier, factory, identifier, printFile } from '../ast.js'
@@ -116,10 +117,15 @@ export function renderTypescriptSchemaCheckArtifacts(
     ...group,
     results: group.checks.map(({ plan }) => {
       const prepared = rustGroup?.checks[rustIndex++]
+      const unknownMessage = checkUnknownMessage(
+        plan.expression,
+        prepared?.kind === 'unsupported' ? prepared.reason : undefined,
+      )
       if (prepared?.kind === 'supported') {
         const args = prepared.inputs.map((item) => {
           if (
             ![
+              'Int2Value',
               'Int4Value',
               'Int8Value',
               'NumericValue',
@@ -145,13 +151,15 @@ export function renderTypescriptSchemaCheckArtifacts(
                       ? 'checkRustNullness'
                       : item.enum
                         ? 'checkRustEnum'
-                        : item.rustType === 'Int4Value'
-                          ? 'checkRustInt4'
-                          : item.rustType === 'Int8Value'
-                            ? 'checkRustInt8'
-                            : item.rustType === 'TextValue'
-                              ? 'checkRustText'
-                              : 'checkRustBool'
+                        : item.rustType === 'Int2Value'
+                          ? 'checkRustInt2'
+                          : item.rustType === 'Int4Value'
+                            ? 'checkRustInt4'
+                            : item.rustType === 'Int8Value'
+                              ? 'checkRustInt8'
+                              : item.rustType === 'TextValue'
+                                ? 'checkRustText'
+                                : 'checkRustBool'
           rustInputAdapters.add(helper)
           if (
             item.rustType !== 'NumericValue' &&
@@ -164,7 +172,7 @@ export function renderTypescriptSchemaCheckArtifacts(
                 ? 'checkInputNullness'
                 : item.rustType === 'Int8Value'
                   ? 'checkInputInt8'
-                  : item.rustType === 'Int4Value'
+                  : item.rustType === 'Int2Value' || item.rustType === 'Int4Value'
                     ? 'checkInputInteger'
                     : item.rustType === 'TextValue'
                       ? 'checkInputText'
@@ -200,9 +208,10 @@ export function renderTypescriptSchemaCheckArtifacts(
             ]),
           },
           helpers: ['evalBoolCertain', 'evalBoolUncertain'],
+          unknownMessage,
         }
       }
-      return emitEvalBoolExpression(
+      const result = emitEvalBoolExpression(
         portableCheckAtoms(plan.expression),
         { ...typescriptSqlBackend, input: (name) => callInput('checkTextValue', name) },
         {
@@ -249,6 +258,7 @@ export function renderTypescriptSchemaCheckArtifacts(
           },
         },
       )
+      return { ...result, unknownMessage }
     }),
   }))
   const namedImport = (names: readonly string[], module: string): ts.ImportDeclaration =>
@@ -389,10 +399,12 @@ export function renderTypescriptSchemaCheckArtifacts(
             ),
           ]
         : []),
-      ...typescriptSqlRuntime(
-        emitted.flatMap((group) => group.results.flatMap((result) => result.helpers)),
-      ),
+      ...typescriptSqlRuntime([
+        'EvalBool',
+        ...emitted.flatMap((group) => group.results.flatMap((result) => result.helpers)),
+      ]),
       ...checkInputStatements(inputHelpers),
+      ...synthesizedStatements(typescriptCheckEvaluationSource),
       ...(rustGroup?.source
         ? synthesizedStatements(typescriptRustAdapterSource).filter(
             (statement) =>
@@ -439,16 +451,18 @@ export function renderTypescriptSchemaCheckArtifacts(
               factory.createReturnStatement(
                 factory.createArrayLiteralExpression(
                   results.map((result, index) =>
-                    factory.createObjectLiteralExpression([
-                      factory.createPropertyAssignment(
-                        'owner',
-                        factory.createStringLiteral(checks[index]!.owner),
+                    factory.createCallExpression(identifier('checkEvaluation'), undefined, [
+                      factory.createStringLiteral(checks[index]!.owner),
+                      factory.createStringLiteral(checks[index]!.plan.name),
+                      factory.createArrowFunction(
+                        undefined,
+                        undefined,
+                        [],
+                        undefined,
+                        factory.createToken(ts.SyntaxKind.EqualsGreaterThanToken),
+                        result.value.expression,
                       ),
-                      factory.createPropertyAssignment(
-                        'constraint',
-                        factory.createStringLiteral(checks[index]!.plan.name),
-                      ),
-                      factory.createPropertyAssignment('result', result.value.expression),
+                      factory.createStringLiteral(result.unknownMessage),
                     ]),
                   ),
                   true,
@@ -502,6 +516,13 @@ function checkRustDate(row: object, name: string): _checkRust.DateValue {
   if (value.kind === 'Value' && 'value' in value && typeof value.value === 'number') return _checkRust.makeDateValue(value.value)
   return _checkRust.dateUnknown()
 }
+function checkRustInt2(row: object, name: string): _checkRust.Int2Value {
+  const input = checkInputInteger(row, name)
+  if (!input.certain) return _checkRust.int2Unknown()
+  if (input.value === null) return _checkRust.int2Null()
+  if (input.value < -32768n || input.value > 32767n) return _checkRust.int2Unknown()
+  return _checkRust.makeInt2Value(Number(input.value))
+}
 function checkRustInt4(row: object, name: string): _checkRust.Int4Value {
   const input = checkInputInteger(row, name)
   if (!input.certain) return _checkRust.int4Unknown()
@@ -545,17 +566,47 @@ function checkRustEnum(row: object, name: string, labels: readonly string[]): _c
   const order = labels.indexOf(input.value)
   return order < 0 ? _checkRust.enumUnknown() : _checkRust.makeEnumValue(order)
 }
-function checkRustOutcome(value: _checkRust.CheckOutcome): EvalBool {
+function checkRustOutcome(value: _checkRust.CheckOutcome): CheckResult {
   switch (value.kind) {
     case 'True': return evalBoolCertain(true)
     case 'False': return evalBoolCertain(false)
     case 'Null': return evalBoolCertain(null)
     case 'Unknown': return evalBoolUncertain()
-    case 'Error': throw Object.assign(new Error('check constraint evaluation failed'), {
-      code: value.value.state.toString(36).toUpperCase().padStart(5, '0'),
-    })
+    case 'Error': return {
+      certain: true,
+      error: value.value.state.toString(36).toUpperCase().padStart(5, '0'),
+      message: _checkRust.sqlErrorMessage(value.value).message,
+    }
   }
   throw new Error('invalid Rust CHECK outcome')
+}`
+
+const typescriptCheckEvaluationSource = `type CheckResult = EvalBool | {
+  readonly certain: true
+  readonly error: string
+  readonly message?: string
+  readonly value?: never
+}
+type CheckEvaluation = {
+  readonly owner: string
+  readonly constraint: string
+  readonly result: CheckResult
+  readonly message?: string
+}
+function checkEvaluation(owner: string, constraint: string, evaluate: () => CheckResult, unknownMessage: string): CheckEvaluation {
+  let result: CheckResult
+  try { result = evaluate() }
+  catch (error) {
+    if (!(error instanceof Error) || !('code' in error) || typeof error.code !== 'string' || !/^[A-Z0-9]{5}$/.test(error.code)) throw error
+    result = { certain: true, error: error.code, message: error.message }
+  }
+  if (!result.certain) return { owner, constraint, result, message: unknownMessage }
+  if ('error' in result) return {
+    owner, constraint,
+    result: { certain: true, error: result.error },
+    message: result.message ?? 'SQL evaluation failed',
+  }
+  return { owner, constraint, result }
 }`
 
 const synthesizedStatements = (source: string): ts.Statement[] => {
