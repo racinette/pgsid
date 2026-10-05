@@ -434,7 +434,8 @@ describe('world CHECK INSERT parity', () => {
       try {
         expected = (
           await pg.query<{ value: boolean | null }>(
-            `SELECT (${deparseSync(expression)}) AS value FROM (${candidate}) AS candidate`,
+            `WITH candidate AS MATERIALIZED (${candidate})
+              SELECT (${deparseSync(expression)}) AS value FROM candidate`,
           )
         ).rows[0]!.value
       } catch (error) {

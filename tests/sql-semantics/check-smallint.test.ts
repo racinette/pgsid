@@ -389,7 +389,7 @@ describe('portable smallint CHECK values', () => {
     )
   }, 120_000)
 
-  it('exposes range checked smallint public inputs and defers narrowing casts and mixed arithmetic', async () => {
+  it('exposes range checked smallint public inputs and defers narrowing casts and mixed bigint arithmetic', async () => {
     const output = renderTypescriptSchemaCheckArtifacts([table], catalog.domains, [])
     const publicDirectory = join(directory, 'public')
     await mkdir(publicDirectory, { recursive: true })
@@ -423,7 +423,7 @@ describe('portable smallint CHECK values', () => {
     expect(evaluate(null)).toEqual({ certain: true, value: null })
     for (const a of [undefined, -32769, 32768, 1.5, '1', {}])
       expect(evaluate(a)).toEqual({ certain: false })
-    for (const sql of ['a::smallint > 0', 'i::smallint > 0', '(a + i) > 0']) {
+    for (const sql of ['a::smallint > 0', 'i::smallint > 0', '(a + big) > 0']) {
       const probe = lowerTableCheck(
         table,
         { name: 'probe', type: 'check', definition: `CHECK (${sql})` },

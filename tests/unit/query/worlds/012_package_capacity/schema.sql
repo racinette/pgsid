@@ -68,3 +68,39 @@ CREATE TABLE warehouse_corrections (
   CONSTRAINT correction_reversal CHECK (-delta = reversal),
   CONSTRAINT correction_limit CHECK (abs(delta) <= maximum)
 );
+
+CREATE TABLE mixed_stock_balances (
+  id integer PRIMARY KEY,
+  units warehouse_count,
+  reserve integer,
+  total integer,
+  adjustment smallint,
+  adjusted integer,
+  remaining integer,
+  residual integer,
+  CONSTRAINT reservation_total CHECK (units + reserve = total),
+  CONSTRAINT adjusted_total CHECK (total + adjustment = adjusted),
+  CONSTRAINT remaining_units CHECK (units - reserve = remaining),
+  CONSTRAINT residual_units CHECK (total - units = residual)
+);
+
+CREATE TABLE mixed_package_capacity (
+  id integer PRIMARY KEY,
+  width smallint,
+  height integer,
+  capacity integer,
+  slots integer,
+  batch_size smallint,
+  CONSTRAINT mixed_area_limit CHECK (width * height <= capacity),
+  CONSTRAINT mixed_slot_limit CHECK (CASE WHEN batch_size = 0 THEN true ELSE capacity / batch_size <= slots END)
+);
+
+CREATE TABLE bulk_package_capacity (
+  id integer PRIMARY KEY,
+  units smallint,
+  items_per_batch integer,
+  slots integer,
+  maximum integer,
+  CONSTRAINT bulk_slot_limit CHECK (units / items_per_batch <= slots),
+  CONSTRAINT bulk_capacity_limit CHECK (items_per_batch * units <= maximum)
+);
