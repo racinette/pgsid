@@ -504,11 +504,7 @@ describe('portable Rust CHECK timestamp and timezone offsets', () => {
                 certain: true,
                 value: active && (zone === null || local === null) ? null : sqlstate !== '23514',
               }
-      if (result.error)
-        expect(() => evaluateFixed(wrapped)).toThrow(
-          expect.objectContaining({ code: result.error }),
-        )
-      else expect(evaluateFixed(wrapped)[0].result).toEqual(result)
+      expect(evaluateFixed(wrapped)[0].result).toEqual(result)
       cases.push({
         name: `${zone} / ${local} / ${instant} / ${active}`,
         table: fixedAgreement,

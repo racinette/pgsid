@@ -410,17 +410,7 @@ describe('Rust text-to-timestamptz CHECK casts', () => {
         await pg.exec('ROLLBACK')
       }
       const wrapped = { raw, anchor: runtime.makeTimestamptzValue(0n), skip }
-      if ('error' in result) {
-        let thrown: unknown
-        try {
-          evaluate(wrapped)
-        } catch (error) {
-          thrown = error
-        }
-        expect(thrown).toMatchObject({ code: result.error })
-      } else {
-        expect(evaluate(wrapped)[0].result).toEqual(result)
-      }
+      expect(evaluate(wrapped)[0].result).toEqual(result)
       cases.push({
         name: `${raw ?? 'NULL'}:${skip}`,
         table: rows,

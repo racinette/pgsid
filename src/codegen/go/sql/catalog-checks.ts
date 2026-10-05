@@ -8,6 +8,7 @@ import {
 import { enumType } from '../../../sql-semantics/expressions.js'
 import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
+import { checkUnknownMessage } from '../../shared/check-diagnostics.js'
 import { prepareCheckRustGroup } from '../../shared/check-rust-source.js'
 import { transpileCheckRustFiles } from '../../shared/check-rust-transpile.js'
 import { go, printGoFile, type GoExpression } from '../ast.js'
@@ -219,10 +220,15 @@ export function renderGoSchemaCheckArtifacts(
     ...group,
     results: group.checks.map(({ plan }) => {
       const prepared = rustGroup?.checks[rustIndex++]
+      const unknownMessage = checkUnknownMessage(
+        plan.expression,
+        prepared?.kind === 'unsupported' ? prepared.reason : undefined,
+      )
       if (prepared?.kind === 'supported') {
         const arguments_ = prepared.inputs.map((item) => {
           if (
             ![
+              'Int2Value',
               'Int4Value',
               'Int8Value',
               'NumericValue',
@@ -248,13 +254,15 @@ export function renderGoSchemaCheckArtifacts(
                       ? 'checkRustNullness'
                       : item.enum
                         ? 'checkRustEnum'
-                        : item.rustType === 'Int4Value'
-                          ? 'checkRustInt4'
-                          : item.rustType === 'Int8Value'
-                            ? 'checkRustInt8'
-                            : item.rustType === 'TextValue'
-                              ? 'checkRustText'
-                              : 'checkRustBool'
+                        : item.rustType === 'Int2Value'
+                          ? 'checkRustInt2'
+                          : item.rustType === 'Int4Value'
+                            ? 'checkRustInt4'
+                            : item.rustType === 'Int8Value'
+                              ? 'checkRustInt8'
+                              : item.rustType === 'TextValue'
+                                ? 'checkRustText'
+                                : 'checkRustBool'
           rustInputAdapters.add(helper)
           if (
             item.rustType !== 'NumericValue' &&
@@ -265,7 +273,9 @@ export function renderGoSchemaCheckArtifacts(
             inputHelpers.add(
               item.nullness
                 ? 'checkInputNullness'
-                : item.rustType === 'Int4Value' || item.rustType === 'Int8Value'
+                : item.rustType === 'Int2Value' ||
+                    item.rustType === 'Int4Value' ||
+                    item.rustType === 'Int8Value'
                   ? 'checkInputInteger'
                   : item.rustType === 'TextValue'
                     ? 'checkInputText'
@@ -300,9 +310,10 @@ export function renderGoSchemaCheckArtifacts(
             ]),
           },
           helpers: ['evalBoolCertain', 'evalBoolUncertain'],
+          unknownMessage,
         }
       }
-      return emitEvalBoolExpression(
+      const result = emitEvalBoolExpression(
         portableCheckAtoms(plan.expression),
         { ...goSqlBackend, input: (name) => callInput('checkTextValue', name) },
         {
@@ -348,6 +359,7 @@ export function renderGoSchemaCheckArtifacts(
           },
         },
       )
+      return { ...result, unknownMessage }
     }),
   }))
   const resultType = go.ident('CheckEvaluation')
@@ -404,9 +416,9 @@ func (e *CheckViolationError) Error() string {
 }
 func (e *CheckViolationError) SQLState() string { return "23514" }
 
-type CheckEvaluationError struct { Owner, Constraint, State string }
+type CheckEvaluationError struct { Owner, Constraint, State, Message string }
 func (e *CheckEvaluationError) Error() string {
-  return "check constraint " + e.Constraint + " evaluation failed: " + e.State
+  return "check constraint " + e.Constraint + " evaluation failed: " + e.Message + " (SQLSTATE " + e.State + ")"
 }
 func (e *CheckEvaluationError) SQLState() string { return e.State }
 
@@ -415,13 +427,22 @@ func ValidateCheckInputs[T any](input T, evaluate func(T) []CheckEvaluation) err
     if !check.Result.Certain { continue }
     value := check.Result.Value
     if value.Error != "" {
-      return &CheckEvaluationError{Owner: check.Owner, Constraint: check.Constraint, State: value.Error}
+      return &CheckEvaluationError{Owner: check.Owner, Constraint: check.Constraint, State: value.Error, Message: check.Message}
     }
     if value.Valid && !value.Value {
       return &CheckViolationError{Owner: check.Owner, Constraint: check.Constraint}
     }
   }
   return nil
+}
+func checkEvaluation(owner, constraint string, result EvalBool, unknownMessage string) CheckEvaluation {
+  evaluation := CheckEvaluation{Owner: owner, Constraint: constraint, Result: result}
+  if !result.Certain { evaluation.Message = unknownMessage }
+  if result.Certain && result.Value.Error != "" {
+    evaluation.Message = "SQL evaluation failed (SQLSTATE " + result.Value.Error + ")"
+    ${rustGroup?.source ? 'if state, valid := checkRustState(result.Value.Error); valid { evaluation.Message = checkruntime.SqlErrorMessage(state).Message }' : ''}
+  }
+  return evaluation
 }`,
       declarations: [
         ...emitted.map(({ inputType, fields }) => go.type(inputType, go.struct(fields))),
@@ -431,6 +452,7 @@ func ValidateCheckInputs[T any](input T, evaluate func(T) []CheckEvaluation) err
             { names: ['Owner'], type: go.ident('string') },
             { names: ['Constraint'], type: go.ident('string') },
             { names: ['Result'], type: go.ident('EvalBool') },
+            { names: ['Message'], type: go.ident('string') },
           ]),
         ),
         ...emitted.map(({ name, kind, checks, results, inputType }) =>
@@ -443,10 +465,11 @@ func ValidateCheckInputs[T any](input T, evaluate func(T) []CheckEvaluation) err
                 go.composite(
                   go.slice(resultType),
                   results.map((result, index) =>
-                    go.composite(resultType, [
-                      go.keyValue('Owner', go.string(checks[index]!.owner)),
-                      go.keyValue('Constraint', go.string(checks[index]!.plan.name)),
-                      go.keyValue('Result', result.value.expression),
+                    go.call(go.ident('checkEvaluation'), [
+                      go.string(checks[index]!.owner),
+                      go.string(checks[index]!.plan.name),
+                      result.value.expression,
+                      go.string(result.unknownMessage),
                     ]),
                   ),
                 ),
@@ -488,6 +511,20 @@ func checkRustDate[T any](field CheckOptional[T]) checkruntime.DateValue {
   if field.Null { return checkruntime.DateNull() }
   if value, ok := any(field.V).(checkruntime.DateValue); ok { return value }
   return checkruntime.DateUnknown()
+}
+func checkRustInt2[T any](field CheckOptional[T]) checkruntime.Int2Value {
+  value := checkInputInteger(field)
+  if !value.Certain { return checkruntime.Int2Unknown() }
+  if value.Value.Error != "" {
+    if state, ok := checkRustState(value.Value.Error); ok {
+      return checkruntime.Int2Value{Kind: checkruntime.Int2ValueError, Error: state}
+    }
+    return checkruntime.Int2Unknown()
+  }
+  if !value.Value.Valid { return checkruntime.Int2Null() }
+  number := value.Value.Value
+  if number < -32768 || number > 32767 { return checkruntime.Int2Unknown() }
+  return checkruntime.MakeInt2Value(int(number))
 }
 func checkRustInt4[T any](field CheckOptional[T]) checkruntime.Int4Value {
   value := checkInputInteger(field)

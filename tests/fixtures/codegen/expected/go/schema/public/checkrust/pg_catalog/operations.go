@@ -1084,6 +1084,125 @@ func Int4miDtqk(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
+
+const sqlstateDivisionByZero = 3452582
+
+func Int4mul284v(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.Int4Value {
+	left = checkruntime.CopyInt4Value(left)
+	right = checkruntime.CopyInt4Value(right)
+	if left.Kind == checkruntime.Int4ValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int4ValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.Int4ValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.Int4ValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			minValue := langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1)
+			if leftValue > 0 && rightValue > 0 && leftValue > langruntime.CheckedSignedDivide(2147483647, rightValue) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+			}
+			if leftValue > 0 && rightValue < 0 && rightValue < langruntime.CheckedSignedDivide(minValue, leftValue) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+			}
+			if leftValue < 0 && rightValue > 0 && leftValue < langruntime.CheckedSignedDivide(minValue, rightValue) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+			}
+			if leftValue < 0 && rightValue < 0 && leftValue < langruntime.CheckedSignedDivide(2147483647, rightValue) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedMultiply(leftValue, rightValue)}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func Int4div8ogr(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.Int4Value {
+	left = checkruntime.CopyInt4Value(left)
+	right = checkruntime.CopyInt4Value(right)
+	if left.Kind == checkruntime.Int4ValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int4ValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.Int4ValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.Int4ValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			if rightValue == 0 {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(sqlstateDivisionByZero)}
+			}
+			if leftValue == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) && rightValue == langruntime.CheckedSignedNegate(1) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedDivide(leftValue, rightValue)}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func Int4modJ4pe(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.Int4Value {
+	left = checkruntime.CopyInt4Value(left)
+	right = checkruntime.CopyInt4Value(right)
+	if left.Kind == checkruntime.Int4ValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int4ValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.Int4ValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.Int4ValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			if rightValue == 0 {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(sqlstateDivisionByZero)}
+			}
+			if rightValue == langruntime.CheckedSignedNegate(1) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedRemainder(leftValue, rightValue)}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func Abs5ajw(input checkruntime.Int4Value) checkruntime.Int4Value {
+	input = checkruntime.CopyInt4Value(input)
+	if input.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(input.Value)
+		if value == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+		}
+		if value < 0 {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(0, value)}
+		}
+	}
+	return input
+}
 func numericCompare(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.Int4Value {
 	left = checkruntime.CopyNumericValue(left)
 	right = checkruntime.CopyNumericValue(right)
@@ -1288,6 +1407,180 @@ func NumericNeGyip(left checkruntime.NumericValue, right checkruntime.NumericVal
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order != 0}
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Int24eqCfkl(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt4Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	return Int4eqLrxe(leftWide, right)
+}
+func Int24geHurd(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt4Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	return Int4ge2xvk(leftWide, right)
+}
+func Int24gt98sb(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt4Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	return Int4gt5vlv(leftWide, right)
+}
+func Int24le56y6(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt4Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	return Int4le9wb6(leftWide, right)
+}
+func Int24ltGuxt(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt4Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	return Int4lt9gej(leftWide, right)
+}
+func Int24ne11ts(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt4Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	return Int4neQhun(leftWide, right)
+}
+func Int28eq47dr(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	leftWide := checkruntime.Int2ToInt8(left)
+	return Int8eqJdhd(leftWide, right)
+}
+func Int28geXhie(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	leftWide := checkruntime.Int2ToInt8(left)
+	return Int8geQfhv(leftWide, right)
+}
+func Int28gtXmpc(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	leftWide := checkruntime.Int2ToInt8(left)
+	return Int8gt3ehj(leftWide, right)
+}
+func Int28leJsoj(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	leftWide := checkruntime.Int2ToInt8(left)
+	return Int8le9fr4(leftWide, right)
+}
+func Int28ltF4ka(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	leftWide := checkruntime.Int2ToInt8(left)
+	return Int8ltCryd(leftWide, right)
+}
+func Int28ne4fh8(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	leftWide := checkruntime.Int2ToInt8(left)
+	return Int8neUr2k(leftWide, right)
+}
+func Int2eqU7zv(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	rightWide := checkruntime.Int2ToInt4(right)
+	return Int4eqLrxe(leftWide, rightWide)
+}
+func Int2geLd2i(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	rightWide := checkruntime.Int2ToInt4(right)
+	return Int4ge2xvk(leftWide, rightWide)
+}
+func Int2gt681i(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	rightWide := checkruntime.Int2ToInt4(right)
+	return Int4gt5vlv(leftWide, rightWide)
+}
+func Int2leEp4u(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	rightWide := checkruntime.Int2ToInt4(right)
+	return Int4le9wb6(leftWide, rightWide)
+}
+func Int2ltQvze(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	rightWide := checkruntime.Int2ToInt4(right)
+	return Int4lt9gej(leftWide, rightWide)
+}
+func Int2neUz14(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	rightWide := checkruntime.Int2ToInt4(right)
+	return Int4neQhun(leftWide, rightWide)
+}
+func Int42eqRd78(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt4Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	rightWide := checkruntime.Int2ToInt4(right)
+	return Int4eqLrxe(left, rightWide)
+}
+func Int42geT5ib(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt4Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	rightWide := checkruntime.Int2ToInt4(right)
+	return Int4ge2xvk(left, rightWide)
+}
+func Int42gtBicd(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt4Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	rightWide := checkruntime.Int2ToInt4(right)
+	return Int4gt5vlv(left, rightWide)
+}
+func Int42le570s(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt4Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	rightWide := checkruntime.Int2ToInt4(right)
+	return Int4le9wb6(left, rightWide)
+}
+func Int42ltEtdm(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt4Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	rightWide := checkruntime.Int2ToInt4(right)
+	return Int4lt9gej(left, rightWide)
+}
+func Int42neBeca(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	left = checkruntime.CopyInt4Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	rightWide := checkruntime.Int2ToInt4(right)
+	return Int4neQhun(left, rightWide)
+}
+func Int82eqJdpt(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	right = checkruntime.CopyInt2Value(right)
+	rightWide := checkruntime.Int2ToInt8(right)
+	return Int8eqJdhd(left, rightWide)
+}
+func Int82geEh8t(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	right = checkruntime.CopyInt2Value(right)
+	rightWide := checkruntime.Int2ToInt8(right)
+	return Int8geQfhv(left, rightWide)
+}
+func Int82gt7e3o(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	right = checkruntime.CopyInt2Value(right)
+	rightWide := checkruntime.Int2ToInt8(right)
+	return Int8gt3ehj(left, rightWide)
+}
+func Int82leJth3(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	right = checkruntime.CopyInt2Value(right)
+	rightWide := checkruntime.Int2ToInt8(right)
+	return Int8le9fr4(left, rightWide)
+}
+func Int82ltXt99(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	right = checkruntime.CopyInt2Value(right)
+	rightWide := checkruntime.Int2ToInt8(right)
+	return Int8ltCryd(left, rightWide)
+}
+func Int82ne6rol(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.BoolValue {
+	right = checkruntime.CopyInt2Value(right)
+	rightWide := checkruntime.Int2ToInt8(right)
+	return Int8neUr2k(left, rightWide)
 }
 func textHasPrefix(text string, prefix string) bool {
 	text = langruntime.CheckedString(text)

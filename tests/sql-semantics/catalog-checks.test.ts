@@ -122,16 +122,16 @@ describe('catalog CHECK lowering', () => {
     expect(typescript.checks).toContain('_checkRust.evaluateCheck')
     expect(typescript.checks).toContain('evalBool')
     expect(go.checks).toContain('checkRustOutcome(checkrust.EvaluateCheck')
-    expect(typescript.checks).toMatch(/constraint: "email_length", result: checkRustOutcome/u)
-    expect(go.checks).toMatch(/Constraint: "email_length",\s*Result: checkRustOutcome/u)
-    expect(typescript.checks).toMatch(/constraint: "amount_plus", result: checkRustOutcome/u)
-    expect(go.checks).toMatch(/Constraint: "amount_minus",\s*Result: checkRustOutcome/u)
-    expect(typescript.checks).toMatch(/constraint: "enabled_equal", result: checkRustOutcome/u)
-    expect(go.checks).toMatch(/Constraint: "enabled_unequal",\s*Result: checkRustOutcome/u)
-    expect(typescript.checks).toMatch(/constraint: "enabled_less", result: checkRustOutcome/u)
-    expect(typescript.checks).toMatch(/constraint: "negative_floor", result: checkRustOutcome/u)
-    expect(typescript.checks).toMatch(/constraint: "minimum_floor", result: checkRustOutcome/u)
-    expect(typescript.checks).toMatch(/constraint: "conditional_check", result: checkRustOutcome/u)
+    expect(typescript.checks).toMatch(/"email_length", \(\) => checkRustOutcome/u)
+    expect(go.checks).toMatch(/"email_length", checkRustOutcome/u)
+    expect(typescript.checks).toMatch(/"amount_plus", \(\) => checkRustOutcome/u)
+    expect(go.checks).toMatch(/"amount_minus", checkRustOutcome/u)
+    expect(typescript.checks).toMatch(/"enabled_equal", \(\) => checkRustOutcome/u)
+    expect(go.checks).toMatch(/"enabled_unequal", checkRustOutcome/u)
+    expect(typescript.checks).toMatch(/"enabled_less", \(\) => checkRustOutcome/u)
+    expect(typescript.checks).toMatch(/"negative_floor", \(\) => checkRustOutcome/u)
+    expect(typescript.checks).toMatch(/"minimum_floor", \(\) => checkRustOutcome/u)
+    expect(typescript.checks).toMatch(/"conditional_check", \(\) => checkRustOutcome/u)
     for (const name of [
       'simple_int4',
       'simple_bool',
@@ -141,12 +141,10 @@ describe('catalog CHECK lowering', () => {
       'scalar_bool',
       'scalar_no_else',
     ]) {
-      expect(typescript.checks).toMatch(
-        new RegExp(`constraint: "${name}", result: checkRustOutcome`),
-      )
-      expect(go.checks).toMatch(new RegExp(`Constraint: "${name}",\\s*Result: checkRustOutcome`))
+      expect(typescript.checks).toMatch(new RegExp(`"${name}", \\(\\) => checkRustOutcome`))
+      expect(go.checks).toMatch(new RegExp(`"${name}", checkRustOutcome`))
     }
-    expect(typescript.checks).toMatch(/constraint: "id_positive", result: checkRustOutcome/u)
+    expect(typescript.checks).toMatch(/"id_positive", \(\) => checkRustOutcome/u)
 
     const directory = await mkdtemp(join(tmpdir(), 'pgsid-check-rust-production-'))
     try {
@@ -193,12 +191,18 @@ describe('catalog CHECK lowering', () => {
           value: true,
         })
       }
-      expect(() => generated.evaluatePublicRegulatedChecks({ amount: 2147483647 })).toThrowError(
-        expect.objectContaining({ code: '22003' }),
-      )
-      expect(() => generated.evaluatePublicRegulatedChecks({ amount: -2147483648 })).toThrowError(
-        expect.objectContaining({ code: '22003' }),
-      )
+      for (const amount of [2147483647, -2147483648]) {
+        const evaluated = generated.evaluatePublicRegulatedChecks({ amount })
+        expect(evaluated).toHaveLength(result.length)
+        expect(evaluated).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              result: { certain: true, error: '22003' },
+              message: expect.any(String),
+            }),
+          ]),
+        )
+      }
       const enabledTrue = generated.evaluatePublicRegulatedChecks({
         enabled: true,
       }) as typeof result
@@ -256,9 +260,17 @@ describe('catalog CHECK lowering', () => {
       expect(outsideInt4.find((item) => item.constraint === 'with_unknown')?.result).toEqual({
         certain: false,
       })
-      expect(() =>
-        generated.evaluatePublicRegulatedChecks({ email: 'a', pattern: '(' }),
-      ).toThrowError(expect.objectContaining({ code: '2201B' }))
+      expect(outsideInt4.find((item) => item.constraint === 'with_unknown')).toMatchObject({
+        message: expect.any(String),
+      })
+      expect(generated.evaluatePublicRegulatedChecks({ email: 'a', pattern: '(' })).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            result: { certain: true, error: '2201B' },
+            message: 'invalid regular expression',
+          }),
+        ]),
+      )
       const conditional = generated.evaluatePublicCaseRustChecks({
         amount: -2,
         flag: false,
@@ -285,9 +297,17 @@ describe('catalog CHECK lowering', () => {
         certain: true,
         value: true,
       })
-      expect(() =>
+      expect(
         generated.evaluatePublicCaseRustChecks({ amount: 2147483647, flag: true, note: null }),
-      ).toThrowError(expect.objectContaining({ code: '22003' }))
+      ).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            constraint: 'conditional_check',
+            result: { certain: true, error: '22003' },
+            message: 'numeric value out of range',
+          }),
+        ]),
+      )
 
       for (const [name, expected] of Object.entries({
         simple_int4: false,
@@ -1116,6 +1136,10 @@ func TestPartialCheckInputs(t *testing.T) {
       code: '23514',
       constraint: 'amount_minus',
     })
+    expect(queries).toBe(0)
+    await expect(
+      module.exports['insertRegulated']!(db, { email: 'a', amount: 2147483647 }),
+    ).rejects.toMatchObject({ code: '22003', message: expect.stringContaining('out of range') })
     expect(queries).toBe(0)
     await module.exports['insertRegulated']!(db, { email: 'a', amount: 1 })
     expect(queries).toBe(1)

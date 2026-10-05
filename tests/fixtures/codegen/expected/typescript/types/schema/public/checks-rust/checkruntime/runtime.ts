@@ -1,4 +1,94 @@
 import * as langruntime from "../langruntime/runtime.js";
+export type Int2Value = {
+    kind: "Unknown";
+} | {
+    kind: "Null";
+} | {
+    kind: "Value";
+    value: number;
+} | {
+    kind: "Error";
+    value: SqlError;
+};
+export function copyInt2Value(value: Int2Value): Int2Value {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: langruntime.checkedI32(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
+function equalInt2Value(left: Int2Value, right: Int2Value): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function int2Unknown(): Int2Value {
+    return { kind: "Unknown" };
+}
+export function int2Null(): Int2Value {
+    return { kind: "Null" };
+}
+export function makeInt2Value(value: number): Int2Value {
+    value = langruntime.checkedI32(value);
+    if (value < langruntime.checkedSignedNegate(32768) || value > 32767) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: value };
+}
+export function int2IsNull(value: Int2Value): BoolValue {
+    value = copyInt2Value(value);
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalInt2Value(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: equalInt2Value(value, { kind: "Null" }) };
+}
+export function int2FromCaseGuard(value: CheckOutcome): Int2Value {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function int2ToInt4(value: Int2Value): Int4Value {
+    value = copyInt2Value(value);
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalInt2Value(value, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (value.kind === "Value") {
+        const number: number = langruntime.checkedI32(value.value);
+        return { kind: "Value", value: number };
+    }
+    return { kind: "Unknown" };
+}
+export function int2ToInt8(value: Int2Value): Int8Value {
+    value = copyInt2Value(value);
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalInt2Value(value, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (value.kind === "Value") {
+        const number: number = langruntime.checkedI32(value.value);
+        const widened: bigint = BigInt(langruntime.checkedI32(number));
+        return { kind: "Value", value: widened };
+    }
+    return { kind: "Unknown" };
+}
 export type Int4Value = {
     kind: "Unknown";
 } | {
@@ -383,6 +473,46 @@ function equalSqlError(left: SqlError, right: SqlError): boolean {
 export function makeSqlError(state: number): SqlError {
     state = langruntime.checkedIndex(state);
     return { state: state };
+}
+export interface SqlErrorDescription {
+    message: string;
+}
+function copySqlErrorDescription(value: SqlErrorDescription): SqlErrorDescription {
+    return { message: langruntime.checkedString(value.message) };
+}
+function equalSqlErrorDescription(left: SqlErrorDescription, right: SqlErrorDescription): boolean {
+    return left.message === right.message;
+}
+const sqlErrorNumericOutOfRange = 3452547;
+const sqlErrorInvalidDatetimeFormat = 3452551;
+const sqlErrorDatetimeFieldOverflow = 3452552;
+const sqlErrorTimezoneDisplacement = 3452553;
+const sqlErrorDivisionByZero = 3452582;
+const sqlErrorInvalidRegex = 3452591;
+const sqlErrorInvalidParameter = 3452619;
+export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorNumericOutOfRange) {
+        return { message: "numeric value out of range" };
+    }
+    if (error.state === sqlErrorInvalidDatetimeFormat) {
+        return { message: "invalid date/time format" };
+    }
+    if (error.state === sqlErrorDatetimeFieldOverflow) {
+        return { message: "date/time field value out of range" };
+    }
+    if (error.state === sqlErrorTimezoneDisplacement) {
+        return { message: "time zone displacement out of range" };
+    }
+    if (error.state === sqlErrorDivisionByZero) {
+        return { message: "division by zero" };
+    }
+    if (error.state === sqlErrorInvalidRegex) {
+        return { message: "invalid regular expression" };
+    }
+    if (error.state === sqlErrorInvalidParameter) {
+        return { message: "invalid parameter value" };
+    }
+    return { message: "SQL evaluation failed" };
 }
 export type BoolValue = {
     kind: "Unknown";

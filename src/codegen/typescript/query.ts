@@ -972,32 +972,75 @@ const renderWrapper = (
           undefined,
           [row],
         ),
-        factory.createIfStatement(
-          factory.createBinaryExpression(
-            factory.createPropertyAccessExpression(
-              factory.createPropertyAccessExpression(result, 'result'),
-              'certain',
-            ),
-            ts.SyntaxKind.AmpersandAmpersandToken,
-            factory.createBinaryExpression(
-              factory.createPropertyAccessExpression(
+        factory.createBlock(
+          [
+            factory.createIfStatement(
+              factory.createBinaryExpression(
+                factory.createStringLiteral('error'),
+                ts.SyntaxKind.InKeyword,
                 factory.createPropertyAccessExpression(result, 'result'),
-                'value',
               ),
-              ts.SyntaxKind.EqualsEqualsEqualsToken,
-              factory.createFalse(),
+              factory.createThrowStatement(
+                factory.createCallExpression(
+                  factory.createPropertyAccessExpression(
+                    factory.createIdentifier('Object'),
+                    'assign',
+                  ),
+                  undefined,
+                  [
+                    factory.createNewExpression(factory.createIdentifier('Error'), undefined, [
+                      factory.createPropertyAccessExpression(result, 'message'),
+                    ]),
+                    factory.createObjectLiteralExpression([
+                      factory.createPropertyAssignment(
+                        'code',
+                        factory.createPropertyAccessExpression(
+                          factory.createPropertyAccessExpression(result, 'result'),
+                          'error',
+                        ),
+                      ),
+                      factory.createPropertyAssignment(
+                        'owner',
+                        factory.createPropertyAccessExpression(result, 'owner'),
+                      ),
+                      factory.createPropertyAssignment(
+                        'constraint',
+                        factory.createPropertyAccessExpression(result, 'constraint'),
+                      ),
+                    ]),
+                  ],
+                ),
+              ),
             ),
-          ),
-          factory.createThrowStatement(
-            factory.createNewExpression(
-              factory.createIdentifier('SqlCheckViolationError'),
-              undefined,
-              [
-                factory.createPropertyAccessExpression(result, 'owner'),
-                factory.createPropertyAccessExpression(result, 'constraint'),
-              ],
+            factory.createIfStatement(
+              factory.createBinaryExpression(
+                factory.createPropertyAccessExpression(
+                  factory.createPropertyAccessExpression(result, 'result'),
+                  'certain',
+                ),
+                ts.SyntaxKind.AmpersandAmpersandToken,
+                factory.createBinaryExpression(
+                  factory.createPropertyAccessExpression(
+                    factory.createPropertyAccessExpression(result, 'result'),
+                    'value',
+                  ),
+                  ts.SyntaxKind.EqualsEqualsEqualsToken,
+                  factory.createFalse(),
+                ),
+              ),
+              factory.createThrowStatement(
+                factory.createNewExpression(
+                  factory.createIdentifier('SqlCheckViolationError'),
+                  undefined,
+                  [
+                    factory.createPropertyAccessExpression(result, 'owner'),
+                    factory.createPropertyAccessExpression(result, 'constraint'),
+                  ],
+                ),
+              ),
             ),
-          ),
+          ],
+          true,
         ),
       ),
     )

@@ -28,6 +28,9 @@ fn entry_name(name: &str) -> bool {
 
 fn type_name(ty: &Type) -> Result<&'static str, String> {
     match ty {
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("Int2Value") => {
+            Ok("Int2Value")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("Int4Value") => {
             Ok("Int4Value")
         }
@@ -314,7 +317,8 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
         if !parameter.attrs.is_empty()
             || !matches!(
                 type_name(&parameter.ty)?,
-                "Int4Value"
+                "Int2Value"
+                    | "Int4Value"
                     | "Int8Value"
                     | "DateValue"
                     | "TimestampValue"
@@ -469,6 +473,7 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
     #[test]
     fn accepts_scalar_case_result_locals() {
         for (ty, constructor) in [
+            ("Int2Value", "int2_unknown"),
             ("Int4Value", "int4_unknown"),
             ("Int8Value", "int8_unknown"),
             ("EnumValue", "enum_unknown"),

@@ -388,12 +388,12 @@ describe('portable Rust CHECK timestamptz', () => {
       expect(evaluate({ a: invalid, b: runtime.makeTimestamptzValue(0n) })[0].result).toEqual({
         certain: false,
       })
-    expect(() =>
+    expect(
       evaluate({
         a: runtime.makeTimestamptzValue(9223371331200000000n),
         b: runtime.makeTimestamptzValue(0n),
-      }),
-    ).toThrow()
+      })[0].result,
+    ).toEqual({ certain: true, error: '22008' })
     expect(
       evaluateChronology({
         started_at: runtime.makeTimestamptzValue(0n),

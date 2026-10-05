@@ -11,6 +11,7 @@ type Shape =
   | 'int48_pair_bool'
   | 'int4_pair_bool'
   | 'int4_pair_int4'
+  | 'int4_single_int4'
   | 'bool_pair_bool'
   | 'text_pair_bool'
   | 'text_single_int4'
@@ -61,6 +62,8 @@ const shapeOf = (args: readonly string[], result: string): Shape | null => {
   }
   if (result === 'pg_catalog.int4' && args.join(',') === 'pg_catalog.int4,pg_catalog.int4')
     return 'int4_pair_int4'
+  if (result === 'pg_catalog.int4' && args.join(',') === 'pg_catalog.int4')
+    return 'int4_single_int4'
   if (result === 'pg_catalog.int4' && args.join(',') === 'pg_catalog.text')
     return 'text_single_int4'
   return null
@@ -92,6 +95,18 @@ const int4Samples: readonly (readonly [number | null, number | null])[] = [
   [0, null],
 ]
 const int4ArithmeticSamples: readonly (readonly [number | null, number | null])[] = [
+  [-7, 3],
+  [7, -3],
+  [-7, -3],
+  [-2147483648, 1],
+  [2147483647, 2],
+  [-2147483648, 2],
+  [46340, 46340],
+  [46341, 46341],
+  [-46340, -46340],
+  [-46341, -46341],
+  [46341, -46341],
+  [-46341, 46341],
   [-2147483648, -1],
   [-2147483648, 0],
   [-2147483647, -1],
@@ -179,11 +194,13 @@ const samplesOf = (shape: Shape): readonly (readonly (boolean | number | string 
           ? int4Samples
           : shape === 'int4_pair_int4'
             ? int4ArithmeticSamples
-            : shape === 'bool_pair_bool'
-              ? boolSamples
-              : shape === 'text_pair_bool'
-                ? textSamples
-                : textSingleSamples
+            : shape === 'int4_single_int4'
+              ? [-2147483648, -2147483647, -1, 0, 1, 2147483647, null].map((value) => [value])
+              : shape === 'bool_pair_bool'
+                ? boolSamples
+                : shape === 'text_pair_bool'
+                  ? textSamples
+                  : textSingleSamples
 const inputType = (
   shape: Shape,
   index = 0,
@@ -192,14 +209,23 @@ const inputType = (
   (shape === 'int84_pair_bool' && index === 0) ||
   (shape === 'int48_pair_bool' && index === 1)
     ? 'Int8Value'
-    : ['int4_pair_bool', 'int4_pair_int4', 'int84_pair_bool', 'int48_pair_bool'].includes(shape)
+    : [
+          'int4_pair_bool',
+          'int4_pair_int4',
+          'int4_single_int4',
+          'int84_pair_bool',
+          'int48_pair_bool',
+        ].includes(shape)
       ? 'Int4Value'
       : shape === 'bool_pair_bool'
         ? 'BoolValue'
         : 'TextValue'
 const resultType = (shape: Shape): 'BoolValue' | 'Int4Value' =>
-  shape === 'text_single_int4' || shape === 'int4_pair_int4' ? 'Int4Value' : 'BoolValue'
-const inputCount = (shape: Shape): number => (shape === 'text_single_int4' ? 1 : 2)
+  shape === 'text_single_int4' || shape === 'int4_pair_int4' || shape === 'int4_single_int4'
+    ? 'Int4Value'
+    : 'BoolValue'
+const inputCount = (shape: Shape): number =>
+  shape === 'text_single_int4' || shape === 'int4_single_int4' ? 1 : 2
 const queryOf = (shape: Shape, functionName: string): string => {
   const args = Array.from({ length: inputCount(shape) }, (_, index) => {
     const type = inputType(shape, index)
@@ -233,7 +259,7 @@ try {
         expected = observed === null ? { kind: 'Null' } : { kind: 'Value', value: observed }
       } catch (error) {
         const sqlstate = (error as { code?: unknown }).code
-        if (sqlstate !== '22003') throw error
+        if (sqlstate !== '22003' && sqlstate !== '22012') throw error
         expected = { kind: 'Error', state: Number.parseInt(sqlstate, 36) }
       }
       cases.push({ inputs: sample.map(state), expected })
@@ -388,5 +414,5 @@ writeFileSync(
 )
 const counted = (shape: Shape): number => fixtures.filter((item) => item.shape === shape).length
 console.log(
-  `checked ${counted('int8_pair_bool') + counted('int84_pair_bool') + counted('int48_pair_bool')} Rust int8/mixed comparisons, ${counted('int4_pair_bool')} Rust int4 comparisons, ${counted('int4_pair_int4')} Rust int4 arithmetic functions, ${counted('bool_pair_bool')} Rust boolean comparisons, ${counted('text_pair_bool')} Rust text boolean functions, and ${counted('text_single_int4')} Rust text-to-int4 functions against PGlite`,
+  `checked ${counted('int8_pair_bool') + counted('int84_pair_bool') + counted('int48_pair_bool')} Rust int8/mixed comparisons, ${counted('int4_pair_bool')} Rust int4 comparisons, ${counted('int4_pair_int4') + counted('int4_single_int4')} Rust int4 arithmetic functions, ${counted('bool_pair_bool')} Rust boolean comparisons, ${counted('text_pair_bool')} Rust text boolean functions, and ${counted('text_single_int4')} Rust text-to-int4 functions against PGlite`,
 )

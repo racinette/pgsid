@@ -186,9 +186,17 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
   }
   if (literal.kind === 'string' && type === 'pg_catalog.text')
     return { kind: 'text', type, value: literal.value }
-  if (literal.kind === 'integer' && (type === 'pg_catalog.int4' || type === 'pg_catalog.int8')) {
+  if (
+    literal.kind === 'integer' &&
+    (type === 'pg_catalog.int2' || type === 'pg_catalog.int4' || type === 'pg_catalog.int8')
+  ) {
     const integer = BigInt(literal.value!)
-    const limit = type === 'pg_catalog.int4' ? 2147483647n : 9223372036854775807n
+    const limit =
+      type === 'pg_catalog.int2'
+        ? 32767n
+        : type === 'pg_catalog.int4'
+          ? 2147483647n
+          : 9223372036854775807n
     return integer >= -limit - 1n && integer <= limit
       ? { kind: 'integer', type, value: literal.value }
       : null
@@ -206,7 +214,11 @@ const materialize = (
     bound.value.expression.kind === 'integer'
   ) {
     const constant = bound.value.expression
-    if (constant.type === 'pg_catalog.int4' || constant.type === 'pg_catalog.int8') {
+    if (
+      constant.type === 'pg_catalog.int2' ||
+      constant.type === 'pg_catalog.int4' ||
+      constant.type === 'pg_catalog.int8'
+    ) {
       const checked = literalValue(
         { kind: constant.value === null ? 'null' : 'integer', value: constant.value },
         constant.type,
@@ -500,13 +512,18 @@ export function bindCatalogCheck(
           value: { kind: 'text-to-timestamptz', type, operand: operand.value },
         }
       if (
-        (type === 'pg_catalog.int4' || type === 'pg_catalog.int8') &&
+        (type === 'pg_catalog.int2' || type === 'pg_catalog.int4' || type === 'pg_catalog.int8') &&
         operand.literal?.kind === 'string' &&
         typeof operand.literal.value === 'string' &&
         /^-?(?:0|[1-9][0-9]*)$/u.test(operand.literal.value)
       ) {
         const integer = BigInt(operand.literal.value)
-        const limit = type === 'pg_catalog.int4' ? 2147483647n : 9223372036854775807n
+        const limit =
+          type === 'pg_catalog.int2'
+            ? 32767n
+            : type === 'pg_catalog.int4'
+              ? 2147483647n
+              : 9223372036854775807n
         if (integer >= -limit - 1n && integer <= limit)
           return {
             type,
@@ -616,12 +633,7 @@ export function bindCatalogCheck(
           value: { kind: 'input', type, name: column.name, enum: definition },
         }
       }
-      const type =
-        column &&
-        (catalogTemporalType(column.typeName, column.typeOid, domains) ??
-          (catalogNumericType(column.typeName, column.typeOid, domains)
-            ? 'pg_catalog."numeric"'
-            : catalogScalarType(column.typeName)))
+      const type = column && catalogBaseScalarType(column.typeName, column.typeOid, domains)
       if (type) {
         inputs.add(column.name)
         return {
