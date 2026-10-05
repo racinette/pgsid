@@ -109,7 +109,7 @@ fn next_zone_transition(zone: usize, microseconds: i64) -> ZoneTransition {
     }
     ZoneTransition {
         index: ZONE_ENDS[zone],
-        boundary: 0i64,
+        boundary: seconds * 1000000i64,
     }
 }
 
@@ -127,19 +127,43 @@ fn named_zone_offset(zone: usize, microseconds: i64, local: bool) -> Int4Value {
     }
     if next == ZONE_ENDS[zone] {
         if ZONE_RECURRING[zone] != 0 {
-            return Int4Value::Unknown;
+            let rules = parse_recurring_zone(ZONE_FUTURE_RULES[zone]);
+            let mut cutoff = -211813488000000000i64;
+            if next > ZONE_STARTS[zone] {
+                cutoff = transition.boundary;
+            }
+            let recurring = next_recurring_boundary(rules, probe, cutoff, before);
+            if recurring.valid == false {
+                return Int4Value::Unknown;
+            }
+            return resolve_zone_boundary(
+                microseconds,
+                local,
+                recurring.before,
+                recurring.after,
+                recurring.boundary,
+            );
         }
         return make_int4_value(before);
     }
+    let after = ZONE_OFFSET_SECONDS[offset_start + ZONE_OFFSET_IDS[next]];
+    resolve_zone_boundary(microseconds, local, before, after, transition.boundary)
+}
+
+fn resolve_zone_boundary(
+    microseconds: i64,
+    local: bool,
+    before: i32,
+    after: i32,
+    boundary: i64,
+) -> Int4Value {
     if local == false {
         return make_int4_value(before);
     }
-    let after = ZONE_OFFSET_SECONDS[offset_start + ZONE_OFFSET_IDS[next]];
     let before_wide = before as i64;
     let after_wide = after as i64;
     let before_time = microseconds - before_wide * 1000000i64;
     let after_time = microseconds - after_wide * 1000000i64;
-    let boundary = transition.boundary;
     if before_time < boundary && after_time < boundary {
         return make_int4_value(before);
     }
@@ -151,66 +175,4 @@ fn named_zone_offset(zone: usize, microseconds: i64, local: bool) -> Int4Value {
         return make_int4_value(before);
     }
     make_int4_value(after)
-}
-
-pub fn sql__pg_catalog__timezone__9nbk(zone: TextValue, value: TimestampValue) -> TimestamptzValue {
-    if let TextValue::Error(error) = zone {
-        return TimestamptzValue::Error(error);
-    }
-    if let TimestampValue::Error(error) = value {
-        return TimestamptzValue::Error(error);
-    }
-    if zone == TextValue::Unknown || value == TimestampValue::Unknown {
-        return TimestamptzValue::Unknown;
-    }
-    if zone == TextValue::Null || value == TimestampValue::Null {
-        return TimestamptzValue::Null;
-    }
-    if let TimestampValue::Value(microseconds) = value {
-        if microseconds == -9223372036854775808i64 || microseconds == 9223372036854775807i64 {
-            return make_timestamptz_value(microseconds);
-        }
-        if let TextValue::Value(name) = zone {
-            let index = find_named_zone(name);
-            if index < ZONE_NAMES.len() {
-                let offset = named_zone_offset(index, microseconds, true);
-                if let Int4Value::Value(seconds) = offset {
-                    let wide = seconds as i64;
-                    return make_timestamptz_value(microseconds - wide * 1000000i64);
-                }
-            }
-        }
-    }
-    TimestamptzValue::Unknown
-}
-
-pub fn sql__pg_catalog__timezone__blof(zone: TextValue, value: TimestamptzValue) -> TimestampValue {
-    if let TextValue::Error(error) = zone {
-        return TimestampValue::Error(error);
-    }
-    if let TimestamptzValue::Error(error) = value {
-        return TimestampValue::Error(error);
-    }
-    if zone == TextValue::Unknown || value == TimestamptzValue::Unknown {
-        return TimestampValue::Unknown;
-    }
-    if zone == TextValue::Null || value == TimestamptzValue::Null {
-        return TimestampValue::Null;
-    }
-    if let TimestamptzValue::Value(microseconds) = value {
-        if microseconds == -9223372036854775808i64 || microseconds == 9223372036854775807i64 {
-            return make_timestamp_value(microseconds);
-        }
-        if let TextValue::Value(name) = zone {
-            let index = find_named_zone(name);
-            if index < ZONE_NAMES.len() {
-                let offset = named_zone_offset(index, microseconds, false);
-                if let Int4Value::Value(seconds) = offset {
-                    let wide = seconds as i64;
-                    return make_timestamp_value(microseconds + wide * 1000000i64);
-                }
-            }
-        }
-    }
-    TimestampValue::Unknown
 }

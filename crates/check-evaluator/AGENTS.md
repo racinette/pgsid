@@ -76,8 +76,11 @@ import them. Keep schema-only helpers with their callables.
   with optional sign; positive signs mean west of UTC. Hours range through 167,
   minutes through 59, and seconds through 60. Invalid supported offsets return
   SQLSTATE 22023; conversions outside the timestamp range return 22008. Known
-  infinities bypass zone lookup, following PostgreSQL. Other zone spellings,
-  abbreviations, named zones, DST rules, and implicit conversions remain unknown.
+  infinities bypass zone lookup, following PostgreSQL. Named zones containing a
+  slash use the bundled TZif data, including aliases and case-insensitive lookup.
+  Rust evaluates recurring footer rules after the stored transitions. Forward
+  gaps choose the preceding offset; backward overlaps choose the following one.
+  Bare abbreviations, other zone spellings, and implicit conversions remain unknown.
   Timestamp precision coercions remain unknown.
 - Timestamp text casts and literals accept the same year-first ISO date/time
   fields as timestamptz, plus a date alone and a time without an offset. An
@@ -96,6 +99,11 @@ import them. Keep schema-only helpers with their callables.
   longer fractions, timestamp precision modifiers, and oversized input remain
   unknown. Range checks apply after offset adjustment. Keep timezone databases,
   session settings, and native date libraries out of target adapters.
+- Extend world schema and `check-seed.sql` fixtures with accepted, rejected, and
+  NULL inputs when adding CHECK behavior. Reuse a relevant existing world or add
+  a focused world whose schema declares `-- @world checks`. Run
+  `pnpm exec vitest run tests/sql-semantics/check-worlds.test.ts`; operation parity
+  and world INSERT parity verify different boundaries and both must pass.
 - If a callable needs a new value representation, primitive, SQL error, or
   Rust syntax rule, surface that as a separate foundation change before
   porting more functions that depend on it. The CHECK transpiler's own `AGENTS.md`

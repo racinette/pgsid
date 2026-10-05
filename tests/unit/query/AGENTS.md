@@ -41,8 +41,8 @@ whether a file may be authored by hand are directory-local facts.
     ├─ value-lineage/                 hand-authored value-lineage contracts over
     │                                 one focused schema
     │
-    ├─ worlds/                        hand-authored database worlds and their
-    │                                 query contracts
+    ├─ worlds/                        hand-authored database worlds for query
+    │                                 and CHECK testing
     │
     ├─ catalog-features.ts            the catalog capability classification
     │                                 shared by census and generation (required)
@@ -92,6 +92,9 @@ whether a file may be authored by hand are directory-local facts.
     │
     ├─ type-unions.ts                 PostgreSQL-backed type-union test
     │                                 instrumentation (required)
+    │
+    ├─ world-purpose.ts               the declared query or CHECK purpose of an
+    │                                 isolated world (required)
     │
     └─ [test].test.ts                 an executable query-analysis test suite
                                       (zero or more, any name)

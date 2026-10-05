@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { check, runAggregate, runRule } from 'espalier'
+import { worldPurpose } from './world-purpose.js'
 // Espalier rules are runtime JavaScript modules, not TypeScript sources.
 // @ts-expect-error -- this in-repository .mjs rule intentionally has no declaration file
 import * as fixtureRule from './espalier/worlds/[world]/[fixture].sql.mjs'
@@ -113,8 +114,11 @@ describe('Espalier query-fixture rule', () => {
     })
     expect(issues.filter((issue) => issue.severity !== 'info')).toEqual([])
     const foundCodes = issues.map((issue) => issue.code)
-    const worldCount = readdirSync(join(__dirname, 'worlds')).filter((name) =>
-      statSync(join(__dirname, 'worlds', name)).isDirectory(),
+    const worldCount = readdirSync(join(__dirname, 'worlds')).filter(
+      (name) =>
+        statSync(join(__dirname, 'worlds', name)).isDirectory() &&
+        worldPurpose(readFileSync(join(__dirname, 'worlds', name, 'schema.sql'), 'utf8')) ===
+          'queries',
     ).length
     expect(foundCodes.filter((code) => code === 'world_rung_reach')).toHaveLength(1)
     expect(foundCodes.filter((code) => code === 'world_rung_reach_detail')).toHaveLength(worldCount)
@@ -249,6 +253,91 @@ SELECT $1, -- @nullable
 })
 
 describe('Espalier world-health aggregate', () => {
+  const checkCorpus = (
+    schema: string,
+    seed = '-- name: accepted\nINSERT INTO arrivals (id,local_at,instant_at) VALUES (1,1,1);\n-- name: rejected\nINSERT INTO arrivals (id,local_at,instant_at) VALUES (2,1,2);\n',
+  ) => {
+    const tree = {
+      'worlds/001_arrivals/schema.sql': schema,
+      'worlds/001_arrivals/data.sql': 'INSERT INTO arrivals VALUES (0,0,0);',
+      'worlds/001_arrivals/check-seed.sql': seed,
+    }
+    return {
+      tree,
+      matches: Object.keys(tree).map((path) => ({ path, captures: { world: ['001_arrivals'] } })),
+    }
+  }
+  const checkSchema = `-- @world checks
+CREATE TABLE arrivals (id int PRIMARY KEY, local_at int, instant_at int,
+  CHECK (local_at = instant_at));`
+
+  it('accepts a CHECK world without query fixtures or join quotas', async () => {
+    const corpus = checkCorpus(checkSchema)
+    const options = { ...corpus, pattern: 'worlds/**/*.sql', at: 'worlds/' }
+    const health = await runAggregate(healthRule, options)
+    const reach = await runAggregate(rungReachRule, options)
+    expect([...health, ...reach].filter((issue) => issue.severity !== 'info')).toEqual([])
+    expect(health.find((issue) => issue.code === 'world_health')!.metadata).toMatchObject({
+      queryWorlds: 0,
+      checkWorlds: 1,
+    })
+    expect(reach.find((issue) => issue.code === 'world_rung_reach')!.metadata).toMatchObject({
+      worlds: { count: 0 },
+    })
+  })
+
+  it('retains query requirements when a world omits its CHECK declaration', async () => {
+    const corpus = checkCorpus(checkSchema.replace('-- @world checks\n', ''))
+    const issues = await runAggregate(healthRule, {
+      ...corpus,
+      pattern: 'worlds/**/*.sql',
+      at: 'worlds/',
+    })
+    expect(
+      issues.some(
+        (issue) => issue.code === 'world_health_violation' && issue.message.includes('no fixtures'),
+      ),
+    ).toBe(true)
+  })
+
+  it('rejects CHECK worlds with empty INSERT cases or no constraints', async () => {
+    for (const corpus of [
+      checkCorpus(checkSchema, ''),
+      checkCorpus(
+        '-- @world checks\nCREATE TABLE arrivals (id int, local_at int, instant_at int);',
+      ),
+    ]) {
+      const issues = await runAggregate(healthRule, {
+        ...corpus,
+        pattern: 'worlds/**/*.sql',
+        at: 'worlds/',
+      })
+      expect(issues.some((issue) => issue.code === 'world_health_violation')).toBe(true)
+    }
+  })
+
+  it('rejects CHECK declarations that hide query fixtures', async () => {
+    const corpus = checkCorpus(checkSchema)
+    const path = 'worlds/001_arrivals/question.sql'
+    const issues = await runAggregate(healthRule, {
+      tree: { ...corpus.tree, [path]: 'SELECT * FROM arrivals;' },
+      matches: [...corpus.matches, { path, captures: { world: ['001_arrivals'] } }],
+      pattern: 'worlds/**/*.sql',
+      at: 'worlds/',
+    })
+    expect(
+      issues.some(
+        (issue) =>
+          issue.code === 'world_health_violation' &&
+          issue.message.includes('cannot contain query fixtures'),
+      ),
+    ).toBe(true)
+  })
+
+  it('rejects duplicate or unrecognized world purposes', () => {
+    expect(() => worldPurpose('-- @world checks\n-- @world queries')).toThrow('exactly one')
+    expect(() => worldPurpose('-- @world typo')).toThrow('exactly one')
+  })
   it('cannot silently pass an empty corpus', async () => {
     expect(healthRule.aggregate).toBe(true)
     expect(healthRule.targets).toEqual(['*/*.sql'])

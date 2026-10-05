@@ -16,6 +16,7 @@ import {
   parseFixtureDirectives,
 } from './fixture-args.js'
 import { createKillableEvaluator, type KillableEvaluator } from './killable-evaluator.js'
+import { worldPurpose } from './world-purpose.js'
 
 // The generated corpus can check the soundness of groups the engine emits,
 // but it cannot know that a group disappeared. World fixtures are independent
@@ -28,6 +29,10 @@ const WORLDS_DIR = join(__dirname, 'worlds')
 function worldDirs(): string[] {
   return readdirSync(WORLDS_DIR)
     .filter((name) => statSync(join(WORLDS_DIR, name)).isDirectory())
+    .filter(
+      (name) =>
+        worldPurpose(readFileSync(join(WORLDS_DIR, name, 'schema.sql'), 'utf8')) === 'queries',
+    )
     .sort()
 }
 

@@ -324,6 +324,9 @@ function worldDirs(): string[] {
   if (!existsSync(WORLDS_DIR)) return []
   return readdirSync(WORLDS_DIR)
     .filter((d) => statSync(join(WORLDS_DIR, d)).isDirectory())
+    .filter(
+      (d) => worldPurpose(readFileSync(join(WORLDS_DIR, d, 'schema.sql'), 'utf8')) === 'queries',
+    )
     .sort()
 }
 
@@ -442,3 +445,4 @@ describe('corpus shape (input-side frontier)', () => {
     expect(empty, `no statements collected for: ${empty.join(', ')}`).toEqual([])
   })
 })
+import { worldPurpose } from './world-purpose.js'

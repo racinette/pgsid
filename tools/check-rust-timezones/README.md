@@ -1,4 +1,4 @@
-# Named timezone table spike
+# Named timezone CHECK parity
 
 Requires the IANA timezone compiler `zic` on PATH, or its path in `ZIC`.
 Run from the repository root:
@@ -11,8 +11,11 @@ Source and producers:
 
 - `vendor/postgresql-timezone/tzdata.zi`: copied from the local PostgreSQL
   checkout's `src/timezone/data/tzdata.zi`; preserve its public-domain header.
-- `tools/check-timezone-data/src/main.rs`: TZif reader and Rust AST generator.
-- `tools/check-rust-timezones/timezone.rs`: maintained Rust lookup prototype.
+- `tools/check-timezone-data/src/lib.rs`: TZif reader and Rust AST generator.
+- `crates/check-evaluator/src/operations/pg_catalog/timezone_named.rs`: named lookup.
+- `crates/check-evaluator/src/operations/pg_catalog/timezone_recurring.rs`: footer parsing and
+  future transition calculation.
+- `tools/check-rust-timezones/rule-fixtures.rs`: synthetic footer tables for parity.
 - `tools/check-rust-timezones/check.ts`: PGlite oracle and cross-target parity.
 
 Inspect generated results:
@@ -22,7 +25,9 @@ Inspect generated results:
 - `artifacts/check-rust-timezones/typescript/pg_catalog/operations.ts`
 - `artifacts/check-rust-timezones/results.json`
 
-The prototype substitutes timezone callables only in its own source graph.
-Production callables remain in `crates/check-evaluator/src/operations/pg_catalog/timezone.rs`.
-Recurring future DST rules and session abbreviation resolution are outside the
-prototype. Their unsupported cases are exercised by the parity command.
+Production callables live in `crates/check-evaluator/src/operations/pg_catalog/timezone.rs`.
+The parity command uses the production source graph; synthetic footer tests
+substitute only the generated tables in their separate bundle.
+The parity command discovers future transitions through PGlite and checks their
+boundaries in native Rust, Go, and TypeScript. Session abbreviation resolution
+remains unsupported; unsupported names are exercised by the command.

@@ -149,6 +149,21 @@ fn timezone_fixed_offset(name: &str) -> Int4Value {
     Int4Value::Value(sign * (hour.value * 3600 + minute * 60 + second))
 }
 
+fn timezone_offset(name: &str, microseconds: i64, local: bool) -> Int4Value {
+    let fixed = timezone_fixed_offset(name);
+    if let Int4Value::Value(west) = fixed {
+        return make_int4_value(0 - west);
+    }
+    if fixed != Int4Value::Unknown {
+        return fixed;
+    }
+    let zone = find_named_zone(name);
+    if zone < ZONE_NAMES.len() {
+        return named_zone_offset(zone, microseconds, local);
+    }
+    Int4Value::Unknown
+}
+
 pub fn sql__pg_catalog__timezone__9nbk(zone: TextValue, value: TimestampValue) -> TimestamptzValue {
     if let TextValue::Error(error) = zone {
         return TimestamptzValue::Error(error);
@@ -167,13 +182,13 @@ pub fn sql__pg_catalog__timezone__9nbk(zone: TextValue, value: TimestampValue) -
             return make_timestamptz_value(microseconds);
         }
         if let TextValue::Value(name) = zone {
-            let offset = timezone_fixed_offset(name);
+            let offset = timezone_offset(name, microseconds, true);
             if let Int4Value::Error(error) = offset {
                 return TimestamptzValue::Error(error);
             }
             if let Int4Value::Value(seconds) = offset {
                 let wide = seconds as i64;
-                return make_timestamptz_value(microseconds + wide * 1000000i64);
+                return make_timestamptz_value(microseconds - wide * 1000000i64);
             }
         }
     }
@@ -198,13 +213,13 @@ pub fn sql__pg_catalog__timezone__blof(zone: TextValue, value: TimestamptzValue)
             return make_timestamp_value(microseconds);
         }
         if let TextValue::Value(name) = zone {
-            let offset = timezone_fixed_offset(name);
+            let offset = timezone_offset(name, microseconds, false);
             if let Int4Value::Error(error) = offset {
                 return TimestampValue::Error(error);
             }
             if let Int4Value::Value(seconds) = offset {
                 let wide = seconds as i64;
-                return make_timestamp_value(microseconds - wide * 1000000i64);
+                return make_timestamp_value(microseconds + wide * 1000000i64);
             }
         }
     }

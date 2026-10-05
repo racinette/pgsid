@@ -4,7 +4,10 @@ import {
   checkRustEntryName,
   type CheckConstraintIdentity,
 } from '../../src/codegen/shared/check-rust-names.js'
-import { prepareCheckRustGroup } from '../../src/codegen/shared/check-rust-source.js'
+import {
+  assembleCheckRust,
+  prepareCheckRustGroup,
+} from '../../src/codegen/shared/check-rust-source.js'
 import type { EvalBoolExpression } from '../../src/sql-semantics/check-expressions.js'
 
 const identity: CheckConstraintIdentity = {
@@ -24,6 +27,18 @@ const names = (constraints: Parameters<typeof prepareCheckRustGroup>[0]): string
   )
 
 describe('CHECK evaluator identity names', () => {
+  it('includes timezone sources only when a bundle calls timezone', () => {
+    const withoutZones = assembleCheckRust({ source: '', callables: [] })
+    const withZones = assembleCheckRust({
+      source: '',
+      callables: ['sql__pg_catalog__timezone__9nbk'],
+    })
+    const sources = (graph: typeof withoutZones) =>
+      graph.modules.flatMap((module) => module.files.map((file) => file.path))
+    expect(sources(withoutZones).some((path) => path.includes('/timezone'))).toBe(false)
+    expect(sources(withZones)).toContain('generated/timezone_tables.rs')
+    expect(sources(withZones).filter((path) => path.includes('/timezone'))).toHaveLength(4)
+  })
   it('keeps names stable across reordering, additions, and unsupported constraints', () => {
     const first = { identity, expression }
     const second = { identity: { ...identity, constraint: 'amount_bounded' }, expression }

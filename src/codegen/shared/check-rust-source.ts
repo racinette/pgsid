@@ -33,6 +33,9 @@ export function assembleCheckRust(evaluator: {
   const maintained = JSON.parse(
     checkRustAsset('check-rust-sources.json').toString('utf8'),
   ) as CheckRustSource
+  const requiresTimezone = evaluator.callables.some((name) =>
+    name.startsWith('sql__pg_catalog__timezone__'),
+  )
   const modules = maintained.modules.flatMap((module) => {
     if (module.name === 'regex_engine' && !evaluator.requiresRegex) return []
     return [
@@ -41,9 +44,16 @@ export function assembleCheckRust(evaluator: {
         dependencies: module.dependencies.filter(
           (name) => evaluator.requiresRegex || name !== 'regex_engine',
         ),
-        files: module.files.filter(
-          (file) => evaluator.requiresRegex || !file.path.endsWith('/regex.rs'),
-        ),
+        files: module.files.filter((file) => {
+          if (!evaluator.requiresRegex && file.path.endsWith('/regex.rs')) return false
+          if (
+            module.name === 'pg_catalog' &&
+            !requiresTimezone &&
+            /\/timezone(?:_|\.rs$)/u.test(file.path)
+          )
+            return false
+          return true
+        }),
       },
     ]
   })

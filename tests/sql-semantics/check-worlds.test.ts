@@ -23,6 +23,7 @@ import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-tr
 import { renderGoCheckTests, type GoCheckCase } from './check-codegen.js'
 import { typeName } from '../../src/codegen/typescript/type-mapping.js'
 import { parseConfigString } from '../../src/config/loader.js'
+import { worldPurpose } from '../unit/query/world-purpose.js'
 
 const run = promisify(execFile)
 const worldsDirectory = fileURLToPath(new URL('../unit/query/worlds/', import.meta.url))
@@ -43,7 +44,13 @@ const worlds = (await readdir(worldsDirectory, { withFileTypes: true }))
   .map((entry) => ({ name: entry.name, schema: 'world_' + entry.name }))
   .sort((left, right) => left.name.localeCompare(right.name))
 const cases: Case[] = []
+const checkWorlds = new Set<string>()
 for (const world of worlds) {
+  if (
+    worldPurpose(await readFile(join(worldsDirectory, world.name, 'schema.sql'), 'utf8')) ===
+    'checks'
+  )
+    checkWorlds.add(world.name)
   const source = await readFile(join(worldsDirectory, world.name, 'check-seed.sql'), 'utf8')
   const statements = getStatements(await parseSql(source), Buffer.from(source))
   const labels = [...source.matchAll(/^--\s*name:\s*(\S+)\s*$/gmu)].map((match) => match[1]!)
@@ -344,6 +351,11 @@ describe('world CHECK INSERT parity', () => {
       await pg.exec('ROLLBACK')
     }
     const results = typescriptResults.get(item.name)!
+    if (checkWorlds.has(item.name.split('/')[0]!))
+      expect(
+        results.every(({ result }) => result.certain),
+        `${item.name}: CHECK worlds require definite validation`,
+      ).toBe(true)
     const row = inputs.get(item.name)!
     const select = table.columns
       .filter((column) => Object.hasOwn(row, column.name))
@@ -487,6 +499,17 @@ describe('world CHECK INSERT parity', () => {
         unknown: checks.reduce((sum, item) => sum + item.unknown, 0),
       }
     })
+    for (const name of checkWorlds) {
+      const outcomes = caseResults.filter((item) => item.name.startsWith(name + '/'))
+      expect(
+        outcomes.some((item) => item.database.accepted),
+        `${name}: needs an accepted INSERT`,
+      ).toBe(true)
+      expect(
+        outcomes.some((item) => !item.database.accepted),
+        `${name}: needs a rejected INSERT`,
+      ).toBe(true)
+    }
     const reportDirectory = fileURLToPath(new URL('../../artifacts/check-worlds/', import.meta.url))
     await mkdir(reportDirectory, { recursive: true })
     await writeFile(

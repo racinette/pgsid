@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { promisify } from 'node:util'
 import { fileURLToPath } from 'node:url'
 import { PGlite } from '@electric-sql/pglite'
@@ -32,7 +32,7 @@ await run('cargo', [
   join(directory, 'tables.rs'),
 ])
 const tables = await readFile(join(directory, 'tables.rs'), 'utf8')
-const lookup = await readFile(join(root, 'tools/check-rust-timezones/timezone.rs'), 'utf8')
+const ruleTables = await readFile(join(root, 'tools/check-rust-timezones/rule-fixtures.rs'), 'utf8')
 const data = JSON.parse(await readFile(join(directory, 'tables.fixtures.json'), 'utf8')) as {
   names: string[]
   ids: number[]
@@ -42,7 +42,9 @@ const statistics = JSON.parse(
   await readFile(join(directory, 'tables.stats.json'), 'utf8'),
 ) as Record<string, number>
 const pg = await PGlite.create()
-const fixtures: { name: string; row: Row; expected: Outcome }[] = []
+type Fixture = { name: string; row: Row; expected: Outcome }
+const fixtures: Fixture[] = []
+const ruleFixtures: Fixture[] = []
 const value = (input: bigint | string | null): Input =>
   input === null ? { kind: 'Null' } : { kind: 'Value', value: input }
 const definitions = {
@@ -67,23 +69,27 @@ try {
   )
   assert.ok(group.source)
   const operations = group.source.modules.find((module) => module.name === 'pg_catalog')!
-  operations.files = [
-    ...operations.files.filter((file) => !file.path.endsWith('/timezone.rs')),
-    { path: 'timezone-tables.rs', source: tables },
-    { path: 'timezone-spike.rs', source: lookup },
-  ]
+  assert.equal(
+    operations.files.find((file) => file.path === 'generated/timezone_tables.rs')?.source,
+    tables,
+  )
   const toText = (micros: bigint): string => {
     if (micros === -9223372036854775808n) return "'-infinity'"
     if (micros === 9223372036854775807n) return "'infinity'"
     if (micros === -211813488000000000n) return "'4714-11-24 00:00:00 BC'"
     if (micros === 9223371331199999999n) return "'294276-12-31 23:59:59.999999'"
-    return `(TIMESTAMP '2000-01-01' + INTERVAL '${micros} microseconds')`
+    const days = micros / 86400000000n
+    const remainder = micros % 86400000000n
+    const seconds = remainder / 1000000n
+    const fraction = remainder % 1000000n
+    return `(TIMESTAMP '2000-01-01' + INTERVAL '${days} days' + INTERVAL '${seconds} seconds' + INTERVAL '${fraction} microseconds')`
   }
   const compare = async (
     zone: string,
     micros: bigint,
     name: 'to_utc' | 'from_utc',
-    supported: boolean,
+    oracleZone = zone,
+    destination = fixtures,
   ): Promise<void> => {
     let output: bigint | null = null
     let expected: Outcome = { kind: 'True' }
@@ -96,7 +102,7 @@ try {
       const binary = (
         await pg.query<{ binary: string }>(
           `SELECT encode(${name === 'to_utc' ? 'timestamptz_send' : 'timestamp_send'}(${converted}),'hex') AS binary`,
-          [zone],
+          [oracleZone],
         )
       ).rows[0]!.binary
       output = Buffer.from(binary, 'hex').readBigInt64BE()
@@ -105,23 +111,24 @@ try {
       assert.equal(code, '22008')
       expected = { kind: 'Error', value: { state: Number.parseInt(code, 36) } }
     }
-    if (!supported) expected = { kind: 'Unknown' }
-    if (expected.kind === 'Unknown') counts.unknown++
-    else if (expected.kind === 'Error') counts.errors++
-    else counts.definite++
+    if (destination === fixtures) {
+      if (expected.kind === 'Unknown') counts.unknown++
+      else if (expected.kind === 'Error') counts.errors++
+      else counts.definite++
+    }
     const row: Row = {
       zone: value(zone),
       local_at: value(name === 'to_utc' ? micros : output),
       instant_at: value(name === 'to_utc' ? output : micros),
     }
-    fixtures.push({ name, row, expected })
+    destination.push({ name, row, expected })
     if (
       expected.kind === 'True' &&
       output !== null &&
       output !== -9223372036854775808n &&
       output !== 9223372036854775807n
     ) {
-      fixtures.push({
+      destination.push({
         name,
         row: {
           ...row,
@@ -133,6 +140,61 @@ try {
       })
     }
   }
+  const futureBoundarySamples = async (zone: string, years: readonly number[]) => {
+    const samples = new Set<bigint>()
+    let transitions = 0
+    for (const year of years) {
+      const daily = (
+        await pg.query<{ utc: string; local: string }>(
+          `
+          SELECT encode(timestamptz_send(t),'hex') AS utc,
+                 encode(timestamp_send(timezone($1,t)),'hex') AS local
+          FROM generate_series(timezone('UTC',$2::timestamp),timezone('UTC',$3::timestamp),
+                               INTERVAL '1 day') AS t`,
+          [zone, `${year - 1}-12-24`, `${year + 1}-01-08`],
+        )
+      ).rows.map((row) => {
+        const utc = Buffer.from(row.utc, 'hex').readBigInt64BE()
+        return { utc, offset: Buffer.from(row.local, 'hex').readBigInt64BE() - utc }
+      })
+      for (const [i, day] of daily.entries()) {
+        if (i === 0 || day.offset === daily[i - 1]!.offset) continue
+        const before = daily[i - 1]!.offset
+        let low = daily[i - 1]!.utc / 1000000n
+        let high = day.utc / 1000000n
+        while (low + 1n < high) {
+          const middle = low + (high - low) / 2n
+          const micros = middle * 1000000n
+          const binary = (
+            await pg.query<{ binary: string }>(
+              `
+              SELECT encode(timestamp_send(timezone($1,timezone('UTC',${toText(micros)}))),'hex') AS binary`,
+              [zone],
+            )
+          ).rows[0]!.binary
+          const offset = Buffer.from(binary, 'hex').readBigInt64BE() - micros
+          if (offset === before) low = middle
+          else high = middle
+        }
+        const boundary = high * 1000000n
+        transitions++
+        for (const point of [
+          boundary - 1n,
+          boundary,
+          boundary + 1n,
+          boundary + before - 1n,
+          boundary + before,
+          boundary + before + 1n,
+          boundary + day.offset - 1n,
+          boundary + day.offset,
+          boundary + day.offset + 1n,
+          boundary + (before + day.offset) / 2n,
+        ])
+          samples.add(point)
+      }
+    }
+    return { samples, transitions }
+  }
   const special = new Set([
     'America/New_York',
     'Europe/Moscow',
@@ -143,16 +205,29 @@ try {
     'Africa/Casablanca',
     'Europe/Paris',
   ])
+  const futureDates = ['2050-01-01', '2050-07-01', '2100-01-01', '2400-01-01', '10000-01-01']
+  const futureSamples: bigint[] = []
+  for (const date of futureDates) {
+    const binary = (
+      await pg.query<{ binary: string }>(
+        `SELECT encode(timestamp_send($1::timestamp),'hex') AS binary`,
+        [date],
+      )
+    ).rows[0]!.binary
+    futureSamples.push(Buffer.from(binary, 'hex').readBigInt64BE())
+  }
+  const futureRules = new Set<string>()
+  let futureTransitions = 0
   for (const [index, zone] of data.names.entries()) {
     if (!zone.includes('/')) continue
     const info = data.zones[data.ids[index]!]!
     const times = info.times.map(BigInt)
-    const recurring = /[,;]/u.test(info.future)
     const samples = new Set<bigint>([
       0n,
       820454400000001n,
       -211813488000000000n,
       9223371331199999999n,
+      ...futureSamples,
     ])
     if (times.length) {
       samples.add(times[0]! - 1n)
@@ -175,18 +250,57 @@ try {
           samples.add(point)
       }
     }
+    if (/[,;]/u.test(info.future) && !futureRules.has(info.future)) {
+      futureRules.add(info.future)
+      const future = await futureBoundarySamples(zone, [2040, 2100, 2400, 10000])
+      futureTransitions += future.transitions
+      for (const point of future.samples) samples.add(point)
+    }
     for (const micros of samples)
       for (const name of ['to_utc', 'from_utc'] as const) {
-        // A local lookup starts one day earlier to find its next transition.
-        const probe = name === 'to_utc' ? micros - 86400000000n : micros
-        const supported = !recurring || !times.length || probe < times.at(-1)!
-        await compare(zone, micros, name, supported)
+        await compare(zone, micros, name)
       }
   }
-  for (const zone of ['eUrOpE/mOsCoW', 'US/Eastern', 'Etc/UTC'])
-    for (const name of ['to_utc', 'from_utc'] as const) await compare(zone, 0n, name, true)
+  statistics['futureRulePatternsTested'] = futureRules.size
+  statistics['futureTransitionsTested'] = futureTransitions
+  assert.equal(
+    futureRules.size,
+    new Set(data.zones.map((zone) => zone.future).filter((rule) => /[,;]/u.test(rule))).size,
+  )
+  for (const [zone, oracleZone] of [
+    ['Test/Julian', 'STD0DST,J60/0,J300/0'],
+    ['Test/Ordinal', 'STD0DST,59/0,300/0'],
+    ['Test/Seconds', 'STD-0:30:60DST-1:45:60,M3.5.0/26:30:60,M10.5.0/-1:20:60'],
+    ['Test/Signed', 'STD0DST-1;J1/-2,J300/26'],
+  ] as const) {
+    const future = await futureBoundarySamples(oracleZone, [2040, 2100, 2400, 10000])
+    const samples = new Set([...future.samples, ...futureSamples, 9223371331199999999n])
+    for (const micros of samples)
+      for (const name of ['to_utc', 'from_utc'] as const)
+        await compare(zone, micros, name, oracleZone, ruleFixtures)
+  }
+  for (const name of ['to_utc', 'from_utc'])
+    ruleFixtures.push({
+      name,
+      row: {
+        zone: value('Test/Invalid'),
+        local_at: value(futureSamples[0]!),
+        instant_at: value(futureSamples[0]!),
+      },
+      expected: { kind: 'Unknown' },
+    })
+  for (const zone of [
+    'eUrOpE/mOsCoW',
+    'US/Eastern',
+    'Etc/UTC',
+    'UTC',
+    'GMT',
+    'UTC+02:30',
+    '-03:45:30',
+  ])
+    for (const name of ['to_utc', 'from_utc'] as const) await compare(zone, 0n, name)
   for (const name of ['to_utc', 'from_utc']) {
-    for (const zone of ['No/Such_Zone', 'EST', 'UTC', 'UTC2DST'])
+    for (const zone of ['No/Such_Zone', 'EST', 'UTC2DST'])
       fixtures.push({
         name,
         row: { zone: value(zone), local_at: value(0n), instant_at: value(0n) },
@@ -228,6 +342,23 @@ try {
   await pg.close()
 }
 await runCheckParity(directory, 'timezonechecks', group, Object.keys(definitions), fixtures)
+const ruleGroup = structuredClone(group)
+const ruleOperations = ruleGroup.source!.modules.find((module) => module.name === 'pg_catalog')!
+ruleOperations.files = ruleOperations.files.map((file) =>
+  file.path === 'generated/timezone_tables.rs'
+    ? { path: 'timezone-rule-fixtures.rs', source: ruleTables }
+    : file,
+)
+const ruleDirectory = join(directory, 'rule-fixtures')
+await mkdir(ruleDirectory, { recursive: true })
+await runCheckParity(
+  ruleDirectory,
+  'timezonerulechecks',
+  ruleGroup,
+  Object.keys(definitions),
+  ruleFixtures,
+)
+statistics['syntheticRuleFixtures'] = ruleFixtures.length
 for (const language of ['go', 'typescript']) {
   const extension = language === 'go' ? 'go' : 'ts'
   statistics[language + 'OperationsSourceBytes'] = (
