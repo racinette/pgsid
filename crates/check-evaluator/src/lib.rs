@@ -28,6 +28,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/smallint.rs");
     include!("operations/pg_catalog/integer_cast.rs");
     include!("operations/pg_catalog/bigint.rs");
+    include!("operations/pg_catalog/bigint_arithmetic.rs");
     include!("operations/pg_catalog/text.rs");
     include!("operations/pg_catalog/character.rs");
     include!("operations/pg_catalog/regex.rs");

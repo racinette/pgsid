@@ -16,6 +16,12 @@ type Shape =
   | 'int8_single_int4'
   | 'int24_pair_int4'
   | 'int42_pair_int4'
+  | 'int8_pair_int8'
+  | 'int8_single_int8'
+  | 'int82_pair_int8'
+  | 'int28_pair_int8'
+  | 'int84_pair_int8'
+  | 'int48_pair_int8'
   | 'int8_pair_bool'
   | 'int84_pair_bool'
   | 'int48_pair_bool'
@@ -37,12 +43,17 @@ const input = (shape: Shape, state: State, index: number): unknown => {
     return shape === 'int2_pair_int2' ||
       shape.startsWith('int2_single_') ||
       (shape === 'int24_pair_int4' && index === 0) ||
-      (shape === 'int42_pair_int4' && index === 1)
+      (shape === 'int42_pair_int4' && index === 1) ||
+      (shape === 'int28_pair_int8' && index === 0) ||
+      (shape === 'int82_pair_int8' && index === 1)
       ? generated.makeInt2Value(state.value)
       : shape === 'int8_pair_bool' ||
+          shape === 'int8_pair_int8' ||
+          (shape === 'int28_pair_int8' && index === 1) ||
+          (shape === 'int82_pair_int8' && index === 0) ||
           shape.startsWith('int8_single_') ||
-          (shape === 'int84_pair_bool' && index === 0) ||
-          (shape === 'int48_pair_bool' && index === 1)
+          ((shape === 'int84_pair_bool' || shape === 'int84_pair_int8') && index === 0) ||
+          ((shape === 'int48_pair_bool' || shape === 'int48_pair_int8') && index === 1)
         ? generated.makeInt8Value(BigInt(state.value as string))
         : [
               'int24_pair_int4',
@@ -52,6 +63,8 @@ const input = (shape: Shape, state: State, index: number): unknown => {
               'int4_single_int4',
               'int4_single_int2',
               'int4_single_int8',
+              'int84_pair_int8',
+              'int48_pair_int8',
               'int84_pair_bool',
               'int48_pair_bool',
             ].includes(shape)

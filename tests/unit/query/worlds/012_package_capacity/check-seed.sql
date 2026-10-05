@@ -373,3 +373,134 @@ INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversio
 INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 10, NULL, false);
 -- name: bigint_smallint_all_null
 INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, NULL, NULL, NULL);
+
+-- name: bulk_stock_exact
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 9007199254740993, 2, 1, 9007199254740994);
+-- name: bulk_stock_mismatch
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 9007199254740993, 2, 1, 9007199254740993);
+-- name: bulk_stock_maximum
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 9223372036854775807, 0, 0, 9223372036854775807);
+-- name: bulk_stock_minimum
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, -9223372036854775808, 0, 0, -9223372036854775808);
+-- name: bulk_stock_addition_overflow
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 9223372036854775807, 1, 0, 9223372036854775807);
+-- name: bulk_stock_addition_underflow
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, -9223372036854775808, -1, 0, -9223372036854775808);
+-- name: bulk_stock_subtraction_overflow
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 9223372036854775807, 0, -1, 9223372036854775807);
+-- name: bulk_stock_subtraction_underflow
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, -9223372036854775808, 0, 1, -9223372036854775808);
+-- name: bulk_stock_intermediate_overflow
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 9223372036854775807, 1, 1, 9223372036854775807);
+-- name: bulk_stock_error_before_null
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 9223372036854775807, 1, 0, NULL);
+-- name: bulk_stock_cancel_minimum
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, -9223372036854775808, 9223372036854775807, 0, -1);
+-- name: bulk_stock_cancel_maximum
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 9223372036854775807, -9223372036854775808, 0, -1);
+-- name: bulk_stock_null_received
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, NULL, 0, 0, 0);
+-- name: bulk_stock_null_returned
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 10, NULL, 1, 9);
+-- name: bulk_stock_null_dispatched
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 10, 0, NULL, 10);
+-- name: bulk_stock_null_result
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 10, 0, 1, NULL);
+-- name: bulk_stock_all_null
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, NULL, NULL, NULL, NULL);
+
+-- name: bulk_correction_exact
+INSERT INTO bulk_warehouse_corrections (id, delta, reversal, magnitude, confirmed, skip_reversal, skip_magnitude) VALUES (2, -9007199254740993, 9007199254740993, 9007199254740993, -9007199254740993, false, false);
+-- name: bulk_correction_wrong_reversal
+INSERT INTO bulk_warehouse_corrections (id, delta, reversal, magnitude, confirmed, skip_reversal, skip_magnitude) VALUES (2, -10, -10, 10, -10, false, false);
+-- name: bulk_correction_wrong_magnitude
+INSERT INTO bulk_warehouse_corrections (id, delta, reversal, magnitude, confirmed, skip_reversal, skip_magnitude) VALUES (2, -10, 10, 9, -10, false, false);
+-- name: bulk_correction_wrong_confirmed
+INSERT INTO bulk_warehouse_corrections (id, delta, reversal, magnitude, confirmed, skip_reversal, skip_magnitude) VALUES (2, -10, 10, 10, 10, false, false);
+-- name: bulk_correction_maximum
+INSERT INTO bulk_warehouse_corrections (id, delta, reversal, magnitude, confirmed, skip_reversal, skip_magnitude) VALUES (2, 9223372036854775807, -9223372036854775807, 9223372036854775807, 9223372036854775807, false, false);
+-- name: bulk_correction_negative_maximum
+INSERT INTO bulk_warehouse_corrections (id, delta, reversal, magnitude, confirmed, skip_reversal, skip_magnitude) VALUES (2, -9223372036854775807, 9223372036854775807, 9223372036854775807, -9223372036854775807, false, false);
+-- name: bulk_correction_minimum_errors
+INSERT INTO bulk_warehouse_corrections (id, delta, reversal, magnitude, confirmed, skip_reversal, skip_magnitude) VALUES (2, -9223372036854775808, 0, 0, -9223372036854775808, false, false);
+-- name: bulk_correction_minimum_negation
+INSERT INTO bulk_warehouse_corrections (id, delta, reversal, magnitude, confirmed, skip_reversal, skip_magnitude) VALUES (2, -9223372036854775808, 0, 0, -9223372036854775808, false, true);
+-- name: bulk_correction_minimum_absolute
+INSERT INTO bulk_warehouse_corrections (id, delta, reversal, magnitude, confirmed, skip_reversal, skip_magnitude) VALUES (2, -9223372036854775808, 0, 0, -9223372036854775808, true, false);
+-- name: bulk_correction_skipped_minimum
+INSERT INTO bulk_warehouse_corrections (id, delta, reversal, magnitude, confirmed, skip_reversal, skip_magnitude) VALUES (2, -9223372036854775808, 0, 0, -9223372036854775808, true, true);
+-- name: bulk_correction_null_guards
+INSERT INTO bulk_warehouse_corrections (id, delta, reversal, magnitude, confirmed, skip_reversal, skip_magnitude) VALUES (2, -9223372036854775808, 0, 0, -9223372036854775808, NULL, NULL);
+-- name: bulk_correction_zero
+INSERT INTO bulk_warehouse_corrections (id, delta, reversal, magnitude, confirmed, skip_reversal, skip_magnitude) VALUES (2, 0, 0, 0, 0, false, false);
+-- name: bulk_correction_null_delta
+INSERT INTO bulk_warehouse_corrections (id, delta, reversal, magnitude, confirmed, skip_reversal, skip_magnitude) VALUES (2, NULL, 10, 10, 10, false, false);
+-- name: bulk_correction_null_results
+INSERT INTO bulk_warehouse_corrections (id, delta, reversal, magnitude, confirmed, skip_reversal, skip_magnitude) VALUES (2, -10, NULL, NULL, NULL, false, false);
+-- name: bulk_correction_error_before_null
+INSERT INTO bulk_warehouse_corrections (id, delta, reversal, magnitude, confirmed, skip_reversal, skip_magnitude) VALUES (2, -9223372036854775808, NULL, NULL, -9223372036854775808, false, false);
+-- name: bulk_correction_all_null
+INSERT INTO bulk_warehouse_corrections (id, delta, reversal, magnitude, confirmed, skip_reversal, skip_magnitude) VALUES (2, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: mixed_bulk_exact
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 9007199254740993, 1, 2, 9007199254740994, 9007199254740995, 9007199254740992, 9007199254740991, -9007199254740992, -9007199254740991);
+-- name: mixed_bulk_negative_exact
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, -9007199254740993, -1, -2, -9007199254740994, -9007199254740995, -9007199254740992, -9007199254740991, 9007199254740992, 9007199254740991);
+-- name: mixed_bulk_small_maximum
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 0, 32767, 0, 32767, 0, -32767, 0, 32767, 0);
+-- name: mixed_bulk_small_minimum
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 0, -32768, 0, -32768, 0, 32768, 0, -32768, 0);
+-- name: mixed_bulk_integer_maximum
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 0, 0, 2147483647, 0, 2147483647, 0, -2147483647, 0, 2147483647);
+-- name: mixed_bulk_integer_minimum
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 0, 0, -2147483648, 0, -2147483648, 0, 2147483648, 0, -2147483648);
+-- name: mixed_bulk_wrong_small_total
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 10, 1, 2, 12, 12, 9, 8, -9, -8);
+-- name: mixed_bulk_wrong_integer_total
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 10, 1, 2, 11, 13, 9, 8, -9, -8);
+-- name: mixed_bulk_wrong_small_residual
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 10, 1, 2, 11, 12, 10, 8, -9, -8);
+-- name: mixed_bulk_wrong_integer_residual
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 10, 1, 2, 11, 12, 9, 9, -9, -8);
+-- name: mixed_bulk_wrong_small_balance
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 10, 1, 2, 11, 12, 9, 8, -8, -8);
+-- name: mixed_bulk_wrong_integer_balance
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 10, 1, 2, 11, 12, 9, 8, -9, -7);
+-- name: mixed_bulk_maximum
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 9223372036854775807, 0, 0, 9223372036854775807, 9223372036854775807, 9223372036854775807, 9223372036854775807, -9223372036854775807, -9223372036854775807);
+-- name: mixed_bulk_minimum
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, -9223372036854775808, 0, 0, -9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775808, 9223372036854775807, 9223372036854775807);
+-- name: mixed_bulk_small_add_overflow
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 9223372036854775807, 1, 0, 9223372036854775807, 9223372036854775807, 9223372036854775806, 9223372036854775807, -9223372036854775806, -9223372036854775807);
+-- name: mixed_bulk_small_add_underflow
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, -9223372036854775808, -1, 0, -9223372036854775808, -9223372036854775808, -9223372036854775807, -9223372036854775808, 9223372036854775807, 9223372036854775807);
+-- name: mixed_bulk_integer_add_overflow
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 9223372036854775807, 0, 1, 9223372036854775807, 9223372036854775807, 9223372036854775807, 9223372036854775806, -9223372036854775807, -9223372036854775806);
+-- name: mixed_bulk_integer_add_underflow
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, -9223372036854775808, 0, -1, -9223372036854775808, -9223372036854775808, -9223372036854775808, -9223372036854775807, 9223372036854775807, 9223372036854775807);
+-- name: mixed_bulk_small_subtract_overflow
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 9223372036854775807, -1, 0, 9223372036854775806, 9223372036854775807, 9223372036854775807, 9223372036854775807, -9223372036854775808, -9223372036854775807);
+-- name: mixed_bulk_small_subtract_underflow
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, -9223372036854775808, 1, 0, -9223372036854775807, -9223372036854775808, -9223372036854775808, -9223372036854775808, 9223372036854775807, 9223372036854775807);
+-- name: mixed_bulk_integer_subtract_overflow
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 9223372036854775807, 0, -1, 9223372036854775807, 9223372036854775806, 9223372036854775807, 9223372036854775807, -9223372036854775807, -9223372036854775808);
+-- name: mixed_bulk_integer_subtract_underflow
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, -9223372036854775808, 0, 1, -9223372036854775808, -9223372036854775807, -9223372036854775808, -9223372036854775808, 9223372036854775807, 9223372036854775807);
+-- name: mixed_bulk_small_reverse_overflow
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, -9223372036854775808, 0, NULL, -9223372036854775808, NULL, -9223372036854775808, NULL, 9223372036854775807, NULL);
+-- name: mixed_bulk_integer_reverse_overflow
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, -9223372036854775808, NULL, 0, NULL, -9223372036854775808, NULL, -9223372036854775808, NULL, 9223372036854775807);
+-- name: mixed_bulk_error_before_null
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 9223372036854775807, 1, 0, NULL, 9223372036854775807, 9223372036854775806, 9223372036854775807, -9223372036854775806, -9223372036854775807);
+-- name: mixed_bulk_null_delta
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, NULL, 1, 2, NULL, NULL, NULL, NULL, NULL, NULL);
+-- name: mixed_bulk_null_small
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 10, NULL, 2, NULL, 12, NULL, 8, NULL, -8);
+-- name: mixed_bulk_null_integer
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, 10, 1, NULL, 11, NULL, 9, NULL, -9, NULL);
+-- name: mixed_bulk_all_null
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance) VALUES (2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: mixed_bulk_minimum_representable
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance)
+VALUES (2, -9223372036854775807, 0, 0, -9223372036854775807, -9223372036854775807, -9223372036854775807, -9223372036854775807, 9223372036854775807, 9223372036854775807);
