@@ -43,6 +43,18 @@ const expressions: Record<string, string> = {
   between: 'a BETWEEN b AND b',
   null_test: 'a IS NULL',
 }
+const domainExpressions: Record<string, string> = {
+  equal: 'a = b',
+  unequal: 'a <> b',
+  less: 'a < b',
+  less_equal: 'a <= b',
+  greater: 'a > b',
+  greater_equal: 'a >= b',
+  relabel: 'a::numeric = b::numeric',
+  nonnegative: 'a >= 0',
+  nullable: 'a IS NULL OR a >= 0',
+  scalar_case: '(CASE WHEN flag THEN a ELSE b END)::numeric = b',
+}
 for (const fn of builtinCallables())
   if (
     fn.kind === 'function' &&
@@ -98,6 +110,12 @@ describe('portable Rust CHECK numeric comparisons', () => {
         .map(([name, sql]) => `CONSTRAINT "${name}" CHECK (${sql})`)
         .join(',')});
       CREATE TABLE rounded_amounts (amount numeric(10,2));`)
+    await pg.exec(`CREATE DOMAIN measured_amount AS numeric(10,3);
+      CREATE DOMAIN nested_measurement AS measured_amount;
+      CREATE TABLE domain_numeric_checks (a measured_amount, b nested_measurement, flag bool,
+      ${Object.entries(domainExpressions)
+        .map(([name, sql]) => `CONSTRAINT "${name}" CHECK (${sql})`)
+        .join(',')});`)
     catalog = await snapshotCatalog(pg)
     table = catalog.tables.find((table) => table.name === 'numeric_checks')!
   })
@@ -224,6 +242,71 @@ describe('portable Rust CHECK numeric comparisons', () => {
       },
     )
     await runCheckParity(directory, 'numericchecks', group, [...names, 'domain'], fixtures)
+  }, 120_000)
+
+  it('unwraps numeric domains and nested domains without applying new coercions', async () => {
+    const domainTable = catalog.tables.find((table) => table.name === 'domain_numeric_checks')!
+    const names = Object.keys(domainExpressions)
+    const plans = names.map((name) =>
+      lowerTableCheck(
+        domainTable,
+        domainTable.constraints.find((constraint) => constraint.name === name)!,
+        [],
+        catalog.domains,
+      )!,
+    )
+    expect(
+      domainTable.constraints.find((constraint) => constraint.name === 'relabel')!.definition,
+    ).toContain('::numeric')
+    const group = prepareCheckRustGroup(
+      plans.map((plan) => ({
+        expression: plan.expression,
+        identity: {
+          schema: 'public',
+          kind: 'table' as const,
+          owner: domainTable.name,
+          constraint: plan.name,
+        },
+      })),
+    )
+    expect(group.checks.every((check) => check.kind === 'supported')).toBe(true)
+    const fixtures: { name: string; row: Row; expected: Outcome }[] = []
+    for (const a of [null, '-0.001', '-0.0004', '0', '0.0004', '0.001', '9999999.999', 'NaN'])
+      for (const b of [null, '-0.001', '0', '0.001', 'NaN']) {
+        const candidate = (
+          await pg.query<{ a: string | null; b: string | null }>(
+            'SELECT ($1::measured_amount)::text AS a, ($2::nested_measurement)::text AS b',
+            [a, b],
+          )
+        ).rows[0]!
+        for (const flag of [true, false, null]) {
+          const result = (
+            await pg.query<Record<string, boolean | null>>(
+              `SELECT ${names.map((name) => `(${domainExpressions[name]}) AS "${name}"`).join(',')} FROM (SELECT $1::measured_amount a, $2::nested_measurement b, $3::bool flag) candidate`,
+              [a, b, flag],
+            )
+          ).rows[0]!
+          for (const name of names)
+            fixtures.push({
+              name,
+              row: { a: value(candidate.a), b: value(candidate.b), flag: value(flag) },
+              expected: outcome(result[name]!),
+            })
+        }
+      }
+    const domainDirectory = join(directory, 'domains')
+    await mkdir(domainDirectory)
+    await runCheckParity(domainDirectory, 'numericdomains', group, names, fixtures)
+    for (const sql of ['a::numeric(10,2) = b', 'a::exact_amount = b', 'a::int4 = 0'])
+      expect(
+        lowerTableCheck(
+          domainTable,
+          { name: 'unsupported', type: 'check', definition: `CHECK (${sql})` },
+          [],
+          catalog.domains,
+        )!.expression,
+      ).toEqual({ kind: 'uncertain' })
+    await expect(pg.query("SELECT '-0.001'::measured_amount::exact_amount")).rejects.toThrow()
   }, 120_000)
 
   it('validates exact strings and wrappers at the production TypeScript boundary', async () => {
