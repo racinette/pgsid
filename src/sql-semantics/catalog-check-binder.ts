@@ -619,7 +619,9 @@ export function bindCatalogCheck(
       const type =
         column &&
         (catalogTemporalType(column.typeName, column.typeOid, domains) ??
-          catalogScalarType(column.typeName))
+          (catalogNumericType(column.typeName, column.typeOid, domains)
+            ? 'pg_catalog."numeric"'
+            : catalogScalarType(column.typeName)))
       if (type) {
         inputs.add(column.name)
         return {

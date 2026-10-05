@@ -479,6 +479,9 @@ describe('world CHECK INSERT parity', () => {
       'world_006_marketplace_settlement.charges.charge_amounts_sane',
       'world_006_marketplace_settlement.ledger_entries.ledger_amount_direction',
       'world_006_marketplace_settlement.payout_batches.payout_amount_sane',
+      'world_010_lab_calibration.observations.observation_sequence',
+      'world_010_lab_calibration.observations.observation_reading_state',
+      'world_010_lab_calibration.review_audits.audit_values',
     ]) {
       const measured = coverage.get(identity)!
       expect(measured.unknown, identity).toBe(0)
