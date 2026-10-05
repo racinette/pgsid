@@ -529,6 +529,8 @@ describe('world CHECK INSERT parity', () => {
       'world_012_package_capacity.bulk_package_products.bulk_package_product',
       'world_012_package_capacity.chosen_package_counts.chosen_double',
       'world_012_package_capacity.chosen_package_counts.chosen_ratio',
+      'world_014_shipment_defaults.replenishment_picks.fallback_double',
+      'world_014_shipment_defaults.replenishment_picks.fallback_ratio',
       'world_012_package_capacity.mixed_batch_remainders.small_integer_remainder',
       'world_012_package_capacity.mixed_batch_remainders.integer_small_remainder',
       'world_012_package_capacity.mixed_batch_remainders.small_big_remainder',
@@ -579,6 +581,26 @@ describe('world CHECK INSERT parity', () => {
       expect(measured.false, identity).toBeGreaterThan(0)
       expect(measured.null, identity).toBeGreaterThan(0)
       expect(measured.unknown, identity).toBe(0)
+    }
+    for (const [table, names] of [
+      [
+        'replenishment_picks',
+        ['fallback_units', 'fallback_baseline', 'fallback_double', 'fallback_ratio'],
+      ],
+      [
+        'delivery_defaults',
+        ['fallback_day', 'fallback_schedule', 'fallback_confirmation', 'fallback_enabled'],
+      ],
+      ['shipment_labels', ['fallback_label', 'fallback_code', 'fallback_fee', 'fallback_stage']],
+    ] as const) {
+      for (const name of names) {
+        const identity = `world_014_shipment_defaults.${table}.${name}`
+        const measured = coverage.get(identity)!
+        expect(measured.true, identity).toBeGreaterThan(0)
+        expect(measured.false, identity).toBeGreaterThan(0)
+        expect(measured.null, identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(0)
+      }
     }
     const constraints = [...coverage.values()].sort((left, right) =>
       left.constraint.localeCompare(right.constraint),
