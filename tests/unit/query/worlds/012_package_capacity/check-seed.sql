@@ -771,3 +771,70 @@ INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_to
 
 -- name: mixed_bulk_package_null_guards
 INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 7, 3, 5, 21, 35, 2, 0, 1, 0, NULL, NULL);
+
+-- name: mixed_remainder_regular
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, 3, 5, 1, 3, 2, 5, 3, 2, 1, 2, 1, false);
+-- name: mixed_remainder_negative_units
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, -7, 3, 5, -1, 3, -2, 5, 3, 2, -1, 2, -1, false);
+-- name: mixed_remainder_negative_divisor
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, -3, 5, 1, -3, 2, 5, -3, 2, 1, 2, 1, false);
+-- name: mixed_remainder_all_negative
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, -7, -3, -5, -1, -3, -2, -5, -3, -2, -1, -2, -1, false);
+-- name: mixed_remainder_smallint_minimum
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, -32768, -1, -1, 0, -1, 0, -1, 0, 0, 0, -1, 0, false);
+-- name: mixed_remainder_integer_minimum
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, -1, -2147483648, -1, -1, 0, 0, 0, 0, -1, -1, -1, -1, false);
+-- name: mixed_remainder_bigint_minimum
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, -1, -1, -9223372036854775808, 0, 0, -1, 0, -1, 0, -1, -2, 0, false);
+-- name: mixed_remainder_exact_bigint
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 3, 7, 9007199254740993, 3, 1, 3, 0, 7, 5, 1, 0, 3, false);
+-- name: mixed_remainder_exact_negative_bigint
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 3, 7, -9007199254740993, 3, 1, 3, 0, 7, -5, 1, 0, 3, false);
+-- name: mixed_remainder_bigint_maximum
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 1, 1, 9223372036854775807, 0, 0, 1, 0, 1, 0, 1, 1, 0, false);
+-- name: mixed_remainder_widened_smallint
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 32767, 32768, 3, 32767, 1, 1, 3, 2, 3, 1, 0, 32767, false);
+-- name: mixed_remainder_wrong_small_integer
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, 3, 5, 0, 3, 2, 5, 3, 2, 1, 2, 1, false);
+-- name: mixed_remainder_wrong_integer_small
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, 3, 5, 1, 0, 2, 5, 3, 2, 1, 2, 1, false);
+-- name: mixed_remainder_wrong_small_big
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, 3, 5, 1, 3, 0, 5, 3, 2, 1, 2, 1, false);
+-- name: mixed_remainder_wrong_big_small
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, 3, 5, 1, 3, 2, 0, 3, 2, 1, 2, 1, false);
+-- name: mixed_remainder_wrong_integer_big
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, 3, 5, 1, 3, 2, 5, 0, 2, 1, 2, 1, false);
+-- name: mixed_remainder_wrong_big_integer
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, 3, 5, 1, 3, 2, 5, 3, 0, 1, 2, 1, false);
+-- name: mixed_remainder_wrong_small_literal
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, 3, 5, 1, 3, 2, 5, 3, 2, 0, 2, 1, false);
+-- name: mixed_remainder_wrong_big_literal
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, 3, 5, 1, 3, 2, 5, 3, 2, 1, 0, 1, false);
+-- name: mixed_remainder_wrong_call
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, 3, 5, 1, 3, 2, 5, 3, 2, 1, 2, 0, false);
+-- name: mixed_remainder_zero_small
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 0, 3, 5, 0, 0, 0, 0, 3, 2, 0, 2, 0, false);
+-- name: mixed_remainder_zero_integer
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, 0, 5, 0, 0, 2, 5, 0, 0, 1, 2, 0, false);
+-- name: mixed_remainder_zero_bigint
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, 3, 0, 1, 3, 0, 0, 0, 0, 1, 0, 1, false);
+-- name: mixed_remainder_all_zero
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false);
+-- name: mixed_remainder_error_before_null
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 0, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false);
+-- name: mixed_remainder_null_small
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, NULL, 3, 5, NULL, NULL, NULL, NULL, 3, 2, NULL, 2, NULL, false);
+-- name: mixed_remainder_null_integer
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, NULL, 5, NULL, NULL, 2, 5, NULL, NULL, 1, 2, NULL, false);
+-- name: mixed_remainder_null_bigint
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, 3, NULL, 1, 3, NULL, NULL, NULL, NULL, 1, NULL, 1, false);
+-- name: mixed_remainder_null_results
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, 3, 5, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false);
+-- name: mixed_remainder_all_null
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false);
+-- name: mixed_remainder_guarded_zero
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, true);
+-- name: mixed_remainder_null_guard
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, 3, 5, 1, 3, 2, 5, 3, 2, 1, 2, 1, NULL);
+-- name: mixed_remainder_null_guard_zero
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL);

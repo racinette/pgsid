@@ -66,8 +66,13 @@ import them. Keep schema-only helpers with their callables.
   to int2/int4. Narrowing checks the destination range before converting and
   returns SQLSTATE 22003 on overflow. Mixed int2/int8 and int4/int8 addition,
   subtraction, multiplication, and division widen the smaller operand and reuse
-  bigint arithmetic. Implicit integer promotion without a mixed catalog operator
-  requires a separate slice.
+  bigint arithmetic. Integer call binding preserves exact overloads, then uses
+  catalog-declared implicit widening casts and the unique candidate with the most
+  exact argument types. Include noninteger candidates when checking ambiguity;
+  defer ties and unsupported winners. Never narrow integers implicitly or use
+  implementation availability to choose an overload. Raw CHECK expressions and
+  PostgreSQL's stored definitions must agree. Run
+  `tests/sql-semantics/check-integer-promotion.test.ts` for this boundary.
 - Int8 payloads use Rust `i64`, Go `int64`, and TypeScript `bigint`. Write
   decimal Rust literals with an `i64` suffix. Widen an int4 payload with
   `as i64` into a distinct local before comparing it with an int8 payload.

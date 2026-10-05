@@ -234,3 +234,29 @@ CREATE TABLE mixed_bulk_packages (
   CONSTRAINT bulk_integer_quotient CHECK (CASE WHEN skip_divisions THEN true ELSE units / integer_batch = bulk_integer_batches END),
   CONSTRAINT integer_bulk_quotient CHECK (CASE WHEN skip_divisions THEN true ELSE integer_batch / units = integer_bulk_batches END)
 );
+
+CREATE TABLE mixed_batch_remainders (
+  id integer PRIMARY KEY,
+  small_units smallint,
+  integer_units integer,
+  big_units warehouse_adjustment,
+  small_integer_loose integer,
+  integer_small_loose integer,
+  small_big_loose bigint,
+  big_small_loose bigint,
+  integer_big_loose bigint,
+  big_integer_loose bigint,
+  literal_small_loose integer,
+  literal_big_loose bigint,
+  call_loose bigint,
+  skip_remainders boolean,
+  CONSTRAINT small_integer_remainder CHECK (CASE WHEN skip_remainders THEN true ELSE small_units % integer_units = small_integer_loose END),
+  CONSTRAINT integer_small_remainder CHECK (CASE WHEN skip_remainders THEN true ELSE integer_units % small_units = integer_small_loose END),
+  CONSTRAINT small_big_remainder CHECK (CASE WHEN skip_remainders THEN true ELSE small_units % big_units = small_big_loose END),
+  CONSTRAINT big_small_remainder CHECK (CASE WHEN skip_remainders THEN true ELSE big_units % small_units = big_small_loose END),
+  CONSTRAINT integer_big_remainder CHECK (CASE WHEN skip_remainders THEN true ELSE integer_units % big_units = integer_big_loose END),
+  CONSTRAINT big_integer_remainder CHECK (CASE WHEN skip_remainders THEN true ELSE big_units % integer_units = big_integer_loose END),
+  CONSTRAINT small_literal_remainder CHECK (CASE WHEN skip_remainders THEN true ELSE small_units % 2 = literal_small_loose END),
+  CONSTRAINT big_literal_remainder CHECK (CASE WHEN skip_remainders THEN true ELSE big_units % 3 = literal_big_loose END),
+  CONSTRAINT widened_remainder_call CHECK (CASE WHEN skip_remainders THEN true ELSE pg_catalog.int8mod(small_units, integer_units) = call_loose END)
+);

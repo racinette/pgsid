@@ -389,7 +389,7 @@ describe('portable smallint CHECK values', () => {
     )
   }, 120_000)
 
-  it('exposes range checked smallint public inputs and defers mixed bigint remainder', async () => {
+  it('exposes range checked smallint public inputs and supports mixed bigint remainder', async () => {
     const output = renderTypescriptSchemaCheckArtifacts([table], catalog.domains, [])
     const publicDirectory = join(directory, 'public')
     await mkdir(publicDirectory, { recursive: true })
@@ -436,10 +436,8 @@ describe('portable smallint CHECK values', () => {
           identity: { schema: 'public', kind: 'table', owner: table.name, constraint: 'probe' },
         },
       ])
-      if (sql === 'a::smallint > 0') expect(group.checks[0]!.kind).toBe('supported')
-      else if (group.checks[0]!.kind === 'supported')
-        expect(group.evaluatorSource).toContain('check_unknown()')
-      else expect(group.checks[0]!.kind).toBe('unsupported')
+      expect(group.checks[0]!.kind).toBe('supported')
+      expect(group.evaluatorSource).not.toContain('check_unknown()')
     }
   })
 })
