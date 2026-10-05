@@ -6,6 +6,7 @@ import { supportsTextCallableCollation } from '../../sql-semantics/collation.js'
 import { rustStringLiteral } from './rust-literals.js'
 import {
   enumType,
+  isBinaryTextRelabel,
   enumEqualityOperation,
   type EnumDefinition,
 } from '../../sql-semantics/expressions.js'
@@ -29,7 +30,8 @@ const rustType = (type: string): string => {
   if (type === 'pg_catalog.date') return 'DateValue'
   if (type === 'pg_catalog."timestamp"') return 'TimestampValue'
   if (type === 'pg_catalog.timestamptz') return 'TimestamptzValue'
-  if (type === 'pg_catalog.text') return 'TextValue'
+  if (['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type))
+    return 'TextValue'
   if (type === 'pg_catalog.bool') return 'BoolValue'
   if (type.startsWith('enum:')) return 'EnumValue'
   throw new UnsupportedCheckRustExpression(`Unsupported Rust CHECK input type: ${type}`)
@@ -108,6 +110,14 @@ export function emitCheckRustEvaluator(
       operands: readonly { name: string; type: string }[],
       destination = bindings,
     ): { name: string; type: string } => {
+      if (call.kind === 'cast' && call.signature === null) {
+        if (
+          operands.length !== 1 ||
+          (operands[0]!.type !== call.type && !isBinaryTextRelabel(operands[0]!.type, call.type))
+        )
+          throw new UnsupportedCheckRustExpression('Invalid Rust CHECK relabel cast')
+        return { ...operands[0]!, type: call.type }
+      }
       if ((call.kind !== 'operator' && call.kind !== 'function') || call.signature === null)
         throw new UnsupportedCheckRustExpression('Unsupported Rust CHECK callable kind')
       const metadata = builtinMetadata(call.signature)
@@ -126,7 +136,9 @@ export function emitCheckRustEvaluator(
           `Unsupported Rust CHECK callable: ${call.signature}`,
         )
       if (
-        implementation.args.includes('pg_catalog.text') &&
+        implementation.args.some((type) =>
+          ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type),
+        ) &&
         !supportsTextCallableCollation(call.signature, call.collation)
       )
         throw new UnsupportedCheckRustExpression(
@@ -329,6 +341,8 @@ export function emitCheckRustEvaluator(
           'pg_catalog."timestamp"',
           'pg_catalog.timestamptz',
           'pg_catalog.text',
+          'pg_catalog."varchar"',
+          'pg_catalog.bpchar',
           'pg_catalog.bool',
         ].includes(node.operand.type)
       ) {

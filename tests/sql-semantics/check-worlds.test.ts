@@ -346,6 +346,8 @@ describe('world CHECK INSERT parity', () => {
     await run('go', ['test', '-mod=mod', './...'], {
       cwd: directory,
       env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+    }).catch((error: { stdout: string; stderr: string }) => {
+      throw new Error(error.stdout + error.stderr, { cause: error })
     })
   }, 120_000)
 

@@ -89,6 +89,24 @@ const targetNames = (nodes: readonly Node[] | undefined): string[] =>
     return name ? [name] : []
   })
 
+const textInputNeedsCoercion = (column: ColumnInfo, catalog: CatalogSnapshot): boolean => {
+  let name = column.typeName
+  let oid = column.typeOid
+  const seen = new Set<number>()
+  while (!seen.has(oid)) {
+    seen.add(oid)
+    const domain = catalog.domains.find((domain) => domain.oid === oid)
+    if (!domain) break
+    name = domain.baseTypeName
+    oid = domain.baseTypeOid
+  }
+  const type = catalogScalarType(name)
+  return (
+    type === 'pg_catalog.bpchar' ||
+    (type === 'pg_catalog."varchar"' && ((column.typeMod ?? -1) >= 0 || name.includes('(')))
+  )
+}
+
 export function planCheckWrite(
   statement: Node,
   writes: readonly WriteValueLineage[],
@@ -193,6 +211,7 @@ export function planCheckInputs(
     if (source.kind !== 'parameter') return []
     const column = plan.table.columns.find((column) => column.name === name)!
     if (catalogTemporalType(column.typeName, column.typeOid, catalog?.domains ?? [])) return []
+    if (catalog && textInputNeedsCoercion(column, catalog)) return []
     return [{ name, parameter: source.number }]
   })
   return columns.length ? [{ table: plan.table, columns }] : []

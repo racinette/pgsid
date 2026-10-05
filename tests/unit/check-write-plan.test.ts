@@ -27,6 +27,14 @@ beforeAll(async () => {
       j integer NOT NULL,
       CONSTRAINT positive_i CHECK (i > 0),
       CONSTRAINT positive_j CHECK (j > 0)
+    );
+    CREATE DOMAIN bounded_label AS varchar(3);
+    CREATE DOMAIN nested_label AS bounded_label;
+    CREATE TABLE text_boundary (
+      short varchar(3) CHECK (short = 'abc'),
+      fixed char(3) CHECK (fixed = 'abc'),
+      nested nested_label CHECK (nested = 'abc'),
+      unbounded varchar CHECK (unbounded = 'abc')
     )
   `)
   catalog = await snapshotCatalog(db)
@@ -56,6 +64,34 @@ const sources = (plan: ReturnType<typeof planCheckWrite>) =>
   Object.fromEntries(plan?.columns.map(({ name, source }) => [name, source]) ?? [])
 
 describe('CHECK write boundary', () => {
+  it('defers raw bounded varchar and char inputs until assignment coercion is modeled', async () => {
+    const insert = await statement(
+      'INSERT INTO text_boundary (short, fixed, nested, unbounded) VALUES ($1, $2, $3, $4)',
+    )
+    const writes: WriteValueLineage[] = ['short', 'fixed', 'nested', 'unbounded'].map(
+      (column, index) => ({
+        target: { schema: 'public', relation: 'text_boundary', column },
+        source: 'insert',
+        value: parameter(index + 1),
+        partial: false,
+      }),
+    )
+    const plans = planCheckInputs(insert, writes, catalog, [
+      'character varying',
+      'character',
+      'nested_label',
+      'character varying',
+    ])
+    expect(plans[0]?.columns).toEqual([{ name: 'unbounded', parameter: 4 }])
+    expect(
+      (
+        await db.query(
+          'INSERT INTO text_boundary (short, fixed, nested, unbounded) VALUES ($1, $2, $3, $4) RETURNING short, fixed, nested',
+          ['abc   ', 'abc   ', 'abc   ', 'abc'],
+        )
+      ).rows,
+    ).toEqual([{ short: 'abc', fixed: 'abc', nested: 'abc' }])
+  })
   it('keeps omitted, DEFAULT, explicit NULL, and parameter values distinct on INSERT', async () => {
     const omitted = await statement('INSERT INTO check_boundary (id, j) VALUES (1, $1)')
     const omittedWrites = [write('j', 'insert', parameter(1))]

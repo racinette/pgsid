@@ -38,6 +38,8 @@ export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpr
     )
       return { ...value, operand: scalar(value.operand) }
     if (value.kind === 'check') return { ...value, expression: bool(value.expression) }
+    if (value.kind === 'call' && value.call.kind === 'cast' && value.call.signature === null)
+      return { ...value, operands: value.operands.map(scalar) }
     if (value.kind === 'call')
       return value.call.signature !== null && portable(value.call.signature, rustNames)
         ? { ...value, operands: value.operands.map(scalar) }

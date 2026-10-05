@@ -77,6 +77,7 @@ const defaultTypes: Readonly<Record<string, { type: string; imports?: GoTypeImpo
 const aliases: Readonly<Record<string, string>> = {
   bigint: 'int8',
   boolean: 'bool',
+  character: 'bpchar',
   'character varying': 'varchar',
   'double precision': 'float8',
   integer: 'int4',

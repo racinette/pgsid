@@ -260,7 +260,7 @@ export type SqlExpression =
       operand: SqlExpression
     }
   | { kind: 'boolean'; type: 'pg_catalog.bool'; value: boolean | null }
-  | { kind: 'text'; type: 'pg_catalog.text'; value: string | null }
+  | { kind: 'text'; type: TextType; value: string | null }
   | { kind: 'name'; type: 'pg_catalog.name'; value: string | null }
   | { kind: 'internal-char'; type: 'pg_catalog."char"'; value: string | null }
   | { kind: 'bytea'; type: 'pg_catalog.bytea'; value: string | null }
@@ -409,6 +409,13 @@ export interface ExpressionBackend<Ast> {
   integer: (type: IntegerType, value: string | null) => Ast
   float: (type: FloatType, bits: string | null) => Ast
   decimal: (value: string | null) => Ast
+}
+
+export function isBinaryTextRelabel(source: string, target: string): boolean {
+  return (
+    ['pg_catalog.text', 'pg_catalog."varchar"'].includes(source) &&
+    ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(target)
+  )
 }
 
 export type SqlCallableExpression =
@@ -1060,8 +1067,9 @@ export function emitSqlExpression<Ast>(
       return { type: node.type, expression: backend.integer(node.type, node.value) }
     }
     if (node.kind === 'cast' && node.signature === null) {
-      if (node.operand.type !== node.type) throw new Error('Invalid relabel cast')
-      return emit(node.operand)
+      if (node.operand.type !== node.type && !isBinaryTextRelabel(node.operand.type, node.type))
+        throw new Error('Invalid relabel cast')
+      return { ...emit(node.operand), type: node.type }
     }
     const operands = node.kind === 'cast' ? [node.operand] : node.operands
     const result = emitSqlCallable(node, operands.map(emit), backend)
