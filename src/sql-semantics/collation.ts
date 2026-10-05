@@ -35,7 +35,9 @@ export function supportsTextCallableCollation(signature: string, collation?: str
   return (
     utcConversion ||
     collation === 'C' ||
-    (collation === 'deterministic' && equalityOperation(signature, 'pg_catalog.text') !== null)
+    (collation === 'deterministic' &&
+      (equalityOperation(signature, 'pg_catalog.text') !== null ||
+        equalityOperation(signature, 'pg_catalog.bpchar') !== null))
   )
 }
 

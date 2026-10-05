@@ -74,7 +74,12 @@ export function lowerTableCheck(
       const type = fields(cast?.['typeName'])
       const names = stringNodes(type?.['names'])
       if (names?.at(-1) !== 'text') return null
-      return input(cast?.['arg'])
+      const operand = input(cast?.['arg'])
+      return operand &&
+        (operand.kind === 'input' || operand.kind === 'text') &&
+        ['pg_catalog.text', 'pg_catalog."varchar"'].includes(operand.type)
+        ? { ...operand, type: 'pg_catalog.text' }
+        : null
     }
     const constant = fields(wrapper['A_Const'])
     if (constant) {

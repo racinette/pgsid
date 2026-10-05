@@ -1,5 +1,6 @@
 import {
   emitSqlCallable,
+  isBinaryTextRelabel,
   emitSqlExpression,
   type ExpressionBackend,
   type SqlCallableExpression,
@@ -136,9 +137,12 @@ export function emitEvalExpression<Ast>(
     operands: readonly EmittedEvalExpression<Ast>[],
   ): EmittedEvalExpression<Ast> => {
     if (call.kind === 'cast' && call.signature === null) {
-      if (operands.length !== 1 || operands[0]!.type !== call.type)
+      if (
+        operands.length !== 1 ||
+        (operands[0]!.type !== call.type && !isBinaryTextRelabel(operands[0]!.type, call.type))
+      )
         throw new Error('Invalid partial relabel cast')
-      return operands[0]!
+      return { ...operands[0]!, type: call.type }
     }
     const emitTotal = (raw: readonly TypedSqlExpression<Ast>[]) =>
       emitSqlCallable(call, raw, scalarBackend)

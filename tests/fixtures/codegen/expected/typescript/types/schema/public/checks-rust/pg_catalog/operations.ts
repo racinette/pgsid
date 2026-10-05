@@ -612,6 +612,207 @@ export function boolgeGviq(left: checkruntime.BoolValue, right: checkruntime.Boo
     }
     return { kind: "Unknown" };
 }
+function bpcharCodepointCompare(left: string, right: string): number {
+    left = langruntime.checkedString(left);
+    right = langruntime.checkedString(right);
+    const leftChars: string[] = Array.from(left);
+    const rightChars: string[] = Array.from(right);
+    let leftLength: number = leftChars.length;
+    let rightLength: number = rightChars.length;
+    while (leftLength > 0) {
+        if (!(langruntime.indexChar(leftChars, langruntime.checkedIndex(langruntime.checkedSubtract(leftLength, 1))) === " ")) {
+            break;
+        }
+        leftLength = langruntime.checkedIndex(langruntime.checkedSubtract(leftLength, 1));
+    }
+    while (rightLength > 0) {
+        if (!(langruntime.indexChar(rightChars, langruntime.checkedIndex(langruntime.checkedSubtract(rightLength, 1))) === " ")) {
+            break;
+        }
+        rightLength = langruntime.checkedIndex(langruntime.checkedSubtract(rightLength, 1));
+    }
+    let index: number = 0;
+    while (index < leftLength && index < rightLength) {
+        const leftCode: number = langruntime.checkedChar(langruntime.indexChar(leftChars, langruntime.checkedIndex(index))).codePointAt(0)!;
+        const rightCode: number = langruntime.checkedChar(langruntime.indexChar(rightChars, langruntime.checkedIndex(index))).codePointAt(0)!;
+        if (leftCode < rightCode) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        if (leftCode > rightCode) {
+            return 1;
+        }
+        index = langruntime.checkedIndex(langruntime.checkedAdd(index, 1));
+    }
+    if (leftLength < rightLength) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (leftLength > rightLength) {
+        return 1;
+    }
+    return 0;
+}
+export function bpchareqNpys(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    left = checkruntime.copyTextValue(left);
+    right = checkruntime.copyTextValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: string = langruntime.checkedString(left.value);
+        if (right.kind === "Value") {
+            const rightValue: string = langruntime.checkedString(right.value);
+            const comparison: number = bpcharCodepointCompare(leftValue, rightValue);
+            return { kind: "Value", value: comparison === 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function bpchargeO6oj(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    left = checkruntime.copyTextValue(left);
+    right = checkruntime.copyTextValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: string = langruntime.checkedString(left.value);
+        if (right.kind === "Value") {
+            const rightValue: string = langruntime.checkedString(right.value);
+            const comparison: number = bpcharCodepointCompare(leftValue, rightValue);
+            return { kind: "Value", value: comparison >= 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function bpchargtKxc4(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    left = checkruntime.copyTextValue(left);
+    right = checkruntime.copyTextValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: string = langruntime.checkedString(left.value);
+        if (right.kind === "Value") {
+            const rightValue: string = langruntime.checkedString(right.value);
+            const comparison: number = bpcharCodepointCompare(leftValue, rightValue);
+            return { kind: "Value", value: comparison > 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function bpcharle0rch(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    left = checkruntime.copyTextValue(left);
+    right = checkruntime.copyTextValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: string = langruntime.checkedString(left.value);
+        if (right.kind === "Value") {
+            const rightValue: string = langruntime.checkedString(right.value);
+            const comparison: number = bpcharCodepointCompare(leftValue, rightValue);
+            return { kind: "Value", value: comparison <= 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function bpcharltQrb5(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    left = checkruntime.copyTextValue(left);
+    right = checkruntime.copyTextValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: string = langruntime.checkedString(left.value);
+        if (right.kind === "Value") {
+            const rightValue: string = langruntime.checkedString(right.value);
+            const comparison: number = bpcharCodepointCompare(leftValue, rightValue);
+            return { kind: "Value", value: comparison < 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function bpcharneQkuu(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
+    left = checkruntime.copyTextValue(left);
+    right = checkruntime.copyTextValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(left, { kind: "Unknown" }) || checkruntime.equalTextValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(left, { kind: "Null" }) || checkruntime.equalTextValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: string = langruntime.checkedString(left.value);
+        if (right.kind === "Value") {
+            const rightValue: string = langruntime.checkedString(right.value);
+            const comparison: number = bpcharCodepointCompare(leftValue, rightValue);
+            return { kind: "Value", value: !(comparison === 0) };
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function makeDateZ9pv(year: checkruntime.Int4Value, month: checkruntime.Int4Value, day: checkruntime.Int4Value): checkruntime.DateValue {
     year = checkruntime.copyInt4Value(year);
     month = checkruntime.copyInt4Value(month);

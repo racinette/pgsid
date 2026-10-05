@@ -37,6 +37,12 @@ import them. Keep schema-only helpers with their callables.
   binder resolves identity and explicit overrides. Ordering and other
   collation-sensitive operations require C. Text ordering compares Unicode
   scalars. Keep nondeterministic and conflicting collations unknown.
+- Varchar values share borrowed text; binary relabels preserve their contents.
+  Char comparisons use the same wrapper and ignore only trailing ASCII spaces.
+  Equality accepts deterministic collations; ordering requires C. Inputs are
+  already SQL-coerced. Raw bounded varchar and char query parameters defer until
+  assignment coercion is modeled. Length-changing casts and casts out of char
+  require separate conversion semantics.
 - The operation parity command discovers the immutable, strict
   `int4 × int4 → bool`, `int8 × int8 → bool`, mixed `int4`/`int8` comparisons,
   `bool × bool → bool`, and `text × text → bool`

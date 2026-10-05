@@ -617,6 +617,207 @@ func BoolgeGviq(left checkruntime.BoolValue, right checkruntime.BoolValue) check
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func bpcharCodepointCompare(left string, right string) int {
+	left = langruntime.CheckedString(left)
+	right = langruntime.CheckedString(right)
+	leftChars := []rune(left)
+	rightChars := []rune(right)
+	leftLength := len(leftChars)
+	rightLength := len(rightChars)
+	for leftLength > 0 {
+		if leftChars[langruntime.CheckedSubtract(leftLength, 1)] != ' ' {
+			break
+		}
+		leftLength = langruntime.CheckedIndex(langruntime.CheckedSubtract(leftLength, 1))
+	}
+	for rightLength > 0 {
+		if rightChars[langruntime.CheckedSubtract(rightLength, 1)] != ' ' {
+			break
+		}
+		rightLength = langruntime.CheckedIndex(langruntime.CheckedSubtract(rightLength, 1))
+	}
+	index := 0
+	for index < leftLength && index < rightLength {
+		leftCode := int(langruntime.CheckedChar(leftChars[index]))
+		rightCode := int(langruntime.CheckedChar(rightChars[index]))
+		if leftCode < rightCode {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		if leftCode > rightCode {
+			return 1
+		}
+		index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 1))
+	}
+	if leftLength < rightLength {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if leftLength > rightLength {
+		return 1
+	}
+	return 0
+}
+func BpchareqNpys(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	left = checkruntime.CopyTextValue(left)
+	right = checkruntime.CopyTextValue(right)
+	if left.Kind == checkruntime.TextValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TextValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TextValueValue {
+		leftValue := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.TextValueValue {
+			rightValue := langruntime.CheckedString(right.Value)
+			comparison := bpcharCodepointCompare(leftValue, rightValue)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: comparison == 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func BpchargeO6oj(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	left = checkruntime.CopyTextValue(left)
+	right = checkruntime.CopyTextValue(right)
+	if left.Kind == checkruntime.TextValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TextValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TextValueValue {
+		leftValue := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.TextValueValue {
+			rightValue := langruntime.CheckedString(right.Value)
+			comparison := bpcharCodepointCompare(leftValue, rightValue)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: comparison >= 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func BpchargtKxc4(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	left = checkruntime.CopyTextValue(left)
+	right = checkruntime.CopyTextValue(right)
+	if left.Kind == checkruntime.TextValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TextValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TextValueValue {
+		leftValue := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.TextValueValue {
+			rightValue := langruntime.CheckedString(right.Value)
+			comparison := bpcharCodepointCompare(leftValue, rightValue)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: comparison > 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Bpcharle0rch(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	left = checkruntime.CopyTextValue(left)
+	right = checkruntime.CopyTextValue(right)
+	if left.Kind == checkruntime.TextValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TextValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TextValueValue {
+		leftValue := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.TextValueValue {
+			rightValue := langruntime.CheckedString(right.Value)
+			comparison := bpcharCodepointCompare(leftValue, rightValue)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: comparison <= 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func BpcharltQrb5(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	left = checkruntime.CopyTextValue(left)
+	right = checkruntime.CopyTextValue(right)
+	if left.Kind == checkruntime.TextValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TextValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TextValueValue {
+		leftValue := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.TextValueValue {
+			rightValue := langruntime.CheckedString(right.Value)
+			comparison := bpcharCodepointCompare(leftValue, rightValue)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: comparison < 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func BpcharneQkuu(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
+	left = checkruntime.CopyTextValue(left)
+	right = checkruntime.CopyTextValue(right)
+	if left.Kind == checkruntime.TextValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TextValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || right == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TextValueValue {
+		leftValue := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.TextValueValue {
+			rightValue := langruntime.CheckedString(right.Value)
+			comparison := bpcharCodepointCompare(leftValue, rightValue)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: comparison != 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
 func MakeDateZ9pv(year checkruntime.Int4Value, month checkruntime.Int4Value, day checkruntime.Int4Value) checkruntime.DateValue {
 	year = checkruntime.CopyInt4Value(year)
 	month = checkruntime.CopyInt4Value(month)

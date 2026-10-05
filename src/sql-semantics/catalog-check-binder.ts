@@ -12,6 +12,7 @@ import {
 } from './collation.js'
 import {
   enumType,
+  isBinaryTextRelabel,
   enumEqualityOperation,
   type ScalarType,
   type SqlExpression,
@@ -92,7 +93,9 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     'timestamp with time zone': 'pg_catalog.timestamptz',
     text: 'pg_catalog.text',
     'character varying': 'pg_catalog."varchar"',
+    varchar: 'pg_catalog."varchar"',
     character: 'pg_catalog.bpchar',
+    bpchar: 'pg_catalog.bpchar',
   }
   if (/^(?:numeric|decimal)\(/u.test(name)) return 'pg_catalog."numeric"'
   if (name.startsWith('character varying(')) return 'pg_catalog."varchar"'
@@ -175,7 +178,12 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
   if (type === 'pg_catalog."numeric"') return { kind: 'decimal', type, value: literal.value }
   if (literal.kind === 'null') {
     if (type === 'pg_catalog.bool') return { kind: 'boolean', type, value: null }
-    if (type === 'pg_catalog.text') return { kind: 'text', type, value: null }
+    if (
+      type === 'pg_catalog.text' ||
+      type === 'pg_catalog."varchar"' ||
+      type === 'pg_catalog.bpchar'
+    )
+      return { kind: 'text', type, value: null }
     if (/^pg_catalog\.int[248]$/u.test(type))
       return {
         kind: 'integer',
@@ -184,7 +192,10 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
       }
     return null
   }
-  if (literal.kind === 'string' && type === 'pg_catalog.text')
+  if (
+    literal.kind === 'string' &&
+    (type === 'pg_catalog.text' || type === 'pg_catalog."varchar"' || type === 'pg_catalog.bpchar')
+  )
     return { kind: 'text', type, value: literal.value }
   if (
     literal.kind === 'integer' &&
@@ -242,6 +253,8 @@ const materialize = (
     const expression = literalValue(bound.literal, type)
     return expression ? { kind: 'certain', expression } : null
   }
+  if (bound.type === 'pg_catalog."varchar"' && type === 'pg_catalog.text' && bound.value)
+    return { kind: 'call', call: { kind: 'cast', signature: null, type }, operands: [bound.value] }
   return bound.type === type ? bound.value : null
 }
 
@@ -265,21 +278,11 @@ const candidate = (
       !catalogScalarType(item.result.slice('pg_catalog.'.length).replaceAll('"', ''))
     )
       return []
-    const textArgs = args.filter(
-      (arg) =>
-        arg.type &&
-        ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(arg.type),
-    )
     if (
       item.args.some((type) =>
         ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type),
       ) &&
       !supportsTextCallableCollation(signature, collation?.kind)
-    )
-      return []
-    if (
-      textArgs.some((arg) => arg.type !== 'pg_catalog.text') &&
-      args.some((arg) => arg.literal?.kind === 'string')
     )
       return []
     const definition = args.find((arg) => arg.enum)?.enum
@@ -385,8 +388,11 @@ export function bindCatalogCheck(
       const definition = arms.find((arm) => arm.enum)?.enum
       const values = arms.map((arm) => materialize(arm, type, definition))
       if (type !== 'pg_catalog.bool' && values.some((value) => !value)) return unknown
-      const collation =
-        type === 'pg_catalog.text' ? combineCollations(arms.map((arm) => arm.collation)) : undefined
+      const collation = ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(
+        type,
+      )
+        ? combineCollations(arms.map((arm) => arm.collation))
+        : undefined
       const scrutinee = caseExpression['arg'] === undefined ? null : bind(caseExpression['arg'])
       let simple: Extract<EvalExpression, { kind: 'case' }>['scrutinee']
       let equalities: Extract<EvalExpression, { kind: 'case' }>['branches'][number]['equality'][] =
@@ -407,7 +413,7 @@ export function bindCatalogCheck(
           ]),
         )
         if (resolved.some((match) => !match)) return unknown
-        simple = { expression: value }
+        simple = { expression: resolved[0]!.operands[0]! }
         equalities = resolved.map((match) => ({
           kind: 'operator',
           signature: match!.signature,
@@ -490,12 +496,24 @@ export function bindCatalogCheck(
       if (
         (type === 'pg_catalog.timestamptz' ||
           type === 'pg_catalog."timestamp"' ||
-          type === 'pg_catalog."numeric"') &&
+          type === 'pg_catalog."numeric"' ||
+          type === 'pg_catalog."varchar"' ||
+          type === 'pg_catalog.bpchar') &&
         Array.isArray(castType?.['typmods']) &&
         castType['typmods'].length
       )
         return unknown
       const operand = bind(cast['arg'])
+      if (operand.type && operand.value && isBinaryTextRelabel(operand.type, type))
+        return {
+          type,
+          value: {
+            kind: 'call',
+            call: { kind: 'cast', signature: null, type },
+            operands: [operand.value],
+          },
+          collation: operand.collation ?? defaultCollation,
+        }
       if (type === 'pg_catalog.date' && operand.type === 'pg_catalog.text' && operand.value)
         return {
           type,
@@ -550,7 +568,7 @@ export function bindCatalogCheck(
         ? {
             type,
             value: expression,
-            ...(type === 'pg_catalog.text'
+            ...(['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type)
               ? { collation: operand.collation ?? defaultCollation }
               : {}),
           }
@@ -793,7 +811,7 @@ export function bindCatalogCheck(
         value: {
           kind: 'membership',
           type: 'pg_catalog.bool',
-          subject: value,
+          subject: first.operands[0]!,
           groups,
           operation,
           comparison: {

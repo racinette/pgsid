@@ -73,6 +73,7 @@ const DEFAULT_TYPES: Readonly<Record<string, string>> = {
 const TYPE_ALIASES: Readonly<Record<string, string>> = {
   bigint: 'int8',
   boolean: 'bool',
+  character: 'bpchar',
   'character varying': 'varchar',
   'double precision': 'float8',
   integer: 'int4',
