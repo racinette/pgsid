@@ -196,8 +196,8 @@ describe('mixed smallint/integer CHECK arithmetic', () => {
     await runCheckParity(directory, 'mixedintegers', group, ordered, fixtures)
   }, 120_000)
 
-  it('defers bigint narrowing and implicit promotions without a mixed catalog operator', () => {
-    for (const sql of ['wide::bigint::smallint > 0', 'small % wide = 0']) {
+  it('defers implicit promotions without a mixed catalog operator', () => {
+    for (const sql of ['small % wide = 0']) {
       const lowered = lowerTableCheck(
         table,
         { name: 'probe', type: 'check', definition: `CHECK (${sql})` },

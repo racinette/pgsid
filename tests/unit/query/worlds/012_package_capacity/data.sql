@@ -30,3 +30,9 @@ VALUES (1, 100, 100, 100);
 
 INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion)
 VALUES (1, -10, -10, false);
+
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion)
+VALUES (1, -10, -10, false);
+
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion)
+VALUES (1, -10, -10, false);

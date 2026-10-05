@@ -295,3 +295,81 @@ INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_
 INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion) VALUES (2, 10, NULL, false);
 -- name: compact_correction_all_null
 INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion) VALUES (2, NULL, NULL, NULL);
+
+-- name: bigint_integer_regular
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, -10, -10, false);
+-- name: bigint_integer_minimum
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, -2147483648, -2147483648, false);
+-- name: bigint_integer_maximum
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 2147483647, 2147483647, false);
+-- name: bigint_integer_mismatch
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 10, 11, false);
+-- name: bigint_integer_underflow
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, -2147483649, -2147483648, false);
+-- name: bigint_integer_overflow
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 2147483648, 2147483647, false);
+-- name: bigint_integer_bigint_minimum
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, -9223372036854775808, 0, false);
+-- name: bigint_integer_bigint_maximum
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 9223372036854775807, 0, false);
+-- name: bigint_integer_beyond_number_precision
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 9007199254740993, 1, false);
+-- name: bigint_integer_below_number_precision
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, -9007199254740993, -1, false);
+-- name: bigint_integer_wrapped_zero
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 4294967296, 0, false);
+-- name: bigint_integer_wrapped_negative
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 4294967295, -1, false);
+-- name: bigint_integer_error_before_null
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 2147483648, NULL, false);
+-- name: bigint_integer_skipped_minimum
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, -9223372036854775808, 0, true);
+-- name: bigint_integer_skipped_maximum
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 9223372036854775807, 0, true);
+-- name: bigint_integer_null_guard_overflow
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 2147483648, 0, NULL);
+-- name: bigint_integer_null_adjustment
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, NULL, 10, false);
+-- name: bigint_integer_null_recorded
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 10, NULL, false);
+-- name: bigint_integer_all_null
+INSERT INTO compact_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, NULL, NULL, NULL);
+
+-- name: bigint_smallint_regular
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, -10, -10, false);
+-- name: bigint_smallint_minimum
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, -32768, -32768, false);
+-- name: bigint_smallint_maximum
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 32767, 32767, false);
+-- name: bigint_smallint_mismatch
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 10, 11, false);
+-- name: bigint_smallint_underflow
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, -32769, -32768, false);
+-- name: bigint_smallint_overflow
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 32768, 32767, false);
+-- name: bigint_smallint_bigint_minimum
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, -9223372036854775808, 0, false);
+-- name: bigint_smallint_bigint_maximum
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 9223372036854775807, 0, false);
+-- name: bigint_smallint_beyond_number_precision
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 9007199254740993, 1, false);
+-- name: bigint_smallint_below_number_precision
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, -9007199254740993, -1, false);
+-- name: bigint_smallint_wrapped_zero
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 4294967296, 0, false);
+-- name: bigint_smallint_wrapped_negative
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 4294967295, -1, false);
+-- name: bigint_smallint_error_before_null
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 32768, NULL, false);
+-- name: bigint_smallint_skipped_minimum
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, -9223372036854775808, 0, true);
+-- name: bigint_smallint_skipped_maximum
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 9223372036854775807, 0, true);
+-- name: bigint_smallint_null_guard_overflow
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 32768, 0, NULL);
+-- name: bigint_smallint_null_adjustment
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, NULL, 10, false);
+-- name: bigint_smallint_null_recorded
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, 10, NULL, false);
+-- name: bigint_smallint_all_null
+INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion) VALUES (2, NULL, NULL, NULL);

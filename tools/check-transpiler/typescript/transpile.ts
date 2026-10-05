@@ -391,6 +391,14 @@ class Transpiler {
         if (value.operator !== 'negate') throw new Error('unsupported unary operator')
         return call('checkedSignedNegate', this.expression(value.value, locals))
       case 'cast':
+        if (this.path(value.targetType) === 'i32')
+          return call(
+            'Number',
+            f.createCallExpression(member(identifier('BigInt'), 'asIntN'), undefined, [
+              f.createNumericLiteral(32),
+              call('checkedI64', this.expression(value.value, locals)),
+            ]),
+          )
         if (this.path(value.targetType) === 'i64')
           return call('BigInt', call('checkedI32', this.expression(value.value, locals)))
         if (this.path(value.targetType) === 'u32')

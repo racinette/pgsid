@@ -12,6 +12,8 @@ type Shape =
   | 'int2_single_int8'
   | 'int4_single_int2'
   | 'int4_single_int8'
+  | 'int8_single_int2'
+  | 'int8_single_int4'
   | 'int24_pair_int4'
   | 'int42_pair_int4'
   | 'int8_pair_bool'
@@ -38,6 +40,7 @@ const input = (shape: Shape, state: State, index: number): unknown => {
       (shape === 'int42_pair_int4' && index === 1)
       ? generated.makeInt2Value(state.value)
       : shape === 'int8_pair_bool' ||
+          shape.startsWith('int8_single_') ||
           (shape === 'int84_pair_bool' && index === 0) ||
           (shape === 'int48_pair_bool' && index === 1)
         ? generated.makeInt8Value(BigInt(state.value as string))

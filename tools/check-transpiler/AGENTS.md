@@ -38,10 +38,12 @@ change to the regex transpiler unless the regex engine itself changes.
   focused parser acceptance test and target behavior in Go and TypeScript.
 - Bigint CHECKs use `i64` payloads with explicit decimal `i64` literals and
   signed literals through the i64 minimum. Lower them to Go `int64` and
-  TypeScript `bigint`. Widening supports `i32 as i64`. Addition, subtraction,
-  and multiplication accept two explicitly typed i64 operands and reject
+  TypeScript `bigint`. Widening supports `i32 as i64`; `i64 as i32` truncates
+  to the low signed 32 bits before mapping to the target primitive. PostgreSQL
+  narrowing functions check their destination range in Rust before casting.
+  Addition, subtraction, and multiplication accept two explicitly typed i64 operands and reject
   overflow in both targets. I64 division, remainder, variable negation,
-  and narrowing casts are rejected.
+  and other narrowing casts are rejected.
 - Private top-level constants may borrow literal slices of `usize`, `u16`, `i32`,
   `i64`, or `&str` for lookup tables. Indexing and length access preserve their
   element types. I64 table entries require explicit i64 literals. Slice aliases,

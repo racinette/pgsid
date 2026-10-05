@@ -1432,6 +1432,42 @@ func Int8Mzac(input checkruntime.Int4Value) checkruntime.Int8Value {
 	}
 	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 }
+func Int45ywh(input checkruntime.Int8Value) checkruntime.Int4Value {
+	if input.Kind == checkruntime.Int8ValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.Int8ValueValue {
+		payload := input.Value
+		if payload < int64(-2147483648) || payload > int64(2147483647) {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+		}
+		narrowed := int(int32(payload))
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: narrowed}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func Int2Gmpv(input checkruntime.Int8Value) checkruntime.Int2Value {
+	if input.Kind == checkruntime.Int8ValueError {
+		error := input.Error
+		return checkruntime.Int2Value{Kind: checkruntime.Int2ValueError, Error: error}
+	}
+	if input == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int2Value{Kind: checkruntime.Int2ValueNull}
+	}
+	if input.Kind == checkruntime.Int8ValueValue {
+		payload := input.Value
+		if payload < int64(-32768) || payload > int64(32767) {
+			return checkruntime.Int2Value{Kind: checkruntime.Int2ValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+		}
+		narrowed := int(int32(payload))
+		return checkruntime.Int2Value{Kind: checkruntime.Int2ValueValue, Value: narrowed}
+	}
+	return checkruntime.Int2Value{Kind: checkruntime.Int2ValueUnknown}
+}
 func numericCompare(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.Int4Value {
 	left = checkruntime.CopyNumericValue(left)
 	right = checkruntime.CopyNumericValue(right)

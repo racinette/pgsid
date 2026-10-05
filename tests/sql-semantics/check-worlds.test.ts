@@ -524,6 +524,8 @@ describe('world CHECK INSERT parity', () => {
       'world_012_package_capacity.package_capacity.whole_batches',
       'world_012_package_capacity.package_capacity.adjustment_limit',
       'world_012_package_capacity.compact_stock_corrections.compact_correction',
+      'world_012_package_capacity.compact_inventory_adjustments.compact_adjustment',
+      'world_012_package_capacity.tiny_inventory_adjustments.tiny_adjustment',
     ]) {
       const measured = coverage.get(identity)!
       expect(measured.error, identity).toBeGreaterThan(0)

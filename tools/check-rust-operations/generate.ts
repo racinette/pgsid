@@ -12,6 +12,8 @@ type Shape =
   | 'int2_single_int8'
   | 'int4_single_int2'
   | 'int4_single_int8'
+  | 'int8_single_int2'
+  | 'int8_single_int4'
   | 'int24_pair_int4'
   | 'int42_pair_int4'
   | 'int8_pair_bool'
@@ -89,6 +91,10 @@ const shapeOf = (args: readonly string[], result: string): Shape | null => {
     return 'int4_single_int2'
   if (result === 'pg_catalog.int8' && args.join(',') === 'pg_catalog.int4')
     return 'int4_single_int8'
+  if (result === 'pg_catalog.int2' && args.join(',') === 'pg_catalog.int8')
+    return 'int8_single_int2'
+  if (result === 'pg_catalog.int4' && args.join(',') === 'pg_catalog.int8')
+    return 'int8_single_int4'
   if (result === 'pg_catalog.int2' && args.join(',') === 'pg_catalog.int2,pg_catalog.int2')
     return 'int2_pair_int2'
   if (result === 'pg_catalog.int2' && args.join(',') === 'pg_catalog.int2')
@@ -259,6 +265,31 @@ const int8Samples = int8Values.flatMap((left) => int8Values.map((right) => [left
 const mixedSamples = int8Values.flatMap((left) =>
   [-2147483648, -1, 0, 1, 2147483647, null].map((right) => [left, right]),
 )
+const int8CastValues = [
+  '-9223372036854775808',
+  '-9007199254740993',
+  '-4294967296',
+  '-2147483649',
+  '-2147483648',
+  '-2147483647',
+  '-32769',
+  '-32768',
+  '-32767',
+  '-1',
+  '0',
+  '1',
+  '32766',
+  '32767',
+  '32768',
+  '2147483646',
+  '2147483647',
+  '2147483648',
+  '4294967295',
+  '4294967296',
+  '9007199254740993',
+  '9223372036854775807',
+  null,
+] as const
 const int4CastValues = [
   -2147483648,
   -32769,
@@ -274,35 +305,37 @@ const int4CastValues = [
   null,
 ]
 const samplesOf = (shape: Shape): readonly (readonly (boolean | number | string | null)[])[] =>
-  shape === 'int4_single_int2' || shape === 'int4_single_int8'
-    ? int4CastValues.map((value) => [value])
-    : shape === 'int24_pair_int4'
-      ? int24ArithmeticSamples
-      : shape === 'int42_pair_int4'
-        ? int24ArithmeticSamples.map(([left, right]) => [right!, left!])
-        : shape === 'int2_pair_int2'
-          ? int2ArithmeticSamples
-          : shape.startsWith('int2_single_')
-            ? int2ArithmeticValues.map((value) => [value])
-            : shape === 'int8_pair_bool'
-              ? int8Samples
-              : shape === 'int84_pair_bool'
-                ? mixedSamples
-                : shape === 'int48_pair_bool'
-                  ? mixedSamples.map((sample) => [sample[1]!, sample[0]!])
-                  : shape === 'int4_pair_bool'
-                    ? int4Samples
-                    : shape === 'int4_pair_int4'
-                      ? int4ArithmeticSamples
-                      : shape === 'int4_single_int4'
-                        ? [-2147483648, -2147483647, -1, 0, 1, 2147483647, null].map((value) => [
-                            value,
-                          ])
-                        : shape === 'bool_pair_bool'
-                          ? boolSamples
-                          : shape === 'text_pair_bool'
-                            ? textSamples
-                            : textSingleSamples
+  shape.startsWith('int8_single_')
+    ? int8CastValues.map((value) => [value])
+    : shape === 'int4_single_int2' || shape === 'int4_single_int8'
+      ? int4CastValues.map((value) => [value])
+      : shape === 'int24_pair_int4'
+        ? int24ArithmeticSamples
+        : shape === 'int42_pair_int4'
+          ? int24ArithmeticSamples.map(([left, right]) => [right!, left!])
+          : shape === 'int2_pair_int2'
+            ? int2ArithmeticSamples
+            : shape.startsWith('int2_single_')
+              ? int2ArithmeticValues.map((value) => [value])
+              : shape === 'int8_pair_bool'
+                ? int8Samples
+                : shape === 'int84_pair_bool'
+                  ? mixedSamples
+                  : shape === 'int48_pair_bool'
+                    ? mixedSamples.map((sample) => [sample[1]!, sample[0]!])
+                    : shape === 'int4_pair_bool'
+                      ? int4Samples
+                      : shape === 'int4_pair_int4'
+                        ? int4ArithmeticSamples
+                        : shape === 'int4_single_int4'
+                          ? [-2147483648, -2147483647, -1, 0, 1, 2147483647, null].map((value) => [
+                              value,
+                            ])
+                          : shape === 'bool_pair_bool'
+                            ? boolSamples
+                            : shape === 'text_pair_bool'
+                              ? textSamples
+                              : textSingleSamples
 const inputType = (
   shape: Shape,
   index = 0,
@@ -313,6 +346,7 @@ const inputType = (
   (shape === 'int42_pair_int4' && index === 1)
     ? 'Int2Value'
     : shape === 'int8_pair_bool' ||
+        shape.startsWith('int8_single_') ||
         (shape === 'int84_pair_bool' && index === 0) ||
         (shape === 'int48_pair_bool' && index === 1)
       ? 'Int8Value'
@@ -541,5 +575,5 @@ writeFileSync(
 )
 const counted = (shape: Shape): number => fixtures.filter((item) => item.shape === shape).length
 console.log(
-  `checked ${counted('int2_single_int4') + counted('int2_single_int8') + counted('int4_single_int2') + counted('int4_single_int8')} Rust integer casts, ${counted('int24_pair_int4') + counted('int42_pair_int4')} Rust mixed int2/int4 arithmetic functions, ${counted('int2_pair_int2') + counted('int2_single_int2')} Rust smallint arithmetic functions, ${counted('int8_pair_bool') + counted('int84_pair_bool') + counted('int48_pair_bool')} Rust int8/mixed comparisons, ${counted('int4_pair_bool')} Rust int4 comparisons, ${counted('int4_pair_int4') + counted('int4_single_int4')} Rust int4 arithmetic functions, ${counted('bool_pair_bool')} Rust boolean comparisons, ${counted('text_pair_bool')} Rust text boolean functions, and ${counted('text_single_int4')} Rust text-to-int4 functions against PGlite`,
+  `checked ${counted('int2_single_int4') + counted('int2_single_int8') + counted('int4_single_int2') + counted('int4_single_int8') + counted('int8_single_int2') + counted('int8_single_int4')} Rust integer casts, ${counted('int24_pair_int4') + counted('int42_pair_int4')} Rust mixed int2/int4 arithmetic functions, ${counted('int2_pair_int2') + counted('int2_single_int2')} Rust smallint arithmetic functions, ${counted('int8_pair_bool') + counted('int84_pair_bool') + counted('int48_pair_bool')} Rust int8/mixed comparisons, ${counted('int4_pair_bool')} Rust int4 comparisons, ${counted('int4_pair_int4') + counted('int4_single_int4')} Rust int4 arithmetic functions, ${counted('bool_pair_bool')} Rust boolean comparisons, ${counted('text_pair_bool')} Rust text boolean functions, and ${counted('text_single_int4')} Rust text-to-int4 functions against PGlite`,
 )
