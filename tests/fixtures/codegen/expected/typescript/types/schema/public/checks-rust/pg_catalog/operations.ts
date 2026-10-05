@@ -456,6 +456,131 @@ export function int8geQfhv(left: checkruntime.Int8Value, right: checkruntime.Int
     }
     return { kind: "Unknown" };
 }
+export function int8pl1v1h(left: checkruntime.Int8Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const rightValue: bigint = langruntime.checkedI64(right.value);
+            if (rightValue > 0n && leftValue > langruntime.checkedI64Subtract(9223372036854775807n, rightValue)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNumericValueOutOfRange) };
+            }
+            if (rightValue < 0n && leftValue < langruntime.checkedI64Subtract(-9223372036854775808n, rightValue)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNumericValueOutOfRange) };
+            }
+            return { kind: "Value", value: langruntime.checkedI64Add(leftValue, rightValue) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function int8miJasl(left: checkruntime.Int8Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const rightValue: bigint = langruntime.checkedI64(right.value);
+            if (rightValue < 0n && leftValue > langruntime.checkedI64Add(9223372036854775807n, rightValue)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNumericValueOutOfRange) };
+            }
+            if (rightValue > 0n && leftValue < langruntime.checkedI64Add(-9223372036854775808n, rightValue)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNumericValueOutOfRange) };
+            }
+            return { kind: "Value", value: langruntime.checkedI64Subtract(leftValue, rightValue) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function int8umCthl(input: checkruntime.Int8Value): checkruntime.Int8Value {
+    if (input.kind === "Value") {
+        const payload: bigint = langruntime.checkedI64(input.value);
+        if (payload === -9223372036854775808n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNumericValueOutOfRange) };
+        }
+        return { kind: "Value", value: langruntime.checkedI64Subtract(0n, payload) };
+    }
+    return input;
+}
+export function int8up9qey(input: checkruntime.Int8Value): checkruntime.Int8Value {
+    return input;
+}
+export function int8absCmj6(input: checkruntime.Int8Value): checkruntime.Int8Value {
+    if (input.kind === "Value") {
+        const payload: bigint = langruntime.checkedI64(input.value);
+        if (payload < 0n) {
+            return int8umCthl(input);
+        }
+    }
+    return input;
+}
+export function abs36t4(input: checkruntime.Int8Value): checkruntime.Int8Value {
+    return int8absCmj6(input);
+}
+export function int28plBh5j(left: checkruntime.Int2Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    left = checkruntime.copyInt2Value(left);
+    const widened: checkruntime.Int8Value = checkruntime.int2ToInt8(left);
+    return int8pl1v1h(widened, right);
+}
+export function int82plE0uq(left: checkruntime.Int8Value, right: checkruntime.Int2Value): checkruntime.Int8Value {
+    right = checkruntime.copyInt2Value(right);
+    const widened: checkruntime.Int8Value = checkruntime.int2ToInt8(right);
+    return int8pl1v1h(left, widened);
+}
+export function int28miUjbh(left: checkruntime.Int2Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    left = checkruntime.copyInt2Value(left);
+    const widened: checkruntime.Int8Value = checkruntime.int2ToInt8(left);
+    return int8miJasl(widened, right);
+}
+export function int82miUovj(left: checkruntime.Int8Value, right: checkruntime.Int2Value): checkruntime.Int8Value {
+    right = checkruntime.copyInt2Value(right);
+    const widened: checkruntime.Int8Value = checkruntime.int2ToInt8(right);
+    return int8miJasl(left, widened);
+}
+export function int48plY1r4(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    left = checkruntime.copyInt4Value(left);
+    const widened: checkruntime.Int8Value = int8Mzac(left);
+    return int8pl1v1h(widened, right);
+}
+export function int84pl2n77(left: checkruntime.Int8Value, right: checkruntime.Int4Value): checkruntime.Int8Value {
+    right = checkruntime.copyInt4Value(right);
+    const widened: checkruntime.Int8Value = int8Mzac(right);
+    return int8pl1v1h(left, widened);
+}
+export function int48miNeop(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    left = checkruntime.copyInt4Value(left);
+    const widened: checkruntime.Int8Value = int8Mzac(left);
+    return int8miJasl(widened, right);
+}
+export function int84mi867a(left: checkruntime.Int8Value, right: checkruntime.Int4Value): checkruntime.Int8Value {
+    right = checkruntime.copyInt4Value(right);
+    const widened: checkruntime.Int8Value = int8Mzac(right);
+    return int8miJasl(left, widened);
+}
 export function booleqY6qu(left: checkruntime.BoolValue, right: checkruntime.BoolValue): checkruntime.BoolValue {
     left = checkruntime.copyBoolValue(left);
     right = checkruntime.copyBoolValue(right);

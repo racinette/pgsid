@@ -526,6 +526,17 @@ describe('world CHECK INSERT parity', () => {
       'world_012_package_capacity.compact_stock_corrections.compact_correction',
       'world_012_package_capacity.compact_inventory_adjustments.compact_adjustment',
       'world_012_package_capacity.tiny_inventory_adjustments.tiny_adjustment',
+      'world_012_package_capacity.bulk_stock_reconciliations.bulk_stock_balance',
+      'world_012_package_capacity.bulk_warehouse_corrections.bulk_correction_reversal',
+      'world_012_package_capacity.bulk_warehouse_corrections.bulk_correction_magnitude',
+      'world_012_package_capacity.mixed_bulk_adjustments.bulk_small_total',
+      'world_012_package_capacity.mixed_bulk_adjustments.small_bulk_total',
+      'world_012_package_capacity.mixed_bulk_adjustments.bulk_integer_total',
+      'world_012_package_capacity.mixed_bulk_adjustments.integer_bulk_total',
+      'world_012_package_capacity.mixed_bulk_adjustments.bulk_small_residual',
+      'world_012_package_capacity.mixed_bulk_adjustments.small_bulk_balance',
+      'world_012_package_capacity.mixed_bulk_adjustments.bulk_integer_residual',
+      'world_012_package_capacity.mixed_bulk_adjustments.integer_bulk_balance',
     ]) {
       const measured = coverage.get(identity)!
       expect(measured.error, identity).toBeGreaterThan(0)

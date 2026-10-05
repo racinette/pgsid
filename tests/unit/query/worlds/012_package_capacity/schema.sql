@@ -147,3 +147,46 @@ CREATE TABLE tiny_inventory_adjustments (
     CASE WHEN skip_conversion THEN true ELSE adjustment::smallint = recorded END
   )
 );
+
+CREATE TABLE bulk_stock_reconciliations (
+  id integer PRIMARY KEY,
+  received warehouse_adjustment,
+  returned bigint,
+  dispatched bigint,
+  available bigint,
+  CONSTRAINT bulk_stock_balance CHECK (received + returned - dispatched = available)
+);
+
+CREATE TABLE bulk_warehouse_corrections (
+  id integer PRIMARY KEY,
+  delta warehouse_adjustment,
+  reversal bigint,
+  magnitude bigint,
+  confirmed bigint,
+  skip_reversal boolean,
+  skip_magnitude boolean,
+  CONSTRAINT bulk_correction_reversal CHECK (CASE WHEN skip_reversal THEN true ELSE -delta = reversal END),
+  CONSTRAINT bulk_correction_magnitude CHECK (CASE WHEN skip_magnitude THEN true ELSE abs(delta) = magnitude END),
+  CONSTRAINT bulk_correction_confirmed CHECK (+delta = confirmed)
+);
+
+CREATE TABLE mixed_bulk_adjustments (
+  id integer PRIMARY KEY,
+  delta warehouse_adjustment,
+  small_adjustment smallint,
+  integer_adjustment integer,
+  small_total bigint,
+  integer_total bigint,
+  small_residual bigint,
+  integer_residual bigint,
+  small_balance bigint,
+  integer_balance bigint,
+  CONSTRAINT bulk_small_total CHECK (delta + small_adjustment = small_total),
+  CONSTRAINT small_bulk_total CHECK (small_adjustment + delta = small_total),
+  CONSTRAINT bulk_integer_total CHECK (delta + integer_adjustment = integer_total),
+  CONSTRAINT integer_bulk_total CHECK (integer_adjustment + delta = integer_total),
+  CONSTRAINT bulk_small_residual CHECK (delta - small_adjustment = small_residual),
+  CONSTRAINT small_bulk_balance CHECK (small_adjustment - delta = small_balance),
+  CONSTRAINT bulk_integer_residual CHECK (delta - integer_adjustment = integer_residual),
+  CONSTRAINT integer_bulk_balance CHECK (integer_adjustment - delta = integer_balance)
+);

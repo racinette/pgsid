@@ -36,3 +36,12 @@ VALUES (1, -10, -10, false);
 
 INSERT INTO tiny_inventory_adjustments (id, adjustment, recorded, skip_conversion)
 VALUES (1, -10, -10, false);
+
+INSERT INTO bulk_stock_reconciliations (id, received, returned, dispatched, available)
+VALUES (1, 9007199254740993, 2, 1, 9007199254740994);
+
+INSERT INTO bulk_warehouse_corrections (id, delta, reversal, magnitude, confirmed, skip_reversal, skip_magnitude)
+VALUES (1, -9007199254740993, 9007199254740993, 9007199254740993, -9007199254740993, false, false);
+
+INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance)
+VALUES (1, 9007199254740993, 1, 2, 9007199254740994, 9007199254740995, 9007199254740992, 9007199254740991, -9007199254740992, -9007199254740991);
