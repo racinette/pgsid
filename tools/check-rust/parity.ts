@@ -64,15 +64,17 @@ export async function runCheckParity(
       ? 'int4'
       : type === 'pg_catalog.int8'
         ? 'int8'
-        : type === 'pg_catalog."timestamp"'
-          ? 'timestamp'
-          : type === 'pg_catalog.timestamptz'
-            ? 'timestamptz'
-            : type === 'pg_catalog.date'
-              ? 'date'
-              : type === 'pg_catalog.bool'
-                ? 'bool'
-                : 'text'
+        : type === 'pg_catalog."numeric"'
+          ? 'numeric'
+          : type === 'pg_catalog."timestamp"'
+            ? 'timestamp'
+            : type === 'pg_catalog.timestamptz'
+              ? 'timestamptz'
+              : type === 'pg_catalog.date'
+                ? 'date'
+                : type === 'pg_catalog.bool'
+                  ? 'bool'
+                  : 'text'
   const inputCode = (input: Input, type: string): string => {
     const prefix = prefixOf(type)
     if (input.kind === 'Null' || input.kind === 'Unknown')
@@ -255,6 +257,8 @@ export async function runCheckParity(
     const result = generated[camel(check.entryName)](
       ...check.inputs.map((input) => {
         const value = projectedInput(fixture.row[input.name]!, input.nullness)
+        if (input.type === 'pg_catalog."numeric"' && value.kind === 'Value')
+          return generated.makeNumericValue(value.value)
         if (input.type === 'pg_catalog."timestamp"' && value.kind === 'Value')
           return generated.makeTimestampValue(value.value)
         return input.type === 'pg_catalog.timestamptz' && value.kind === 'Value'

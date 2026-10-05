@@ -44,6 +44,16 @@ import them. Keep schema-only helpers with their callables.
   I64 addition, subtraction, and multiplication require two explicitly typed
   i64 operands and reject overflow. I64 division, remainder, narrowing casts,
   and variable negation are outside this subset.
+- Numeric payloads borrow exact decimal strings in `NumericValue`; Go uses
+  strings and TypeScript accepts strings or the readonly wrapper. Inputs represent
+  already-coerced SQL values. Reject target numeric objects and floating-point
+  numbers at this boundary. Shared Rust validates decimal notation, exponents,
+  digit separators, ASCII whitespace, and special values. Invalid or unsupported
+  representations defer. Comparisons ignore display scale and signed zero;
+  PostgreSQL orders negative infinity, finite values, positive infinity, then NaN,
+  and equates NaNs. Numeric arithmetic, runtime casts, and precision coercion
+  require separate slices. Run `tests/sql-semantics/check-numeric.test.ts` for
+  native Rust and both target comparisons against PGlite.
 - Date payloads are signed day offsets from 2000-01-01. The signed int4
   minimum and maximum represent negative and positive infinity. Finite payloads
   range from -2451545 through 2145031948. Public CHECK inputs use this portable

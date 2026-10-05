@@ -17,8 +17,9 @@ pub enum Int8Value {
 const TIMESTAMP_FIELD_OVERFLOW: u32 = 3452552;
 
 fn timestamp_microseconds_valid(value: i64) -> bool {
-    value == -9223372036854775808i64 || value == 9223372036854775807i64 ||
-        (value >= -211813488000000000i64 && value < 9223371331200000000i64)
+    value == -9223372036854775808i64
+        || value == 9223372036854775807i64
+        || (value >= -211813488000000000i64 && value < 9223371331200000000i64)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -39,7 +40,9 @@ pub fn timestamp_null() -> TimestampValue {
 
 pub fn make_timestamp_value(value: i64) -> TimestampValue {
     if timestamp_microseconds_valid(value) == false {
-        return TimestampValue::Error(SqlError { state: TIMESTAMP_FIELD_OVERFLOW });
+        return TimestampValue::Error(SqlError {
+            state: TIMESTAMP_FIELD_OVERFLOW,
+        });
     }
     TimestampValue::Value(value)
 }
@@ -79,7 +82,9 @@ pub fn timestamptz_null() -> TimestamptzValue {
 
 pub fn make_timestamptz_value(value: i64) -> TimestamptzValue {
     if timestamp_microseconds_valid(value) == false {
-        return TimestamptzValue::Error(SqlError { state: TIMESTAMP_FIELD_OVERFLOW });
+        return TimestamptzValue::Error(SqlError {
+            state: TIMESTAMP_FIELD_OVERFLOW,
+        });
     }
     TimestamptzValue::Value(value)
 }
@@ -157,7 +162,9 @@ pub fn date_null() -> DateValue {
 pub fn make_date_value(value: i32) -> DateValue {
     if value != -2147483647 - 1 && value != 2147483647 {
         if value < -2451545 || value >= 2145031949 {
-            return DateValue::Error(SqlError { state: DATE_FIELD_OVERFLOW });
+            return DateValue::Error(SqlError {
+                state: DATE_FIELD_OVERFLOW,
+            });
         }
     }
     DateValue::Value(value)
@@ -364,4 +371,45 @@ pub fn text_from_case_guard(value: CheckOutcome) -> TextValue<'static> {
         return TextValue::Error(error);
     }
     TextValue::Unknown
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum NumericValue<'a> {
+    Unknown,
+    Null,
+    Value(&'a str),
+    Error(SqlError),
+}
+
+pub fn numeric_unknown() -> NumericValue<'static> {
+    NumericValue::Unknown
+}
+
+pub fn numeric_null() -> NumericValue<'static> {
+    NumericValue::Null
+}
+
+pub fn numeric_is_null(value: NumericValue) -> BoolValue {
+    if let NumericValue::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == NumericValue::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(value == NumericValue::Null)
+}
+
+pub fn numeric_from_case_guard(value: CheckOutcome) -> NumericValue<'static> {
+    if let CheckOutcome::Error(error) = value {
+        return NumericValue::Error(error);
+    }
+    NumericValue::Unknown
+}
+
+pub fn make_numeric_value(value: &str) -> NumericValue<'_> {
+    let parts = numeric_parts(value);
+    if parts.valid == false {
+        return NumericValue::Unknown;
+    }
+    NumericValue::Value(value)
 }

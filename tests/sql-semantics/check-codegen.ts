@@ -7,6 +7,7 @@ export type GoCheckCase = {
   table: TableInfo
   row: Record<string, unknown>
   nullViaValue?: boolean
+  numericColumns?: readonly string[]
   dateColumns?: readonly string[]
   timestampColumns?: readonly string[]
   timestamptzColumns?: readonly string[]
@@ -34,6 +35,7 @@ export function renderGoCheckTests(
       table,
       row,
       nullViaValue,
+      numericColumns,
       dateColumns,
       timestampColumns,
       timestamptzColumns,
@@ -53,6 +55,17 @@ export function renderGoCheckTests(
       statements.push(go.assign([go.selector(field, 'Set')], [go.ident('true')], '='))
       if (value === null && !nullViaValue) {
         statements.push(go.assign([go.selector(field, 'Null')], [go.ident('true')], '='))
+        continue
+      }
+      if (options.dateRuntime && numericColumns?.includes(column.name)) {
+        dateRuntimeUsed = true
+        const wrapped =
+          value === null
+            ? go.call(go.selector(go.ident('checkruntime'), 'NumericNull'))
+            : go.call(go.selector(go.ident('checkruntime'), 'MakeNumericValue'), [
+                go.string(String(value)),
+              ])
+        statements.push(go.assign([go.selector(field, 'V')], [wrapped], '='))
         continue
       }
       if (
