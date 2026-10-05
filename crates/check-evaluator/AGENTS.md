@@ -78,6 +78,13 @@ import them. Keep schema-only helpers with their callables.
   to widen each arm after its original computation. Preserve intermediate
   overflow, branch laziness, and typed NULLs. Run
   `tests/sql-semantics/check-integer-case.test.ts` for raw/stored parity.
+- COALESCE is generated control flow with a common result type, including
+  catalog integer widening and binary text/varchar relabels. Evaluate arguments
+  once, from left to right, and advance only after SQL NULL. A known value,
+  Unknown, or SQL error skips the remaining arguments. Retain Boolean CHECK
+  expressions and concrete enum identity. Run
+  `tests/sql-semantics/check-coalesce.test.ts` for raw/stored and partial-input
+  parity, and the shipment defaults world for public row validation.
 - Int8 payloads use Rust `i64`, Go `int64`, and TypeScript `bigint`. Write
   decimal Rust literals with an `i64` suffix. Widen an int4 payload with
   `as i64` into a distinct local before comparing it with an int8 payload.

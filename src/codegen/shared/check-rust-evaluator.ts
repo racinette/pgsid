@@ -443,6 +443,33 @@ export function emitCheckRustEvaluator(
       }
       return { name: bind(`bool_from_check(${name})`), type: node.type }
     }
+    if (node.kind === 'coalesce') {
+      if (!node.operands.length)
+        throw new UnsupportedCheckRustExpression('Expected a COALESCE argument')
+      const kind = rustType(node.type)
+      const prefix = kind.slice(0, -'Value'.length).toLowerCase()
+      const first = emitScalar(node.operands[0]!, bindings, used)
+      if (first.type !== node.type)
+        throw new UnsupportedCheckRustExpression('COALESCE argument type mismatch')
+      if (node.operands.length === 1) return first
+      const name = fresh('coalesce_result')
+      bindings.push(`let mut ${name}: ${kind} = ${first.name};`)
+      for (const operand of node.operands.slice(1)) {
+        const nullness = bind(`${prefix}_is_null(${name})`)
+        const guard = bind(`check_from_bool(${nullness})`)
+        const lines: string[] = []
+        const selected = emitScalar(operand, lines, used)
+        if (selected.type !== node.type)
+          throw new UnsupportedCheckRustExpression('COALESCE argument type mismatch')
+        bindings.push(
+          `if case_guard_takes(${guard}) {`,
+          ...indent(lines),
+          `    ${name} = ${selected.name};`,
+          '}',
+        )
+      }
+      return { name, type: node.type }
+    }
     if (node.kind === 'case') {
       if (!node.branches.length) throw new UnsupportedCheckRustExpression('Expected a CASE branch')
       const kind = rustType(node.type)

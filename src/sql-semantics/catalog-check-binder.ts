@@ -254,7 +254,14 @@ const materialize = (
     const expression = literalValue(bound.literal, type)
     return expression ? { kind: 'certain', expression } : null
   }
-  if (bound.type === 'pg_catalog."varchar"' && type === 'pg_catalog.text' && bound.value)
+  if (
+    bound.type !== null &&
+    bound.type !== type &&
+    bound.value &&
+    ['pg_catalog.text', 'pg_catalog."varchar"'].includes(bound.type) &&
+    ['pg_catalog.text', 'pg_catalog."varchar"'].includes(type) &&
+    builtinCast(bound.type, type)?.context === 'i'
+  )
     return { kind: 'call', call: { kind: 'cast', signature: null, type }, operands: [bound.value] }
   return bound.type === type ? bound.value : null
 }
@@ -284,7 +291,7 @@ const materializeInteger = (arg: Bound, target: ScalarType): EvalExpression | nu
     : null
 }
 
-const integerCaseType = (arms: readonly Bound[]): ScalarType | undefined => {
+const integerCommonType = (arms: readonly Bound[]): ScalarType | undefined => {
   const types = arms.map(boundType)
   if (!types.some(isIntegerType)) return undefined
   if (types.some((type) => type !== null && !isIntegerType(type))) return undefined
@@ -452,6 +459,41 @@ export function bindCatalogCheck(
   const bind = (node: unknown, expectedType?: ScalarType): Bound => {
     const wrapper = fields(node)
     if (!wrapper) return unknown
+    const coalesce = fields(wrapper['CoalesceExpr'])
+    if (coalesce) {
+      const nodes = coalesce['args']
+      if (!Array.isArray(nodes) || !nodes.length) return unknown
+      const args = nodes.map((arg) => bind(arg))
+      if (args.some((arg) => !arg.value && !arg.literal)) return unknown
+      const integerType = integerCommonType(args)
+      const typed = args.flatMap((arg) => (arg.type ? [arg.type] : []))
+      const textTypes = ['pg_catalog.text', 'pg_catalog."varchar"']
+      const type = integerType ?? typed[0] ?? 'pg_catalog.text'
+      if (
+        integerType === undefined &&
+        typed.some(
+          (other) => other !== type && !(textTypes.includes(type) && textTypes.includes(other)),
+        )
+      )
+        return unknown
+      const definition = args.find((arg) => arg.enum)?.enum
+      const operands = args.map((arg, index): EvalExpression | null =>
+        type === 'pg_catalog.bool' && arg.type === 'pg_catalog.bool'
+          ? { kind: 'check', type, expression: lower(nodes[index]) }
+          : integerType === undefined
+            ? materialize(arg, type, definition)
+            : materializeInteger(arg, type),
+      )
+      if (!operands.every((value): value is EvalExpression => value !== null)) return unknown
+      return {
+        type,
+        ...(definition ? { enum: definition } : {}),
+        ...(['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type)
+          ? { collation: combineCollations(args.map((arg) => arg.collation)) }
+          : {}),
+        value: { kind: 'coalesce', type, operands },
+      }
+    }
     const caseExpression = fields(wrapper['CaseExpr'])
     if (caseExpression) {
       const args = caseExpression['args']
@@ -463,7 +505,7 @@ export function bindCatalogCheck(
         ? bind(caseExpression['defresult'])
         : ({ type: null, value: null, literal: { kind: 'null', value: null } } as Bound)
       const arms = [...results, otherwise]
-      const integerType = integerCaseType([otherwise, ...results])
+      const integerType = integerCommonType([otherwise, ...results])
       const typed = arms.flatMap((arm) => (arm.type ? [arm.type] : []))
       const type =
         integerType ??
