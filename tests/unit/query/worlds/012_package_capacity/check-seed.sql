@@ -156,3 +156,88 @@ INSERT INTO warehouse_corrections (id, delta, reversal, maximum) VALUES (2, NULL
 INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, 1, 1, 20, 0, 0, 0, false);
 -- name: small_package_null_guard_zero_divisor
 INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, 1, 1, 20, 0, 0, 0, NULL);
+
+-- name: mixed_stock_regular
+INSERT INTO mixed_stock_balances (id, units, reserve, total, adjustment, adjusted, remaining, residual) VALUES (2, 10, 5, 15, -2, 13, 5, 5);
+-- name: mixed_stock_exceeds_smallint
+INSERT INTO mixed_stock_balances (id, units, reserve, total, adjustment, adjusted, remaining, residual) VALUES (2, 32767, 1, 32768, -1, 32767, 32766, 1);
+-- name: mixed_stock_wrong_total
+INSERT INTO mixed_stock_balances (id, units, reserve, total, adjustment, adjusted, remaining, residual) VALUES (2, 10, 5, 16, -2, 14, 5, 6);
+-- name: mixed_stock_wrong_adjustment
+INSERT INTO mixed_stock_balances (id, units, reserve, total, adjustment, adjusted, remaining, residual) VALUES (2, 10, 5, 15, -2, 14, 5, 5);
+-- name: mixed_stock_wrong_remaining
+INSERT INTO mixed_stock_balances (id, units, reserve, total, adjustment, adjusted, remaining, residual) VALUES (2, 10, 5, 15, -2, 13, 6, 5);
+-- name: mixed_stock_wrong_residual
+INSERT INTO mixed_stock_balances (id, units, reserve, total, adjustment, adjusted, remaining, residual) VALUES (2, 10, 5, 15, -2, 13, 5, 6);
+-- name: mixed_stock_integer_maximum
+INSERT INTO mixed_stock_balances (id, units, reserve, total, adjustment, adjusted, remaining, residual) VALUES (2, 1, 2147483646, 2147483647, 0, 2147483647, -2147483645, 2147483646);
+-- name: mixed_stock_addition_overflow
+INSERT INTO mixed_stock_balances (id, units, reserve, total, adjustment, adjusted, remaining, residual) VALUES (2, 1, 2147483647, 2147483647, 0, 2147483647, -2147483646, 2147483646);
+-- name: mixed_stock_adjustment_overflow
+INSERT INTO mixed_stock_balances (id, units, reserve, total, adjustment, adjusted, remaining, residual) VALUES (2, 1, 2147483646, 2147483647, 1, 2147483647, -2147483645, 2147483646);
+-- name: mixed_stock_adjustment_underflow
+INSERT INTO mixed_stock_balances (id, units, reserve, total, adjustment, adjusted, remaining, residual) VALUES (2, 0, NULL, -2147483648, -1, -2147483648, NULL, -2147483648);
+-- name: mixed_stock_remaining_overflow
+INSERT INTO mixed_stock_balances (id, units, reserve, total, adjustment, adjusted, remaining, residual) VALUES (2, 1, -2147483647, -2147483646, 0, -2147483646, 2147483647, -2147483647);
+-- name: mixed_stock_residual_underflow
+INSERT INTO mixed_stock_balances (id, units, reserve, total, adjustment, adjusted, remaining, residual) VALUES (2, 1, NULL, -2147483648, 0, -2147483648, NULL, -2147483648);
+-- name: mixed_stock_null_units
+INSERT INTO mixed_stock_balances (id, units, reserve, total, adjustment, adjusted, remaining, residual) VALUES (2, NULL, 5, 15, -2, 13, 5, 5);
+-- name: mixed_stock_null_reserve
+INSERT INTO mixed_stock_balances (id, units, reserve, total, adjustment, adjusted, remaining, residual) VALUES (2, 10, NULL, 15, -2, 13, NULL, 5);
+-- name: mixed_stock_error_before_null_result
+INSERT INTO mixed_stock_balances (id, units, reserve, total, adjustment, adjusted, remaining, residual) VALUES (2, 1, 2147483647, NULL, 0, NULL, -2147483646, NULL);
+-- name: mixed_stock_all_null
+INSERT INTO mixed_stock_balances (id, units, reserve, total, adjustment, adjusted, remaining, residual) VALUES (2, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: mixed_package_regular
+INSERT INTO mixed_package_capacity (id, width, height, capacity, slots, batch_size) VALUES (2, 4, 5, 20, 4, 5);
+-- name: mixed_package_excess_area
+INSERT INTO mixed_package_capacity (id, width, height, capacity, slots, batch_size) VALUES (2, 5, 5, 20, 4, 5);
+-- name: mixed_package_exceeds_smallint
+INSERT INTO mixed_package_capacity (id, width, height, capacity, slots, batch_size) VALUES (2, 32767, 2, 65534, 32767, 2);
+-- name: mixed_package_minimum_product
+INSERT INTO mixed_package_capacity (id, width, height, capacity, slots, batch_size) VALUES (2, -32768, 65536, -2147483648, -1073741824, 2);
+-- name: mixed_package_product_underflow
+INSERT INTO mixed_package_capacity (id, width, height, capacity, slots, batch_size) VALUES (2, -32768, 65537, -2147483648, -1073741824, 2);
+-- name: mixed_package_positive_product_overflow
+INSERT INTO mixed_package_capacity (id, width, height, capacity, slots, batch_size) VALUES (2, 32767, 65539, 2147483647, 2147483647, 1);
+-- name: mixed_package_excess_slots
+INSERT INTO mixed_package_capacity (id, width, height, capacity, slots, batch_size) VALUES (2, 4, 5, 20, 3, 5);
+-- name: mixed_package_truncated_negative_quotient
+INSERT INTO mixed_package_capacity (id, width, height, capacity, slots, batch_size) VALUES (2, -7, 1, 7, -2, -3);
+-- name: mixed_package_quotient_overflow
+INSERT INTO mixed_package_capacity (id, width, height, capacity, slots, batch_size) VALUES (2, -32768, 65536, -2147483648, 2147483647, -1);
+-- name: mixed_package_skip_zero_divisor
+INSERT INTO mixed_package_capacity (id, width, height, capacity, slots, batch_size) VALUES (2, 4, 5, 20, 0, 0);
+-- name: mixed_package_null_factors
+INSERT INTO mixed_package_capacity (id, width, height, capacity, slots, batch_size) VALUES (2, NULL, NULL, 20, 4, 5);
+-- name: mixed_package_null_divisor
+INSERT INTO mixed_package_capacity (id, width, height, capacity, slots, batch_size) VALUES (2, 4, 5, 20, 0, NULL);
+-- name: mixed_package_all_null
+INSERT INTO mixed_package_capacity (id, width, height, capacity, slots, batch_size) VALUES (2, NULL, NULL, NULL, NULL, NULL);
+
+-- name: bulk_package_regular
+INSERT INTO bulk_package_capacity (id, units, items_per_batch, slots, maximum) VALUES (2, 12, 3, 4, 36);
+-- name: bulk_package_excess_slots
+INSERT INTO bulk_package_capacity (id, units, items_per_batch, slots, maximum) VALUES (2, 12, 3, 3, 36);
+-- name: bulk_package_excess_capacity
+INSERT INTO bulk_package_capacity (id, units, items_per_batch, slots, maximum) VALUES (2, 12, 3, 4, 35);
+-- name: bulk_package_exceeds_smallint
+INSERT INTO bulk_package_capacity (id, units, items_per_batch, slots, maximum) VALUES (2, -32768, -1, 32768, 32768);
+-- name: bulk_package_signed_quotient
+INSERT INTO bulk_package_capacity (id, units, items_per_batch, slots, maximum) VALUES (2, -7, 3, -2, -21);
+-- name: bulk_package_zero_divisor
+INSERT INTO bulk_package_capacity (id, units, items_per_batch, slots, maximum) VALUES (2, 1, 0, 1, 0);
+-- name: bulk_package_null_with_zero_divisor
+INSERT INTO bulk_package_capacity (id, units, items_per_batch, slots, maximum) VALUES (2, NULL, 0, 1, 0);
+-- name: bulk_package_minimum_product
+INSERT INTO bulk_package_capacity (id, units, items_per_batch, slots, maximum) VALUES (2, -32768, 65536, 0, -2147483648);
+-- name: bulk_package_product_underflow
+INSERT INTO bulk_package_capacity (id, units, items_per_batch, slots, maximum) VALUES (2, -32768, 65537, 0, -2147483648);
+-- name: bulk_package_positive_product_overflow
+INSERT INTO bulk_package_capacity (id, units, items_per_batch, slots, maximum) VALUES (2, 32767, 65539, 0, 2147483647);
+-- name: bulk_package_null_divisor
+INSERT INTO bulk_package_capacity (id, units, items_per_batch, slots, maximum) VALUES (2, 12, NULL, 4, 36);
+-- name: bulk_package_all_null
+INSERT INTO bulk_package_capacity (id, units, items_per_batch, slots, maximum) VALUES (2, NULL, NULL, NULL, NULL);

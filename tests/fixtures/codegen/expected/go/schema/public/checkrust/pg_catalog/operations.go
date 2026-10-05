@@ -1867,6 +1867,54 @@ func Int2upNe4g(input checkruntime.Int2Value) checkruntime.Int2Value {
 	input = checkruntime.CopyInt2Value(input)
 	return input
 }
+func Int24plIpr8(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.Int4Value {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt4Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	return Int4plSj3s(leftWide, right)
+}
+func Int42plCx9n(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.Int4Value {
+	left = checkruntime.CopyInt4Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	rightWide := checkruntime.Int2ToInt4(right)
+	return Int4plSj3s(left, rightWide)
+}
+func Int24miClza(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.Int4Value {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt4Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	return Int4miDtqk(leftWide, right)
+}
+func Int42miNaln(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.Int4Value {
+	left = checkruntime.CopyInt4Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	rightWide := checkruntime.Int2ToInt4(right)
+	return Int4miDtqk(left, rightWide)
+}
+func Int24mulRdky(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.Int4Value {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt4Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	return Int4mul284v(leftWide, right)
+}
+func Int42mulDh4o(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.Int4Value {
+	left = checkruntime.CopyInt4Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	rightWide := checkruntime.Int2ToInt4(right)
+	return Int4mul284v(left, rightWide)
+}
+func Int24divY2zx(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.Int4Value {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt4Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	return Int4div8ogr(leftWide, right)
+}
+func Int42div0fx0(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.Int4Value {
+	left = checkruntime.CopyInt4Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	rightWide := checkruntime.Int2ToInt4(right)
+	return Int4div8ogr(left, rightWide)
+}
 func textHasPrefix(text string, prefix string) bool {
 	text = langruntime.CheckedString(text)
 	prefix = langruntime.CheckedString(prefix)

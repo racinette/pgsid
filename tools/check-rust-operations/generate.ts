@@ -8,6 +8,8 @@ import { builtinCallables } from '../../src/postgres/builtins/inventory.js'
 type Shape =
   | 'int2_pair_int2'
   | 'int2_single_int2'
+  | 'int24_pair_int4'
+  | 'int42_pair_int4'
   | 'int8_pair_bool'
   | 'int84_pair_bool'
   | 'int48_pair_bool'
@@ -56,7 +58,10 @@ const catalog = new Map(
 )
 for (const match of smallint.matchAll(/\bfn (sql__[a-z0-9_]+)\s*\(/gu)) {
   const name = match[1]!
-  if (catalog.get(name)?.result === 'pg_catalog.int2') names.push(name)
+  const metadata = catalog.get(name)
+  if (!metadata) throw new Error(`Rust implementation is absent from catalog: ${name}`)
+  if (metadata.result === 'pg_catalog.int2' || metadata.result === 'pg_catalog.int4')
+    names.push(name)
 }
 const shapeOf = (args: readonly string[], result: string): Shape | null => {
   if (result === 'pg_catalog.bool') {
@@ -71,6 +76,10 @@ const shapeOf = (args: readonly string[], result: string): Shape | null => {
     return 'int2_pair_int2'
   if (result === 'pg_catalog.int2' && args.join(',') === 'pg_catalog.int2')
     return 'int2_single_int2'
+  if (result === 'pg_catalog.int4' && args.join(',') === 'pg_catalog.int2,pg_catalog.int4')
+    return 'int24_pair_int4'
+  if (result === 'pg_catalog.int4' && args.join(',') === 'pg_catalog.int4,pg_catalog.int2')
+    return 'int42_pair_int4'
   if (result === 'pg_catalog.int4' && args.join(',') === 'pg_catalog.int4,pg_catalog.int4')
     return 'int4_pair_int4'
   if (result === 'pg_catalog.int4' && args.join(',') === 'pg_catalog.int4')
@@ -154,6 +163,24 @@ const int2ArithmeticValues = [
 const int2ArithmeticSamples = int2ArithmeticValues.flatMap((left) =>
   int2ArithmeticValues.map((right) => [left, right]),
 )
+const mixedInt4Values = [
+  -2147483648,
+  -2147483647,
+  -65537,
+  -65536,
+  -1,
+  0,
+  1,
+  3,
+  65536,
+  65537,
+  2147483646,
+  2147483647,
+  null,
+]
+const int24ArithmeticSamples = int2ArithmeticValues.flatMap((left) =>
+  mixedInt4Values.map((right) => [left, right]),
+)
 const boolSamples: readonly (readonly [boolean | null, boolean | null])[] = [
   [false, false],
   [false, true],
@@ -216,38 +243,49 @@ const mixedSamples = int8Values.flatMap((left) =>
   [-2147483648, -1, 0, 1, 2147483647, null].map((right) => [left, right]),
 )
 const samplesOf = (shape: Shape): readonly (readonly (boolean | number | string | null)[])[] =>
-  shape === 'int2_pair_int2'
-    ? int2ArithmeticSamples
-    : shape === 'int2_single_int2'
-      ? int2ArithmeticValues.map((value) => [value])
-      : shape === 'int8_pair_bool'
-        ? int8Samples
-        : shape === 'int84_pair_bool'
-          ? mixedSamples
-          : shape === 'int48_pair_bool'
-            ? mixedSamples.map((sample) => [sample[1]!, sample[0]!])
-            : shape === 'int4_pair_bool'
-              ? int4Samples
-              : shape === 'int4_pair_int4'
-                ? int4ArithmeticSamples
-                : shape === 'int4_single_int4'
-                  ? [-2147483648, -2147483647, -1, 0, 1, 2147483647, null].map((value) => [value])
-                  : shape === 'bool_pair_bool'
-                    ? boolSamples
-                    : shape === 'text_pair_bool'
-                      ? textSamples
-                      : textSingleSamples
+  shape === 'int24_pair_int4'
+    ? int24ArithmeticSamples
+    : shape === 'int42_pair_int4'
+      ? int24ArithmeticSamples.map(([left, right]) => [right!, left!])
+      : shape === 'int2_pair_int2'
+        ? int2ArithmeticSamples
+        : shape === 'int2_single_int2'
+          ? int2ArithmeticValues.map((value) => [value])
+          : shape === 'int8_pair_bool'
+            ? int8Samples
+            : shape === 'int84_pair_bool'
+              ? mixedSamples
+              : shape === 'int48_pair_bool'
+                ? mixedSamples.map((sample) => [sample[1]!, sample[0]!])
+                : shape === 'int4_pair_bool'
+                  ? int4Samples
+                  : shape === 'int4_pair_int4'
+                    ? int4ArithmeticSamples
+                    : shape === 'int4_single_int4'
+                      ? [-2147483648, -2147483647, -1, 0, 1, 2147483647, null].map((value) => [
+                          value,
+                        ])
+                      : shape === 'bool_pair_bool'
+                        ? boolSamples
+                        : shape === 'text_pair_bool'
+                          ? textSamples
+                          : textSingleSamples
 const inputType = (
   shape: Shape,
   index = 0,
 ): 'Int2Value' | 'Int4Value' | 'Int8Value' | 'BoolValue' | 'TextValue' =>
-  shape === 'int2_pair_int2' || shape === 'int2_single_int2'
+  shape === 'int2_pair_int2' ||
+  shape === 'int2_single_int2' ||
+  (shape === 'int24_pair_int4' && index === 0) ||
+  (shape === 'int42_pair_int4' && index === 1)
     ? 'Int2Value'
     : shape === 'int8_pair_bool' ||
         (shape === 'int84_pair_bool' && index === 0) ||
         (shape === 'int48_pair_bool' && index === 1)
       ? 'Int8Value'
       : [
+            'int24_pair_int4',
+            'int42_pair_int4',
             'int4_pair_bool',
             'int4_pair_int4',
             'int4_single_int4',
@@ -261,7 +299,11 @@ const inputType = (
 const resultType = (shape: Shape): 'BoolValue' | 'Int2Value' | 'Int4Value' =>
   shape === 'int2_pair_int2' || shape === 'int2_single_int2'
     ? 'Int2Value'
-    : shape === 'text_single_int4' || shape === 'int4_pair_int4' || shape === 'int4_single_int4'
+    : shape === 'int24_pair_int4' ||
+        shape === 'int42_pair_int4' ||
+        shape === 'text_single_int4' ||
+        shape === 'int4_pair_int4' ||
+        shape === 'int4_single_int4'
       ? 'Int4Value'
       : 'BoolValue'
 const inputCount = (shape: Shape): number =>
@@ -462,5 +504,5 @@ writeFileSync(
 )
 const counted = (shape: Shape): number => fixtures.filter((item) => item.shape === shape).length
 console.log(
-  `checked ${counted('int2_pair_int2') + counted('int2_single_int2')} Rust smallint arithmetic functions, ${counted('int8_pair_bool') + counted('int84_pair_bool') + counted('int48_pair_bool')} Rust int8/mixed comparisons, ${counted('int4_pair_bool')} Rust int4 comparisons, ${counted('int4_pair_int4') + counted('int4_single_int4')} Rust int4 arithmetic functions, ${counted('bool_pair_bool')} Rust boolean comparisons, ${counted('text_pair_bool')} Rust text boolean functions, and ${counted('text_single_int4')} Rust text-to-int4 functions against PGlite`,
+  `checked ${counted('int24_pair_int4') + counted('int42_pair_int4')} Rust mixed int2/int4 arithmetic functions, ${counted('int2_pair_int2') + counted('int2_single_int2')} Rust smallint arithmetic functions, ${counted('int8_pair_bool') + counted('int84_pair_bool') + counted('int48_pair_bool')} Rust int8/mixed comparisons, ${counted('int4_pair_bool')} Rust int4 comparisons, ${counted('int4_pair_int4') + counted('int4_single_int4')} Rust int4 arithmetic functions, ${counted('bool_pair_bool')} Rust boolean comparisons, ${counted('text_pair_bool')} Rust text boolean functions, and ${counted('text_single_int4')} Rust text-to-int4 functions against PGlite`,
 )

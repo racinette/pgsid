@@ -229,3 +229,43 @@ pub fn sql__pg_catalog__int2um__8puj(input: Int2Value) -> Int2Value {
 pub fn sql__pg_catalog__int2up__ne4g(input: Int2Value) -> Int2Value {
     input
 }
+
+pub fn sql__pg_catalog__int24pl__ipr8(left: Int2Value, right: Int4Value) -> Int4Value {
+    let left_wide = int2_to_int4(left);
+    sql__pg_catalog__int4pl__sj3s(left_wide, right)
+}
+
+pub fn sql__pg_catalog__int42pl__cx9n(left: Int4Value, right: Int2Value) -> Int4Value {
+    let right_wide = int2_to_int4(right);
+    sql__pg_catalog__int4pl__sj3s(left, right_wide)
+}
+
+pub fn sql__pg_catalog__int24mi__clza(left: Int2Value, right: Int4Value) -> Int4Value {
+    let left_wide = int2_to_int4(left);
+    sql__pg_catalog__int4mi__dtqk(left_wide, right)
+}
+
+pub fn sql__pg_catalog__int42mi__naln(left: Int4Value, right: Int2Value) -> Int4Value {
+    let right_wide = int2_to_int4(right);
+    sql__pg_catalog__int4mi__dtqk(left, right_wide)
+}
+
+pub fn sql__pg_catalog__int24mul__rdky(left: Int2Value, right: Int4Value) -> Int4Value {
+    let left_wide = int2_to_int4(left);
+    sql__pg_catalog__int4mul__284v(left_wide, right)
+}
+
+pub fn sql__pg_catalog__int42mul__dh4o(left: Int4Value, right: Int2Value) -> Int4Value {
+    let right_wide = int2_to_int4(right);
+    sql__pg_catalog__int4mul__284v(left, right_wide)
+}
+
+pub fn sql__pg_catalog__int24div__y2zx(left: Int2Value, right: Int4Value) -> Int4Value {
+    let left_wide = int2_to_int4(left);
+    sql__pg_catalog__int4div__8ogr(left_wide, right)
+}
+
+pub fn sql__pg_catalog__int42div__0fx0(left: Int4Value, right: Int2Value) -> Int4Value {
+    let right_wide = int2_to_int4(right);
+    sql__pg_catalog__int4div__8ogr(left, right_wide)
+}

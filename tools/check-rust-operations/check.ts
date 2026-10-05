@@ -8,6 +8,8 @@ const generated = await import(pathToFileURL(generatedPath).href)
 type Shape =
   | 'int2_pair_int2'
   | 'int2_single_int2'
+  | 'int24_pair_int4'
+  | 'int42_pair_int4'
   | 'int8_pair_bool'
   | 'int84_pair_bool'
   | 'int48_pair_bool'
@@ -26,13 +28,18 @@ const fixtures = JSON.parse(readFileSync(fixturePath, 'utf8')) as {
 }[]
 const input = (shape: Shape, state: State, index: number): unknown => {
   if (state.kind === 'Value')
-    return shape === 'int2_pair_int2' || shape === 'int2_single_int2'
+    return shape === 'int2_pair_int2' ||
+      shape === 'int2_single_int2' ||
+      (shape === 'int24_pair_int4' && index === 0) ||
+      (shape === 'int42_pair_int4' && index === 1)
       ? generated.makeInt2Value(state.value)
       : shape === 'int8_pair_bool' ||
           (shape === 'int84_pair_bool' && index === 0) ||
           (shape === 'int48_pair_bool' && index === 1)
         ? generated.makeInt8Value(BigInt(state.value as string))
         : [
+              'int24_pair_int4',
+              'int42_pair_int4',
               'int4_pair_bool',
               'int4_pair_int4',
               'int4_single_int4',
