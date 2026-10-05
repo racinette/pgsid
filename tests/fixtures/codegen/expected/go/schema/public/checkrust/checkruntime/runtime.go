@@ -516,6 +516,256 @@ func TextFromCaseGuard(value CheckOutcome) TextValue {
 	return TextValue{Kind: TextValueUnknown}
 }
 
+type NumericValueKind uint8
+
+const (
+	NumericValueUnknown NumericValueKind = iota
+	NumericValueNull
+	NumericValueValue
+	NumericValueError
+)
+
+type NumericValue struct {
+	Kind  NumericValueKind
+	Value string
+	Error SqlError
+}
+
+func CopyNumericValue(value NumericValue) NumericValue {
+	switch value.Kind {
+	case NumericValueUnknown:
+		return NumericValue{Kind: NumericValueUnknown}
+	case NumericValueNull:
+		return NumericValue{Kind: NumericValueNull}
+	case NumericValueValue:
+		return NumericValue{Kind: NumericValueValue, Value: langruntime.CheckedString(value.Value)}
+	case NumericValueError:
+		return NumericValue{Kind: NumericValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
+func NumericUnknown() NumericValue {
+	return NumericValue{Kind: NumericValueUnknown}
+}
+func NumericNull() NumericValue {
+	return NumericValue{Kind: NumericValueNull}
+}
+func NumericIsNull(value NumericValue) BoolValue {
+	value = CopyNumericValue(value)
+	if value.Kind == NumericValueError {
+		error := value.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if value == (NumericValue{Kind: NumericValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: value == (NumericValue{Kind: NumericValueNull})}
+}
+func NumericFromCaseGuard(value CheckOutcome) NumericValue {
+	if value.Kind == CheckOutcomeError {
+		error := value.Error
+		return NumericValue{Kind: NumericValueError, Error: error}
+	}
+	return NumericValue{Kind: NumericValueUnknown}
+}
+func MakeNumericValue(value string) NumericValue {
+	value = langruntime.CheckedString(value)
+	parts := NumericParts(value)
+	if parts.Valid == false {
+		return NumericValue{Kind: NumericValueUnknown}
+	}
+	return NumericValue{Kind: NumericValueValue, Value: value}
+}
+
+type NumericLayout struct {
+	Valid   bool
+	Special int
+	Sign    int
+	Weight  int
+	First   int
+	End     int
+}
+
+func copyNumericLayout(value NumericLayout) NumericLayout {
+	return NumericLayout{Valid: value.Valid, Special: langruntime.CheckedI32(value.Special), Sign: langruntime.CheckedI32(value.Sign), Weight: langruntime.CheckedI32(value.Weight), First: langruntime.CheckedIndex(value.First), End: langruntime.CheckedIndex(value.End)}
+}
+func invalidNumericParts() NumericLayout {
+	return NumericLayout{Valid: false, Special: 1, Sign: 0, Weight: 0, First: 0, End: 0}
+}
+func numericSpace(value rune) bool {
+	value = langruntime.CheckedChar(value)
+	return value == ' ' || value == '\t' || value == '\n' || value == '\r' || value == '\v' || value == '\f'
+}
+func numericDigit(value rune) int {
+	value = langruntime.CheckedChar(value)
+	if value == '0' {
+		return 0
+	}
+	if value == '1' {
+		return 1
+	}
+	if value == '2' {
+		return 2
+	}
+	if value == '3' {
+		return 3
+	}
+	if value == '4' {
+		return 4
+	}
+	if value == '5' {
+		return 5
+	}
+	if value == '6' {
+		return 6
+	}
+	if value == '7' {
+		return 7
+	}
+	if value == '8' {
+		return 8
+	}
+	if value == '9' {
+		return 9
+	}
+	return langruntime.CheckedSignedNegate(1)
+}
+func NumericParts(value string) NumericLayout {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	if len(chars) > 1000000 {
+		return invalidNumericParts()
+	}
+	begin := 0
+	end := len(chars)
+	for begin < end && numericSpace(chars[begin]) {
+		begin = langruntime.CheckedAdd(begin, 1)
+	}
+	for end > begin && numericSpace(chars[langruntime.CheckedSubtract(end, 1)]) {
+		end = langruntime.CheckedIndex(langruntime.CheckedSubtract(end, 1))
+	}
+	if begin == end {
+		return invalidNumericParts()
+	}
+	index := begin
+	sign := 1
+	if chars[index] == '-' {
+		sign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+		index = langruntime.CheckedAdd(index, 1)
+	} else if chars[index] == '+' {
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if index == end {
+		return invalidNumericParts()
+	}
+	if langruntime.CheckedSubtract(end, begin) == 3 && langruntime.AsciiLowercase(chars[begin]) == 'n' && langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(begin, 1)]) == 'a' && langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(begin, 2)]) == 'n' {
+		return NumericLayout{Valid: true, Special: 3, Sign: 0, Weight: 0, First: 0, End: 0}
+	}
+	if (langruntime.CheckedSubtract(end, index) == 3 || langruntime.CheckedSubtract(end, index) == 8) && langruntime.AsciiLowercase(chars[index]) == 'i' && langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(index, 1)]) == 'n' && langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(index, 2)]) == 'f' {
+		if langruntime.CheckedSubtract(end, index) == 8 && (langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(index, 3)]) != 'i' || langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(index, 4)]) != 'n' || langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(index, 5)]) != 'i' || langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(index, 6)]) != 't' || langruntime.AsciiLowercase(chars[langruntime.CheckedAdd(index, 7)]) != 'y') {
+			return invalidNumericParts()
+		}
+		special := 2
+		if sign < 0 {
+			special = langruntime.CheckedI32(0)
+		}
+		return NumericLayout{Valid: true, Special: special, Sign: 0, Weight: 0, First: 0, End: 0}
+	}
+	point := false
+	digits := 0
+	before := 0
+	fractional := 0
+	first := end
+	last := 0
+	leading := 0
+	for index < end {
+		digit := numericDigit(chars[index])
+		if digit >= 0 {
+			if first == end && digit == 0 {
+				leading = langruntime.CheckedI32(langruntime.CheckedSignedAdd(leading, 1))
+			}
+			if digit != 0 {
+				if first == end {
+					first = langruntime.CheckedIndex(index)
+				}
+				last = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 1))
+			}
+			digits = langruntime.CheckedI32(langruntime.CheckedSignedAdd(digits, 1))
+			if point {
+				fractional = langruntime.CheckedI32(langruntime.CheckedSignedAdd(fractional, 1))
+			} else {
+				before = langruntime.CheckedI32(langruntime.CheckedSignedAdd(before, 1))
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		} else if chars[index] == '.' {
+			if point {
+				return invalidNumericParts()
+			}
+			point = true
+			index = langruntime.CheckedAdd(index, 1)
+			if index < end && chars[index] == '_' {
+				return invalidNumericParts()
+			}
+		} else if chars[index] == '_' {
+			if index == begin || numericDigit(chars[langruntime.CheckedSubtract(index, 1)]) < 0 || langruntime.CheckedAdd(index, 1) == end || numericDigit(chars[langruntime.CheckedAdd(index, 1)]) < 0 {
+				return invalidNumericParts()
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		} else {
+			break
+		}
+	}
+	if digits == 0 {
+		return invalidNumericParts()
+	}
+	exponent := 0
+	if index < end && (chars[index] == 'e' || chars[index] == 'E') {
+		index = langruntime.CheckedAdd(index, 1)
+		negative := false
+		if index < end && chars[index] == '-' {
+			negative = true
+			index = langruntime.CheckedAdd(index, 1)
+		} else if index < end && chars[index] == '+' {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		start := index
+		if index == end || numericDigit(chars[index]) < 0 {
+			return invalidNumericParts()
+		}
+		for index < end {
+			digit := numericDigit(chars[index])
+			if digit >= 0 {
+				if exponent > 107374182 || (exponent == 107374182 && digit > 3) {
+					return invalidNumericParts()
+				}
+				exponent = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(exponent, 10), digit))
+				index = langruntime.CheckedAdd(index, 1)
+			} else if chars[index] == '_' {
+				if index == start || numericDigit(chars[langruntime.CheckedSubtract(index, 1)]) < 0 || langruntime.CheckedAdd(index, 1) == end || numericDigit(chars[langruntime.CheckedAdd(index, 1)]) < 0 {
+					return invalidNumericParts()
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			} else {
+				break
+			}
+		}
+		if negative {
+			exponent = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, exponent))
+		}
+	}
+	if index != end || langruntime.CheckedSignedSubtract(fractional, exponent) > 16383 {
+		return invalidNumericParts()
+	}
+	weight := langruntime.CheckedSignedAdd(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedSubtract(before, leading), 1), exponent)
+	if first == end {
+		return NumericLayout{Valid: true, Special: 1, Sign: 0, Weight: 0, First: 0, End: 0}
+	}
+	if weight > 131071 || weight < langruntime.CheckedSignedNegate(131072) {
+		return invalidNumericParts()
+	}
+	return NumericLayout{Valid: true, Special: 1, Sign: sign, Weight: weight, First: first, End: last}
+}
+
 const dateFieldOverflow = 3452552
 const invalidDateText = 3452551
 

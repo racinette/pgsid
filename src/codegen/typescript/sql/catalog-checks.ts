@@ -2,7 +2,10 @@ import ts from 'typescript'
 import type { DomainInfo, EnumInfo, TableInfo } from '../../../catalog/types.js'
 import { enumType } from '../../../sql-semantics/expressions.js'
 import { catalogCheckGroups } from '../../../sql-semantics/catalog-checks.js'
-import { catalogTemporalType } from '../../../sql-semantics/catalog-check-binder.js'
+import {
+  catalogTemporalType,
+  catalogNumericType,
+} from '../../../sql-semantics/catalog-check-binder.js'
 import { emitEvalBoolExpression } from '../../../sql-semantics/check-expressions.js'
 import { portableCheckAtoms } from '../../shared/check-atom-support.js'
 import { prepareCheckRustGroup } from '../../shared/check-rust-source.js'
@@ -45,7 +48,8 @@ export function renderTypescriptSchemaCheckArtifacts(
   } | null
 } {
   const typedInputs = options.typedInputs ?? false
-  const temporalValueType = (name: string, oid: number | undefined): string | null => {
+  const portableValueType = (name: string, oid: number | undefined): string | null => {
+    if (catalogNumericType(name, oid, domains)) return 'NumericValue'
     const type = catalogTemporalType(name, oid, domains)
     return type === 'pg_catalog.date'
       ? 'DateValue'
@@ -118,6 +122,7 @@ export function renderTypescriptSchemaCheckArtifacts(
             ![
               'Int4Value',
               'Int8Value',
+              'NumericValue',
               'DateValue',
               'TimestampValue',
               'TimestamptzValue',
@@ -128,25 +133,28 @@ export function renderTypescriptSchemaCheckArtifacts(
           )
             throw new Error(`Unsupported TypeScript Rust CHECK input: ${item.rustType}`)
           const helper =
-            item.rustType === 'DateValue'
-              ? 'checkRustDate'
-              : item.rustType === 'TimestampValue'
-                ? 'checkRustTimestamp'
-                : item.rustType === 'TimestamptzValue'
-                  ? 'checkRustTimestamptz'
-                  : item.nullness
-                    ? 'checkRustNullness'
-                    : item.enum
-                      ? 'checkRustEnum'
-                      : item.rustType === 'Int4Value'
-                        ? 'checkRustInt4'
-                        : item.rustType === 'Int8Value'
-                          ? 'checkRustInt8'
-                          : item.rustType === 'TextValue'
-                            ? 'checkRustText'
-                            : 'checkRustBool'
+            item.rustType === 'NumericValue'
+              ? 'checkRustNumeric'
+              : item.rustType === 'DateValue'
+                ? 'checkRustDate'
+                : item.rustType === 'TimestampValue'
+                  ? 'checkRustTimestamp'
+                  : item.rustType === 'TimestamptzValue'
+                    ? 'checkRustTimestamptz'
+                    : item.nullness
+                      ? 'checkRustNullness'
+                      : item.enum
+                        ? 'checkRustEnum'
+                        : item.rustType === 'Int4Value'
+                          ? 'checkRustInt4'
+                          : item.rustType === 'Int8Value'
+                            ? 'checkRustInt8'
+                            : item.rustType === 'TextValue'
+                              ? 'checkRustText'
+                              : 'checkRustBool'
           rustInputAdapters.add(helper)
           if (
+            item.rustType !== 'NumericValue' &&
             item.rustType !== 'DateValue' &&
             item.rustType !== 'TimestampValue' &&
             item.rustType !== 'TimestamptzValue'
@@ -260,6 +268,13 @@ export function renderTypescriptSchemaCheckArtifacts(
       factory.createStringLiteral(module),
       undefined,
     )
+  const portableInputType = (type: string): ts.TypeNode =>
+    type === 'NumericValue'
+      ? factory.createUnionTypeNode([
+          factory.createTypeReferenceNode('_checkRust.NumericValue'),
+          factory.createKeywordTypeNode(ts.SyntaxKind.StringKeyword),
+        ])
+      : factory.createTypeReferenceNode(`_checkRust.${type}`)
   const inputType = (group: (typeof groups)[number]): ts.TypeNode => {
     const table =
       group.kind === 'table'
@@ -273,15 +288,15 @@ export function renderTypescriptSchemaCheckArtifacts(
             (domain) => domain.schema === group.source.schema && domain.name === group.source.name,
           )
         : undefined
-    const temporalInputs = new Map<string, string>(
+    const portableInputs = new Map<string, string>(
       rustGroup?.source
         ? table
           ? table.columns.flatMap((column) => {
-              const type = temporalValueType(column.typeName, column.typeOid)
+              const type = portableValueType(column.typeName, column.typeOid)
               return type ? [[column.name, type] as const] : []
             })
-          : domain && temporalValueType(domain.baseTypeName, domain.baseTypeOid)
-            ? [['value', temporalValueType(domain.baseTypeName, domain.baseTypeOid)!]]
+          : domain && portableValueType(domain.baseTypeName, domain.baseTypeOid)
+            ? [['value', portableValueType(domain.baseTypeName, domain.baseTypeOid)!]]
             : []
         : [],
     )
@@ -292,11 +307,9 @@ export function renderTypescriptSchemaCheckArtifacts(
           'value',
           factory.createToken(ts.SyntaxKind.QuestionToken),
           factory.createUnionTypeNode([
-            factory.createTypeReferenceNode(
-              temporalInputs.has('value')
-                ? `_checkRust.${temporalInputs.get('value')!}`
-                : typeName(group.source.name),
-            ),
+            portableInputs.has('value')
+              ? portableInputType(portableInputs.get('value')!)
+              : factory.createTypeReferenceNode(typeName(group.source.name)),
             factory.createLiteralTypeNode(factory.createNull()),
           ]),
         ),
@@ -315,18 +328,18 @@ export function renderTypescriptSchemaCheckArtifacts(
       undefined,
       factory.createToken(ts.SyntaxKind.QuestionToken),
       factory.createUnionTypeNode([
-        [...new Set(temporalInputs.values())].reduceRight(
+        [...new Set(portableInputs.values())].reduceRight(
           (otherwise, type) =>
             factory.createConditionalTypeNode(
               factory.createTypeReferenceNode('K'),
               factory.createUnionTypeNode(
-                [...temporalInputs]
+                [...portableInputs]
                   .filter(([, value]) => value === type)
                   .map(([name]) =>
                     factory.createLiteralTypeNode(factory.createStringLiteral(name)),
                   ),
               ),
-              factory.createTypeReferenceNode(`_checkRust.${type}`),
+              portableInputType(type),
               otherwise,
             ),
           factory.createIndexedAccessTypeNode(
@@ -387,7 +400,9 @@ export function renderTypescriptSchemaCheckArtifacts(
               statement.name &&
               (statement.name.text === 'checkRustOutcome' ||
                 rustInputAdapters.has(statement.name.text) ||
-                (['checkRustDate', 'checkRustTimestamptz'].includes(statement.name.text) &&
+                (['checkRustDate', 'checkRustTimestamptz', 'checkRustNumeric'].includes(
+                  statement.name.text,
+                ) &&
                   rustInputAdapters.has('checkRustNullness'))),
           )
         : []),
@@ -468,6 +483,16 @@ function checkRustTimestamptz(row: object, name: string): _checkRust.Timestamptz
   if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n) return _checkRust.makeTimestamptzValue(value.value)
   return _checkRust.timestamptzUnknown()
 }
+function checkRustNumeric(row: object, name: string): _checkRust.NumericValue {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.numericUnknown()
+  if (value === null) return _checkRust.numericNull()
+  if (typeof value === 'string') return _checkRust.makeNumericValue(value)
+  if (typeof value !== 'object' || !('kind' in value)) return _checkRust.numericUnknown()
+  if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.NumericValue
+  if (value.kind === 'Value' && 'value' in value && typeof value.value === 'string') return _checkRust.makeNumericValue(value.value)
+  return _checkRust.numericUnknown()
+}
 function checkRustDate(row: object, name: string): _checkRust.DateValue {
   const value = Reflect.get(row, name)
   if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.dateUnknown()
@@ -506,6 +531,7 @@ function checkRustBool(row: object, name: string): _checkRust.BoolValue {
 function checkRustNullness(row: object, name: string): _checkRust.BoolValue {
   const value = Reflect.get(row, name)
   if (Object.hasOwn(row, name) && value !== null && typeof value === 'object' && 'kind' in value) {
+    if ('value' in value && typeof value.value === 'string') return _checkRust.numericIsNull(checkRustNumeric(row, name))
     if ('value' in value && typeof value.value === 'bigint') return _checkRust.timestamptzIsNull(checkRustTimestamptz(row, name))
     return _checkRust.dateIsNull(checkRustDate(row, name))
   }

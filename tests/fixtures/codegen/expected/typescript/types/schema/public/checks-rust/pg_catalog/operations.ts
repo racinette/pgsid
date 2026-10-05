@@ -1077,6 +1077,211 @@ export function int4miDtqk(left: checkruntime.Int4Value, right: checkruntime.Int
     }
     return { kind: "Unknown" };
 }
+function numericCompare(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.Int4Value {
+    left = checkruntime.copyNumericValue(left);
+    right = checkruntime.copyNumericValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(left, { kind: "Unknown" }) || checkruntime.equalNumericValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(left, { kind: "Null" }) || checkruntime.equalNumericValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: string = langruntime.checkedString(left.value);
+        if (right.kind === "Value") {
+            const rightValue: string = langruntime.checkedString(right.value);
+            const a: checkruntime.NumericLayout = checkruntime.copyNumericLayout(checkruntime.numericParts(leftValue));
+            const b: checkruntime.NumericLayout = checkruntime.copyNumericLayout(checkruntime.numericParts(rightValue));
+            if (a.valid === false || b.valid === false) {
+                return { kind: "Unknown" };
+            }
+            if (a.special < b.special) {
+                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+            }
+            if (a.special > b.special) {
+                return { kind: "Value", value: 1 };
+            }
+            if (!(a.special === 1)) {
+                return { kind: "Value", value: 0 };
+            }
+            if (a.sign < b.sign) {
+                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+            }
+            if (a.sign > b.sign) {
+                return { kind: "Value", value: 1 };
+            }
+            if (a.sign === 0) {
+                return { kind: "Value", value: 0 };
+            }
+            if (a.weight < b.weight) {
+                return { kind: "Value", value: langruntime.checkedSignedSubtract(0, a.sign) };
+            }
+            if (a.weight > b.weight) {
+                return { kind: "Value", value: a.sign };
+            }
+            const leftChars: string[] = Array.from(leftValue);
+            const rightChars: string[] = Array.from(rightValue);
+            let i: number = a.first;
+            let j: number = b.first;
+            while (i < a.end || j < b.end) {
+                while (i < a.end && (langruntime.indexChar(leftChars, langruntime.checkedIndex(i)) === "." || langruntime.indexChar(leftChars, langruntime.checkedIndex(i)) === "_")) {
+                    i = langruntime.checkedAdd(i, 1);
+                }
+                while (j < b.end && (langruntime.indexChar(rightChars, langruntime.checkedIndex(j)) === "." || langruntime.indexChar(rightChars, langruntime.checkedIndex(j)) === "_")) {
+                    j = langruntime.checkedAdd(j, 1);
+                }
+                let x: string = "0";
+                let y: string = "0";
+                if (i < a.end) {
+                    x = langruntime.checkedChar(langruntime.indexChar(leftChars, langruntime.checkedIndex(i)));
+                    i = langruntime.checkedAdd(i, 1);
+                }
+                if (j < b.end) {
+                    y = langruntime.checkedChar(langruntime.indexChar(rightChars, langruntime.checkedIndex(j)));
+                    j = langruntime.checkedAdd(j, 1);
+                }
+                const xCode: number = langruntime.checkedChar(x).codePointAt(0)!;
+                const yCode: number = langruntime.checkedChar(y).codePointAt(0)!;
+                if (xCode < yCode) {
+                    return { kind: "Value", value: langruntime.checkedSignedSubtract(0, a.sign) };
+                }
+                if (xCode > yCode) {
+                    return { kind: "Value", value: a.sign };
+                }
+            }
+            return { kind: "Value", value: 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function numericEqFw7r(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.BoolValue {
+    left = checkruntime.copyNumericValue(left);
+    right = checkruntime.copyNumericValue(right);
+    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(numericCompare(left, right));
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order === 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function numericGeW8pw(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.BoolValue {
+    left = checkruntime.copyNumericValue(left);
+    right = checkruntime.copyNumericValue(right);
+    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(numericCompare(left, right));
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order >= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function numericGtH1pi(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.BoolValue {
+    left = checkruntime.copyNumericValue(left);
+    right = checkruntime.copyNumericValue(right);
+    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(numericCompare(left, right));
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order > 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function numericLeBbpc(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.BoolValue {
+    left = checkruntime.copyNumericValue(left);
+    right = checkruntime.copyNumericValue(right);
+    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(numericCompare(left, right));
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order <= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function numericLtZl16(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.BoolValue {
+    left = checkruntime.copyNumericValue(left);
+    right = checkruntime.copyNumericValue(right);
+    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(numericCompare(left, right));
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order < 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function numericNeGyip(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.BoolValue {
+    left = checkruntime.copyNumericValue(left);
+    right = checkruntime.copyNumericValue(right);
+    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(numericCompare(left, right));
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: !(order === 0) };
+    }
+    return { kind: "Unknown" };
+}
 function textHasPrefix(text: string, prefix: string): boolean {
     text = langruntime.checkedString(text);
     prefix = langruntime.checkedString(prefix);

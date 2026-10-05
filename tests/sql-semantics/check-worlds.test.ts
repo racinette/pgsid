@@ -16,6 +16,7 @@ import { catalogCheckGroups } from '../../src/sql-semantics/catalog-checks.js'
 import {
   catalogDateType,
   catalogTemporalType,
+  catalogNumericType,
 } from '../../src/sql-semantics/catalog-check-binder.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { renderGoSchemaArtifacts } from '../../src/codegen/go/schema.js'
@@ -220,7 +221,9 @@ describe('world CHECK INSERT parity', () => {
       '--outDir',
       join(directory, 'js'),
       join(directory, 'checks.ts'),
-    ])
+    ]).catch((error: { stdout: string; stderr: string }) => {
+      throw new Error(error.stdout + error.stderr, { cause: error })
+    })
     generated = await import(pathToFileURL(join(directory, 'js/checks.js')).href)
     for (const artifact of go.artifacts) {
       await mkdir(dirname(artifact.path), { recursive: true })
@@ -267,8 +270,24 @@ describe('world CHECK INSERT parity', () => {
             'pg_catalog.timestamptz',
         )
         .map((column) => column.name)
+      const numericColumns = table.columns
+        .filter(
+          (column) =>
+            column.generated === 'none' &&
+            catalogNumericType(column.typeName, column.typeOid, catalog.domains),
+        )
+        .map((column) => column.name)
       const portableRow = { ...row }
       const goRow = { ...row }
+      for (const name of numericColumns) {
+        const value = (
+          await pg.query<{ value: string | null }>(
+            `SELECT ${quote(name)}::text AS value FROM (SELECT ${expressions.join(',')}) candidate`,
+          )
+        ).rows[0]!.value
+        portableRow[name] = value
+        goRow[name] = value
+      }
       for (const name of dateColumns) {
         const date = row[name]
         const hex = (
@@ -310,6 +329,7 @@ describe('world CHECK INSERT parity', () => {
         name: item.name,
         table,
         row: goRow,
+        numericColumns,
         dateColumns,
         timestampColumns,
         timestamptzColumns,
@@ -452,6 +472,19 @@ describe('world CHECK INSERT parity', () => {
     const constraints = [...coverage.values()].sort((left, right) =>
       left.constraint.localeCompare(right.constraint),
     )
+    for (const identity of [
+      'world_001_shipping.carriers.carrier_weight_band',
+      'world_001_shipping.shipments.shipment_billed_covers_declared',
+      'world_001_shipping.shipment_legs.leg_distance_and_surcharge_sane',
+      'world_006_marketplace_settlement.charges.charge_amounts_sane',
+      'world_006_marketplace_settlement.ledger_entries.ledger_amount_direction',
+      'world_006_marketplace_settlement.payout_batches.payout_amount_sane',
+    ]) {
+      const measured = coverage.get(identity)!
+      expect(measured.unknown, identity).toBe(0)
+      expect(measured.true, identity).toBeGreaterThan(0)
+      expect(measured.false, identity).toBeGreaterThan(0)
+    }
     const definiteConstraints = constraints.filter((item) => item.true + item.false + item.null > 0)
     const corpus = catalogCheckGroups(catalog.tables, catalog.domains, [], catalog.enums).flatMap(
       (group) =>

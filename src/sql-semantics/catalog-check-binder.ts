@@ -83,6 +83,8 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     float4: 'pg_catalog.float4',
     'double precision': 'pg_catalog.float8',
     float8: 'pg_catalog.float8',
+    numeric: 'pg_catalog."numeric"',
+    decimal: 'pg_catalog."numeric"',
     date: 'pg_catalog.date',
     timestamp: 'pg_catalog."timestamp"',
     'timestamp without time zone': 'pg_catalog."timestamp"',
@@ -92,6 +94,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     'character varying': 'pg_catalog."varchar"',
     character: 'pg_catalog.bpchar',
   }
+  if (/^(?:numeric|decimal)\(/u.test(name)) return 'pg_catalog."numeric"'
   if (name.startsWith('character varying(')) return 'pg_catalog."varchar"'
   if (name.startsWith('character(')) return 'pg_catalog.bpchar'
   if (/^timestamp\(\d+\) without time zone$/u.test(name)) return 'pg_catalog."timestamp"'
@@ -107,11 +110,11 @@ export function catalogDateType(
   return catalogTemporalType(name, oid, domains) === 'pg_catalog.date'
 }
 
-export function catalogTemporalType(
+function catalogBaseScalarType(
   name: string,
   oid: number | undefined,
   domains: readonly DomainInfo[],
-): 'pg_catalog.date' | 'pg_catalog."timestamp"' | 'pg_catalog.timestamptz' | null {
+): ScalarType | null {
   const seen = new Set<number>()
   while (oid !== undefined && !seen.has(oid)) {
     seen.add(oid)
@@ -120,7 +123,23 @@ export function catalogTemporalType(
     name = domain.baseTypeName
     oid = domain.baseTypeOid
   }
-  const type = catalogScalarType(name)
+  return catalogScalarType(name)
+}
+
+export function catalogNumericType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): boolean {
+  return catalogBaseScalarType(name, oid, domains) === 'pg_catalog."numeric"'
+}
+
+export function catalogTemporalType(
+  name: string,
+  oid: number | undefined,
+  domains: readonly DomainInfo[],
+): 'pg_catalog.date' | 'pg_catalog."timestamp"' | 'pg_catalog.timestamptz' | null {
+  const type = catalogBaseScalarType(name, oid, domains)
   return type === 'pg_catalog.date' ||
     type === 'pg_catalog."timestamp"' ||
     type === 'pg_catalog.timestamptz'
@@ -153,6 +172,7 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
   ) {
     return { kind: 'temporal', type, value: literal.value }
   }
+  if (type === 'pg_catalog."numeric"') return { kind: 'decimal', type, value: literal.value }
   if (literal.kind === 'null') {
     if (type === 'pg_catalog.bool') return { kind: 'boolean', type, value: null }
     if (type === 'pg_catalog.text') return { kind: 'text', type, value: null }
@@ -180,6 +200,22 @@ const materialize = (
   type: ScalarType,
   definition = bound.enum,
 ): EvalExpression | null => {
+  if (
+    type === 'pg_catalog."numeric"' &&
+    bound.value?.kind === 'certain' &&
+    bound.value.expression.kind === 'integer'
+  ) {
+    const constant = bound.value.expression
+    if (constant.type === 'pg_catalog.int4' || constant.type === 'pg_catalog.int8') {
+      const checked = literalValue(
+        { kind: constant.value === null ? 'null' : 'integer', value: constant.value },
+        constant.type,
+      )
+      return checked
+        ? { kind: 'certain', expression: { kind: 'decimal', type, value: constant.value } }
+        : null
+    }
+  }
   if (bound.literal) {
     if (type.startsWith('enum:') && definition && enumType(definition) === type) {
       const value = bound.literal.value
@@ -440,7 +476,9 @@ export function bindCatalogCheck(
       const type = names ? catalogScalarType(names.at(-1)!) : null
       if (!type) return unknown
       if (
-        (type === 'pg_catalog.timestamptz' || type === 'pg_catalog."timestamp"') &&
+        (type === 'pg_catalog.timestamptz' ||
+          type === 'pg_catalog."timestamp"' ||
+          type === 'pg_catalog."numeric"') &&
         Array.isArray(castType?.['typmods']) &&
         castType['typmods'].length
       )
@@ -531,12 +569,21 @@ export function bindCatalogCheck(
         if (integer >= -9223372036854775808n && integer <= 9223372036854775807n)
           return {
             type: 'pg_catalog.int8',
+            literal: { kind: 'integer', value: float },
             value: {
               kind: 'certain',
               expression: { kind: 'integer', type: 'pg_catalog.int8', value: float },
             },
           }
       }
+      if (typeof float === 'string')
+        return {
+          type: 'pg_catalog."numeric"',
+          value: {
+            kind: 'certain',
+            expression: { kind: 'decimal', type: 'pg_catalog."numeric"', value: float },
+          },
+        }
       const booleanNode = fields(constant['boolval'])
       if (booleanNode) {
         const boolean = booleanNode['boolval'] ?? false

@@ -1084,6 +1084,211 @@ func Int4miDtqk(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
+func numericCompare(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.Int4Value {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
+	if left.Kind == checkruntime.NumericValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.NumericValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) || right == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.NumericValueValue {
+		leftValue := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.NumericValueValue {
+			rightValue := langruntime.CheckedString(right.Value)
+			a := checkruntime.NumericParts(leftValue)
+			b := checkruntime.NumericParts(rightValue)
+			if a.Valid == false || b.Valid == false {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+			}
+			if a.Special < b.Special {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+			}
+			if a.Special > b.Special {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+			}
+			if a.Special != 1 {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+			}
+			if a.Sign < b.Sign {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+			}
+			if a.Sign > b.Sign {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+			}
+			if a.Sign == 0 {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+			}
+			if a.Weight < b.Weight {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(0, a.Sign)}
+			}
+			if a.Weight > b.Weight {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: a.Sign}
+			}
+			leftChars := []rune(leftValue)
+			rightChars := []rune(rightValue)
+			i := a.First
+			j := b.First
+			for i < a.End || j < b.End {
+				for i < a.End && (leftChars[i] == '.' || leftChars[i] == '_') {
+					i = langruntime.CheckedAdd(i, 1)
+				}
+				for j < b.End && (rightChars[j] == '.' || rightChars[j] == '_') {
+					j = langruntime.CheckedAdd(j, 1)
+				}
+				x := '0'
+				y := '0'
+				if i < a.End {
+					x = langruntime.CheckedChar(leftChars[i])
+					i = langruntime.CheckedAdd(i, 1)
+				}
+				if j < b.End {
+					y = langruntime.CheckedChar(rightChars[j])
+					j = langruntime.CheckedAdd(j, 1)
+				}
+				xCode := int(langruntime.CheckedChar(x))
+				yCode := int(langruntime.CheckedChar(y))
+				if xCode < yCode {
+					return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(0, a.Sign)}
+				}
+				if xCode > yCode {
+					return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: a.Sign}
+				}
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func NumericEqFw7r(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
+	result := numericCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order == 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func NumericGeW8pw(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
+	result := numericCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order >= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func NumericGtH1pi(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
+	result := numericCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order > 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func NumericLeBbpc(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
+	result := numericCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order <= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func NumericLtZl16(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
+	result := numericCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order < 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func NumericNeGyip(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
+	left = checkruntime.CopyNumericValue(left)
+	right = checkruntime.CopyNumericValue(right)
+	result := numericCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order != 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
 func textHasPrefix(text string, prefix string) bool {
 	text = langruntime.CheckedString(text)
 	prefix = langruntime.CheckedString(prefix)

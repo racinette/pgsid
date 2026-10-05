@@ -25,3 +25,22 @@ INSERT INTO payout_batches (merchant_id, batch_ref, account_code, state, declare
 INSERT INTO ledger_entries (id, merchant_id, account_code, provider_charge_id, kind, amount, occurred_at, reference, note) VALUES (10000, 1, 'main', 'ch-captured', 'charge', 1, '2026-08-02 10:00+00', 'CHECK-LEDGER', NULL);
 -- name: ledger_note_repeats_reference
 INSERT INTO ledger_entries (id, merchant_id, account_code, provider_charge_id, kind, amount, occurred_at, reference, note) VALUES (10000, 1, 'main', 'ch-captured', 'charge', 1, '2026-08-02 10:00+00', 'CHECK-LEDGER', 'CHECK-LEDGER');
+
+-- name: charge_tiny_positive_amount
+INSERT INTO charges (id, merchant_id, provider_charge_id, account_code, state, gross_amount, provider_event_at) VALUES (10000, 1, 'ch-check', 'main', 'pending', 0.00000000000000000000001, '2026-08-02 10:00+00');
+-- name: charge_amount_above_bigint_range
+INSERT INTO charges (id, merchant_id, provider_charge_id, account_code, state, gross_amount, provider_event_at) VALUES (10000, 1, 'ch-check', 'main', 'pending', 9223372036854775808.01, '2026-08-02 10:00+00');
+-- name: charge_with_negative_zero_amount
+INSERT INTO charges (id, merchant_id, provider_charge_id, account_code, state, gross_amount, provider_event_at) VALUES (10000, 1, 'ch-check', 'main', 'pending', -0.0000, '2026-08-02 10:00+00');
+-- name: charge_with_negative_fractional_fee
+INSERT INTO charges (id, merchant_id, provider_charge_id, account_code, state, gross_amount, fee_amount, provider_event_at) VALUES (10000, 1, 'ch-check', 'main', 'pending', 1, -0.00000000000000000000001, '2026-08-02 10:00+00');
+-- name: reversal_ledger_negative_fraction
+INSERT INTO ledger_entries (id, merchant_id, account_code, provider_charge_id, kind, amount, occurred_at, reference, note) VALUES (10000, 1, 'main', 'ch-captured', 'reversal', -0.00000000000000000000001, '2026-08-02 10:00+00', 'CHECK-LEDGER', NULL);
+-- name: reversal_ledger_positive_fraction
+INSERT INTO ledger_entries (id, merchant_id, account_code, provider_charge_id, kind, amount, occurred_at, reference, note) VALUES (10000, 1, 'main', 'ch-captured', 'reversal', 0.00000000000000000000001, '2026-08-02 10:00+00', 'CHECK-LEDGER', NULL);
+-- name: charge_ledger_zero_amount
+INSERT INTO ledger_entries (id, merchant_id, account_code, provider_charge_id, kind, amount, occurred_at, reference, note) VALUES (10000, 1, 'main', 'ch-captured', 'charge', 0, '2026-08-02 10:00+00', 'CHECK-LEDGER', NULL);
+-- name: charge_ledger_negative_fraction
+INSERT INTO ledger_entries (id, merchant_id, account_code, provider_charge_id, kind, amount, occurred_at, reference, note) VALUES (10000, 1, 'main', 'ch-captured', 'charge', -0.00000000000000000000001, '2026-08-02 10:00+00', 'CHECK-LEDGER', NULL);
+-- name: payout_nan_amount
+INSERT INTO payout_batches (merchant_id, batch_ref, account_code, state, declared_amount, opened_at) VALUES (1, 'B-CHECK', 'main', 'open', 'NaN'::numeric, '2026-08-02 10:00+00');

@@ -520,6 +520,261 @@ export function textFromCaseGuard(value: CheckOutcome): TextValue {
     }
     return { kind: "Unknown" };
 }
+export type NumericValue = {
+    kind: "Unknown";
+} | {
+    kind: "Null";
+} | {
+    kind: "Value";
+    value: string;
+} | {
+    kind: "Error";
+    value: SqlError;
+};
+export function copyNumericValue(value: NumericValue): NumericValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: langruntime.checkedString(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
+export function equalNumericValue(left: NumericValue, right: NumericValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function numericUnknown(): NumericValue {
+    return { kind: "Unknown" };
+}
+export function numericNull(): NumericValue {
+    return { kind: "Null" };
+}
+export function numericIsNull(value: NumericValue): BoolValue {
+    value = copyNumericValue(value);
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalNumericValue(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: equalNumericValue(value, { kind: "Null" }) };
+}
+export function numericFromCaseGuard(value: CheckOutcome): NumericValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function makeNumericValue(value: string): NumericValue {
+    value = langruntime.checkedString(value);
+    const parts: NumericLayout = copyNumericLayout(numericParts(value));
+    if (parts.valid === false) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: value };
+}
+export interface NumericLayout {
+    valid: boolean;
+    special: number;
+    sign: number;
+    weight: number;
+    first: number;
+    end: number;
+}
+export function copyNumericLayout(value: NumericLayout): NumericLayout {
+    return { valid: langruntime.checkedBool(value.valid), special: langruntime.checkedI32(value.special), sign: langruntime.checkedI32(value.sign), weight: langruntime.checkedI32(value.weight), first: langruntime.checkedIndex(value.first), end: langruntime.checkedIndex(value.end) };
+}
+function invalidNumericParts(): NumericLayout {
+    return { valid: false, special: 1, sign: 0, weight: 0, first: 0, end: 0 };
+}
+function numericSpace(value: string): boolean {
+    value = langruntime.checkedChar(value);
+    return value === " " || value === "\t" || value === "\n" || value === "\r" || value === "\v" || value === "\f";
+}
+function numericDigit(value: string): number {
+    value = langruntime.checkedChar(value);
+    if (value === "0") {
+        return 0;
+    }
+    if (value === "1") {
+        return 1;
+    }
+    if (value === "2") {
+        return 2;
+    }
+    if (value === "3") {
+        return 3;
+    }
+    if (value === "4") {
+        return 4;
+    }
+    if (value === "5") {
+        return 5;
+    }
+    if (value === "6") {
+        return 6;
+    }
+    if (value === "7") {
+        return 7;
+    }
+    if (value === "8") {
+        return 8;
+    }
+    if (value === "9") {
+        return 9;
+    }
+    return langruntime.checkedSignedNegate(1);
+}
+export function numericParts(value: string): NumericLayout {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    if (chars.length > 1000000) {
+        return invalidNumericParts();
+    }
+    let begin: number = 0;
+    let end: number = chars.length;
+    while (begin < end && numericSpace(langruntime.indexChar(chars, langruntime.checkedIndex(begin)))) {
+        begin = langruntime.checkedAdd(begin, 1);
+    }
+    while (end > begin && numericSpace(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))))) {
+        end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+    }
+    if (begin === end) {
+        return invalidNumericParts();
+    }
+    let index: number = begin;
+    let sign: number = 1;
+    if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-") {
+        sign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    else if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "+") {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (index === end) {
+        return invalidNumericParts();
+    }
+    if (langruntime.checkedSubtract(end, begin) === 3 && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(begin))) === "n" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(begin, 1)))) === "a" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(begin, 2)))) === "n") {
+        return { valid: true, special: 3, sign: 0, weight: 0, first: 0, end: 0 };
+    }
+    if ((langruntime.checkedSubtract(end, index) === 3 || langruntime.checkedSubtract(end, index) === 8) && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(index))) === "i" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)))) === "n" && langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 2)))) === "f") {
+        if (langruntime.checkedSubtract(end, index) === 8 && (!(langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 3)))) === "i") || !(langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 4)))) === "n") || !(langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 5)))) === "i") || !(langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 6)))) === "t") || !(langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 7)))) === "y"))) {
+            return invalidNumericParts();
+        }
+        let special: number = 2;
+        if (sign < 0) {
+            special = langruntime.checkedI32(0);
+        }
+        return { valid: true, special: special, sign: 0, weight: 0, first: 0, end: 0 };
+    }
+    let point: boolean = false;
+    let digits: number = 0;
+    let before: number = 0;
+    let fractional: number = 0;
+    let first: number = end;
+    let last: number = 0;
+    let leading: number = 0;
+    while (index < end) {
+        const digit: number = numericDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+        if (digit >= 0) {
+            if (first === end && digit === 0) {
+                leading = langruntime.checkedI32(langruntime.checkedSignedAdd(leading, 1));
+            }
+            if (!(digit === 0)) {
+                if (first === end) {
+                    first = langruntime.checkedIndex(index);
+                }
+                last = langruntime.checkedIndex(langruntime.checkedAdd(index, 1));
+            }
+            digits = langruntime.checkedI32(langruntime.checkedSignedAdd(digits, 1));
+            if (point) {
+                fractional = langruntime.checkedI32(langruntime.checkedSignedAdd(fractional, 1));
+            }
+            else {
+                before = langruntime.checkedI32(langruntime.checkedSignedAdd(before, 1));
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        else if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ".") {
+            if (point) {
+                return invalidNumericParts();
+            }
+            point = langruntime.checkedBool(true);
+            index = langruntime.checkedAdd(index, 1);
+            if (index < end && langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "_") {
+                return invalidNumericParts();
+            }
+        }
+        else if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "_") {
+            if (index === begin || numericDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(index, 1)))) < 0 || langruntime.checkedAdd(index, 1) === end || numericDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)))) < 0) {
+                return invalidNumericParts();
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        else {
+            break;
+        }
+    }
+    if (digits === 0) {
+        return invalidNumericParts();
+    }
+    let exponent: number = 0;
+    if (index < end && (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "e" || langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "E")) {
+        index = langruntime.checkedAdd(index, 1);
+        let negative: boolean = false;
+        if (index < end && langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-") {
+            negative = langruntime.checkedBool(true);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        else if (index < end && langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "+") {
+            index = langruntime.checkedAdd(index, 1);
+        }
+        const start: number = index;
+        if (index === end || numericDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))) < 0) {
+            return invalidNumericParts();
+        }
+        while (index < end) {
+            const digit: number = numericDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+            if (digit >= 0) {
+                if (exponent > 107374182 || (exponent === 107374182 && digit > 3)) {
+                    return invalidNumericParts();
+                }
+                exponent = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(exponent, 10), digit));
+                index = langruntime.checkedAdd(index, 1);
+            }
+            else if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "_") {
+                if (index === start || numericDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(index, 1)))) < 0 || langruntime.checkedAdd(index, 1) === end || numericDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)))) < 0) {
+                    return invalidNumericParts();
+                }
+                index = langruntime.checkedAdd(index, 1);
+            }
+            else {
+                break;
+            }
+        }
+        if (negative) {
+            exponent = langruntime.checkedI32(langruntime.checkedSignedSubtract(0, exponent));
+        }
+    }
+    if (!(index === end) || langruntime.checkedSignedSubtract(fractional, exponent) > 16383) {
+        return invalidNumericParts();
+    }
+    const weight: number = langruntime.checkedSignedAdd(langruntime.checkedSignedSubtract(langruntime.checkedSignedSubtract(before, leading), 1), exponent);
+    if (first === end) {
+        return { valid: true, special: 1, sign: 0, weight: 0, first: 0, end: 0 };
+    }
+    if (weight > 131071 || weight < langruntime.checkedSignedNegate(131072)) {
+        return invalidNumericParts();
+    }
+    return { valid: true, special: 1, sign: sign, weight: weight, first: first, end: last };
+}
 const dateFieldOverflow = 3452552;
 const invalidDateText = 3452551;
 function dateTextSpace(value: string): boolean {
