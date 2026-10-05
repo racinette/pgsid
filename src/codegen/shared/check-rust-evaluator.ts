@@ -1,5 +1,5 @@
 import { checkRustEntryName, type CheckConstraintIdentity } from './check-rust-names.js'
-import { builtinMetadata } from '../../postgres/builtins/inventory.js'
+import { builtinCast, builtinMetadata } from '../../postgres/builtins/inventory.js'
 import type { EvalBoolExpression } from '../../sql-semantics/check-expressions.js'
 import type { EvalExpression } from '../../sql-semantics/eval-expressions.js'
 import { supportsTextCallableCollation } from '../../sql-semantics/collation.js'
@@ -118,13 +118,18 @@ export function emitCheckRustEvaluator(
           throw new UnsupportedCheckRustExpression('Invalid Rust CHECK relabel cast')
         return { ...operands[0]!, type: call.type }
       }
-      if ((call.kind !== 'operator' && call.kind !== 'function') || call.signature === null)
+      if (call.signature === null)
         throw new UnsupportedCheckRustExpression('Unsupported Rust CHECK callable kind')
+      if (call.kind === 'cast') {
+        const conversion = operands.length === 1 ? builtinCast(operands[0]!.type, call.type) : null
+        if (conversion?.method !== 'f' || conversion.implementation !== call.signature)
+          throw new UnsupportedCheckRustExpression('Invalid Rust CHECK cast function')
+      }
       const metadata = builtinMetadata(call.signature)
       const implementation =
         metadata.kind === 'operator' ? builtinMetadata(metadata.implementation) : metadata
       if (
-        metadata.kind !== call.kind ||
+        metadata.kind !== (call.kind === 'cast' ? 'function' : call.kind) ||
         implementation.kind !== 'function' ||
         implementation.result !== call.type ||
         !implementation.strict ||
@@ -139,7 +144,10 @@ export function emitCheckRustEvaluator(
         implementation.args.some((type) =>
           ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type),
         ) &&
-        !supportsTextCallableCollation(call.signature, call.collation)
+        !supportsTextCallableCollation(
+          call.signature,
+          call.kind === 'cast' ? undefined : call.collation,
+        )
       )
         throw new UnsupportedCheckRustExpression(
           `Unsupported Rust CHECK text collation: ${call.signature}`,

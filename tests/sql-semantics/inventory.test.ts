@@ -10,12 +10,14 @@ import { PG18_AGGREGATES } from '../../src/postgres/builtins/aggregates.generate
 import { PG18_WINDOWS } from '../../src/postgres/builtins/windows.generated.js'
 import {
   builtinCallables,
+  builtinCast,
   builtinMetadata,
   operatorMetadata,
   functionMetadata,
 } from '../../src/postgres/builtins/inventory.js'
 import { builtinDomain } from '../../src/postgres/builtins/taxonomy.js'
 import { PG18_TYPE_NAMES } from '../../src/postgres/builtins/type-names.generated.js'
+import { PG18_BUILTIN_CASTS } from '../../src/postgres/builtins/casts.generated.js'
 import type {
   CallableEmitter,
   CallableOperands,
@@ -98,6 +100,20 @@ describe('PostgreSQL builtin inventory', () => {
         castOrder.indexOf(row.source) < castOrder.indexOf(row.target) ? 'i' : 'a',
       )
     }
+  })
+
+  it('matches every cast link and resolves its underlying function identity', () => {
+    expect(
+      Object.fromEntries(
+        catalog.casts.map((cast) => [JSON.stringify([cast.source, cast.target]), cast]),
+      ),
+    ).toEqual(PG18_BUILTIN_CASTS)
+    for (const cast of catalog.casts) {
+      expect(builtinCast(cast.source, cast.target)).toEqual(cast)
+      if (cast.implementation !== null)
+        expect(functionMetadata(cast.implementation).kind).toBe('function')
+    }
+    expect(builtinCast('public.other', 'pg_catalog.int4')).toBeNull()
   })
 
   it('keeps overloads, unary operators, and callable kinds distinct', () => {

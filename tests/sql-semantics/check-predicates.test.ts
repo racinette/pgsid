@@ -148,12 +148,8 @@ describe('CHECK list and range validators', () => {
       )
       if (rust) {
         for (const name of Object.keys(definitions)) {
-          expect(typescript.checks).toMatch(
-            new RegExp(`constraint: "${name}", result: checkRustOutcome`),
-          )
-          expect(go.checks).toMatch(
-            new RegExp(`Constraint: "${name}",\\s*Result: checkRustOutcome`),
-          )
+          expect(typescript.checks).toMatch(new RegExp(`"${name}", \\(\\) => checkRustOutcome`))
+          expect(go.checks).toMatch(new RegExp(`"${name}", checkRustOutcome`))
         }
       }
       const directory = await mkdtemp(join(tmpdir(), 'pgsid-predicate-validator-'))
@@ -181,24 +177,18 @@ describe('CHECK list and range validators', () => {
         ])
         const generated = await import(pathToFileURL(join(directory, 'js/checks.js')).href)
         for (const [index, row] of rows.entries()) {
-          if (Object.values(expected[index]!).includes('22003')) {
-            expect(() => generated.evaluatePublicPredicateChecksChecks(row)).toThrowError(
-              expect.objectContaining({ code: '22003' }),
-            )
-          } else {
-            const results = generated.evaluatePublicPredicateChecksChecks(row) as {
-              constraint: string
-              result: { certain: boolean; value?: boolean | null }
-            }[]
-            expect(
-              Object.fromEntries(
-                results.map(({ constraint, result }) => [
-                  constraint,
-                  result.certain ? result.value : undefined,
-                ]),
-              ),
-            ).toEqual(expected[index])
-          }
+          const results = generated.evaluatePublicPredicateChecksChecks(row) as {
+            constraint: string
+            result: { certain: boolean; value?: boolean | null; error?: string }
+          }[]
+          expect(
+            Object.fromEntries(
+              results.map(({ constraint, result }) => [
+                constraint,
+                result.certain ? (result.error ?? result.value) : undefined,
+              ]),
+            ),
+          ).toEqual(expected[index])
         }
         await writeFile(join(directory, 'go.mod'), 'module predicate-production\n\ngo 1.24\n')
         await writeFile(join(directory, 'checks.go'), go.checks)
@@ -236,7 +226,7 @@ describe('CHECK list and range validators', () => {
         const assertions = expected.flatMap((row, index) =>
           Object.entries(row).map(
             ([name, value]) =>
-              `if result := results[${index}]["${name}"]; ${value === '22003' ? 'result.Value.Error != "22003"' : value === undefined ? 'result.Certain' : value === null ? '!result.Certain || result.Value.Valid' : `!result.Certain || !result.Value.Valid || result.Value.Value != ${value}`} {t.Fatalf("${index} ${name}: %+v", result)}`,
+              `if result := results[${index}]["${name}"]; ${value === '22003' ? '!result.Certain || result.Value.Error != "22003"' : value === undefined ? 'result.Certain' : value === null ? '!result.Certain || result.Value.Valid' : `!result.Certain || !result.Value.Valid || result.Value.Value != ${value}`} {t.Fatalf("${index} ${name}: %+v", result)}`,
           ),
         )
         await writeFile(
@@ -357,7 +347,7 @@ describe('CHECK list and range validators', () => {
         kind: 'eval-scalar',
         expression: { kind: 'check', type: 'pg_catalog.bool', expression: bind(expanded!) },
       })
-      if (sql!.startsWith('tiny')) expect(prepareCheckRust(bind(sql!)).kind).toBe('unsupported')
+      if (sql!.startsWith('tiny')) expect(prepareCheckRust(bind(sql!)).kind).toBe('supported')
       else
         expect(bind(sql!)).toMatchObject({
           expression: {

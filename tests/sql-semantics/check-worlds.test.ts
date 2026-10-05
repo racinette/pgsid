@@ -523,6 +523,7 @@ describe('world CHECK INSERT parity', () => {
       'world_012_package_capacity.package_capacity.slot_limit',
       'world_012_package_capacity.package_capacity.whole_batches',
       'world_012_package_capacity.package_capacity.adjustment_limit',
+      'world_012_package_capacity.compact_stock_corrections.compact_correction',
     ]) {
       const measured = coverage.get(identity)!
       expect(measured.error, identity).toBeGreaterThan(0)
@@ -542,6 +543,9 @@ describe('world CHECK INSERT parity', () => {
       'world_010_lab_calibration.observations.observation_sequence',
       'world_010_lab_calibration.observations.observation_reading_state',
       'world_010_lab_calibration.review_audits.audit_values',
+      'world_012_package_capacity.warehouse_count_conversions.recorded_unit_count',
+      'world_012_package_capacity.warehouse_count_conversions.archived_unit_count',
+      'world_012_package_capacity.warehouse_count_conversions.archived_integer_count',
     ]) {
       const measured = coverage.get(identity)!
       expect(measured.unknown, identity).toBe(0)

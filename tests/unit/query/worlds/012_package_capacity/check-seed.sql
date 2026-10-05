@@ -241,3 +241,57 @@ INSERT INTO bulk_package_capacity (id, units, items_per_batch, slots, maximum) V
 INSERT INTO bulk_package_capacity (id, units, items_per_batch, slots, maximum) VALUES (2, 12, NULL, 4, 36);
 -- name: bulk_package_all_null
 INSERT INTO bulk_package_capacity (id, units, items_per_batch, slots, maximum) VALUES (2, NULL, NULL, NULL, NULL);
+
+-- name: converted_count_regular
+INSERT INTO warehouse_count_conversions (id, units, recorded, archived) VALUES (2, 100, 100, 100);
+-- name: converted_count_minimum
+INSERT INTO warehouse_count_conversions (id, units, recorded, archived) VALUES (2, -32768, -32768, -32768);
+-- name: converted_count_maximum
+INSERT INTO warehouse_count_conversions (id, units, recorded, archived) VALUES (2, 32767, 32767, 32767);
+-- name: converted_count_wrong_recorded
+INSERT INTO warehouse_count_conversions (id, units, recorded, archived) VALUES (2, 100, 101, 100);
+-- name: converted_count_wrong_archived
+INSERT INTO warehouse_count_conversions (id, units, recorded, archived) VALUES (2, 100, 100, 101);
+-- name: converted_count_integer_minimum
+INSERT INTO warehouse_count_conversions (id, units, recorded, archived) VALUES (2, NULL, -2147483648, -2147483648);
+-- name: converted_count_integer_maximum
+INSERT INTO warehouse_count_conversions (id, units, recorded, archived) VALUES (2, NULL, 2147483647, 2147483647);
+-- name: converted_count_integer_mismatch
+INSERT INTO warehouse_count_conversions (id, units, recorded, archived) VALUES (2, NULL, 2147483647, 2147483648);
+-- name: converted_count_bigint_maximum
+INSERT INTO warehouse_count_conversions (id, units, recorded, archived) VALUES (2, NULL, NULL, 9223372036854775807);
+-- name: converted_count_null_recorded
+INSERT INTO warehouse_count_conversions (id, units, recorded, archived) VALUES (2, 100, NULL, 100);
+-- name: converted_count_null_archived
+INSERT INTO warehouse_count_conversions (id, units, recorded, archived) VALUES (2, 100, 100, NULL);
+-- name: converted_count_all_null
+INSERT INTO warehouse_count_conversions (id, units, recorded, archived) VALUES (2, NULL, NULL, NULL);
+
+-- name: compact_correction_regular
+INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion) VALUES (2, -10, -10, false);
+-- name: compact_correction_minimum
+INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion) VALUES (2, -32768, -32768, false);
+-- name: compact_correction_maximum
+INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion) VALUES (2, 32767, 32767, false);
+-- name: compact_correction_mismatch
+INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion) VALUES (2, 10, 11, false);
+-- name: compact_correction_overflow
+INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion) VALUES (2, 32768, 32767, false);
+-- name: compact_correction_underflow
+INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion) VALUES (2, -32769, -32768, false);
+-- name: compact_correction_integer_maximum
+INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion) VALUES (2, 2147483647, 0, false);
+-- name: compact_correction_integer_minimum
+INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion) VALUES (2, -2147483648, 0, false);
+-- name: compact_correction_error_before_null
+INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion) VALUES (2, 32768, NULL, false);
+-- name: compact_correction_skipped_overflow
+INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion) VALUES (2, 32768, 0, true);
+-- name: compact_correction_null_guard_overflow
+INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion) VALUES (2, 32768, 0, NULL);
+-- name: compact_correction_null_adjustment
+INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion) VALUES (2, NULL, 10, false);
+-- name: compact_correction_null_compact
+INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion) VALUES (2, 10, NULL, false);
+-- name: compact_correction_all_null
+INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion) VALUES (2, NULL, NULL, NULL);

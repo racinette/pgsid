@@ -1404,6 +1404,34 @@ func Abs5ajw(input checkruntime.Int4Value) checkruntime.Int4Value {
 	}
 	return input
 }
+func Int41z1k(input checkruntime.Int2Value) checkruntime.Int4Value {
+	input = checkruntime.CopyInt2Value(input)
+	return checkruntime.Int2ToInt4(input)
+}
+func Int8Sxtp(input checkruntime.Int2Value) checkruntime.Int8Value {
+	input = checkruntime.CopyInt2Value(input)
+	return checkruntime.Int2ToInt8(input)
+}
+func Int215a3(input checkruntime.Int4Value) checkruntime.Int2Value {
+	input = checkruntime.CopyInt4Value(input)
+	return smallintResult(input)
+}
+func Int8Mzac(input checkruntime.Int4Value) checkruntime.Int8Value {
+	input = checkruntime.CopyInt4Value(input)
+	if input.Kind == checkruntime.Int4ValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.Int4ValueValue {
+		payload := langruntime.CheckedI32(input.Value)
+		widened := int64(langruntime.CheckedI32(payload))
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: widened}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
 func numericCompare(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.Int4Value {
 	left = checkruntime.CopyNumericValue(left)
 	right = checkruntime.CopyNumericValue(right)

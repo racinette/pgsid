@@ -1395,6 +1395,34 @@ export function abs5ajw(input: checkruntime.Int4Value): checkruntime.Int4Value {
     }
     return input;
 }
+export function int41z1k(input: checkruntime.Int2Value): checkruntime.Int4Value {
+    input = checkruntime.copyInt2Value(input);
+    return checkruntime.int2ToInt4(input);
+}
+export function int8Sxtp(input: checkruntime.Int2Value): checkruntime.Int8Value {
+    input = checkruntime.copyInt2Value(input);
+    return checkruntime.int2ToInt8(input);
+}
+export function int215a3(input: checkruntime.Int4Value): checkruntime.Int2Value {
+    input = checkruntime.copyInt4Value(input);
+    return smallintResult(input);
+}
+export function int8Mzac(input: checkruntime.Int4Value): checkruntime.Int8Value {
+    input = checkruntime.copyInt4Value(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: number = langruntime.checkedI32(input.value);
+        const widened: bigint = BigInt(langruntime.checkedI32(payload));
+        return { kind: "Value", value: widened };
+    }
+    return { kind: "Unknown" };
+}
 function numericCompare(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.Int4Value {
     left = checkruntime.copyNumericValue(left);
     right = checkruntime.copyNumericValue(right);

@@ -104,3 +104,23 @@ CREATE TABLE bulk_package_capacity (
   CONSTRAINT bulk_slot_limit CHECK (units / items_per_batch <= slots),
   CONSTRAINT bulk_capacity_limit CHECK (items_per_batch * units <= maximum)
 );
+
+CREATE TABLE warehouse_count_conversions (
+  id integer PRIMARY KEY,
+  units smallint,
+  recorded integer,
+  archived bigint,
+  CONSTRAINT recorded_unit_count CHECK (units::integer = recorded),
+  CONSTRAINT archived_unit_count CHECK (units::bigint = archived),
+  CONSTRAINT archived_integer_count CHECK (recorded::bigint = archived)
+);
+
+CREATE TABLE compact_stock_corrections (
+  id integer PRIMARY KEY,
+  adjustment integer,
+  compact_adjustment smallint,
+  skip_conversion boolean,
+  CONSTRAINT compact_correction CHECK (
+    CASE WHEN skip_conversion THEN true ELSE adjustment::smallint = compact_adjustment END
+  )
+);

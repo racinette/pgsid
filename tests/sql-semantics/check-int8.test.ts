@@ -88,12 +88,8 @@ it.each([true, false])(
       )
       if (rust)
         for (const name of Object.keys(definitions)) {
-          expect(typescript.checks).toMatch(
-            new RegExp(`constraint: "${name}", result: checkRustOutcome`),
-          )
-          expect(go.checks).toMatch(
-            new RegExp(`Constraint: "${name}",\\s*Result: checkRustOutcome`),
-          )
+          expect(typescript.checks).toMatch(new RegExp(`"${name}", \\(\\) => checkRustOutcome`))
+          expect(go.checks).toMatch(new RegExp(`"${name}", checkRustOutcome`))
         }
       await writeFile(join(directory, 'package.json'), '{"type":"module"}\n')
       await writeFile(join(directory, 'checks.ts'), typescript.checks)
