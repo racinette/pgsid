@@ -24,3 +24,9 @@ VALUES (1, 4, 5, 20, 4, 5);
 
 INSERT INTO bulk_package_capacity (id, units, items_per_batch, slots, maximum)
 VALUES (1, 12, 3, 4, 36);
+
+INSERT INTO warehouse_count_conversions (id, units, recorded, archived)
+VALUES (1, 100, 100, 100);
+
+INSERT INTO compact_stock_corrections (id, adjustment, compact_adjustment, skip_conversion)
+VALUES (1, -10, -10, false);

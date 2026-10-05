@@ -1,6 +1,7 @@
 import { parseSync } from 'libpg-query'
 import type { ColumnInfo, DomainInfo, EnumInfo } from '../catalog/types.js'
 import { PG18_BUILTIN_GROUPS } from '../postgres/builtins/groups.generated.js'
+import { builtinCast } from '../postgres/builtins/inventory.js'
 import type { BuiltinCallable } from '../postgres/builtins/taxonomy.js'
 import type { EvalExpression } from './eval-expressions.js'
 import type { EvalBoolExpression } from './check-expressions.js'
@@ -551,18 +552,29 @@ export function bindCatalogCheck(
             },
           }
       }
-      if (operand.literal?.kind === 'integer' && /^pg_catalog\.int[248]$/u.test(type))
-        return {
-          type,
-          value: {
-            kind: 'certain',
-            expression: {
-              kind: 'integer',
-              type: type as 'pg_catalog.int2' | 'pg_catalog.int4' | 'pg_catalog.int8',
-              value: operand.literal.value,
-            },
-          },
-        }
+      const source =
+        operand.type ?? (operand.literal?.kind === 'integer' ? 'pg_catalog.int4' : null)
+      if (
+        source &&
+        /^pg_catalog\.int[248]$/u.test(source) &&
+        /^pg_catalog\.int[248]$/u.test(type)
+      ) {
+        const value = materialize(operand, source)
+        if (!value) return unknown
+        if (source === type) return { type, value }
+        if (source === 'pg_catalog.int8') return unknown
+        const conversion = builtinCast(source, type)
+        return conversion?.method === 'f' && conversion.implementation !== null
+          ? {
+              type,
+              value: {
+                kind: 'call',
+                call: { kind: 'cast', signature: conversion.implementation, type },
+                operands: [value],
+              },
+            }
+          : unknown
+      }
       const expression = materialize(operand, type)
       return expression
         ? {

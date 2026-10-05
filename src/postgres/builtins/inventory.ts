@@ -1,6 +1,13 @@
 import { PG18_BUILTIN_GROUPS } from './groups.generated.js'
-import type { FunctionMetadata, OperatorMetadata } from './catalog.js'
+import { PG18_BUILTIN_CASTS } from './casts.generated.js'
+import type { BuiltinCastMetadata, FunctionMetadata, OperatorMetadata } from './catalog.js'
 import type { BuiltinCallable } from './taxonomy.js'
+
+const casts: Readonly<Record<string, BuiltinCastMetadata>> = PG18_BUILTIN_CASTS
+
+export function builtinCast(source: string, target: string): BuiltinCastMetadata | null {
+  return casts[JSON.stringify([source, target])] ?? null
+}
 
 export function builtinCallables(): BuiltinCallable[] {
   return PG18_BUILTIN_GROUPS.flatMap(({ inventory }) => Object.values(inventory))

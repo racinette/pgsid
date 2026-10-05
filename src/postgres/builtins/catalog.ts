@@ -33,6 +33,15 @@ export interface BuiltinCatalog {
   serverVersion: number
   functions: { metadata: FunctionMetadata; signature: BuiltinFunctionSignature }[]
   operators: { metadata: OperatorMetadata; signature: BuiltinOperatorSignature }[]
+  casts: BuiltinCastMetadata[]
+}
+
+export interface BuiltinCastMetadata {
+  source: string
+  target: string
+  implementation: string | null
+  context: 'i' | 'a' | 'e'
+  method: 'f' | 'b' | 'i'
 }
 
 const typeIdentity = `SELECT quote_ident(n.nspname) || '.' || quote_ident(t.typname)
@@ -47,7 +56,7 @@ export function callableIdentity(metadata: FunctionMetadata | OperatorMetadata):
 }
 
 export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
-  const [version, functions, operators] = await Promise.all([
+  const [version, functions, operators, casts] = await Promise.all([
     pg.query<{ server_version_num: string }>('SHOW server_version_num'),
     pg.query<{
       schema: string
@@ -112,6 +121,28 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
       JOIN pg_namespace n ON n.oid = o.oprnamespace
       JOIN pg_namespace pn ON pn.oid = p.pronamespace
       WHERE n.nspname = 'pg_catalog' ORDER BY o.oprname, 3, 4`),
+    pg.query<{
+      source: string
+      target: string
+      implementation_schema: string | null
+      implementation_name: string | null
+      implementation_args: string[] | null
+      context: 'i' | 'a' | 'e'
+      method: 'f' | 'b' | 'i'
+    }>(`SELECT (${typeIdentity} c.castsource) AS source,
+      (${typeIdentity} c.casttarget) AS target,
+      pn.nspname AS implementation_schema, p.proname AS implementation_name,
+      (SELECT array_agg((${typeIdentity} u.t) ORDER BY o)
+        FROM unnest(p.proargtypes) WITH ORDINALITY AS u(t, o)) AS implementation_args,
+      c.castcontext AS context, c.castmethod AS method
+      FROM pg_cast c JOIN pg_type s ON s.oid = c.castsource
+      JOIN pg_namespace sn ON sn.oid = s.typnamespace
+      JOIN pg_type t ON t.oid = c.casttarget
+      JOIN pg_namespace tn ON tn.oid = t.typnamespace
+      LEFT JOIN pg_proc p ON p.oid = c.castfunc
+      LEFT JOIN pg_namespace pn ON pn.oid = p.pronamespace
+      WHERE sn.nspname = 'pg_catalog' AND tn.nspname = 'pg_catalog'
+      ORDER BY 1, 2`),
   ])
   assertUniqueRustCallableNames([
     ...functions.rows.map((row) => ({
@@ -140,6 +171,16 @@ export async function readBuiltinCatalog(pg: PGlite): Promise<BuiltinCatalog> {
   }
   return {
     serverVersion: Number(version.rows[0]!.server_version_num),
+    casts: casts.rows.map((row) => ({
+      source: row.source,
+      target: row.target,
+      implementation:
+        row.implementation_name === null
+          ? null
+          : `function:${JSON.stringify([row.implementation_schema, row.implementation_name])}(${(row.implementation_args ?? []).join(',')})`,
+      context: row.context,
+      method: row.method,
+    })),
     functions: functions.rows.map((r) => ({
       metadata: {
         kind: r.kind === 'f' ? 'function' : r.kind === 'a' ? 'aggregate' : 'window',

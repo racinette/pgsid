@@ -27,6 +27,23 @@ try {
   }
   const compare = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0)
   const sources = new Map<string, string>()
+  const casts = new Map<string, (typeof catalog.casts)[number]>()
+  for (const cast of catalog.casts) {
+    const key = JSON.stringify([cast.source, cast.target])
+    if (casts.has(key)) throw new Error(`Duplicate cast identity: ${key}`)
+    if (
+      cast.implementation !== null &&
+      !catalog.functions.some(({ metadata }) => callableIdentity(metadata) === cast.implementation)
+    )
+      throw new Error(
+        `Cast implementation is absent from the function inventory: ${cast.implementation}`,
+      )
+    casts.set(key, cast)
+  }
+  sources.set(
+    'casts.generated.ts',
+    `export const PG18_BUILTIN_CASTS = ${JSON.stringify(Object.fromEntries([...casts].sort(([a], [b]) => compare(a, b))))} as const`,
+  )
   sources.set(
     'type-names.generated.ts',
     `export const PG18_TYPE_NAMES = ${JSON.stringify(Object.fromEntries(Object.entries(typeNames).sort(([a], [b]) => compare(a, b))))} as const`,

@@ -8,6 +8,10 @@ const generated = await import(pathToFileURL(generatedPath).href)
 type Shape =
   | 'int2_pair_int2'
   | 'int2_single_int2'
+  | 'int2_single_int4'
+  | 'int2_single_int8'
+  | 'int4_single_int2'
+  | 'int4_single_int8'
   | 'int24_pair_int4'
   | 'int42_pair_int4'
   | 'int8_pair_bool'
@@ -29,7 +33,7 @@ const fixtures = JSON.parse(readFileSync(fixturePath, 'utf8')) as {
 const input = (shape: Shape, state: State, index: number): unknown => {
   if (state.kind === 'Value')
     return shape === 'int2_pair_int2' ||
-      shape === 'int2_single_int2' ||
+      shape.startsWith('int2_single_') ||
       (shape === 'int24_pair_int4' && index === 0) ||
       (shape === 'int42_pair_int4' && index === 1)
       ? generated.makeInt2Value(state.value)
@@ -43,6 +47,8 @@ const input = (shape: Shape, state: State, index: number): unknown => {
               'int4_pair_bool',
               'int4_pair_int4',
               'int4_single_int4',
+              'int4_single_int2',
+              'int4_single_int8',
               'int84_pair_bool',
               'int48_pair_bool',
             ].includes(shape)
@@ -53,8 +59,9 @@ const input = (shape: Shape, state: State, index: number): unknown => {
   if (state.kind === 'Error') return { kind: 'Error', value: { state: state.state } }
   return { kind: state.kind }
 }
-const expected = (state: State): unknown => {
-  if (state.kind === 'Value') return { kind: 'Value', value: state.value }
+const expected = (shape: Shape, state: State): unknown => {
+  if (state.kind === 'Value')
+    return { kind: 'Value', value: shape.endsWith('_int8') ? BigInt(state.value!) : state.value }
   if (state.kind === 'Error') return { kind: 'Error', value: { state: state.state } }
   return { kind: state.kind }
 }
@@ -69,7 +76,7 @@ for (const fixture of fixtures) {
       generated[targetName](
         ...test.inputs.map((state, index) => input(fixture.shape, state, index)),
       ),
-      expected(test.expected),
+      expected(fixture.shape, test.expected),
       fixture.functionName,
     )
 }
