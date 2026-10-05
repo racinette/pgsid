@@ -73,6 +73,11 @@ import them. Keep schema-only helpers with their callables.
   implementation availability to choose an overload. Raw CHECK expressions and
   PostgreSQL's stored definitions must agree. Run
   `tests/sql-semantics/check-integer-promotion.test.ts` for this boundary.
+- Integer CASE results select their common type independently of the enclosing
+  expression, considering ELSE before the WHEN arms. Use catalog implicit casts
+  to widen each arm after its original computation. Preserve intermediate
+  overflow, branch laziness, and typed NULLs. Run
+  `tests/sql-semantics/check-integer-case.test.ts` for raw/stored parity.
 - Int8 payloads use Rust `i64`, Go `int64`, and TypeScript `bigint`. Write
   decimal Rust literals with an `i64` suffix. Widen an int4 payload with
   `as i64` into a distinct local before comparing it with an int8 payload.

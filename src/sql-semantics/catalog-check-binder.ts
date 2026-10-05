@@ -270,6 +270,36 @@ const boundType = (arg: Bound): ScalarType | null =>
 const isIntegerType = (type: string | null): boolean =>
   type !== null && /^pg_catalog\.int[248]$/u.test(type)
 
+const materializeInteger = (arg: Bound, target: ScalarType): EvalExpression | null => {
+  const source = boundType(arg)
+  const value = materialize(arg, source ?? target)
+  if (!value || source === null || source === target) return value
+  const cast = builtinCast(source, target)
+  return cast?.context === 'i' && cast.method === 'f' && cast.implementation !== null
+    ? {
+        kind: 'call',
+        call: { kind: 'cast', signature: cast.implementation, type: target },
+        operands: [value],
+      }
+    : null
+}
+
+const integerCaseType = (arms: readonly Bound[]): ScalarType | undefined => {
+  const types = arms.map(boundType)
+  if (!types.some(isIntegerType)) return undefined
+  if (types.some((type) => type !== null && !isIntegerType(type))) return undefined
+  let selected: ScalarType | null = null
+  for (const type of types) {
+    if (type === null || type === selected) continue
+    if (
+      selected === null ||
+      (builtinCast(selected, type)?.context === 'i' && builtinCast(type, selected)?.context !== 'i')
+    )
+      selected = type
+  }
+  return selected ?? undefined
+}
+
 const integerCandidate = (
   kind: 'operator' | 'function',
   name: string,
@@ -312,17 +342,7 @@ const integerCandidate = (
     return null
   const operands = args.map((arg, index): EvalExpression | null => {
     const target = selected.item.args[index]! as ScalarType
-    const source = types[index]
-    const value = materialize(arg, source ?? target)
-    if (!value || source === null || source === target) return value
-    const cast = builtinCast(source!, target)
-    return cast?.context === 'i' && cast.method === 'f' && cast.implementation !== null
-      ? {
-          kind: 'call',
-          call: { kind: 'cast', signature: cast.implementation, type: target },
-          operands: [value],
-        }
-      : null
+    return materializeInteger(arg, target)
   })
   return operands.every((value): value is EvalExpression => value !== null)
     ? { ...selected, operands }
@@ -443,16 +463,22 @@ export function bindCatalogCheck(
         ? bind(caseExpression['defresult'])
         : ({ type: null, value: null, literal: { kind: 'null', value: null } } as Bound)
       const arms = [...results, otherwise]
+      const integerType = integerCaseType([otherwise, ...results])
       const typed = arms.flatMap((arm) => (arm.type ? [arm.type] : []))
       const type =
+        integerType ??
         expectedType ??
         typed[0] ??
         (arms.some((arm) => arm.literal?.kind === 'integer')
           ? 'pg_catalog.int4'
           : 'pg_catalog.text')
-      if (typed.some((other) => other !== type)) return unknown
+      if (integerType === undefined && typed.some((other) => other !== type)) return unknown
       const definition = arms.find((arm) => arm.enum)?.enum
-      const values = arms.map((arm) => materialize(arm, type, definition))
+      const values = arms.map((arm) =>
+        integerType === undefined
+          ? materialize(arm, type, definition)
+          : materializeInteger(arm, type),
+      )
       if (type !== 'pg_catalog.bool' && values.some((value) => !value)) return unknown
       const collation = ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(
         type,

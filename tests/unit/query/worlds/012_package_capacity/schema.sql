@@ -260,3 +260,27 @@ CREATE TABLE mixed_batch_remainders (
   CONSTRAINT big_literal_remainder CHECK (CASE WHEN skip_remainders THEN true ELSE big_units % 3 = literal_big_loose END),
   CONSTRAINT widened_remainder_call CHECK (CASE WHEN skip_remainders THEN true ELSE pg_catalog.int8mod(small_units, integer_units) = call_loose END)
 );
+
+CREATE TABLE chosen_package_counts (
+  id integer PRIMARY KEY,
+  small_units smallint,
+  integer_units integer,
+  big_units warehouse_adjustment,
+  use_small boolean,
+  use_integer boolean,
+  recorded_pair integer,
+  recorded_stock bigint,
+  recorded_baseline integer,
+  recorded_double bigint,
+  recorded_ratio bigint,
+  recorded_nested bigint,
+  recorded_simple bigint,
+  CONSTRAINT chosen_pair CHECK ((CASE WHEN use_small THEN small_units ELSE integer_units END) = recorded_pair),
+  CONSTRAINT chosen_stock CHECK ((CASE WHEN use_small THEN small_units WHEN use_integer THEN integer_units ELSE big_units END) = recorded_stock),
+  CONSTRAINT chosen_baseline CHECK ((CASE WHEN use_small THEN small_units ELSE 0 END) = recorded_baseline),
+  CONSTRAINT chosen_double CHECK ((CASE WHEN use_small THEN small_units + small_units ELSE big_units END) = recorded_double),
+  CONSTRAINT chosen_ratio CHECK ((CASE WHEN use_small THEN small_units / integer_units ELSE big_units END) = recorded_ratio),
+  CONSTRAINT chosen_nested CHECK ((CASE WHEN use_small THEN CASE WHEN use_integer THEN small_units ELSE integer_units END ELSE big_units END) = recorded_nested),
+  CONSTRAINT chosen_simple CHECK ((CASE use_small WHEN true THEN small_units WHEN false THEN integer_units ELSE big_units END) = recorded_simple),
+  CONSTRAINT chosen_without_else CHECK ((CASE WHEN use_small THEN small_units END) = recorded_pair)
+);
