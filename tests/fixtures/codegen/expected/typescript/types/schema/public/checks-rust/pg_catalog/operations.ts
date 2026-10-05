@@ -581,6 +581,142 @@ export function int84mi867a(left: checkruntime.Int8Value, right: checkruntime.In
     const widened: checkruntime.Int8Value = int8Mzac(right);
     return int8miJasl(left, widened);
 }
+export function int8mul6t1m(left: checkruntime.Int8Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const rightValue: bigint = langruntime.checkedI64(right.value);
+            if (leftValue > 0n && rightValue > 0n && leftValue > langruntime.checkedI64Divide(9223372036854775807n, rightValue)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNumericValueOutOfRange) };
+            }
+            if (leftValue > 0n && rightValue < 0n && rightValue < langruntime.checkedI64Divide(-9223372036854775808n, leftValue)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNumericValueOutOfRange) };
+            }
+            if (leftValue < 0n && rightValue > 0n && leftValue < langruntime.checkedI64Divide(-9223372036854775808n, rightValue)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNumericValueOutOfRange) };
+            }
+            if (leftValue < 0n && rightValue < 0n && leftValue < langruntime.checkedI64Divide(9223372036854775807n, rightValue)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNumericValueOutOfRange) };
+            }
+            return { kind: "Value", value: langruntime.checkedI64Multiply(leftValue, rightValue) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function int8div8s66(left: checkruntime.Int8Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const rightValue: bigint = langruntime.checkedI64(right.value);
+            if (rightValue === 0n) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateDivisionByZero) };
+            }
+            if (leftValue === -9223372036854775808n && rightValue === -1n) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNumericValueOutOfRange) };
+            }
+            return { kind: "Value", value: langruntime.checkedI64Divide(leftValue, rightValue) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function int8mod2t8f(left: checkruntime.Int8Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt8Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const leftValue: bigint = langruntime.checkedI64(left.value);
+        if (right.kind === "Value") {
+            const rightValue: bigint = langruntime.checkedI64(right.value);
+            if (rightValue === 0n) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateDivisionByZero) };
+            }
+            if (rightValue === -1n) {
+                return { kind: "Value", value: 0n };
+            }
+            return { kind: "Value", value: langruntime.checkedI64Remainder(leftValue, rightValue) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function int28mulLmrp(left: checkruntime.Int2Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    left = checkruntime.copyInt2Value(left);
+    const widened: checkruntime.Int8Value = checkruntime.int2ToInt8(left);
+    return int8mul6t1m(widened, right);
+}
+export function int28divYfcw(left: checkruntime.Int2Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    left = checkruntime.copyInt2Value(left);
+    const widened: checkruntime.Int8Value = checkruntime.int2ToInt8(left);
+    return int8div8s66(widened, right);
+}
+export function int82mul60eu(left: checkruntime.Int8Value, right: checkruntime.Int2Value): checkruntime.Int8Value {
+    right = checkruntime.copyInt2Value(right);
+    const widened: checkruntime.Int8Value = checkruntime.int2ToInt8(right);
+    return int8mul6t1m(left, widened);
+}
+export function int82divBfmp(left: checkruntime.Int8Value, right: checkruntime.Int2Value): checkruntime.Int8Value {
+    right = checkruntime.copyInt2Value(right);
+    const widened: checkruntime.Int8Value = checkruntime.int2ToInt8(right);
+    return int8div8s66(left, widened);
+}
+export function int48mulKykj(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    left = checkruntime.copyInt4Value(left);
+    const widened: checkruntime.Int8Value = int8Mzac(left);
+    return int8mul6t1m(widened, right);
+}
+export function int48divXx1r(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    left = checkruntime.copyInt4Value(left);
+    const widened: checkruntime.Int8Value = int8Mzac(left);
+    return int8div8s66(widened, right);
+}
+export function int84mul636w(left: checkruntime.Int8Value, right: checkruntime.Int4Value): checkruntime.Int8Value {
+    right = checkruntime.copyInt4Value(right);
+    const widened: checkruntime.Int8Value = int8Mzac(right);
+    return int8mul6t1m(left, widened);
+}
+export function int84divW65p(left: checkruntime.Int8Value, right: checkruntime.Int4Value): checkruntime.Int8Value {
+    right = checkruntime.copyInt4Value(right);
+    const widened: checkruntime.Int8Value = int8Mzac(right);
+    return int8div8s66(left, widened);
+}
 export function booleqY6qu(left: checkruntime.BoolValue, right: checkruntime.BoolValue): checkruntime.BoolValue {
     left = checkruntime.copyBoolValue(left);
     right = checkruntime.copyBoolValue(right);

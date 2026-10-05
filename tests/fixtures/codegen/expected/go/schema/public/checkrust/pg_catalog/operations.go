@@ -586,6 +586,142 @@ func Int84mi867a(left checkruntime.Int8Value, right checkruntime.Int4Value) chec
 	widened := Int8Mzac(right)
 	return Int8miJasl(left, widened)
 }
+func Int8mul6t1m(left checkruntime.Int8Value, right checkruntime.Int8Value) checkruntime.Int8Value {
+	if left.Kind == checkruntime.Int8ValueError {
+		error := left.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int8ValueError {
+		error := right.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if left.Kind == checkruntime.Int8ValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.Int8ValueValue {
+			rightValue := right.Value
+			if leftValue > int64(0) && rightValue > int64(0) && leftValue > langruntime.CheckedI64Divide(int64(9223372036854775807), rightValue) {
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+			}
+			if leftValue > int64(0) && rightValue < int64(0) && rightValue < langruntime.CheckedI64Divide(int64(-9223372036854775808), leftValue) {
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+			}
+			if leftValue < int64(0) && rightValue > int64(0) && leftValue < langruntime.CheckedI64Divide(int64(-9223372036854775808), rightValue) {
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+			}
+			if leftValue < int64(0) && rightValue < int64(0) && leftValue < langruntime.CheckedI64Divide(int64(9223372036854775807), rightValue) {
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+			}
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: langruntime.CheckedI64Multiply(leftValue, rightValue)}
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func Int8div8s66(left checkruntime.Int8Value, right checkruntime.Int8Value) checkruntime.Int8Value {
+	if left.Kind == checkruntime.Int8ValueError {
+		error := left.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int8ValueError {
+		error := right.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if left.Kind == checkruntime.Int8ValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.Int8ValueValue {
+			rightValue := right.Value
+			if rightValue == int64(0) {
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(sqlstateDivisionByZero)}
+			}
+			if leftValue == int64(-9223372036854775808) && rightValue == int64(-1) {
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+			}
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: langruntime.CheckedI64Divide(leftValue, rightValue)}
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func Int8mod2t8f(left checkruntime.Int8Value, right checkruntime.Int8Value) checkruntime.Int8Value {
+	if left.Kind == checkruntime.Int8ValueError {
+		error := left.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int8ValueError {
+		error := right.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if left == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if left.Kind == checkruntime.Int8ValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.Int8ValueValue {
+			rightValue := right.Value
+			if rightValue == int64(0) {
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(sqlstateDivisionByZero)}
+			}
+			if rightValue == int64(-1) {
+				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: int64(0)}
+			}
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: langruntime.CheckedI64Remainder(leftValue, rightValue)}
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func Int28mulLmrp(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.Int8Value {
+	left = checkruntime.CopyInt2Value(left)
+	widened := checkruntime.Int2ToInt8(left)
+	return Int8mul6t1m(widened, right)
+}
+func Int28divYfcw(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.Int8Value {
+	left = checkruntime.CopyInt2Value(left)
+	widened := checkruntime.Int2ToInt8(left)
+	return Int8div8s66(widened, right)
+}
+func Int82mul60eu(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.Int8Value {
+	right = checkruntime.CopyInt2Value(right)
+	widened := checkruntime.Int2ToInt8(right)
+	return Int8mul6t1m(left, widened)
+}
+func Int82divBfmp(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.Int8Value {
+	right = checkruntime.CopyInt2Value(right)
+	widened := checkruntime.Int2ToInt8(right)
+	return Int8div8s66(left, widened)
+}
+func Int48mulKykj(left checkruntime.Int4Value, right checkruntime.Int8Value) checkruntime.Int8Value {
+	left = checkruntime.CopyInt4Value(left)
+	widened := Int8Mzac(left)
+	return Int8mul6t1m(widened, right)
+}
+func Int48divXx1r(left checkruntime.Int4Value, right checkruntime.Int8Value) checkruntime.Int8Value {
+	left = checkruntime.CopyInt4Value(left)
+	widened := Int8Mzac(left)
+	return Int8div8s66(widened, right)
+}
+func Int84mul636w(left checkruntime.Int8Value, right checkruntime.Int4Value) checkruntime.Int8Value {
+	right = checkruntime.CopyInt4Value(right)
+	widened := Int8Mzac(right)
+	return Int8mul6t1m(left, widened)
+}
+func Int84divW65p(left checkruntime.Int8Value, right checkruntime.Int4Value) checkruntime.Int8Value {
+	right = checkruntime.CopyInt4Value(right)
+	widened := Int8Mzac(right)
+	return Int8div8s66(left, widened)
+}
 func BooleqY6qu(left checkruntime.BoolValue, right checkruntime.BoolValue) checkruntime.BoolValue {
 	left = checkruntime.CopyBoolValue(left)
 	right = checkruntime.CopyBoolValue(right)

@@ -50,8 +50,8 @@ import them. Keep schema-only helpers with their callables.
   `int2 × int2 → int2` and `int2 → int2` arithmetic, `int4 × int4 → int4`
   and `int4 → int4` arithmetic, mixed int2/int4 arithmetic returning int4,
   and `text → int4`, and integer casts from int2 to int4/int8 and from int4
-  to int2/int8, plus int8 to int2/int4, and bigint addition/subtraction, unary
-  signs, absolute value, and mixed int2/int4-to-int8 sums and differences.
+  to int2/int8, plus int8 to int2/int4, and bigint arithmetic, unary
+  signs, absolute value, and mixed int2/int4-to-int8 arithmetic.
   It tests these automatically.
 - Int2 payloads use the existing i32 primitive, restricted to the PostgreSQL
   smallint range. Public inputs are already SQL-coerced; out-of-range values
@@ -64,20 +64,23 @@ import them. Keep schema-only helpers with their callables.
   Integer casts resolve catalog-generated pg_cast links to maintained functions.
   Int2 widens to int4/int8; int4 widens to int8 or narrows to int2; int8 narrows
   to int2/int4. Narrowing checks the destination range before converting and
-  returns SQLSTATE 22003 on overflow. Mixed int2/int8 and int4/int8 addition and
-  subtraction widen the smaller operand and reuse bigint arithmetic. Implicit
-  integer promotion without a mixed catalog operator requires a separate slice.
+  returns SQLSTATE 22003 on overflow. Mixed int2/int8 and int4/int8 addition,
+  subtraction, multiplication, and division widen the smaller operand and reuse
+  bigint arithmetic. Implicit integer promotion without a mixed catalog operator
+  requires a separate slice.
 - Int8 payloads use Rust `i64`, Go `int64`, and TypeScript `bigint`. Write
   decimal Rust literals with an `i64` suffix. Widen an int4 payload with
   `as i64` into a distinct local before comparing it with an int8 payload.
-  I64 addition, subtraction, and multiplication require two explicitly typed
-  i64 operands and reject overflow. I64 division, remainder, and variable negation
-  are outside this subset. SQL bigint addition/subtraction check the range before
+  I64 arithmetic requires two explicitly typed operands and rejects overflow.
+  Division truncates toward zero; remainder follows the dividend sign. Both
+  reject zero divisors and the signed minimum with negative one. Variable
+  negation is outside this subset. SQL bigint arithmetic checks the range before
   arithmetic. Negation uses zero minus the payload after rejecting the signed
   minimum; absolute value shares that negation. Preserve intermediate overflow
-  even if a later operation would restore the range. SQL bigint multiplication,
-  division, and remainder need separate slices. Narrow with `as i32` only after
-  checking the SQL range.
+  even if a later operation would restore the range. SQL division returns 22012
+  for zero and 22003 for minimum divided by negative one; SQL remainder returns
+  zero for a divisor of negative one, bypassing the Rust primitive. Narrow with
+  `as i32` only after checking the SQL range.
 - Numeric payloads borrow exact decimal strings in `NumericValue`; Go uses
   strings and TypeScript accepts strings or the readonly wrapper. Inputs represent
   already-coerced SQL values. Reject target numeric objects and floating-point

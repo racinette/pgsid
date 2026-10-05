@@ -30,6 +30,28 @@ const callables = builtinCallables()
 const expressions: Record<string, string> = {
   add: 'big + other = expected',
   subtract: 'big - other = expected',
+  multiply: 'big * other = expected',
+  divide: 'big / other = expected',
+  remainder: 'big % other = expected',
+  small_multiply: 'small * big = expected',
+  big_small_multiply: 'big * small = expected',
+  small_divide: 'small / big = expected',
+  big_small_divide: 'big / small = expected',
+  wide_multiply: 'wide * big = expected',
+  big_wide_multiply: 'big * wide = expected',
+  wide_divide: 'wide / big = expected',
+  big_wide_divide: 'big / wide = expected',
+  literal_multiply: 'big * 2 = expected',
+  literal_divide: 'big / 2 = expected',
+  literal_remainder: 'big % 2::bigint = expected',
+  product_roundtrip: '(big * other) / other = big',
+  division_roundtrip: '(big / other) * other + big % other = big',
+  lazy_product: 'CASE WHEN flag THEN true ELSE big * other = expected END',
+  lazy_division: 'flag OR big / other = expected',
+  lazy_remainder: 'flag AND big % other = expected',
+  division_null_test: '(big / other) IS NULL',
+  remainder_null_test: '(big % other) IS NULL',
+  selected_product: '(CASE WHEN flag THEN big * other ELSE big END) = expected',
   negate: '-big = expected',
   positive: '+big = expected',
   absolute: 'abs(big) = expected',
@@ -98,7 +120,7 @@ describe('Rust bigint CHECK arithmetic', () => {
   })
 
   it('resolves all catalog callables and preserves exact values, overflow, domains, states and lazy branches in all targets', async () => {
-    expect(callables).toHaveLength(14)
+    expect(callables).toHaveLength(25)
     const constraints = table.constraints.filter((c) => c.type === 'check')
     const ordered = constraints.map((c) => c.name)
     const group = prepareCheckRustGroup(
@@ -125,11 +147,21 @@ describe('Rust bigint CHECK arithmetic', () => {
       minimum,
       minimum + 1n,
       -9007199254740993n,
+      -3037000500n,
+      -3037000499n,
       -2147483648n,
       -32768n,
+      -7n,
+      -3n,
+      -2n,
       -1n,
       0n,
       1n,
+      2n,
+      3n,
+      7n,
+      3037000499n,
+      3037000500n,
       32767n,
       2147483647n,
       9007199254740993n,
@@ -157,8 +189,9 @@ describe('Rust bigint CHECK arithmetic', () => {
             ).rows[0]!.v
             expected = { kind: result === null ? 'Null' : result ? 'True' : 'False' }
           } catch (caught) {
-            expect((caught as { code: string }).code).toBe('22003')
-            expected = overflow
+            const code = (caught as { code: string }).code
+            expect(['22003', '22012']).toContain(code)
+            expected = { kind: 'Error', value: { state: parseInt(code, 36) } }
           }
           fixtures.push({
             name,
@@ -269,16 +302,85 @@ describe('Rust bigint CHECK arithmetic', () => {
         expected: { kind: 'True' },
       },
     )
+    for (const name of ['lazy_product', 'lazy_division', 'selected_product'])
+      fixtures.push({
+        name,
+        row: {
+          ...base,
+          big: value(maximum),
+          other: value(2n),
+          expected: value(maximum),
+          flag: value(name !== 'selected_product'),
+        },
+        expected: { kind: 'True' },
+      })
+    fixtures.push(
+      {
+        name: 'divide',
+        row: { ...base, big: value(minimum), other: value(-1n) },
+        expected: overflow,
+      },
+      {
+        name: 'remainder',
+        row: { ...base, big: value(minimum), other: value(-1n) },
+        expected: { kind: 'True' },
+      },
+      {
+        name: 'divide',
+        row: {
+          ...base,
+          big: value(9007199254740993n),
+          other: value(3n),
+          expected: value(3002399751580331n),
+        },
+        expected: { kind: 'True' },
+      },
+      {
+        name: 'multiply',
+        row: {
+          ...base,
+          big: value(3037000499n),
+          other: value(3037000499n),
+          expected: value(9223372030926249001n),
+        },
+        expected: { kind: 'True' },
+      },
+      {
+        name: 'product_roundtrip',
+        row: { ...base, big: value(maximum), other: value(2n) },
+        expected: overflow,
+      },
+      {
+        name: 'lazy_division',
+        row: { ...base, big: value(minimum), other: value(0n), flag: value(true) },
+        expected: { kind: 'True' },
+      },
+      {
+        name: 'lazy_remainder',
+        row: { ...base, big: value(minimum), other: value(0n), flag: value(false) },
+        expected: { kind: 'False' },
+      },
+      {
+        name: 'divide',
+        row: { ...base, expected: value(null) },
+        expected: { kind: 'Error', value: { state: parseInt('22012', 36) } },
+      },
+      {
+        name: 'remainder',
+        row: { ...base, expected: value(null) },
+        expected: { kind: 'Error', value: { state: parseInt('22012', 36) } },
+      },
+      {
+        name: 'multiply',
+        row: { ...base, big: value(maximum), other: value(2n), expected: value(null) },
+        expected: overflow,
+      },
+    )
     await runCheckParity(directory, 'bigintarithmetic', group, ordered, fixtures)
   }, 120_000)
 
-  it('defers multiplication, division, remainder and implicit promotion without mixed catalog operators', () => {
-    for (const sql of [
-      'big * other = expected',
-      'big / other = expected',
-      'big % other = expected',
-      'small % big = expected',
-    ]) {
+  it('defers implicit promotion without mixed catalog operators', () => {
+    for (const sql of ['small % big = expected']) {
       const group = prepareCheckRustGroup([
         {
           expression: lowerTableCheck(

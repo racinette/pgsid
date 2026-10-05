@@ -421,6 +421,8 @@ class Transpiler {
           if (value.operator === 'multiply') return call('checkedI64Multiply', left, right)
           if (value.operator === 'add') return call('checkedI64Add', left, right)
           if (value.operator === 'subtract') return call('checkedI64Subtract', left, right)
+          if (value.operator === 'divide') return call('checkedI64Divide', left, right)
+          if (value.operator === 'remainder') return call('checkedI64Remainder', left, right)
         }
         if (value.operator === 'multiply') return call('checkedSignedMultiply', left, right)
         if (value.operator === 'divide') return call('checkedSignedDivide', left, right)

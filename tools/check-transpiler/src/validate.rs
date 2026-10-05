@@ -455,12 +455,6 @@ fn infer_expr_type(
                         if left.as_deref() != Some("i64") || right.as_deref() != Some("i64") {
                             return Err("i64 arithmetic requires i64 operands".into());
                         }
-                        if !matches!(
-                            binary.op,
-                            syn::BinOp::Add(_) | syn::BinOp::Sub(_) | syn::BinOp::Mul(_)
-                        ) {
-                            return Err("i64 division and remainder have no target lowering".into());
-                        }
                         return Ok(Some("i64".into()));
                     }
                     if left.as_deref() == Some("i32") || right.as_deref() == Some("i32") {

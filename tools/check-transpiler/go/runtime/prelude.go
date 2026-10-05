@@ -48,6 +48,26 @@ func checkedI64Multiply(left int64, right int64) int64 {
 	return result
 }
 
+func checkedI64Divide(left int64, right int64) int64 {
+	if right == 0 {
+		panic("integer division by zero")
+	}
+	if left == minSharedI64 && right == -1 {
+		panic("i64 overflow")
+	}
+	return left / right
+}
+
+func checkedI64Remainder(left int64, right int64) int64 {
+	if right == 0 {
+		panic("integer remainder by zero")
+	}
+	if left == minSharedI64 && right == -1 {
+		panic("i64 overflow")
+	}
+	return left % right
+}
+
 func checkedIndex(value int) int {
 	if value < 0 || value > maxSharedIndex {
 		panic("index outside shared numeric range")

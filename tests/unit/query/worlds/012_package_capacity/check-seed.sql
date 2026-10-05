@@ -504,3 +504,270 @@ INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustm
 -- name: mixed_bulk_minimum_representable
 INSERT INTO mixed_bulk_adjustments (id, delta, small_adjustment, integer_adjustment, small_total, integer_total, small_residual, integer_residual, small_balance, integer_balance)
 VALUES (2, -9223372036854775807, 0, 0, -9223372036854775807, -9223372036854775807, -9223372036854775807, -9223372036854775807, 9223372036854775807, 9223372036854775807);
+
+-- name: bulk_product_exact
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, 9007199254740993, 3, 27021597764222979, false);
+
+-- name: bulk_product_negative
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, -9007199254740993, 3, -27021597764222979, false);
+
+-- name: bulk_product_negative_multiplier
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, 9007199254740993, -3, -27021597764222979, false);
+
+-- name: bulk_product_both_negative
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, -7, -3, 21, false);
+
+-- name: bulk_product_maximum
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, 9223372036854775807, 1, 9223372036854775807, false);
+
+-- name: bulk_product_minimum
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, -9223372036854775808, 1, -9223372036854775808, false);
+
+-- name: bulk_product_zero
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, -9223372036854775808, 0, 0, false);
+
+-- name: bulk_product_zero_left
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, 0, -9223372036854775808, 0, false);
+
+-- name: bulk_product_square
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, 3037000499, 3037000499, 9223372030926249001, false);
+
+-- name: bulk_product_square_overflow
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, 3037000500, 3037000500, 9223372036854775807, false);
+
+-- name: bulk_product_negative_square
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, -3037000499, 3037000499, -9223372030926249001, false);
+
+-- name: bulk_product_negative_square_overflow
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, -3037000500, 3037000500, -9223372036854775808, false);
+
+-- name: bulk_product_upper_overflow
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, 9223372036854775807, 2, 9223372036854775807, false);
+
+-- name: bulk_product_lower_overflow
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, -9223372036854775808, 2, -9223372036854775808, false);
+
+-- name: bulk_product_minimum_negation
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, -9223372036854775808, -1, 9223372036854775807, false);
+
+-- name: bulk_product_minimum_multiplier
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, -1, -9223372036854775808, 9223372036854775807, false);
+
+-- name: bulk_product_all_minimum
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, -9223372036854775808, -9223372036854775808, 9223372036854775807, false);
+
+-- name: bulk_product_null_units
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, NULL, 2, NULL, false);
+
+-- name: bulk_product_null_packages
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, 2, NULL, NULL, false);
+
+-- name: bulk_product_all_null
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, NULL, NULL, NULL, false);
+
+-- name: bulk_product_wrong_total
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, 7, 3, 20, false);
+
+-- name: bulk_product_null_total
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, 7, 3, NULL, false);
+
+-- name: bulk_product_error_before_null
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, 9223372036854775807, 2, NULL, false);
+
+-- name: bulk_product_guarded_overflow
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, 9223372036854775807, 2, 9223372036854775807, true);
+
+-- name: bulk_product_null_guard
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, 7, 3, 21, NULL);
+
+-- name: bulk_product_null_guard_overflow
+INSERT INTO bulk_package_products (id, units, packages, total, skip_product) VALUES (2, 9223372036854775807, 2, 9223372036854775807, NULL);
+
+-- name: bulk_division_exact
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 9007199254740993, 3, 3002399751580331, 0, false, false);
+
+-- name: bulk_division_remainder
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 9007199254740993, 7, 1286742750677284, 5, false, false);
+
+-- name: bulk_division_negative
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, -7, 3, -2, -1, false, false);
+
+-- name: bulk_division_negative_divisor
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 7, -3, -2, 1, false, false);
+
+-- name: bulk_division_both_negative
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, -7, -3, 2, -1, false, false);
+
+-- name: bulk_division_zero_quotient
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, -1, 3, 0, -1, false, false);
+
+-- name: bulk_division_maximum
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 9223372036854775807, 1, 9223372036854775807, 0, false, false);
+
+-- name: bulk_division_minimum
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, -9223372036854775808, 1, -9223372036854775808, 0, false, false);
+
+-- name: bulk_division_minimum_remainder
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, -9223372036854775808, 3, -3074457345618258602, -2, false, false);
+
+-- name: bulk_division_minimum_divisor
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 7, -9223372036854775808, 0, 7, false, false);
+
+-- name: bulk_division_all_minimum
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, -9223372036854775808, -9223372036854775808, 1, 0, false, false);
+
+-- name: bulk_division_zero_units
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 0, 3, 0, 0, false, false);
+
+-- name: bulk_division_zero_divisor
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 7, 0, 0, 0, false, false);
+
+-- name: bulk_division_zero_both
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 0, 0, 0, 0, false, false);
+
+-- name: bulk_division_minimum_overflow
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, -9223372036854775808, -1, 9223372036854775807, 0, false, false);
+
+-- name: bulk_division_null_units
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, NULL, 0, NULL, NULL, false, false);
+
+-- name: bulk_division_null_divisor
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 7, NULL, NULL, NULL, false, false);
+
+-- name: bulk_division_all_null
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, NULL, NULL, NULL, NULL, false, false);
+
+-- name: bulk_division_wrong_quotient
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 7, 3, 3, 1, false, false);
+
+-- name: bulk_division_wrong_remainder
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 7, 3, 2, 0, false, false);
+
+-- name: bulk_division_null_results
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 7, 3, NULL, NULL, false, false);
+
+-- name: bulk_division_error_before_null
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 7, 0, NULL, NULL, false, false);
+
+-- name: bulk_division_minimum_modulus_minus_one
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, -9223372036854775808, -1, 9223372036854775807, 0, true, false);
+
+-- name: bulk_division_minimum_skip_remainder
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, -9223372036854775808, -1, 9223372036854775807, 0, false, true);
+
+-- name: bulk_division_guard_division_only
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 7, 0, 0, 0, true, false);
+
+-- name: bulk_division_guard_remainder_only
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 7, 0, 0, 0, false, true);
+
+-- name: bulk_division_guard_both
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, 7, 0, 0, 0, true, true);
+
+-- name: bulk_division_null_guards
+INSERT INTO bulk_package_divisions (id, units, batch_size, batches, loose_units, skip_division, skip_remainder) VALUES (2, -7, 3, -2, -1, NULL, NULL);
+
+-- name: mixed_bulk_package_exact
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 9007199254740993, 3, 7, 27021597764222979, 63050394783186951, 3002399751580331, 0, 1286742750677284, 0, false, false);
+
+-- name: mixed_bulk_package_negative
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, -9007199254740993, 3, 7, -27021597764222979, -63050394783186951, -3002399751580331, 0, -1286742750677284, 0, false, false);
+
+-- name: mixed_bulk_package_negative_batches
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 9007199254740993, -3, -7, -27021597764222979, -63050394783186951, -3002399751580331, 0, -1286742750677284, 0, false, false);
+
+-- name: mixed_bulk_package_both_negative
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, -7, -3, -5, 21, 35, 2, 0, 1, 0, false, false);
+
+-- name: mixed_bulk_package_small_limits
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 7, -32768, 32767, -229376, 229369, 0, -4681, 0, 4681, false, false);
+
+-- name: mixed_bulk_package_integer_limits
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 7, 32767, -2147483648, 229369, -15032385536, 0, 4681, 0, -306783378, false, false);
+
+-- name: mixed_bulk_package_integer_maximum
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 7, 3, 2147483647, 21, 15032385529, 2, 0, 0, 306783378, false, false);
+
+-- name: mixed_bulk_package_maximum
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 9223372036854775807, 1, 1, 9223372036854775807, 9223372036854775807, 9223372036854775807, 0, 9223372036854775807, 0, false, false);
+
+-- name: mixed_bulk_package_minimum
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, -9223372036854775808, 1, 1, -9223372036854775808, -9223372036854775808, -9223372036854775808, 0, -9223372036854775808, 0, false, false);
+
+-- name: mixed_bulk_package_minimum_small_overflow
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, -9223372036854775808, -1, 1, 9223372036854775807, -9223372036854775808, 9223372036854775807, 0, -9223372036854775808, 0, false, false);
+
+-- name: mixed_bulk_package_minimum_integer_overflow
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, -9223372036854775808, 1, -1, -9223372036854775808, 9223372036854775807, -9223372036854775808, 0, 9223372036854775807, 0, false, false);
+
+-- name: mixed_bulk_package_small_product_overflow
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 9223372036854775807, 2, 1, 9223372036854775807, 9223372036854775807, 4611686018427387903, 0, 9223372036854775807, 0, false, false);
+
+-- name: mixed_bulk_package_integer_product_overflow
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 9223372036854775807, 1, 2, 9223372036854775807, 9223372036854775807, 9223372036854775807, 0, 4611686018427387903, 0, false, false);
+
+-- name: mixed_bulk_package_negative_product_overflow
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, -9223372036854775808, 2, 1, -9223372036854775808, -9223372036854775808, -4611686018427387904, 0, -9223372036854775808, 0, false, false);
+
+-- name: mixed_bulk_package_zero_small_divisor
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 7, 0, 3, 0, 21, 0, 0, 2, 0, false, false);
+
+-- name: mixed_bulk_package_zero_integer_divisor
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 7, 3, 0, 21, 0, 2, 0, 0, 0, false, false);
+
+-- name: mixed_bulk_package_zero_bulk_divisor
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 0, 3, 7, 0, 0, 0, 0, 0, 0, false, false);
+
+-- name: mixed_bulk_package_all_zero
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, false);
+
+-- name: mixed_bulk_package_null_units
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, NULL, 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, false, false);
+
+-- name: mixed_bulk_package_null_small
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 7, NULL, 3, NULL, 21, NULL, NULL, 2, 0, false, false);
+
+-- name: mixed_bulk_package_null_integer
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 7, 3, NULL, 21, NULL, 2, 0, NULL, NULL, false, false);
+
+-- name: mixed_bulk_package_all_null
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false, false);
+
+-- name: mixed_bulk_package_wrong_small_total
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 7, 3, 5, 100, 35, 2, 0, 1, 0, false, false);
+
+-- name: mixed_bulk_package_wrong_integer_total
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 7, 3, 5, 21, 100, 2, 0, 1, 0, false, false);
+
+-- name: mixed_bulk_package_wrong_bulk_small_batches
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 7, 3, 5, 21, 35, 100, 0, 1, 0, false, false);
+
+-- name: mixed_bulk_package_wrong_small_bulk_batches
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 7, 3, 5, 21, 35, 2, 100, 1, 0, false, false);
+
+-- name: mixed_bulk_package_wrong_bulk_integer_batches
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 7, 3, 5, 21, 35, 2, 0, 100, 0, false, false);
+
+-- name: mixed_bulk_package_wrong_integer_bulk_batches
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 7, 3, 5, 21, 35, 2, 0, 1, 100, false, false);
+
+-- name: mixed_bulk_package_null_results
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 7, 3, 5, NULL, NULL, NULL, NULL, NULL, NULL, false, false);
+
+-- name: mixed_bulk_package_error_before_null
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 9223372036854775807, 2, 3, NULL, NULL, 4611686018427387903, 0, 3074457345618258602, 0, false, false);
+
+-- name: mixed_bulk_package_guarded_products
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 9223372036854775807, 2, 3, 9223372036854775807, 9223372036854775807, 4611686018427387903, 0, 3074457345618258602, 0, true, false);
+
+-- name: mixed_bulk_package_guarded_divisions
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 0, 3, 7, 0, 0, 0, 0, 0, 0, false, true);
+
+-- name: mixed_bulk_package_guarded_both
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, -9223372036854775808, -1, -1, 9223372036854775807, 9223372036854775807, 9223372036854775807, 0, 9223372036854775807, 0, true, true);
+
+-- name: mixed_bulk_package_minimum_division_only
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, -9223372036854775808, -1, -1, 9223372036854775807, 9223372036854775807, 9223372036854775807, 0, 9223372036854775807, 0, true, false);
+
+-- name: mixed_bulk_package_null_guards
+INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions) VALUES (2, 7, 3, 5, 21, 35, 2, 0, 1, 0, NULL, NULL);

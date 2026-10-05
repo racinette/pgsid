@@ -1061,19 +1061,16 @@ mod tests {
                 "pub fn f(left: usize, right: usize) -> usize {{ left {operator} right }}"
             ))
             .is_err());
-            assert_eq!(
-                parse(&format!(
-                    "pub fn f(left: i64, right: i64) -> i64 {{ left {operator} right }}"
-                ))
-                .is_ok(),
-                operator == "*"
-            );
+            assert!(parse(&format!(
+                "pub fn f(left: i64, right: i64) -> i64 {{ left {operator} right }}"
+            ))
+            .is_ok());
         }
     }
 
     #[test]
     fn timestamp_arithmetic_requires_explicit_int8_operands() {
-        for operator in ["+", "-", "*"] {
+        for operator in ["+", "-", "*", "/", "%"] {
             assert!(parse(&format!(
                 "pub fn f(left: i64, right: i64) -> i64 {{ left {operator} right }}"
             ))
@@ -1089,8 +1086,6 @@ mod tests {
             ))
             .is_err());
         }
-        assert!(parse("pub fn f(left: i64, right: i64) -> i64 { left / right }").is_err());
-        assert!(parse("pub fn f(left: i64, right: i64) -> i64 { left % right }").is_err());
         assert!(parse("pub fn f(left: i64) -> i64 { -left }").is_err());
     }
 

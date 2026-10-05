@@ -41,9 +41,10 @@ change to the regex transpiler unless the regex engine itself changes.
   TypeScript `bigint`. Widening supports `i32 as i64`; `i64 as i32` truncates
   to the low signed 32 bits before mapping to the target primitive. PostgreSQL
   narrowing functions check their destination range in Rust before casting.
-  Addition, subtraction, and multiplication accept two explicitly typed i64 operands and reject
-  overflow in both targets. I64 division, remainder, variable negation,
-  and other narrowing casts are rejected.
+  Arithmetic accepts two explicitly typed i64 operands and rejects overflow
+  in both targets. Division truncates toward zero; remainder follows the
+  dividend sign. Both reject zero divisors and the signed minimum with negative
+  one, matching Rust. Variable negation and other narrowing casts are rejected.
 - Private top-level constants may borrow literal slices of `usize`, `u16`, `i32`,
   `i64`, or `&str` for lookup tables. Indexing and length access preserve their
   element types. I64 table entries require explicit i64 literals. Slice aliases,
@@ -57,7 +58,6 @@ change to the regex transpiler unless the regex engine itself changes.
 - Calendar constructors use signed `i32` multiplication, division, and remainder.
   Division truncates toward zero. Both division and remainder reject zero
   divisors and the signed minimum with a divisor of negative one. Multiplication
-  rejects overflow. Division and remainder reject `i64`; all arithmetic rejects
-  mixed signed/unsigned operands.
+  rejects overflow. All arithmetic rejects mixed signed/unsigned operands.
 - Run `bash tools/check-rust/check.sh` and the relevant codegen golden checks
   after changing parsing, lowering, file boundaries, or names.
