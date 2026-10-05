@@ -203,6 +203,8 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		return goCall("checkedSignedNegate", g.goExpression(value.Value))
 	case "cast":
 		switch path(value.TargetType) {
+		case "i32":
+			return goCall("int", goCall("int32", g.goExpression(value.Value)))
 		case "i64":
 			return goCall("int64", goCall("checkedI32", g.goExpression(value.Value)))
 		case "u32":

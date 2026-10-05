@@ -140,7 +140,7 @@ fn expr(expr: &Expr) -> Result {
             self::expr(&node.expr)
         }
         Expr::Cast(node) if node.attrs.is_empty() => {
-            if !matches!(&*node.ty, Type::Path(target) if target.path.is_ident("u32") || target.path.is_ident("usize") || target.path.is_ident("i64"))
+            if !matches!(&*node.ty, Type::Path(target) if target.path.is_ident("u32") || target.path.is_ident("usize") || target.path.is_ident("i64") || target.path.is_ident("i32"))
             {
                 return Err("cast target is outside the syntax subset".into());
             }
@@ -512,7 +512,7 @@ mod tests {
             "enum Empty {}",
             "#[allow(dead_code)] const X: usize = 1;",
             "pub fn f() -> usize { let x = 1; unsafe { x } }",
-            "pub fn f(value: char) -> i32 { value as i32 }",
+            "pub fn f(value: char) -> i32 { value as i16 }",
             "pub fn f(value: bool) -> usize { if value { 1 } else { 2 } }",
             "pub fn f(value: bool) -> usize { let result = if value { 1 } else { 2 }; result }",
             "pub struct Generic<T> { pub value: T }",

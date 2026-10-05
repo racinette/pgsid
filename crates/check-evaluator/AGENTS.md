@@ -50,7 +50,7 @@ import them. Keep schema-only helpers with their callables.
   `int2 × int2 → int2` and `int2 → int2` arithmetic, `int4 × int4 → int4`
   and `int4 → int4` arithmetic, mixed int2/int4 arithmetic returning int4,
   and `text → int4`, and integer casts from int2 to int4/int8 and from int4
-  to int2/int8, and tests them automatically.
+  to int2/int8, plus int8 to int2/int4, and tests them automatically.
 - Int2 payloads use the existing i32 primitive, restricted to the PostgreSQL
   smallint range. Public inputs are already SQL-coerced; out-of-range values
   defer. Mixed comparisons widen in Rust before using int4 or int8 comparisons.
@@ -60,15 +60,16 @@ import them. Keep schema-only helpers with their callables.
   the catalog like binary operators. Mixed int2/int4 addition, subtraction,
   multiplication, and division widen the smallint operand and return int4.
   Integer casts resolve catalog-generated pg_cast links to maintained functions.
-  Int2 widens to int4/int8; int4 widens to int8 or narrows to int2 with SQLSTATE
-  22003 on overflow. Mixed bigint arithmetic, implicit integer promotion without
-  a mixed catalog operator, and bigint narrowing require separate slices.
+  Int2 widens to int4/int8; int4 widens to int8 or narrows to int2; int8 narrows
+  to int2/int4. Narrowing checks the destination range before converting and
+  returns SQLSTATE 22003 on overflow. Mixed bigint arithmetic and implicit integer
+  promotion without a mixed catalog operator require separate slices.
 - Int8 payloads use Rust `i64`, Go `int64`, and TypeScript `bigint`. Write
   decimal Rust literals with an `i64` suffix. Widen an int4 payload with
   `as i64` into a distinct local before comparing it with an int8 payload.
   I64 addition, subtraction, and multiplication require two explicitly typed
-  i64 operands and reject overflow. I64 division, remainder, narrowing casts,
-  and variable negation are outside this subset.
+  i64 operands and reject overflow. I64 division, remainder, and variable negation
+  are outside this subset. Narrow with `as i32` only after checking the SQL range.
 - Numeric payloads borrow exact decimal strings in `NumericValue`; Go uses
   strings and TypeScript accepts strings or the readonly wrapper. Inputs represent
   already-coerced SQL values. Reject target numeric objects and floating-point

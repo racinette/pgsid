@@ -150,3 +150,69 @@ func TestArithmetic(t *testing.T) {
     }
   }, 120_000)
 })
+
+describe('CHECK bigint narrowing primitive', () => {
+  it('preserves Rust truncation through both target emitters', async () => {
+    const source = 'pub fn narrow(value: i64) -> i32 { value as i32 }'
+    const generated = transpileCheckRust(source)
+    const generatedContext = createContext({ exports: {} })
+    runInContext(
+      ts.transpileModule(generated.typescript, {
+        compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
+      }).outputText,
+      generatedContext,
+    )
+    const narrow = (generatedContext['exports'] as { narrow: (value: bigint) => number }).narrow
+    const cases = [
+      [-9223372036854775808n, 0],
+      [-9007199254740993n, -1],
+      [-4294967296n, 0],
+      [-2147483649n, 2147483647],
+      [-2147483648n, -2147483648],
+      [-1n, -1],
+      [0n, 0],
+      [1n, 1],
+      [2147483647n, 2147483647],
+      [2147483648n, -2147483648],
+      [4294967295n, -1],
+      [4294967296n, 0],
+      [9007199254740993n, 1],
+      [9223372036854775807n, -1],
+    ] as const
+    for (const [input, expected] of cases) expect(narrow(input)).toBe(expected)
+    const root = await mkdtemp(join(tmpdir(), 'pgsid-check-narrow-'))
+    try {
+      await writeFile(join(root, 'runtime.go'), generated.go)
+      await writeFile(join(root, 'go.mod'), 'module narrowing\n\ngo 1.25\n')
+      await writeFile(
+        join(root, 'narrow_test.go'),
+        `package generated
+import "testing"
+func TestNarrow(t *testing.T) {
+  for _, test := range []struct { input int64; expected int }{
+    ${cases.map(([input, expected]) => `{${input}, ${expected}}`).join(',\n')},
+  } { if actual := Narrow(test.input); actual != test.expected { t.Fatalf("%d: got %d, expected %d", test.input, actual, test.expected) } }
+}
+`,
+      )
+      await writeFile(
+        join(root, 'narrow.rs'),
+        source +
+          `
+#[test] fn truncates() {
+  ${cases.map(([input, expected]) => `assert_eq!(narrow(${input}i64), ${expected});`).join('\n')}
+}
+`,
+      )
+      const run = promisify(execFile)
+      await run('go', ['test', './...'], {
+        cwd: root,
+        env: { ...process.env, GOCACHE: '/tmp/pgsid-check-rust-go-cache' },
+      })
+      await run('rustc', ['--test', join(root, 'narrow.rs'), '-o', join(root, 'narrow')])
+      await run(join(root, 'narrow'))
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  }, 120_000)
+})

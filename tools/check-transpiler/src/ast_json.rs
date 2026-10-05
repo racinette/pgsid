@@ -781,6 +781,24 @@ mod tests {
     }
 
     #[test]
+    fn bigint_narrowing_accepts_only_i64_to_i32() {
+        let tree: serde_json::Value =
+            serde_json::from_str(&parse("pub fn f(value: i64) -> i32 { value as i32 }").unwrap())
+                .unwrap();
+        assert_eq!(tree["items"][0]["body"][0]["value"]["kind"], "cast");
+        for source in [
+            "pub fn f(value: char) -> i32 { value as i32 }",
+            "pub fn f(value: i32) -> i32 { value as i32 }",
+            "pub fn f(value: u32) -> i32 { value as i32 }",
+            "pub fn f(value: u16) -> i32 { value as i32 }",
+            "pub fn f(value: usize) -> i32 { value as i32 }",
+            "pub fn f(value: i64) -> i16 { value as i16 }",
+        ] {
+            assert!(parse(source).is_err(), "accepted {source}");
+        }
+    }
+
+    #[test]
     fn compact_table_indexes_widen_without_narrowing_or_arithmetic() {
         let tree: serde_json::Value = serde_json::from_str(&parse("const IDS: &[u16] = &[0, 32768, 65535]; pub fn f(index: usize) -> usize { let id = IDS[index]; id as usize }").unwrap()).unwrap();
         assert_eq!(

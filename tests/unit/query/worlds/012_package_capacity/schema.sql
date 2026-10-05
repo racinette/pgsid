@@ -124,3 +124,26 @@ CREATE TABLE compact_stock_corrections (
     CASE WHEN skip_conversion THEN true ELSE adjustment::smallint = compact_adjustment END
   )
 );
+
+CREATE DOMAIN inventory_adjustment AS bigint;
+CREATE DOMAIN warehouse_adjustment AS inventory_adjustment;
+
+CREATE TABLE compact_inventory_adjustments (
+  id integer PRIMARY KEY,
+  adjustment warehouse_adjustment,
+  recorded integer,
+  skip_conversion boolean,
+  CONSTRAINT compact_adjustment CHECK (
+    CASE WHEN skip_conversion THEN true ELSE adjustment::integer = recorded END
+  )
+);
+
+CREATE TABLE tiny_inventory_adjustments (
+  id integer PRIMARY KEY,
+  adjustment warehouse_adjustment,
+  recorded smallint,
+  skip_conversion boolean,
+  CONSTRAINT tiny_adjustment CHECK (
+    CASE WHEN skip_conversion THEN true ELSE adjustment::smallint = recorded END
+  )
+);

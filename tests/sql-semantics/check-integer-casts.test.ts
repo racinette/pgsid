@@ -20,6 +20,20 @@ const expressions: Record<string, string> = {
   small_to_bigint: 'small::bigint = big',
   integer_to_bigint: 'wide::bigint = big',
   integer_to_small: 'wide::smallint = small',
+  bigint_to_integer: 'big::integer = wide',
+  bigint_to_small: 'big::smallint = small',
+  bigint_roundtrip_integer: 'big::integer::bigint = big',
+  bigint_roundtrip_small: 'big::smallint::bigint = big',
+  bigint_null_test: 'big::integer IS NULL',
+  bigint_small_null_test: 'big::smallint IS NULL',
+  bigint_selected: '(CASE WHEN flag THEN big::smallint ELSE small END) = small',
+  bigint_lazy_case: 'CASE WHEN flag THEN true ELSE big::integer = wide END',
+  bigint_lazy_and: 'flag AND big::smallint = small',
+  bigint_lazy_or: 'flag OR big::integer = wide',
+  call_int2_big: 'pg_catalog.int2(big) = small',
+  call_int4_big: 'pg_catalog.int4(big) = wide',
+
+  widened_narrowing: 'wide::bigint::smallint = small',
   roundtrip: 'wide::smallint::integer = wide',
   same_bigint: 'big::bigint = big',
   null_test: 'wide::smallint IS NULL',
@@ -39,7 +53,39 @@ const closedExpressions: Record<string, string> = {
   literal_overflow: '32768::smallint = 0',
   literal_underflow: '(-32769)::smallint = 0',
   literal_widening: "(-2147483648)::bigint = '-2147483648'::bigint",
+  bigint_literal_overflow: '2147483648::integer = 0',
+  bigint_literal_underflow: '(-2147483649)::integer = 0',
+  bigint_small_literal_overflow: "'32768'::bigint::smallint = 0",
+  bigint_small_literal_underflow: "'-32769'::bigint::smallint = 0",
 }
+const bigintExpressions = Object.keys(expressions).filter(
+  (name) => name.startsWith('bigint_') || name.endsWith('_big'),
+)
+const bigintValues = [
+  -9223372036854775808n,
+  -9007199254740993n,
+  -4294967296n,
+  -2147483649n,
+  -2147483648n,
+  -2147483647n,
+  -32769n,
+  -32768n,
+  -32767n,
+  -1n,
+  0n,
+  1n,
+  32766n,
+  32767n,
+  32768n,
+  2147483646n,
+  2147483647n,
+  2147483648n,
+  4294967295n,
+  4294967296n,
+  9007199254740993n,
+  9223372036854775807n,
+  null,
+] as const
 const value = (value: number | bigint | boolean | null): Input =>
   value === null ? { kind: 'Null' } : { kind: 'Value', value }
 const outcome = (value: boolean | null): Outcome => ({
@@ -58,7 +104,9 @@ describe('catalog-resolved integer CHECK casts', () => {
     await pg.exec(`CREATE DOMAIN short_change AS smallint;
       CREATE DOMAIN count_change AS integer;
       CREATE DOMAIN nested_change AS count_change;
-      CREATE TABLE integer_casts (small short_change, wide nested_change, big bigint, flag bool,
+      CREATE DOMAIN big_change AS bigint;
+      CREATE DOMAIN nested_big_change AS big_change;
+      CREATE TABLE integer_casts (small short_change, wide nested_change, big nested_big_change, flag bool,
         ${Object.entries(expressions)
           .map(([name, sql]) => `CONSTRAINT "${name}" CHECK (${sql})`)
           .join(',')});`)
@@ -103,6 +151,8 @@ describe('catalog-resolved integer CHECK casts', () => {
       ['int2', 'int8'],
       ['int4', 'int8'],
       ['int4', 'int2'],
+      ['int8', 'int4'],
+      ['int8', 'int2'],
     ]) {
       const conversion = builtinCast(`pg_catalog.${source}`, `pg_catalog.${target}`)!
       expect(conversion.method).toBe('f')
@@ -137,6 +187,32 @@ describe('catalog-resolved integer CHECK casts', () => {
             expected,
           })
         }
+    for (const big of bigintValues) {
+      const wide = big !== null && big >= -2147483648n && big <= 2147483647n ? Number(big) : 0
+      const small = big !== null && big >= -32768n && big <= 32767n ? Number(big) : 0
+      for (const name of bigintExpressions) {
+        let expected: Outcome
+        try {
+          expected = outcome(
+            (
+              await pg.query<{ v: boolean | null }>(
+                `WITH candidate AS MATERIALIZED (SELECT $1::smallint small, $2::integer wide, $3::bigint big, false flag)
+              SELECT (${expressions[name]}) AS v FROM candidate`,
+                [small, wide, big === null ? null : String(big)],
+              )
+            ).rows[0]!.v,
+          )
+        } catch (caught) {
+          expect((caught as { code: string }).code).toBe('22003')
+          expected = error
+        }
+        fixtures.push({
+          name,
+          row: { small: value(small), wide: value(wide), big: value(big), flag: value(false) },
+          expected,
+        })
+      }
+    }
     for (const [name, sql] of Object.entries(closedExpressions)) {
       let expected: Outcome
       try {
@@ -154,10 +230,15 @@ describe('catalog-resolved integer CHECK casts', () => {
       ['small_to_bigint', 'small'],
       ['integer_to_bigint', 'wide'],
       ['integer_to_small', 'wide'],
+      ['bigint_to_integer', 'big'],
+      ['bigint_to_small', 'big'],
     ] as const) {
       for (const [state, expected] of [
         [{ kind: 'Unknown' }, { kind: 'Unknown' }],
-        [error, error],
+        [
+          { kind: 'Error', value: { state: parseInt('22012', 36) } },
+          { kind: 'Error', value: { state: parseInt('22012', 36) } },
+        ],
         [{ kind: 'Null' }, { kind: 'Null' }],
       ] as [Input, Outcome][])
         fixtures.push({
@@ -167,6 +248,41 @@ describe('catalog-resolved integer CHECK casts', () => {
         })
     }
     fixtures.push(
+      {
+        name: 'bigint_selected',
+        row: { flag: value(false), small: value(1), big: error },
+        expected: { kind: 'True' },
+      },
+      {
+        name: 'bigint_selected',
+        row: { flag: value(true), small: value(1), big: value(32768n) },
+        expected: error,
+      },
+      {
+        name: 'bigint_lazy_case',
+        row: { flag: value(true), wide: value(1), big: value(9223372036854775807n) },
+        expected: { kind: 'True' },
+      },
+      {
+        name: 'bigint_lazy_and',
+        row: { flag: value(false), small: value(1), big: value(-32769n) },
+        expected: { kind: 'False' },
+      },
+      {
+        name: 'bigint_lazy_or',
+        row: { flag: value(true), wide: value(1), big: error },
+        expected: { kind: 'True' },
+      },
+      {
+        name: 'bigint_to_integer',
+        row: { wide: value(null), big: value(2147483648n) },
+        expected: error,
+      },
+      {
+        name: 'bigint_to_small',
+        row: { small: value(null), big: value(-32769n) },
+        expected: error,
+      },
       {
         name: 'selected',
         row: { flag: value(false), small: value(1), wide: error },
@@ -201,7 +317,7 @@ describe('catalog-resolved integer CHECK casts', () => {
     await runCheckParity(directory, 'integercasts', group, ordered, fixtures)
   }, 120_000)
 
-  it('rejects forged conversion identities and defers bigint narrowing and domain targets', () => {
+  it('rejects forged conversion identities and defers domain targets', () => {
     const forged = prepareCheckRustGroup([
       {
         expression: {
@@ -228,7 +344,7 @@ describe('catalog-resolved integer CHECK casts', () => {
       kind: 'unsupported',
       reason: 'Invalid Rust CHECK cast function',
     })
-    for (const sql of ['big::smallint > 0', 'big::integer > 0', 'wide::short_change > 0']) {
+    for (const sql of ['wide::short_change > 0', 'big::short_change > 0']) {
       const group = prepareCheckRustGroup([
         {
           expression: lowerTableCheck(

@@ -562,7 +562,6 @@ export function bindCatalogCheck(
         const value = materialize(operand, source)
         if (!value) return unknown
         if (source === type) return { type, value }
-        if (source === 'pg_catalog.int8') return unknown
         const conversion = builtinCast(source, type)
         return conversion?.method === 'f' && conversion.implementation !== null
           ? {

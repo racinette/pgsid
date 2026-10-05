@@ -1423,6 +1423,42 @@ export function int8Mzac(input: checkruntime.Int4Value): checkruntime.Int8Value 
     }
     return { kind: "Unknown" };
 }
+export function int45ywh(input: checkruntime.Int8Value): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: bigint = langruntime.checkedI64(input.value);
+        if (payload < -2147483648n || payload > 2147483647n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNumericValueOutOfRange) };
+        }
+        const narrowed: number = Number(BigInt.asIntN(32, langruntime.checkedI64(payload)));
+        return { kind: "Value", value: narrowed };
+    }
+    return { kind: "Unknown" };
+}
+export function int2Gmpv(input: checkruntime.Int8Value): checkruntime.Int2Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const payload: bigint = langruntime.checkedI64(input.value);
+        if (payload < -32768n || payload > 32767n) {
+            return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNumericValueOutOfRange) };
+        }
+        const narrowed: number = Number(BigInt.asIntN(32, langruntime.checkedI64(payload)));
+        return { kind: "Value", value: narrowed };
+    }
+    return { kind: "Unknown" };
+}
 function numericCompare(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.Int4Value {
     left = checkruntime.copyNumericValue(left);
     right = checkruntime.copyNumericValue(right);
