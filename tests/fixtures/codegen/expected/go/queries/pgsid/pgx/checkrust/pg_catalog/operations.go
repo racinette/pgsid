@@ -1783,6 +1783,90 @@ func Int82ne6rol(left checkruntime.Int8Value, right checkruntime.Int2Value) chec
 	rightWide := checkruntime.Int2ToInt8(right)
 	return Int8neUr2k(left, rightWide)
 }
+func smallintResult(value checkruntime.Int4Value) checkruntime.Int2Value {
+	value = checkruntime.CopyInt4Value(value)
+	if value.Kind == checkruntime.Int4ValueValue {
+		payload := langruntime.CheckedI32(value.Value)
+		if payload < langruntime.CheckedSignedNegate(32768) || payload > 32767 {
+			return checkruntime.Int2Value{Kind: checkruntime.Int2ValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+		}
+		return checkruntime.Int2Value{Kind: checkruntime.Int2ValueValue, Value: payload}
+	}
+	if value.Kind == checkruntime.Int4ValueError {
+		error := value.Error
+		return checkruntime.Int2Value{Kind: checkruntime.Int2ValueError, Error: error}
+	}
+	if value == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.Int2Value{Kind: checkruntime.Int2ValueNull}
+	}
+	return checkruntime.Int2Value{Kind: checkruntime.Int2ValueUnknown}
+}
+func Int2plYujm(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.Int2Value {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	rightWide := checkruntime.Int2ToInt4(right)
+	result := Int4plSj3s(leftWide, rightWide)
+	return smallintResult(result)
+}
+func Int2miUxzm(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.Int2Value {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	rightWide := checkruntime.Int2ToInt4(right)
+	result := Int4miDtqk(leftWide, rightWide)
+	return smallintResult(result)
+}
+func Int2mulK2lr(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.Int2Value {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	rightWide := checkruntime.Int2ToInt4(right)
+	result := Int4mul284v(leftWide, rightWide)
+	return smallintResult(result)
+}
+func Int2divFnwp(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.Int2Value {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	rightWide := checkruntime.Int2ToInt4(right)
+	result := Int4div8ogr(leftWide, rightWide)
+	return smallintResult(result)
+}
+func Int2modZds7(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.Int2Value {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	leftWide := checkruntime.Int2ToInt4(left)
+	rightWide := checkruntime.Int2ToInt4(right)
+	result := Int4modJ4pe(leftWide, rightWide)
+	return smallintResult(result)
+}
+func Int2absTyad(input checkruntime.Int2Value) checkruntime.Int2Value {
+	input = checkruntime.CopyInt2Value(input)
+	wide := checkruntime.Int2ToInt4(input)
+	result := Abs5ajw(wide)
+	return smallintResult(result)
+}
+func Abs43i0(input checkruntime.Int2Value) checkruntime.Int2Value {
+	input = checkruntime.CopyInt2Value(input)
+	return Int2absTyad(input)
+}
+func ModMzjb(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.Int2Value {
+	left = checkruntime.CopyInt2Value(left)
+	right = checkruntime.CopyInt2Value(right)
+	return Int2modZds7(left, right)
+}
+func Int2um8puj(input checkruntime.Int2Value) checkruntime.Int2Value {
+	input = checkruntime.CopyInt2Value(input)
+	zero := checkruntime.MakeInt4Value(0)
+	wide := checkruntime.Int2ToInt4(input)
+	result := Int4miDtqk(zero, wide)
+	return smallintResult(result)
+}
+func Int2upNe4g(input checkruntime.Int2Value) checkruntime.Int2Value {
+	input = checkruntime.CopyInt2Value(input)
+	return input
+}
 func textHasPrefix(text string, prefix string) bool {
 	text = langruntime.CheckedString(text)
 	prefix = langruntime.CheckedString(prefix)

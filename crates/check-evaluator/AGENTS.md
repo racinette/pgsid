@@ -47,12 +47,17 @@ import them. Keep schema-only helpers with their callables.
   `int4 × int4 → bool`, `int8 × int8 → bool`, mixed `int4`/`int8` comparisons,
   `bool × bool → bool`, and `text × text → bool`
   implementations in the operation sources, including `starts_with`, plus
-  `int4 × int4 → int4` and `int4 → int4` arithmetic and `text → int4`, and tests them
+  `int2 × int2 → int2` and `int2 → int2` arithmetic, `int4 × int4 → int4`
+  and `int4 → int4` arithmetic, and `text → int4`, and tests them
   automatically.
 - Int2 payloads use the existing i32 primitive, restricted to the PostgreSQL
   smallint range. Public inputs are already SQL-coerced; out-of-range values
   defer. Mixed comparisons widen in Rust before using int4 or int8 comparisons.
-  Smallint arithmetic and runtime narrowing casts require separate slices.
+  Smallint arithmetic widens to i32, reuses integer operations, and range-checks
+  each result before returning an int2. Preserve intermediate overflow even when
+  a later operation would bring the value into range. Unary signs resolve through
+  the catalog like binary operators. Mixed arithmetic and runtime narrowing casts
+  require separate slices.
 - Int8 payloads use Rust `i64`, Go `int64`, and TypeScript `bigint`. Write
   decimal Rust literals with an `i64` suffix. Widen an int4 payload with
   `as i64` into a distinct local before comparing it with an int8 payload.

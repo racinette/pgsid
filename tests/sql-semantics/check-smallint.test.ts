@@ -1,11 +1,13 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { PGlite } from '@electric-sql/pglite'
+import { readFileSync } from 'node:fs'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import type { FunctionMetadata } from '../../src/postgres/builtins/catalog.js'
 import { builtinCallables } from '../../src/postgres/builtins/inventory.js'
 import { snapshotCatalog } from '../../src/catalog/snapshot.js'
 import type { CatalogSnapshot, TableInfo } from '../../src/catalog/types.js'
@@ -45,6 +47,31 @@ const expressions: Record<string, string> = {
 }
 for (const fn of callables)
   expressions[fn.name] = `pg_catalog.${fn.name}(${fn.args.map(column).join(',')})`
+const smallintSource = readFileSync(
+  new URL('../../crates/check-evaluator/src/operations/pg_catalog/smallint.rs', import.meta.url),
+  'utf8',
+)
+const arithmeticCallables = builtinCallables()
+  .filter((fn): fn is FunctionMetadata => fn.kind === 'function')
+  .filter((fn) => fn.result === 'pg_catalog.int2' && smallintSource.includes(`fn ${fn.rustName}(`))
+const arithmeticExpressions: Record<string, string> = {
+  addition: '(a + b) = expected',
+  subtraction: '(a - b) = expected',
+  multiplication: '(a * b) = expected',
+  division: '(a / b) = expected',
+  remainder: '(a % b) = expected',
+  negative: '-a = expected',
+  positive: '+a = expected',
+  absolute: 'abs(a) = expected',
+  scalar_case: '(CASE WHEN flag THEN a + b ELSE a END) = expected',
+  lazy_case: 'CASE WHEN flag THEN true ELSE a / b = expected END',
+  lazy_and: 'flag AND a / b = expected',
+  lazy_or: 'flag OR a / b = expected',
+  typed_constant: "a + '1'::smallint = expected",
+}
+for (const fn of arithmeticCallables)
+  arithmeticExpressions[`call_${fn.name}`] =
+    `pg_catalog.${fn.name}(${fn.args.length === 1 ? 'a' : 'a,b'}) = expected`
 const samples = (type: string): (number | bigint | null)[] =>
   type === 'pg_catalog.int2'
     ? [-32768, -1, 0, 1, 32767, null]
@@ -85,6 +112,12 @@ describe('portable smallint CHECK values', () => {
         .join(',')});
       CREATE TABLE domain_counts (a unit_count, b nested_count,
       CONSTRAINT matching CHECK (a = b), CONSTRAINT positive CHECK (a > 0));`)
+    await pg.exec(`CREATE TABLE smallint_arithmetic (a smallint, b smallint, expected integer, flag bool,
+      ${Object.entries(arithmeticExpressions)
+        .map(([name, sql]) => `CONSTRAINT "${name}" CHECK (${sql})`)
+        .join(',')});
+      CREATE TABLE domain_arithmetic (a unit_count, b nested_count,
+        CONSTRAINT total CHECK (a + b >= 0));`)
     catalog = await snapshotCatalog(pg)
     table = catalog.tables.find((t) => t.name === 'smallint_checks')!
   })
@@ -219,7 +252,144 @@ describe('portable smallint CHECK values', () => {
     await runCheckParity(directory, 'smallintchecks', group, ordered, fixtures)
   }, 120_000)
 
-  it('exposes range checked smallint public inputs and defers runtime casts and arithmetic', async () => {
+  it('matches smallint arithmetic, unary operators, errors and lazy branches through Rust and both targets', async () => {
+    expect(arithmeticCallables).toHaveLength(10)
+    const arithmeticTable = catalog.tables.find((t) => t.name === 'smallint_arithmetic')!
+    const domainTable = catalog.tables.find((t) => t.name === 'domain_arithmetic')!
+    const constraints = arithmeticTable.constraints.filter((c) => c.type === 'check')
+    const ordered = [...constraints.map((c) => c.name), 'domain_total']
+    const group = prepareCheckRustGroup([
+      ...constraints.map((constraint) => ({
+        expression: lowerTableCheck(arithmeticTable, constraint, [], catalog.domains)!.expression,
+        identity: {
+          schema: 'public',
+          kind: 'table' as const,
+          owner: arithmeticTable.name,
+          constraint: constraint.name,
+        },
+      })),
+      {
+        expression: lowerTableCheck(
+          domainTable,
+          domainTable.constraints.find((c) => c.name === 'total')!,
+          [],
+          catalog.domains,
+        )!.expression,
+        identity: {
+          schema: 'public',
+          kind: 'table' as const,
+          owner: domainTable.name,
+          constraint: 'total',
+        },
+      },
+    ])
+    expect(group.checks.map((c) => c.kind)).toEqual(ordered.map(() => 'supported'))
+    for (const fn of arithmeticCallables) expect(group.evaluatorSource).toContain(fn.rustName)
+    const fixtures: { name: string; row: Row; expected: Outcome }[] = []
+    for (const a of [-32768, -32767, -182, -181, -7, -1, 0, 1, 7, 181, 182, 32766, 32767, null])
+      for (const b of [-32768, -1, 0, 1, 3, 32767, null])
+        for (const name of Object.keys(arithmeticExpressions)) {
+          let expected: Outcome
+          try {
+            const result = (
+              await pg.query<{ v: boolean | null }>(
+                `SELECT (${arithmeticExpressions[name]}) AS v FROM
+                (SELECT $1::smallint a, $2::smallint b, $3::integer expected, $4::bool flag) candidate`,
+                [a, b, a, false],
+              )
+            ).rows[0]!.v
+            expected = outcome(result)
+          } catch (caught) {
+            const state = (caught as { code: string }).code
+            expect(['22003', '22012']).toContain(state)
+            expected = { kind: 'Error', value: { state: parseInt(state, 36) } }
+          }
+          fixtures.push({
+            name,
+            row: { a: value(a), b: value(b), expected: value(a), flag: value(false) },
+            expected,
+          })
+        }
+    for (const name of ['addition', 'subtraction', 'multiplication', 'division', 'remainder'])
+      for (const [a, b, expected] of [
+        [{ kind: 'Unknown' }, { kind: 'Null' }, { kind: 'Unknown' }],
+        [{ kind: 'Null' }, { kind: 'Unknown' }, { kind: 'Unknown' }],
+        [error, { kind: 'Unknown' }, error],
+        [{ kind: 'Unknown' }, otherError, otherError],
+        [error, otherError, error],
+      ] as [Input, Input, Outcome][])
+        fixtures.push({ name, row: { a, b, expected: value(0) }, expected })
+    for (const name of ['positive', 'negative', 'absolute']) {
+      fixtures.push({ name, row: { a: error, expected: value(0) }, expected: error })
+      fixtures.push({
+        name,
+        row: { a: { kind: 'Unknown' }, expected: value(0) },
+        expected: { kind: 'Unknown' },
+      })
+    }
+    fixtures.push(
+      {
+        name: 'lazy_case',
+        row: { flag: value(true), a: value(-32768), b: value(-1), expected: value(0) },
+        expected: { kind: 'True' },
+      },
+      {
+        name: 'lazy_and',
+        row: { flag: value(false), a: value(1), b: value(0), expected: value(0) },
+        expected: { kind: 'False' },
+      },
+      {
+        name: 'lazy_or',
+        row: { flag: value(true), a: value(1), b: value(0), expected: value(0) },
+        expected: { kind: 'True' },
+      },
+      {
+        name: 'scalar_case',
+        row: { flag: value(false), a: value(32767), b: error, expected: value(32767) },
+        expected: { kind: 'True' },
+      },
+      {
+        name: 'scalar_case',
+        row: { flag: value(true), a: value(32767), b: value(1), expected: value(32768) },
+        expected: error,
+      },
+    )
+    for (const [a, b] of [
+      [0, 0],
+      [32767, 0],
+      [32767, 1],
+      [32767, 32767],
+      [null, 1],
+    ]) {
+      let expected: Outcome
+      try {
+        expected = outcome(
+          (
+            await pg.query<{ v: boolean | null }>(
+              'SELECT ($1::smallint + $2::smallint) >= 0 AS v',
+              [a, b],
+            )
+          ).rows[0]!.v,
+        )
+      } catch (caught) {
+        expected = {
+          kind: 'Error',
+          value: { state: parseInt((caught as { code: string }).code, 36) },
+        }
+      }
+      fixtures.push({ name: 'domain_total', row: { a: value(a!), b: value(b!) }, expected })
+    }
+    await mkdir(join(directory, 'arithmetic'))
+    await runCheckParity(
+      join(directory, 'arithmetic'),
+      'smallintarithmetic',
+      group,
+      ordered,
+      fixtures,
+    )
+  }, 120_000)
+
+  it('exposes range checked smallint public inputs and defers narrowing casts and mixed arithmetic', async () => {
     const output = renderTypescriptSchemaCheckArtifacts([table], catalog.domains, [])
     const publicDirectory = join(directory, 'public')
     await mkdir(publicDirectory, { recursive: true })
@@ -253,7 +423,7 @@ describe('portable smallint CHECK values', () => {
     expect(evaluate(null)).toEqual({ certain: true, value: null })
     for (const a of [undefined, -32769, 32768, 1.5, '1', {}])
       expect(evaluate(a)).toEqual({ certain: false })
-    for (const sql of ['a::smallint > 0', 'i::smallint > 0', '(a + b) > 0']) {
+    for (const sql of ['a::smallint > 0', 'i::smallint > 0', '(a + i) > 0']) {
       const probe = lowerTableCheck(
         table,
         { name: 'probe', type: 'check', definition: `CHECK (${sql})` },

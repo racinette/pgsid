@@ -6,6 +6,8 @@ import { writeCheckRustSources } from '../check-rust/sources.js'
 import { builtinCallables } from '../../src/postgres/builtins/inventory.js'
 
 type Shape =
+  | 'int2_pair_int2'
+  | 'int2_single_int2'
   | 'int8_pair_bool'
   | 'int84_pair_bool'
   | 'int48_pair_bool'
@@ -41,6 +43,7 @@ const readSource = (path: string): string =>
 const boolean = readSource('../../crates/check-evaluator/src/operations/pg_catalog/boolean.rs')
 const bigint = readSource('../../crates/check-evaluator/src/operations/pg_catalog/bigint.rs')
 const integer = readSource('../../crates/check-evaluator/src/operations/pg_catalog/integer.rs')
+const smallint = readSource('../../crates/check-evaluator/src/operations/pg_catalog/smallint.rs')
 const textSource = readSource('../../crates/check-evaluator/src/operations/pg_catalog/text.rs')
 const names = [
   ...`${boolean}\n${integer}\n${bigint}\n${textSource}`.matchAll(/\bfn (sql__[a-z0-9_]+)\s*\(/gu),
@@ -51,6 +54,10 @@ const catalog = new Map(
     .filter((callable) => callable.kind === 'function')
     .map((callable) => [callable.rustName, callable]),
 )
+for (const match of smallint.matchAll(/\bfn (sql__[a-z0-9_]+)\s*\(/gu)) {
+  const name = match[1]!
+  if (catalog.get(name)?.result === 'pg_catalog.int2') names.push(name)
+}
 const shapeOf = (args: readonly string[], result: string): Shape | null => {
   if (result === 'pg_catalog.bool') {
     if (args.join(',') === 'pg_catalog.int8,pg_catalog.int8') return 'int8_pair_bool'
@@ -60,6 +67,10 @@ const shapeOf = (args: readonly string[], result: string): Shape | null => {
     if (args.join(',') === 'pg_catalog.bool,pg_catalog.bool') return 'bool_pair_bool'
     if (args.join(',') === 'pg_catalog.text,pg_catalog.text') return 'text_pair_bool'
   }
+  if (result === 'pg_catalog.int2' && args.join(',') === 'pg_catalog.int2,pg_catalog.int2')
+    return 'int2_pair_int2'
+  if (result === 'pg_catalog.int2' && args.join(',') === 'pg_catalog.int2')
+    return 'int2_single_int2'
   if (result === 'pg_catalog.int4' && args.join(',') === 'pg_catalog.int4,pg_catalog.int4')
     return 'int4_pair_int4'
   if (result === 'pg_catalog.int4' && args.join(',') === 'pg_catalog.int4')
@@ -122,6 +133,27 @@ const int4ArithmeticSamples: readonly (readonly [number | null, number | null])[
   [null, 0],
   [0, null],
 ]
+const int2ArithmeticValues = [
+  -32768,
+  -32767,
+  -182,
+  -181,
+  -7,
+  -3,
+  -1,
+  0,
+  1,
+  3,
+  7,
+  181,
+  182,
+  32766,
+  32767,
+  null,
+]
+const int2ArithmeticSamples = int2ArithmeticValues.flatMap((left) =>
+  int2ArithmeticValues.map((right) => [left, right]),
+)
 const boolSamples: readonly (readonly [boolean | null, boolean | null])[] = [
   [false, false],
   [false, true],
@@ -184,58 +216,70 @@ const mixedSamples = int8Values.flatMap((left) =>
   [-2147483648, -1, 0, 1, 2147483647, null].map((right) => [left, right]),
 )
 const samplesOf = (shape: Shape): readonly (readonly (boolean | number | string | null)[])[] =>
-  shape === 'int8_pair_bool'
-    ? int8Samples
-    : shape === 'int84_pair_bool'
-      ? mixedSamples
-      : shape === 'int48_pair_bool'
-        ? mixedSamples.map((sample) => [sample[1]!, sample[0]!])
-        : shape === 'int4_pair_bool'
-          ? int4Samples
-          : shape === 'int4_pair_int4'
-            ? int4ArithmeticSamples
-            : shape === 'int4_single_int4'
-              ? [-2147483648, -2147483647, -1, 0, 1, 2147483647, null].map((value) => [value])
-              : shape === 'bool_pair_bool'
-                ? boolSamples
-                : shape === 'text_pair_bool'
-                  ? textSamples
-                  : textSingleSamples
+  shape === 'int2_pair_int2'
+    ? int2ArithmeticSamples
+    : shape === 'int2_single_int2'
+      ? int2ArithmeticValues.map((value) => [value])
+      : shape === 'int8_pair_bool'
+        ? int8Samples
+        : shape === 'int84_pair_bool'
+          ? mixedSamples
+          : shape === 'int48_pair_bool'
+            ? mixedSamples.map((sample) => [sample[1]!, sample[0]!])
+            : shape === 'int4_pair_bool'
+              ? int4Samples
+              : shape === 'int4_pair_int4'
+                ? int4ArithmeticSamples
+                : shape === 'int4_single_int4'
+                  ? [-2147483648, -2147483647, -1, 0, 1, 2147483647, null].map((value) => [value])
+                  : shape === 'bool_pair_bool'
+                    ? boolSamples
+                    : shape === 'text_pair_bool'
+                      ? textSamples
+                      : textSingleSamples
 const inputType = (
   shape: Shape,
   index = 0,
-): 'Int4Value' | 'Int8Value' | 'BoolValue' | 'TextValue' =>
-  shape === 'int8_pair_bool' ||
-  (shape === 'int84_pair_bool' && index === 0) ||
-  (shape === 'int48_pair_bool' && index === 1)
-    ? 'Int8Value'
-    : [
-          'int4_pair_bool',
-          'int4_pair_int4',
-          'int4_single_int4',
-          'int84_pair_bool',
-          'int48_pair_bool',
-        ].includes(shape)
+): 'Int2Value' | 'Int4Value' | 'Int8Value' | 'BoolValue' | 'TextValue' =>
+  shape === 'int2_pair_int2' || shape === 'int2_single_int2'
+    ? 'Int2Value'
+    : shape === 'int8_pair_bool' ||
+        (shape === 'int84_pair_bool' && index === 0) ||
+        (shape === 'int48_pair_bool' && index === 1)
+      ? 'Int8Value'
+      : [
+            'int4_pair_bool',
+            'int4_pair_int4',
+            'int4_single_int4',
+            'int84_pair_bool',
+            'int48_pair_bool',
+          ].includes(shape)
+        ? 'Int4Value'
+        : shape === 'bool_pair_bool'
+          ? 'BoolValue'
+          : 'TextValue'
+const resultType = (shape: Shape): 'BoolValue' | 'Int2Value' | 'Int4Value' =>
+  shape === 'int2_pair_int2' || shape === 'int2_single_int2'
+    ? 'Int2Value'
+    : shape === 'text_single_int4' || shape === 'int4_pair_int4' || shape === 'int4_single_int4'
       ? 'Int4Value'
-      : shape === 'bool_pair_bool'
-        ? 'BoolValue'
-        : 'TextValue'
-const resultType = (shape: Shape): 'BoolValue' | 'Int4Value' =>
-  shape === 'text_single_int4' || shape === 'int4_pair_int4' || shape === 'int4_single_int4'
-    ? 'Int4Value'
-    : 'BoolValue'
+      : 'BoolValue'
 const inputCount = (shape: Shape): number =>
-  shape === 'text_single_int4' || shape === 'int4_single_int4' ? 1 : 2
+  shape === 'text_single_int4' || shape === 'int4_single_int4' || shape === 'int2_single_int2'
+    ? 1
+    : 2
 const queryOf = (shape: Shape, functionName: string): string => {
   const args = Array.from({ length: inputCount(shape) }, (_, index) => {
     const type = inputType(shape, index)
     return type === 'Int8Value'
       ? `$${index + 1}::int8`
-      : type === 'Int4Value'
-        ? `$${index + 1}::int4`
-        : type === 'BoolValue'
-          ? `$${index + 1}::bool`
-          : `($${index + 1}::text) COLLATE "C"`
+      : type === 'Int2Value'
+        ? `$${index + 1}::int2`
+        : type === 'Int4Value'
+          ? `$${index + 1}::int4`
+          : type === 'BoolValue'
+            ? `$${index + 1}::bool`
+            : `($${index + 1}::text) COLLATE "C"`
   })
   return `SELECT pg_catalog.${functionName}(${args.join(', ')}) AS value`
 }
@@ -268,7 +312,7 @@ try {
       state(
         inputType(fn.shape, index) === 'Int8Value'
           ? '0'
-          : inputType(fn.shape, index) === 'Int4Value'
+          : ['Int2Value', 'Int4Value'].includes(inputType(fn.shape, index))
             ? 0
             : fn.shape === 'bool_pair_bool'
               ? false
@@ -350,11 +394,13 @@ const rustInput = (shape: Shape, input: State, index: number): string => {
   if (input.kind === 'Value')
     return type === 'Int8Value'
       ? `make_int8_value(${input.value}i64)`
-      : type === 'Int4Value'
-        ? `make_int4_value(${input.value})`
-        : type === 'BoolValue'
-          ? `make_bool_value(${input.value})`
-          : `make_text_value(${rustString(String(input.value))})`
+      : type === 'Int2Value'
+        ? `make_int2_value(${input.value})`
+        : type === 'Int4Value'
+          ? `make_int4_value(${input.value})`
+          : type === 'BoolValue'
+            ? `make_bool_value(${input.value})`
+            : `make_text_value(${rustString(String(input.value))})`
   if (input.kind === 'Error') return `${type}::Error(make_sql_error(${input.state}))`
   return `${type}::${input.kind}`
 }
@@ -385,11 +431,13 @@ const goInput = (shape: Shape, input: State, index: number): string => {
   if (input.kind === 'Value')
     return type === 'Int8Value'
       ? `MakeInt8Value(${input.value})`
-      : type === 'Int4Value'
-        ? `MakeInt4Value(${input.value})`
-        : type === 'BoolValue'
-          ? `MakeBoolValue(${input.value})`
-          : `MakeTextValue(${goString(String(input.value))})`
+      : type === 'Int2Value'
+        ? `MakeInt2Value(${input.value})`
+        : type === 'Int4Value'
+          ? `MakeInt4Value(${input.value})`
+          : type === 'BoolValue'
+            ? `MakeBoolValue(${input.value})`
+            : `MakeTextValue(${goString(String(input.value))})`
   if (input.kind === 'Error')
     return `${type}{Kind: ${type}Error, Error: SqlError{State: ${input.state}}}`
   return `${type}{Kind: ${type}${input.kind}}`
@@ -414,5 +462,5 @@ writeFileSync(
 )
 const counted = (shape: Shape): number => fixtures.filter((item) => item.shape === shape).length
 console.log(
-  `checked ${counted('int8_pair_bool') + counted('int84_pair_bool') + counted('int48_pair_bool')} Rust int8/mixed comparisons, ${counted('int4_pair_bool')} Rust int4 comparisons, ${counted('int4_pair_int4') + counted('int4_single_int4')} Rust int4 arithmetic functions, ${counted('bool_pair_bool')} Rust boolean comparisons, ${counted('text_pair_bool')} Rust text boolean functions, and ${counted('text_single_int4')} Rust text-to-int4 functions against PGlite`,
+  `checked ${counted('int2_pair_int2') + counted('int2_single_int2')} Rust smallint arithmetic functions, ${counted('int8_pair_bool') + counted('int84_pair_bool') + counted('int48_pair_bool')} Rust int8/mixed comparisons, ${counted('int4_pair_bool')} Rust int4 comparisons, ${counted('int4_pair_int4') + counted('int4_single_int4')} Rust int4 arithmetic functions, ${counted('bool_pair_bool')} Rust boolean comparisons, ${counted('text_pair_bool')} Rust text boolean functions, and ${counted('text_single_int4')} Rust text-to-int4 functions against PGlite`,
 )

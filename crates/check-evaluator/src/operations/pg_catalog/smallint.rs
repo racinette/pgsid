@@ -153,3 +153,79 @@ pub fn sql__pg_catalog__int82ne__6rol(left: Int8Value, right: Int2Value) -> Bool
     let right_wide = int2_to_int8(right);
     sql__pg_catalog__int8ne__ur2k(left, right_wide)
 }
+
+fn smallint_result(value: Int4Value) -> Int2Value {
+    if let Int4Value::Value(payload) = value {
+        if payload < -32768 || payload > 32767 {
+            return Int2Value::Error(make_sql_error(SQLSTATE_NUMERIC_VALUE_OUT_OF_RANGE));
+        }
+        return Int2Value::Value(payload);
+    }
+    if let Int4Value::Error(error) = value {
+        return Int2Value::Error(error);
+    }
+    if value == Int4Value::Null {
+        return Int2Value::Null;
+    }
+    Int2Value::Unknown
+}
+
+pub fn sql__pg_catalog__int2pl__yujm(left: Int2Value, right: Int2Value) -> Int2Value {
+    let left_wide = int2_to_int4(left);
+    let right_wide = int2_to_int4(right);
+    let result = sql__pg_catalog__int4pl__sj3s(left_wide, right_wide);
+    smallint_result(result)
+}
+
+pub fn sql__pg_catalog__int2mi__uxzm(left: Int2Value, right: Int2Value) -> Int2Value {
+    let left_wide = int2_to_int4(left);
+    let right_wide = int2_to_int4(right);
+    let result = sql__pg_catalog__int4mi__dtqk(left_wide, right_wide);
+    smallint_result(result)
+}
+
+pub fn sql__pg_catalog__int2mul__k2lr(left: Int2Value, right: Int2Value) -> Int2Value {
+    let left_wide = int2_to_int4(left);
+    let right_wide = int2_to_int4(right);
+    let result = sql__pg_catalog__int4mul__284v(left_wide, right_wide);
+    smallint_result(result)
+}
+
+pub fn sql__pg_catalog__int2div__fnwp(left: Int2Value, right: Int2Value) -> Int2Value {
+    let left_wide = int2_to_int4(left);
+    let right_wide = int2_to_int4(right);
+    let result = sql__pg_catalog__int4div__8ogr(left_wide, right_wide);
+    smallint_result(result)
+}
+
+pub fn sql__pg_catalog__int2mod__zds7(left: Int2Value, right: Int2Value) -> Int2Value {
+    let left_wide = int2_to_int4(left);
+    let right_wide = int2_to_int4(right);
+    let result = sql__pg_catalog__int4mod__j4pe(left_wide, right_wide);
+    smallint_result(result)
+}
+
+pub fn sql__pg_catalog__int2abs__tyad(input: Int2Value) -> Int2Value {
+    let wide = int2_to_int4(input);
+    let result = sql__pg_catalog__abs__5ajw(wide);
+    smallint_result(result)
+}
+
+pub fn sql__pg_catalog__abs__43i0(input: Int2Value) -> Int2Value {
+    sql__pg_catalog__int2abs__tyad(input)
+}
+
+pub fn sql__pg_catalog__mod__mzjb(left: Int2Value, right: Int2Value) -> Int2Value {
+    sql__pg_catalog__int2mod__zds7(left, right)
+}
+
+pub fn sql__pg_catalog__int2um__8puj(input: Int2Value) -> Int2Value {
+    let zero = make_int4_value(0);
+    let wide = int2_to_int4(input);
+    let result = sql__pg_catalog__int4mi__dtqk(zero, wide);
+    smallint_result(result)
+}
+
+pub fn sql__pg_catalog__int2up__ne4g(input: Int2Value) -> Int2Value {
+    input
+}
