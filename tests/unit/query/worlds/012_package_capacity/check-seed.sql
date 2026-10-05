@@ -66,3 +66,93 @@ INSERT INTO warehouse_allocations (id, units, limit_count) VALUES (2, 0, -1);
 INSERT INTO warehouse_allocations (id, units, limit_count) VALUES (2, NULL, 20);
 -- name: allocation_null_limit
 INSERT INTO warehouse_allocations (id, units, limit_count) VALUES (2, 10, NULL);
+
+-- name: small_package_regular
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, 4, 5, 20, 4, 5, -2, false);
+-- name: small_package_excess_area
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, 5, 5, 20, 4, 5, 0, false);
+-- name: small_package_largest_square
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, 181, 181, 32761, 32761, 1, 0, false);
+-- name: small_package_square_overflow
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, 182, 182, 32767, 32767, 1, 0, false);
+-- name: small_package_signed_product
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, -4, -5, 20, 4, 5, 0, false);
+-- name: small_package_minimum_times_negative_one
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, -32768, -1, 32767, 32767, 1, 0, false);
+-- name: small_package_minimum_times_one
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, -32768, 1, 0, 0, 1, 0, false);
+-- name: small_package_minimum_times_zero
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, -32768, 0, 0, 0, 1, 0, false);
+-- name: small_package_excess_slots
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, 1, 1, 20, 3, 5, 0, false);
+-- name: small_package_remainder
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, 1, 1, 21, 5, 5, 0, false);
+-- name: small_package_negative_divisor
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, 2, 3, 6, -2, -3, 0, false);
+-- name: small_package_negative_quotient_remainder
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, -7, 1, 7, -2, -3, 0, false);
+-- name: small_package_skipped_zero_divisor
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, 1, 1, 20, 0, 0, 0, true);
+-- name: small_package_minimum_quotient
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, -32768, 1, -32768, 32767, -1, NULL, false);
+-- name: small_package_abs_overflow
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, 1, 1, 20, 4, 5, -32768, false);
+-- name: small_package_excess_adjustment
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, 1, 1, 20, 4, 5, -21, false);
+-- name: small_package_null_factors
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, NULL, NULL, 20, 4, 5, NULL, false);
+-- name: small_package_null_dividend
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, 1, 1, NULL, 0, 0, 0, false);
+-- name: small_package_null_divisor
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, 1, 1, 20, 0, NULL, 0, false);
+-- name: small_package_all_null
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, NULL, NULL, NULL, NULL, NULL, NULL, false);
+
+-- name: reconciliation_regular
+INSERT INTO stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 100, 10, 40, 70);
+-- name: reconciliation_wrong_balance
+INSERT INTO stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 100, 10, 40, 71);
+-- name: reconciliation_maximum
+INSERT INTO stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 32767, 0, 0, 32767);
+-- name: reconciliation_minimum
+INSERT INTO stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, -32768, 0, 0, -32768);
+-- name: reconciliation_sum_overflow_before_subtraction
+INSERT INTO stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 32767, 1, 1, 32767);
+-- name: reconciliation_sum_underflow
+INSERT INTO stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, -32768, -1, 0, -32768);
+-- name: reconciliation_subtraction_overflow
+INSERT INTO stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 32767, 0, -1, 32767);
+-- name: reconciliation_subtraction_underflow
+INSERT INTO stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, -32768, 0, 1, -32768);
+-- name: reconciliation_null_received
+INSERT INTO stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, NULL, 1, 0, 1);
+-- name: reconciliation_null_available
+INSERT INTO stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 10, 1, 0, NULL);
+-- name: reconciliation_error_before_null_available
+INSERT INTO stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, 32767, 1, 0, NULL);
+-- name: reconciliation_all_null
+INSERT INTO stock_reconciliations (id, received, returned, dispatched, available) VALUES (2, NULL, NULL, NULL, NULL);
+
+-- name: correction_regular
+INSERT INTO warehouse_corrections (id, delta, reversal, maximum) VALUES (2, -10, 10, 20);
+-- name: correction_positive
+INSERT INTO warehouse_corrections (id, delta, reversal, maximum) VALUES (2, 10, -10, 20);
+-- name: correction_wrong_reversal
+INSERT INTO warehouse_corrections (id, delta, reversal, maximum) VALUES (2, -10, -10, 20);
+-- name: correction_exceeds_limit
+INSERT INTO warehouse_corrections (id, delta, reversal, maximum) VALUES (2, -21, 21, 20);
+-- name: correction_minimum_overflow
+INSERT INTO warehouse_corrections (id, delta, reversal, maximum) VALUES (2, -32768, 32767, 32767);
+-- name: correction_maximum
+INSERT INTO warehouse_corrections (id, delta, reversal, maximum) VALUES (2, 32767, -32767, 32767);
+-- name: correction_null_delta
+INSERT INTO warehouse_corrections (id, delta, reversal, maximum) VALUES (2, NULL, 0, 20);
+-- name: correction_null_reversal
+INSERT INTO warehouse_corrections (id, delta, reversal, maximum) VALUES (2, -10, NULL, 20);
+-- name: correction_all_null
+INSERT INTO warehouse_corrections (id, delta, reversal, maximum) VALUES (2, NULL, NULL, NULL);
+
+-- name: small_package_zero_divisor
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, 1, 1, 20, 0, 0, 0, false);
+-- name: small_package_null_guard_zero_divisor
+INSERT INTO small_package_capacity (id, width, height, capacity, slots, batch_size, adjustment, skip_batch_checks) VALUES (2, 1, 1, 20, 0, 0, 0, NULL);

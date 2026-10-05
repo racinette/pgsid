@@ -827,8 +827,11 @@ export function bindCatalogCheck(
       const names = strings(operator['name'])
       if (names && names.length > 1 && names[0] !== 'pg_catalog') return unknown
       const name = names?.at(-1)
-      if (!name || operator['lexpr'] === undefined || operator['rexpr'] === undefined)
-        return unknown
+      if (!name || operator['rexpr'] === undefined) return unknown
+      if (operator['lexpr'] === undefined)
+        return name === '+' || name === '-'
+          ? bindCall('operator', name, [operator['rexpr']])
+          : unknown
       return bindCall('operator', name, [operator['lexpr'], operator['rexpr']])
     }
     const call = fields(wrapper['FuncCall'])
