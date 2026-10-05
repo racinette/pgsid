@@ -152,11 +152,14 @@ export async function measureRungReach({
   for (const world of [...worlds].sort((left, right) => left.name.localeCompare(right.name))) {
     const schema = schemaPath(world.paths)
     if (schema === undefined) continue
+    const source = await read(schema)
+    if (worldPurpose(source) === 'checks') continue
     const units = await Promise.all(
       fixturePaths(world.paths).map(async (path) => ({ sql: await read(path) })),
     )
-    measuredWorlds.push(await runCorpus(world.name, await read(schema), units, patterns))
+    measuredWorlds.push(await runCorpus(world.name, source, units, patterns))
   }
 
   return { patterns, worlds: measuredWorlds }
 }
+import { worldPurpose } from './world-purpose.js'

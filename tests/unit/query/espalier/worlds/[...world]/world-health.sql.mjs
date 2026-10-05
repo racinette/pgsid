@@ -1,17 +1,22 @@
 import { PGlite } from '@electric-sql/pglite'
 import { plpgsql_check } from '@electric-sql/pglite-plpgsql-check'
 import { parse } from 'libpg-query'
+import { tsImport } from 'tsx/esm/api'
+
+const { worldPurpose } = await tsImport('../../../world-purpose.ts', import.meta.url)
 
 export const aggregate = true
 export const targets = ['*/*.sql']
 
 export const rule = `Keep the isolated-world corpus structurally healthy as a
-whole. Each world must meet the table, constraint, key, and live-schema floors;
-the complete corpus must keep its query-shape proportions and composition
+whole. Query worlds must meet the table, constraint, key, and live-schema floors;
+query worlds must keep their query-shape proportions and composition
 ratchets, with one surplus composition unit per additional world. Report every
 current measure even when the corpus passes. Each later world must itself add
-one composition unit beyond its predecessors. These are collective constraints:
-no individual fixture is required to carry every shape.`
+one composition unit beyond its query-world predecessors. CHECK worlds declare
+-- @world checks in schema.sql, contain CHECK constraints and check-seed.sql,
+and exercise every table through INSERT cases. CHECK worlds do not carry query
+fixtures and do not contribute to query-analysis ratios or ratchets.`
 
 // This fixed baseline makes corpus growth a function of world count. The
 // monotonic floors below move when the corpus improves; this baseline does not.
@@ -241,6 +246,7 @@ function emptyStats(name, schemaPath) {
   return {
     name,
     schemaPath,
+    purpose: 'queries',
     tables: 0,
     nonKeyCols: 0,
     nonKeyNotNull: 0,
@@ -282,7 +288,9 @@ async function measureWorld(name, paths, read) {
   try {
     await pg.exec('CREATE EXTENSION plpgsql_check;')
     try {
-      await pg.exec(await read(schemaPath))
+      const source = await read(schemaPath)
+      stats.purpose = worldPurpose(source)
+      await pg.exec(source)
     } catch (error) {
       violation(`schema.sql does not apply — ${error.message}`)
       return stats
@@ -312,12 +320,23 @@ async function measureWorld(name, paths, read) {
       if (expression !== null && hasNullLiteral(expression)) generatedNullLiteral++
     }
 
-    const fixturePaths = paths.filter(
+    const queryPaths = paths.filter(
       (path) =>
         !path.endsWith('/schema.sql') &&
         !path.endsWith('/data.sql') &&
         !path.endsWith('/check-seed.sql'),
     )
+    const checkPath = paths.find((path) => path.endsWith('/check-seed.sql'))
+    const fixturePaths = stats.purpose === 'checks' ? (checkPath ? [checkPath] : []) : queryPaths
+    if (stats.purpose === 'checks') {
+      if (queryPaths.length > 0)
+        violation(
+          'CHECK worlds cannot contain query fixtures; declare a query world for mixed coverage',
+        )
+      if (!checkPath) violation('CHECK worlds require check-seed.sql')
+      if (Number(catalog.checks) === 0)
+        violation('CHECK worlds require at least one CHECK constraint')
+    }
     if (fixturePaths.length === 0) {
       violation('has no fixtures — a world with no questions is dead schema')
     }
@@ -341,6 +360,10 @@ async function measureWorld(name, paths, read) {
       }
       for (const statement of parsed.stmts ?? []) {
         if (!statement.stmt) continue
+        if (stats.purpose === 'checks') {
+          const relation = statement.stmt.InsertStmt?.relation
+          if (relation?.relname) referenced.add(relation.relname)
+        }
         const relations = []
         collect(statement.stmt, 'RangeVar', relations)
         for (const relation of relations) {
@@ -383,13 +406,17 @@ async function measureWorld(name, paths, read) {
       }
     }
 
-    if (Number(catalog.tables) < 3) {
+    if (stats.purpose === 'checks' && statements === 0)
+      violation('CHECK worlds require INSERT cases')
+
+    if (stats.purpose === 'queries' && Number(catalog.tables) < 3) {
       violation(`has ${catalog.tables} table(s); at least 3 are required`)
     }
     for (const table of perTable) {
       if (!referenced.has(table.relname)) {
         violation(`table ${table.relname} is never referenced by a fixture in this world`)
       }
+      if (stats.purpose === 'checks') continue
       if (table.join_only) continue
       if (Number(table.nonkey) < 3) {
         violation(
@@ -400,37 +427,39 @@ async function measureWorld(name, paths, read) {
       }
     }
 
-    const requiredChecks = Math.ceil(Number(catalog.nonkey) / 3)
-    if (Number(catalog.checks) < requiredChecks) {
-      violation(
-        `${catalog.checks} CHECK(s) for ${catalog.nonkey} non-key columns; ${requiredChecks} required (one per three)`,
-      )
-    }
-    if (Number(catalog.checks) > 0) {
-      const average = Number(catalog.arity_total) / Number(catalog.checks)
-      if (average < 2) {
-        violation(`CHECKs average ${average.toFixed(2)} columns; at least 2 required`)
-      }
-    }
-
-    const notNullShare =
-      Number(catalog.nonkey) === 0 ? 0 : Number(catalog.nonkey_notnull) / Number(catalog.nonkey)
-    if (Number(catalog.nonkey) > 0 && (notNullShare < 0.25 || notNullShare > 0.75)) {
-      violation(
-        `${(notNullShare * 100).toFixed(0)}% of non-key columns are NOT NULL; the band is 25–75%`,
-      )
-    }
-
-    if (Number(catalog.fks) < 1) violation('declares no foreign key')
-    else if (Number(catalog.fk_notnull) < 1) {
-      violation('has foreign keys but none is NOT NULL')
-    }
-
-    for (const column of generatedColumns) {
-      if (!columnRefs.has(column.attname) && !anyStar) {
+    if (stats.purpose === 'queries') {
+      const requiredChecks = Math.ceil(Number(catalog.nonkey) / 3)
+      if (Number(catalog.checks) < requiredChecks) {
         violation(
-          `generated column ${column.relname}.${column.attname} is never read by a fixture in this world`,
+          `${catalog.checks} CHECK(s) for ${catalog.nonkey} non-key columns; ${requiredChecks} required (one per three)`,
         )
+      }
+      if (Number(catalog.checks) > 0) {
+        const average = Number(catalog.arity_total) / Number(catalog.checks)
+        if (average < 2) {
+          violation(`CHECKs average ${average.toFixed(2)} columns; at least 2 required`)
+        }
+      }
+
+      const notNullShare =
+        Number(catalog.nonkey) === 0 ? 0 : Number(catalog.nonkey_notnull) / Number(catalog.nonkey)
+      if (Number(catalog.nonkey) > 0 && (notNullShare < 0.25 || notNullShare > 0.75)) {
+        violation(
+          `${(notNullShare * 100).toFixed(0)}% of non-key columns are NOT NULL; the band is 25–75%`,
+        )
+      }
+
+      if (Number(catalog.fks) < 1) violation('declares no foreign key')
+      else if (Number(catalog.fk_notnull) < 1) {
+        violation('has foreign keys but none is NOT NULL')
+      }
+
+      for (const column of generatedColumns) {
+        if (!columnRefs.has(column.attname) && !anyStar) {
+          violation(
+            `generated column ${column.relname}.${column.attname} is never read by a fixture in this world`,
+          )
+        }
       }
     }
 
@@ -608,12 +637,14 @@ export async function inspectWorlds(matches, read) {
     worlds.push(await measureWorld(name, paths.sort(), read))
   }
 
-  const chains = new Set(worlds.flatMap((world) => [...world.joinChains]))
+  const queryWorlds = worlds.filter((world) => world.purpose === 'queries')
+  const chains = new Set(queryWorlds.flatMap((world) => [...world.joinChains]))
   return {
     worlds,
-    ratios: ratiosFor(worlds),
+    queryWorlds,
+    ratios: ratiosFor(queryWorlds),
     chains,
-    current: compositionFor(worlds),
+    current: compositionFor(queryWorlds),
   }
 }
 
@@ -628,7 +659,7 @@ export async function lint({ matches, read, emit }) {
     return
   }
 
-  const total = (pick) => measured.worlds.reduce((sum, world) => sum + pick(world), 0)
+  const total = (pick) => measured.queryWorlds.reduce((sum, world) => sum + pick(world), 0)
   const parametrized = total((world) => world.parametrized)
   const parameterTotal = total((world) => world.paramTotal)
   const parameterAverage = parametrized === 0 ? 0 : parameterTotal / parametrized
@@ -637,10 +668,12 @@ export async function lint({ matches, read, emit }) {
   const requiredGenerated = Math.floor(tables / 5)
   const surplus = compositionSurplus(measured.current)
   const requiredSurplus =
-    COMPOSITION_GROWTH_PER_ADDITIONAL_WORLD * Math.max(0, measured.worlds.length - 1)
-  const marginalComposition = measured.worlds.map((_world, index) => {
-    const predecessor = compositionFor(measured.worlds.slice(0, index))
-    const current = compositionFor(measured.worlds.slice(0, index + 1))
+    COMPOSITION_GROWTH_PER_ADDITIONAL_WORLD * Math.max(0, measured.queryWorlds.length - 1)
+  const marginalComposition = measured.worlds.map((world) => {
+    if (world.purpose === 'checks') return 0
+    const index = measured.queryWorlds.indexOf(world)
+    const predecessor = compositionFor(measured.queryWorlds.slice(0, index))
+    const current = compositionFor(measured.queryWorlds.slice(0, index + 1))
     return compositionGain(current, predecessor)
   })
 
@@ -649,12 +682,14 @@ export async function lint({ matches, read, emit }) {
     severity: 'info',
     message:
       `${measured.worlds.length} ${measured.worlds.length === 1 ? 'world' : 'worlds'}, ` +
-      `${tables} tables, ${total((world) => world.statements)} statements. ` +
+      `${measured.queryWorlds.length} query worlds; ${tables} query tables, ${total((world) => world.statements)} query statements. ` +
       `Parameters average ${parameterAverage.toFixed(2)} over ${parametrized} parametrized ` +
       `statements. Generated columns: ${generated}/${tables} tables, ${requiredGenerated} ` +
       `required.`,
     metadata: {
       worlds: measured.worlds.length,
+      queryWorlds: measured.queryWorlds.length,
+      checkWorlds: measured.worlds.length - measured.queryWorlds.length,
       tables,
       statements: total((world) => world.statements),
       parameterAverage,
@@ -693,7 +728,7 @@ export async function lint({ matches, read, emit }) {
       severity: 'info',
       path: world.schemaPath,
       message:
-        `${world.name}: ${world.tables} tables, ${world.nonKeyCols} non-key columns ` +
+        `${world.name} (${world.purpose}): ${world.tables} tables, ${world.nonKeyCols} non-key columns ` +
         `(${world.nonKeyNotNull} NOT NULL), ${world.checks} CHECKs over ` +
         `${world.checkArityTotal} column references (${world.checkNullTest} with null tests, ` +
         `${world.checkNullLiteral} with literal NULL), ${world.generated} generated columns ` +
@@ -704,6 +739,7 @@ export async function lint({ matches, read, emit }) {
         `generatedOverConstrained=${world.generatedOverConstrained}, ` +
         `marginalComposition=${marginalComposition[index]}.`,
       metadata: {
+        purpose: world.purpose,
         tables: world.tables,
         nonKeyColumns: world.nonKeyCols,
         nonKeyNotNull: world.nonKeyNotNull,
@@ -729,7 +765,11 @@ export async function lint({ matches, read, emit }) {
       },
     })
 
-    if (index > 0 && marginalComposition[index] < COMPOSITION_GROWTH_PER_ADDITIONAL_WORLD) {
+    if (
+      world.purpose === 'queries' &&
+      measured.queryWorlds.indexOf(world) > 0 &&
+      marginalComposition[index] < COMPOSITION_GROWTH_PER_ADDITIONAL_WORLD
+    ) {
       emit({
         code: 'world_composition_marginal_below_floor',
         path: world.schemaPath,
@@ -784,7 +824,7 @@ export async function lint({ matches, read, emit }) {
   }
 
   for (const [name, floor] of Object.entries(RATCHET)) {
-    if (measured.current[name] < floor) {
+    if (measured.queryWorlds.length > 0 && measured.current[name] < floor) {
       emit({
         code: 'world_composition_regression',
         message: `${name}: ${floor} → ${measured.current[name]}`,
@@ -796,7 +836,7 @@ export async function lint({ matches, read, emit }) {
     emit({
       code: 'world_composition_growth_below_floor',
       message:
-        `composition growth surplus is ${surplus} across ${measured.worlds.length} worlds; ` +
+        `composition growth surplus is ${surplus} across ${measured.queryWorlds.length} worlds; ` +
         `${requiredSurplus} required`,
     })
   }

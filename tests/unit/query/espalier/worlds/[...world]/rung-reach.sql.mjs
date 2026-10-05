@@ -9,12 +9,14 @@ export const aggregate = true
 export const targets = ['*/*.sql']
 export const unobservedImplementationDependencies = ['killable-evaluator.worker.mjs']
 
-export const rule = `Require every isolated world to exercise at least nine
+export const rule = `Require every query world to exercise at least nine
 query-analysis decision rungs and eighteen rung pairs. Across the worlds, the
 distinct pair union must contain at least eighteen pairs plus four for every
 world after the first, and each later world must itself add four pairs beyond
 the union of its predecessors. World directory ordinals define that admission
-order. Presence-group and joint-parameter mechanisms do not emit column-trace
+order. CHECK worlds declared by -- @world checks do not participate in query
+rung measurements. Admission ordinals still cover all worlds.
+Presence-group and joint-parameter mechanisms do not emit column-trace
 conclusions and are outside this constraint.`
 
 // These are historical floors established by the first admitted world. Raise

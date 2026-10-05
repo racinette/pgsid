@@ -8,3 +8,6 @@ path = "src/lib.rs"
 
 [dependencies]
 pgsid-regex-engine = { path = "../regex-engine" }
+
+[build-dependencies]
+pgsid-check-timezone-data = { path = "../../tools/check-timezone-data" }

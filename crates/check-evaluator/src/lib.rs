@@ -19,6 +19,9 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/timestamptz.rs");
     include!("operations/pg_catalog/timestamp.rs");
     include!("operations/pg_catalog/timezone.rs");
+    include!("operations/pg_catalog/timezone_named.rs");
+    include!("operations/pg_catalog/timezone_recurring.rs");
+    include!(concat!(env!("OUT_DIR"), "/timezone-tables.rs"));
     include!("operations/pg_catalog/integer.rs");
     include!("operations/pg_catalog/bigint.rs");
     include!("operations/pg_catalog/text.rs");

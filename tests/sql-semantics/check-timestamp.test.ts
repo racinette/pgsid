@@ -79,7 +79,7 @@ const outcome = (value: boolean | null): Outcome => ({
   kind: value === null ? 'Null' : value ? 'True' : 'False',
 })
 
-describe('portable Rust CHECK timestamp and fixed timezone offsets', () => {
+describe('portable Rust CHECK timestamp and timezone offsets', () => {
   let pg: PGlite
   let directory: string
   let catalog: CatalogSnapshot
@@ -147,7 +147,6 @@ describe('portable Rust CHECK timestamp and fixed timezone offsets', () => {
       },
       ...[
         "a > 'now'::timestamp",
-        "timezone('Europe/Paris',a) = instant",
         'a::timestamptz = instant',
         'instant::timestamp = a',
         "timezone(INTERVAL '1 hour',a) = instant",
@@ -209,6 +208,7 @@ describe('portable Rust CHECK timestamp and fixed timezone offsets', () => {
           date === null ||
           date === '-infinity' ||
           date === 'infinity' ||
+          zone === 'Europe/Paris' ||
           zone.toLowerCase() === 'utc'
         const expected: Outcome = definite
           ? outcome(
@@ -305,7 +305,6 @@ describe('portable Rust CHECK timestamp and fixed timezone offsets', () => {
           }
     }
     for (const zone of [
-      'Europe/Paris',
       'EST',
       'UTC2DST',
       'UTC2FOO',

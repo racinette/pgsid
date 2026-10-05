@@ -1,33 +1,33 @@
 ---
-description: hand-authored database worlds and their query contracts
+description: hand-authored database worlds for query and CHECK testing
 ---
 
-Each directory is one independently understandable database world. Its schema,
-seed data, CHECK input cases, and queries travel together. Query fixtures state the complete
-contract expected from the engine; PostgreSQL execution then adjudicates the
-claims.
+Each directory is one database world. Query worlds test independently declared
+query contracts and may also provide CHECK INSERT cases. A schema marked
+`-- @world checks` defines a focused CHECK world with no query fixtures.
+
+CHECK worlds require a schema containing CHECK constraints, seed data, and named
+INSERT cases that reference every table. The CHECK suite requires definite
+validation and both accepted and rejected INSERTs. Query shape, join, composition,
+and rung rules below apply to query worlds; CHECK worlds do not enter those
+measurements. Admission ordinals cover both kinds of world.
+
+Run CHECK parity after adding or changing constraint implementations or inputs:
+
+```sh
+pnpm exec vitest run tests/sql-semantics/check-worlds.test.ts
+```
 
 <!-- espalier adopt: begin /worlds/AGENTS.md -->
 
 ## Working rules for isolated-world fixtures
 
-Every fixture in the shared corpus asks its question of ONE world. That world
-is shared, so it cannot be varied — changing it re-runs everything. The result
-is a corpus rich in queries and fixed in schema, and a whole axis of the
-engine's input that no standing suite can move.
-
-This directory is where that axis moves. A fixture here brings its own world.
-
-These rules bind only here. **The shared corpus is grandfathered, not
-migrated.** It is small-table-heavy because it was built to maximise query
-variety per table, so it fails most of the shape rules below — and rewriting
-the schema that hundreds of fixtures depend on would be a large, risky change
-to a suite that has already earned its keep. Exclude it from every count;
-do not "fix" it.
+Query fixtures carry their own schema and witness data so the schema axis can
+vary independently. The shared corpus is frozen and excluded from world counts.
 
 ### Purpose: expose the engine boundary
 
-An isolated world attacks the nullability walk until PostgreSQL and its inferred
+A query world attacks the nullability walk until PostgreSQL and its inferred
 contract diverge. A red contract backed by a database counterexample or semantic
 proof is a discovery, not a failure to make green.
 
@@ -97,8 +97,8 @@ pnpm exec espalier lint --config tests/unit/query/espalier.config.yaml \
   --rule 'worlds/[...world]/rung-reach.sql.mjs' --no-cache
 ```
 
-Every world must exercise at least nine rungs and eighteen pairs. The first
-world establishes the pair union; each later world must add at least four pairs
+Every query world must exercise at least nine rungs and eighteen pairs. The first
+world establishes the pair union; each later query world must add at least four pairs
 absent from all its predecessors. The corpus-wide union ratchet remains a
 backstop. Repeating existing engine paths therefore cannot admit another world
 merely by satisfying the schema-health rules or by banking earlier surplus.
