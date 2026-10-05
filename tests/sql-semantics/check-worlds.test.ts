@@ -527,6 +527,8 @@ describe('world CHECK INSERT parity', () => {
       'world_012_package_capacity.compact_inventory_adjustments.compact_adjustment',
       'world_012_package_capacity.tiny_inventory_adjustments.tiny_adjustment',
       'world_012_package_capacity.bulk_package_products.bulk_package_product',
+      'world_012_package_capacity.chosen_package_counts.chosen_double',
+      'world_012_package_capacity.chosen_package_counts.chosen_ratio',
       'world_012_package_capacity.mixed_batch_remainders.small_integer_remainder',
       'world_012_package_capacity.mixed_batch_remainders.integer_small_remainder',
       'world_012_package_capacity.mixed_batch_remainders.small_big_remainder',
@@ -559,6 +561,23 @@ describe('world CHECK INSERT parity', () => {
       const measured = coverage.get(identity)!
       expect(measured.error, identity).toBeGreaterThan(0)
       expect(measured.error, identity).toBe(measured.postgres.error)
+      expect(measured.unknown, identity).toBe(0)
+    }
+    for (const name of [
+      'chosen_pair',
+      'chosen_stock',
+      'chosen_baseline',
+      'chosen_double',
+      'chosen_ratio',
+      'chosen_nested',
+      'chosen_simple',
+      'chosen_without_else',
+    ]) {
+      const identity = `world_012_package_capacity.chosen_package_counts.${name}`
+      const measured = coverage.get(identity)!
+      expect(measured.true, identity).toBeGreaterThan(0)
+      expect(measured.false, identity).toBeGreaterThan(0)
+      expect(measured.null, identity).toBeGreaterThan(0)
       expect(measured.unknown, identity).toBe(0)
     }
     const constraints = [...coverage.values()].sort((left, right) =>

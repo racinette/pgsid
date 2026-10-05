@@ -838,3 +838,99 @@ INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, s
 INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 7, 3, 5, 1, 3, 2, 5, 3, 2, 1, 2, 1, NULL);
 -- name: mixed_remainder_null_guard_zero
 INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders) VALUES (2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, NULL);
+
+-- name: chosen_package_small
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, 5, true, false, 7, 7, 7, 14, 2, 3, 7);
+
+-- name: chosen_package_integer
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, 5, false, true, 3, 3, 0, 5, 5, 5, 3);
+
+-- name: chosen_package_big
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, 5, false, false, 3, 5, 0, 5, 5, 5, 3);
+
+-- name: chosen_package_negative
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, -7, -3, -5, true, true, -7, -7, -7, -14, 2, -7, -7);
+
+-- name: chosen_package_null_selector
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, 5, NULL, false, 3, 5, 0, 5, 5, 5, 5);
+
+-- name: chosen_package_null_integer_selector
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, 5, false, NULL, 3, 5, 0, 5, 5, 5, 3);
+
+-- name: chosen_package_exact_big
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, 9007199254740993, false, false, 3, 9007199254740993, 0, 9007199254740993, 9007199254740993, 9007199254740993, 3);
+
+-- name: chosen_package_exact_negative_big
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, -9007199254740993, false, false, 3, -9007199254740993, 0, -9007199254740993, -9007199254740993, -9007199254740993, 3);
+
+-- name: chosen_package_big_minimum
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, -9223372036854775808, false, false, 3, -9223372036854775808, 0, -9223372036854775808, -9223372036854775808, -9223372036854775808, 3);
+
+-- name: chosen_package_big_maximum
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, 9223372036854775807, false, false, 3, 9223372036854775807, 0, 9223372036854775807, 9223372036854775807, 9223372036854775807, 3);
+
+-- name: chosen_package_integer_minimum
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, -2147483648, 5, false, true, -2147483648, -2147483648, 0, 5, 5, 5, -2147483648);
+
+-- name: chosen_package_integer_maximum
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 2147483647, 5, false, true, 2147483647, 2147483647, 0, 5, 5, 5, 2147483647);
+
+-- name: chosen_package_null_small
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, NULL, 3, 5, true, false, NULL, NULL, NULL, NULL, NULL, 3, NULL);
+
+-- name: chosen_package_null_integer
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, NULL, 5, false, true, NULL, NULL, 0, 5, NULL, 5, NULL);
+
+-- name: chosen_package_null_big
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, NULL, false, false, 3, NULL, 0, NULL, NULL, NULL, 3);
+
+-- name: chosen_package_all_null
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 0, NULL, NULL, NULL, NULL);
+
+-- name: chosen_package_small_overflow
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 32767, 3, 5, true, false, 32767, 32767, 32767, 65534, 10922, 3, 32767);
+
+-- name: chosen_package_small_negative_overflow
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, -32768, 3, 5, true, false, -32768, -32768, -32768, -65536, -10922, 3, -32768);
+
+-- name: chosen_package_skipped_overflow
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 32767, 3, 5, false, false, 3, 5, 0, 5, 5, 5, 3);
+
+-- name: chosen_package_zero_division
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 0, 5, true, false, 7, 7, 7, 14, NULL, 0, 7);
+
+-- name: chosen_package_skipped_zero_division
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 0, 5, false, false, 0, 5, 0, 5, NULL, 5, 0);
+
+-- name: chosen_package_null_guard_zero
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 0, 5, NULL, false, 0, 5, 0, 5, NULL, 5, 5);
+
+-- name: chosen_package_null_guard_overflow
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 32767, 3, 5, NULL, false, 3, 5, 0, 5, 5, 5, 5);
+
+-- name: chosen_package_wrong_recorded_pair
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, 5, true, false, 100, 7, 7, 14, 2, 3, 7);
+
+-- name: chosen_package_wrong_recorded_stock
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, 5, true, false, 7, 100, 7, 14, 2, 3, 7);
+
+-- name: chosen_package_wrong_recorded_baseline
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, 5, true, false, 7, 7, 100, 14, 2, 3, 7);
+
+-- name: chosen_package_wrong_recorded_double
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, 5, true, false, 7, 7, 7, 100, 2, 3, 7);
+
+-- name: chosen_package_wrong_recorded_ratio
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, 5, true, false, 7, 7, 7, 14, 100, 3, 7);
+
+-- name: chosen_package_wrong_recorded_nested
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, 5, true, false, 7, 7, 7, 14, 2, 100, 7);
+
+-- name: chosen_package_wrong_recorded_simple
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, 5, true, false, 7, 7, 7, 14, 2, 3, 100);
+
+-- name: chosen_package_null_results
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 7, 3, 5, true, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: chosen_package_error_before_null
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 32767, 3, 5, true, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL);

@@ -57,3 +57,5 @@ VALUES (1, 9007199254740993, 3, 7, 27021597764222979, 63050394783186951, 3002399
 
 INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders)
 VALUES (1, 7, 3, 5, 1, 3, 2, 5, 3, 2, 1, 2, 1, false);
+
+INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (1, 7, 3, 5, true, false, 7, 7, 7, 14, 2, 3, 7);
