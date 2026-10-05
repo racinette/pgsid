@@ -182,3 +182,9 @@ function checkedOpaque<T extends object>(value: T): T {
     throw new TypeError('invalid borrowed handle')
   return value
 }
+
+function indexStatic<T>(values: Readonly<ArrayLike<T>>, index: number): T {
+  checkedIndex(index)
+  if (index >= values.length) throw new RangeError('static table index out of bounds')
+  return values[index]!
+}

@@ -52,6 +52,7 @@ type node struct {
 	Parameters     []parameter `json:"parameters"`
 	Body           []*node     `json:"body"`
 	ElseBody       []*node     `json:"elseBody"`
+	Elements       []*node     `json:"elements"`
 	Arguments      []*node     `json:"arguments"`
 	Segments       []string    `json:"segments"`
 	Path           []string    `json:"path"`
@@ -312,6 +313,9 @@ func (g *generator) inferType(value *node) *node {
 		return namedType("bool")
 	case "index":
 		base := g.inferType(value.Base)
+		if base != nil && base.Kind == "reference" && base.Inner.Kind == "slice" {
+			return base.Inner.Inner
+		}
 		if base != nil && path(base) == "Vec" && len(base.TypeArguments) == 1 {
 			return base.TypeArguments[0]
 		}

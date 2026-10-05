@@ -42,6 +42,16 @@ change to the regex transpiler unless the regex engine itself changes.
   and multiplication accept two explicitly typed i64 operands and reject
   overflow in both targets. I64 division, remainder, variable negation,
   and narrowing casts are rejected.
+- Private top-level constants may borrow literal slices of `usize`, `u16`, `i32`,
+  `i64`, or `&str` for lookup tables. Indexing and length access preserve their
+  element types. I64 table entries require explicit i64 literals. Slice aliases,
+  parameters, return values, mutation, nested arrays, and computed entries remain
+  rejected. Go tables are package-private slices; TypeScript tables are readonly
+  arrays. Table initialization emits literal values without per-entry runtime calls.
+  U16 tables accept unsuffixed decimal entries through 65535 and lower to Go
+  `[]uint16` and TypeScript `Readonly<Uint16Array>`. Reads may widen with `as usize`
+  for dictionary indexing. U16 arithmetic, narrowing casts, public parameters,
+  return types, and struct fields remain outside the subset.
 - Calendar constructors use signed `i32` multiplication, division, and remainder.
   Division truncates toward zero. Both division and remainder reject zero
   divisors and the signed minimum with a divisor of negative one. Multiplication

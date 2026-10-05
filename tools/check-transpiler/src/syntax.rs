@@ -55,6 +55,51 @@ fn ty(ty: &Type) -> Result {
     }
 }
 
+fn static_slice_element(value: &Type) -> std::result::Result<&Type, String> {
+    let Type::Reference(reference) = value else {
+        return Err("static table must borrow a slice".into());
+    };
+    if reference.mutability.is_some() || reference.lifetime.is_some() {
+        return Err("static table must use an immutable slice reference".into());
+    }
+    let Type::Slice(slice) = &*reference.elem else {
+        return Err("static table must borrow a slice".into());
+    };
+    let element = &*slice.elem;
+    let valid = matches!(element, Type::Path(path) if path.path.is_ident("usize") || path.path.is_ident("u16") || path.path.is_ident("i32") || path.path.is_ident("i64"))
+        || matches!(element, Type::Reference(reference) if reference.mutability.is_none() && reference.lifetime.is_none() && matches!(&*reference.elem, Type::Path(path) if path.path.is_ident("str")));
+    if !valid {
+        return Err("static table elements must be usize, u16, i32, i64, or &str".into());
+    }
+    Ok(element)
+}
+
+fn static_table(node: &syn::ItemConst) -> Result {
+    if !matches!(node.vis, syn::Visibility::Inherited) {
+        return Err("static tables must remain private".into());
+    }
+    static_slice_element(&node.ty)?;
+    let Expr::Reference(reference) = &*node.expr else {
+        return Err("static table requires a borrowed array literal".into());
+    };
+    if reference.mutability.is_some() || !reference.attrs.is_empty() {
+        return Err("static table borrow must be immutable".into());
+    }
+    let Expr::Array(array) = &*reference.expr else {
+        return Err("static table requires an array literal".into());
+    };
+    no_attrs(&array.attrs)?;
+    for value in &array.elems {
+        let literal = matches!(value, Expr::Lit(_))
+            || matches!(value, Expr::Unary(unary) if matches!(&*unary.expr, Expr::Lit(syn::ExprLit { lit: syn::Lit::Int(_), .. })));
+        if !literal {
+            return Err("static table elements must be literals".into());
+        }
+        expr(value)?;
+    }
+    Ok(())
+}
+
 fn pat(pat: &Pat) -> Result {
     match pat {
         Pat::Ident(ident)
@@ -355,8 +400,13 @@ pub fn check(file: &syn::File) -> Result {
         match item {
             Item::Const(node) => {
                 no_attrs(&node.attrs)?;
-                ty(&node.ty)?;
-                expr(&node.expr)?;
+                if matches!(&*node.ty, Type::Reference(reference) if matches!(&*reference.elem, Type::Slice(_)))
+                {
+                    static_table(node)?;
+                } else {
+                    ty(&node.ty)?;
+                    expr(&node.expr)?;
+                }
             }
             Item::Struct(node) => {
                 if node.generics.where_clause.is_some()
