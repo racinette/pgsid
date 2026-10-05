@@ -196,7 +196,7 @@ describe('mixed smallint/integer CHECK arithmetic', () => {
     await runCheckParity(directory, 'mixedintegers', group, ordered, fixtures)
   }, 120_000)
 
-  it('defers implicit promotions without a mixed catalog operator', () => {
+  it('supports implicit promotions without a mixed catalog operator', () => {
     for (const sql of ['small % wide = 0']) {
       const lowered = lowerTableCheck(
         table,
@@ -210,9 +210,8 @@ describe('mixed smallint/integer CHECK arithmetic', () => {
           identity: { schema: table.schema, kind: 'table', owner: table.name, constraint: 'probe' },
         },
       ])
-      if (group.checks[0]!.kind === 'supported')
-        expect(group.evaluatorSource).toContain('check_unknown()')
-      else expect(group.checks[0]!.kind).toBe('unsupported')
+      expect(group.checks[0]!.kind).toBe('supported')
+      expect(group.evaluatorSource).not.toContain('check_unknown()')
     }
   })
 })

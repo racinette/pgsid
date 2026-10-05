@@ -259,16 +259,83 @@ const materialize = (
   return bound.type === type ? bound.value : null
 }
 
-const candidate = (
-  kind: 'operator' | 'function',
-  name: string,
-  args: readonly Bound[],
-): {
+type ResolvedCallable = {
   signature: string
   item: BuiltinCallable
   operands: EvalExpression[]
   collation?: BoundCollation
-} | null => {
+}
+const boundType = (arg: Bound): ScalarType | null =>
+  arg.type ?? (arg.literal?.kind === 'integer' ? 'pg_catalog.int4' : null)
+const isIntegerType = (type: string | null): boolean =>
+  type !== null && /^pg_catalog\.int[248]$/u.test(type)
+
+const integerCandidate = (
+  kind: 'operator' | 'function',
+  name: string,
+  args: readonly Bound[],
+): ResolvedCallable | null | undefined => {
+  const types = args.map(boundType)
+  if (
+    !types.some(isIntegerType) ||
+    types.some((type) => type !== null && !isIntegerType(type)) ||
+    args.some((arg, index) => types[index] === null && arg.literal?.kind !== 'null')
+  )
+    return undefined
+  const matches = callables.filter(
+    ({ item }) =>
+      item.kind === kind &&
+      item.schema === 'pg_catalog' &&
+      item.name === name &&
+      item.args.length === args.length &&
+      item.args.every((target, index) => {
+        const source = types[index]!
+        return source === null || source === target || builtinCast(source, target)?.context === 'i'
+      }),
+  )
+  let exactTypes = types
+  if (kind === 'operator' && types.length === 2 && types.includes(null)) {
+    const known = types.find((type) => type !== null)!
+    exactTypes = types.map((type) => type ?? known)
+  }
+  const exact = matches.filter(({ item }) =>
+    item.args.every((type, index) => type === exactTypes[index]),
+  )
+  const scores = matches.map(
+    ({ item }) => item.args.filter((type, index) => type === types[index]).length,
+  )
+  const maximum = Math.max(-1, ...scores)
+  const best = exact.length ? exact : matches.filter((_, index) => scores[index] === maximum)
+  if (best.length !== 1) return null
+  const selected = best[0]!
+  if (!selected.item.args.every(isIntegerType) || !catalogScalarType(selected.item.result))
+    return null
+  const operands = args.map((arg, index): EvalExpression | null => {
+    const target = selected.item.args[index]! as ScalarType
+    const source = types[index]
+    const value = materialize(arg, source ?? target)
+    if (!value || source === null || source === target) return value
+    const cast = builtinCast(source!, target)
+    return cast?.context === 'i' && cast.method === 'f' && cast.implementation !== null
+      ? {
+          kind: 'call',
+          call: { kind: 'cast', signature: cast.implementation, type: target },
+          operands: [value],
+        }
+      : null
+  })
+  return operands.every((value): value is EvalExpression => value !== null)
+    ? { ...selected, operands }
+    : null
+}
+
+const candidate = (
+  kind: 'operator' | 'function',
+  name: string,
+  args: readonly Bound[],
+): ResolvedCallable | null => {
+  const integer = integerCandidate(kind, name, args)
+  if (integer !== undefined) return integer
   const collation = combineCollations(args.map((arg) => arg.collation))
   const matches = callables.flatMap(({ signature, item }) => {
     if (
@@ -302,9 +369,7 @@ const candidate = (
       ? [{ signature, item, operands: operands as EvalExpression[], collation }]
       : []
   })
-  const types = args.map(
-    (arg) => arg.type ?? (arg.literal?.kind === 'integer' ? 'pg_catalog.int4' : null),
-  )
+  const types = args.map(boundType)
   const exact = matches.filter(({ item }) =>
     item.args.every((type, index) => type === types[index]),
   )

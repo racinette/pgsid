@@ -54,3 +54,6 @@ VALUES (1, 9007199254740993, 3, 3002399751580331, 0, false, false);
 
 INSERT INTO mixed_bulk_packages (id, units, small_batch, integer_batch, small_total, integer_total, bulk_small_batches, small_bulk_batches, bulk_integer_batches, integer_bulk_batches, skip_products, skip_divisions)
 VALUES (1, 9007199254740993, 3, 7, 27021597764222979, 63050394783186951, 3002399751580331, 0, 1286742750677284, 0, false, false);
+
+INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, small_integer_loose, integer_small_loose, small_big_loose, big_small_loose, integer_big_loose, big_integer_loose, literal_small_loose, literal_big_loose, call_loose, skip_remainders)
+VALUES (1, 7, 3, 5, 1, 3, 2, 5, 3, 2, 1, 2, 1, false);
