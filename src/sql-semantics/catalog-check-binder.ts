@@ -408,13 +408,16 @@ const candidate = (
     const enumCall = item.args.includes('pg_catalog.anyenum')
     if (enumCall && (!definition || !enumEqualityOperation(signature))) return []
     const operands = args.map((arg, index) =>
-      materialize(
-        arg,
-        item.args[index] === 'pg_catalog.anyenum'
-          ? enumType(definition!)
-          : (item.args[index]! as ScalarType),
-        definition,
-      ),
+      item.args.some((type) => type === 'pg_catalog.inet' || type === 'pg_catalog.cidr') &&
+      isIntegerType(item.args[index]!)
+        ? materializeInteger(arg, item.args[index]! as ScalarType)
+        : materialize(
+            arg,
+            item.args[index] === 'pg_catalog.anyenum'
+              ? enumType(definition!)
+              : (item.args[index]! as ScalarType),
+            definition,
+          ),
     )
     return operands.every((value): value is EvalExpression => value !== null)
       ? [{ signature, item, operands: operands as EvalExpression[], collation }]
@@ -683,6 +686,14 @@ export function bindCatalogCheck(
           },
           collation: operand.collation ?? defaultCollation,
         }
+      if (
+        (type === 'pg_catalog.inet' || type === 'pg_catalog.cidr') &&
+        (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') &&
+        operand.value
+      ) {
+        const text = materialize(operand, 'pg_catalog.text')
+        return text ? { type, value: { kind: 'text-to-network', type, operand: text } } : unknown
+      }
       if (type === 'pg_catalog.date' && operand.type === 'pg_catalog.text' && operand.value)
         return {
           type,
@@ -1070,7 +1081,19 @@ export function bindCatalogCheck(
       )
     if (args.some((arg) => !arg.value && !arg.literal)) return unknown
     const resolved = candidate(kind, name, args)
-    if (!resolved) return unknown
+    if (!resolved) {
+      if (kind === 'function' && (name === 'inet' || name === 'cidr') && args.length === 1) {
+        const type = name === 'inet' ? 'pg_catalog.inet' : 'pg_catalog.cidr'
+        const operand = args[0]!
+        if (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') {
+          const text = materialize(operand, 'pg_catalog.text')
+          return text ? { type, value: { kind: 'text-to-network', type, operand: text } } : unknown
+        }
+        const value = materialize(operand, type)
+        return value ? { type, value } : unknown
+      }
+      return unknown
+    }
     const type = resolved.item.result as ScalarType
     const collation = resolved.collation
     return {

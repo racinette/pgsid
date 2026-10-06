@@ -340,8 +340,14 @@ const SQL_ERROR_TIMEZONE_DISPLACEMENT: u32 = 3452553;
 const SQL_ERROR_DIVISION_BY_ZERO: u32 = 3452582;
 const SQL_ERROR_INVALID_REGEX: u32 = 3452591;
 const SQL_ERROR_INVALID_PARAMETER: u32 = 3452619;
+const SQL_ERROR_INVALID_TEXT_REPRESENTATION: u32 = 3484946;
 
 pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
+    if error.state == SQL_ERROR_INVALID_TEXT_REPRESENTATION {
+        return SqlErrorDescription {
+            message: "invalid text representation",
+        };
+    }
     if error.state == SQL_ERROR_NUMERIC_OUT_OF_RANGE {
         return SqlErrorDescription {
             message: "numeric value out of range",
@@ -580,8 +586,24 @@ pub fn network_from_case_guard(value: CheckOutcome) -> NetworkValue {
 }
 
 pub fn make_network_value(value: &str) -> NetworkValue {
-    network_parse(value, false)
+    let chars: Vec<char> = value.chars().collect();
+    if chars.len() > 256 {
+        return NetworkValue::Unknown;
+    }
+    let parsed = network_parse(value, false);
+    if let NetworkValue::Error(_) = parsed {
+        return NetworkValue::Unknown;
+    }
+    parsed
 }
 pub fn make_cidr_value(value: &str) -> NetworkValue {
-    network_parse(value, true)
+    let chars: Vec<char> = value.chars().collect();
+    if chars.len() > 256 {
+        return NetworkValue::Unknown;
+    }
+    let parsed = network_parse(value, true);
+    if let NetworkValue::Error(_) = parsed {
+        return NetworkValue::Unknown;
+    }
+    parsed
 }
