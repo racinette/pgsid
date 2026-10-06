@@ -429,7 +429,11 @@ const sqlErrorInvalidRegex = 3452591;
 const sqlErrorInvalidParameter = 3452619;
 const sqlErrorInvalidTextRepresentation = 3484946;
 const sqlErrorStringLengthMismatch = 3452622;
+const sqlErrorStringRightTruncation = 3452545;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorStringRightTruncation) {
+        return { message: "string data right truncation" };
+    }
     if (error.state === sqlErrorStringLengthMismatch) {
         return { message: "string data length mismatch" };
     }
@@ -2072,6 +2076,40 @@ export function bitPayloadLength(value: string): number {
         length = langruntime.checkedI32(langruntime.checkedSignedAdd(length, 1));
     }
     return length;
+}
+export function bitFromText(input: TextValue): BitValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalTextValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return bitFromLiteral(value);
+    }
+    return { kind: "Unknown" };
+}
+export function bitToText(input: BitValue): TextValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalBitValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (equalBitValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return { kind: "Value", value: value };
+    }
+    return { kind: "Unknown" };
 }
 export interface HashByte {
     value: bigint;

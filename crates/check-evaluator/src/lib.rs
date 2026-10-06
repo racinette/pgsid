@@ -41,6 +41,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/binary.rs");
     include!("operations/pg_catalog/bit.rs");
     include!("operations/pg_catalog/bit_bitwise.rs");
+    include!("operations/pg_catalog/bit_cast.rs");
     include!("operations/pg_catalog/integer.rs");
     include!("operations/pg_catalog/smallint.rs");
     include!("operations/pg_catalog/integer_cast.rs");

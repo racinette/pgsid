@@ -224,6 +224,21 @@ export function emitCheckRustEvaluator(
       const helper = kind.slice(0, -'Value'.length).toLowerCase() + '_unknown'
       return { name: bind(`${helper}()`), type: node.type }
     }
+    if (node.kind === 'bit-to-text') {
+      const operand = emitScalar(node.operand, bindings, used)
+      if (operand.type !== 'pg_catalog."bit"' && operand.type !== 'pg_catalog.varbit')
+        throw new UnsupportedCheckRustExpression('A bit output cast requires a bit value')
+      return { name: bind(`bit_to_text(${ownedOperand(operand)})`), type: node.type }
+    }
+    if (node.kind === 'text-to-bit') {
+      const operand = emitScalar(node.operand, bindings, used)
+      if (operand.type !== 'pg_catalog.text')
+        throw new UnsupportedCheckRustExpression('A bit input cast requires text')
+      return {
+        name: bind(`bit_from_text(${ownedOperand(operand)})`),
+        type: node.type,
+      }
+    }
     if (node.kind === 'uuid-to-text') {
       const operand = emitScalar(node.operand, bindings, used)
       if (operand.type !== 'pg_catalog.uuid')

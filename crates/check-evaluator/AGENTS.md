@@ -204,10 +204,14 @@ import them. Keep schema-only helpers with their callables.
   ELSE first; COALESCE uses its first typed arm. Bitwise operations preserve
   length and reject unequal binary widths with 22026. Shifts fill with zeros,
   retain length, and reverse direction for negative distances. Clamp before
-  negating the minimum int4. Width-changing casts, runtime text casts, and raw
-  query parameter coercion remain deferred. Run
+  negating the minimum int4. Explicit fixed-width casts truncate or zero-pad;
+  explicit varying-width casts only truncate. Assignment-style fixed coercion
+  requires an exact width (22026); varying coercion rejects excess length (22001).
+  Text/varchar I/O casts parse binary and hexadecimal prefixes before explicit
+  width coercion; invalid digits return 22P02. Output casts preserve every bit.
+  Raw query parameter coercion and integer casts remain deferred. Run
   `tests/sql-semantics/check-bit.test.ts`, `tests/sql-semantics/check-bitwise.test.ts`,
-  and the feature masks world for parity.
+  `tests/sql-semantics/check-bit-casts.test.ts`, and the feature masks world for parity.
 - Date payloads are signed day offsets from 2000-01-01. The signed int4
   minimum and maximum represent negative and positive infinity. Finite payloads
   range from -2451545 through 2145031948. Public CHECK inputs use this portable

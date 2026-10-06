@@ -1224,6 +1224,72 @@ func BitshiftleftQf9d(input checkruntime.BitValue, distance checkruntime.Int4Val
 func BitshiftrightHgyn(input checkruntime.BitValue, distance checkruntime.Int4Value) checkruntime.BitValue {
 	return bitShift(input, distance, false)
 }
+
+const bitStringRightTruncation = 3452545
+
+func bitCoerce(input checkruntime.BitValue, width checkruntime.Int4Value, explicit checkruntime.BoolValue, varying bool) checkruntime.BitValue {
+	if input.Kind == checkruntime.BitValueError {
+		error := input.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if width.Kind == checkruntime.Int4ValueError {
+		error := width.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if explicit.Kind == checkruntime.BoolValueError {
+		error := explicit.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) || width == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || explicit == (checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) || width == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || explicit == (checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueNull}
+	}
+	if input.Kind == checkruntime.BitValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if width.Kind == checkruntime.Int4ValueValue {
+			length := langruntime.CheckedI32(width.Value)
+			if explicit.Kind == checkruntime.BoolValueValue {
+				isExplicit := explicit.Value
+				current := checkruntime.BitPayloadLength(value)
+				if length <= 0 || length > bitMaxLength || length == current {
+					return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: value}
+				}
+				if varying && length > current {
+					return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: value}
+				}
+				if isExplicit == false {
+					if varying {
+						return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: checkruntime.MakeSqlError(bitStringRightTruncation)}
+					}
+					return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: checkruntime.MakeSqlError(bitStringLengthMismatch)}
+				}
+				chars := []rune(value)
+				output := ""
+				index := 0
+				count := 0
+				for count < length {
+					ch := '0'
+					if index < len(chars) {
+						ch = langruntime.CheckedChar(chars[index])
+					}
+					output = output + string(langruntime.CheckedChar(ch))
+					index = langruntime.CheckedAdd(index, 1)
+					count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+				}
+				return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: output}
+			}
+		}
+	}
+	return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+}
+func BitEqck(input checkruntime.BitValue, width checkruntime.Int4Value, explicit checkruntime.BoolValue) checkruntime.BitValue {
+	return bitCoerce(input, width, explicit, false)
+}
+func Varbit7ap7(input checkruntime.BitValue, width checkruntime.Int4Value, explicit checkruntime.BoolValue) checkruntime.BitValue {
+	return bitCoerce(input, width, explicit, true)
+}
 func BooleqY6qu(left checkruntime.BoolValue, right checkruntime.BoolValue) checkruntime.BoolValue {
 	if left.Kind == checkruntime.BoolValueError {
 		error := left.Error

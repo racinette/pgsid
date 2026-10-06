@@ -52,3 +52,35 @@ pub fn bit_payload_length(value: &str) -> i32 {
     }
     length
 }
+
+pub fn bit_from_text(input: TextValue) -> BitValue {
+    if let TextValue::Error(error) = input {
+        return BitValue::Error(error);
+    }
+    if input == TextValue::Unknown {
+        return BitValue::Unknown;
+    }
+    if input == TextValue::Null {
+        return BitValue::Null;
+    }
+    if let TextValue::Value(value) = input {
+        return bit_from_literal(value.as_str());
+    }
+    BitValue::Unknown
+}
+
+pub fn bit_to_text(input: BitValue) -> TextValue {
+    if let BitValue::Error(error) = input {
+        return TextValue::Error(error);
+    }
+    if input == BitValue::Unknown {
+        return TextValue::Unknown;
+    }
+    if input == BitValue::Null {
+        return TextValue::Null;
+    }
+    if let BitValue::Value(value) = input {
+        return TextValue::Value(value);
+    }
+    TextValue::Unknown
+}
