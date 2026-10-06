@@ -128,6 +128,7 @@ export function renderTypescriptSchemaCheckArtifacts(
               'Int2Value',
               'Int4Value',
               'Int8Value',
+              'NetworkValue',
               'NumericValue',
               'DateValue',
               'TimestampValue',
@@ -139,29 +140,32 @@ export function renderTypescriptSchemaCheckArtifacts(
           )
             throw new Error(`Unsupported TypeScript Rust CHECK input: ${item.rustType}`)
           const helper =
-            item.rustType === 'NumericValue'
-              ? 'checkRustNumeric'
-              : item.rustType === 'DateValue'
-                ? 'checkRustDate'
-                : item.rustType === 'TimestampValue'
-                  ? 'checkRustTimestamp'
-                  : item.rustType === 'TimestamptzValue'
-                    ? 'checkRustTimestamptz'
-                    : item.nullness
-                      ? 'checkRustNullness'
-                      : item.enum
-                        ? 'checkRustEnum'
-                        : item.rustType === 'Int2Value'
-                          ? 'checkRustInt2'
-                          : item.rustType === 'Int4Value'
-                            ? 'checkRustInt4'
-                            : item.rustType === 'Int8Value'
-                              ? 'checkRustInt8'
-                              : item.rustType === 'TextValue'
-                                ? 'checkRustText'
-                                : 'checkRustBool'
+            item.rustType === 'NetworkValue'
+              ? 'checkRustNetwork'
+              : item.rustType === 'NumericValue'
+                ? 'checkRustNumeric'
+                : item.rustType === 'DateValue'
+                  ? 'checkRustDate'
+                  : item.rustType === 'TimestampValue'
+                    ? 'checkRustTimestamp'
+                    : item.rustType === 'TimestamptzValue'
+                      ? 'checkRustTimestamptz'
+                      : item.nullness
+                        ? 'checkRustNullness'
+                        : item.enum
+                          ? 'checkRustEnum'
+                          : item.rustType === 'Int2Value'
+                            ? 'checkRustInt2'
+                            : item.rustType === 'Int4Value'
+                              ? 'checkRustInt4'
+                              : item.rustType === 'Int8Value'
+                                ? 'checkRustInt8'
+                                : item.rustType === 'TextValue'
+                                  ? 'checkRustText'
+                                  : 'checkRustBool'
           rustInputAdapters.add(helper)
           if (
+            item.rustType !== 'NetworkValue' &&
             item.rustType !== 'NumericValue' &&
             item.rustType !== 'DateValue' &&
             item.rustType !== 'TimestampValue' &&
@@ -496,6 +500,13 @@ function checkRustTimestamptz(row: object, name: string): _checkRust.Timestamptz
   if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TimestamptzValue
   if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n) return _checkRust.makeTimestamptzValue(value.value)
   return _checkRust.timestamptzUnknown()
+}
+function checkRustNetwork(row: object, name: string): _checkRust.NetworkValue {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.networkUnknown()
+  if (value === null) return _checkRust.networkNull()
+  if (typeof value === 'string') return _checkRust.makeNetworkValue(value)
+  return _checkRust.networkUnknown()
 }
 function checkRustNumeric(row: object, name: string): _checkRust.NumericValue {
   const value = Reflect.get(row, name)

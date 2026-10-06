@@ -602,6 +602,27 @@ describe('world CHECK INSERT parity', () => {
         expect(measured.unknown, identity).toBe(0)
       }
     }
+    for (const [table, names] of [
+      [
+        'network_peers',
+        [
+          'peer_within_allowed',
+          'peer_in_address_range',
+          'peer_default_recorded',
+          'peer_selected_recorded',
+        ],
+      ],
+      ['network_subnets', ['subnet_strictly_inside_parent', 'subnet_avoids_forbidden']],
+    ] as const) {
+      for (const name of names) {
+        const identity = `world_015_network_access.${table}.${name}`
+        const measured = coverage.get(identity)!
+        expect(measured.true, identity).toBeGreaterThan(0)
+        expect(measured.false, identity).toBeGreaterThan(0)
+        expect(measured.null, identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(0)
+      }
+    }
     const constraints = [...coverage.values()].sort((left, right) =>
       left.constraint.localeCompare(right.constraint),
     )

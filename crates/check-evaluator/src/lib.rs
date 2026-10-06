@@ -3,6 +3,7 @@ pub use pgsid_regex_engine::*;
 pub mod checkruntime {
     include!("values.rs");
     include!("numeric.rs");
+    include!("network.rs");
     include!("date.rs");
     include!("timestamp.rs");
     include!("timestamptz.rs");
@@ -24,6 +25,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/timezone_recurring.rs");
     include!(concat!(env!("OUT_DIR"), "/timezone-tables.rs"));
     include!("operations/pg_catalog/numeric.rs");
+    include!("operations/pg_catalog/network.rs");
     include!("operations/pg_catalog/integer.rs");
     include!("operations/pg_catalog/smallint.rs");
     include!("operations/pg_catalog/integer_cast.rs");

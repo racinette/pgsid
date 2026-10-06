@@ -11,6 +11,7 @@ export type DecimalType = 'pg_catalog."numeric"'
 export type NumericType = IntegerType | FloatType | DecimalType
 
 export type TextType = 'pg_catalog.text' | 'pg_catalog."varchar"' | 'pg_catalog.bpchar'
+export type NetworkType = 'pg_catalog.inet' | 'pg_catalog.cidr'
 export type UuidType = 'pg_catalog.uuid'
 export type JsonType = 'pg_catalog."json"'
 export type JsonbType = 'pg_catalog.jsonb'
@@ -41,6 +42,7 @@ export type ScalarType =
   | NumericType
   | 'pg_catalog.bool'
   | TextType
+  | NetworkType
   | UuidType
   | JsonType
   | JsonbType
@@ -294,6 +296,7 @@ export type SqlExpression =
   | { kind: 'coalesce'; type: ScalarType; operands: readonly SqlExpression[] }
   | { kind: 'integer'; type: IntegerType; value: string | null }
   | { kind: 'float'; type: FloatType; bits: string | null }
+  | { kind: 'network'; type: NetworkType; value: string | null }
   | { kind: 'decimal'; type: DecimalType; value: string | null }
   | {
       kind: 'operator' | 'function'
@@ -922,6 +925,7 @@ export function emitSqlExpression<Ast>(
         expression: node.kind === 'json' ? backend.json(node.value) : backend.jsonb(node.value),
       }
     }
+    if (node.kind === 'network') return { type: node.type, expression: backend.text(node.value) }
     if (node.kind === 'temporal') {
       if (
         node.value !== null &&

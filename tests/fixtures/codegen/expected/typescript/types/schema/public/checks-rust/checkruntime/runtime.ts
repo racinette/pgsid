@@ -710,6 +710,84 @@ export function makeNumericValue(value: string): NumericValue {
     }
     return { kind: "Value", value: value };
 }
+export interface NetworkAddress {
+    family: number;
+    prefix: number;
+    word0: number;
+    word1: number;
+    word2: number;
+    word3: number;
+    word4: number;
+    word5: number;
+    word6: number;
+    word7: number;
+}
+export function copyNetworkAddress(value: NetworkAddress): NetworkAddress {
+    return { family: langruntime.checkedIndex(value.family), prefix: langruntime.checkedI32(value.prefix), word0: langruntime.checkedI32(value.word0), word1: langruntime.checkedI32(value.word1), word2: langruntime.checkedI32(value.word2), word3: langruntime.checkedI32(value.word3), word4: langruntime.checkedI32(value.word4), word5: langruntime.checkedI32(value.word5), word6: langruntime.checkedI32(value.word6), word7: langruntime.checkedI32(value.word7) };
+}
+function equalNetworkAddress(left: NetworkAddress, right: NetworkAddress): boolean {
+    return left.family === right.family && left.prefix === right.prefix && left.word0 === right.word0 && left.word1 === right.word1 && left.word2 === right.word2 && left.word3 === right.word3 && left.word4 === right.word4 && left.word5 === right.word5 && left.word6 === right.word6 && left.word7 === right.word7;
+}
+export type NetworkValue = {
+    kind: "Unknown";
+} | {
+    kind: "Null";
+} | {
+    kind: "Value";
+    value: NetworkAddress;
+} | {
+    kind: "Error";
+    value: SqlError;
+};
+export function copyNetworkValue(value: NetworkValue): NetworkValue {
+    switch (value.kind) {
+        case "Unknown": return { kind: "Unknown" };
+        case "Null": return { kind: "Null" };
+        case "Value": return { kind: "Value", value: copyNetworkAddress(value.value) };
+        case "Error": return { kind: "Error", value: value.value };
+    }
+}
+export function equalNetworkValue(left: NetworkValue, right: NetworkValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return equalNetworkAddress(left.value, right.value);
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function networkUnknown(): NetworkValue {
+    return { kind: "Unknown" };
+}
+export function networkNull(): NetworkValue {
+    return { kind: "Null" };
+}
+export function networkIsNull(value: NetworkValue): BoolValue {
+    value = copyNetworkValue(value);
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalNetworkValue(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: equalNetworkValue(value, { kind: "Null" }) };
+}
+export function networkFromCaseGuard(value: CheckOutcome): NetworkValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function makeNetworkValue(value: string): NetworkValue {
+    value = langruntime.checkedString(value);
+    return networkParse(value, false);
+}
+export function makeCidrValue(value: string): NetworkValue {
+    value = langruntime.checkedString(value);
+    return networkParse(value, true);
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;
@@ -904,6 +982,395 @@ export function numericParts(value: string): NumericLayout {
         return invalidNumericParts();
     }
     return { valid: true, special: 1, sign: sign, weight: weight, first: first, end: last };
+}
+export interface NetworkWord {
+    value: number;
+}
+function copyNetworkWord(value: NetworkWord): NetworkWord {
+    return { value: langruntime.checkedI32(value.value) };
+}
+function networkDigit(ch: string): number {
+    ch = langruntime.checkedChar(ch);
+    if (ch === "0") {
+        return 0;
+    }
+    if (ch === "1") {
+        return 1;
+    }
+    if (ch === "2") {
+        return 2;
+    }
+    if (ch === "3") {
+        return 3;
+    }
+    if (ch === "4") {
+        return 4;
+    }
+    if (ch === "5") {
+        return 5;
+    }
+    if (ch === "6") {
+        return 6;
+    }
+    if (ch === "7") {
+        return 7;
+    }
+    if (ch === "8") {
+        return 8;
+    }
+    if (ch === "9") {
+        return 9;
+    }
+    const lower: string = langruntime.asciiLowercase(ch);
+    if (lower === "a") {
+        return 10;
+    }
+    if (lower === "b") {
+        return 11;
+    }
+    if (lower === "c") {
+        return 12;
+    }
+    if (lower === "d") {
+        return 13;
+    }
+    if (lower === "e") {
+        return 14;
+    }
+    if (lower === "f") {
+        return 15;
+    }
+    return 16;
+}
+export function networkAddressWord(address: NetworkAddress, index: number): number {
+    address = copyNetworkAddress(address);
+    index = langruntime.checkedIndex(index);
+    if (index === 0) {
+        return address.word0;
+    }
+    if (index === 1) {
+        return address.word1;
+    }
+    if (index === 2) {
+        return address.word2;
+    }
+    if (index === 3) {
+        return address.word3;
+    }
+    if (index === 4) {
+        return address.word4;
+    }
+    if (index === 5) {
+        return address.word5;
+    }
+    if (index === 6) {
+        return address.word6;
+    }
+    return address.word7;
+}
+export function networkPrefixCompare(left: NetworkAddress, right: NetworkAddress, bits: number): number {
+    left = copyNetworkAddress(left);
+    right = copyNetworkAddress(right);
+    bits = langruntime.checkedI32(bits);
+    let index: number = 0;
+    let remaining: number = bits;
+    while (remaining > 0) {
+        let wordCount: number = remaining;
+        if (wordCount > 16) {
+            wordCount = langruntime.checkedI32(16);
+        }
+        let divisor: number = 1;
+        let padding: number = langruntime.checkedSignedSubtract(16, wordCount);
+        while (padding > 0) {
+            divisor = langruntime.checkedI32(langruntime.checkedSignedMultiply(divisor, 2));
+            padding = langruntime.checkedI32(langruntime.checkedSignedSubtract(padding, 1));
+        }
+        const a: number = langruntime.checkedSignedDivide(networkAddressWord(left, index), divisor);
+        const b: number = langruntime.checkedSignedDivide(networkAddressWord(right, index), divisor);
+        if (a < b) {
+            return langruntime.checkedSignedNegate(1);
+        }
+        if (a > b) {
+            return 1;
+        }
+        remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, wordCount));
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return 0;
+}
+function networkParse(value: string, cidr: boolean): NetworkValue {
+    value = langruntime.checkedString(value);
+    cidr = langruntime.checkedBool(cidr);
+    const chars: string[] = Array.from(value);
+    if (chars.length === 0 || chars.length > 256) {
+        return { kind: "Unknown" };
+    }
+    let end: number = chars.length;
+    let family: number = 4;
+    let scan: number = 0;
+    while (scan < chars.length) {
+        if (langruntime.indexChar(chars, langruntime.checkedIndex(scan)) === ":") {
+            family = langruntime.checkedIndex(6);
+        }
+        if (langruntime.indexChar(chars, langruntime.checkedIndex(scan)) === "/") {
+            if (!(end === chars.length)) {
+                return { kind: "Unknown" };
+            }
+            end = langruntime.checkedIndex(scan);
+        }
+        scan = langruntime.checkedAdd(scan, 1);
+    }
+    let prefix: number = 32;
+    if (family === 6) {
+        prefix = langruntime.checkedI32(128);
+    }
+    if (!(end === chars.length)) {
+        let index: number = langruntime.checkedAdd(end, 1);
+        if (index === chars.length) {
+            return { kind: "Unknown" };
+        }
+        if (family === 6 && langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "0" && langruntime.checkedAdd(index, 1) < chars.length) {
+            return { kind: "Unknown" };
+        }
+        prefix = langruntime.checkedI32(0);
+        while (index < chars.length) {
+            const digit: number = networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+            if (digit > 9) {
+                return { kind: "Unknown" };
+            }
+            prefix = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(prefix, 10), digit));
+            if (prefix > 128 || (family === 4 && prefix > 32)) {
+                return { kind: "Unknown" };
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+    }
+    let words: NetworkWord[] = [];
+    let index: number = 0;
+    if (family === 4) {
+        let octets: NetworkWord[] = [];
+        let octetCount: number = 0;
+        if (cidr && end > 2 && langruntime.indexChar(chars, langruntime.checkedIndex(0)) === "0" && (langruntime.indexChar(chars, langruntime.checkedIndex(1)) === "x" || langruntime.indexChar(chars, langruntime.checkedIndex(1)) === "X")) {
+            index = langruntime.checkedIndex(2);
+            while (index < end) {
+                const high: number = networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                if (high > 15 || octets.length === 4) {
+                    return { kind: "Unknown" };
+                }
+                index = langruntime.checkedAdd(index, 1);
+                let low: number = 0;
+                if (index < end) {
+                    low = langruntime.checkedI32(networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))));
+                    if (low > 15) {
+                        return { kind: "Unknown" };
+                    }
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                langruntime.pushStruct(octets, { value: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(high, 16), low) }, copyNetworkWord);
+                octetCount = langruntime.checkedI32(langruntime.checkedSignedAdd(octetCount, 1));
+            }
+        }
+        else {
+            while (index < end) {
+                const begin: number = index;
+                let octet: number = 0;
+                while (index < end && !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ".")) {
+                    const digit: number = networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                    if (digit > 9) {
+                        return { kind: "Unknown" };
+                    }
+                    octet = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(octet, 10), digit));
+                    if (octet > 255) {
+                        return { kind: "Unknown" };
+                    }
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                if (begin === index || octets.length === 4) {
+                    return { kind: "Unknown" };
+                }
+                langruntime.pushStruct(octets, { value: octet }, copyNetworkWord);
+                octetCount = langruntime.checkedI32(langruntime.checkedSignedAdd(octetCount, 1));
+                if (index < end) {
+                    index = langruntime.checkedAdd(index, 1);
+                    if (index === end) {
+                        return { kind: "Unknown" };
+                    }
+                }
+            }
+        }
+        if (octets.length === 0) {
+            return { kind: "Unknown" };
+        }
+        if (end === chars.length) {
+            if (cidr) {
+                prefix = langruntime.checkedI32(8);
+                if (langruntime.indexStruct(octets, langruntime.checkedIndex(0), copyNetworkWord).value >= 240) {
+                    prefix = langruntime.checkedI32(32);
+                }
+                else if (langruntime.indexStruct(octets, langruntime.checkedIndex(0), copyNetworkWord).value >= 224) {
+                    prefix = langruntime.checkedI32(8);
+                }
+                else if (langruntime.indexStruct(octets, langruntime.checkedIndex(0), copyNetworkWord).value >= 192) {
+                    prefix = langruntime.checkedI32(24);
+                }
+                else if (langruntime.indexStruct(octets, langruntime.checkedIndex(0), copyNetworkWord).value >= 128) {
+                    prefix = langruntime.checkedI32(16);
+                }
+                if (prefix < langruntime.checkedSignedMultiply(octetCount, 8)) {
+                    prefix = langruntime.checkedI32(langruntime.checkedSignedMultiply(octetCount, 8));
+                }
+                if (prefix === 8 && langruntime.indexStruct(octets, langruntime.checkedIndex(0), copyNetworkWord).value === 224) {
+                    prefix = langruntime.checkedI32(4);
+                }
+            }
+            else if (!(octets.length === 4)) {
+                return { kind: "Unknown" };
+            }
+        }
+        else if (cidr === false && langruntime.checkedSignedDivide(prefix, 8) > octetCount) {
+            return { kind: "Unknown" };
+        }
+        while (octets.length < 4) {
+            langruntime.pushStruct(octets, { value: 0 }, copyNetworkWord);
+        }
+        langruntime.pushStruct(words, { value: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(octets, langruntime.checkedIndex(0), copyNetworkWord).value, 256), langruntime.indexStruct(octets, langruntime.checkedIndex(1), copyNetworkWord).value) }, copyNetworkWord);
+        langruntime.pushStruct(words, { value: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(octets, langruntime.checkedIndex(2), copyNetworkWord).value, 256), langruntime.indexStruct(octets, langruntime.checkedIndex(3), copyNetworkWord).value) }, copyNetworkWord);
+    }
+    else {
+        let compression: number = 9;
+        if (end > 0 && langruntime.indexChar(chars, langruntime.checkedIndex(0)) === ":") {
+            if (end < 2 || !(langruntime.indexChar(chars, langruntime.checkedIndex(1)) === ":")) {
+                return { kind: "Unknown" };
+            }
+            compression = langruntime.checkedIndex(0);
+            index = langruntime.checkedIndex(2);
+        }
+        while (index < end) {
+            const begin: number = index;
+            let stop: number = index;
+            let dotted: boolean = false;
+            while (stop < end && !(langruntime.indexChar(chars, langruntime.checkedIndex(stop)) === ":")) {
+                if (langruntime.indexChar(chars, langruntime.checkedIndex(stop)) === ".") {
+                    dotted = langruntime.checkedBool(true);
+                }
+                stop = langruntime.checkedAdd(stop, 1);
+            }
+            if (dotted) {
+                if (!(stop === end) || words.length > 6) {
+                    return { kind: "Unknown" };
+                }
+                let octets: NetworkWord[] = [];
+                while (index < end) {
+                    const start: number = index;
+                    let octet: number = 0;
+                    while (index < end && !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ".")) {
+                        const digit: number = networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                        if (digit > 9 || (index > start && langruntime.indexChar(chars, langruntime.checkedIndex(start)) === "0")) {
+                            return { kind: "Unknown" };
+                        }
+                        octet = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(octet, 10), digit));
+                        if (octet > 255) {
+                            return { kind: "Unknown" };
+                        }
+                        index = langruntime.checkedAdd(index, 1);
+                    }
+                    if (index === start || octets.length === 4) {
+                        return { kind: "Unknown" };
+                    }
+                    langruntime.pushStruct(octets, { value: octet }, copyNetworkWord);
+                    if (index < end) {
+                        index = langruntime.checkedAdd(index, 1);
+                        if (index === end) {
+                            return { kind: "Unknown" };
+                        }
+                    }
+                }
+                if (!(octets.length === 4)) {
+                    return { kind: "Unknown" };
+                }
+                langruntime.pushStruct(words, { value: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(octets, langruntime.checkedIndex(0), copyNetworkWord).value, 256), langruntime.indexStruct(octets, langruntime.checkedIndex(1), copyNetworkWord).value) }, copyNetworkWord);
+                langruntime.pushStruct(words, { value: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(octets, langruntime.checkedIndex(2), copyNetworkWord).value, 256), langruntime.indexStruct(octets, langruntime.checkedIndex(3), copyNetworkWord).value) }, copyNetworkWord);
+            }
+            else {
+                if (stop === begin || langruntime.checkedSubtract(stop, begin) > 4 || words.length === 8) {
+                    return { kind: "Unknown" };
+                }
+                let word: number = 0;
+                while (index < stop) {
+                    const digit: number = networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                    if (digit > 15) {
+                        return { kind: "Unknown" };
+                    }
+                    word = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(word, 16), digit));
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                langruntime.pushStruct(words, { value: word }, copyNetworkWord);
+                if (index < end) {
+                    index = langruntime.checkedAdd(index, 1);
+                    if (index < end && langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ":") {
+                        if (!(compression === 9)) {
+                            return { kind: "Unknown" };
+                        }
+                        compression = langruntime.checkedIndex(words.length);
+                        index = langruntime.checkedAdd(index, 1);
+                    }
+                    else if (index === end) {
+                        return { kind: "Unknown" };
+                    }
+                }
+            }
+        }
+        if (!(compression === 9)) {
+            const wordCount: number = words.length;
+            if (wordCount >= 8) {
+                return { kind: "Unknown" };
+            }
+            while (words.length < 8) {
+                langruntime.pushStruct(words, { value: 0 }, copyNetworkWord);
+            }
+            let source: number = wordCount;
+            let dest: number = 8;
+            while (source > compression) {
+                source = langruntime.checkedIndex(langruntime.checkedSubtract(source, 1));
+                dest = langruntime.checkedIndex(langruntime.checkedSubtract(dest, 1));
+                words[langruntime.checkedIndexIn(words, dest)] = copyNetworkWord(langruntime.indexStruct(words, langruntime.checkedIndex(source), copyNetworkWord));
+                words[langruntime.checkedIndexIn(words, source)] = copyNetworkWord({ value: 0 });
+            }
+        }
+        if (!(words.length === 8)) {
+            return { kind: "Unknown" };
+        }
+    }
+    while (words.length < 8) {
+        langruntime.pushStruct(words, { value: 0 }, copyNetworkWord);
+    }
+    const address: NetworkAddress = copyNetworkAddress({ family: family, prefix: prefix, word0: langruntime.indexStruct(words, langruntime.checkedIndex(0), copyNetworkWord).value, word1: langruntime.indexStruct(words, langruntime.checkedIndex(1), copyNetworkWord).value, word2: langruntime.indexStruct(words, langruntime.checkedIndex(2), copyNetworkWord).value, word3: langruntime.indexStruct(words, langruntime.checkedIndex(3), copyNetworkWord).value, word4: langruntime.indexStruct(words, langruntime.checkedIndex(4), copyNetworkWord).value, word5: langruntime.indexStruct(words, langruntime.checkedIndex(5), copyNetworkWord).value, word6: langruntime.indexStruct(words, langruntime.checkedIndex(6), copyNetworkWord).value, word7: langruntime.indexStruct(words, langruntime.checkedIndex(7), copyNetworkWord).value });
+    if (cidr) {
+        let remaining: number = prefix;
+        let wordIndex: number = 0;
+        let wordCount: number = 8;
+        if (family === 4) {
+            wordCount = langruntime.checkedIndex(2);
+        }
+        while (wordIndex < wordCount) {
+            let bits: number = remaining;
+            if (bits > 16) {
+                bits = langruntime.checkedI32(16);
+            }
+            remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, bits));
+            let divisor: number = 1;
+            let padding: number = langruntime.checkedSignedSubtract(16, bits);
+            while (padding > 0) {
+                divisor = langruntime.checkedI32(langruntime.checkedSignedMultiply(divisor, 2));
+                padding = langruntime.checkedI32(langruntime.checkedSignedSubtract(padding, 1));
+            }
+            if (!(langruntime.checkedSignedRemainder(networkAddressWord(address, wordIndex), divisor) === 0)) {
+                return { kind: "Unknown" };
+            }
+            wordIndex = langruntime.checkedAdd(wordIndex, 1);
+        }
+    }
+    return { kind: "Value", value: copyNetworkAddress(address) };
 }
 const dateFieldOverflow = 3452552;
 const invalidDateText = 3452551;

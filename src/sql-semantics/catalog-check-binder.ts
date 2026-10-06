@@ -87,6 +87,8 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     float8: 'pg_catalog.float8',
     numeric: 'pg_catalog."numeric"',
     decimal: 'pg_catalog."numeric"',
+    inet: 'pg_catalog.inet',
+    cidr: 'pg_catalog.cidr',
     date: 'pg_catalog.date',
     timestamp: 'pg_catalog."timestamp"',
     'timestamp without time zone': 'pg_catalog."timestamp"',
@@ -176,6 +178,11 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
   ) {
     return { kind: 'temporal', type, value: literal.value }
   }
+  if (
+    (type === 'pg_catalog.inet' || type === 'pg_catalog.cidr') &&
+    (literal.kind === 'string' || literal.kind === 'null')
+  )
+    return { kind: 'network', type, value: literal.value }
   if (type === 'pg_catalog."numeric"') return { kind: 'decimal', type, value: literal.value }
   if (literal.kind === 'null') {
     if (type === 'pg_catalog.bool') return { kind: 'boolean', type, value: null }
@@ -255,6 +262,13 @@ const materialize = (
     return expression ? { kind: 'certain', expression } : null
   }
   if (
+    bound.type === 'pg_catalog.cidr' &&
+    type === 'pg_catalog.inet' &&
+    bound.value &&
+    builtinCast(bound.type, type)?.method === 'b'
+  )
+    return { kind: 'call', call: { kind: 'cast', signature: null, type }, operands: [bound.value] }
+  if (
     bound.type !== null &&
     bound.type !== type &&
     bound.value &&
@@ -289,6 +303,16 @@ const materializeInteger = (arg: Bound, target: ScalarType): EvalExpression | nu
         operands: [value],
       }
     : null
+}
+
+const networkCommonType = (arms: readonly Bound[]): ScalarType | undefined => {
+  const types = arms.flatMap((arm) => (arm.type ? [arm.type] : []))
+  if (
+    !types.length ||
+    types.some((type) => type !== 'pg_catalog.inet' && type !== 'pg_catalog.cidr')
+  )
+    return undefined
+  return types.includes('pg_catalog.inet') ? 'pg_catalog.inet' : 'pg_catalog.cidr'
 }
 
 const integerCommonType = (arms: readonly Bound[]): ScalarType | undefined => {
@@ -468,9 +492,11 @@ export function bindCatalogCheck(
       const integerType = integerCommonType(args)
       const typed = args.flatMap((arg) => (arg.type ? [arg.type] : []))
       const textTypes = ['pg_catalog.text', 'pg_catalog."varchar"']
-      const type = integerType ?? typed[0] ?? 'pg_catalog.text'
+      const networkType = networkCommonType(args)
+      const type = integerType ?? networkType ?? typed[0] ?? 'pg_catalog.text'
       if (
         integerType === undefined &&
+        networkType === undefined &&
         typed.some(
           (other) => other !== type && !(textTypes.includes(type) && textTypes.includes(other)),
         )
@@ -507,14 +533,21 @@ export function bindCatalogCheck(
       const arms = [...results, otherwise]
       const integerType = integerCommonType([otherwise, ...results])
       const typed = arms.flatMap((arm) => (arm.type ? [arm.type] : []))
+      const networkType = networkCommonType(arms)
       const type =
         integerType ??
+        networkType ??
         expectedType ??
         typed[0] ??
         (arms.some((arm) => arm.literal?.kind === 'integer')
           ? 'pg_catalog.int4'
           : 'pg_catalog.text')
-      if (integerType === undefined && typed.some((other) => other !== type)) return unknown
+      if (
+        integerType === undefined &&
+        networkType === undefined &&
+        typed.some((other) => other !== type)
+      )
+        return unknown
       const definition = arms.find((arm) => arm.enum)?.enum
       const values = arms.map((arm) =>
         integerType === undefined
@@ -638,6 +671,8 @@ export function bindCatalogCheck(
       )
         return unknown
       const operand = bind(cast['arg'])
+      if (operand.type === 'pg_catalog.cidr' && type === 'pg_catalog.inet' && operand.value)
+        return { type, value: materialize(operand, type) }
       if (operand.type && operand.value && isBinaryTextRelabel(operand.type, type))
         return {
           type,

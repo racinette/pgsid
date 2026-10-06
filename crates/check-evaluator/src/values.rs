@@ -534,3 +534,54 @@ pub fn make_numeric_value(value: &str) -> NumericValue<'_> {
     }
     NumericValue::Value(value)
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct NetworkAddress {
+    pub family: usize,
+    pub prefix: i32,
+    pub word0: i32,
+    pub word1: i32,
+    pub word2: i32,
+    pub word3: i32,
+    pub word4: i32,
+    pub word5: i32,
+    pub word6: i32,
+    pub word7: i32,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum NetworkValue {
+    Unknown,
+    Null,
+    Value(NetworkAddress),
+    Error(SqlError),
+}
+
+pub fn network_unknown() -> NetworkValue {
+    NetworkValue::Unknown
+}
+pub fn network_null() -> NetworkValue {
+    NetworkValue::Null
+}
+pub fn network_is_null(value: NetworkValue) -> BoolValue {
+    if let NetworkValue::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == NetworkValue::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(value == NetworkValue::Null)
+}
+pub fn network_from_case_guard(value: CheckOutcome) -> NetworkValue {
+    if let CheckOutcome::Error(error) = value {
+        return NetworkValue::Error(error);
+    }
+    NetworkValue::Unknown
+}
+
+pub fn make_network_value(value: &str) -> NetworkValue {
+    network_parse(value, false)
+}
+pub fn make_cidr_value(value: &str) -> NetworkValue {
+    network_parse(value, true)
+}

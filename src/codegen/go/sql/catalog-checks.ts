@@ -231,6 +231,7 @@ export function renderGoSchemaCheckArtifacts(
               'Int2Value',
               'Int4Value',
               'Int8Value',
+              'NetworkValue',
               'NumericValue',
               'DateValue',
               'TimestampValue',
@@ -242,27 +243,29 @@ export function renderGoSchemaCheckArtifacts(
           )
             throw new Error(`Unsupported Go Rust CHECK input: ${item.rustType}`)
           const helper =
-            item.rustType === 'NumericValue'
-              ? 'checkRustNumeric'
-              : item.rustType === 'DateValue'
-                ? 'checkRustDate'
-                : item.rustType === 'TimestampValue'
-                  ? 'checkRustTimestamp'
-                  : item.rustType === 'TimestamptzValue'
-                    ? 'checkRustTimestamptz'
-                    : item.nullness
-                      ? 'checkRustNullness'
-                      : item.enum
-                        ? 'checkRustEnum'
-                        : item.rustType === 'Int2Value'
-                          ? 'checkRustInt2'
-                          : item.rustType === 'Int4Value'
-                            ? 'checkRustInt4'
-                            : item.rustType === 'Int8Value'
-                              ? 'checkRustInt8'
-                              : item.rustType === 'TextValue'
-                                ? 'checkRustText'
-                                : 'checkRustBool'
+            item.rustType === 'NetworkValue'
+              ? 'checkRustNetwork'
+              : item.rustType === 'NumericValue'
+                ? 'checkRustNumeric'
+                : item.rustType === 'DateValue'
+                  ? 'checkRustDate'
+                  : item.rustType === 'TimestampValue'
+                    ? 'checkRustTimestamp'
+                    : item.rustType === 'TimestamptzValue'
+                      ? 'checkRustTimestamptz'
+                      : item.nullness
+                        ? 'checkRustNullness'
+                        : item.enum
+                          ? 'checkRustEnum'
+                          : item.rustType === 'Int2Value'
+                            ? 'checkRustInt2'
+                            : item.rustType === 'Int4Value'
+                              ? 'checkRustInt4'
+                              : item.rustType === 'Int8Value'
+                                ? 'checkRustInt8'
+                                : item.rustType === 'TextValue' || item.rustType === 'NetworkValue'
+                                  ? 'checkRustText'
+                                  : 'checkRustBool'
           rustInputAdapters.add(helper)
           if (
             item.rustType !== 'NumericValue' &&
@@ -277,7 +280,7 @@ export function renderGoSchemaCheckArtifacts(
                     item.rustType === 'Int4Value' ||
                     item.rustType === 'Int8Value'
                   ? 'checkInputInteger'
-                  : item.rustType === 'TextValue'
+                  : item.rustType === 'TextValue' || item.rustType === 'NetworkValue'
                     ? 'checkInputText'
                     : item.enum
                       ? 'checkInputText'
@@ -495,6 +498,18 @@ func checkRustTimestamptz[T any](field CheckOptional[T]) checkruntime.Timestampt
   if field.Null { return checkruntime.TimestamptzNull() }
   if value, ok := any(field.V).(checkruntime.TimestamptzValue); ok { return value }
   return checkruntime.TimestamptzUnknown()
+}
+func checkRustNetwork[T any](field CheckOptional[T]) checkruntime.NetworkValue {
+  value := checkInputText(field)
+  if !value.Certain { return checkruntime.NetworkUnknown() }
+  if value.Value.Error != "" {
+    if state, ok := checkRustState(value.Value.Error); ok {
+      return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: state}
+    }
+    return checkruntime.NetworkUnknown()
+  }
+  if !value.Value.Valid { return checkruntime.NetworkNull() }
+  return checkruntime.MakeNetworkValue(value.Value.Value)
 }
 func checkRustNumeric[T any](field CheckOptional[T]) checkruntime.NumericValue {
   if !field.Set { return checkruntime.NumericUnknown() }
