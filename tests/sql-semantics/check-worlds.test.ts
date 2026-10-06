@@ -919,6 +919,37 @@ describe('world CHECK INSERT parity', () => {
         expect(measured.unknown, identity).toBe(0)
       }
     }
+    for (const name of [
+      'transform_intersection',
+      'transform_union',
+      'transform_exclusive',
+      'transform_complement',
+      'transform_left',
+      'transform_right',
+      'transform_selected',
+      'transform_default',
+      'transform_direct',
+    ]) {
+      const identity = `world_017_feature_masks.mask_transforms.${name}`
+      const measured = coverage.get(identity)!
+      expect(measured.true, identity).toBeGreaterThan(0)
+      expect(measured.false, identity).toBeGreaterThan(0)
+      expect(measured.null, identity).toBeGreaterThan(0)
+      expect(measured.unknown, identity).toBe(0)
+      if (['transform_selected', 'transform_default', 'transform_direct'].includes(name)) {
+        expect(measured.error, identity).toBeGreaterThan(0)
+        let describedErrors = 0
+        for (const row of caseResults) {
+          if (!row.name.startsWith('017_feature_masks/')) continue
+          for (const check of row.checks) {
+            if (check.constraint !== name || check.result.error !== '22026') continue
+            expect(check.message).toContain('string data length mismatch')
+            describedErrors++
+          }
+        }
+        expect(describedErrors, identity).toBeGreaterThan(0)
+      }
+    }
     const recognizedMask = coverage.get(
       'world_017_feature_masks.device_mask_rules.rule_recognized',
     )!

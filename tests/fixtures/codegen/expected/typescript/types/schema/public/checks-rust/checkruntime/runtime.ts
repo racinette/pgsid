@@ -428,7 +428,11 @@ const sqlErrorDivisionByZero = 3452582;
 const sqlErrorInvalidRegex = 3452591;
 const sqlErrorInvalidParameter = 3452619;
 const sqlErrorInvalidTextRepresentation = 3484946;
+const sqlErrorStringLengthMismatch = 3452622;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorStringLengthMismatch) {
+        return { message: "string data length mismatch" };
+    }
     if (error.state === sqlErrorInvalidTextRepresentation) {
         return { message: "invalid text representation" };
     }
@@ -757,7 +761,7 @@ export function bitFromCaseGuard(value: CheckOutcome): BitValue {
 export function makeBitValue(value: string): BitValue {
     value = langruntime.checkedString(value);
     const chars: string[] = Array.from(value);
-    if (chars.length > 2147483647) {
+    if (chars.length > 2147483640) {
         return { kind: "Unknown" };
     }
     let index: number = 0;
@@ -2026,7 +2030,7 @@ export function bitFromLiteral(value: string): BitValue {
             hexadecimal = langruntime.checkedBool(true);
         }
     }
-    if (chars.length > 536870911) {
+    if (chars.length > 536870910) {
         return { kind: "Unknown" };
     }
     let output: string = "";

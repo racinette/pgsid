@@ -1081,6 +1081,149 @@ func VarbitneSbck(left checkruntime.BitValue, right checkruntime.BitValue) check
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+
+const bitStringLengthMismatch = 3452622
+const bitMaxLength = 2147483640
+const bitCombineAnd = 0
+const bitCombineOr = 1
+const bitCombineXor = 2
+
+func bitCombine(left checkruntime.BitValue, right checkruntime.BitValue, operation int) checkruntime.BitValue {
+	operation = langruntime.CheckedI32(operation)
+	if left.Kind == checkruntime.BitValueError {
+		error := left.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if right.Kind == checkruntime.BitValueError {
+		error := right.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if left == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) || right == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+	}
+	if left == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) || right == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueNull}
+	}
+	if left.Kind == checkruntime.BitValueValue {
+		a := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.BitValueValue {
+			b := langruntime.CheckedString(right.Value)
+			first := []rune(a)
+			second := []rune(b)
+			if len(first) != len(second) {
+				return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: checkruntime.MakeSqlError(bitStringLengthMismatch)}
+			}
+			output := ""
+			index := 0
+			for index < len(first) {
+				leftSet := first[index] == '1'
+				rightSet := second[index] == '1'
+				set := leftSet && rightSet
+				if operation == bitCombineOr {
+					set = leftSet || rightSet
+				}
+				if operation == bitCombineXor {
+					set = leftSet != rightSet
+				}
+				if set {
+					output = output + string(langruntime.CheckedChar('1'))
+				} else {
+					output = output + string(langruntime.CheckedChar('0'))
+				}
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: output}
+		}
+	}
+	return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+}
+func bitShift(input checkruntime.BitValue, distance checkruntime.Int4Value, leftwards bool) checkruntime.BitValue {
+	if input.Kind == checkruntime.BitValueError {
+		error := input.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if distance.Kind == checkruntime.Int4ValueError {
+		error := distance.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) || distance == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) || distance == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueNull}
+	}
+	if input.Kind == checkruntime.BitValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if distance.Kind == checkruntime.Int4ValueValue {
+			amount := langruntime.CheckedI32(distance.Value)
+			chars := []rune(value)
+			magnitude := amount
+			towardsLeft := leftwards
+			if magnitude < 0 {
+				towardsLeft = leftwards == false
+				if magnitude < langruntime.CheckedSignedSubtract(0, bitMaxLength) {
+					magnitude = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, bitMaxLength))
+				}
+				magnitude = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(0, magnitude))
+			}
+			offset := 0
+			counted := 0
+			for offset < len(chars) && counted < magnitude {
+				offset = langruntime.CheckedAdd(offset, 1)
+				counted = langruntime.CheckedI32(langruntime.CheckedSignedAdd(counted, 1))
+			}
+			output := ""
+			index := 0
+			for index < len(chars) {
+				ch := '0'
+				if towardsLeft {
+					if offset < langruntime.CheckedSubtract(len(chars), index) {
+						ch = langruntime.CheckedChar(chars[langruntime.CheckedAdd(index, offset)])
+					}
+				} else if index >= offset {
+					ch = langruntime.CheckedChar(chars[langruntime.CheckedSubtract(index, offset)])
+				}
+				output = output + string(langruntime.CheckedChar(ch))
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: output}
+		}
+	}
+	return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+}
+func BitandMal6(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.BitValue {
+	return bitCombine(left, right, bitCombineAnd)
+}
+func BitorEs93(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.BitValue {
+	return bitCombine(left, right, bitCombineOr)
+}
+func BitxorAl74(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.BitValue {
+	return bitCombine(left, right, bitCombineXor)
+}
+func BitnotXgta(input checkruntime.BitValue) checkruntime.BitValue {
+	if input.Kind == checkruntime.BitValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		output := ""
+		index := 0
+		for index < len(chars) {
+			if chars[index] == '1' {
+				output = output + string(langruntime.CheckedChar('0'))
+			} else {
+				output = output + string(langruntime.CheckedChar('1'))
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: output}
+	}
+	return input
+}
+func BitshiftleftQf9d(input checkruntime.BitValue, distance checkruntime.Int4Value) checkruntime.BitValue {
+	return bitShift(input, distance, true)
+}
+func BitshiftrightHgyn(input checkruntime.BitValue, distance checkruntime.Int4Value) checkruntime.BitValue {
+	return bitShift(input, distance, false)
+}
 func BooleqY6qu(left checkruntime.BoolValue, right checkruntime.BoolValue) checkruntime.BoolValue {
 	if left.Kind == checkruntime.BoolValueError {
 		error := left.Error

@@ -6,3 +6,6 @@ VALUES (1, 1, B'001', B'001', B'001', B'', X'FF', true, 3, 1, 1);
 
 INSERT INTO mask_snapshots (id, profile_id, variable_mask, fixed_mask, expected_mask, expected_match, prefer_fixed)
 VALUES (1, 1, X'0F', B'00001111', B'00001111', true, true);
+
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (1, 1, X'A5', X'0F', X'A5', X'0F', X'05', X'AF', X'AA', X'5A', X'4A', X'52', 1, false);
