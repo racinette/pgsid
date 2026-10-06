@@ -2218,6 +2218,336 @@ func InetmiJocm(left checkruntime.NetworkValue, right checkruntime.NetworkValue)
 	}
 	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 }
+func networkMaxBits(address checkruntime.NetworkAddress) int {
+	address = checkruntime.CopyNetworkAddress(address)
+	if address.Family == 4 {
+		return 32
+	}
+	return 128
+}
+func networkHostDivisor(bits int) int {
+	bits = langruntime.CheckedI32(bits)
+	remaining := langruntime.CheckedSignedSubtract(16, bits)
+	divisor := 1
+	for remaining > 0 {
+		divisor = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(divisor, 2))
+		remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, 1))
+	}
+	return divisor
+}
+func networkApplyPrefix(address checkruntime.NetworkAddress, prefix int, fillHost bool) checkruntime.NetworkAddress {
+	address = checkruntime.CopyNetworkAddress(address)
+	prefix = langruntime.CheckedI32(prefix)
+	words := []checkruntime.NetworkWord{}
+	remaining := prefix
+	index := 0
+	for index < 8 {
+		bits := remaining
+		if bits > 16 {
+			bits = langruntime.CheckedI32(16)
+		}
+		remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, bits))
+		divisor := networkHostDivisor(bits)
+		source := checkruntime.NetworkAddressWord(address, index)
+		word := langruntime.CheckedSignedMultiply(langruntime.CheckedSignedDivide(source, divisor), divisor)
+		if fillHost {
+			word = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(word, divisor), 1))
+		}
+		if address.Family == 4 && index >= 2 {
+			word = langruntime.CheckedI32(0)
+		}
+		langruntime.CheckedAdd(len(words), 1)
+		words = append(words, checkruntime.CopyNetworkWord(checkruntime.NetworkWord{Value: word}))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return networkResultAddress(address.Family, prefix, words)
+}
+func networkMask(address checkruntime.NetworkAddress, host bool) checkruntime.NetworkAddress {
+	address = checkruntime.CopyNetworkAddress(address)
+	words := []checkruntime.NetworkWord{}
+	remaining := address.Prefix
+	index := 0
+	for index < 8 {
+		bits := remaining
+		if bits > 16 {
+			bits = langruntime.CheckedI32(16)
+		}
+		remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, bits))
+		divisor := networkHostDivisor(bits)
+		word := langruntime.CheckedSignedSubtract(65536, divisor)
+		if host {
+			word = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(divisor, 1))
+		}
+		if address.Family == 4 && index >= 2 {
+			word = langruntime.CheckedI32(0)
+		}
+		langruntime.CheckedAdd(len(words), 1)
+		words = append(words, checkruntime.CopyNetworkWord(checkruntime.NetworkWord{Value: word}))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	width := networkMaxBits(address)
+	return networkResultAddress(address.Family, width, words)
+}
+func networkSetMasklen(left checkruntime.NetworkValue, right checkruntime.Int4Value, clearHost bool) checkruntime.NetworkValue {
+	left = checkruntime.CopyNetworkValue(left)
+	right = checkruntime.CopyInt4Value(right)
+	if left.Kind == checkruntime.NetworkValueError {
+		error := left.Error
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int4ValueError {
+		error := right.Error
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
+	}
+	if left == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
+	}
+	if left == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
+	}
+	if left.Kind == checkruntime.NetworkValueValue {
+		address := checkruntime.CopyNetworkAddress(left.Value)
+		if right.Kind == checkruntime.Int4ValueValue {
+			requested := langruntime.CheckedI32(right.Value)
+			width := networkMaxBits(address)
+			prefix := requested
+			if prefix == langruntime.CheckedSignedNegate(1) {
+				prefix = langruntime.CheckedI32(width)
+			}
+			if prefix < 0 || prefix > width {
+				return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: checkruntime.MakeSqlError(sqlstateInvalidParameterValue)}
+			}
+			if clearHost {
+				result := networkApplyPrefix(address, prefix, false)
+				return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueValue, Value: result}
+			}
+			words := []checkruntime.NetworkWord{}
+			index := 0
+			for index < 8 {
+				word := checkruntime.NetworkAddressWord(address, index)
+				langruntime.CheckedAdd(len(words), 1)
+				words = append(words, checkruntime.CopyNetworkWord(checkruntime.NetworkWord{Value: word}))
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			result := networkResultAddress(address.Family, prefix, words)
+			return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueValue, Value: result}
+		}
+	}
+	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
+}
+func Family2lcf(input checkruntime.NetworkValue) checkruntime.Int4Value {
+	input = checkruntime.CopyNetworkValue(input)
+	if input.Kind == checkruntime.NetworkValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.NetworkValueValue {
+		address := checkruntime.CopyNetworkAddress(input.Value)
+		if address.Family == 4 {
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 4}
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 6}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func MasklenKk20(input checkruntime.NetworkValue) checkruntime.Int4Value {
+	input = checkruntime.CopyNetworkValue(input)
+	if input.Kind == checkruntime.NetworkValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.NetworkValueValue {
+		address := checkruntime.CopyNetworkAddress(input.Value)
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: address.Prefix}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func NetworkO215(input checkruntime.NetworkValue) checkruntime.NetworkValue {
+	input = checkruntime.CopyNetworkValue(input)
+	if input.Kind == checkruntime.NetworkValueError {
+		error := input.Error
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) {
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}) {
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
+	}
+	if input.Kind == checkruntime.NetworkValueValue {
+		address := checkruntime.CopyNetworkAddress(input.Value)
+		result := networkApplyPrefix(address, address.Prefix, false)
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueValue, Value: result}
+	}
+	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
+}
+func Cidr6idb(input checkruntime.NetworkValue) checkruntime.NetworkValue {
+	input = checkruntime.CopyNetworkValue(input)
+	if input.Kind == checkruntime.NetworkValueError {
+		error := input.Error
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) {
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}) {
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
+	}
+	if input.Kind == checkruntime.NetworkValueValue {
+		address := checkruntime.CopyNetworkAddress(input.Value)
+		result := networkApplyPrefix(address, address.Prefix, false)
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueValue, Value: result}
+	}
+	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
+}
+func BroadcastIlgu(input checkruntime.NetworkValue) checkruntime.NetworkValue {
+	input = checkruntime.CopyNetworkValue(input)
+	if input.Kind == checkruntime.NetworkValueError {
+		error := input.Error
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) {
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}) {
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
+	}
+	if input.Kind == checkruntime.NetworkValueValue {
+		address := checkruntime.CopyNetworkAddress(input.Value)
+		result := networkApplyPrefix(address, address.Prefix, true)
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueValue, Value: result}
+	}
+	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
+}
+func NetmaskBt5i(input checkruntime.NetworkValue) checkruntime.NetworkValue {
+	input = checkruntime.CopyNetworkValue(input)
+	if input.Kind == checkruntime.NetworkValueError {
+		error := input.Error
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) {
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}) {
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
+	}
+	if input.Kind == checkruntime.NetworkValueValue {
+		address := checkruntime.CopyNetworkAddress(input.Value)
+		result := networkMask(address, false)
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueValue, Value: result}
+	}
+	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
+}
+func HostmaskVz12(input checkruntime.NetworkValue) checkruntime.NetworkValue {
+	input = checkruntime.CopyNetworkValue(input)
+	if input.Kind == checkruntime.NetworkValueError {
+		error := input.Error
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) {
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}) {
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
+	}
+	if input.Kind == checkruntime.NetworkValueValue {
+		address := checkruntime.CopyNetworkAddress(input.Value)
+		result := networkMask(address, true)
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueValue, Value: result}
+	}
+	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
+}
+func SetMasklenA6b0(left checkruntime.NetworkValue, right checkruntime.Int4Value) checkruntime.NetworkValue {
+	left = checkruntime.CopyNetworkValue(left)
+	right = checkruntime.CopyInt4Value(right)
+	return networkSetMasklen(left, right, false)
+}
+func SetMasklen00t7(left checkruntime.NetworkValue, right checkruntime.Int4Value) checkruntime.NetworkValue {
+	left = checkruntime.CopyNetworkValue(left)
+	right = checkruntime.CopyInt4Value(right)
+	return networkSetMasklen(left, right, true)
+}
+func InetSameFamilyOgv6(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.BoolValue {
+	left = checkruntime.CopyNetworkValue(left)
+	right = checkruntime.CopyNetworkValue(right)
+	if left.Kind == checkruntime.NetworkValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.NetworkValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) || right == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}) || right == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.NetworkValueValue {
+		a := checkruntime.CopyNetworkAddress(left.Value)
+		if right.Kind == checkruntime.NetworkValueValue {
+			b := checkruntime.CopyNetworkAddress(right.Value)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: a.Family == b.Family}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func InetMergeIflm(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.NetworkValue {
+	left = checkruntime.CopyNetworkValue(left)
+	right = checkruntime.CopyNetworkValue(right)
+	if left.Kind == checkruntime.NetworkValueError {
+		error := left.Error
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
+	}
+	if right.Kind == checkruntime.NetworkValueError {
+		error := right.Error
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
+	}
+	if left == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) || right == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) {
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
+	}
+	if left == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}) || right == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}) {
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
+	}
+	if left.Kind == checkruntime.NetworkValueValue {
+		a := checkruntime.CopyNetworkAddress(left.Value)
+		if right.Kind == checkruntime.NetworkValueValue {
+			b := checkruntime.CopyNetworkAddress(right.Value)
+			if a.Family != b.Family {
+				return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: checkruntime.MakeSqlError(sqlstateInvalidParameterValue)}
+			}
+			limit := a.Prefix
+			if b.Prefix < limit {
+				limit = langruntime.CheckedI32(b.Prefix)
+			}
+			common := 0
+			for common < limit {
+				next := langruntime.CheckedSignedAdd(common, 1)
+				order := checkruntime.NetworkPrefixCompare(a, b, next)
+				if order != 0 {
+					break
+				}
+				common = langruntime.CheckedI32(next)
+			}
+			result := networkApplyPrefix(a, common, false)
+			return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueValue, Value: result}
+		}
+	}
+	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
+}
 func numericCompare(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.Int4Value {
 	left = checkruntime.CopyNumericValue(left)
 	right = checkruntime.CopyNumericValue(right)

@@ -2,3 +2,5 @@ INSERT INTO network_peers (id, address, allowed, floor_address, ceiling_address,
 INSERT INTO network_subnets (id, subnet, parent_network, forbidden_network) VALUES (1, '10.1/16', '10/8', '192.168/16');
 INSERT INTO network_imports (id, raw_address, raw_network, expected_address, expected_network, skip_import) VALUES (1, '10.0.0.1', '10/8', '10.0.0.1', '10/8', false);
 INSERT INTO network_allocations (id, address, address_offset, allocated_address, comparison_address, address_distance) VALUES (1, '10.0.0.255', 1, '10.0.1.0', '10.0.0.254', 1);
+INSERT INTO network_plans (id, address, peer_address, address_family, prefix_length, same_family, network_address, broadcast_address, network_mask, host_mask, converted_network, combined_network) VALUES (1, '10.1.2.3/24', '10.1.3.4/24', 4, 24, true, '10.1.2.0/24', '10.1.2.255/24', '255.255.255.0', '0.0.0.255', '10.1.2.0/24', '10.1.2.0/23');
+INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address, resized_subnet, skip_resize) VALUES (1, '10.1.2.3/24', '10.1.2.0/24', 16, '10.1.2.3/16', '10.1.0.0/16', false);
