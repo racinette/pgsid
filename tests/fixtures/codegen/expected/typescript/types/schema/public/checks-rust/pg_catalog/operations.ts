@@ -754,6 +754,328 @@ export function byteaneVolo(left: checkruntime.ByteaValue, right: checkruntime.B
     }
     return { kind: "Unknown" };
 }
+function bitComparePayload(left: string, right: string): number {
+    left = langruntime.checkedString(left);
+    right = langruntime.checkedString(right);
+    const a: string[] = Array.from(left);
+    const b: string[] = Array.from(right);
+    let index: number = 0;
+    while (index < a.length && index < b.length) {
+        let leftByte: number = 0;
+        let rightByte: number = 0;
+        let weight: number = 128;
+        while (weight > 0) {
+            if (index < a.length) {
+                if (langruntime.indexChar(a, langruntime.checkedIndex(index)) === "1") {
+                    leftByte = langruntime.checkedI32(langruntime.checkedSignedAdd(leftByte, weight));
+                }
+            }
+            if (index < b.length) {
+                if (langruntime.indexChar(b, langruntime.checkedIndex(index)) === "1") {
+                    rightByte = langruntime.checkedI32(langruntime.checkedSignedAdd(rightByte, weight));
+                }
+            }
+            weight = langruntime.checkedI32(langruntime.checkedSignedDivide(weight, 2));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if (!(leftByte === rightByte)) {
+            return langruntime.checkedSignedSubtract(leftByte, rightByte);
+        }
+    }
+    if (a.length < b.length) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (a.length > b.length) {
+        return 1;
+    }
+    return 0;
+}
+function bitCompare(left: checkruntime.BitValue, right: checkruntime.BitValue): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBitValue(left, { kind: "Unknown" }) || checkruntime.equalBitValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBitValue(left, { kind: "Null" }) || checkruntime.equalBitValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: string = langruntime.checkedString(left.value);
+        if (right.kind === "Value") {
+            const b: string = langruntime.checkedString(right.value);
+            const borrowedA: string = a;
+            const borrowedB: string = b;
+            const result: number = bitComparePayload(borrowedA, borrowedB);
+            return { kind: "Value", value: result };
+        }
+    }
+    return { kind: "Unknown" };
+}
+function bitLength(input: checkruntime.BitValue): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const borrowed: string = value;
+        const result: number = checkruntime.bitPayloadLength(borrowed);
+        return { kind: "Value", value: result };
+    }
+    return { kind: "Unknown" };
+}
+export function bitLengthE2i8(input: checkruntime.BitValue): checkruntime.Int4Value {
+    return bitLength(input);
+}
+export function bitcmp2r1v(left: checkruntime.BitValue, right: checkruntime.BitValue): checkruntime.Int4Value {
+    return bitCompare(left, right);
+}
+export function biteq320u(left: checkruntime.BitValue, right: checkruntime.BitValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = bitCompare(left, right);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const value: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: value === 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function bitgePy56(left: checkruntime.BitValue, right: checkruntime.BitValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = bitCompare(left, right);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const value: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: value >= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function bitgt2srl(left: checkruntime.BitValue, right: checkruntime.BitValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = bitCompare(left, right);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const value: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: value > 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function bitleY0d7(left: checkruntime.BitValue, right: checkruntime.BitValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = bitCompare(left, right);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const value: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: value <= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function bitlt6ybn(left: checkruntime.BitValue, right: checkruntime.BitValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = bitCompare(left, right);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const value: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: value < 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function bitneXjg3(left: checkruntime.BitValue, right: checkruntime.BitValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = bitCompare(left, right);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const value: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: !(value === 0) };
+    }
+    return { kind: "Unknown" };
+}
+export function lengthR5f9(input: checkruntime.BitValue): checkruntime.Int4Value {
+    return bitLength(input);
+}
+export function octetLengthAcdm(input: checkruntime.BitValue): checkruntime.Int4Value {
+    const length: checkruntime.Int4Value = bitLength(input);
+    if (length.kind === "Value") {
+        const value: number = langruntime.checkedI32(length.value);
+        let result: number = langruntime.checkedSignedDivide(value, 8);
+        if (!(langruntime.checkedSignedRemainder(value, 8) === 0)) {
+            result = langruntime.checkedI32(langruntime.checkedSignedAdd(result, 1));
+        }
+        return { kind: "Value", value: result };
+    }
+    return length;
+}
+export function varbitcmpVqwo(left: checkruntime.BitValue, right: checkruntime.BitValue): checkruntime.Int4Value {
+    return bitCompare(left, right);
+}
+export function varbiteqD8r9(left: checkruntime.BitValue, right: checkruntime.BitValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = bitCompare(left, right);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const value: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: value === 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function varbitge3izz(left: checkruntime.BitValue, right: checkruntime.BitValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = bitCompare(left, right);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const value: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: value >= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function varbitgt31v4(left: checkruntime.BitValue, right: checkruntime.BitValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = bitCompare(left, right);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const value: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: value > 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function varbitle42o0(left: checkruntime.BitValue, right: checkruntime.BitValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = bitCompare(left, right);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const value: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: value <= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function varbitltXsv2(left: checkruntime.BitValue, right: checkruntime.BitValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = bitCompare(left, right);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const value: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: value < 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function varbitneSbck(left: checkruntime.BitValue, right: checkruntime.BitValue): checkruntime.BoolValue {
+    const compared: checkruntime.Int4Value = bitCompare(left, right);
+    if (compared.kind === "Error") {
+        const error: checkruntime.SqlError = compared.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(compared, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (compared.kind === "Value") {
+        const value: number = langruntime.checkedI32(compared.value);
+        return { kind: "Value", value: !(value === 0) };
+    }
+    return { kind: "Unknown" };
+}
 export function booleqY6qu(left: checkruntime.BoolValue, right: checkruntime.BoolValue): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;

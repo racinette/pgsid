@@ -236,6 +236,7 @@ export function renderGoSchemaCheckArtifacts(
               'MacaddrValue',
               'Macaddr8Value',
               'ByteaValue',
+              'BitValue',
               'NumericValue',
               'DateValue',
               'TimestampValue',
@@ -247,38 +248,40 @@ export function renderGoSchemaCheckArtifacts(
           )
             throw new Error(`Unsupported Go Rust CHECK input: ${item.rustType}`)
           const helper =
-            item.rustType === 'UuidValue'
-              ? 'checkRustUuid'
-              : item.rustType === 'ByteaValue'
-                ? 'checkRustBytea'
-                : item.rustType === 'MacaddrValue'
-                  ? 'checkRustMacaddr'
-                  : item.rustType === 'Macaddr8Value'
-                    ? 'checkRustMacaddr8'
-                    : item.rustType === 'NetworkValue'
-                      ? 'checkRustNetwork'
-                      : item.rustType === 'NumericValue'
-                        ? 'checkRustNumeric'
-                        : item.rustType === 'DateValue'
-                          ? 'checkRustDate'
-                          : item.rustType === 'TimestampValue'
-                            ? 'checkRustTimestamp'
-                            : item.rustType === 'TimestamptzValue'
-                              ? 'checkRustTimestamptz'
-                              : item.nullness
-                                ? 'checkRustNullness'
-                                : item.enum
-                                  ? 'checkRustEnum'
-                                  : item.rustType === 'Int2Value'
-                                    ? 'checkRustInt2'
-                                    : item.rustType === 'Int4Value'
-                                      ? 'checkRustInt4'
-                                      : item.rustType === 'Int8Value'
-                                        ? 'checkRustInt8'
-                                        : item.rustType === 'TextValue' ||
-                                            item.rustType === 'NetworkValue'
-                                          ? 'checkRustText'
-                                          : 'checkRustBool'
+            item.rustType === 'BitValue'
+              ? 'checkRustBit'
+              : item.rustType === 'UuidValue'
+                ? 'checkRustUuid'
+                : item.rustType === 'ByteaValue'
+                  ? 'checkRustBytea'
+                  : item.rustType === 'MacaddrValue'
+                    ? 'checkRustMacaddr'
+                    : item.rustType === 'Macaddr8Value'
+                      ? 'checkRustMacaddr8'
+                      : item.rustType === 'NetworkValue'
+                        ? 'checkRustNetwork'
+                        : item.rustType === 'NumericValue'
+                          ? 'checkRustNumeric'
+                          : item.rustType === 'DateValue'
+                            ? 'checkRustDate'
+                            : item.rustType === 'TimestampValue'
+                              ? 'checkRustTimestamp'
+                              : item.rustType === 'TimestamptzValue'
+                                ? 'checkRustTimestamptz'
+                                : item.nullness
+                                  ? 'checkRustNullness'
+                                  : item.enum
+                                    ? 'checkRustEnum'
+                                    : item.rustType === 'Int2Value'
+                                      ? 'checkRustInt2'
+                                      : item.rustType === 'Int4Value'
+                                        ? 'checkRustInt4'
+                                        : item.rustType === 'Int8Value'
+                                          ? 'checkRustInt8'
+                                          : item.rustType === 'TextValue' ||
+                                              item.rustType === 'NetworkValue'
+                                            ? 'checkRustText'
+                                            : 'checkRustBool'
           rustInputAdapters.add(helper)
           if (
             item.rustType !== 'ByteaValue' &&
@@ -297,6 +300,7 @@ export function renderGoSchemaCheckArtifacts(
                   : item.rustType === 'TextValue' ||
                       item.rustType === 'NetworkValue' ||
                       item.rustType === 'UuidValue' ||
+                      item.rustType === 'BitValue' ||
                       item.rustType === 'MacaddrValue' ||
                       item.rustType === 'Macaddr8Value'
                     ? 'checkInputText'
@@ -365,6 +369,8 @@ export function renderGoSchemaCheckArtifacts(
                 }
               }
               if (
+                type === 'pg_catalog."bit"' ||
+                type === 'pg_catalog.varbit' ||
                 type === 'pg_catalog.uuid' ||
                 type === 'pg_catalog.date' ||
                 type === 'pg_catalog."timestamp"' ||
@@ -517,6 +523,18 @@ func checkRustTimestamptz[T any](field CheckOptional[T]) checkruntime.Timestampt
   if field.Null { return checkruntime.TimestamptzNull() }
   if value, ok := any(field.V).(checkruntime.TimestamptzValue); ok { return value }
   return checkruntime.TimestamptzUnknown()
+}
+func checkRustBit[T any](field CheckOptional[T]) checkruntime.BitValue {
+  value := checkInputText(field)
+  if !value.Certain { return checkruntime.BitUnknown() }
+  if value.Value.Error != "" {
+    if state, ok := checkRustState(value.Value.Error); ok {
+      return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: state}
+    }
+    return checkruntime.BitUnknown()
+  }
+  if !value.Value.Valid { return checkruntime.BitNull() }
+  return checkruntime.MakeBitValue(value.Value.Value)
 }
 func checkRustBytea[T any](field CheckOptional[T]) checkruntime.ByteaValue {
   if !field.Set { return checkruntime.ByteaUnknown() }

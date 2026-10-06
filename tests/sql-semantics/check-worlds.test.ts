@@ -425,17 +425,16 @@ describe('world CHECK INSERT parity', () => {
       const definition = table.constraints.find(
         (candidate) => candidate.name === constraint,
       )!.definition
-      const ast = await parseSql(`ALTER TABLE host ADD CONSTRAINT test ${definition}`)
-      const statement = ast.stmts![0]!.stmt! as {
-        AlterTableStmt: { cmds: { AlterTableCmd: { def: { Constraint: { raw_expr: Node } } } }[] }
-      }
-      const expression = statement.AlterTableStmt.cmds[0]!.AlterTableCmd.def.Constraint.raw_expr
+      expect(definition).toMatch(/^CHECK \(/u)
+      const expression = definition
+        .slice('CHECK '.length)
+        .replace(/(?:\s+(?:NOT VALID|NO INHERIT))+$/u, '')
       let expected: OracleOutcome
       try {
         expected = (
           await pg.query<{ value: boolean | null }>(
             `WITH candidate AS MATERIALIZED (${candidate})
-              SELECT (${deparseSync(expression)}) AS value FROM candidate`,
+              SELECT (${expression}) AS value FROM candidate`,
           )
         ).rows[0]!.value
       } catch (error) {
@@ -873,6 +872,60 @@ describe('world CHECK INSERT parity', () => {
       const identity = `world_016_device_identifiers.identifier_events.${name}`
       expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
     }
+    for (const [table, names] of [
+      [
+        'mask_profiles',
+        [
+          'profile_width',
+          'profile_length',
+          'profile_octets',
+          'profile_recorded',
+          'profile_range',
+          'profile_comparison',
+        ],
+      ],
+      [
+        'device_mask_rules',
+        [
+          'rule_default',
+          'rule_selected',
+          'rule_membership',
+          'rule_window',
+          'rule_comparison',
+          'rule_width',
+          'rule_length',
+          'rule_octets',
+        ],
+      ],
+      [
+        'mask_snapshots',
+        [
+          'snapshot_equal',
+          'snapshot_case',
+          'snapshot_reverse_case',
+          'snapshot_default',
+          'snapshot_recognized',
+          'snapshot_allowed',
+          'snapshot_empty',
+        ],
+      ],
+    ] as const) {
+      for (const name of names) {
+        const identity = `world_017_feature_masks.${table}.${name}`
+        const measured = coverage.get(identity)!
+        expect(measured.true, identity).toBeGreaterThan(0)
+        expect(measured.false, identity).toBeGreaterThan(0)
+        expect(measured.null, identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(0)
+      }
+    }
+    const recognizedMask = coverage.get(
+      'world_017_feature_masks.device_mask_rules.rule_recognized',
+    )!
+    expect(recognizedMask.true).toBeGreaterThan(0)
+    expect(recognizedMask.false).toBeGreaterThan(0)
+    expect(recognizedMask.null).toBe(0)
+    expect(recognizedMask.unknown).toBe(0)
     const constraints = [...coverage.values()].sort((left, right) =>
       left.constraint.localeCompare(right.constraint),
     )

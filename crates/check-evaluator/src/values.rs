@@ -609,6 +609,50 @@ pub fn make_cidr_value(value: &str) -> NetworkValue {
 }
 
 #[derive(Clone, PartialEq, Eq)]
+pub enum BitValue {
+    Unknown,
+    Null,
+    Value(String),
+    Error(SqlError),
+}
+
+pub fn bit_unknown() -> BitValue {
+    BitValue::Unknown
+}
+pub fn bit_null() -> BitValue {
+    BitValue::Null
+}
+pub fn bit_is_null(value: BitValue) -> BoolValue {
+    if let BitValue::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == BitValue::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(value == BitValue::Null)
+}
+pub fn bit_from_case_guard(value: CheckOutcome) -> BitValue {
+    if let CheckOutcome::Error(error) = value {
+        return BitValue::Error(error);
+    }
+    BitValue::Unknown
+}
+pub fn make_bit_value(value: &str) -> BitValue {
+    let chars: Vec<char> = value.chars().collect();
+    if chars.len() > 2147483647 {
+        return BitValue::Unknown;
+    }
+    let mut index: usize = 0;
+    while index < chars.len() {
+        if chars[index] != '0' && chars[index] != '1' {
+            return BitValue::Unknown;
+        }
+        index += 1;
+    }
+    BitValue::Value(value.to_owned())
+}
+
+#[derive(Clone, PartialEq, Eq)]
 pub enum ByteaValue {
     Unknown,
     Null,

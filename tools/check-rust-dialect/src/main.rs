@@ -64,6 +64,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("NumericValue") => {
             Ok("NumericValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("BitValue") => {
+            Ok("BitValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("ByteaValue") => {
             Ok("ByteaValue")
         }
@@ -365,6 +368,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "NumericValue"
                     | "TextValue"
                     | "ByteaValue"
+                    | "BitValue"
                     | "BoolValue"
             )
         {
@@ -502,6 +506,23 @@ pub fn evaluate_check(flag: BoolValue, amount: Int4Value) -> CheckOutcome {
     }
 
     #[test]
+    fn bit_inputs_remain_concrete_and_immutable() {
+        let source = r#"
+pub fn evaluate_check(input: BitValue) -> CheckOutcome {
+    let literal = bit_from_literal("b001");
+    let left = input.clone();
+    let right = literal.clone();
+    let comparison = sql__pg_catalog__biteq__320u(left, right);
+    let result = check_from_bool(comparison);
+    result
+}
+"#;
+        check_source(source).unwrap();
+        assert!(check_source(&source.replace("input: BitValue", "input: BitValue<i32>")).is_err());
+        assert!(check_source(&source.replace("input: BitValue", "mut input: BitValue")).is_err());
+    }
+
+    #[test]
     fn uuid_inputs_remain_concrete_and_immutable() {
         let source = r#"
 pub fn evaluate_check(input: UuidValue) -> CheckOutcome {
@@ -552,6 +573,7 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             ("Macaddr8Value", "macaddr8_unknown"),
             ("NumericValue", "numeric_unknown"),
             ("TextValue", "text_unknown"),
+            ("BitValue", "bit_unknown"),
             ("BoolValue", "bool_unknown"),
         ] {
             let source = format!(

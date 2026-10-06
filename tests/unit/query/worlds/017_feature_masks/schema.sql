@@ -1,0 +1,62 @@
+-- @world checks
+CREATE DOMAIN capability_mask AS bit(8);
+CREATE DOMAIN installed_mask AS capability_mask;
+CREATE DOMAIN requested_mask AS bit varying;
+CREATE DOMAIN device_request AS requested_mask;
+
+CREATE TABLE mask_profiles (
+  id integer PRIMARY KEY,
+  primary_mask installed_mask,
+  recorded_mask bit(8),
+  floor_mask bit(8),
+  ceiling_mask bit(8),
+  declared_bits integer,
+  declared_octets integer,
+  recorded_comparison integer,
+  CONSTRAINT profile_width CHECK (bit_length(primary_mask) = declared_bits),
+  CONSTRAINT profile_length CHECK (length(primary_mask) = declared_bits),
+  CONSTRAINT profile_octets CHECK (octet_length(primary_mask) = declared_octets),
+  CONSTRAINT profile_recorded CHECK (primary_mask = recorded_mask),
+  CONSTRAINT profile_range CHECK (primary_mask BETWEEN floor_mask AND ceiling_mask),
+  CONSTRAINT profile_comparison CHECK (bitcmp(primary_mask, floor_mask) = recorded_comparison)
+);
+
+CREATE TABLE device_mask_rules (
+  id integer PRIMARY KEY,
+  profile_id integer NOT NULL REFERENCES mask_profiles(id),
+  requested_bits device_request,
+  backup_bits bit varying,
+  recorded_bits bit varying,
+  floor_bits bit varying,
+  ceiling_bits bit varying,
+  use_request boolean,
+  declared_bits integer,
+  declared_octets integer,
+  recorded_comparison integer,
+  CONSTRAINT rule_default CHECK (COALESCE(requested_bits, backup_bits) = recorded_bits),
+  CONSTRAINT rule_selected CHECK ((CASE WHEN use_request THEN requested_bits ELSE backup_bits END) = recorded_bits),
+  CONSTRAINT rule_recognized CHECK (CASE recorded_bits WHEN requested_bits THEN true WHEN backup_bits THEN true ELSE recorded_bits IS NULL END),
+  CONSTRAINT rule_membership CHECK (recorded_bits IN (requested_bits, backup_bits)),
+  CONSTRAINT rule_window CHECK (recorded_bits BETWEEN floor_bits AND ceiling_bits),
+  CONSTRAINT rule_comparison CHECK (varbitcmp(recorded_bits, floor_bits) = recorded_comparison),
+  CONSTRAINT rule_width CHECK (bit_length(recorded_bits) = declared_bits),
+  CONSTRAINT rule_length CHECK (length(recorded_bits) = declared_bits),
+  CONSTRAINT rule_octets CHECK (octet_length(recorded_bits) = declared_octets)
+);
+
+CREATE TABLE mask_snapshots (
+  id integer PRIMARY KEY,
+  profile_id integer NOT NULL REFERENCES mask_profiles(id),
+  variable_mask bit varying,
+  fixed_mask installed_mask,
+  expected_mask bit varying,
+  expected_match boolean,
+  prefer_fixed boolean,
+  CONSTRAINT snapshot_equal CHECK ((variable_mask = fixed_mask) = expected_match),
+  CONSTRAINT snapshot_case CHECK ((CASE WHEN prefer_fixed THEN fixed_mask ELSE variable_mask END) = expected_mask),
+  CONSTRAINT snapshot_reverse_case CHECK ((CASE WHEN prefer_fixed THEN variable_mask ELSE fixed_mask END) = expected_mask),
+  CONSTRAINT snapshot_default CHECK (COALESCE(variable_mask, fixed_mask) = expected_mask),
+  CONSTRAINT snapshot_recognized CHECK ((CASE variable_mask WHEN fixed_mask THEN true ELSE false END) = expected_match),
+  CONSTRAINT snapshot_allowed CHECK (variable_mask IN (B'00001111', X'FF', fixed_mask)),
+  CONSTRAINT snapshot_empty CHECK ((variable_mask = B'') = (expected_mask = B''))
+);

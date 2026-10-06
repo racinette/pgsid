@@ -656,6 +656,60 @@ func MakeCidrValue(value string) NetworkValue {
 	return parsed
 }
 
+type BitValueKind uint8
+
+const (
+	BitValueUnknown BitValueKind = iota
+	BitValueNull
+	BitValueValue
+	BitValueError
+)
+
+type BitValue struct {
+	Kind  BitValueKind
+	Value string
+	Error SqlError
+}
+
+func BitUnknown() BitValue {
+	return BitValue{Kind: BitValueUnknown}
+}
+func BitNull() BitValue {
+	return BitValue{Kind: BitValueNull}
+}
+func BitIsNull(value BitValue) BoolValue {
+	if value.Kind == BitValueError {
+		error := value.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if value == (BitValue{Kind: BitValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: value == (BitValue{Kind: BitValueNull})}
+}
+func BitFromCaseGuard(value CheckOutcome) BitValue {
+	if value.Kind == CheckOutcomeError {
+		error := value.Error
+		return BitValue{Kind: BitValueError, Error: error}
+	}
+	return BitValue{Kind: BitValueUnknown}
+}
+func MakeBitValue(value string) BitValue {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	if len(chars) > 2147483647 {
+		return BitValue{Kind: BitValueUnknown}
+	}
+	index := 0
+	for index < len(chars) {
+		if chars[index] != '0' && chars[index] != '1' {
+			return BitValue{Kind: BitValueUnknown}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return BitValue{Kind: BitValueValue, Value: value}
+}
+
 type ByteaValueKind uint8
 
 const (
@@ -1868,6 +1922,61 @@ func UuidWord(value Uuid, index int) int {
 		return value.Word6
 	}
 	return value.Word7
+}
+func BitFromLiteral(value string) BitValue {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	index := 0
+	hexadecimal := false
+	if len(chars) > 0 {
+		if chars[0] == 'b' || chars[0] == 'B' {
+			index = langruntime.CheckedIndex(1)
+		}
+		if chars[0] == 'x' || chars[0] == 'X' {
+			index = langruntime.CheckedIndex(1)
+			hexadecimal = true
+		}
+	}
+	if len(chars) > 536870911 {
+		return BitValue{Kind: BitValueUnknown}
+	}
+	output := ""
+	for index < len(chars) {
+		ch := chars[index]
+		if hexadecimal {
+			digit := hexDigit(ch)
+			if digit == 16 {
+				return BitValue{Kind: BitValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
+			}
+			weight := 8
+			for weight > 0 {
+				if langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(digit, weight), 2) == 0 {
+					output = output + string(langruntime.CheckedChar('0'))
+				} else {
+					output = output + string(langruntime.CheckedChar('1'))
+				}
+				weight = langruntime.CheckedI32(langruntime.CheckedSignedDivide(weight, 2))
+			}
+		} else {
+			if ch != '0' && ch != '1' {
+				return BitValue{Kind: BitValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
+			}
+			output = output + string(langruntime.CheckedChar(ch))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return BitValue{Kind: BitValueValue, Value: output}
+}
+func BitPayloadLength(value string) int {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	index := 0
+	length := 0
+	for index < len(chars) {
+		index = langruntime.CheckedAdd(index, 1)
+		length = langruntime.CheckedI32(langruntime.CheckedSignedAdd(length, 1))
+	}
+	return length
 }
 
 type HashByte struct {
