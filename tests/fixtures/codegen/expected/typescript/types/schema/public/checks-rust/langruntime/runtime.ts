@@ -135,7 +135,7 @@ function checkedStructs<T>(value: T[], copyValue: (entry: T) => T): T[] {
     checkedIndex(value.length);
     return Array.from(value, copyValue);
 }
-function checkedIndexIn<T>(values: T[], index: number): number {
+export function checkedIndexIn<T>(values: T[], index: number): number {
     checkedIndex(index);
     if (index >= values.length)
         throw new RangeError('index out of bounds');
@@ -157,10 +157,10 @@ export function indexChar(values: string[], index: number): string {
         throw new RangeError('index out of bounds');
     return values[index]!;
 }
-function indexStruct<T>(values: T[], index: number, copyValue: (entry: T) => T): T {
+export function indexStruct<T>(values: T[], index: number, copyValue: (entry: T) => T): T {
     return copyValue(values[checkedIndexIn(values, index)]!);
 }
-function pushStruct<T>(values: T[], value: T, copyValue: (entry: T) => T): void {
+export function pushStruct<T>(values: T[], value: T, copyValue: (entry: T) => T): void {
     checkedAdd(values.length, 1);
     values.push(copyValue(value));
 }

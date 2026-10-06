@@ -31,6 +31,7 @@ writeFileSync(`${assets}/check-rust-sources.json`, JSON.stringify({
     { name: 'checkruntime', dependencies: [], files: [
       read('crates/check-evaluator/src/values.rs'),
       read('crates/check-evaluator/src/numeric.rs'),
+      read('crates/check-evaluator/src/network.rs'),
       read('crates/check-evaluator/src/date.rs'),
       read('crates/check-evaluator/src/timestamp.rs'),
       read('crates/check-evaluator/src/timestamptz.rs'),

@@ -709,6 +709,84 @@ func MakeNumericValue(value string) NumericValue {
 	return NumericValue{Kind: NumericValueValue, Value: value}
 }
 
+type NetworkAddress struct {
+	Family int
+	Prefix int
+	Word0  int
+	Word1  int
+	Word2  int
+	Word3  int
+	Word4  int
+	Word5  int
+	Word6  int
+	Word7  int
+}
+
+func CopyNetworkAddress(value NetworkAddress) NetworkAddress {
+	return NetworkAddress{Family: langruntime.CheckedIndex(value.Family), Prefix: langruntime.CheckedI32(value.Prefix), Word0: langruntime.CheckedI32(value.Word0), Word1: langruntime.CheckedI32(value.Word1), Word2: langruntime.CheckedI32(value.Word2), Word3: langruntime.CheckedI32(value.Word3), Word4: langruntime.CheckedI32(value.Word4), Word5: langruntime.CheckedI32(value.Word5), Word6: langruntime.CheckedI32(value.Word6), Word7: langruntime.CheckedI32(value.Word7)}
+}
+
+type NetworkValueKind uint8
+
+const (
+	NetworkValueUnknown NetworkValueKind = iota
+	NetworkValueNull
+	NetworkValueValue
+	NetworkValueError
+)
+
+type NetworkValue struct {
+	Kind  NetworkValueKind
+	Value NetworkAddress
+	Error SqlError
+}
+
+func CopyNetworkValue(value NetworkValue) NetworkValue {
+	switch value.Kind {
+	case NetworkValueUnknown:
+		return NetworkValue{Kind: NetworkValueUnknown}
+	case NetworkValueNull:
+		return NetworkValue{Kind: NetworkValueNull}
+	case NetworkValueValue:
+		return NetworkValue{Kind: NetworkValueValue, Value: CopyNetworkAddress(value.Value)}
+	case NetworkValueError:
+		return NetworkValue{Kind: NetworkValueError, Error: value.Error}
+	}
+	panic("unknown enum variant")
+}
+func NetworkUnknown() NetworkValue {
+	return NetworkValue{Kind: NetworkValueUnknown}
+}
+func NetworkNull() NetworkValue {
+	return NetworkValue{Kind: NetworkValueNull}
+}
+func NetworkIsNull(value NetworkValue) BoolValue {
+	value = CopyNetworkValue(value)
+	if value.Kind == NetworkValueError {
+		error := value.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if value == (NetworkValue{Kind: NetworkValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: value == (NetworkValue{Kind: NetworkValueNull})}
+}
+func NetworkFromCaseGuard(value CheckOutcome) NetworkValue {
+	if value.Kind == CheckOutcomeError {
+		error := value.Error
+		return NetworkValue{Kind: NetworkValueError, Error: error}
+	}
+	return NetworkValue{Kind: NetworkValueUnknown}
+}
+func MakeNetworkValue(value string) NetworkValue {
+	value = langruntime.CheckedString(value)
+	return networkParse(value, false)
+}
+func MakeCidrValue(value string) NetworkValue {
+	value = langruntime.CheckedString(value)
+	return networkParse(value, true)
+}
+
 type NumericLayout struct {
 	Valid   bool
 	Special int
@@ -896,6 +974,398 @@ func NumericParts(value string) NumericLayout {
 		return invalidNumericParts()
 	}
 	return NumericLayout{Valid: true, Special: 1, Sign: sign, Weight: weight, First: first, End: last}
+}
+
+type NetworkWord struct {
+	Value int
+}
+
+func copyNetworkWord(value NetworkWord) NetworkWord {
+	return NetworkWord{Value: langruntime.CheckedI32(value.Value)}
+}
+func networkDigit(ch rune) int {
+	ch = langruntime.CheckedChar(ch)
+	if ch == '0' {
+		return 0
+	}
+	if ch == '1' {
+		return 1
+	}
+	if ch == '2' {
+		return 2
+	}
+	if ch == '3' {
+		return 3
+	}
+	if ch == '4' {
+		return 4
+	}
+	if ch == '5' {
+		return 5
+	}
+	if ch == '6' {
+		return 6
+	}
+	if ch == '7' {
+		return 7
+	}
+	if ch == '8' {
+		return 8
+	}
+	if ch == '9' {
+		return 9
+	}
+	lower := langruntime.AsciiLowercase(ch)
+	if lower == 'a' {
+		return 10
+	}
+	if lower == 'b' {
+		return 11
+	}
+	if lower == 'c' {
+		return 12
+	}
+	if lower == 'd' {
+		return 13
+	}
+	if lower == 'e' {
+		return 14
+	}
+	if lower == 'f' {
+		return 15
+	}
+	return 16
+}
+func NetworkAddressWord(address NetworkAddress, index int) int {
+	address = CopyNetworkAddress(address)
+	index = langruntime.CheckedIndex(index)
+	if index == 0 {
+		return address.Word0
+	}
+	if index == 1 {
+		return address.Word1
+	}
+	if index == 2 {
+		return address.Word2
+	}
+	if index == 3 {
+		return address.Word3
+	}
+	if index == 4 {
+		return address.Word4
+	}
+	if index == 5 {
+		return address.Word5
+	}
+	if index == 6 {
+		return address.Word6
+	}
+	return address.Word7
+}
+func NetworkPrefixCompare(left NetworkAddress, right NetworkAddress, bits int) int {
+	left = CopyNetworkAddress(left)
+	right = CopyNetworkAddress(right)
+	bits = langruntime.CheckedI32(bits)
+	index := 0
+	remaining := bits
+	for remaining > 0 {
+		wordCount := remaining
+		if wordCount > 16 {
+			wordCount = langruntime.CheckedI32(16)
+		}
+		divisor := 1
+		padding := langruntime.CheckedSignedSubtract(16, wordCount)
+		for padding > 0 {
+			divisor = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(divisor, 2))
+			padding = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(padding, 1))
+		}
+		a := langruntime.CheckedSignedDivide(NetworkAddressWord(left, index), divisor)
+		b := langruntime.CheckedSignedDivide(NetworkAddressWord(right, index), divisor)
+		if a < b {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		if a > b {
+			return 1
+		}
+		remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, wordCount))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return 0
+}
+func networkParse(value string, cidr bool) NetworkValue {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	if len(chars) == 0 || len(chars) > 256 {
+		return NetworkValue{Kind: NetworkValueUnknown}
+	}
+	end := len(chars)
+	family := 4
+	scan := 0
+	for scan < len(chars) {
+		if chars[scan] == ':' {
+			family = langruntime.CheckedIndex(6)
+		}
+		if chars[scan] == '/' {
+			if end != len(chars) {
+				return NetworkValue{Kind: NetworkValueUnknown}
+			}
+			end = langruntime.CheckedIndex(scan)
+		}
+		scan = langruntime.CheckedAdd(scan, 1)
+	}
+	prefix := 32
+	if family == 6 {
+		prefix = langruntime.CheckedI32(128)
+	}
+	if end != len(chars) {
+		index := langruntime.CheckedAdd(end, 1)
+		if index == len(chars) {
+			return NetworkValue{Kind: NetworkValueUnknown}
+		}
+		if family == 6 && chars[index] == '0' && langruntime.CheckedAdd(index, 1) < len(chars) {
+			return NetworkValue{Kind: NetworkValueUnknown}
+		}
+		prefix = langruntime.CheckedI32(0)
+		for index < len(chars) {
+			digit := networkDigit(chars[index])
+			if digit > 9 {
+				return NetworkValue{Kind: NetworkValueUnknown}
+			}
+			prefix = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(prefix, 10), digit))
+			if prefix > 128 || (family == 4 && prefix > 32) {
+				return NetworkValue{Kind: NetworkValueUnknown}
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+	}
+	words := []NetworkWord{}
+	index := 0
+	if family == 4 {
+		octets := []NetworkWord{}
+		octetCount := 0
+		if cidr && end > 2 && chars[0] == '0' && (chars[1] == 'x' || chars[1] == 'X') {
+			index = langruntime.CheckedIndex(2)
+			for index < end {
+				high := networkDigit(chars[index])
+				if high > 15 || len(octets) == 4 {
+					return NetworkValue{Kind: NetworkValueUnknown}
+				}
+				index = langruntime.CheckedAdd(index, 1)
+				low := 0
+				if index < end {
+					low = langruntime.CheckedI32(networkDigit(chars[index]))
+					if low > 15 {
+						return NetworkValue{Kind: NetworkValueUnknown}
+					}
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				langruntime.CheckedAdd(len(octets), 1)
+				octets = append(octets, copyNetworkWord(NetworkWord{Value: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(high, 16), low)}))
+				octetCount = langruntime.CheckedI32(langruntime.CheckedSignedAdd(octetCount, 1))
+			}
+		} else {
+			for index < end {
+				begin := index
+				octet := 0
+				for index < end && chars[index] != '.' {
+					digit := networkDigit(chars[index])
+					if digit > 9 {
+						return NetworkValue{Kind: NetworkValueUnknown}
+					}
+					octet = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(octet, 10), digit))
+					if octet > 255 {
+						return NetworkValue{Kind: NetworkValueUnknown}
+					}
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				if begin == index || len(octets) == 4 {
+					return NetworkValue{Kind: NetworkValueUnknown}
+				}
+				langruntime.CheckedAdd(len(octets), 1)
+				octets = append(octets, copyNetworkWord(NetworkWord{Value: octet}))
+				octetCount = langruntime.CheckedI32(langruntime.CheckedSignedAdd(octetCount, 1))
+				if index < end {
+					index = langruntime.CheckedAdd(index, 1)
+					if index == end {
+						return NetworkValue{Kind: NetworkValueUnknown}
+					}
+				}
+			}
+		}
+		if len(octets) == 0 {
+			return NetworkValue{Kind: NetworkValueUnknown}
+		}
+		if end == len(chars) {
+			if cidr {
+				prefix = langruntime.CheckedI32(8)
+				if octets[0].Value >= 240 {
+					prefix = langruntime.CheckedI32(32)
+				} else if octets[0].Value >= 224 {
+					prefix = langruntime.CheckedI32(8)
+				} else if octets[0].Value >= 192 {
+					prefix = langruntime.CheckedI32(24)
+				} else if octets[0].Value >= 128 {
+					prefix = langruntime.CheckedI32(16)
+				}
+				if prefix < langruntime.CheckedSignedMultiply(octetCount, 8) {
+					prefix = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(octetCount, 8))
+				}
+				if prefix == 8 && octets[0].Value == 224 {
+					prefix = langruntime.CheckedI32(4)
+				}
+			} else if len(octets) != 4 {
+				return NetworkValue{Kind: NetworkValueUnknown}
+			}
+		} else if cidr == false && langruntime.CheckedSignedDivide(prefix, 8) > octetCount {
+			return NetworkValue{Kind: NetworkValueUnknown}
+		}
+		for len(octets) < 4 {
+			langruntime.CheckedAdd(len(octets), 1)
+			octets = append(octets, copyNetworkWord(NetworkWord{Value: 0}))
+		}
+		langruntime.CheckedAdd(len(words), 1)
+		words = append(words, copyNetworkWord(NetworkWord{Value: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(octets[0].Value, 256), octets[1].Value)}))
+		langruntime.CheckedAdd(len(words), 1)
+		words = append(words, copyNetworkWord(NetworkWord{Value: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(octets[2].Value, 256), octets[3].Value)}))
+	} else {
+		compression := 9
+		if end > 0 && chars[0] == ':' {
+			if end < 2 || chars[1] != ':' {
+				return NetworkValue{Kind: NetworkValueUnknown}
+			}
+			compression = langruntime.CheckedIndex(0)
+			index = langruntime.CheckedIndex(2)
+		}
+		for index < end {
+			begin := index
+			stop := index
+			dotted := false
+			for stop < end && chars[stop] != ':' {
+				if chars[stop] == '.' {
+					dotted = true
+				}
+				stop = langruntime.CheckedAdd(stop, 1)
+			}
+			if dotted {
+				if stop != end || len(words) > 6 {
+					return NetworkValue{Kind: NetworkValueUnknown}
+				}
+				octets := []NetworkWord{}
+				for index < end {
+					start := index
+					octet := 0
+					for index < end && chars[index] != '.' {
+						digit := networkDigit(chars[index])
+						if digit > 9 || (index > start && chars[start] == '0') {
+							return NetworkValue{Kind: NetworkValueUnknown}
+						}
+						octet = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(octet, 10), digit))
+						if octet > 255 {
+							return NetworkValue{Kind: NetworkValueUnknown}
+						}
+						index = langruntime.CheckedAdd(index, 1)
+					}
+					if index == start || len(octets) == 4 {
+						return NetworkValue{Kind: NetworkValueUnknown}
+					}
+					langruntime.CheckedAdd(len(octets), 1)
+					octets = append(octets, copyNetworkWord(NetworkWord{Value: octet}))
+					if index < end {
+						index = langruntime.CheckedAdd(index, 1)
+						if index == end {
+							return NetworkValue{Kind: NetworkValueUnknown}
+						}
+					}
+				}
+				if len(octets) != 4 {
+					return NetworkValue{Kind: NetworkValueUnknown}
+				}
+				langruntime.CheckedAdd(len(words), 1)
+				words = append(words, copyNetworkWord(NetworkWord{Value: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(octets[0].Value, 256), octets[1].Value)}))
+				langruntime.CheckedAdd(len(words), 1)
+				words = append(words, copyNetworkWord(NetworkWord{Value: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(octets[2].Value, 256), octets[3].Value)}))
+			} else {
+				if stop == begin || langruntime.CheckedSubtract(stop, begin) > 4 || len(words) == 8 {
+					return NetworkValue{Kind: NetworkValueUnknown}
+				}
+				word := 0
+				for index < stop {
+					digit := networkDigit(chars[index])
+					if digit > 15 {
+						return NetworkValue{Kind: NetworkValueUnknown}
+					}
+					word = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(word, 16), digit))
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				langruntime.CheckedAdd(len(words), 1)
+				words = append(words, copyNetworkWord(NetworkWord{Value: word}))
+				if index < end {
+					index = langruntime.CheckedAdd(index, 1)
+					if index < end && chars[index] == ':' {
+						if compression != 9 {
+							return NetworkValue{Kind: NetworkValueUnknown}
+						}
+						compression = langruntime.CheckedIndex(len(words))
+						index = langruntime.CheckedAdd(index, 1)
+					} else if index == end {
+						return NetworkValue{Kind: NetworkValueUnknown}
+					}
+				}
+			}
+		}
+		if compression != 9 {
+			wordCount := len(words)
+			if wordCount >= 8 {
+				return NetworkValue{Kind: NetworkValueUnknown}
+			}
+			for len(words) < 8 {
+				langruntime.CheckedAdd(len(words), 1)
+				words = append(words, copyNetworkWord(NetworkWord{Value: 0}))
+			}
+			source := wordCount
+			dest := 8
+			for source > compression {
+				source = langruntime.CheckedIndex(langruntime.CheckedSubtract(source, 1))
+				dest = langruntime.CheckedIndex(langruntime.CheckedSubtract(dest, 1))
+				words[dest] = copyNetworkWord(words[source])
+				words[source] = copyNetworkWord(NetworkWord{Value: 0})
+			}
+		}
+		if len(words) != 8 {
+			return NetworkValue{Kind: NetworkValueUnknown}
+		}
+	}
+	for len(words) < 8 {
+		langruntime.CheckedAdd(len(words), 1)
+		words = append(words, copyNetworkWord(NetworkWord{Value: 0}))
+	}
+	address := NetworkAddress{Family: family, Prefix: prefix, Word0: words[0].Value, Word1: words[1].Value, Word2: words[2].Value, Word3: words[3].Value, Word4: words[4].Value, Word5: words[5].Value, Word6: words[6].Value, Word7: words[7].Value}
+	if cidr {
+		remaining := prefix
+		wordIndex := 0
+		wordCount := 8
+		if family == 4 {
+			wordCount = langruntime.CheckedIndex(2)
+		}
+		for wordIndex < wordCount {
+			bits := remaining
+			if bits > 16 {
+				bits = langruntime.CheckedI32(16)
+			}
+			remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, bits))
+			divisor := 1
+			padding := langruntime.CheckedSignedSubtract(16, bits)
+			for padding > 0 {
+				divisor = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(divisor, 2))
+				padding = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(padding, 1))
+			}
+			if langruntime.CheckedSignedRemainder(NetworkAddressWord(address, wordIndex), divisor) != 0 {
+				return NetworkValue{Kind: NetworkValueUnknown}
+			}
+			wordIndex = langruntime.CheckedAdd(wordIndex, 1)
+		}
+	}
+	return NetworkValue{Kind: NetworkValueValue, Value: address}
 }
 
 const dateFieldOverflow = 3452552

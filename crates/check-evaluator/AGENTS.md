@@ -108,6 +108,18 @@ import them. Keep schema-only helpers with their callables.
   and equates NaNs. Numeric arithmetic, runtime casts, and precision coercion
   require separate slices. Run `tests/sql-semantics/check-numeric.test.ts` for
   native Rust and both target comparisons against PGlite.
+- Inet and cidr share an immutable address payload with a family, prefix length,
+  and sixteen-bit address words. Public row inputs use already SQL-coerced
+  strings; the shared Rust parser handles IPv4, compressed IPv6, and embedded
+  IPv4. CIDR literals also accept abbreviated/classful and hexadecimal IPv4,
+  and reject host bits by deferring malformed representations. Invalid inputs
+  defer, as do oversized spellings. Comparisons order family, common network
+  bits, prefix length, then host bits. Containment and overlap compare network
+  bits, and CIDR implicitly relabels to INET using the catalog binary cast.
+  CASE and COALESCE promote mixed CIDR/INET arms to INET. Text casts, network
+  arithmetic, address-building functions, and output formatting need their own
+  slices. Run `tests/sql-semantics/check-network.test.ts` and the network access
+  world for native/target and public INSERT parity.
 - Date payloads are signed day offsets from 2000-01-01. The signed int4
   minimum and maximum represent negative and positive infinity. Finite payloads
   range from -2451545 through 2145031948. Public CHECK inputs use this portable
