@@ -2135,6 +2135,224 @@ func MacaddrXnt6(input checkruntime.Macaddr8Value) checkruntime.MacaddrValue {
 	}
 	return checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueUnknown}
 }
+func macAddressByte(address checkruntime.MacAddress, index int) int {
+	index = langruntime.CheckedI32(index)
+	word := address.Word0
+	if index >= 6 {
+		word = langruntime.CheckedI32(address.Word3)
+	} else if index >= 4 {
+		word = langruntime.CheckedI32(address.Word2)
+	} else if index >= 2 {
+		word = langruntime.CheckedI32(address.Word1)
+	}
+	if langruntime.CheckedSignedRemainder(index, 2) == 0 {
+		return langruntime.CheckedSignedDivide(word, 256)
+	}
+	return langruntime.CheckedSignedRemainder(word, 256)
+}
+func macOutputText(address checkruntime.MacAddress, size int) string {
+	size = langruntime.CheckedI32(size)
+	output := ""
+	index := 0
+	for index < size {
+		if index > 0 {
+			output = output + string(langruntime.CheckedChar(':'))
+		}
+		byte := macAddressByte(address, index)
+		if byte < 16 {
+			output = output + string(langruntime.CheckedChar('0'))
+		}
+		number := checkruntime.TextNumber(byte, 16)
+		output = output + number
+		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+	}
+	return output
+}
+func macOutputBytes(address checkruntime.MacAddress, size int) string {
+	size = langruntime.CheckedI32(size)
+	output := ""
+	index := 0
+	for index < size {
+		byte := macAddressByte(address, index)
+		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, byte))
+		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+	}
+	return output
+}
+func macHashBytes(address checkruntime.MacAddress, size int) []checkruntime.HashByte {
+	size = langruntime.CheckedI32(size)
+	bytes := []checkruntime.HashByte{}
+	index := 0
+	for index < size {
+		byte := macAddressByte(address, index)
+		langruntime.CheckedAdd(len(bytes), 1)
+		bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: int64(langruntime.CheckedI32(byte))}))
+		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+	}
+	return bytes
+}
+func MacaddrToText(input checkruntime.MacaddrValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.MacaddrValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.MacaddrValueValue {
+		address := input.Value
+		result := macOutputText(address, 6)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: result}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func MacaddrSendFk4p(input checkruntime.MacaddrValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.MacaddrValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueUnknown}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	if input == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.MacaddrValueValue {
+		address := input.Value
+		result := macOutputBytes(address, 6)
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: result}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func HashmacaddrIh2y(input checkruntime.MacaddrValue) checkruntime.Int4Value {
+	if input.Kind == checkruntime.MacaddrValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.MacaddrValueValue {
+		address := input.Value
+		bytes := macHashBytes(address, 6)
+		result := checkruntime.HashBytes32(bytes)
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: result}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func Hashmacaddrextended94rh(left checkruntime.MacaddrValue, right checkruntime.Int8Value) checkruntime.Int8Value {
+	if left.Kind == checkruntime.MacaddrValueError {
+		error := left.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int8ValueError {
+		error := right.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if left == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if left == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if left.Kind == checkruntime.MacaddrValueValue {
+		address := left.Value
+		if right.Kind == checkruntime.Int8ValueValue {
+			seed := right.Value
+			bytes := macHashBytes(address, 6)
+			result := checkruntime.HashBytes64(bytes, seed)
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: result}
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func Macaddr8ToText(input checkruntime.Macaddr8Value) checkruntime.TextValue {
+	if input.Kind == checkruntime.Macaddr8ValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.Macaddr8ValueValue {
+		address := input.Value
+		result := macOutputText(address, 8)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: result}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func Macaddr8SendQten(input checkruntime.Macaddr8Value) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.Macaddr8ValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueUnknown}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	if input == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.Macaddr8ValueValue {
+		address := input.Value
+		result := macOutputBytes(address, 8)
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: result}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func Hashmacaddr872kw(input checkruntime.Macaddr8Value) checkruntime.Int4Value {
+	if input.Kind == checkruntime.Macaddr8ValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.Macaddr8ValueValue {
+		address := input.Value
+		bytes := macHashBytes(address, 8)
+		result := checkruntime.HashBytes32(bytes)
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: result}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func Hashmacaddr8extended63o8(left checkruntime.Macaddr8Value, right checkruntime.Int8Value) checkruntime.Int8Value {
+	if left.Kind == checkruntime.Macaddr8ValueError {
+		error := left.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int8ValueError {
+		error := right.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if left == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if left == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if left.Kind == checkruntime.Macaddr8ValueValue {
+		address := left.Value
+		if right.Kind == checkruntime.Int8ValueValue {
+			seed := right.Value
+			bytes := macHashBytes(address, 8)
+			result := checkruntime.HashBytes64(bytes, seed)
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: result}
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
 
 const sqlstateInvalidParameterValue = 3452619
 

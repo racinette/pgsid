@@ -449,8 +449,14 @@ const candidate = (
     const enumCall = item.args.includes('pg_catalog.anyenum')
     if (enumCall && (!definition || !enumEqualityOperation(signature))) return []
     const operands = args.map((arg, index) =>
-      item.args.some((type) => type === 'pg_catalog.inet' || type === 'pg_catalog.cidr') &&
-      isIntegerType(item.args[index]!)
+      item.args.some((type) =>
+        [
+          'pg_catalog.inet',
+          'pg_catalog.cidr',
+          'pg_catalog.macaddr',
+          'pg_catalog.macaddr8',
+        ].includes(type),
+      ) && isIntegerType(item.args[index]!)
         ? materializeInteger(arg, item.args[index]! as ScalarType)
         : materialize(
             arg,
@@ -742,6 +748,12 @@ export function bindCatalogCheck(
             }
           : unknown
       }
+      if (isMacType(operand.type) && type === 'pg_catalog.text' && operand.value)
+        return {
+          type,
+          collation: defaultCollation,
+          value: { kind: 'mac-to-text', type, operand: operand.value },
+        }
       if (isMacType(operand.type) && isMacType(type) && operand.type !== type && operand.value) {
         const cast = builtinCast(operand.type!, type)
         return cast?.method === 'f' && cast.implementation !== null
@@ -1192,6 +1204,18 @@ export function bindCatalogCheck(
       const value = materialize(args[0]!, type)
       return value ? { type, value } : unknown
     }
+    if (
+      kind === 'function' &&
+      name === 'text' &&
+      args.length === 1 &&
+      isMacType(args[0]!.type) &&
+      args[0]!.value
+    )
+      return {
+        type: 'pg_catalog.text',
+        collation: defaultCollation,
+        value: { kind: 'mac-to-text', type: 'pg_catalog.text', operand: args[0]!.value },
+      }
     const resolved = candidate(kind, name, args)
     if (!resolved) {
       if (

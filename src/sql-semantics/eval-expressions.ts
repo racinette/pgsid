@@ -44,6 +44,7 @@ export type EvalExpression =
       type: 'pg_catalog.macaddr' | 'pg_catalog.macaddr8'
       operand: EvalExpression
     }
+  | { kind: 'mac-to-text'; type: 'pg_catalog.text'; operand: EvalExpression }
   | { kind: 'text-to-date'; type: 'pg_catalog.date'; operand: EvalExpression }
   | { kind: 'text-to-timestamp'; type: 'pg_catalog."timestamp"'; operand: EvalExpression }
   | { kind: 'text-to-timestamptz'; type: 'pg_catalog.timestamptz'; operand: EvalExpression }
@@ -193,7 +194,8 @@ export function emitEvalExpression<Ast>(
       node.kind === 'text-to-timestamp' ||
       node.kind === 'text-to-timestamptz' ||
       node.kind === 'text-to-network' ||
-      node.kind === 'text-to-mac'
+      node.kind === 'text-to-mac' ||
+      node.kind === 'mac-to-text'
     ) {
       const result = backend.uncertain(node.type)
       include(result.helpers)

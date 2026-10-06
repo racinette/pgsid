@@ -2126,6 +2126,225 @@ export function macaddrXnt6(input: checkruntime.Macaddr8Value): checkruntime.Mac
     }
     return { kind: "Unknown" };
 }
+function macAddressByte(address: checkruntime.MacAddress, index: number): number {
+    index = langruntime.checkedI32(index);
+    let word: number = address.word0;
+    if (index >= 6) {
+        word = langruntime.checkedI32(address.word3);
+    }
+    else if (index >= 4) {
+        word = langruntime.checkedI32(address.word2);
+    }
+    else if (index >= 2) {
+        word = langruntime.checkedI32(address.word1);
+    }
+    if (langruntime.checkedSignedRemainder(index, 2) === 0) {
+        return langruntime.checkedSignedDivide(word, 256);
+    }
+    return langruntime.checkedSignedRemainder(word, 256);
+}
+function macOutputText(address: checkruntime.MacAddress, size: number): string {
+    size = langruntime.checkedI32(size);
+    let output: string = "";
+    let index: number = 0;
+    while (index < size) {
+        if (index > 0) {
+            output = output + langruntime.checkedChar(":");
+        }
+        const byte: number = macAddressByte(address, index);
+        if (byte < 16) {
+            output = output + langruntime.checkedChar("0");
+        }
+        const number: string = checkruntime.textNumber(byte, 16);
+        output = output + number;
+        index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+    }
+    return output;
+}
+function macOutputBytes(address: checkruntime.MacAddress, size: number): string {
+    size = langruntime.checkedI32(size);
+    let output: string = "";
+    let index: number = 0;
+    while (index < size) {
+        const byte: number = macAddressByte(address, index);
+        output = langruntime.checkedString(checkruntime.byteaAppendByte(output, byte));
+        index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+    }
+    return output;
+}
+function macHashBytes(address: checkruntime.MacAddress, size: number): checkruntime.HashByte[] {
+    size = langruntime.checkedI32(size);
+    let bytes: checkruntime.HashByte[] = [];
+    let index: number = 0;
+    while (index < size) {
+        const byte: number = macAddressByte(address, index);
+        langruntime.pushStruct(bytes, { value: BigInt(langruntime.checkedI32(byte)) }, checkruntime.copyHashByte);
+        index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+    }
+    return bytes;
+}
+export function macaddrToText(input: checkruntime.MacaddrValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMacaddrValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalMacaddrValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const address: checkruntime.MacAddress = input.value;
+        const result: string = macOutputText(address, 6);
+        return { kind: "Value", value: result };
+    }
+    return { kind: "Unknown" };
+}
+export function macaddrSendFk4p(input: checkruntime.MacaddrValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMacaddrValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalMacaddrValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const address: checkruntime.MacAddress = input.value;
+        const result: string = macOutputBytes(address, 6);
+        return { kind: "Value", value: result };
+    }
+    return { kind: "Unknown" };
+}
+export function hashmacaddrIh2y(input: checkruntime.MacaddrValue): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMacaddrValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalMacaddrValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const address: checkruntime.MacAddress = input.value;
+        const bytes: checkruntime.HashByte[] = macHashBytes(address, 6);
+        const result: number = checkruntime.hashBytes32(bytes);
+        return { kind: "Value", value: result };
+    }
+    return { kind: "Unknown" };
+}
+export function hashmacaddrextended94rh(left: checkruntime.MacaddrValue, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMacaddrValue(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalMacaddrValue(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const address: checkruntime.MacAddress = left.value;
+        if (right.kind === "Value") {
+            const seed: bigint = langruntime.checkedI64(right.value);
+            const bytes: checkruntime.HashByte[] = macHashBytes(address, 6);
+            const result: bigint = checkruntime.hashBytes64(bytes, seed);
+            return { kind: "Value", value: result };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function macaddr8ToText(input: checkruntime.Macaddr8Value): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMacaddr8Value(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalMacaddr8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const address: checkruntime.MacAddress = input.value;
+        const result: string = macOutputText(address, 8);
+        return { kind: "Value", value: result };
+    }
+    return { kind: "Unknown" };
+}
+export function macaddr8SendQten(input: checkruntime.Macaddr8Value): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMacaddr8Value(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalMacaddr8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const address: checkruntime.MacAddress = input.value;
+        const result: string = macOutputBytes(address, 8);
+        return { kind: "Value", value: result };
+    }
+    return { kind: "Unknown" };
+}
+export function hashmacaddr872kw(input: checkruntime.Macaddr8Value): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMacaddr8Value(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalMacaddr8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const address: checkruntime.MacAddress = input.value;
+        const bytes: checkruntime.HashByte[] = macHashBytes(address, 8);
+        const result: number = checkruntime.hashBytes32(bytes);
+        return { kind: "Value", value: result };
+    }
+    return { kind: "Unknown" };
+}
+export function hashmacaddr8extended63o8(left: checkruntime.Macaddr8Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMacaddr8Value(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalMacaddr8Value(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const address: checkruntime.MacAddress = left.value;
+        if (right.kind === "Value") {
+            const seed: bigint = langruntime.checkedI64(right.value);
+            const bytes: checkruntime.HashByte[] = macHashBytes(address, 8);
+            const result: bigint = checkruntime.hashBytes64(bytes, seed);
+            return { kind: "Value", value: result };
+        }
+    }
+    return { kind: "Unknown" };
+}
 const sqlstateInvalidParameterValue = 3452619;
 function networkCompare(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.Int4Value {
     if (left.kind === "Error") {

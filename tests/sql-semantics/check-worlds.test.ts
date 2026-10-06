@@ -708,6 +708,23 @@ describe('world CHECK INSERT parity', () => {
           'hardware_parse_varchar_extended',
         ],
       ],
+      [
+        'hardware_outputs',
+        [
+          'hardware_text6',
+          'hardware_text8',
+          'hardware_wire6',
+          'hardware_wire8',
+          'hardware_hash6',
+          'hardware_hash8',
+          'hardware_seed6',
+          'hardware_seed8',
+          'hardware_zero6',
+          'hardware_zero8',
+          'hardware_output_case',
+          'hardware_output_default',
+        ],
+      ],
       ['network_resizes', ['resize_address', 'resize_subnet']],
       ['network_filters', ['filter_complement', 'filter_intersection', 'filter_union']],
       [

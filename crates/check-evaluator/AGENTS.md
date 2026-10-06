@@ -157,9 +157,15 @@ import them. Keep schema-only helpers with their callables.
   FF:FE bytes and returns 22003 otherwise. CASE selects its type with ELSE first;
   COALESCE selects its first typed argument, preserving lazy casts. Ambiguous mixed
   comparisons defer. NULL tests, literals, IN, and BETWEEN reuse control flow.
-  Hashes, binary send, and text output need separate callable slices. Run
+  Text output uses lowercase colon-separated octets; MAC-to-text I/O casts use
+  schema formatters without exposing PostgreSQL cstring as a public value. Binary
+  send emits the raw six or eight bytes; hashes reuse PostgreSQL Jenkins mixing
+  over those bytes and preserve every seed bit. Catalog integer widening applies
+  to hash seed arguments. Internal receive and cstring callables remain outside
+  the public value types. Run
   `tests/sql-semantics/check-macaddr.test.ts`,
-  `tests/sql-semantics/check-macaddr-functions.test.ts`, and the network access world.
+  `tests/sql-semantics/check-macaddr-functions.test.ts`,
+  `tests/sql-semantics/check-macaddr-output.test.ts`, and the network access world.
 - Text payloads own Rust `String`, lowered to immutable strings in both targets.
   Builders mutate only local strings through character or borrowed-text appends.
   Explicit wrapper clones preserve Rust ownership when generated branches reuse
