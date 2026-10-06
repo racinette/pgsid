@@ -178,3 +178,60 @@ CREATE TABLE hardware_interfaces (
   CONSTRAINT interface_default CHECK (COALESCE(address, backup_address) = recorded_address),
   CONSTRAINT interface_recognized CHECK (CASE address WHEN forbidden_address THEN false ELSE address IS NOT NULL OR NULL END)
 );
+
+CREATE TABLE hardware_masks (
+  id integer PRIMARY KEY,
+  address6 macaddr,
+  mask6 macaddr,
+  inverted6 macaddr,
+  intersection6 macaddr,
+  union6 macaddr,
+  manufacturer6 macaddr,
+  address8 macaddr8,
+  mask8 macaddr8,
+  inverted8 macaddr8,
+  intersection8 macaddr8,
+  union8 macaddr8,
+  manufacturer8 macaddr8,
+  modified8 macaddr8,
+  CONSTRAINT hardware_invert6 CHECK (~address6 = inverted6),
+  CONSTRAINT hardware_intersect6 CHECK ((address6 & mask6) = intersection6),
+  CONSTRAINT hardware_union6 CHECK ((address6 | mask6) = union6),
+  CONSTRAINT hardware_manufacturer6 CHECK (trunc(address6) = manufacturer6),
+  CONSTRAINT hardware_invert8 CHECK (~address8 = inverted8),
+  CONSTRAINT hardware_intersect8 CHECK ((address8 & mask8) = intersection8),
+  CONSTRAINT hardware_union8 CHECK ((address8 | mask8) = union8),
+  CONSTRAINT hardware_manufacturer8 CHECK (trunc(address8) = manufacturer8),
+  CONSTRAINT hardware_modified8 CHECK (macaddr8_set7bit(address8) = modified8)
+);
+
+CREATE TABLE hardware_conversions (
+  id integer PRIMARY KEY,
+  address6 device_address,
+  address8 interface_address,
+  extended_address macaddr8,
+  short_address macaddr,
+  selected_short macaddr,
+  selected_extended macaddr8,
+  prefer_extended boolean,
+  CONSTRAINT hardware_extend CHECK (address6::macaddr8 = extended_address),
+  CONSTRAINT hardware_shorten CHECK (macaddr(address8) = short_address),
+  CONSTRAINT hardware_case_short CHECK ((CASE WHEN prefer_extended THEN address8 ELSE address6 END) = selected_short),
+  CONSTRAINT hardware_case_extended CHECK ((CASE WHEN prefer_extended THEN address6 ELSE address8 END) = selected_extended),
+  CONSTRAINT hardware_default_short CHECK (COALESCE(address6, address8) = selected_short),
+  CONSTRAINT hardware_default_extended CHECK (COALESCE(address8, address6) = selected_extended)
+);
+
+CREATE TABLE hardware_imports (
+  id integer PRIMARY KEY,
+  raw_short text,
+  raw_extended text,
+  raw_varchar varchar,
+  short_address macaddr,
+  extended_address macaddr8,
+  skip_import boolean,
+  CONSTRAINT hardware_parse_short CHECK (CASE WHEN skip_import THEN true ELSE raw_short::macaddr = short_address END),
+  CONSTRAINT hardware_parse_extended CHECK (CASE WHEN skip_import THEN true ELSE macaddr8(raw_extended) = extended_address END),
+  CONSTRAINT hardware_parse_varchar_short CHECK (CASE WHEN skip_import THEN true ELSE raw_varchar::macaddr = short_address END),
+  CONSTRAINT hardware_parse_varchar_extended CHECK (CASE WHEN skip_import THEN true ELSE raw_varchar::macaddr8 = extended_address END)
+);

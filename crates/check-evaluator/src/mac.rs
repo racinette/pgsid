@@ -10,6 +10,7 @@ struct MacByte {
 #[derive(Clone, Copy)]
 struct MacParsed {
     valid: bool,
+    state: u32,
     address: MacAddress,
 }
 
@@ -23,6 +24,7 @@ struct MacScanned {
 fn mac_invalid() -> MacParsed {
     MacParsed {
         valid: false,
+        state: SQL_ERROR_INVALID_TEXT_REPRESENTATION,
         address: MacAddress {
             word0: 0,
             word1: 0,
@@ -55,21 +57,33 @@ fn mac_scan_hex(text: &MacText, start: usize, width: usize) -> MacScanned {
     {
         index += 2;
     }
-    let mut value: i32 = 0;
+    let mut value: i64 = 0i64;
+    let mut significant: usize = 0;
+    let mut overflow = false;
     while index < text.chars.len() && (width == 0 || index - begin < width) {
         let digit = hex_digit(text.chars[index]);
         if digit == 16 {
             break;
         }
         digits = true;
-        if value <= 255 {
-            value = value * 16 + digit;
+        if significant > 0 || digit != 0 {
+            significant += 1;
         }
+        if significant > 16 {
+            overflow = true;
+        }
+        let wide_digit = digit as i64;
+        value = (value * 16i64 + wide_digit) % 4294967296i64;
         index += 1;
     }
+    if overflow {
+        value = 4294967295i64;
+    } else if negative && value != 0i64 {
+        value = 4294967296i64 - value;
+    }
     MacScanned {
-        valid: digits && value <= 255 && (negative == false || value == 0),
-        value,
+        valid: digits,
+        value: value as i32,
         end: index,
     }
 }
@@ -78,6 +92,7 @@ fn macaddr_format(text: &MacText, format: usize) -> MacParsed {
     let mut index: usize = 0;
     let mut byte_index: usize = 0;
     let mut bytes: Vec<MacByte> = Vec::new();
+    let mut out_of_range = false;
     let mut width: usize = 2;
     if format < 2 {
         width = 0;
@@ -86,6 +101,9 @@ fn macaddr_format(text: &MacText, format: usize) -> MacParsed {
         let scanned = mac_scan_hex(text, index, width);
         if scanned.valid == false {
             return mac_invalid();
+        }
+        if scanned.value < 0 || scanned.value > 255 {
+            out_of_range = true;
         }
         bytes.push(MacByte {
             value: scanned.value,
@@ -121,8 +139,21 @@ fn macaddr_format(text: &MacText, format: usize) -> MacParsed {
     if index != text.chars.len() {
         return mac_invalid();
     }
+    if out_of_range {
+        return MacParsed {
+            valid: false,
+            state: SQL_ERROR_NUMERIC_OUT_OF_RANGE,
+            address: MacAddress {
+                word0: 0,
+                word1: 0,
+                word2: 0,
+                word3: 0,
+            },
+        };
+    }
     MacParsed {
         valid: true,
+        state: 0,
         address: MacAddress {
             word0: bytes[0].value * 256 + bytes[1].value,
             word1: bytes[2].value * 256 + bytes[3].value,
@@ -136,7 +167,7 @@ fn macaddr_parse(text: &MacText) -> MacParsed {
     let mut format: usize = 0;
     while format < 7 {
         let parsed = macaddr_format(text, format);
-        if parsed.valid {
+        if parsed.valid || parsed.state == SQL_ERROR_NUMERIC_OUT_OF_RANGE {
             return parsed;
         }
         format += 1;
@@ -195,6 +226,7 @@ fn macaddr8_parse(text: &MacText) -> MacParsed {
         let inserted_high: i32 = 254;
         return MacParsed {
             valid: true,
+            state: 0,
             address: MacAddress {
                 word0: bytes[0].value * 256 + bytes[1].value,
                 word1: bytes[2].value * 256 + 255,
@@ -208,6 +240,7 @@ fn macaddr8_parse(text: &MacText) -> MacParsed {
     }
     MacParsed {
         valid: true,
+        state: 0,
         address: MacAddress {
             word0: bytes[0].value * 256 + bytes[1].value,
             word1: bytes[2].value * 256 + bytes[3].value,
@@ -243,4 +276,54 @@ pub fn mac_address_compare(left: MacAddress, right: MacAddress) -> i32 {
         return 1;
     }
     0
+}
+
+pub fn macaddr_from_text(input: TextValue) -> MacaddrValue {
+    if let TextValue::Error(error) = input {
+        return MacaddrValue::Error(error);
+    }
+    if input == TextValue::Unknown {
+        return MacaddrValue::Unknown;
+    }
+    if input == TextValue::Null {
+        return MacaddrValue::Null;
+    }
+    if let TextValue::Value(value) = input {
+        let chars: Vec<char> = value.chars().collect();
+        if chars.len() > 256 {
+            return MacaddrValue::Unknown;
+        }
+        let text = MacText { chars };
+        let parsed = macaddr_parse(&text);
+        if parsed.valid == false {
+            return MacaddrValue::Error(make_sql_error(parsed.state));
+        }
+        return MacaddrValue::Value(parsed.address);
+    }
+    MacaddrValue::Unknown
+}
+
+pub fn macaddr8_from_text(input: TextValue) -> Macaddr8Value {
+    if let TextValue::Error(error) = input {
+        return Macaddr8Value::Error(error);
+    }
+    if input == TextValue::Unknown {
+        return Macaddr8Value::Unknown;
+    }
+    if input == TextValue::Null {
+        return Macaddr8Value::Null;
+    }
+    if let TextValue::Value(value) = input {
+        let chars: Vec<char> = value.chars().collect();
+        if chars.len() > 256 {
+            return Macaddr8Value::Unknown;
+        }
+        let text = MacText { chars };
+        let parsed = macaddr8_parse(&text);
+        if parsed.valid == false {
+            return Macaddr8Value::Error(make_sql_error(parsed.state));
+        }
+        return Macaddr8Value::Value(parsed.address);
+    }
+    Macaddr8Value::Unknown
 }

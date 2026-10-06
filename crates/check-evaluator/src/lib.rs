@@ -28,6 +28,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/timezone_recurring.rs");
     include!(concat!(env!("OUT_DIR"), "/timezone-tables.rs"));
     include!("operations/pg_catalog/numeric.rs");
+    include!("operations/pg_catalog/address_bits.rs");
     include!("operations/pg_catalog/network.rs");
     include!("operations/pg_catalog/mac.rs");
     include!("operations/pg_catalog/network_output.rs");

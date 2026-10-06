@@ -224,7 +224,8 @@ export function emitCheckRustEvaluator(
       node.kind === 'text-to-date' ||
       node.kind === 'text-to-timestamp' ||
       node.kind === 'text-to-timestamptz' ||
-      node.kind === 'text-to-network'
+      node.kind === 'text-to-network' ||
+      node.kind === 'text-to-mac'
     ) {
       const operand = emitScalar(node.operand, bindings, used)
       if (operand.type !== 'pg_catalog.text')
@@ -236,9 +237,13 @@ export function emitCheckRustEvaluator(
             ? 'timestamp_from_text'
             : node.kind === 'text-to-timestamptz'
               ? 'timestamptz_from_text'
-              : node.type === 'pg_catalog.cidr'
-                ? 'cidr_from_text'
-                : 'network_from_text'
+              : node.kind === 'text-to-mac'
+                ? node.type === 'pg_catalog.macaddr'
+                  ? 'macaddr_from_text'
+                  : 'macaddr8_from_text'
+                : node.type === 'pg_catalog.cidr'
+                  ? 'cidr_from_text'
+                  : 'network_from_text'
       return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
     }
     if (node.kind === 'certain') {
@@ -279,14 +284,9 @@ export function emitCheckRustEvaluator(
       }
       if (value.kind === 'mac') {
         const prefix = value.type === 'pg_catalog.macaddr' ? 'macaddr' : 'macaddr8'
-        return {
-          name: bind(
-            value.value === null
-              ? `${prefix}_null()`
-              : `make_${prefix}_value(${rustStringLiteral(value.value)})`,
-          ),
-          type: value.type,
-        }
+        if (value.value === null) return { name: bind(`${prefix}_null()`), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`${prefix}_from_text(${text})`), type: value.type }
       }
       if (value.kind === 'network')
         return {

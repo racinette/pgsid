@@ -1435,11 +1435,12 @@ func copymacByte(value macByte) macByte {
 
 type macParsed struct {
 	valid   bool
+	state   int
 	address MacAddress
 }
 
 func copymacParsed(value macParsed) macParsed {
-	return macParsed{valid: value.valid, address: value.address}
+	return macParsed{valid: value.valid, state: langruntime.CheckedIndex(value.state), address: value.address}
 }
 
 type macScanned struct {
@@ -1452,7 +1453,7 @@ func copymacScanned(value macScanned) macScanned {
 	return macScanned{valid: value.valid, value: langruntime.CheckedI32(value.value), end: langruntime.CheckedIndex(value.end)}
 }
 func macInvalid() macParsed {
-	return macParsed{valid: false, address: MacAddress{Word0: 0, Word1: 0, Word2: 0, Word3: 0}}
+	return macParsed{valid: false, state: sqlErrorInvalidTextRepresentation, address: MacAddress{Word0: 0, Word1: 0, Word2: 0, Word3: 0}}
 }
 func macSpace(ch rune) bool {
 	ch = langruntime.CheckedChar(ch)
@@ -1476,19 +1477,31 @@ func macScanHex(text *macText, start int, width int) macScanned {
 	if langruntime.CheckedAdd(index, 1) < len(text.chars) && (width == 0 || langruntime.CheckedSubtract(langruntime.CheckedAdd(index, 1), begin) < width) && text.chars[index] == '0' && langruntime.AsciiLowercase(text.chars[langruntime.CheckedAdd(index, 1)]) == 'x' {
 		index = langruntime.CheckedAdd(index, 2)
 	}
-	value := 0
+	value := int64(0)
+	significant := 0
+	overflow := false
 	for index < len(text.chars) && (width == 0 || langruntime.CheckedSubtract(index, begin) < width) {
 		digit := hexDigit(text.chars[index])
 		if digit == 16 {
 			break
 		}
 		digits = true
-		if value <= 255 {
-			value = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(value, 16), digit))
+		if significant > 0 || digit != 0 {
+			significant = langruntime.CheckedAdd(significant, 1)
 		}
+		if significant > 16 {
+			overflow = true
+		}
+		wideDigit := int64(langruntime.CheckedI32(digit))
+		value = langruntime.CheckedI64Remainder((langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(value, int64(16)), wideDigit)), int64(4294967296))
 		index = langruntime.CheckedAdd(index, 1)
 	}
-	return macScanned{valid: digits && value <= 255 && (negative == false || value == 0), value: value, end: index}
+	if overflow {
+		value = int64(4294967295)
+	} else if negative && value != int64(0) {
+		value = langruntime.CheckedI64Subtract(int64(4294967296), value)
+	}
+	return macScanned{valid: digits, value: int(int32(value)), end: index}
 }
 func macaddrFormat(text *macText, format int) macParsed {
 	text = langruntime.CheckedBorrowed(text, copymacText)
@@ -1496,6 +1509,7 @@ func macaddrFormat(text *macText, format int) macParsed {
 	index := 0
 	byteIndex := 0
 	bytes := []macByte{}
+	outOfRange := false
 	width := 2
 	if format < 2 {
 		width = langruntime.CheckedIndex(0)
@@ -1504,6 +1518,9 @@ func macaddrFormat(text *macText, format int) macParsed {
 		scanned := macScanHex(text, index, width)
 		if scanned.valid == false {
 			return macInvalid()
+		}
+		if scanned.value < 0 || scanned.value > 255 {
+			outOfRange = true
 		}
 		langruntime.CheckedAdd(len(bytes), 1)
 		bytes = append(bytes, copymacByte(macByte{value: scanned.value}))
@@ -1538,14 +1555,17 @@ func macaddrFormat(text *macText, format int) macParsed {
 	if index != len(text.chars) {
 		return macInvalid()
 	}
-	return macParsed{valid: true, address: MacAddress{Word0: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[0].value, 256), bytes[1].value), Word1: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[2].value, 256), bytes[3].value), Word2: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[4].value, 256), bytes[5].value), Word3: 0}}
+	if outOfRange {
+		return macParsed{valid: false, state: sqlErrorNumericOutOfRange, address: MacAddress{Word0: 0, Word1: 0, Word2: 0, Word3: 0}}
+	}
+	return macParsed{valid: true, state: 0, address: MacAddress{Word0: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[0].value, 256), bytes[1].value), Word1: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[2].value, 256), bytes[3].value), Word2: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[4].value, 256), bytes[5].value), Word3: 0}}
 }
 func macaddrParse(text *macText) macParsed {
 	text = langruntime.CheckedBorrowed(text, copymacText)
 	format := 0
 	for format < 7 {
 		parsed := macaddrFormat(text, format)
-		if parsed.valid {
+		if parsed.valid || parsed.state == sqlErrorNumericOutOfRange {
 			return parsed
 		}
 		format = langruntime.CheckedAdd(format, 1)
@@ -1596,12 +1616,12 @@ func macaddr8Parse(text *macText) macParsed {
 	}
 	if len(bytes) == 6 {
 		insertedHigh := 254
-		return macParsed{valid: true, address: MacAddress{Word0: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[0].value, 256), bytes[1].value), Word1: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[2].value, 256), 255), Word2: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(insertedHigh, 256), bytes[3].value), Word3: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[4].value, 256), bytes[5].value)}}
+		return macParsed{valid: true, state: 0, address: MacAddress{Word0: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[0].value, 256), bytes[1].value), Word1: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[2].value, 256), 255), Word2: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(insertedHigh, 256), bytes[3].value), Word3: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[4].value, 256), bytes[5].value)}}
 	}
 	if len(bytes) != 8 {
 		return macInvalid()
 	}
-	return macParsed{valid: true, address: MacAddress{Word0: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[0].value, 256), bytes[1].value), Word1: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[2].value, 256), bytes[3].value), Word2: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[4].value, 256), bytes[5].value), Word3: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[6].value, 256), bytes[7].value)}}
+	return macParsed{valid: true, state: 0, address: MacAddress{Word0: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[0].value, 256), bytes[1].value), Word1: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[2].value, 256), bytes[3].value), Word2: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[4].value, 256), bytes[5].value), Word3: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(bytes[6].value, 256), bytes[7].value)}}
 }
 func MacAddressCompare(left MacAddress, right MacAddress) int {
 	if left.Word0 < right.Word0 {
@@ -1629,6 +1649,58 @@ func MacAddressCompare(left MacAddress, right MacAddress) int {
 		return 1
 	}
 	return 0
+}
+func MacaddrFromText(input TextValue) MacaddrValue {
+	if input.Kind == TextValueError {
+		error := input.Error
+		return MacaddrValue{Kind: MacaddrValueError, Error: error}
+	}
+	if input == (TextValue{Kind: TextValueUnknown}) {
+		return MacaddrValue{Kind: MacaddrValueUnknown}
+	}
+	if input == (TextValue{Kind: TextValueNull}) {
+		return MacaddrValue{Kind: MacaddrValueNull}
+	}
+	if input.Kind == TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		if len(chars) > 256 {
+			return MacaddrValue{Kind: MacaddrValueUnknown}
+		}
+		text := macText{chars: chars}
+		parsed := macaddrParse(&text)
+		if parsed.valid == false {
+			return MacaddrValue{Kind: MacaddrValueError, Error: MakeSqlError(parsed.state)}
+		}
+		return MacaddrValue{Kind: MacaddrValueValue, Value: parsed.address}
+	}
+	return MacaddrValue{Kind: MacaddrValueUnknown}
+}
+func Macaddr8FromText(input TextValue) Macaddr8Value {
+	if input.Kind == TextValueError {
+		error := input.Error
+		return Macaddr8Value{Kind: Macaddr8ValueError, Error: error}
+	}
+	if input == (TextValue{Kind: TextValueUnknown}) {
+		return Macaddr8Value{Kind: Macaddr8ValueUnknown}
+	}
+	if input == (TextValue{Kind: TextValueNull}) {
+		return Macaddr8Value{Kind: Macaddr8ValueNull}
+	}
+	if input.Kind == TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		if len(chars) > 256 {
+			return Macaddr8Value{Kind: Macaddr8ValueUnknown}
+		}
+		text := macText{chars: chars}
+		parsed := macaddr8Parse(&text)
+		if parsed.valid == false {
+			return Macaddr8Value{Kind: Macaddr8ValueError, Error: MakeSqlError(parsed.state)}
+		}
+		return Macaddr8Value{Kind: Macaddr8ValueValue, Value: parsed.address}
+	}
+	return Macaddr8Value{Kind: Macaddr8ValueUnknown}
 }
 
 type HashByte struct {

@@ -5,6 +5,23 @@ import (
 	checkruntime "example.com/pgsid-fixture/generated/go/queries/pgsid/pgx/checkrust/checkruntime"
 )
 
+func addressAndWord(left int, right int) int {
+	left = langruntime.CheckedI32(left)
+	right = langruntime.CheckedI32(right)
+	a := left
+	b := right
+	place := 1
+	result := 0
+	for place < 65536 {
+		if langruntime.CheckedSignedRemainder(a, 2) == 1 && langruntime.CheckedSignedRemainder(b, 2) == 1 {
+			result = langruntime.CheckedI32(langruntime.CheckedSignedAdd(result, place))
+		}
+		a = langruntime.CheckedI32(langruntime.CheckedSignedDivide(a, 2))
+		b = langruntime.CheckedI32(langruntime.CheckedSignedDivide(b, 2))
+		place = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(place, 2))
+	}
+	return result
+}
 func Int48lt65ji(left checkruntime.Int4Value, right checkruntime.Int8Value) checkruntime.BoolValue {
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
@@ -1679,6 +1696,9 @@ func Int2Gmpv(input checkruntime.Int8Value) checkruntime.Int2Value {
 	}
 	return checkruntime.Int2Value{Kind: checkruntime.Int2ValueUnknown}
 }
+
+const macConversionOutOfRange = 3452547
+
 func macaddrCompare(left checkruntime.MacaddrValue, right checkruntime.MacaddrValue) checkruntime.Int4Value {
 	if left.Kind == checkruntime.MacaddrValueError {
 		error := left.Error
@@ -1948,6 +1968,172 @@ func Macaddr8Ge054u(left checkruntime.Macaddr8Value, right checkruntime.Macaddr8
 }
 func Macaddr8CmpId7f(left checkruntime.Macaddr8Value, right checkruntime.Macaddr8Value) checkruntime.Int4Value {
 	return macaddr8Compare(left, right)
+}
+func MacaddrNot4gjk(input checkruntime.MacaddrValue) checkruntime.MacaddrValue {
+	if input.Kind == checkruntime.MacaddrValueValue {
+		a := input.Value
+		return checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueValue, Value: checkruntime.MacAddress{Word0: langruntime.CheckedSignedSubtract(65535, a.Word0), Word1: langruntime.CheckedSignedSubtract(65535, a.Word1), Word2: langruntime.CheckedSignedSubtract(65535, a.Word2), Word3: 0}}
+	}
+	return input
+}
+func TruncBgg8(input checkruntime.MacaddrValue) checkruntime.MacaddrValue {
+	if input.Kind == checkruntime.MacaddrValueValue {
+		a := input.Value
+		return checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueValue, Value: checkruntime.MacAddress{Word0: a.Word0, Word1: langruntime.CheckedSignedMultiply(langruntime.CheckedSignedDivide(a.Word1, 256), 256), Word2: 0, Word3: 0}}
+	}
+	return input
+}
+func macaddrBitwise(left checkruntime.MacaddrValue, right checkruntime.MacaddrValue, union bool) checkruntime.MacaddrValue {
+	if left.Kind == checkruntime.MacaddrValueError {
+		error := left.Error
+		return checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueError, Error: error}
+	}
+	if right.Kind == checkruntime.MacaddrValueError {
+		error := right.Error
+		return checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueError, Error: error}
+	}
+	if left == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueUnknown}) || right == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueUnknown}) {
+		return checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueUnknown}
+	}
+	if left == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueNull}) || right == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueNull}) {
+		return checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueNull}
+	}
+	if left.Kind == checkruntime.MacaddrValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.MacaddrValueValue {
+			b := right.Value
+			word0 := addressAndWord(a.Word0, b.Word0)
+			if union {
+				word0 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(a.Word0, b.Word0), word0))
+			}
+			word1 := addressAndWord(a.Word1, b.Word1)
+			if union {
+				word1 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(a.Word1, b.Word1), word1))
+			}
+			word2 := addressAndWord(a.Word2, b.Word2)
+			if union {
+				word2 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(a.Word2, b.Word2), word2))
+			}
+			word3 := addressAndWord(a.Word3, b.Word3)
+			if union {
+				word3 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(a.Word3, b.Word3), word3))
+			}
+			return checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueValue, Value: checkruntime.MacAddress{Word0: word0, Word1: word1, Word2: word2, Word3: word3}}
+		}
+	}
+	return checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueUnknown}
+}
+func MacaddrAndKy45(left checkruntime.MacaddrValue, right checkruntime.MacaddrValue) checkruntime.MacaddrValue {
+	return macaddrBitwise(left, right, false)
+}
+func MacaddrOrWqx0(left checkruntime.MacaddrValue, right checkruntime.MacaddrValue) checkruntime.MacaddrValue {
+	return macaddrBitwise(left, right, true)
+}
+func Macaddr8NotUfi9(input checkruntime.Macaddr8Value) checkruntime.Macaddr8Value {
+	if input.Kind == checkruntime.Macaddr8ValueValue {
+		a := input.Value
+		return checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueValue, Value: checkruntime.MacAddress{Word0: langruntime.CheckedSignedSubtract(65535, a.Word0), Word1: langruntime.CheckedSignedSubtract(65535, a.Word1), Word2: langruntime.CheckedSignedSubtract(65535, a.Word2), Word3: langruntime.CheckedSignedSubtract(65535, a.Word3)}}
+	}
+	return input
+}
+func TruncY4rb(input checkruntime.Macaddr8Value) checkruntime.Macaddr8Value {
+	if input.Kind == checkruntime.Macaddr8ValueValue {
+		a := input.Value
+		return checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueValue, Value: checkruntime.MacAddress{Word0: a.Word0, Word1: langruntime.CheckedSignedMultiply(langruntime.CheckedSignedDivide(a.Word1, 256), 256), Word2: 0, Word3: 0}}
+	}
+	return input
+}
+func macaddr8Bitwise(left checkruntime.Macaddr8Value, right checkruntime.Macaddr8Value, union bool) checkruntime.Macaddr8Value {
+	if left.Kind == checkruntime.Macaddr8ValueError {
+		error := left.Error
+		return checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Macaddr8ValueError {
+		error := right.Error
+		return checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueError, Error: error}
+	}
+	if left == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueUnknown}) || right == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueUnknown}) {
+		return checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueUnknown}
+	}
+	if left == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueNull}) || right == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueNull}) {
+		return checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueNull}
+	}
+	if left.Kind == checkruntime.Macaddr8ValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.Macaddr8ValueValue {
+			b := right.Value
+			word0 := addressAndWord(a.Word0, b.Word0)
+			if union {
+				word0 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(a.Word0, b.Word0), word0))
+			}
+			word1 := addressAndWord(a.Word1, b.Word1)
+			if union {
+				word1 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(a.Word1, b.Word1), word1))
+			}
+			word2 := addressAndWord(a.Word2, b.Word2)
+			if union {
+				word2 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(a.Word2, b.Word2), word2))
+			}
+			word3 := addressAndWord(a.Word3, b.Word3)
+			if union {
+				word3 = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(a.Word3, b.Word3), word3))
+			}
+			return checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueValue, Value: checkruntime.MacAddress{Word0: word0, Word1: word1, Word2: word2, Word3: word3}}
+		}
+	}
+	return checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueUnknown}
+}
+func Macaddr8AndCeah(left checkruntime.Macaddr8Value, right checkruntime.Macaddr8Value) checkruntime.Macaddr8Value {
+	return macaddr8Bitwise(left, right, false)
+}
+func Macaddr8Or6kdp(left checkruntime.Macaddr8Value, right checkruntime.Macaddr8Value) checkruntime.Macaddr8Value {
+	return macaddr8Bitwise(left, right, true)
+}
+func Macaddr8Set7bit2kgh(input checkruntime.Macaddr8Value) checkruntime.Macaddr8Value {
+	if input.Kind == checkruntime.Macaddr8ValueValue {
+		a := input.Value
+		intersection := addressAndWord(a.Word0, 512)
+		return checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueValue, Value: checkruntime.MacAddress{Word0: langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(a.Word0, 512), intersection), Word1: a.Word1, Word2: a.Word2, Word3: a.Word3}}
+	}
+	return input
+}
+func Macaddr8Ta7j(input checkruntime.MacaddrValue) checkruntime.Macaddr8Value {
+	if input.Kind == checkruntime.MacaddrValueError {
+		error := input.Error
+		return checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueError, Error: error}
+	}
+	if input == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueUnknown}) {
+		return checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueUnknown}
+	}
+	if input == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueNull}) {
+		return checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueNull}
+	}
+	if input.Kind == checkruntime.MacaddrValueValue {
+		a := input.Value
+		insertedHigh := 254
+		return checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueValue, Value: checkruntime.MacAddress{Word0: a.Word0, Word1: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(langruntime.CheckedSignedDivide(a.Word1, 256), 256), 255), Word2: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(insertedHigh, 256), langruntime.CheckedSignedRemainder(a.Word1, 256)), Word3: a.Word2}}
+	}
+	return checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueUnknown}
+}
+func MacaddrXnt6(input checkruntime.Macaddr8Value) checkruntime.MacaddrValue {
+	if input.Kind == checkruntime.Macaddr8ValueError {
+		error := input.Error
+		return checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueError, Error: error}
+	}
+	if input == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueUnknown}) {
+		return checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueUnknown}
+	}
+	if input == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueNull}) {
+		return checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueNull}
+	}
+	if input.Kind == checkruntime.Macaddr8ValueValue {
+		a := input.Value
+		if langruntime.CheckedSignedRemainder(a.Word1, 256) != 255 || langruntime.CheckedSignedDivide(a.Word2, 256) != 254 {
+			return checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueError, Error: checkruntime.MakeSqlError(macConversionOutOfRange)}
+		}
+		return checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueValue, Value: checkruntime.MacAddress{Word0: a.Word0, Word1: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(langruntime.CheckedSignedDivide(a.Word1, 256), 256), langruntime.CheckedSignedRemainder(a.Word2, 256)), Word2: a.Word3, Word3: 0}}
+	}
+	return checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueUnknown}
 }
 
 const sqlstateInvalidParameterValue = 3452619
@@ -2714,23 +2900,6 @@ func InetMergeIflm(left checkruntime.NetworkValue, right checkruntime.NetworkVal
 	}
 	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
 }
-func networkAndWord(left int, right int) int {
-	left = langruntime.CheckedI32(left)
-	right = langruntime.CheckedI32(right)
-	a := left
-	b := right
-	place := 1
-	result := 0
-	for place < 65536 {
-		if langruntime.CheckedSignedRemainder(a, 2) == 1 && langruntime.CheckedSignedRemainder(b, 2) == 1 {
-			result = langruntime.CheckedI32(langruntime.CheckedSignedAdd(result, place))
-		}
-		a = langruntime.CheckedI32(langruntime.CheckedSignedDivide(a, 2))
-		b = langruntime.CheckedI32(langruntime.CheckedSignedDivide(b, 2))
-		place = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(place, 2))
-	}
-	return result
-}
 func networkBitwise(left checkruntime.NetworkValue, right checkruntime.NetworkValue, union bool) checkruntime.NetworkValue {
 	if left.Kind == checkruntime.NetworkValueError {
 		error := left.Error
@@ -2762,7 +2931,7 @@ func networkBitwise(left checkruntime.NetworkValue, right checkruntime.NetworkVa
 			for index < 8 {
 				first := checkruntime.NetworkAddressWord(a, index)
 				second := checkruntime.NetworkAddressWord(b, index)
-				intersection := networkAndWord(first, second)
+				intersection := addressAndWord(first, second)
 				word := intersection
 				if union {
 					word = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(langruntime.CheckedSignedAdd(first, second), intersection))
