@@ -82,30 +82,47 @@ pub fn network_address_word(address: NetworkAddress, index: usize) -> i32 {
     address.word7
 }
 
+fn network_address_byte(address: NetworkAddress, index: usize, high: bool) -> i32 {
+    let word = network_address_word(address, index);
+    if high {
+        return word / 256;
+    }
+    word % 256
+}
+
 pub fn network_prefix_compare(left: NetworkAddress, right: NetworkAddress, bits: i32) -> i32 {
     let mut index: usize = 0;
     let mut remaining = bits;
-    while remaining > 0 {
-        let mut word_count = remaining;
-        if word_count > 16 {
-            word_count = 16;
+    let mut high = true;
+    while remaining >= 8 {
+        let a = network_address_byte(left, index, high);
+        let b = network_address_byte(right, index, high);
+        if a != b {
+            return a - b;
         }
+        remaining = remaining - 8;
+        if high {
+            high = false;
+        } else {
+            high = true;
+            index += 1;
+        };
+    }
+    if remaining > 0 {
+        let mut padding = 8 - remaining;
         let mut divisor: i32 = 1;
-        let mut padding = 16 - word_count;
         while padding > 0 {
             divisor = divisor * 2;
             padding = padding - 1;
         }
-        let a = network_address_word(left, index) / divisor;
-        let b = network_address_word(right, index) / divisor;
+        let a = network_address_byte(left, index, high) / divisor;
+        let b = network_address_byte(right, index, high) / divisor;
         if a < b {
             return -1;
         }
         if a > b {
             return 1;
         }
-        remaining = remaining - word_count;
-        index += 1;
     }
     0
 }

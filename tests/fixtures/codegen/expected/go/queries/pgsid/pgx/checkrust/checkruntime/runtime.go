@@ -1082,33 +1082,51 @@ func NetworkAddressWord(address NetworkAddress, index int) int {
 	}
 	return address.Word7
 }
+func networkAddressByte(address NetworkAddress, index int, high bool) int {
+	address = CopyNetworkAddress(address)
+	index = langruntime.CheckedIndex(index)
+	word := NetworkAddressWord(address, index)
+	if high {
+		return langruntime.CheckedSignedDivide(word, 256)
+	}
+	return langruntime.CheckedSignedRemainder(word, 256)
+}
 func NetworkPrefixCompare(left NetworkAddress, right NetworkAddress, bits int) int {
 	left = CopyNetworkAddress(left)
 	right = CopyNetworkAddress(right)
 	bits = langruntime.CheckedI32(bits)
 	index := 0
 	remaining := bits
-	for remaining > 0 {
-		wordCount := remaining
-		if wordCount > 16 {
-			wordCount = langruntime.CheckedI32(16)
+	high := true
+	for remaining >= 8 {
+		a := networkAddressByte(left, index, high)
+		b := networkAddressByte(right, index, high)
+		if a != b {
+			return langruntime.CheckedSignedSubtract(a, b)
 		}
+		remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, 8))
+		if high {
+			high = false
+		} else {
+			high = true
+			index = langruntime.CheckedAdd(index, 1)
+		}
+	}
+	if remaining > 0 {
+		padding := langruntime.CheckedSignedSubtract(8, remaining)
 		divisor := 1
-		padding := langruntime.CheckedSignedSubtract(16, wordCount)
 		for padding > 0 {
 			divisor = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(divisor, 2))
 			padding = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(padding, 1))
 		}
-		a := langruntime.CheckedSignedDivide(NetworkAddressWord(left, index), divisor)
-		b := langruntime.CheckedSignedDivide(NetworkAddressWord(right, index), divisor)
+		a := langruntime.CheckedSignedDivide(networkAddressByte(left, index, high), divisor)
+		b := langruntime.CheckedSignedDivide(networkAddressByte(right, index, high), divisor)
 		if a < b {
 			return langruntime.CheckedSignedNegate(1)
 		}
 		if a > b {
 			return 1
 		}
-		remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, wordCount))
-		index = langruntime.CheckedAdd(index, 1)
 	}
 	return 0
 }

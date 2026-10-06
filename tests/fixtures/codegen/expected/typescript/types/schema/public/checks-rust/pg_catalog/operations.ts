@@ -1756,11 +1756,9 @@ function networkCompare(left: checkruntime.NetworkValue, right: checkruntime.Net
             if (!(order === 0)) {
                 return { kind: "Value", value: order };
             }
-            if (a.prefix < b.prefix) {
-                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
-            }
-            if (a.prefix > b.prefix) {
-                return { kind: "Value", value: 1 };
+            const prefixOrder: number = langruntime.checkedSignedSubtract(a.prefix, b.prefix);
+            if (!(prefixOrder === 0)) {
+                return { kind: "Value", value: prefixOrder };
             }
             let width: number = 32;
             if (a.family === 6) {
@@ -2641,6 +2639,45 @@ export function inetnot8bow(input: checkruntime.NetworkValue): checkruntime.Netw
         return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
     }
     return { kind: "Unknown" };
+}
+export function networkCmp7dun(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.Int4Value {
+    left = checkruntime.copyNetworkValue(left);
+    right = checkruntime.copyNetworkValue(right);
+    return networkCompare(left, right);
+}
+function networkSelect(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue, larger: boolean): checkruntime.NetworkValue {
+    left = checkruntime.copyNetworkValue(left);
+    right = checkruntime.copyNetworkValue(right);
+    larger = langruntime.checkedBool(larger);
+    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(networkCompare(left, right));
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        if ((larger && order > 0) || (larger === false && order < 0)) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function networkLargerWb5u(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.NetworkValue {
+    left = checkruntime.copyNetworkValue(left);
+    right = checkruntime.copyNetworkValue(right);
+    return networkSelect(left, right, true);
+}
+export function networkSmallerNmw8(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.NetworkValue {
+    left = checkruntime.copyNetworkValue(left);
+    right = checkruntime.copyNetworkValue(right);
+    return networkSelect(left, right, false);
 }
 function numericCompare(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.Int4Value {
     left = checkruntime.copyNumericValue(left);

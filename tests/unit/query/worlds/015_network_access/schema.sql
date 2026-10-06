@@ -97,3 +97,18 @@ CREATE TABLE network_filters (
   CONSTRAINT filter_intersection CHECK (CASE WHEN skip_filter THEN true ELSE (address & address_mask) = intersected_address END),
   CONSTRAINT filter_union CHECK (CASE WHEN skip_filter THEN true ELSE (address | address_mask) = united_address END)
 );
+
+CREATE TABLE network_priorities (
+  id integer PRIMARY KEY,
+  first_address peer_address,
+  second_address inet,
+  comparison_result integer,
+  larger_address inet,
+  smaller_address inet,
+  prefer_larger boolean,
+  selected_address inet,
+  CONSTRAINT priority_comparison CHECK (network_cmp(first_address, second_address) = comparison_result),
+  CONSTRAINT priority_larger CHECK (network_larger(first_address, second_address) = larger_address),
+  CONSTRAINT priority_smaller CHECK (network_smaller(first_address, second_address) = smaller_address),
+  CONSTRAINT priority_selected CHECK ((CASE WHEN prefer_larger THEN network_larger(first_address, second_address) ELSE network_smaller(first_address, second_address) END) = selected_address)
+);

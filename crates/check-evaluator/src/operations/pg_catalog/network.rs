@@ -29,11 +29,9 @@ fn network_compare(left: NetworkValue, right: NetworkValue) -> Int4Value {
             if order != 0 {
                 return Int4Value::Value(order);
             }
-            if a.prefix < b.prefix {
-                return Int4Value::Value(-1);
-            }
-            if a.prefix > b.prefix {
-                return Int4Value::Value(1);
+            let prefix_order = a.prefix - b.prefix;
+            if prefix_order != 0 {
+                return Int4Value::Value(prefix_order);
             }
             let mut width: i32 = 32;
             if a.family == 6 {
@@ -826,4 +824,42 @@ pub fn sql__pg_catalog__inetnot__8bow(input: NetworkValue) -> NetworkValue {
         return NetworkValue::Value(result);
     }
     NetworkValue::Unknown
+}
+
+pub fn sql__pg_catalog__network_cmp__7dun(left: NetworkValue, right: NetworkValue) -> Int4Value {
+    network_compare(left, right)
+}
+
+fn network_select(left: NetworkValue, right: NetworkValue, larger: bool) -> NetworkValue {
+    let result = network_compare(left, right);
+    if let Int4Value::Error(error) = result {
+        return NetworkValue::Error(error);
+    }
+    if result == Int4Value::Unknown {
+        return NetworkValue::Unknown;
+    }
+    if result == Int4Value::Null {
+        return NetworkValue::Null;
+    }
+    if let Int4Value::Value(order) = result {
+        if (larger && order > 0) || (larger == false && order < 0) {
+            return left;
+        }
+        return right;
+    }
+    NetworkValue::Unknown
+}
+
+pub fn sql__pg_catalog__network_larger__wb5u(
+    left: NetworkValue,
+    right: NetworkValue,
+) -> NetworkValue {
+    network_select(left, right, true)
+}
+
+pub fn sql__pg_catalog__network_smaller__nmw8(
+    left: NetworkValue,
+    right: NetworkValue,
+) -> NetworkValue {
+    network_select(left, right, false)
 }

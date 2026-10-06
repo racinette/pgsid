@@ -1767,11 +1767,9 @@ func networkCompare(left checkruntime.NetworkValue, right checkruntime.NetworkVa
 			if order != 0 {
 				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: order}
 			}
-			if a.Prefix < b.Prefix {
-				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
-			}
-			if a.Prefix > b.Prefix {
-				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+			prefixOrder := langruntime.CheckedSignedSubtract(a.Prefix, b.Prefix)
+			if prefixOrder != 0 {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: prefixOrder}
 			}
 			width := 32
 			if a.Family == 6 {
@@ -2653,6 +2651,44 @@ func Inetnot8bow(input checkruntime.NetworkValue) checkruntime.NetworkValue {
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueValue, Value: result}
 	}
 	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
+}
+func NetworkCmp7dun(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.Int4Value {
+	left = checkruntime.CopyNetworkValue(left)
+	right = checkruntime.CopyNetworkValue(right)
+	return networkCompare(left, right)
+}
+func networkSelect(left checkruntime.NetworkValue, right checkruntime.NetworkValue, larger bool) checkruntime.NetworkValue {
+	left = checkruntime.CopyNetworkValue(left)
+	right = checkruntime.CopyNetworkValue(right)
+	result := networkCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		if (larger && order > 0) || (larger == false && order < 0) {
+			return left
+		}
+		return right
+	}
+	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
+}
+func NetworkLargerWb5u(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.NetworkValue {
+	left = checkruntime.CopyNetworkValue(left)
+	right = checkruntime.CopyNetworkValue(right)
+	return networkSelect(left, right, true)
+}
+func NetworkSmallerNmw8(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.NetworkValue {
+	left = checkruntime.CopyNetworkValue(left)
+	right = checkruntime.CopyNetworkValue(right)
+	return networkSelect(left, right, false)
 }
 func numericCompare(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.Int4Value {
 	left = checkruntime.CopyNumericValue(left)
