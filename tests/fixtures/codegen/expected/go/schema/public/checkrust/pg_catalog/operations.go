@@ -4787,3 +4787,39 @@ func UuidExtractVersionYdwe(input checkruntime.UuidValue) checkruntime.Int2Value
 	}
 	return checkruntime.Int2Value{Kind: checkruntime.Int2ValueUnknown}
 }
+func UuidExtractTimestampP52j(input checkruntime.UuidValue) checkruntime.TimestamptzValue {
+	if input.Kind == checkruntime.UuidValueError {
+		error := input.Error
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	if input == (checkruntime.UuidValue{Kind: checkruntime.UuidValueUnknown}) {
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
+	}
+	if input == (checkruntime.UuidValue{Kind: checkruntime.UuidValueNull}) {
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}
+	}
+	if input.Kind == checkruntime.UuidValueValue {
+		value := input.Value
+		if langruntime.CheckedSignedDivide(value.Word4, 16384) != 2 {
+			return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}
+		}
+		version := langruntime.CheckedSignedDivide(value.Word3, 4096)
+		word0 := int64(langruntime.CheckedI32(value.Word0))
+		word1 := int64(langruntime.CheckedI32(value.Word1))
+		word2 := int64(langruntime.CheckedI32(value.Word2))
+		if version == 1 {
+			high := langruntime.CheckedSignedRemainder(value.Word3, 4096)
+			word3 := int64(langruntime.CheckedI32(high))
+			ticks := langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(word3, int64(281474976710656)), langruntime.CheckedI64Multiply(word2, int64(4294967296))), langruntime.CheckedI64Multiply(word0, int64(65536))), word1)
+			microseconds := langruntime.CheckedI64Subtract(langruntime.CheckedI64Divide(ticks, int64(10)), int64(13165977600000000))
+			return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueValue, Value: microseconds}
+		}
+		if version == 7 {
+			milliseconds := langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(word0, int64(4294967296)), langruntime.CheckedI64Multiply(word1, int64(65536))), word2)
+			microseconds := langruntime.CheckedI64Subtract(langruntime.CheckedI64Multiply(milliseconds, int64(1000)), int64(946684800000000))
+			return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueValue, Value: microseconds}
+		}
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}
+	}
+	return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
+}

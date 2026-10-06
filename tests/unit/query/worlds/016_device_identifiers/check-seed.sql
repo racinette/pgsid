@@ -165,3 +165,99 @@ INSERT INTO identifier_fingerprints (id, identifier, raw_identifier, seed, recor
 
 -- name: fingerprint_skip
 INSERT INTO identifier_fingerprints (id, identifier, raw_identifier, seed, recorded_wire, recorded_hash, recorded_seeded, recorded_zero, recorded_version, skip_parse) VALUES (323, '01234567-89ab-4def-8123-456789abcdef', '01234567-89ab-4def-8123-456789abcdef', 1, '\x0123456789ab4def8123456789abcdef', 1980659289, -5227956059267306396, -8882000122858277287, 4, true);
+
+-- name: event_gregorian_epoch
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (400, '00000000-0000-1000-8000-000000000000', '00000000-0000-1000-8000-000000000000', '1582-10-15 00:00:00+00', '-infinity', 'infinity', false, false);
+
+-- name: event_v1_unix_epoch
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (401, '13814000-1dd2-11b2-8000-000000000000', '13814000-1dd2-11b2-8000-000000000000', '1970-01-01 00:00:00+00', '1970-01-01 00:00:00+00', '1970-01-01 00:00:00+00', true, false);
+
+-- name: event_v1_before_postgres_epoch
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (402, '63afffff-bfde-11d3-8000-000000000000', '63afffff-bfde-11d3-8000-000000000000', '1999-12-31 23:59:59.999999+00', '-infinity', '2000-01-01 00:00:00+00', false, false);
+
+-- name: event_v1_submicrosecond_truncation
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (403, '63b00009-bfde-11d3-8000-000000000000', '{63B00009BFDE11D38000000000000000}', '2000-01-01 00:00:00+00', '2000-01-01 00:00:00+00', '2000-01-01 00:00:00+00', false, false);
+
+-- name: event_v1_next_microsecond
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (404, '63b0000a-bfde-11d3-8000-000000000000', '63b0000a-bfde-11d3-8000-000000000000', '2000-01-01 00:00:00.000001+00', '2000-01-01 00:00:00+00', '2000-01-01 00:00:00.000001+00', false, false);
+
+-- name: event_v1_maximum
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (405, 'ffffffff-ffff-1fff-bfff-ffffffffffff', 'ffffffff-ffff-1fff-bfff-ffffffffffff', '5236-03-31 21:21:00.684697+00', '-infinity', 'infinity', false, false);
+
+-- name: event_v7_unix_epoch
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (406, '00000000-0000-7000-8000-000000000000', '00000000-0000-7000-8000-000000000000', '1970-01-01 00:00:00+00', '-infinity', 'infinity', false, false);
+
+-- name: event_v7_before_postgres_epoch
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (407, '00dc6acf-abff-7000-8000-000000000000', '00dc6acf-abff-7000-8000-000000000000', '1999-12-31 23:59:59.999+00', '-infinity', '2000-01-01 00:00:00+00', false, false);
+
+-- name: event_v7_postgres_epoch
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (408, '00dc6acf-ac00-7fff-bfff-ffffffffffff', '00dc6acf-ac00-7000-8000-000000000000', '2000-01-01 01:00:00+01', '2000-01-01 00:00:00+00', '2000-01-01 00:00:00+00', false, false);
+
+-- name: event_v7_next_millisecond
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (409, '00dc6acf-ac01-7000-8000-000000000000', '00dc6acf-ac01-7000-8000-000000000000', '2000-01-01 00:00:00.001+00', '2000-01-01 00:00:00+00', 'infinity', false, false);
+
+-- name: event_v7_maximum
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (410, 'ffffffff-ffff-7fff-bfff-ffffffffffff', 'ffffffff-ffff-7fff-bfff-ffffffffffff', '10889-08-02 05:31:50.655+00', '-infinity', 'infinity', false, false);
+
+-- name: event_non_temporal_version
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (411, '01234567-89ab-4def-8123-456789abcdef', '01234567-89ab-4def-8123-456789abcdef', NULL, '-infinity', 'infinity', false, false);
+
+-- name: event_invalid_variant
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (412, '00dc6acf-ac00-7000-c000-000000000000', '00dc6acf-ac00-7000-c000-000000000000', NULL, '-infinity', 'infinity', false, false);
+
+-- name: event_null_identifier
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (413, NULL, NULL, NULL, NULL, NULL, false, false);
+
+-- name: event_wrong_recorded_timestamp
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (414, '00dc6acf-ac00-7000-8000-000000000000', '00dc6acf-ac00-7000-8000-000000000000', '2000-01-01 00:00:00.000001+00', '-infinity', 'infinity', false, false);
+
+-- name: event_missing_recorded_timestamp
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (415, '00dc6acf-ac00-7000-8000-000000000000', '00dc6acf-ac00-7000-8000-000000000000', NULL, '-infinity', 'infinity', false, false);
+
+-- name: event_non_temporal_claims_timestamp
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (416, '01234567-89ab-4def-8123-456789abcdef', '01234567-89ab-4def-8123-456789abcdef', '2000-01-01 00:00:00+00', '-infinity', 'infinity', false, false);
+
+-- name: event_before_window
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (417, '00dc6acf-ac00-7000-8000-000000000000', '00dc6acf-ac00-7000-8000-000000000000', '2000-01-01 00:00:00+00', '2000-01-01 00:00:00.000001+00', 'infinity', false, false);
+
+-- name: event_after_window
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (418, '00dc6acf-ac00-7000-8000-000000000000', '00dc6acf-ac00-7000-8000-000000000000', '2000-01-01 00:00:00+00', '-infinity', '1999-12-31 23:59:59.999999+00', false, false);
+
+-- name: event_null_window
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (419, '00dc6acf-ac00-7000-8000-000000000000', '00dc6acf-ac00-7000-8000-000000000000', '2000-01-01 00:00:00+00', NULL, NULL, true, false);
+
+-- name: event_wrong_parsed_timestamp
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (420, '00dc6acf-ac00-7000-8000-000000000000', '00dc6acf-ac01-7000-8000-000000000000', '2000-01-01 00:00:00+00', '-infinity', 'infinity', false, false);
+
+-- name: event_malformed_uuid_error
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (421, '00dc6acf-ac00-7000-8000-000000000000', 'not-a-uuid', '2000-01-01 00:00:00+00', '-infinity', 'infinity', false, false);
+
+-- name: event_lazy_parse_skips_malformed_uuid
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (422, '00dc6acf-ac00-7000-8000-000000000000', 'not-a-uuid', '2000-01-01 00:00:00+00', '-infinity', 'infinity', true, true);
+
+-- name: event_lazy_parse_skips_wrong_timestamp
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (423, '00dc6acf-ac00-7000-8000-000000000000', '00dc6acf-ac01-7000-8000-000000000000', '2000-01-01 00:00:00+00', '-infinity', 'infinity', true, true);

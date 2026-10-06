@@ -4784,3 +4784,39 @@ export function uuidExtractVersionYdwe(input: checkruntime.UuidValue): checkrunt
     }
     return { kind: "Unknown" };
 }
+export function uuidExtractTimestampP52j(input: checkruntime.UuidValue): checkruntime.TimestamptzValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalUuidValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalUuidValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.Uuid = input.value;
+        if (!(langruntime.checkedSignedDivide(value.word4, 16384) === 2)) {
+            return { kind: "Null" };
+        }
+        const version: number = langruntime.checkedSignedDivide(value.word3, 4096);
+        const word0: bigint = BigInt(langruntime.checkedI32(value.word0));
+        const word1: bigint = BigInt(langruntime.checkedI32(value.word1));
+        const word2: bigint = BigInt(langruntime.checkedI32(value.word2));
+        if (version === 1) {
+            const high: number = langruntime.checkedSignedRemainder(value.word3, 4096);
+            const word3: bigint = BigInt(langruntime.checkedI32(high));
+            const ticks: bigint = langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Multiply(word3, 281474976710656n), langruntime.checkedI64Multiply(word2, 4294967296n)), langruntime.checkedI64Multiply(word0, 65536n)), word1);
+            const microseconds: bigint = langruntime.checkedI64Subtract(langruntime.checkedI64Divide(ticks, 10n), 13165977600000000n);
+            return { kind: "Value", value: microseconds };
+        }
+        if (version === 7) {
+            const milliseconds: bigint = langruntime.checkedI64Add(langruntime.checkedI64Add(langruntime.checkedI64Multiply(word0, 4294967296n), langruntime.checkedI64Multiply(word1, 65536n)), word2);
+            const microseconds: bigint = langruntime.checkedI64Subtract(langruntime.checkedI64Multiply(milliseconds, 1000n), 946684800000000n);
+            return { kind: "Value", value: microseconds };
+        }
+        return { kind: "Null" };
+    }
+    return { kind: "Unknown" };
+}

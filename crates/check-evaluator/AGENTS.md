@@ -178,9 +178,13 @@ import them. Keep schema-only helpers with their callables.
   over those bytes and preserve every seed bit; catalog widening supplies bigint
   seed arguments. Version extraction returns the version nibble for RFC variants
   whose top two bits are 10, and SQL NULL for all other variants. Timestamp
-  extraction requires a separate callable slice; random generation requires a
-  volatility assessment. Run `tests/sql-semantics/check-uuid.test.ts`,
-  `tests/sql-semantics/check-uuid-output.test.ts`, and the device identifiers world.
+  extraction supports versions 1 and 7 of the same RFC variant, returning SQL
+  NULL otherwise. Version 1 truncates Gregorian-epoch 100-nanosecond ticks to
+  microseconds before adjusting the epoch; version 7 converts Unix milliseconds
+  and ignores the remaining bits. Random generation requires a volatility
+  assessment. Run `tests/sql-semantics/check-uuid.test.ts`,
+  `tests/sql-semantics/check-uuid-output.test.ts`,
+  `tests/sql-semantics/check-uuid-timestamp.test.ts`, and the device identifiers world.
 - Text payloads own Rust `String`, lowered to immutable strings in both targets.
   Builders mutate only local strings through character or borrowed-text appends.
   Explicit wrapper clones preserve Rust ownership when generated branches reuse

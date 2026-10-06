@@ -4,3 +4,6 @@ INSERT INTO identifier_imports (id, raw_identifier, legacy_identifier, recorded_
 VALUES (1, '{0123456789ABCDEF0123456789ABCDEF}', '0123-4567-89ab-cdef-0123-4567-89ab-cdef', '01234567-89ab-cdef-0123-456789abcdef', false);
 
 INSERT INTO identifier_fingerprints (id, identifier, raw_identifier, seed, recorded_wire, recorded_hash, recorded_seeded, recorded_zero, recorded_version, skip_parse) VALUES (1, '01234567-89ab-4def-8123-456789abcdef', '01234567-89ab-4def-8123-456789abcdef', 1, '\x0123456789ab4def8123456789abcdef', 1980659289, -5227956059267306396, -8882000122858277287, 4, false);
+
+INSERT INTO identifier_events (id, identifier, raw_identifier, recorded_at, floor_at, ceiling_at, prefer_recorded, skip_parse)
+VALUES (1, '00dc6acf-ac00-7000-8000-000000000000', '00dc6acf-ac00-7000-8000-000000000000', '2000-01-01 00:00:00+00', '1999-12-31 00:00:00+00', '2000-01-02 00:00:00+00', false, false);
