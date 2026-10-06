@@ -4,6 +4,7 @@ pub mod checkruntime {
     include!("values.rs");
     include!("numeric.rs");
     include!("network.rs");
+    include!("mac.rs");
     include!("hash.rs");
     include!("text_builder.rs");
     include!("date.rs");
@@ -28,6 +29,7 @@ pub mod pg_catalog {
     include!(concat!(env!("OUT_DIR"), "/timezone-tables.rs"));
     include!("operations/pg_catalog/numeric.rs");
     include!("operations/pg_catalog/network.rs");
+    include!("operations/pg_catalog/mac.rs");
     include!("operations/pg_catalog/network_output.rs");
     include!("operations/pg_catalog/binary.rs");
     include!("operations/pg_catalog/integer.rs");

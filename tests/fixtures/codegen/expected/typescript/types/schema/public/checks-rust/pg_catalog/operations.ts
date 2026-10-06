@@ -1670,6 +1670,276 @@ export function int2Gmpv(input: checkruntime.Int8Value): checkruntime.Int2Value 
     }
     return { kind: "Unknown" };
 }
+function macaddrCompare(left: checkruntime.MacaddrValue, right: checkruntime.MacaddrValue): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMacaddrValue(left, { kind: "Unknown" }) || checkruntime.equalMacaddrValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalMacaddrValue(left, { kind: "Null" }) || checkruntime.equalMacaddrValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.MacAddress = left.value;
+        if (right.kind === "Value") {
+            const b: checkruntime.MacAddress = right.value;
+            return { kind: "Value", value: checkruntime.macAddressCompare(a, b) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function macaddrEqUthl(left: checkruntime.MacaddrValue, right: checkruntime.MacaddrValue): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = macaddrCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order === 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function macaddrNeEtmb(left: checkruntime.MacaddrValue, right: checkruntime.MacaddrValue): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = macaddrCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: !(order === 0) };
+    }
+    return { kind: "Unknown" };
+}
+export function macaddrLt8vk5(left: checkruntime.MacaddrValue, right: checkruntime.MacaddrValue): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = macaddrCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order < 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function macaddrLe6qq0(left: checkruntime.MacaddrValue, right: checkruntime.MacaddrValue): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = macaddrCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order <= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function macaddrGt4kss(left: checkruntime.MacaddrValue, right: checkruntime.MacaddrValue): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = macaddrCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order > 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function macaddrGeIuvk(left: checkruntime.MacaddrValue, right: checkruntime.MacaddrValue): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = macaddrCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order >= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function macaddrCmpJv7y(left: checkruntime.MacaddrValue, right: checkruntime.MacaddrValue): checkruntime.Int4Value {
+    return macaddrCompare(left, right);
+}
+function macaddr8Compare(left: checkruntime.Macaddr8Value, right: checkruntime.Macaddr8Value): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMacaddr8Value(left, { kind: "Unknown" }) || checkruntime.equalMacaddr8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalMacaddr8Value(left, { kind: "Null" }) || checkruntime.equalMacaddr8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.MacAddress = left.value;
+        if (right.kind === "Value") {
+            const b: checkruntime.MacAddress = right.value;
+            return { kind: "Value", value: checkruntime.macAddressCompare(a, b) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function macaddr8EqWy3p(left: checkruntime.Macaddr8Value, right: checkruntime.Macaddr8Value): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = macaddr8Compare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order === 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function macaddr8NeJ20a(left: checkruntime.Macaddr8Value, right: checkruntime.Macaddr8Value): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = macaddr8Compare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: !(order === 0) };
+    }
+    return { kind: "Unknown" };
+}
+export function macaddr8Lt5tsr(left: checkruntime.Macaddr8Value, right: checkruntime.Macaddr8Value): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = macaddr8Compare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order < 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function macaddr8LeDmol(left: checkruntime.Macaddr8Value, right: checkruntime.Macaddr8Value): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = macaddr8Compare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order <= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function macaddr8GtO95h(left: checkruntime.Macaddr8Value, right: checkruntime.Macaddr8Value): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = macaddr8Compare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order > 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function macaddr8Ge054u(left: checkruntime.Macaddr8Value, right: checkruntime.Macaddr8Value): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = macaddr8Compare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order >= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function macaddr8CmpId7f(left: checkruntime.Macaddr8Value, right: checkruntime.Macaddr8Value): checkruntime.Int4Value {
+    return macaddr8Compare(left, right);
+}
 const sqlstateInvalidParameterValue = 3452619;
 function networkCompare(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.Int4Value {
     if (left.kind === "Error") {

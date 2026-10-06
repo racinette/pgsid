@@ -1679,6 +1679,276 @@ func Int2Gmpv(input checkruntime.Int8Value) checkruntime.Int2Value {
 	}
 	return checkruntime.Int2Value{Kind: checkruntime.Int2ValueUnknown}
 }
+func macaddrCompare(left checkruntime.MacaddrValue, right checkruntime.MacaddrValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.MacaddrValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.MacaddrValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueUnknown}) || right == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueNull}) || right == (checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.MacaddrValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.MacaddrValueValue {
+			b := right.Value
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: checkruntime.MacAddressCompare(a, b)}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func MacaddrEqUthl(left checkruntime.MacaddrValue, right checkruntime.MacaddrValue) checkruntime.BoolValue {
+	result := macaddrCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order == 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func MacaddrNeEtmb(left checkruntime.MacaddrValue, right checkruntime.MacaddrValue) checkruntime.BoolValue {
+	result := macaddrCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order != 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func MacaddrLt8vk5(left checkruntime.MacaddrValue, right checkruntime.MacaddrValue) checkruntime.BoolValue {
+	result := macaddrCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order < 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func MacaddrLe6qq0(left checkruntime.MacaddrValue, right checkruntime.MacaddrValue) checkruntime.BoolValue {
+	result := macaddrCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order <= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func MacaddrGt4kss(left checkruntime.MacaddrValue, right checkruntime.MacaddrValue) checkruntime.BoolValue {
+	result := macaddrCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order > 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func MacaddrGeIuvk(left checkruntime.MacaddrValue, right checkruntime.MacaddrValue) checkruntime.BoolValue {
+	result := macaddrCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order >= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func MacaddrCmpJv7y(left checkruntime.MacaddrValue, right checkruntime.MacaddrValue) checkruntime.Int4Value {
+	return macaddrCompare(left, right)
+}
+func macaddr8Compare(left checkruntime.Macaddr8Value, right checkruntime.Macaddr8Value) checkruntime.Int4Value {
+	if left.Kind == checkruntime.Macaddr8ValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Macaddr8ValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueUnknown}) || right == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueNull}) || right == (checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.Macaddr8ValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.Macaddr8ValueValue {
+			b := right.Value
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: checkruntime.MacAddressCompare(a, b)}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func Macaddr8EqWy3p(left checkruntime.Macaddr8Value, right checkruntime.Macaddr8Value) checkruntime.BoolValue {
+	result := macaddr8Compare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order == 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Macaddr8NeJ20a(left checkruntime.Macaddr8Value, right checkruntime.Macaddr8Value) checkruntime.BoolValue {
+	result := macaddr8Compare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order != 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Macaddr8Lt5tsr(left checkruntime.Macaddr8Value, right checkruntime.Macaddr8Value) checkruntime.BoolValue {
+	result := macaddr8Compare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order < 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Macaddr8LeDmol(left checkruntime.Macaddr8Value, right checkruntime.Macaddr8Value) checkruntime.BoolValue {
+	result := macaddr8Compare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order <= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Macaddr8GtO95h(left checkruntime.Macaddr8Value, right checkruntime.Macaddr8Value) checkruntime.BoolValue {
+	result := macaddr8Compare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order > 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Macaddr8Ge054u(left checkruntime.Macaddr8Value, right checkruntime.Macaddr8Value) checkruntime.BoolValue {
+	result := macaddr8Compare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order >= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Macaddr8CmpId7f(left checkruntime.Macaddr8Value, right checkruntime.Macaddr8Value) checkruntime.Int4Value {
+	return macaddr8Compare(left, right)
+}
 
 const sqlstateInvalidParameterValue = 3452619
 

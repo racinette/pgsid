@@ -3,60 +3,6 @@ pub struct NetworkWord {
     pub value: i32,
 }
 
-fn network_digit(ch: char) -> i32 {
-    if ch == '0' {
-        return 0;
-    }
-    if ch == '1' {
-        return 1;
-    }
-    if ch == '2' {
-        return 2;
-    }
-    if ch == '3' {
-        return 3;
-    }
-    if ch == '4' {
-        return 4;
-    }
-    if ch == '5' {
-        return 5;
-    }
-    if ch == '6' {
-        return 6;
-    }
-    if ch == '7' {
-        return 7;
-    }
-    if ch == '8' {
-        return 8;
-    }
-    if ch == '9' {
-        return 9;
-    }
-
-    let lower = ch.to_ascii_lowercase();
-    if lower == 'a' {
-        return 10;
-    }
-    if lower == 'b' {
-        return 11;
-    }
-    if lower == 'c' {
-        return 12;
-    }
-    if lower == 'd' {
-        return 13;
-    }
-    if lower == 'e' {
-        return 14;
-    }
-    if lower == 'f' {
-        return 15;
-    }
-    16
-}
-
 pub fn network_address_word(address: NetworkAddress, index: usize) -> i32 {
     if index == 0 {
         return address.word0;
@@ -161,7 +107,7 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
         }
         prefix = 0;
         while index < chars.len() {
-            let digit = network_digit(chars[index]);
+            let digit = hex_digit(chars[index]);
             if digit > 9 {
                 return NetworkValue::Error(make_sql_error(SQL_ERROR_INVALID_TEXT_REPRESENTATION));
             }
@@ -192,7 +138,7 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
         if cidr && end > 2 && chars[0] == '0' && (chars[1] == 'x' || chars[1] == 'X') {
             index = 2;
             while index < end {
-                let high = network_digit(chars[index]);
+                let high = hex_digit(chars[index]);
                 if high > 15 || octets.len() == 4 {
                     return NetworkValue::Error(make_sql_error(
                         SQL_ERROR_INVALID_TEXT_REPRESENTATION,
@@ -201,7 +147,7 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
                 index += 1;
                 let mut low: i32 = 0;
                 if index < end {
-                    low = network_digit(chars[index]);
+                    low = hex_digit(chars[index]);
                     if low > 15 {
                         return NetworkValue::Error(make_sql_error(
                             SQL_ERROR_INVALID_TEXT_REPRESENTATION,
@@ -219,7 +165,7 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
                 let begin = index;
                 let mut octet: i32 = 0;
                 while index < end && chars[index] != '.' {
-                    let digit = network_digit(chars[index]);
+                    let digit = hex_digit(chars[index]);
                     if digit > 9 {
                         return NetworkValue::Error(make_sql_error(
                             SQL_ERROR_INVALID_TEXT_REPRESENTATION,
@@ -316,7 +262,7 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
                     let start = index;
                     let mut octet: i32 = 0;
                     while index < end && chars[index] != '.' {
-                        let digit = network_digit(chars[index]);
+                        let digit = hex_digit(chars[index]);
                         if digit > 9 || (index > start && chars[start] == '0') {
                             return NetworkValue::Error(make_sql_error(
                                 SQL_ERROR_INVALID_TEXT_REPRESENTATION,
@@ -365,7 +311,7 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
                 }
                 let mut word: i32 = 0;
                 while index < stop {
-                    let digit = network_digit(chars[index]);
+                    let digit = hex_digit(chars[index]);
                     if digit > 15 {
                         return NetworkValue::Error(make_sql_error(
                             SQL_ERROR_INVALID_TEXT_REPRESENTATION,

@@ -775,6 +775,127 @@ export function makeByteaValue(value: string): ByteaValue {
     }
     return { kind: "Value", value: output };
 }
+export interface MacAddress {
+    readonly word0: number;
+    readonly word1: number;
+    readonly word2: number;
+    readonly word3: number;
+}
+function equalMacAddress(left: MacAddress, right: MacAddress): boolean {
+    return left.word0 === right.word0 && left.word1 === right.word1 && left.word2 === right.word2 && left.word3 === right.word3;
+}
+export type MacaddrValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: MacAddress;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalMacaddrValue(left: MacaddrValue, right: MacaddrValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return equalMacAddress(left.value, right.value);
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function macaddrUnknown(): MacaddrValue {
+    return { kind: "Unknown" };
+}
+export function macaddrNull(): MacaddrValue {
+    return { kind: "Null" };
+}
+export function macaddrIsNull(value: MacaddrValue): BoolValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalMacaddrValue(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: equalMacaddrValue(value, { kind: "Null" }) };
+}
+export function macaddrFromCaseGuard(value: CheckOutcome): MacaddrValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function makeMacaddrValue(value: string): MacaddrValue {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    if (chars.length > 256) {
+        return { kind: "Unknown" };
+    }
+    const text: MacText = { chars: chars };
+    const parsed: MacParsed = copyMacParsed(macaddrParse(text));
+    if (parsed.valid === false) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: parsed.address };
+}
+export type Macaddr8Value = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: MacAddress;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalMacaddr8Value(left: Macaddr8Value, right: Macaddr8Value): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return equalMacAddress(left.value, right.value);
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function macaddr8Unknown(): Macaddr8Value {
+    return { kind: "Unknown" };
+}
+export function macaddr8Null(): Macaddr8Value {
+    return { kind: "Null" };
+}
+export function macaddr8IsNull(value: Macaddr8Value): BoolValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalMacaddr8Value(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: equalMacaddr8Value(value, { kind: "Null" }) };
+}
+export function macaddr8FromCaseGuard(value: CheckOutcome): Macaddr8Value {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function makeMacaddr8Value(value: string): Macaddr8Value {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    if (chars.length > 256) {
+        return { kind: "Unknown" };
+    }
+    const text: MacText = { chars: chars };
+    const parsed: MacParsed = copyMacParsed(macaddr8Parse(text));
+    if (parsed.valid === false) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: parsed.address };
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;
@@ -976,59 +1097,6 @@ export interface NetworkWord {
 export function copyNetworkWord(value: NetworkWord): NetworkWord {
     return { value: langruntime.checkedI32(value.value) };
 }
-function networkDigit(ch: string): number {
-    ch = langruntime.checkedChar(ch);
-    if (ch === "0") {
-        return 0;
-    }
-    if (ch === "1") {
-        return 1;
-    }
-    if (ch === "2") {
-        return 2;
-    }
-    if (ch === "3") {
-        return 3;
-    }
-    if (ch === "4") {
-        return 4;
-    }
-    if (ch === "5") {
-        return 5;
-    }
-    if (ch === "6") {
-        return 6;
-    }
-    if (ch === "7") {
-        return 7;
-    }
-    if (ch === "8") {
-        return 8;
-    }
-    if (ch === "9") {
-        return 9;
-    }
-    const lower: string = langruntime.asciiLowercase(ch);
-    if (lower === "a") {
-        return 10;
-    }
-    if (lower === "b") {
-        return 11;
-    }
-    if (lower === "c") {
-        return 12;
-    }
-    if (lower === "d") {
-        return 13;
-    }
-    if (lower === "e") {
-        return 14;
-    }
-    if (lower === "f") {
-        return 15;
-    }
-    return 16;
-}
 export function networkAddressWord(address: NetworkAddress, index: number): number {
     index = langruntime.checkedIndex(index);
     if (index === 0) {
@@ -1137,7 +1205,7 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
         }
         prefix = langruntime.checkedI32(0);
         while (index < chars.length) {
-            const digit: number = networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+            const digit: number = hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
             if (digit > 9) {
                 return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
             }
@@ -1167,14 +1235,14 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
         if (cidr && end > 2 && langruntime.indexChar(chars, langruntime.checkedIndex(0)) === "0" && (langruntime.indexChar(chars, langruntime.checkedIndex(1)) === "x" || langruntime.indexChar(chars, langruntime.checkedIndex(1)) === "X")) {
             index = langruntime.checkedIndex(2);
             while (index < end) {
-                const high: number = networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                const high: number = hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
                 if (high > 15 || octets.length === 4) {
                     return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                 }
                 index = langruntime.checkedAdd(index, 1);
                 let low: number = 0;
                 if (index < end) {
-                    low = langruntime.checkedI32(networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))));
+                    low = langruntime.checkedI32(hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))));
                     if (low > 15) {
                         return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                     }
@@ -1189,7 +1257,7 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
                 const begin: number = index;
                 let octet: number = 0;
                 while (index < end && !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ".")) {
-                    const digit: number = networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                    const digit: number = hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
                     if (digit > 9) {
                         return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                     }
@@ -1278,7 +1346,7 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
                     const start: number = index;
                     let octet: number = 0;
                     while (index < end && !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ".")) {
-                        const digit: number = networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                        const digit: number = hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
                         if (digit > 9 || (index > start && langruntime.indexChar(chars, langruntime.checkedIndex(start)) === "0")) {
                             return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                         }
@@ -1314,7 +1382,7 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
                 }
                 let word: number = 0;
                 while (index < stop) {
-                    const digit: number = networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                    const digit: number = hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
                     if (digit > 15) {
                         return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                     }
@@ -1422,6 +1490,215 @@ export function cidrFromText(input: TextValue): NetworkValue {
         return networkParse(value, true);
     }
     return { kind: "Unknown" };
+}
+interface MacText {
+    chars: string[];
+}
+function copyMacText(value: MacText): MacText {
+    return { chars: langruntime.checkedChars(value.chars) };
+}
+interface MacByte {
+    value: number;
+}
+function copyMacByte(value: MacByte): MacByte {
+    return { value: langruntime.checkedI32(value.value) };
+}
+interface MacParsed {
+    valid: boolean;
+    address: MacAddress;
+}
+function copyMacParsed(value: MacParsed): MacParsed {
+    return { valid: langruntime.checkedBool(value.valid), address: value.address };
+}
+interface MacScanned {
+    valid: boolean;
+    value: number;
+    end: number;
+}
+function copyMacScanned(value: MacScanned): MacScanned {
+    return { valid: langruntime.checkedBool(value.valid), value: langruntime.checkedI32(value.value), end: langruntime.checkedIndex(value.end) };
+}
+function macInvalid(): MacParsed {
+    return { valid: false, address: { word0: 0, word1: 0, word2: 0, word3: 0 } };
+}
+function macSpace(ch: string): boolean {
+    ch = langruntime.checkedChar(ch);
+    return ch === " " || ch === "\t" || ch === "\n" || ch === "\r" || ch === "\v" || ch === "\f";
+}
+function macScanHex(text: MacText, start: number, width: number): MacScanned {
+    text = copyMacText(text);
+    start = langruntime.checkedIndex(start);
+    width = langruntime.checkedIndex(width);
+    let index: number = start;
+    while (index < text.chars.length && macSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const begin: number = index;
+    let negative: boolean = false;
+    if (index < text.chars.length && (langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "+" || langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-")) {
+        negative = langruntime.checkedBool(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-");
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let digits: boolean = false;
+    if (langruntime.checkedAdd(index, 1) < text.chars.length && (width === 0 || langruntime.checkedSubtract(langruntime.checkedAdd(index, 1), begin) < width) && langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "0" && langruntime.asciiLowercase(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)))) === "x") {
+        index = langruntime.checkedAdd(index, 2);
+    }
+    let value: number = 0;
+    while (index < text.chars.length && (width === 0 || langruntime.checkedSubtract(index, begin) < width)) {
+        const digit: number = hexDigit(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)));
+        if (digit === 16) {
+            break;
+        }
+        digits = langruntime.checkedBool(true);
+        if (value <= 255) {
+            value = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(value, 16), digit));
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { valid: digits && value <= 255 && (negative === false || value === 0), value: value, end: index };
+}
+function macaddrFormat(text: MacText, format: number): MacParsed {
+    text = copyMacText(text);
+    format = langruntime.checkedIndex(format);
+    let index: number = 0;
+    let byteIndex: number = 0;
+    let bytes: MacByte[] = [];
+    let width: number = 2;
+    if (format < 2) {
+        width = langruntime.checkedIndex(0);
+    }
+    while (byteIndex < 6) {
+        const scanned: MacScanned = copyMacScanned(macScanHex(text, index, width));
+        if (scanned.valid === false) {
+            return macInvalid();
+        }
+        langruntime.pushStruct(bytes, { value: scanned.value }, copyMacByte);
+        index = langruntime.checkedIndex(scanned.end);
+        byteIndex = langruntime.checkedAdd(byteIndex, 1);
+        let separator: string = "\0";
+        if (byteIndex < 6) {
+            if (format === 0) {
+                separator = langruntime.checkedChar(":");
+            }
+            else if (format === 1) {
+                separator = langruntime.checkedChar("-");
+            }
+            else if (format === 2 && byteIndex === 3) {
+                separator = langruntime.checkedChar(":");
+            }
+            else if (format === 3 && byteIndex === 3) {
+                separator = langruntime.checkedChar("-");
+            }
+            else if (format === 4 && (byteIndex === 2 || byteIndex === 4)) {
+                separator = langruntime.checkedChar(".");
+            }
+            else if (format === 5 && (byteIndex === 2 || byteIndex === 4)) {
+                separator = langruntime.checkedChar("-");
+            }
+        }
+        if (!(separator === "\0")) {
+            if (index >= text.chars.length || !(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === separator)) {
+                return macInvalid();
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+    }
+    while (index < text.chars.length && macSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (!(index === text.chars.length)) {
+        return macInvalid();
+    }
+    return { valid: true, address: { word0: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(0), copyMacByte).value, 256), langruntime.indexStruct(bytes, langruntime.checkedIndex(1), copyMacByte).value), word1: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(2), copyMacByte).value, 256), langruntime.indexStruct(bytes, langruntime.checkedIndex(3), copyMacByte).value), word2: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(4), copyMacByte).value, 256), langruntime.indexStruct(bytes, langruntime.checkedIndex(5), copyMacByte).value), word3: 0 } };
+}
+function macaddrParse(text: MacText): MacParsed {
+    text = copyMacText(text);
+    let format: number = 0;
+    while (format < 7) {
+        const parsed: MacParsed = copyMacParsed(macaddrFormat(text, format));
+        if (parsed.valid) {
+            return parsed;
+        }
+        format = langruntime.checkedAdd(format, 1);
+    }
+    return macInvalid();
+}
+function macaddr8Parse(text: MacText): MacParsed {
+    text = copyMacText(text);
+    let index: number = 0;
+    let separator: string = "\0";
+    let bytes: MacByte[] = [];
+    while (index < text.chars.length && macSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    while (langruntime.checkedAdd(index, 1) < text.chars.length) {
+        if (bytes.length === 8) {
+            return macInvalid();
+        }
+        const high: number = hexDigit(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)));
+        const low: number = hexDigit(langruntime.indexChar(text.chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))));
+        if (high === 16 || low === 16) {
+            return macInvalid();
+        }
+        langruntime.pushStruct(bytes, { value: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(high, 16), low) }, copyMacByte);
+        index = langruntime.checkedAdd(index, 2);
+        if (index < text.chars.length && (langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === ":" || langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === "-" || langruntime.indexChar(text.chars, langruntime.checkedIndex(index)) === ".")) {
+            if (!(separator === "\0") && !(separator === langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+                return macInvalid();
+            }
+            separator = langruntime.checkedChar(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        if ((bytes.length === 6 || bytes.length === 8) && index < text.chars.length && macSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+            while (index < text.chars.length && macSpace(langruntime.indexChar(text.chars, langruntime.checkedIndex(index)))) {
+                index = langruntime.checkedAdd(index, 1);
+            }
+            if (!(index === text.chars.length)) {
+                return macInvalid();
+            }
+        }
+    }
+    if (index < text.chars.length) {
+        const finalCode: number = langruntime.checkedChar(langruntime.indexChar(text.chars, langruntime.checkedIndex(index))).codePointAt(0)!;
+        if (finalCode > 127 || finalCode === 0) {
+            return macInvalid();
+        }
+    }
+    if (bytes.length === 6) {
+        const insertedHigh: number = 254;
+        return { valid: true, address: { word0: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(0), copyMacByte).value, 256), langruntime.indexStruct(bytes, langruntime.checkedIndex(1), copyMacByte).value), word1: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(2), copyMacByte).value, 256), 255), word2: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(insertedHigh, 256), langruntime.indexStruct(bytes, langruntime.checkedIndex(3), copyMacByte).value), word3: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(4), copyMacByte).value, 256), langruntime.indexStruct(bytes, langruntime.checkedIndex(5), copyMacByte).value) } };
+    }
+    if (!(bytes.length === 8)) {
+        return macInvalid();
+    }
+    return { valid: true, address: { word0: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(0), copyMacByte).value, 256), langruntime.indexStruct(bytes, langruntime.checkedIndex(1), copyMacByte).value), word1: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(2), copyMacByte).value, 256), langruntime.indexStruct(bytes, langruntime.checkedIndex(3), copyMacByte).value), word2: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(4), copyMacByte).value, 256), langruntime.indexStruct(bytes, langruntime.checkedIndex(5), copyMacByte).value), word3: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(6), copyMacByte).value, 256), langruntime.indexStruct(bytes, langruntime.checkedIndex(7), copyMacByte).value) } };
+}
+export function macAddressCompare(left: MacAddress, right: MacAddress): number {
+    if (left.word0 < right.word0) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (left.word0 > right.word0) {
+        return 1;
+    }
+    if (left.word1 < right.word1) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (left.word1 > right.word1) {
+        return 1;
+    }
+    if (left.word2 < right.word2) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (left.word2 > right.word2) {
+        return 1;
+    }
+    if (left.word3 < right.word3) {
+        return langruntime.checkedSignedNegate(1);
+    }
+    if (left.word3 > right.word3) {
+        return 1;
+    }
+    return 0;
 }
 export interface HashByte {
     value: bigint;
@@ -1688,6 +1965,59 @@ export function byteaAppendByte(value: string, byte: number): string {
     output = output + langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(highIndex)));
     output = output + langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(lowIndex)));
     return output;
+}
+function hexDigit(ch: string): number {
+    ch = langruntime.checkedChar(ch);
+    if (ch === "0") {
+        return 0;
+    }
+    if (ch === "1") {
+        return 1;
+    }
+    if (ch === "2") {
+        return 2;
+    }
+    if (ch === "3") {
+        return 3;
+    }
+    if (ch === "4") {
+        return 4;
+    }
+    if (ch === "5") {
+        return 5;
+    }
+    if (ch === "6") {
+        return 6;
+    }
+    if (ch === "7") {
+        return 7;
+    }
+    if (ch === "8") {
+        return 8;
+    }
+    if (ch === "9") {
+        return 9;
+    }
+    const lower: string = langruntime.asciiLowercase(ch);
+    if (lower === "a") {
+        return 10;
+    }
+    if (lower === "b") {
+        return 11;
+    }
+    if (lower === "c") {
+        return 12;
+    }
+    if (lower === "d") {
+        return 13;
+    }
+    if (lower === "e") {
+        return 14;
+    }
+    if (lower === "f") {
+        return 15;
+    }
+    return 16;
 }
 const dateFieldOverflow = 3452552;
 const invalidDateText = 3452551;

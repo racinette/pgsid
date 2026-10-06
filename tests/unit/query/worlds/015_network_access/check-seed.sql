@@ -397,3 +397,105 @@ INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_tex
 
 -- name: output_null_expected
 INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (23, '10.1.2.3/32', '10.1.2.3/32', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+-- name: device_input_format_0
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:01:02:03', '00:00:00:00:00:00', '10:00:00:00:00:00', '09:00:00:00:00:00', '08:00:2b:01:02:03', '08:00:2b:01:02:03', true, -1);
+-- name: device_input_format_1
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08-00-2b-01-02-03', '00:00:00:00:00:00', '10:00:00:00:00:00', '09:00:00:00:00:00', '08:00:2b:01:02:03', '08:00:2b:01:02:03', true, -1);
+-- name: device_input_format_2
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08002b:010203', '00:00:00:00:00:00', '10:00:00:00:00:00', '09:00:00:00:00:00', '08:00:2b:01:02:03', '08:00:2b:01:02:03', true, -1);
+-- name: device_input_format_3
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08002b-010203', '00:00:00:00:00:00', '10:00:00:00:00:00', '09:00:00:00:00:00', '08:00:2b:01:02:03', '08:00:2b:01:02:03', true, -1);
+-- name: device_input_format_4
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '0800.2b01.0203', '00:00:00:00:00:00', '10:00:00:00:00:00', '09:00:00:00:00:00', '08:00:2b:01:02:03', '08:00:2b:01:02:03', true, -1);
+-- name: device_input_format_5
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '0800-2b01-0203', '00:00:00:00:00:00', '10:00:00:00:00:00', '09:00:00:00:00:00', '08:00:2b:01:02:03', '08:00:2b:01:02:03', true, -1);
+-- name: device_input_format_6
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08002b010203', '00:00:00:00:00:00', '10:00:00:00:00:00', '09:00:00:00:00:00', '08:00:2b:01:02:03', '08:00:2b:01:02:03', true, -1);
+-- name: device_null_address
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, NULL, '00:00:00:00:00:00', '10:00:00:00:00:00', '09:00:00:00:00:00', '08:00:2b:01:02:03', '08:00:2b:01:02:03', true, -1);
+-- name: device_all_null
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+-- name: device_null_range
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:01:02:03', NULL, NULL, '09:00:00:00:00:00', '08:00:2b:01:02:03', '08:00:2b:01:02:03', true, -1);
+-- name: device_null_selected
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:01:02:03', '00:00:00:00:00:00', '10:00:00:00:00:00', '09:00:00:00:00:00', '08:00:2b:01:02:03', NULL, true, -1);
+-- name: device_zero_address
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '00:00:00:00:00:00', '00:00:00:00:00:00', '10:00:00:00:00:00', '09:00:00:00:00:00', '00:00:00:00:00:00', '00:00:00:00:00:00', true, -1);
+-- name: device_broadcast_address
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, 'ff:ff:ff:ff:ff:ff', '00:00:00:00:00:00', '10:00:00:00:00:00', '09:00:00:00:00:00', 'ff:ff:ff:ff:ff:ff', 'ff:ff:ff:ff:ff:ff', true, 1);
+-- name: device_below_range
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:01:02:03', '10:00:00:00:00:00', '10:00:00:00:00:00', '09:00:00:00:00:00', '08:00:2b:01:02:03', '08:00:2b:01:02:03', true, -1);
+-- name: device_above_range
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:01:02:03', '00:00:00:00:00:00', '00:00:00:00:00:00', '09:00:00:00:00:00', '08:00:2b:01:02:03', '08:00:2b:01:02:03', true, 1);
+-- name: device_forbidden
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:01:02:03', '00:00:00:00:00:00', '10:00:00:00:00:00', '08:00:2b:01:02:03', '08:00:2b:01:02:03', '08:00:2b:01:02:03', true, -1);
+-- name: device_wrong_comparison
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:01:02:03', '00:00:00:00:00:00', '10:00:00:00:00:00', '09:00:00:00:00:00', '08:00:2b:01:02:03', '08:00:2b:01:02:03', true, 1);
+-- name: device_wrong_recorded
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:01:02:03', '00:00:00:00:00:00', '10:00:00:00:00:00', '09:00:00:00:00:00', '08:00:2b:01:02:03', '09:00:00:00:00:00', true, -1);
+-- name: device_selected_backup
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, NULL, '00:00:00:00:00:00', '10:00:00:00:00:00', '09:00:00:00:00:00', '09:00:00:00:00:00', '09:00:00:00:00:00', false, -1);
+-- name: device_wrong_backup
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:01:02:03', '00:00:00:00:00:00', '10:00:00:00:00:00', '09:00:00:00:00:00', '09:00:00:00:00:00', '08:00:2b:01:02:03', false, -1);
+-- name: device_uppercase
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2B:01:02:03', '00:00:00:00:00:00', '10:00:00:00:00:00', '09:00:00:00:00:00', '08:00:2b:01:02:03', '08:00:2b:01:02:03', true, -1);
+-- name: device_equal_ceiling
+INSERT INTO hardware_devices (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:01:02:03', '00:00:00:00:00:00', '08:00:2b:01:02:03', '09:00:00:00:00:00', '08:00:2b:01:02:03', '08:00:2b:01:02:03', true, 0);
+-- name: interface_input_format_0
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:ff:fe:01:02:03', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_input_format_1
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08-00-2b-ff-fe-01-02-03', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_input_format_2
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08002b:fffe010203', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_input_format_3
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08002b-fffe010203', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_input_format_4
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '0800.2bff.fe01.0203', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_input_format_5
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08002bff:fe010203', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_input_format_6
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08002bfffe010203', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_input_format_7
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:01:02:03', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_input_format_8
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08-00-2b-01-02-03', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_input_format_9
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08002b:010203', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_input_format_10
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08002b-010203', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_input_format_11
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '0800.2b01.0203', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_input_format_12
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '0800-2b01-0203', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_input_format_13
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08002b010203', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_null_address
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, NULL, '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_all_null
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+-- name: interface_null_range
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:ff:fe:01:02:03', NULL, NULL, '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_null_selected
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:ff:fe:01:02:03', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', NULL, true, -1);
+-- name: interface_zero_address
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '00:00:00:00:00:00:00:00', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '00:00:00:00:00:00:00:00', '00:00:00:00:00:00:00:00', true, -1);
+-- name: interface_broadcast_address
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, 'ff:ff:ff:ff:ff:ff:ff:ff', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', 'ff:ff:ff:ff:ff:ff:ff:ff', 'ff:ff:ff:ff:ff:ff:ff:ff', true, 1);
+-- name: interface_below_range
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:ff:fe:01:02:03', '10:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_above_range
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:ff:fe:01:02:03', '00:00:00:00:00:00:00:00', '00:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, 1);
+-- name: interface_forbidden
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:ff:fe:01:02:03', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_wrong_comparison
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:ff:fe:01:02:03', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, 1);
+-- name: interface_wrong_recorded
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:ff:fe:01:02:03', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '09:00:00:00:00:00:00:00', true, -1);
+-- name: interface_selected_backup
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, NULL, '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', false, -1);
+-- name: interface_wrong_backup
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:ff:fe:01:02:03', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', false, -1);
+-- name: interface_uppercase
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2B:FF:FE:01:02:03', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
+-- name: interface_equal_ceiling
+INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:ff:fe:01:02:03', '00:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, 0);

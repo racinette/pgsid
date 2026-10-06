@@ -24,6 +24,8 @@ export class UnsupportedCheckRustExpression extends Error {}
 
 const rustType = (type: string): string => {
   if (type === 'pg_catalog.bytea') return 'ByteaValue'
+  if (type === 'pg_catalog.macaddr') return 'MacaddrValue'
+  if (type === 'pg_catalog.macaddr8') return 'Macaddr8Value'
   if (type === 'pg_catalog.int2') return 'Int2Value'
   if (type === 'pg_catalog.inet' || type === 'pg_catalog.cidr') return 'NetworkValue'
   if (type === 'pg_catalog.int4') return 'Int4Value'
@@ -274,6 +276,17 @@ export function emitCheckRustEvaluator(
             ? 'bool_null()'
             : `make_bool_value(${value.value ? 'true' : 'false'})`
         return { name: bind(helper), type: value.type }
+      }
+      if (value.kind === 'mac') {
+        const prefix = value.type === 'pg_catalog.macaddr' ? 'macaddr' : 'macaddr8'
+        return {
+          name: bind(
+            value.value === null
+              ? `${prefix}_null()`
+              : `make_${prefix}_value(${rustStringLiteral(value.value)})`,
+          ),
+          type: value.type,
+        }
       }
       if (value.kind === 'network')
         return {

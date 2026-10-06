@@ -657,3 +657,95 @@ pub fn make_bytea_value(value: &str) -> ByteaValue {
     }
     ByteaValue::Value(output)
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct MacAddress {
+    pub word0: i32,
+    pub word1: i32,
+    pub word2: i32,
+    pub word3: i32,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum MacaddrValue {
+    Unknown,
+    Null,
+    Value(MacAddress),
+    Error(SqlError),
+}
+
+pub fn macaddr_unknown() -> MacaddrValue {
+    MacaddrValue::Unknown
+}
+pub fn macaddr_null() -> MacaddrValue {
+    MacaddrValue::Null
+}
+pub fn macaddr_is_null(value: MacaddrValue) -> BoolValue {
+    if let MacaddrValue::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == MacaddrValue::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(value == MacaddrValue::Null)
+}
+pub fn macaddr_from_case_guard(value: CheckOutcome) -> MacaddrValue {
+    if let CheckOutcome::Error(error) = value {
+        return MacaddrValue::Error(error);
+    }
+    MacaddrValue::Unknown
+}
+pub fn make_macaddr_value(value: &str) -> MacaddrValue {
+    let chars: Vec<char> = value.chars().collect();
+    if chars.len() > 256 {
+        return MacaddrValue::Unknown;
+    }
+    let text = MacText { chars };
+    let parsed = macaddr_parse(&text);
+    if parsed.valid == false {
+        return MacaddrValue::Unknown;
+    }
+    MacaddrValue::Value(parsed.address)
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum Macaddr8Value {
+    Unknown,
+    Null,
+    Value(MacAddress),
+    Error(SqlError),
+}
+
+pub fn macaddr8_unknown() -> Macaddr8Value {
+    Macaddr8Value::Unknown
+}
+pub fn macaddr8_null() -> Macaddr8Value {
+    Macaddr8Value::Null
+}
+pub fn macaddr8_is_null(value: Macaddr8Value) -> BoolValue {
+    if let Macaddr8Value::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == Macaddr8Value::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(value == Macaddr8Value::Null)
+}
+pub fn macaddr8_from_case_guard(value: CheckOutcome) -> Macaddr8Value {
+    if let CheckOutcome::Error(error) = value {
+        return Macaddr8Value::Error(error);
+    }
+    Macaddr8Value::Unknown
+}
+pub fn make_macaddr8_value(value: &str) -> Macaddr8Value {
+    let chars: Vec<char> = value.chars().collect();
+    if chars.len() > 256 {
+        return Macaddr8Value::Unknown;
+    }
+    let text = MacText { chars };
+    let parsed = macaddr8_parse(&text);
+    if parsed.valid == false {
+        return Macaddr8Value::Unknown;
+    }
+    Macaddr8Value::Value(parsed.address)
+}
