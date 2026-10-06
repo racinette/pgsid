@@ -45,6 +45,8 @@ export type EvalExpression =
       operand: EvalExpression
     }
   | { kind: 'mac-to-text'; type: 'pg_catalog.text'; operand: EvalExpression }
+  | { kind: 'text-to-uuid'; type: 'pg_catalog.uuid'; operand: EvalExpression }
+  | { kind: 'uuid-to-text'; type: 'pg_catalog.text'; operand: EvalExpression }
   | { kind: 'text-to-date'; type: 'pg_catalog.date'; operand: EvalExpression }
   | { kind: 'text-to-timestamp'; type: 'pg_catalog."timestamp"'; operand: EvalExpression }
   | { kind: 'text-to-timestamptz'; type: 'pg_catalog.timestamptz'; operand: EvalExpression }
@@ -195,7 +197,9 @@ export function emitEvalExpression<Ast>(
       node.kind === 'text-to-timestamptz' ||
       node.kind === 'text-to-network' ||
       node.kind === 'text-to-mac' ||
-      node.kind === 'mac-to-text'
+      node.kind === 'mac-to-text' ||
+      node.kind === 'text-to-uuid' ||
+      node.kind === 'uuid-to-text'
     ) {
       const result = backend.uncertain(node.type)
       include(result.helpers)

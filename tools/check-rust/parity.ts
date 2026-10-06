@@ -60,33 +60,35 @@ export async function runCheckParity(
     return result[0]!.toLowerCase() + result.slice(1)
   }
   const prefixOf = (type: string): string =>
-    type === 'pg_catalog.inet' || type === 'pg_catalog.cidr'
-      ? 'network'
-      : type === 'pg_catalog.macaddr'
-        ? 'macaddr'
-        : type === 'pg_catalog.macaddr8'
-          ? 'macaddr8'
-          : type === 'pg_catalog.bytea'
-            ? 'bytea'
-            : type.startsWith('enum:')
-              ? 'enum'
-              : type === 'pg_catalog.int2'
-                ? 'int2'
-                : type === 'pg_catalog.int4'
-                  ? 'int4'
-                  : type === 'pg_catalog.int8'
-                    ? 'int8'
-                    : type === 'pg_catalog."numeric"'
-                      ? 'numeric'
-                      : type === 'pg_catalog."timestamp"'
-                        ? 'timestamp'
-                        : type === 'pg_catalog.timestamptz'
-                          ? 'timestamptz'
-                          : type === 'pg_catalog.date'
-                            ? 'date'
-                            : type === 'pg_catalog.bool'
-                              ? 'bool'
-                              : 'text'
+    type === 'pg_catalog.uuid'
+      ? 'uuid'
+      : type === 'pg_catalog.inet' || type === 'pg_catalog.cidr'
+        ? 'network'
+        : type === 'pg_catalog.macaddr'
+          ? 'macaddr'
+          : type === 'pg_catalog.macaddr8'
+            ? 'macaddr8'
+            : type === 'pg_catalog.bytea'
+              ? 'bytea'
+              : type.startsWith('enum:')
+                ? 'enum'
+                : type === 'pg_catalog.int2'
+                  ? 'int2'
+                  : type === 'pg_catalog.int4'
+                    ? 'int4'
+                    : type === 'pg_catalog.int8'
+                      ? 'int8'
+                      : type === 'pg_catalog."numeric"'
+                        ? 'numeric'
+                        : type === 'pg_catalog."timestamp"'
+                          ? 'timestamp'
+                          : type === 'pg_catalog.timestamptz'
+                            ? 'timestamptz'
+                            : type === 'pg_catalog.date'
+                              ? 'date'
+                              : type === 'pg_catalog.bool'
+                                ? 'bool'
+                                : 'text'
   const inputCode = (input: Input, type: string): string => {
     const prefix = prefixOf(type)
     if (input.kind === 'Null' || input.kind === 'Unknown')
@@ -281,6 +283,8 @@ export async function runCheckParity(
           value.kind === 'Value'
         )
           return generated.makeNetworkValue(value.value)
+        if (input.type === 'pg_catalog.uuid' && value.kind === 'Value')
+          return generated.makeUuidValue(value.value)
         if (input.type === 'pg_catalog.macaddr' && value.kind === 'Value')
           return generated.makeMacaddrValue(value.value)
         if (input.type === 'pg_catalog.macaddr8' && value.kind === 'Value')

@@ -89,6 +89,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     decimal: 'pg_catalog."numeric"',
     inet: 'pg_catalog.inet',
     cidr: 'pg_catalog.cidr',
+    uuid: 'pg_catalog.uuid',
     macaddr: 'pg_catalog.macaddr',
     macaddr8: 'pg_catalog.macaddr8',
     bytea: 'pg_catalog.bytea',
@@ -173,6 +174,8 @@ type Bound = {
 const unknown: Bound = { type: null, value: null }
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
+  if (type === 'pg_catalog.uuid' && (literal.kind === 'string' || literal.kind === 'null'))
+    return { kind: 'uuid', type, value: literal.value }
   if (type === 'pg_catalog.bytea') {
     if (literal.kind === 'null') return { kind: 'bytea', type, value: null }
     if (
@@ -748,6 +751,20 @@ export function bindCatalogCheck(
             }
           : unknown
       }
+      if (operand.type === 'pg_catalog.uuid' && type === 'pg_catalog.text' && operand.value)
+        return {
+          type,
+          collation: defaultCollation,
+          value: { kind: 'uuid-to-text', type, operand: operand.value },
+        }
+      if (
+        type === 'pg_catalog.uuid' &&
+        (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') &&
+        operand.value
+      ) {
+        const text = materialize(operand, 'pg_catalog.text')
+        return text ? { type, value: { kind: 'text-to-uuid', type, operand: text } } : unknown
+      }
       if (isMacType(operand.type) && type === 'pg_catalog.text' && operand.value)
         return {
           type,
@@ -1196,11 +1213,12 @@ export function bindCatalogCheck(
     if (args.some((arg) => !arg.value && !arg.literal)) return unknown
     if (
       kind === 'function' &&
-      (name === 'macaddr' || name === 'macaddr8') &&
+      (name === 'macaddr' || name === 'macaddr8' || name === 'uuid') &&
       args.length === 1 &&
       args[0]!.literal
     ) {
-      const type = name === 'macaddr' ? 'pg_catalog.macaddr' : 'pg_catalog.macaddr8'
+      const type = ('pg_catalog.' + name) as
+        'pg_catalog.macaddr' | 'pg_catalog.macaddr8' | 'pg_catalog.uuid'
       const value = materialize(args[0]!, type)
       return value ? { type, value } : unknown
     }
@@ -1208,30 +1226,40 @@ export function bindCatalogCheck(
       kind === 'function' &&
       name === 'text' &&
       args.length === 1 &&
-      isMacType(args[0]!.type) &&
+      (isMacType(args[0]!.type) || args[0]!.type === 'pg_catalog.uuid') &&
       args[0]!.value
     )
       return {
         type: 'pg_catalog.text',
         collation: defaultCollation,
-        value: { kind: 'mac-to-text', type: 'pg_catalog.text', operand: args[0]!.value },
+        value: {
+          kind: args[0]!.type === 'pg_catalog.uuid' ? 'uuid-to-text' : 'mac-to-text',
+          type: 'pg_catalog.text',
+          operand: args[0]!.value,
+        },
       }
     const resolved = candidate(kind, name, args)
     if (!resolved) {
       if (
         kind === 'function' &&
-        ['inet', 'cidr', 'macaddr', 'macaddr8'].includes(name) &&
+        ['inet', 'cidr', 'macaddr', 'macaddr8', 'uuid'].includes(name) &&
         args.length === 1
       ) {
         const type = ('pg_catalog.' + name) as
-          'pg_catalog.inet' | 'pg_catalog.cidr' | 'pg_catalog.macaddr' | 'pg_catalog.macaddr8'
+          | 'pg_catalog.inet'
+          | 'pg_catalog.cidr'
+          | 'pg_catalog.macaddr'
+          | 'pg_catalog.macaddr8'
+          | 'pg_catalog.uuid'
         const operand = args[0]!
         if (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') {
           const text = materialize(operand, 'pg_catalog.text')
           return text
-            ? type === 'pg_catalog.macaddr' || type === 'pg_catalog.macaddr8'
-              ? { type, value: { kind: 'text-to-mac', type, operand: text } }
-              : { type, value: { kind: 'text-to-network', type, operand: text } }
+            ? type === 'pg_catalog.uuid'
+              ? { type, value: { kind: 'text-to-uuid', type, operand: text } }
+              : type === 'pg_catalog.macaddr' || type === 'pg_catalog.macaddr8'
+                ? { type, value: { kind: 'text-to-mac', type, operand: text } }
+                : { type, value: { kind: 'text-to-network', type, operand: text } }
             : unknown
         }
         const value = materialize(operand, type)

@@ -749,3 +749,52 @@ pub fn make_macaddr8_value(value: &str) -> Macaddr8Value {
     }
     Macaddr8Value::Value(parsed.address)
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct Uuid {
+    pub word0: i32,
+    pub word1: i32,
+    pub word2: i32,
+    pub word3: i32,
+    pub word4: i32,
+    pub word5: i32,
+    pub word6: i32,
+    pub word7: i32,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum UuidValue {
+    Unknown,
+    Null,
+    Value(Uuid),
+    Error(SqlError),
+}
+
+pub fn uuid_unknown() -> UuidValue {
+    UuidValue::Unknown
+}
+pub fn uuid_null() -> UuidValue {
+    UuidValue::Null
+}
+pub fn uuid_is_null(value: UuidValue) -> BoolValue {
+    if let UuidValue::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == UuidValue::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(value == UuidValue::Null)
+}
+pub fn uuid_from_case_guard(value: CheckOutcome) -> UuidValue {
+    if let CheckOutcome::Error(error) = value {
+        return UuidValue::Error(error);
+    }
+    UuidValue::Unknown
+}
+pub fn make_uuid_value(value: &str) -> UuidValue {
+    let parsed = uuid_parse(value);
+    if let UuidValue::Error(_) = parsed {
+        return UuidValue::Unknown;
+    }
+    parsed
+}

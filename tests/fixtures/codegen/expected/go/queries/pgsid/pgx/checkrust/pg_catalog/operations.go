@@ -4495,3 +4495,187 @@ func TimestamptzNe4iy1(left checkruntime.TimestamptzValue, right checkruntime.Ti
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func uuidCompare(left checkruntime.UuidValue, right checkruntime.UuidValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.UuidValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.UuidValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.UuidValue{Kind: checkruntime.UuidValueUnknown}) || right == (checkruntime.UuidValue{Kind: checkruntime.UuidValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.UuidValue{Kind: checkruntime.UuidValueNull}) || right == (checkruntime.UuidValue{Kind: checkruntime.UuidValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.UuidValueValue {
+		a := left.Value
+		if right.Kind == checkruntime.UuidValueValue {
+			b := right.Value
+			index := 0
+			for index < 8 {
+				x := checkruntime.UuidWord(a, index)
+				y := checkruntime.UuidWord(b, index)
+				if langruntime.CheckedSignedDivide(x, 256) != langruntime.CheckedSignedDivide(y, 256) {
+					return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(langruntime.CheckedSignedDivide(x, 256), langruntime.CheckedSignedDivide(y, 256))}
+				}
+				if langruntime.CheckedSignedRemainder(x, 256) != langruntime.CheckedSignedRemainder(y, 256) {
+					return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(langruntime.CheckedSignedRemainder(x, 256), langruntime.CheckedSignedRemainder(y, 256))}
+				}
+				index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func UuidCmp6t9k(left checkruntime.UuidValue, right checkruntime.UuidValue) checkruntime.Int4Value {
+	return uuidCompare(left, right)
+}
+func UuidEq6czo(left checkruntime.UuidValue, right checkruntime.UuidValue) checkruntime.BoolValue {
+	result := uuidCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order == 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func UuidNeN2xp(left checkruntime.UuidValue, right checkruntime.UuidValue) checkruntime.BoolValue {
+	result := uuidCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order != 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func UuidLt50za(left checkruntime.UuidValue, right checkruntime.UuidValue) checkruntime.BoolValue {
+	result := uuidCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order < 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func UuidLeG9j5(left checkruntime.UuidValue, right checkruntime.UuidValue) checkruntime.BoolValue {
+	result := uuidCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order <= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func UuidGt0fj1(left checkruntime.UuidValue, right checkruntime.UuidValue) checkruntime.BoolValue {
+	result := uuidCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order > 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func UuidGe098n(left checkruntime.UuidValue, right checkruntime.UuidValue) checkruntime.BoolValue {
+	result := uuidCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order >= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func UuidToText(input checkruntime.UuidValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.UuidValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.UuidValue{Kind: checkruntime.UuidValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.UuidValue{Kind: checkruntime.UuidValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.UuidValueValue {
+		value := input.Value
+		output := ""
+		index := 0
+		for index < 8 {
+			if index == 2 || index == 3 || index == 4 || index == 5 {
+				output = output + string(langruntime.CheckedChar('-'))
+			}
+			word := checkruntime.UuidWord(value, index)
+			if word < 4096 {
+				output = output + string(langruntime.CheckedChar('0'))
+			}
+			if word < 256 {
+				output = output + string(langruntime.CheckedChar('0'))
+			}
+			if word < 16 {
+				output = output + string(langruntime.CheckedChar('0'))
+			}
+			digits := checkruntime.TextNumber(word, 16)
+			output = output + digits
+			index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}

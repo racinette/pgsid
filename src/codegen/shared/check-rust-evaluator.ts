@@ -23,6 +23,7 @@ type Input = {
 export class UnsupportedCheckRustExpression extends Error {}
 
 const rustType = (type: string): string => {
+  if (type === 'pg_catalog.uuid') return 'UuidValue'
   if (type === 'pg_catalog.bytea') return 'ByteaValue'
   if (type === 'pg_catalog.macaddr') return 'MacaddrValue'
   if (type === 'pg_catalog.macaddr8') return 'Macaddr8Value'
@@ -220,6 +221,12 @@ export function emitCheckRustEvaluator(
       const helper = kind.slice(0, -'Value'.length).toLowerCase() + '_unknown'
       return { name: bind(`${helper}()`), type: node.type }
     }
+    if (node.kind === 'uuid-to-text') {
+      const operand = emitScalar(node.operand, bindings, used)
+      if (operand.type !== 'pg_catalog.uuid')
+        throw new UnsupportedCheckRustExpression('A UUID output cast requires a UUID value')
+      return { name: bind(`uuid_to_text(${operand.name})`), type: node.type }
+    }
     if (node.kind === 'mac-to-text') {
       const operand = emitScalar(node.operand, bindings, used)
       if (operand.type !== 'pg_catalog.macaddr' && operand.type !== 'pg_catalog.macaddr8')
@@ -232,25 +239,28 @@ export function emitCheckRustEvaluator(
       node.kind === 'text-to-timestamp' ||
       node.kind === 'text-to-timestamptz' ||
       node.kind === 'text-to-network' ||
-      node.kind === 'text-to-mac'
+      node.kind === 'text-to-mac' ||
+      node.kind === 'text-to-uuid'
     ) {
       const operand = emitScalar(node.operand, bindings, used)
       if (operand.type !== 'pg_catalog.text')
         throw new UnsupportedCheckRustExpression('A SQL text cast requires text')
       const helper =
-        node.kind === 'text-to-date'
-          ? 'date_from_text'
-          : node.kind === 'text-to-timestamp'
-            ? 'timestamp_from_text'
-            : node.kind === 'text-to-timestamptz'
-              ? 'timestamptz_from_text'
-              : node.kind === 'text-to-mac'
-                ? node.type === 'pg_catalog.macaddr'
-                  ? 'macaddr_from_text'
-                  : 'macaddr8_from_text'
-                : node.type === 'pg_catalog.cidr'
-                  ? 'cidr_from_text'
-                  : 'network_from_text'
+        node.kind === 'text-to-uuid'
+          ? 'uuid_from_text'
+          : node.kind === 'text-to-date'
+            ? 'date_from_text'
+            : node.kind === 'text-to-timestamp'
+              ? 'timestamp_from_text'
+              : node.kind === 'text-to-timestamptz'
+                ? 'timestamptz_from_text'
+                : node.kind === 'text-to-mac'
+                  ? node.type === 'pg_catalog.macaddr'
+                    ? 'macaddr_from_text'
+                    : 'macaddr8_from_text'
+                  : node.type === 'pg_catalog.cidr'
+                    ? 'cidr_from_text'
+                    : 'network_from_text'
       return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
     }
     if (node.kind === 'certain') {
@@ -288,6 +298,11 @@ export function emitCheckRustEvaluator(
             ? 'bool_null()'
             : `make_bool_value(${value.value ? 'true' : 'false'})`
         return { name: bind(helper), type: value.type }
+      }
+      if (value.kind === 'uuid') {
+        if (value.value === null) return { name: bind('uuid_null()'), type: value.type }
+        const text = bind(`make_text_value(${rustStringLiteral(value.value)})`)
+        return { name: bind(`uuid_from_text(${text})`), type: value.type }
       }
       if (value.kind === 'mac') {
         const prefix = value.type === 'pg_catalog.macaddr' ? 'macaddr' : 'macaddr8'

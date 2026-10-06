@@ -49,6 +49,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("EnumValue") => {
             Ok("EnumValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("UuidValue") => {
+            Ok("UuidValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("MacaddrValue") => {
             Ok("MacaddrValue")
         }
@@ -356,6 +359,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "TimestamptzValue"
                     | "EnumValue"
                     | "NetworkValue"
+                    | "UuidValue"
                     | "MacaddrValue"
                     | "Macaddr8Value"
                     | "NumericValue"
@@ -498,6 +502,24 @@ pub fn evaluate_check(flag: BoolValue, amount: Int4Value) -> CheckOutcome {
     }
 
     #[test]
+    fn uuid_inputs_remain_concrete_and_immutable() {
+        let source = r#"
+pub fn evaluate_check(input: UuidValue) -> CheckOutcome {
+    let nil_text = make_text_value("00000000-0000-0000-0000-000000000000");
+    let nil = uuid_from_text(nil_text);
+    let comparison = sql__pg_catalog__uuid_ne__n2xp(input, nil);
+    let result = check_from_bool(comparison);
+    result
+}
+"#;
+        check_source(source).unwrap();
+        assert!(
+            check_source(&source.replace("input: UuidValue", "input: UuidValue<i32>")).is_err()
+        );
+        assert!(check_source(&source.replace("input: UuidValue", "mut input: UuidValue")).is_err());
+    }
+
+    #[test]
     fn accepts_enum_comparison_inputs() {
         let source = r#"
 pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
@@ -525,6 +547,7 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             ("TimestampValue", "timestamp_unknown"),
             ("TimestamptzValue", "timestamptz_unknown"),
             ("NetworkValue", "network_unknown"),
+            ("UuidValue", "uuid_unknown"),
             ("MacaddrValue", "macaddr_unknown"),
             ("Macaddr8Value", "macaddr8_unknown"),
             ("NumericValue", "numeric_unknown"),

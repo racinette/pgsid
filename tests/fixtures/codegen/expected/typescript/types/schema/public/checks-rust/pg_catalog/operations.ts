@@ -4493,3 +4493,187 @@ export function timestamptzNe4iy1(left: checkruntime.TimestamptzValue, right: ch
     }
     return { kind: "Unknown" };
 }
+function uuidCompare(left: checkruntime.UuidValue, right: checkruntime.UuidValue): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalUuidValue(left, { kind: "Unknown" }) || checkruntime.equalUuidValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalUuidValue(left, { kind: "Null" }) || checkruntime.equalUuidValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.Uuid = left.value;
+        if (right.kind === "Value") {
+            const b: checkruntime.Uuid = right.value;
+            let index: number = 0;
+            while (index < 8) {
+                const x: number = checkruntime.uuidWord(a, index);
+                const y: number = checkruntime.uuidWord(b, index);
+                if (!(langruntime.checkedSignedDivide(x, 256) === langruntime.checkedSignedDivide(y, 256))) {
+                    return { kind: "Value", value: langruntime.checkedSignedSubtract(langruntime.checkedSignedDivide(x, 256), langruntime.checkedSignedDivide(y, 256)) };
+                }
+                if (!(langruntime.checkedSignedRemainder(x, 256) === langruntime.checkedSignedRemainder(y, 256))) {
+                    return { kind: "Value", value: langruntime.checkedSignedSubtract(langruntime.checkedSignedRemainder(x, 256), langruntime.checkedSignedRemainder(y, 256)) };
+                }
+                index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+            }
+            return { kind: "Value", value: 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function uuidCmp6t9k(left: checkruntime.UuidValue, right: checkruntime.UuidValue): checkruntime.Int4Value {
+    return uuidCompare(left, right);
+}
+export function uuidEq6czo(left: checkruntime.UuidValue, right: checkruntime.UuidValue): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = uuidCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order === 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function uuidNeN2xp(left: checkruntime.UuidValue, right: checkruntime.UuidValue): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = uuidCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: !(order === 0) };
+    }
+    return { kind: "Unknown" };
+}
+export function uuidLt50za(left: checkruntime.UuidValue, right: checkruntime.UuidValue): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = uuidCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order < 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function uuidLeG9j5(left: checkruntime.UuidValue, right: checkruntime.UuidValue): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = uuidCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order <= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function uuidGt0fj1(left: checkruntime.UuidValue, right: checkruntime.UuidValue): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = uuidCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order > 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function uuidGe098n(left: checkruntime.UuidValue, right: checkruntime.UuidValue): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = uuidCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order >= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function uuidToText(input: checkruntime.UuidValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalUuidValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalUuidValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.Uuid = input.value;
+        let output: string = "";
+        let index: number = 0;
+        while (index < 8) {
+            if (index === 2 || index === 3 || index === 4 || index === 5) {
+                output = output + langruntime.checkedChar("-");
+            }
+            const word: number = checkruntime.uuidWord(value, index);
+            if (word < 4096) {
+                output = output + langruntime.checkedChar("0");
+            }
+            if (word < 256) {
+                output = output + langruntime.checkedChar("0");
+            }
+            if (word < 16) {
+                output = output + langruntime.checkedChar("0");
+            }
+            const digits: string = checkruntime.textNumber(word, 16);
+            output = output + digits;
+            index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}

@@ -166,6 +166,17 @@ import them. Keep schema-only helpers with their callables.
   `tests/sql-semantics/check-macaddr.test.ts`,
   `tests/sql-semantics/check-macaddr-functions.test.ts`,
   `tests/sql-semantics/check-macaddr-output.test.ts`, and the network access world.
+- UUID values use a Copy payload of eight network-order sixteen-bit words.
+  Public row adapters accept SQL-coerced strings and defer malformed spellings;
+  runtime text/varchar casts return 22P02 instead. Parsing permits optional braces,
+  ASCII uppercase hex, and optional hyphens after each four-digit group, without
+  trimming whitespace. Comparisons use byte order, and uuid_cmp preserves the
+  first unequal octet's difference. Text output uses lowercase canonical groups.
+  I/O casts use maintained Rust helpers rather than exposing cstring callables.
+  Domains, literals, NULL tests, CASE, COALESCE, IN and BETWEEN share the wrapper.
+  UUID hashing, send and extraction require separate callable slices; random
+  generation requires a volatility assessment. Run
+  `tests/sql-semantics/check-uuid.test.ts` and the device identifiers world.
 - Text payloads own Rust `String`, lowered to immutable strings in both targets.
   Builders mutate only local strings through character or borrowed-text appends.
   Explicit wrapper clones preserve Rust ownership when generated branches reuse
