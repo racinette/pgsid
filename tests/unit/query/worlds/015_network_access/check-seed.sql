@@ -112,3 +112,99 @@ INSERT INTO network_allocations (id, address, address_offset, allocated_address,
 INSERT INTO network_allocations (id, address, address_offset, allocated_address, comparison_address, address_distance) VALUES (2, '::', 1, '::1', 'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', 1);
 -- name: allocation_nulls_pass
 INSERT INTO network_allocations (id, address, address_offset, allocated_address, comparison_address, address_distance) VALUES (2, NULL, NULL, NULL, NULL, NULL);
+
+-- name: plan_ipv4_host_bits
+INSERT INTO network_plans (id, address, peer_address, address_family, prefix_length, same_family, network_address, broadcast_address, network_mask, host_mask, converted_network, combined_network) VALUES (100, '10.1.2.3/24', '10.1.3.4/24', 4, 24, true, '10.1.2.0/24', '10.1.2.255/24', '255.255.255.0', '0.0.0.255', '10.1.2.0/24', '10.1.2.0/23');
+
+-- name: plan_ipv6_partial_word
+INSERT INTO network_plans (id, address, peer_address, address_family, prefix_length, same_family, network_address, broadcast_address, network_mask, host_mask, converted_network, combined_network) VALUES (100, '2001:db8:0:0:8000::1/65', '2001:db8::1/65', 6, 65, true, '2001:db8:0:0:8000::/65', '2001:db8::ffff:ffff:ffff:ffff/65', 'ffff:ffff:ffff:ffff:8000::', '::7fff:ffff:ffff:ffff', '2001:db8:0:0:8000::/65', '2001:db8::/64');
+
+-- name: plan_ipv4_partial_word
+INSERT INTO network_plans (id, address, peer_address, address_family, prefix_length, same_family, network_address, broadcast_address, network_mask, host_mask, converted_network, combined_network) VALUES (100, '10.128.2.3/17', '10.128.2.4/32', 4, 17, true, '10.128.0.0/17', '10.128.127.255/17', '255.255.128.0', '0.0.127.255', '10.128.0.0/17', '10.128.0.0/17');
+
+-- name: plan_ipv4_zero_prefix
+INSERT INTO network_plans (id, address, peer_address, address_family, prefix_length, same_family, network_address, broadcast_address, network_mask, host_mask, converted_network, combined_network) VALUES (100, '10.1.2.3/0', '192.168.1.1', 4, 0, true, '0.0.0.0/0', '255.255.255.255/0', '0.0.0.0', '255.255.255.255', '0.0.0.0/0', '0.0.0.0/0');
+
+-- name: plan_ipv6_zero_prefix
+INSERT INTO network_plans (id, address, peer_address, address_family, prefix_length, same_family, network_address, broadcast_address, network_mask, host_mask, converted_network, combined_network) VALUES (100, '::1/0', '2001:db8::1', 6, 0, true, '::/0', 'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/0', '::', 'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', '::/0', '::/0');
+
+-- name: plan_ipv6_full_prefix
+INSERT INTO network_plans (id, address, peer_address, address_family, prefix_length, same_family, network_address, broadcast_address, network_mask, host_mask, converted_network, combined_network) VALUES (100, '::1', '::1', 6, 128, true, '::1/128', '::1', 'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', '::', '::1/128', '::1/128');
+
+-- name: plan_incorrect_family
+INSERT INTO network_plans (id, address, address_family) VALUES (100, '10.1.2.3', 6);
+
+-- name: plan_incorrect_prefix
+INSERT INTO network_plans (id, address, prefix_length) VALUES (100, '10.1.2.3/24', 32);
+
+-- name: plan_different_families_reported_same
+INSERT INTO network_plans (id, address, peer_address, same_family) VALUES (100, '10.1.2.3', '::1', true);
+
+-- name: plan_network_preserved_host_bits
+INSERT INTO network_plans (id, address, network_address) VALUES (100, '10.1.2.3/24', '10.1.2.3/32');
+
+-- name: plan_incorrect_broadcast
+INSERT INTO network_plans (id, address, broadcast_address) VALUES (100, '10.1.2.3/24', '10.1.2.254/24');
+
+-- name: plan_incorrect_netmask
+INSERT INTO network_plans (id, address, network_mask) VALUES (100, '10.1.2.3/24', '255.255.0.0');
+
+-- name: plan_incorrect_hostmask
+INSERT INTO network_plans (id, address, host_mask) VALUES (100, '10.1.2.3/24', '0.0.255.255');
+
+-- name: plan_incorrect_conversion
+INSERT INTO network_plans (id, address, converted_network) VALUES (100, '10.1.2.3/24', '10.1.2.0/32');
+
+-- name: plan_merge_too_small
+INSERT INTO network_plans (id, address, peer_address, combined_network) VALUES (100, '10.1.2.3/24', '10.1.3.4/24', '10.1.2.0/24');
+
+-- name: plan_merge_different_families
+INSERT INTO network_plans (id, address, peer_address, same_family, combined_network) VALUES (100, '10.1.2.3', '::1', false, '10.1.2.3/32');
+
+-- name: plan_null_address
+INSERT INTO network_plans (id, address, peer_address, address_family, prefix_length, same_family, network_address, broadcast_address, network_mask, host_mask, converted_network, combined_network) VALUES (100, NULL, '10.1.3.4', 4, 24, true, '10.1.2.0/24', '10.1.2.255/24', '255.255.255.0', '0.0.0.255', '10.1.2.0/24', '10.1.2.0/23');
+
+-- name: resize_ipv4_shrink
+INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address, resized_subnet, skip_resize) VALUES (100, '10.1.2.3/24', '10.1.2.0/24', 16, '10.1.2.3/16', '10.1.0.0/16', false);
+
+-- name: resize_ipv4_grow
+INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address, resized_subnet, skip_resize) VALUES (100, '10.1.2.3/24', '10.1.2.0/24', 32, '10.1.2.3', '10.1.2.0/32', false);
+
+-- name: resize_ipv6_shrink
+INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address, resized_subnet, skip_resize) VALUES (100, '2001:db8:0:0:8000::1/65', '2001:db8:0:0:8000::/65', 64, '2001:db8:0:0:8000::1/64', '2001:db8::/64', false);
+
+-- name: resize_ipv6_grow
+INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address, resized_subnet, skip_resize) VALUES (100, '2001:db8::1/32', '2001:db8::/32', 65, '2001:db8::1/65', '2001:db8::/65', false);
+
+-- name: resize_ipv4_default_full_prefix
+INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address, resized_subnet, skip_resize) VALUES (100, '10.1.2.3/24', '10.1.2.0/24', -1, '10.1.2.3', '10.1.2.0/32', false);
+
+-- name: resize_ipv6_default_full_prefix
+INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address, resized_subnet, skip_resize) VALUES (100, '2001:db8::1/32', '2001:db8::/32', -1, '2001:db8::1', '2001:db8::/128', false);
+
+-- name: resize_zero_prefix
+INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address, resized_subnet, skip_resize) VALUES (100, '10.1.2.3', '10.1.2.0/24', 0, '10.1.2.3/0', '0.0.0.0/0', false);
+
+-- name: resize_inet_incorrectly_cleared_host_bits
+INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address, resized_subnet, skip_resize) VALUES (100, '10.1.2.3/24', '10.1.2.0/24', 16, '10.1.0.0/16', '10.1.0.0/16', false);
+
+-- name: resize_cidr_incorrect_network
+INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address, resized_subnet, skip_resize) VALUES (100, '10.1.2.3/24', '10.1.2.0/24', 16, '10.1.2.3/16', '10.2.0.0/16', false);
+
+-- name: resize_invalid_negative_prefix
+INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address, resized_subnet, skip_resize) VALUES (100, '10.1.2.3/24', '10.1.2.0/24', -2, '10.1.2.3', '10.1.2.0/32', false);
+
+-- name: resize_ipv4_prefix_overflow
+INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address, resized_subnet, skip_resize) VALUES (100, '10.1.2.3/24', '10.1.2.0/24', 33, '10.1.2.3', '10.1.2.0/32', false);
+
+-- name: resize_ipv6_prefix_overflow
+INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address, resized_subnet, skip_resize) VALUES (100, '2001:db8::1/32', '2001:db8::/32', 129, '2001:db8::1', '2001:db8::/128', false);
+
+-- name: resize_skips_invalid_prefix
+INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address, resized_subnet, skip_resize) VALUES (100, '10.1.2.3/24', '10.1.2.0/24', 129, '10.1.2.3', '10.1.2.0/32', true);
+
+-- name: resize_null_prefix
+INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address, resized_subnet, skip_resize) VALUES (100, '10.1.2.3/24', '10.1.2.0/24', NULL, '10.1.2.3', '10.1.2.0/32', false);
+
+-- name: resize_null_sources
+INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address, resized_subnet, skip_resize) VALUES (100, NULL, NULL, 24, '10.1.2.3/24', '10.1.2.0/24', false);

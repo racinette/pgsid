@@ -48,3 +48,39 @@ CREATE TABLE network_allocations (
   CONSTRAINT allocation_restored CHECK (allocated_address - address_offset = address),
   CONSTRAINT allocation_distance CHECK (address - comparison_address = address_distance)
 );
+
+CREATE TABLE network_plans (
+  id integer PRIMARY KEY,
+  address inet,
+  peer_address inet,
+  address_family integer,
+  prefix_length integer,
+  same_family boolean,
+  network_address cidr,
+  broadcast_address inet,
+  network_mask inet,
+  host_mask inet,
+  converted_network cidr,
+  combined_network cidr,
+  CONSTRAINT plan_family CHECK (family(address) = address_family),
+  CONSTRAINT plan_prefix CHECK (masklen(address) = prefix_length),
+  CONSTRAINT plan_same_family CHECK (inet_same_family(address, peer_address) = same_family),
+  CONSTRAINT plan_network CHECK (network(address) = network_address),
+  CONSTRAINT plan_broadcast CHECK (broadcast(address) = broadcast_address),
+  CONSTRAINT plan_netmask CHECK (netmask(address) = network_mask),
+  CONSTRAINT plan_hostmask CHECK (hostmask(address) = host_mask),
+  CONSTRAINT plan_converted CHECK (address::cidr = converted_network),
+  CONSTRAINT plan_combined CHECK (inet_merge(address, peer_address) = combined_network)
+);
+
+CREATE TABLE network_resizes (
+  id integer PRIMARY KEY,
+  address inet,
+  subnet cidr,
+  prefix_length integer,
+  resized_address inet,
+  resized_subnet cidr,
+  skip_resize boolean,
+  CONSTRAINT resize_address CHECK (CASE WHEN skip_resize THEN true ELSE set_masklen(address, prefix_length) = resized_address END),
+  CONSTRAINT resize_subnet CHECK (CASE WHEN skip_resize THEN true ELSE set_masklen(subnet, prefix_length) = resized_subnet END)
+);

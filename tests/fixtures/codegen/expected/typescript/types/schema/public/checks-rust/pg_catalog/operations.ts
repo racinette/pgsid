@@ -2207,6 +2207,336 @@ export function inetmiJocm(left: checkruntime.NetworkValue, right: checkruntime.
     }
     return { kind: "Unknown" };
 }
+function networkMaxBits(address: checkruntime.NetworkAddress): number {
+    address = checkruntime.copyNetworkAddress(address);
+    if (address.family === 4) {
+        return 32;
+    }
+    return 128;
+}
+function networkHostDivisor(bits: number): number {
+    bits = langruntime.checkedI32(bits);
+    let remaining: number = langruntime.checkedSignedSubtract(16, bits);
+    let divisor: number = 1;
+    while (remaining > 0) {
+        divisor = langruntime.checkedI32(langruntime.checkedSignedMultiply(divisor, 2));
+        remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, 1));
+    }
+    return divisor;
+}
+function networkApplyPrefix(address: checkruntime.NetworkAddress, prefix: number, fillHost: boolean): checkruntime.NetworkAddress {
+    address = checkruntime.copyNetworkAddress(address);
+    prefix = langruntime.checkedI32(prefix);
+    fillHost = langruntime.checkedBool(fillHost);
+    let words: checkruntime.NetworkWord[] = [];
+    let remaining: number = prefix;
+    let index: number = 0;
+    while (index < 8) {
+        let bits: number = remaining;
+        if (bits > 16) {
+            bits = langruntime.checkedI32(16);
+        }
+        remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, bits));
+        const divisor: number = networkHostDivisor(bits);
+        const source: number = checkruntime.networkAddressWord(address, index);
+        let word: number = langruntime.checkedSignedMultiply(langruntime.checkedSignedDivide(source, divisor), divisor);
+        if (fillHost) {
+            word = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(word, divisor), 1));
+        }
+        if (address.family === 4 && index >= 2) {
+            word = langruntime.checkedI32(0);
+        }
+        langruntime.pushStruct(words, { value: word }, checkruntime.copyNetworkWord);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return networkResultAddress(address.family, prefix, words);
+}
+function networkMask(address: checkruntime.NetworkAddress, host: boolean): checkruntime.NetworkAddress {
+    address = checkruntime.copyNetworkAddress(address);
+    host = langruntime.checkedBool(host);
+    let words: checkruntime.NetworkWord[] = [];
+    let remaining: number = address.prefix;
+    let index: number = 0;
+    while (index < 8) {
+        let bits: number = remaining;
+        if (bits > 16) {
+            bits = langruntime.checkedI32(16);
+        }
+        remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, bits));
+        const divisor: number = networkHostDivisor(bits);
+        let word: number = langruntime.checkedSignedSubtract(65536, divisor);
+        if (host) {
+            word = langruntime.checkedI32(langruntime.checkedSignedSubtract(divisor, 1));
+        }
+        if (address.family === 4 && index >= 2) {
+            word = langruntime.checkedI32(0);
+        }
+        langruntime.pushStruct(words, { value: word }, checkruntime.copyNetworkWord);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const width: number = networkMaxBits(address);
+    return networkResultAddress(address.family, width, words);
+}
+function networkSetMasklen(left: checkruntime.NetworkValue, right: checkruntime.Int4Value, clearHost: boolean): checkruntime.NetworkValue {
+    left = checkruntime.copyNetworkValue(left);
+    right = checkruntime.copyInt4Value(right);
+    clearHost = langruntime.checkedBool(clearHost);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNetworkValue(left, { kind: "Unknown" }) || checkruntime.equalInt4Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNetworkValue(left, { kind: "Null" }) || checkruntime.equalInt4Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(left.value);
+        if (right.kind === "Value") {
+            const requested: number = langruntime.checkedI32(right.value);
+            const width: number = networkMaxBits(address);
+            let prefix: number = requested;
+            if (prefix === langruntime.checkedSignedNegate(1)) {
+                prefix = langruntime.checkedI32(width);
+            }
+            if (prefix < 0 || prefix > width) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateInvalidParameterValue) };
+            }
+            if (clearHost) {
+                const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkApplyPrefix(address, prefix, false));
+                return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+            }
+            let words: checkruntime.NetworkWord[] = [];
+            let index: number = 0;
+            while (index < 8) {
+                const word: number = checkruntime.networkAddressWord(address, index);
+                langruntime.pushStruct(words, { value: word }, checkruntime.copyNetworkWord);
+                index = langruntime.checkedAdd(index, 1);
+            }
+            const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkResultAddress(address.family, prefix, words));
+            return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function family2lcf(input: checkruntime.NetworkValue): checkruntime.Int4Value {
+    input = checkruntime.copyNetworkValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(input.value);
+        if (address.family === 4) {
+            return { kind: "Value", value: 4 };
+        }
+        return { kind: "Value", value: 6 };
+    }
+    return { kind: "Unknown" };
+}
+export function masklenKk20(input: checkruntime.NetworkValue): checkruntime.Int4Value {
+    input = checkruntime.copyNetworkValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(input.value);
+        return { kind: "Value", value: address.prefix };
+    }
+    return { kind: "Unknown" };
+}
+export function networkO215(input: checkruntime.NetworkValue): checkruntime.NetworkValue {
+    input = checkruntime.copyNetworkValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(input.value);
+        const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkApplyPrefix(address, address.prefix, false));
+        return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+    }
+    return { kind: "Unknown" };
+}
+export function cidr6idb(input: checkruntime.NetworkValue): checkruntime.NetworkValue {
+    input = checkruntime.copyNetworkValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(input.value);
+        const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkApplyPrefix(address, address.prefix, false));
+        return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+    }
+    return { kind: "Unknown" };
+}
+export function broadcastIlgu(input: checkruntime.NetworkValue): checkruntime.NetworkValue {
+    input = checkruntime.copyNetworkValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(input.value);
+        const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkApplyPrefix(address, address.prefix, true));
+        return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+    }
+    return { kind: "Unknown" };
+}
+export function netmaskBt5i(input: checkruntime.NetworkValue): checkruntime.NetworkValue {
+    input = checkruntime.copyNetworkValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(input.value);
+        const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkMask(address, false));
+        return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+    }
+    return { kind: "Unknown" };
+}
+export function hostmaskVz12(input: checkruntime.NetworkValue): checkruntime.NetworkValue {
+    input = checkruntime.copyNetworkValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(input.value);
+        const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkMask(address, true));
+        return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+    }
+    return { kind: "Unknown" };
+}
+export function setMasklenA6b0(left: checkruntime.NetworkValue, right: checkruntime.Int4Value): checkruntime.NetworkValue {
+    left = checkruntime.copyNetworkValue(left);
+    right = checkruntime.copyInt4Value(right);
+    return networkSetMasklen(left, right, false);
+}
+export function setMasklen00t7(left: checkruntime.NetworkValue, right: checkruntime.Int4Value): checkruntime.NetworkValue {
+    left = checkruntime.copyNetworkValue(left);
+    right = checkruntime.copyInt4Value(right);
+    return networkSetMasklen(left, right, true);
+}
+export function inetSameFamilyOgv6(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.BoolValue {
+    left = checkruntime.copyNetworkValue(left);
+    right = checkruntime.copyNetworkValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNetworkValue(left, { kind: "Unknown" }) || checkruntime.equalNetworkValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNetworkValue(left, { kind: "Null" }) || checkruntime.equalNetworkValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(right.value);
+            return { kind: "Value", value: a.family === b.family };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function inetMergeIflm(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.NetworkValue {
+    left = checkruntime.copyNetworkValue(left);
+    right = checkruntime.copyNetworkValue(right);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNetworkValue(left, { kind: "Unknown" }) || checkruntime.equalNetworkValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNetworkValue(left, { kind: "Null" }) || checkruntime.equalNetworkValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(right.value);
+            if (!(a.family === b.family)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateInvalidParameterValue) };
+            }
+            let limit: number = a.prefix;
+            if (b.prefix < limit) {
+                limit = langruntime.checkedI32(b.prefix);
+            }
+            let common: number = 0;
+            while (common < limit) {
+                const next: number = langruntime.checkedSignedAdd(common, 1);
+                const order: number = checkruntime.networkPrefixCompare(a, b, next);
+                if (!(order === 0)) {
+                    break;
+                }
+                common = langruntime.checkedI32(next);
+            }
+            const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkApplyPrefix(a, common, false));
+            return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+        }
+    }
+    return { kind: "Unknown" };
+}
 function numericCompare(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.Int4Value {
     left = checkruntime.copyNumericValue(left);
     right = checkruntime.copyNumericValue(right);

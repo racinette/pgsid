@@ -676,6 +676,19 @@ export function bindCatalogCheck(
       const operand = bind(cast['arg'])
       if (operand.type === 'pg_catalog.cidr' && type === 'pg_catalog.inet' && operand.value)
         return { type, value: materialize(operand, type) }
+      if (operand.type === 'pg_catalog.inet' && type === 'pg_catalog.cidr' && operand.value) {
+        const conversion = builtinCast(operand.type, type)
+        return conversion?.method === 'f' && conversion.implementation !== null
+          ? {
+              type,
+              value: {
+                kind: 'call',
+                call: { kind: 'cast', signature: conversion.implementation, type },
+                operands: [operand.value],
+              },
+            }
+          : unknown
+      }
       if (operand.type && operand.value && isBinaryTextRelabel(operand.type, type))
         return {
           type,

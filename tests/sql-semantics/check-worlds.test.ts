@@ -623,6 +623,21 @@ describe('world CHECK INSERT parity', () => {
           'allocation_distance',
         ],
       ],
+      [
+        'network_plans',
+        [
+          'plan_family',
+          'plan_prefix',
+          'plan_same_family',
+          'plan_network',
+          'plan_broadcast',
+          'plan_netmask',
+          'plan_hostmask',
+          'plan_converted',
+          'plan_combined',
+        ],
+      ],
+      ['network_resizes', ['resize_address', 'resize_subnet']],
     ] as const) {
       for (const name of names) {
         const identity = `world_015_network_access.${table}.${name}`
@@ -642,6 +657,14 @@ describe('world CHECK INSERT parity', () => {
       'allocation_distance',
     ]) {
       const table = name.startsWith('import_') ? 'network_imports' : 'network_allocations'
+      const identity = `world_015_network_access.${table}.${name}`
+      expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
+    }
+    for (const [table, name] of [
+      ['network_plans', 'plan_combined'],
+      ['network_resizes', 'resize_address'],
+      ['network_resizes', 'resize_subnet'],
+    ]) {
       const identity = `world_015_network_access.${table}.${name}`
       expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
     }

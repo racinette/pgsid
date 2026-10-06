@@ -123,9 +123,15 @@ import them. Keep schema-only helpers with their callables.
   address differences ignore prefixes, require equal families, and check the
   bigint range after PostgreSQL's address-width subtraction. Subtracting the
   minimum bigint offset retains PostgreSQL's two's-complement negation behavior.
-  Address-building functions, bitwise operators, and output formatting remain
-  separate callable work. Run `tests/sql-semantics/check-network.test.ts` and the
-  network access world for native/target and public INSERT parity.
+  Inspection returns the family and prefix. Network extraction and INET-to-CIDR
+  casts clear host bits; broadcast fills them. Netmask and hostmask return full
+  address-width prefixes. INET mask changes preserve host bits, while CIDR mask
+  changes clear them; negative one selects the family width and invalid lengths
+  return 22023. Merge returns the smallest common network and rejects different
+  families with 22023. Bitwise operators and output formatting remain separate
+  callable work. Run `tests/sql-semantics/check-network.test.ts`,
+  `tests/sql-semantics/check-network-functions.test.ts`, and the network access
+  world for native/target and public INSERT parity.
 - Date payloads are signed day offsets from 2000-01-01. The signed int4
   minimum and maximum represent negative and positive infinity. Finite payloads
   range from -2451545 through 2145031948. Public CHECK inputs use this portable

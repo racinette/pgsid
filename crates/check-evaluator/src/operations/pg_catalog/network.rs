@@ -435,3 +435,301 @@ pub fn sql__pg_catalog__inetmi__jocm(left: NetworkValue, right: NetworkValue) ->
     }
     Int8Value::Unknown
 }
+
+fn network_max_bits(address: NetworkAddress) -> i32 {
+    if address.family == 4 {
+        return 32;
+    }
+    128
+}
+
+fn network_host_divisor(bits: i32) -> i32 {
+    let mut remaining: i32 = 16 - bits;
+    let mut divisor: i32 = 1;
+    while remaining > 0 {
+        divisor = divisor * 2;
+        remaining = remaining - 1;
+    }
+    divisor
+}
+
+fn network_apply_prefix(address: NetworkAddress, prefix: i32, fill_host: bool) -> NetworkAddress {
+    let mut words: Vec<NetworkWord> = Vec::new();
+    let mut remaining = prefix;
+    let mut index: usize = 0;
+    while index < 8 {
+        let mut bits = remaining;
+        if bits > 16 {
+            bits = 16;
+        }
+        remaining = remaining - bits;
+        let divisor = network_host_divisor(bits);
+        let source = network_address_word(address, index);
+        let mut word = source / divisor * divisor;
+        if fill_host {
+            word = word + divisor - 1;
+        }
+        if address.family == 4 && index >= 2 {
+            word = 0;
+        }
+        words.push(NetworkWord { value: word });
+        index += 1;
+    }
+    network_result_address(address.family, prefix, words)
+}
+
+fn network_mask(address: NetworkAddress, host: bool) -> NetworkAddress {
+    let mut words: Vec<NetworkWord> = Vec::new();
+    let mut remaining = address.prefix;
+    let mut index: usize = 0;
+    while index < 8 {
+        let mut bits = remaining;
+        if bits > 16 {
+            bits = 16;
+        }
+        remaining = remaining - bits;
+        let divisor = network_host_divisor(bits);
+        let mut word = 65536 - divisor;
+        if host {
+            word = divisor - 1;
+        }
+        if address.family == 4 && index >= 2 {
+            word = 0;
+        }
+        words.push(NetworkWord { value: word });
+        index += 1;
+    }
+    let width = network_max_bits(address);
+    network_result_address(address.family, width, words)
+}
+
+fn network_set_masklen(left: NetworkValue, right: Int4Value, clear_host: bool) -> NetworkValue {
+    if let NetworkValue::Error(error) = left {
+        return NetworkValue::Error(error);
+    }
+    if let Int4Value::Error(error) = right {
+        return NetworkValue::Error(error);
+    }
+    if left == NetworkValue::Unknown || right == Int4Value::Unknown {
+        return NetworkValue::Unknown;
+    }
+    if left == NetworkValue::Null || right == Int4Value::Null {
+        return NetworkValue::Null;
+    }
+    if let NetworkValue::Value(address) = left {
+        if let Int4Value::Value(requested) = right {
+            let width = network_max_bits(address);
+            let mut prefix = requested;
+            if prefix == -1 {
+                prefix = width;
+            }
+            if prefix < 0 || prefix > width {
+                return NetworkValue::Error(make_sql_error(SQLSTATE_INVALID_PARAMETER_VALUE));
+            }
+            if clear_host {
+                let result = network_apply_prefix(address, prefix, false);
+                return NetworkValue::Value(result);
+            }
+            let mut words: Vec<NetworkWord> = Vec::new();
+            let mut index: usize = 0;
+            while index < 8 {
+                let word = network_address_word(address, index);
+                words.push(NetworkWord { value: word });
+                index += 1;
+            }
+            let result = network_result_address(address.family, prefix, words);
+            return NetworkValue::Value(result);
+        }
+    }
+    NetworkValue::Unknown
+}
+
+pub fn sql__pg_catalog__family__2lcf(input: NetworkValue) -> Int4Value {
+    if let NetworkValue::Error(error) = input {
+        return Int4Value::Error(error);
+    }
+    if input == NetworkValue::Unknown {
+        return Int4Value::Unknown;
+    }
+    if input == NetworkValue::Null {
+        return Int4Value::Null;
+    }
+    if let NetworkValue::Value(address) = input {
+        if address.family == 4 {
+            return Int4Value::Value(4);
+        }
+        return Int4Value::Value(6);
+    }
+    Int4Value::Unknown
+}
+
+pub fn sql__pg_catalog__masklen__kk20(input: NetworkValue) -> Int4Value {
+    if let NetworkValue::Error(error) = input {
+        return Int4Value::Error(error);
+    }
+    if input == NetworkValue::Unknown {
+        return Int4Value::Unknown;
+    }
+    if input == NetworkValue::Null {
+        return Int4Value::Null;
+    }
+    if let NetworkValue::Value(address) = input {
+        return Int4Value::Value(address.prefix);
+    }
+    Int4Value::Unknown
+}
+
+pub fn sql__pg_catalog__network__o215(input: NetworkValue) -> NetworkValue {
+    if let NetworkValue::Error(error) = input {
+        return NetworkValue::Error(error);
+    }
+    if input == NetworkValue::Unknown {
+        return NetworkValue::Unknown;
+    }
+    if input == NetworkValue::Null {
+        return NetworkValue::Null;
+    }
+    if let NetworkValue::Value(address) = input {
+        let result = network_apply_prefix(address, address.prefix, false);
+        return NetworkValue::Value(result);
+    }
+    NetworkValue::Unknown
+}
+
+pub fn sql__pg_catalog__cidr__6idb(input: NetworkValue) -> NetworkValue {
+    if let NetworkValue::Error(error) = input {
+        return NetworkValue::Error(error);
+    }
+    if input == NetworkValue::Unknown {
+        return NetworkValue::Unknown;
+    }
+    if input == NetworkValue::Null {
+        return NetworkValue::Null;
+    }
+    if let NetworkValue::Value(address) = input {
+        let result = network_apply_prefix(address, address.prefix, false);
+        return NetworkValue::Value(result);
+    }
+    NetworkValue::Unknown
+}
+
+pub fn sql__pg_catalog__broadcast__ilgu(input: NetworkValue) -> NetworkValue {
+    if let NetworkValue::Error(error) = input {
+        return NetworkValue::Error(error);
+    }
+    if input == NetworkValue::Unknown {
+        return NetworkValue::Unknown;
+    }
+    if input == NetworkValue::Null {
+        return NetworkValue::Null;
+    }
+    if let NetworkValue::Value(address) = input {
+        let result = network_apply_prefix(address, address.prefix, true);
+        return NetworkValue::Value(result);
+    }
+    NetworkValue::Unknown
+}
+
+pub fn sql__pg_catalog__netmask__bt5i(input: NetworkValue) -> NetworkValue {
+    if let NetworkValue::Error(error) = input {
+        return NetworkValue::Error(error);
+    }
+    if input == NetworkValue::Unknown {
+        return NetworkValue::Unknown;
+    }
+    if input == NetworkValue::Null {
+        return NetworkValue::Null;
+    }
+    if let NetworkValue::Value(address) = input {
+        let result = network_mask(address, false);
+        return NetworkValue::Value(result);
+    }
+    NetworkValue::Unknown
+}
+
+pub fn sql__pg_catalog__hostmask__vz12(input: NetworkValue) -> NetworkValue {
+    if let NetworkValue::Error(error) = input {
+        return NetworkValue::Error(error);
+    }
+    if input == NetworkValue::Unknown {
+        return NetworkValue::Unknown;
+    }
+    if input == NetworkValue::Null {
+        return NetworkValue::Null;
+    }
+    if let NetworkValue::Value(address) = input {
+        let result = network_mask(address, true);
+        return NetworkValue::Value(result);
+    }
+    NetworkValue::Unknown
+}
+
+pub fn sql__pg_catalog__set_masklen__a6b0(left: NetworkValue, right: Int4Value) -> NetworkValue {
+    network_set_masklen(left, right, false)
+}
+
+pub fn sql__pg_catalog__set_masklen__00t7(left: NetworkValue, right: Int4Value) -> NetworkValue {
+    network_set_masklen(left, right, true)
+}
+
+pub fn sql__pg_catalog__inet_same_family__ogv6(
+    left: NetworkValue,
+    right: NetworkValue,
+) -> BoolValue {
+    if let NetworkValue::Error(error) = left {
+        return BoolValue::Error(error);
+    }
+    if let NetworkValue::Error(error) = right {
+        return BoolValue::Error(error);
+    }
+    if left == NetworkValue::Unknown || right == NetworkValue::Unknown {
+        return BoolValue::Unknown;
+    }
+    if left == NetworkValue::Null || right == NetworkValue::Null {
+        return BoolValue::Null;
+    }
+    if let NetworkValue::Value(a) = left {
+        if let NetworkValue::Value(b) = right {
+            return BoolValue::Value(a.family == b.family);
+        }
+    }
+    BoolValue::Unknown
+}
+
+pub fn sql__pg_catalog__inet_merge__iflm(left: NetworkValue, right: NetworkValue) -> NetworkValue {
+    if let NetworkValue::Error(error) = left {
+        return NetworkValue::Error(error);
+    }
+    if let NetworkValue::Error(error) = right {
+        return NetworkValue::Error(error);
+    }
+    if left == NetworkValue::Unknown || right == NetworkValue::Unknown {
+        return NetworkValue::Unknown;
+    }
+    if left == NetworkValue::Null || right == NetworkValue::Null {
+        return NetworkValue::Null;
+    }
+    if let NetworkValue::Value(a) = left {
+        if let NetworkValue::Value(b) = right {
+            if a.family != b.family {
+                return NetworkValue::Error(make_sql_error(SQLSTATE_INVALID_PARAMETER_VALUE));
+            }
+            let mut limit = a.prefix;
+            if b.prefix < limit {
+                limit = b.prefix;
+            }
+            let mut common: i32 = 0;
+            while common < limit {
+                let next = common + 1;
+                let order = network_prefix_compare(a, b, next);
+                if order != 0 {
+                    break;
+                }
+                common = next;
+            }
+            let result = network_apply_prefix(a, common, false);
+            return NetworkValue::Value(result);
+        }
+    }
+    NetworkValue::Unknown
+}
