@@ -295,6 +295,21 @@ const materialize = (
     builtinCast(bound.type, type)?.context === 'i'
   )
     return { kind: 'call', call: { kind: 'cast', signature: null, type }, operands: [bound.value] }
+  if (
+    bound.type !== null &&
+    bound.type !== type &&
+    bound.value &&
+    isMacType(bound.type) &&
+    isMacType(type)
+  ) {
+    const cast = builtinCast(bound.type, type)
+    if (cast?.context === 'i' && cast.method === 'f' && cast.implementation !== null)
+      return {
+        kind: 'call',
+        call: { kind: 'cast', signature: cast.implementation, type },
+        operands: [bound.value],
+      }
+  }
   return bound.type === type ? bound.value : null
 }
 
@@ -321,6 +336,14 @@ const materializeInteger = (arg: Bound, target: ScalarType): EvalExpression | nu
         operands: [value],
       }
     : null
+}
+
+const isMacType = (type: string | null): boolean =>
+  type === 'pg_catalog.macaddr' || type === 'pg_catalog.macaddr8'
+
+const macCommonType = (arms: readonly Bound[]): ScalarType | undefined => {
+  const types = arms.flatMap((arm) => (arm.type ? [arm.type] : []))
+  return types.length && types.every(isMacType) ? types[0] : undefined
 }
 
 const networkCommonType = (arms: readonly Bound[]): ScalarType | undefined => {
@@ -514,10 +537,12 @@ export function bindCatalogCheck(
       const typed = args.flatMap((arg) => (arg.type ? [arg.type] : []))
       const textTypes = ['pg_catalog.text', 'pg_catalog."varchar"']
       const networkType = networkCommonType(args)
-      const type = integerType ?? networkType ?? typed[0] ?? 'pg_catalog.text'
+      const macType = macCommonType(args)
+      const type = integerType ?? networkType ?? macType ?? typed[0] ?? 'pg_catalog.text'
       if (
         integerType === undefined &&
         networkType === undefined &&
+        macType === undefined &&
         typed.some(
           (other) => other !== type && !(textTypes.includes(type) && textTypes.includes(other)),
         )
@@ -555,9 +580,11 @@ export function bindCatalogCheck(
       const integerType = integerCommonType([otherwise, ...results])
       const typed = arms.flatMap((arm) => (arm.type ? [arm.type] : []))
       const networkType = networkCommonType(arms)
+      const macType = macCommonType([otherwise, ...results])
       const type =
         integerType ??
         networkType ??
+        macType ??
         expectedType ??
         typed[0] ??
         (arms.some((arm) => arm.literal?.kind === 'integer')
@@ -566,6 +593,7 @@ export function bindCatalogCheck(
       if (
         integerType === undefined &&
         networkType === undefined &&
+        macType === undefined &&
         typed.some((other) => other !== type)
       )
         return unknown
@@ -713,6 +741,27 @@ export function bindCatalogCheck(
               },
             }
           : unknown
+      }
+      if (isMacType(operand.type) && isMacType(type) && operand.type !== type && operand.value) {
+        const cast = builtinCast(operand.type!, type)
+        return cast?.method === 'f' && cast.implementation !== null
+          ? {
+              type,
+              value: {
+                kind: 'call',
+                call: { kind: 'cast', signature: cast.implementation, type },
+                operands: [operand.value],
+              },
+            }
+          : unknown
+      }
+      if (
+        (type === 'pg_catalog.macaddr' || type === 'pg_catalog.macaddr8') &&
+        (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') &&
+        operand.value
+      ) {
+        const text = materialize(operand, 'pg_catalog.text')
+        return text ? { type, value: { kind: 'text-to-mac', type, operand: text } } : unknown
       }
       if (operand.type === 'pg_catalog.cidr' && type === 'pg_catalog.inet' && operand.value)
         return { type, value: materialize(operand, type) }
@@ -1133,14 +1182,33 @@ export function bindCatalogCheck(
         arg.value || arg.literal ? arg : bind(nodes[index], enumArgument.type!),
       )
     if (args.some((arg) => !arg.value && !arg.literal)) return unknown
+    if (
+      kind === 'function' &&
+      (name === 'macaddr' || name === 'macaddr8') &&
+      args.length === 1 &&
+      args[0]!.literal
+    ) {
+      const type = name === 'macaddr' ? 'pg_catalog.macaddr' : 'pg_catalog.macaddr8'
+      const value = materialize(args[0]!, type)
+      return value ? { type, value } : unknown
+    }
     const resolved = candidate(kind, name, args)
     if (!resolved) {
-      if (kind === 'function' && (name === 'inet' || name === 'cidr') && args.length === 1) {
-        const type = name === 'inet' ? 'pg_catalog.inet' : 'pg_catalog.cidr'
+      if (
+        kind === 'function' &&
+        ['inet', 'cidr', 'macaddr', 'macaddr8'].includes(name) &&
+        args.length === 1
+      ) {
+        const type = ('pg_catalog.' + name) as
+          'pg_catalog.inet' | 'pg_catalog.cidr' | 'pg_catalog.macaddr' | 'pg_catalog.macaddr8'
         const operand = args[0]!
         if (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') {
           const text = materialize(operand, 'pg_catalog.text')
-          return text ? { type, value: { kind: 'text-to-network', type, operand: text } } : unknown
+          return text
+            ? type === 'pg_catalog.macaddr' || type === 'pg_catalog.macaddr8'
+              ? { type, value: { kind: 'text-to-mac', type, operand: text } }
+              : { type, value: { kind: 'text-to-network', type, operand: text } }
+            : unknown
         }
         const value = materialize(operand, type)
         return value ? { type, value } : unknown

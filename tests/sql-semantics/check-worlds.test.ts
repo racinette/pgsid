@@ -674,6 +674,40 @@ describe('world CHECK INSERT parity', () => {
           'interface_recognized',
         ],
       ],
+      [
+        'hardware_masks',
+        [
+          'hardware_invert6',
+          'hardware_intersect6',
+          'hardware_union6',
+          'hardware_manufacturer6',
+          'hardware_invert8',
+          'hardware_intersect8',
+          'hardware_union8',
+          'hardware_manufacturer8',
+          'hardware_modified8',
+        ],
+      ],
+      [
+        'hardware_conversions',
+        [
+          'hardware_extend',
+          'hardware_shorten',
+          'hardware_case_short',
+          'hardware_case_extended',
+          'hardware_default_short',
+          'hardware_default_extended',
+        ],
+      ],
+      [
+        'hardware_imports',
+        [
+          'hardware_parse_short',
+          'hardware_parse_extended',
+          'hardware_parse_varchar_short',
+          'hardware_parse_varchar_extended',
+        ],
+      ],
       ['network_resizes', ['resize_address', 'resize_subnet']],
       ['network_filters', ['filter_complement', 'filter_intersection', 'filter_union']],
       [
@@ -690,6 +724,26 @@ describe('world CHECK INSERT parity', () => {
         expect(measured.unknown, identity).toBe(0)
       }
     }
+    for (const [table, names] of [
+      [
+        'hardware_conversions',
+        ['hardware_shorten', 'hardware_case_short', 'hardware_default_short'],
+      ],
+      [
+        'hardware_imports',
+        [
+          'hardware_parse_short',
+          'hardware_parse_extended',
+          'hardware_parse_varchar_short',
+          'hardware_parse_varchar_extended',
+        ],
+      ],
+    ] as const)
+      for (const name of names) {
+        const identity = `world_015_network_access.${table}.${name}`
+        expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
+        expect(coverage.get(identity)!.true, identity).toBeGreaterThan(0)
+      }
     for (const name of [
       'import_address_parsed',
       'import_network_parsed',

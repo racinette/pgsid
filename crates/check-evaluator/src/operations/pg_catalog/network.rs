@@ -732,22 +732,6 @@ pub fn sql__pg_catalog__inet_merge__iflm(left: NetworkValue, right: NetworkValue
     NetworkValue::Unknown
 }
 
-fn network_and_word(left: i32, right: i32) -> i32 {
-    let mut a = left;
-    let mut b = right;
-    let mut place: i32 = 1;
-    let mut result: i32 = 0;
-    while place < 65536 {
-        if a % 2 == 1 && b % 2 == 1 {
-            result = result + place;
-        }
-        a = a / 2;
-        b = b / 2;
-        place = place * 2;
-    }
-    result
-}
-
 fn network_bitwise(left: NetworkValue, right: NetworkValue, union: bool) -> NetworkValue {
     if let NetworkValue::Error(error) = left {
         return NetworkValue::Error(error);
@@ -775,7 +759,7 @@ fn network_bitwise(left: NetworkValue, right: NetworkValue, union: bool) -> Netw
             while index < 8 {
                 let first = network_address_word(a, index);
                 let second = network_address_word(b, index);
-                let intersection = network_and_word(first, second);
+                let intersection = address_and_word(first, second);
                 let mut word = intersection;
                 if union {
                     word = first + second - intersection;

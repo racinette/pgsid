@@ -1,5 +1,22 @@
 import * as checkruntime from "../checkruntime/runtime.js";
 import * as langruntime from "../langruntime/runtime.js";
+function addressAndWord(left: number, right: number): number {
+    left = langruntime.checkedI32(left);
+    right = langruntime.checkedI32(right);
+    let a: number = left;
+    let b: number = right;
+    let place: number = 1;
+    let result: number = 0;
+    while (place < 65536) {
+        if (langruntime.checkedSignedRemainder(a, 2) === 1 && langruntime.checkedSignedRemainder(b, 2) === 1) {
+            result = langruntime.checkedI32(langruntime.checkedSignedAdd(result, place));
+        }
+        a = langruntime.checkedI32(langruntime.checkedSignedDivide(a, 2));
+        b = langruntime.checkedI32(langruntime.checkedSignedDivide(b, 2));
+        place = langruntime.checkedI32(langruntime.checkedSignedMultiply(place, 2));
+    }
+    return result;
+}
 export function int48lt65ji(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
@@ -1670,6 +1687,7 @@ export function int2Gmpv(input: checkruntime.Int8Value): checkruntime.Int2Value 
     }
     return { kind: "Unknown" };
 }
+const macConversionOutOfRange = 3452547;
 function macaddrCompare(left: checkruntime.MacaddrValue, right: checkruntime.MacaddrValue): checkruntime.Int4Value {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
@@ -1939,6 +1957,174 @@ export function macaddr8Ge054u(left: checkruntime.Macaddr8Value, right: checkrun
 }
 export function macaddr8CmpId7f(left: checkruntime.Macaddr8Value, right: checkruntime.Macaddr8Value): checkruntime.Int4Value {
     return macaddr8Compare(left, right);
+}
+export function macaddrNot4gjk(input: checkruntime.MacaddrValue): checkruntime.MacaddrValue {
+    if (input.kind === "Value") {
+        const a: checkruntime.MacAddress = input.value;
+        return { kind: "Value", value: { word0: langruntime.checkedSignedSubtract(65535, a.word0), word1: langruntime.checkedSignedSubtract(65535, a.word1), word2: langruntime.checkedSignedSubtract(65535, a.word2), word3: 0 } };
+    }
+    return input;
+}
+export function truncBgg8(input: checkruntime.MacaddrValue): checkruntime.MacaddrValue {
+    if (input.kind === "Value") {
+        const a: checkruntime.MacAddress = input.value;
+        return { kind: "Value", value: { word0: a.word0, word1: langruntime.checkedSignedMultiply(langruntime.checkedSignedDivide(a.word1, 256), 256), word2: 0, word3: 0 } };
+    }
+    return input;
+}
+function macaddrBitwise(left: checkruntime.MacaddrValue, right: checkruntime.MacaddrValue, union: boolean): checkruntime.MacaddrValue {
+    union = langruntime.checkedBool(union);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMacaddrValue(left, { kind: "Unknown" }) || checkruntime.equalMacaddrValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalMacaddrValue(left, { kind: "Null" }) || checkruntime.equalMacaddrValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.MacAddress = left.value;
+        if (right.kind === "Value") {
+            const b: checkruntime.MacAddress = right.value;
+            let word0: number = addressAndWord(a.word0, b.word0);
+            if (union) {
+                word0 = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(a.word0, b.word0), word0));
+            }
+            let word1: number = addressAndWord(a.word1, b.word1);
+            if (union) {
+                word1 = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(a.word1, b.word1), word1));
+            }
+            let word2: number = addressAndWord(a.word2, b.word2);
+            if (union) {
+                word2 = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(a.word2, b.word2), word2));
+            }
+            let word3: number = addressAndWord(a.word3, b.word3);
+            if (union) {
+                word3 = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(a.word3, b.word3), word3));
+            }
+            return { kind: "Value", value: { word0: word0, word1: word1, word2: word2, word3: word3 } };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function macaddrAndKy45(left: checkruntime.MacaddrValue, right: checkruntime.MacaddrValue): checkruntime.MacaddrValue {
+    return macaddrBitwise(left, right, false);
+}
+export function macaddrOrWqx0(left: checkruntime.MacaddrValue, right: checkruntime.MacaddrValue): checkruntime.MacaddrValue {
+    return macaddrBitwise(left, right, true);
+}
+export function macaddr8NotUfi9(input: checkruntime.Macaddr8Value): checkruntime.Macaddr8Value {
+    if (input.kind === "Value") {
+        const a: checkruntime.MacAddress = input.value;
+        return { kind: "Value", value: { word0: langruntime.checkedSignedSubtract(65535, a.word0), word1: langruntime.checkedSignedSubtract(65535, a.word1), word2: langruntime.checkedSignedSubtract(65535, a.word2), word3: langruntime.checkedSignedSubtract(65535, a.word3) } };
+    }
+    return input;
+}
+export function truncY4rb(input: checkruntime.Macaddr8Value): checkruntime.Macaddr8Value {
+    if (input.kind === "Value") {
+        const a: checkruntime.MacAddress = input.value;
+        return { kind: "Value", value: { word0: a.word0, word1: langruntime.checkedSignedMultiply(langruntime.checkedSignedDivide(a.word1, 256), 256), word2: 0, word3: 0 } };
+    }
+    return input;
+}
+function macaddr8Bitwise(left: checkruntime.Macaddr8Value, right: checkruntime.Macaddr8Value, union: boolean): checkruntime.Macaddr8Value {
+    union = langruntime.checkedBool(union);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMacaddr8Value(left, { kind: "Unknown" }) || checkruntime.equalMacaddr8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalMacaddr8Value(left, { kind: "Null" }) || checkruntime.equalMacaddr8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.MacAddress = left.value;
+        if (right.kind === "Value") {
+            const b: checkruntime.MacAddress = right.value;
+            let word0: number = addressAndWord(a.word0, b.word0);
+            if (union) {
+                word0 = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(a.word0, b.word0), word0));
+            }
+            let word1: number = addressAndWord(a.word1, b.word1);
+            if (union) {
+                word1 = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(a.word1, b.word1), word1));
+            }
+            let word2: number = addressAndWord(a.word2, b.word2);
+            if (union) {
+                word2 = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(a.word2, b.word2), word2));
+            }
+            let word3: number = addressAndWord(a.word3, b.word3);
+            if (union) {
+                word3 = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(a.word3, b.word3), word3));
+            }
+            return { kind: "Value", value: { word0: word0, word1: word1, word2: word2, word3: word3 } };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function macaddr8AndCeah(left: checkruntime.Macaddr8Value, right: checkruntime.Macaddr8Value): checkruntime.Macaddr8Value {
+    return macaddr8Bitwise(left, right, false);
+}
+export function macaddr8Or6kdp(left: checkruntime.Macaddr8Value, right: checkruntime.Macaddr8Value): checkruntime.Macaddr8Value {
+    return macaddr8Bitwise(left, right, true);
+}
+export function macaddr8Set7bit2kgh(input: checkruntime.Macaddr8Value): checkruntime.Macaddr8Value {
+    if (input.kind === "Value") {
+        const a: checkruntime.MacAddress = input.value;
+        const intersection: number = addressAndWord(a.word0, 512);
+        return { kind: "Value", value: { word0: langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(a.word0, 512), intersection), word1: a.word1, word2: a.word2, word3: a.word3 } };
+    }
+    return input;
+}
+export function macaddr8Ta7j(input: checkruntime.MacaddrValue): checkruntime.Macaddr8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMacaddrValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalMacaddrValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const a: checkruntime.MacAddress = input.value;
+        const insertedHigh: number = 254;
+        return { kind: "Value", value: { word0: a.word0, word1: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.checkedSignedDivide(a.word1, 256), 256), 255), word2: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(insertedHigh, 256), langruntime.checkedSignedRemainder(a.word1, 256)), word3: a.word2 } };
+    }
+    return { kind: "Unknown" };
+}
+export function macaddrXnt6(input: checkruntime.Macaddr8Value): checkruntime.MacaddrValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalMacaddr8Value(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalMacaddr8Value(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const a: checkruntime.MacAddress = input.value;
+        if (!(langruntime.checkedSignedRemainder(a.word1, 256) === 255) || !(langruntime.checkedSignedDivide(a.word2, 256) === 254)) {
+            return { kind: "Error", value: checkruntime.makeSqlError(macConversionOutOfRange) };
+        }
+        return { kind: "Value", value: { word0: a.word0, word1: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.checkedSignedDivide(a.word1, 256), 256), langruntime.checkedSignedRemainder(a.word2, 256)), word2: a.word3, word3: 0 } };
+    }
+    return { kind: "Unknown" };
 }
 const sqlstateInvalidParameterValue = 3452619;
 function networkCompare(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.Int4Value {
@@ -2703,23 +2889,6 @@ export function inetMergeIflm(left: checkruntime.NetworkValue, right: checkrunti
     }
     return { kind: "Unknown" };
 }
-function networkAndWord(left: number, right: number): number {
-    left = langruntime.checkedI32(left);
-    right = langruntime.checkedI32(right);
-    let a: number = left;
-    let b: number = right;
-    let place: number = 1;
-    let result: number = 0;
-    while (place < 65536) {
-        if (langruntime.checkedSignedRemainder(a, 2) === 1 && langruntime.checkedSignedRemainder(b, 2) === 1) {
-            result = langruntime.checkedI32(langruntime.checkedSignedAdd(result, place));
-        }
-        a = langruntime.checkedI32(langruntime.checkedSignedDivide(a, 2));
-        b = langruntime.checkedI32(langruntime.checkedSignedDivide(b, 2));
-        place = langruntime.checkedI32(langruntime.checkedSignedMultiply(place, 2));
-    }
-    return result;
-}
 function networkBitwise(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue, union: boolean): checkruntime.NetworkValue {
     union = langruntime.checkedBool(union);
     if (left.kind === "Error") {
@@ -2752,7 +2921,7 @@ function networkBitwise(left: checkruntime.NetworkValue, right: checkruntime.Net
             while (index < 8) {
                 const first: number = checkruntime.networkAddressWord(a, index);
                 const second: number = checkruntime.networkAddressWord(b, index);
-                const intersection: number = networkAndWord(first, second);
+                const intersection: number = addressAndWord(first, second);
                 let word: number = intersection;
                 if (union) {
                     word = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(first, second), intersection));

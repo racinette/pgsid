@@ -499,3 +499,77 @@ INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, fo
 INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2B:FF:FE:01:02:03', '00:00:00:00:00:00:00:00', '10:00:00:00:00:00:00:00', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, -1);
 -- name: interface_equal_ceiling
 INSERT INTO hardware_interfaces (id, address, floor_address, ceiling_address, forbidden_address, backup_address, recorded_address, prefer_primary, comparison_result) VALUES (2, '08:00:2b:ff:fe:01:02:03', '00:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '09:00:00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', true, 0);
+-- name: hardware_mask_valid
+INSERT INTO hardware_masks (id, address6, mask6, inverted6, intersection6, union6, manufacturer6, address8, mask8, inverted8, intersection8, union8, manufacturer8, modified8) VALUES (2, '08:00:2b:01:02:03', 'ff:ff:ff:00:00:00', 'f7:ff:d4:fe:fd:fc', '08:00:2b:00:00:00', 'ff:ff:ff:01:02:03', '08:00:2b:00:00:00', '08:00:2b:ff:fe:01:02:03', 'ff:ff:ff:00:00:00:00:00', 'f7:ff:d4:00:01:fe:fd:fc', '08:00:2b:00:00:00:00:00', 'ff:ff:ff:ff:fe:01:02:03', '08:00:2b:00:00:00:00:00', '0a:00:2b:ff:fe:01:02:03');
+-- name: hardware_mask_null
+INSERT INTO hardware_masks (id, address6, mask6, inverted6, intersection6, union6, manufacturer6, address8, mask8, inverted8, intersection8, union8, manufacturer8, modified8) VALUES (2, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+-- name: hardware_mask_missing_inputs
+INSERT INTO hardware_masks (id, address6, mask6, inverted6, intersection6, union6, manufacturer6, address8, mask8, inverted8, intersection8, union8, manufacturer8, modified8) VALUES (2, NULL, 'ff:ff:ff:00:00:00', 'f7:ff:d4:fe:fd:fc', '08:00:2b:00:00:00', 'ff:ff:ff:01:02:03', '08:00:2b:00:00:00', NULL, 'ff:ff:ff:00:00:00:00:00', 'f7:ff:d4:00:01:fe:fd:fc', '08:00:2b:00:00:00:00:00', 'ff:ff:ff:ff:fe:01:02:03', '08:00:2b:00:00:00:00:00', '0a:00:2b:ff:fe:01:02:03');
+-- name: hardware_mask_set_bit_already
+INSERT INTO hardware_masks (id, address6, mask6, inverted6, intersection6, union6, manufacturer6, address8, mask8, inverted8, intersection8, union8, manufacturer8, modified8) VALUES (2, '08:00:2b:01:02:03', 'ff:ff:ff:00:00:00', 'f7:ff:d4:fe:fd:fc', '08:00:2b:00:00:00', 'ff:ff:ff:01:02:03', '08:00:2b:00:00:00', '0a:00:2b:ff:fe:01:02:03', 'ff:ff:ff:00:00:00:00:00', 'f5:ff:d4:00:01:fe:fd:fc', '0a:00:2b:00:00:00:00:00', 'ff:ff:ff:ff:fe:01:02:03', '0a:00:2b:00:00:00:00:00', '0a:00:2b:ff:fe:01:02:03');
+-- name: hardware_wrong_inverted6
+INSERT INTO hardware_masks (id, address6, mask6, inverted6, intersection6, union6, manufacturer6, address8, mask8, inverted8, intersection8, union8, manufacturer8, modified8) VALUES (2, '08:00:2b:01:02:03', 'ff:ff:ff:00:00:00', '00:00:00:00:00:00', '08:00:2b:00:00:00', 'ff:ff:ff:01:02:03', '08:00:2b:00:00:00', '08:00:2b:ff:fe:01:02:03', 'ff:ff:ff:00:00:00:00:00', 'f7:ff:d4:00:01:fe:fd:fc', '08:00:2b:00:00:00:00:00', 'ff:ff:ff:ff:fe:01:02:03', '08:00:2b:00:00:00:00:00', '0a:00:2b:ff:fe:01:02:03');
+-- name: hardware_wrong_intersection6
+INSERT INTO hardware_masks (id, address6, mask6, inverted6, intersection6, union6, manufacturer6, address8, mask8, inverted8, intersection8, union8, manufacturer8, modified8) VALUES (2, '08:00:2b:01:02:03', 'ff:ff:ff:00:00:00', 'f7:ff:d4:fe:fd:fc', '00:00:00:00:00:00', 'ff:ff:ff:01:02:03', '08:00:2b:00:00:00', '08:00:2b:ff:fe:01:02:03', 'ff:ff:ff:00:00:00:00:00', 'f7:ff:d4:00:01:fe:fd:fc', '08:00:2b:00:00:00:00:00', 'ff:ff:ff:ff:fe:01:02:03', '08:00:2b:00:00:00:00:00', '0a:00:2b:ff:fe:01:02:03');
+-- name: hardware_wrong_union6
+INSERT INTO hardware_masks (id, address6, mask6, inverted6, intersection6, union6, manufacturer6, address8, mask8, inverted8, intersection8, union8, manufacturer8, modified8) VALUES (2, '08:00:2b:01:02:03', 'ff:ff:ff:00:00:00', 'f7:ff:d4:fe:fd:fc', '08:00:2b:00:00:00', '00:00:00:00:00:00', '08:00:2b:00:00:00', '08:00:2b:ff:fe:01:02:03', 'ff:ff:ff:00:00:00:00:00', 'f7:ff:d4:00:01:fe:fd:fc', '08:00:2b:00:00:00:00:00', 'ff:ff:ff:ff:fe:01:02:03', '08:00:2b:00:00:00:00:00', '0a:00:2b:ff:fe:01:02:03');
+-- name: hardware_wrong_manufacturer6
+INSERT INTO hardware_masks (id, address6, mask6, inverted6, intersection6, union6, manufacturer6, address8, mask8, inverted8, intersection8, union8, manufacturer8, modified8) VALUES (2, '08:00:2b:01:02:03', 'ff:ff:ff:00:00:00', 'f7:ff:d4:fe:fd:fc', '08:00:2b:00:00:00', 'ff:ff:ff:01:02:03', '00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', 'ff:ff:ff:00:00:00:00:00', 'f7:ff:d4:00:01:fe:fd:fc', '08:00:2b:00:00:00:00:00', 'ff:ff:ff:ff:fe:01:02:03', '08:00:2b:00:00:00:00:00', '0a:00:2b:ff:fe:01:02:03');
+-- name: hardware_wrong_inverted8
+INSERT INTO hardware_masks (id, address6, mask6, inverted6, intersection6, union6, manufacturer6, address8, mask8, inverted8, intersection8, union8, manufacturer8, modified8) VALUES (2, '08:00:2b:01:02:03', 'ff:ff:ff:00:00:00', 'f7:ff:d4:fe:fd:fc', '08:00:2b:00:00:00', 'ff:ff:ff:01:02:03', '08:00:2b:00:00:00', '08:00:2b:ff:fe:01:02:03', 'ff:ff:ff:00:00:00:00:00', '00:00:00:00:00:00:00:00', '08:00:2b:00:00:00:00:00', 'ff:ff:ff:ff:fe:01:02:03', '08:00:2b:00:00:00:00:00', '0a:00:2b:ff:fe:01:02:03');
+-- name: hardware_wrong_intersection8
+INSERT INTO hardware_masks (id, address6, mask6, inverted6, intersection6, union6, manufacturer6, address8, mask8, inverted8, intersection8, union8, manufacturer8, modified8) VALUES (2, '08:00:2b:01:02:03', 'ff:ff:ff:00:00:00', 'f7:ff:d4:fe:fd:fc', '08:00:2b:00:00:00', 'ff:ff:ff:01:02:03', '08:00:2b:00:00:00', '08:00:2b:ff:fe:01:02:03', 'ff:ff:ff:00:00:00:00:00', 'f7:ff:d4:00:01:fe:fd:fc', '00:00:00:00:00:00:00:00', 'ff:ff:ff:ff:fe:01:02:03', '08:00:2b:00:00:00:00:00', '0a:00:2b:ff:fe:01:02:03');
+-- name: hardware_wrong_union8
+INSERT INTO hardware_masks (id, address6, mask6, inverted6, intersection6, union6, manufacturer6, address8, mask8, inverted8, intersection8, union8, manufacturer8, modified8) VALUES (2, '08:00:2b:01:02:03', 'ff:ff:ff:00:00:00', 'f7:ff:d4:fe:fd:fc', '08:00:2b:00:00:00', 'ff:ff:ff:01:02:03', '08:00:2b:00:00:00', '08:00:2b:ff:fe:01:02:03', 'ff:ff:ff:00:00:00:00:00', 'f7:ff:d4:00:01:fe:fd:fc', '08:00:2b:00:00:00:00:00', '00:00:00:00:00:00:00:00', '08:00:2b:00:00:00:00:00', '0a:00:2b:ff:fe:01:02:03');
+-- name: hardware_wrong_manufacturer8
+INSERT INTO hardware_masks (id, address6, mask6, inverted6, intersection6, union6, manufacturer6, address8, mask8, inverted8, intersection8, union8, manufacturer8, modified8) VALUES (2, '08:00:2b:01:02:03', 'ff:ff:ff:00:00:00', 'f7:ff:d4:fe:fd:fc', '08:00:2b:00:00:00', 'ff:ff:ff:01:02:03', '08:00:2b:00:00:00', '08:00:2b:ff:fe:01:02:03', 'ff:ff:ff:00:00:00:00:00', 'f7:ff:d4:00:01:fe:fd:fc', '08:00:2b:00:00:00:00:00', 'ff:ff:ff:ff:fe:01:02:03', '00:00:00:00:00:00:00:00', '0a:00:2b:ff:fe:01:02:03');
+-- name: hardware_wrong_modified8
+INSERT INTO hardware_masks (id, address6, mask6, inverted6, intersection6, union6, manufacturer6, address8, mask8, inverted8, intersection8, union8, manufacturer8, modified8) VALUES (2, '08:00:2b:01:02:03', 'ff:ff:ff:00:00:00', 'f7:ff:d4:fe:fd:fc', '08:00:2b:00:00:00', 'ff:ff:ff:01:02:03', '08:00:2b:00:00:00', '08:00:2b:ff:fe:01:02:03', 'ff:ff:ff:00:00:00:00:00', 'f7:ff:d4:00:01:fe:fd:fc', '08:00:2b:00:00:00:00:00', 'ff:ff:ff:ff:fe:01:02:03', '08:00:2b:00:00:00:00:00', '00:00:00:00:00:00:00:00');
+-- name: hardware_cast_valid
+INSERT INTO hardware_conversions (id, address6, address8, extended_address, short_address, selected_short, selected_extended, prefer_extended) VALUES (2, '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:01:02:03', '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', false);
+-- name: hardware_cast_select_primary
+INSERT INTO hardware_conversions (id, address6, address8, extended_address, short_address, selected_short, selected_extended, prefer_extended) VALUES (2, '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:01:02:03', '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', true);
+-- name: hardware_cast_null
+INSERT INTO hardware_conversions (id, address6, address8, extended_address, short_address, selected_short, selected_extended, prefer_extended) VALUES (2, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+-- name: hardware_cast_null_short
+INSERT INTO hardware_conversions (id, address6, address8, extended_address, short_address, selected_short, selected_extended, prefer_extended) VALUES (2, NULL, '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:01:02:03', '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', false);
+-- name: hardware_cast_null_extended
+INSERT INTO hardware_conversions (id, address6, address8, extended_address, short_address, selected_short, selected_extended, prefer_extended) VALUES (2, '08:00:2b:01:02:03', NULL, '08:00:2b:ff:fe:01:02:03', '08:00:2b:01:02:03', '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', false);
+-- name: hardware_cast_bad_middle_low
+INSERT INTO hardware_conversions (id, address6, address8, extended_address, short_address, selected_short, selected_extended, prefer_extended) VALUES (2, '08:00:2b:01:02:03', '08:00:2b:ff:ff:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:01:02:03', '08:00:2b:01:02:03', NULL, false);
+-- name: hardware_cast_bad_middle_high
+INSERT INTO hardware_conversions (id, address6, address8, extended_address, short_address, selected_short, selected_extended, prefer_extended) VALUES (2, '08:00:2b:01:02:03', '08:00:2b:fe:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:01:02:03', '08:00:2b:01:02:03', NULL, true);
+-- name: hardware_cast_bad_fallback
+INSERT INTO hardware_conversions (id, address6, address8, extended_address, short_address, selected_short, selected_extended, prefer_extended) VALUES (2, NULL, '08:00:2b:00:00:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:01:02:03', '08:00:2b:01:02:03', NULL, false);
+-- name: hardware_cast_wrong_extend
+INSERT INTO hardware_conversions (id, address6, address8, extended_address, short_address, selected_short, selected_extended, prefer_extended) VALUES (2, '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', '00:00:00:00:00:00:00:00', '08:00:2b:01:02:03', '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', false);
+-- name: hardware_cast_wrong_shorten
+INSERT INTO hardware_conversions (id, address6, address8, extended_address, short_address, selected_short, selected_extended, prefer_extended) VALUES (2, '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', '00:00:00:00:00:00', '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', false);
+-- name: hardware_cast_wrong_short_selection
+INSERT INTO hardware_conversions (id, address6, address8, extended_address, short_address, selected_short, selected_extended, prefer_extended) VALUES (2, '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:01:02:03', '00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', false);
+-- name: hardware_cast_wrong_extended_selection
+INSERT INTO hardware_conversions (id, address6, address8, extended_address, short_address, selected_short, selected_extended, prefer_extended) VALUES (2, '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:01:02:03', '08:00:2b:01:02:03', '00:00:00:00:00:00:00:00', false);
+-- name: hardware_import_valid
+INSERT INTO hardware_imports (id, raw_short, raw_extended, raw_varchar, short_address, extended_address, skip_import) VALUES (2, '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:01:02:03', '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', false);
+-- name: hardware_import_null
+INSERT INTO hardware_imports (id, raw_short, raw_extended, raw_varchar, short_address, extended_address, skip_import) VALUES (2, NULL, NULL, NULL, NULL, NULL, NULL);
+-- name: hardware_import_grouped
+INSERT INTO hardware_imports (id, raw_short, raw_extended, raw_varchar, short_address, extended_address, skip_import) VALUES (2, '0800.2b01.0203', '0800:2bff:fe01:0203', '08002b010203', '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', false);
+-- name: hardware_import_bad_short
+INSERT INTO hardware_imports (id, raw_short, raw_extended, raw_varchar, short_address, extended_address, skip_import) VALUES (2, 'garbage', '08:00:2b:ff:fe:01:02:03', '08:00:2b:01:02:03', '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', false);
+-- name: hardware_import_bad_extended
+INSERT INTO hardware_imports (id, raw_short, raw_extended, raw_varchar, short_address, extended_address, skip_import) VALUES (2, '08:00:2b:01:02:03', '08:00-2b:ff:fe:01:02:03', '08:00:2b:01:02:03', '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', false);
+-- name: hardware_import_bad_varchar
+INSERT INTO hardware_imports (id, raw_short, raw_extended, raw_varchar, short_address, extended_address, skip_import) VALUES (2, '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', 'garbage', '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', false);
+-- name: hardware_import_octet_range
+INSERT INTO hardware_imports (id, raw_short, raw_extended, raw_varchar, short_address, extended_address, skip_import) VALUES (2, '100:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:01:02:03', '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', false);
+-- name: hardware_import_negative_octet
+INSERT INTO hardware_imports (id, raw_short, raw_extended, raw_varchar, short_address, extended_address, skip_import) VALUES (2, '-1:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:01:02:03', '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', false);
+-- name: hardware_import_wrapped_octet
+INSERT INTO hardware_imports (id, raw_short, raw_extended, raw_varchar, short_address, extended_address, skip_import) VALUES (2, '100000008:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:01:02:03', '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', false);
+-- name: hardware_import_wrong_short
+INSERT INTO hardware_imports (id, raw_short, raw_extended, raw_varchar, short_address, extended_address, skip_import) VALUES (2, '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:01:02:03', '00:00:00:00:00:00', '08:00:2b:ff:fe:01:02:03', false);
+-- name: hardware_import_wrong_extended
+INSERT INTO hardware_imports (id, raw_short, raw_extended, raw_varchar, short_address, extended_address, skip_import) VALUES (2, '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', '08:00:2b:01:02:03', '08:00:2b:01:02:03', '00:00:00:00:00:00:00:00', false);
+-- name: hardware_import_skip_bad
+INSERT INTO hardware_imports (id, raw_short, raw_extended, raw_varchar, short_address, extended_address, skip_import) VALUES (2, 'garbage', 'garbage', 'garbage', '08:00:2b:01:02:03', '08:00:2b:ff:fe:01:02:03', true);

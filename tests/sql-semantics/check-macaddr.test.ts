@@ -383,13 +383,12 @@ describe('portable Rust CHECK MAC addresses', () => {
     await mkdir(join(directory, 'domains'))
     await runCheckParity(join(directory, 'domains'), 'macdomains', group, names, fixtures)
   }, 180000)
-  it('defers mixed MAC types and callables outside the comparison slice', () => {
+  it('defers ambiguous mixed comparisons and unported output callables', () => {
     for (const sql of [
       'a = d',
-      'trunc(a) = b',
-      '~a = b',
-      'macaddr8(a) = d',
-      "a = '08:00:2b:01:02:03'::text::macaddr",
+      'CASE a WHEN d THEN true ELSE false END',
+      'hashmacaddr(a) > 0',
+      "macaddr_send(a) <> '\\x'::bytea",
     ]) {
       const expression = lowerTableCheck(
         table,

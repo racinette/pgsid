@@ -146,14 +146,20 @@ import them. Keep schema-only helpers with their callables.
   world for native/target and public INSERT parity.
 - Macaddr and macaddr8 have distinct Copy wrappers over network-order sixteen-bit
   words. Comparisons use unsigned byte order and direct comparators return signed
-  unit results. Public adapters accept SQL-coerced strings; malformed, oversized,
-  and overflowing scanf octet spellings defer. Rust parsing preserves PostgreSQL's
-  grouped macaddr forms, consistent macaddr8 separators, six-byte expansion with
-  FF:FE, and macaddr8 trailing-character behavior. NULL tests, typed literals,
-  CASE, COALESCE, IN, and BETWEEN reuse expression control flow. Runtime text
-  casts, inter-type conversions, bitwise operations, truncation, hashes, binary
-  send, and text output need separate callable slices. Run
-  `tests/sql-semantics/check-macaddr.test.ts` and the network access world.
+  unit results. Public adapters accept SQL-coerced strings; malformed and oversized
+  spellings defer. Runtime text/varchar casts return 22P02 for syntax and 22003 for
+  invalid macaddr octets, preserving scanf's unsigned accumulation and int narrowing.
+  Rust parsing preserves grouped macaddr forms, consistent macaddr8 separators,
+  six-byte expansion with FF:FE, and macaddr8 trailing-character behavior. Spellings
+  beyond the parser's input bound defer. Bitwise operations retain the full width;
+  truncation keeps the first three bytes; set7bit sets the universal/local bit.
+  Both inter-type casts are implicit in the catalog; narrowing requires middle
+  FF:FE bytes and returns 22003 otherwise. CASE selects its type with ELSE first;
+  COALESCE selects its first typed argument, preserving lazy casts. Ambiguous mixed
+  comparisons defer. NULL tests, literals, IN, and BETWEEN reuse control flow.
+  Hashes, binary send, and text output need separate callable slices. Run
+  `tests/sql-semantics/check-macaddr.test.ts`,
+  `tests/sql-semantics/check-macaddr-functions.test.ts`, and the network access world.
 - Text payloads own Rust `String`, lowered to immutable strings in both targets.
   Builders mutate only local strings through character or borrowed-text appends.
   Explicit wrapper clones preserve Rust ownership when generated branches reuse
