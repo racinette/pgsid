@@ -650,6 +650,30 @@ describe('world CHECK INSERT parity', () => {
           'output_hash_extended',
         ],
       ],
+      [
+        'hardware_devices',
+        [
+          'device_nonzero',
+          'device_in_range',
+          'device_allowed',
+          'device_comparison',
+          'device_selected',
+          'device_default',
+          'device_recognized',
+        ],
+      ],
+      [
+        'hardware_interfaces',
+        [
+          'interface_nonzero',
+          'interface_in_range',
+          'interface_allowed',
+          'interface_comparison',
+          'interface_selected',
+          'interface_default',
+          'interface_recognized',
+        ],
+      ],
       ['network_resizes', ['resize_address', 'resize_subnet']],
       ['network_filters', ['filter_complement', 'filter_intersection', 'filter_union']],
       [

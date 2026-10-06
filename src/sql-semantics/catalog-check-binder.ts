@@ -89,6 +89,8 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     decimal: 'pg_catalog."numeric"',
     inet: 'pg_catalog.inet',
     cidr: 'pg_catalog.cidr',
+    macaddr: 'pg_catalog.macaddr',
+    macaddr8: 'pg_catalog.macaddr8',
     bytea: 'pg_catalog.bytea',
     date: 'pg_catalog.date',
     timestamp: 'pg_catalog."timestamp"',
@@ -194,6 +196,11 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
     (literal.kind === 'string' || literal.kind === 'null')
   )
     return { kind: 'network', type, value: literal.value }
+  if (
+    (type === 'pg_catalog.macaddr' || type === 'pg_catalog.macaddr8') &&
+    (literal.kind === 'string' || literal.kind === 'null')
+  )
+    return { kind: 'mac', type, value: literal.value }
   if (type === 'pg_catalog."numeric"') return { kind: 'decimal', type, value: literal.value }
   if (literal.kind === 'null') {
     if (type === 'pg_catalog.bool') return { kind: 'boolean', type, value: null }

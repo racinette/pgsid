@@ -87,7 +87,8 @@ export function sqlSemanticsCoverage(
       record(expression.value, name)
       return
     }
-    if (expression.kind === 'input' || expression.kind === 'network') return
+    if (expression.kind === 'input' || expression.kind === 'network' || expression.kind === 'mac')
+      return
     if (
       expression.kind === 'null-test' ||
       expression.kind === 'text-coercion' ||

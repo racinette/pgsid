@@ -144,6 +144,16 @@ import them. Keep schema-only helpers with their callables.
   `tests/sql-semantics/check-network-hash.test.ts`,
   `tests/sql-semantics/check-network-output.test.ts`, and the network access
   world for native/target and public INSERT parity.
+- Macaddr and macaddr8 have distinct Copy wrappers over network-order sixteen-bit
+  words. Comparisons use unsigned byte order and direct comparators return signed
+  unit results. Public adapters accept SQL-coerced strings; malformed, oversized,
+  and overflowing scanf octet spellings defer. Rust parsing preserves PostgreSQL's
+  grouped macaddr forms, consistent macaddr8 separators, six-byte expansion with
+  FF:FE, and macaddr8 trailing-character behavior. NULL tests, typed literals,
+  CASE, COALESCE, IN, and BETWEEN reuse expression control flow. Runtime text
+  casts, inter-type conversions, bitwise operations, truncation, hashes, binary
+  send, and text output need separate callable slices. Run
+  `tests/sql-semantics/check-macaddr.test.ts` and the network access world.
 - Text payloads own Rust `String`, lowered to immutable strings in both targets.
   Builders mutate only local strings through character or borrowed-text appends.
   Explicit wrapper clones preserve Rust ownership when generated branches reuse

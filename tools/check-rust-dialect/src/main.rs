@@ -49,6 +49,12 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("EnumValue") => {
             Ok("EnumValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("MacaddrValue") => {
+            Ok("MacaddrValue")
+        }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("Macaddr8Value") => {
+            Ok("Macaddr8Value")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("NetworkValue") => {
             Ok("NetworkValue")
         }
@@ -350,6 +356,8 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "TimestamptzValue"
                     | "EnumValue"
                     | "NetworkValue"
+                    | "MacaddrValue"
+                    | "Macaddr8Value"
                     | "NumericValue"
                     | "TextValue"
                     | "ByteaValue"
@@ -517,6 +525,8 @@ pub fn evaluate_check(state: EnumValue) -> CheckOutcome {
             ("TimestampValue", "timestamp_unknown"),
             ("TimestamptzValue", "timestamptz_unknown"),
             ("NetworkValue", "network_unknown"),
+            ("MacaddrValue", "macaddr_unknown"),
+            ("Macaddr8Value", "macaddr8_unknown"),
             ("NumericValue", "numeric_unknown"),
             ("TextValue", "text_unknown"),
             ("BoolValue", "bool_unknown"),

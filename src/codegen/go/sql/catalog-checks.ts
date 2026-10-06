@@ -232,6 +232,8 @@ export function renderGoSchemaCheckArtifacts(
               'Int4Value',
               'Int8Value',
               'NetworkValue',
+              'MacaddrValue',
+              'Macaddr8Value',
               'ByteaValue',
               'NumericValue',
               'DateValue',
@@ -246,30 +248,34 @@ export function renderGoSchemaCheckArtifacts(
           const helper =
             item.rustType === 'ByteaValue'
               ? 'checkRustBytea'
-              : item.rustType === 'NetworkValue'
-                ? 'checkRustNetwork'
-                : item.rustType === 'NumericValue'
-                  ? 'checkRustNumeric'
-                  : item.rustType === 'DateValue'
-                    ? 'checkRustDate'
-                    : item.rustType === 'TimestampValue'
-                      ? 'checkRustTimestamp'
-                      : item.rustType === 'TimestamptzValue'
-                        ? 'checkRustTimestamptz'
-                        : item.nullness
-                          ? 'checkRustNullness'
-                          : item.enum
-                            ? 'checkRustEnum'
-                            : item.rustType === 'Int2Value'
-                              ? 'checkRustInt2'
-                              : item.rustType === 'Int4Value'
-                                ? 'checkRustInt4'
-                                : item.rustType === 'Int8Value'
-                                  ? 'checkRustInt8'
-                                  : item.rustType === 'TextValue' ||
-                                      item.rustType === 'NetworkValue'
-                                    ? 'checkRustText'
-                                    : 'checkRustBool'
+              : item.rustType === 'MacaddrValue'
+                ? 'checkRustMacaddr'
+                : item.rustType === 'Macaddr8Value'
+                  ? 'checkRustMacaddr8'
+                  : item.rustType === 'NetworkValue'
+                    ? 'checkRustNetwork'
+                    : item.rustType === 'NumericValue'
+                      ? 'checkRustNumeric'
+                      : item.rustType === 'DateValue'
+                        ? 'checkRustDate'
+                        : item.rustType === 'TimestampValue'
+                          ? 'checkRustTimestamp'
+                          : item.rustType === 'TimestamptzValue'
+                            ? 'checkRustTimestamptz'
+                            : item.nullness
+                              ? 'checkRustNullness'
+                              : item.enum
+                                ? 'checkRustEnum'
+                                : item.rustType === 'Int2Value'
+                                  ? 'checkRustInt2'
+                                  : item.rustType === 'Int4Value'
+                                    ? 'checkRustInt4'
+                                    : item.rustType === 'Int8Value'
+                                      ? 'checkRustInt8'
+                                      : item.rustType === 'TextValue' ||
+                                          item.rustType === 'NetworkValue'
+                                        ? 'checkRustText'
+                                        : 'checkRustBool'
           rustInputAdapters.add(helper)
           if (
             item.rustType !== 'ByteaValue' &&
@@ -285,7 +291,10 @@ export function renderGoSchemaCheckArtifacts(
                     item.rustType === 'Int4Value' ||
                     item.rustType === 'Int8Value'
                   ? 'checkInputInteger'
-                  : item.rustType === 'TextValue' || item.rustType === 'NetworkValue'
+                  : item.rustType === 'TextValue' ||
+                      item.rustType === 'NetworkValue' ||
+                      item.rustType === 'MacaddrValue' ||
+                      item.rustType === 'Macaddr8Value'
                     ? 'checkInputText'
                     : item.enum
                       ? 'checkInputText'
@@ -531,6 +540,30 @@ func checkRustNetwork[T any](field CheckOptional[T]) checkruntime.NetworkValue {
   }
   if !value.Value.Valid { return checkruntime.NetworkNull() }
   return checkruntime.MakeNetworkValue(value.Value.Value)
+}
+func checkRustMacaddr[T any](field CheckOptional[T]) checkruntime.MacaddrValue {
+  value := checkInputText(field)
+  if !value.Certain { return checkruntime.MacaddrUnknown() }
+  if value.Value.Error != "" {
+    if state, ok := checkRustState(value.Value.Error); ok {
+      return checkruntime.MacaddrValue{Kind: checkruntime.MacaddrValueError, Error: state}
+    }
+    return checkruntime.MacaddrUnknown()
+  }
+  if !value.Value.Valid { return checkruntime.MacaddrNull() }
+  return checkruntime.MakeMacaddrValue(value.Value.Value)
+}
+func checkRustMacaddr8[T any](field CheckOptional[T]) checkruntime.Macaddr8Value {
+  value := checkInputText(field)
+  if !value.Certain { return checkruntime.Macaddr8Unknown() }
+  if value.Value.Error != "" {
+    if state, ok := checkRustState(value.Value.Error); ok {
+      return checkruntime.Macaddr8Value{Kind: checkruntime.Macaddr8ValueError, Error: state}
+    }
+    return checkruntime.Macaddr8Unknown()
+  }
+  if !value.Value.Valid { return checkruntime.Macaddr8Null() }
+  return checkruntime.MakeMacaddr8Value(value.Value.Value)
 }
 func checkRustNumeric[T any](field CheckOptional[T]) checkruntime.NumericValue {
   if !field.Set { return checkruntime.NumericUnknown() }

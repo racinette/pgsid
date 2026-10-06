@@ -136,3 +136,45 @@ CREATE TABLE network_outputs (
   CONSTRAINT output_hash_extended CHECK (hashinetextended(address, hash_seed) = seeded_hash),
   CONSTRAINT output_literal CHECK (address IS NULL OR inet_send(address) <> '\x'::bytea)
 );
+
+CREATE DOMAIN device_address AS macaddr;
+
+CREATE TABLE hardware_devices (
+  id integer PRIMARY KEY,
+  address device_address,
+  floor_address macaddr,
+  ceiling_address macaddr,
+  forbidden_address macaddr,
+  backup_address macaddr,
+  recorded_address macaddr,
+  prefer_primary boolean,
+  comparison_result integer,
+  CONSTRAINT device_nonzero CHECK (address <> '00:00:00:00:00:00'::macaddr),
+  CONSTRAINT device_in_range CHECK (address BETWEEN floor_address AND ceiling_address),
+  CONSTRAINT device_allowed CHECK (address NOT IN (forbidden_address, '00:00:00:00:00:00'::macaddr)),
+  CONSTRAINT device_comparison CHECK (macaddr_cmp(address, ceiling_address) = comparison_result),
+  CONSTRAINT device_selected CHECK ((CASE WHEN prefer_primary THEN address ELSE backup_address END) = recorded_address),
+  CONSTRAINT device_default CHECK (COALESCE(address, backup_address) = recorded_address),
+  CONSTRAINT device_recognized CHECK (CASE address WHEN forbidden_address THEN false ELSE address IS NOT NULL OR NULL END)
+);
+
+CREATE DOMAIN interface_address AS macaddr8;
+
+CREATE TABLE hardware_interfaces (
+  id integer PRIMARY KEY,
+  address interface_address,
+  floor_address macaddr8,
+  ceiling_address macaddr8,
+  forbidden_address macaddr8,
+  backup_address macaddr8,
+  recorded_address macaddr8,
+  prefer_primary boolean,
+  comparison_result integer,
+  CONSTRAINT interface_nonzero CHECK (address <> '00:00:00:00:00:00:00:00'::macaddr8),
+  CONSTRAINT interface_in_range CHECK (address BETWEEN floor_address AND ceiling_address),
+  CONSTRAINT interface_allowed CHECK (address NOT IN (forbidden_address, '00:00:00:00:00:00:00:00'::macaddr8)),
+  CONSTRAINT interface_comparison CHECK (macaddr8_cmp(address, ceiling_address) = comparison_result),
+  CONSTRAINT interface_selected CHECK ((CASE WHEN prefer_primary THEN address ELSE backup_address END) = recorded_address),
+  CONSTRAINT interface_default CHECK (COALESCE(address, backup_address) = recorded_address),
+  CONSTRAINT interface_recognized CHECK (CASE address WHEN forbidden_address THEN false ELSE address IS NOT NULL OR NULL END)
+);

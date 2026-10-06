@@ -129,6 +129,8 @@ export function renderTypescriptSchemaCheckArtifacts(
               'Int4Value',
               'Int8Value',
               'NetworkValue',
+              'MacaddrValue',
+              'Macaddr8Value',
               'ByteaValue',
               'NumericValue',
               'DateValue',
@@ -143,32 +145,38 @@ export function renderTypescriptSchemaCheckArtifacts(
           const helper =
             item.rustType === 'ByteaValue'
               ? 'checkRustBytea'
-              : item.rustType === 'NetworkValue'
-                ? 'checkRustNetwork'
-                : item.rustType === 'NumericValue'
-                  ? 'checkRustNumeric'
-                  : item.rustType === 'DateValue'
-                    ? 'checkRustDate'
-                    : item.rustType === 'TimestampValue'
-                      ? 'checkRustTimestamp'
-                      : item.rustType === 'TimestamptzValue'
-                        ? 'checkRustTimestamptz'
-                        : item.nullness
-                          ? 'checkRustNullness'
-                          : item.enum
-                            ? 'checkRustEnum'
-                            : item.rustType === 'Int2Value'
-                              ? 'checkRustInt2'
-                              : item.rustType === 'Int4Value'
-                                ? 'checkRustInt4'
-                                : item.rustType === 'Int8Value'
-                                  ? 'checkRustInt8'
-                                  : item.rustType === 'TextValue'
-                                    ? 'checkRustText'
-                                    : 'checkRustBool'
+              : item.rustType === 'MacaddrValue'
+                ? 'checkRustMacaddr'
+                : item.rustType === 'Macaddr8Value'
+                  ? 'checkRustMacaddr8'
+                  : item.rustType === 'NetworkValue'
+                    ? 'checkRustNetwork'
+                    : item.rustType === 'NumericValue'
+                      ? 'checkRustNumeric'
+                      : item.rustType === 'DateValue'
+                        ? 'checkRustDate'
+                        : item.rustType === 'TimestampValue'
+                          ? 'checkRustTimestamp'
+                          : item.rustType === 'TimestamptzValue'
+                            ? 'checkRustTimestamptz'
+                            : item.nullness
+                              ? 'checkRustNullness'
+                              : item.enum
+                                ? 'checkRustEnum'
+                                : item.rustType === 'Int2Value'
+                                  ? 'checkRustInt2'
+                                  : item.rustType === 'Int4Value'
+                                    ? 'checkRustInt4'
+                                    : item.rustType === 'Int8Value'
+                                      ? 'checkRustInt8'
+                                      : item.rustType === 'TextValue'
+                                        ? 'checkRustText'
+                                        : 'checkRustBool'
           rustInputAdapters.add(helper)
           if (
             item.rustType !== 'NetworkValue' &&
+            item.rustType !== 'MacaddrValue' &&
+            item.rustType !== 'Macaddr8Value' &&
             item.rustType !== 'ByteaValue' &&
             item.rustType !== 'NumericValue' &&
             item.rustType !== 'DateValue' &&
@@ -520,6 +528,20 @@ function checkRustNetwork(row: object, name: string): _checkRust.NetworkValue {
   if (value === null) return _checkRust.networkNull()
   if (typeof value === 'string') return _checkRust.makeNetworkValue(value)
   return _checkRust.networkUnknown()
+}
+function checkRustMacaddr(row: object, name: string): _checkRust.MacaddrValue {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.macaddrUnknown()
+  if (value === null) return _checkRust.macaddrNull()
+  if (typeof value === 'string') return _checkRust.makeMacaddrValue(value)
+  return _checkRust.macaddrUnknown()
+}
+function checkRustMacaddr8(row: object, name: string): _checkRust.Macaddr8Value {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.macaddr8Unknown()
+  if (value === null) return _checkRust.macaddr8Null()
+  if (typeof value === 'string') return _checkRust.makeMacaddr8Value(value)
+  return _checkRust.macaddr8Unknown()
 }
 function checkRustNumeric(row: object, name: string): _checkRust.NumericValue {
   const value = Reflect.get(row, name)
