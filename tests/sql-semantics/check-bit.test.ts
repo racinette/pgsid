@@ -266,14 +266,19 @@ describe('Rust CHECK bit and varbit values', () => {
     }
     const expression = lowerTableCheck(
       table,
-      { name: 'bitwise', type: 'check', definition: 'CHECK ((a & b) = a)' },
+      { name: 'concatenation', type: 'check', definition: 'CHECK ((a || b) = a)' },
       [],
       catalog.domains,
     )!.expression
     const prepared = prepareCheckRustGroup([
       {
         expression,
-        identity: { schema: 'public', kind: 'table', owner: table.name, constraint: 'bitwise' },
+        identity: {
+          schema: 'public',
+          kind: 'table',
+          owner: table.name,
+          constraint: 'concatenation',
+        },
       },
     ])
     expect(prepared.checks[0]!.kind).toBe('unsupported')

@@ -145,3 +145,99 @@ VALUES (309, 1, NULL, X'0F', X'0F', false, true);
 -- name: snapshot_null_masks
 INSERT INTO mask_snapshots (id, profile_id, variable_mask, fixed_mask, expected_mask, expected_match, prefer_fixed)
 VALUES (310, 1, NULL, NULL, NULL, NULL, NULL);
+
+-- name: transform_masked_features
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (400, 1, X'A5', X'0F', X'A5', X'0F', X'05', X'AF', X'AA', X'5A', X'4A', X'52', 1, false);
+
+-- name: transform_zero_features
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (401, 1, X'00', X'FF', X'00', X'FF', X'00', X'FF', X'FF', X'FF', X'00', X'00', 0, false);
+
+-- name: transform_shift_all_features_out
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (402, 1, X'FF', X'F0', X'FF', X'F0', X'F0', X'FF', X'0F', X'00', X'00', X'00', 8, false);
+
+-- name: transform_partial_octet
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (403, 1, NULL, NULL, B'101', B'011', B'001', NULL, B'110', NULL, B'010', B'010', 1, false);
+
+-- name: transform_empty_features
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (404, 1, NULL, NULL, B'', B'', B'', NULL, B'', NULL, B'', B'', 0, false);
+
+-- name: transform_partial_second_octet
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (405, 1, NULL, NULL, B'100000001', B'100000000', B'100000000', NULL, B'000000001', NULL, B'000000010', B'010000000', 1, false);
+
+-- name: transform_reverse_shift_direction
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (406, 1, X'A5', X'0F', X'A5', X'0F', X'05', X'AF', X'AA', X'5A', X'52', X'4A', -1, false);
+
+-- name: transform_shift_beyond_width
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (407, 1, X'A5', X'0F', X'A5', X'0F', X'05', X'AF', X'AA', X'5A', X'00', X'00', 9, false);
+
+-- name: transform_minimum_shift_distance
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (408, 1, X'A5', X'0F', X'A5', X'0F', X'05', X'AF', X'AA', X'5A', X'00', X'00', -2147483648, false);
+
+-- name: transform_maximum_shift_distance
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (409, 1, X'A5', X'0F', X'A5', X'0F', X'05', X'AF', X'AA', X'5A', X'00', X'00', 2147483647, false);
+
+-- name: transform_negative_full_width
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (410, 1, X'A5', X'0F', X'A5', X'0F', X'05', X'AF', X'AA', X'5A', X'00', X'00', -8, false);
+
+-- name: transform_wrong_intersection
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (411, 1, X'A5', X'0F', X'A5', X'0F', X'04', X'AF', X'AA', X'5A', X'4A', X'52', 1, false);
+
+-- name: transform_wrong_union
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (412, 1, X'A5', X'0F', X'A5', X'0F', X'05', X'AE', X'AA', X'5A', X'4A', X'52', 1, false);
+
+-- name: transform_wrong_exclusive
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (413, 1, X'A5', X'0F', X'A5', X'0F', X'05', X'AF', X'AB', X'5A', X'4A', X'52', 1, false);
+
+-- name: transform_wrong_complement
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (414, 1, X'A5', X'0F', X'A5', X'0F', X'05', X'AF', X'AA', X'5B', X'4A', X'52', 1, false);
+
+-- name: transform_wrong_left_shift
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (415, 1, X'A5', X'0F', X'A5', X'0F', X'05', X'AF', X'AA', X'5A', X'4B', X'52', 1, false);
+
+-- name: transform_wrong_right_shift
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (416, 1, X'A5', X'0F', X'A5', X'0F', X'05', X'AF', X'AA', X'5A', X'4A', X'53', 1, false);
+
+-- name: transform_mismatched_flexible_widths
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (417, 1, NULL, NULL, B'1', B'10', B'0', NULL, B'1', NULL, B'1', B'1', 0, false);
+
+-- name: transform_mismatched_empty_width
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (418, 1, NULL, NULL, B'', B'1', B'', NULL, B'', NULL, B'', B'', 0, false);
+
+-- name: transform_skip_mismatched_flexible_widths
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (419, 1, X'A5', X'0F', B'1', B'10', X'05', X'AF', X'AA', X'5A', B'1', B'1', 0, true);
+
+-- name: transform_null_flexible_fallback
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (420, 1, X'A5', X'0F', NULL, B'1', X'05', X'AF', X'AA', X'5A', NULL, NULL, 1, false);
+
+-- name: transform_null_shift_distance
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (421, 1, X'A5', X'0F', X'A5', X'0F', X'05', X'AF', X'AA', X'5A', NULL, NULL, NULL, false);
+
+-- name: transform_null_choice_flag
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (422, 1, X'A5', X'0F', X'A5', X'0F', X'05', X'AF', X'AA', X'5A', X'4A', X'52', 1, NULL);
+
+-- name: transform_null_masks
+INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
+VALUES (423, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);

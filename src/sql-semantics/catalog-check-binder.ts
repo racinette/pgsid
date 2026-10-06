@@ -95,6 +95,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     macaddr8: 'pg_catalog.macaddr8',
     bytea: 'pg_catalog.bytea',
     bit: 'pg_catalog."bit"',
+    '"bit"': 'pg_catalog."bit"',
     varbit: 'pg_catalog.varbit',
     'bit varying': 'pg_catalog.varbit',
     date: 'pg_catalog.date',
@@ -484,6 +485,8 @@ const candidate = (
           'pg_catalog.macaddr',
           'pg_catalog.macaddr8',
           'pg_catalog.uuid',
+          'pg_catalog."bit"',
+          'pg_catalog.varbit',
         ].includes(type),
       ) && isIntegerType(item.args[index]!)
         ? materializeInteger(arg, item.args[index]! as ScalarType)

@@ -11,7 +11,7 @@ pub fn bit_from_literal(value: &str) -> BitValue {
             hexadecimal = true;
         }
     }
-    if chars.len() > 536870911 {
+    if chars.len() > 536870910 {
         return BitValue::Unknown;
     }
     let mut output = String::new();

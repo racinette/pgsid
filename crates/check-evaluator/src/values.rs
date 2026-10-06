@@ -341,8 +341,14 @@ const SQL_ERROR_DIVISION_BY_ZERO: u32 = 3452582;
 const SQL_ERROR_INVALID_REGEX: u32 = 3452591;
 const SQL_ERROR_INVALID_PARAMETER: u32 = 3452619;
 const SQL_ERROR_INVALID_TEXT_REPRESENTATION: u32 = 3484946;
+const SQL_ERROR_STRING_LENGTH_MISMATCH: u32 = 3452622;
 
 pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
+    if error.state == SQL_ERROR_STRING_LENGTH_MISMATCH {
+        return SqlErrorDescription {
+            message: "string data length mismatch",
+        };
+    }
     if error.state == SQL_ERROR_INVALID_TEXT_REPRESENTATION {
         return SqlErrorDescription {
             message: "invalid text representation",
@@ -639,7 +645,7 @@ pub fn bit_from_case_guard(value: CheckOutcome) -> BitValue {
 }
 pub fn make_bit_value(value: &str) -> BitValue {
     let chars: Vec<char> = value.chars().collect();
-    if chars.len() > 2147483647 {
+    if chars.len() > 2147483640 {
         return BitValue::Unknown;
     }
     let mut index: usize = 0;

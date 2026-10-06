@@ -60,3 +60,29 @@ CREATE TABLE mask_snapshots (
   CONSTRAINT snapshot_allowed CHECK (variable_mask IN (B'00001111', X'FF', fixed_mask)),
   CONSTRAINT snapshot_empty CHECK ((variable_mask = B'') = (expected_mask = B''))
 );
+
+CREATE TABLE mask_transforms (
+  id integer PRIMARY KEY,
+  profile_id integer NOT NULL REFERENCES mask_profiles(id),
+  source_mask installed_mask,
+  filter_mask bit(8),
+  flexible_mask device_request,
+  flexible_filter bit varying,
+  recorded_intersection bit varying,
+  recorded_union bit varying,
+  recorded_exclusive bit varying,
+  recorded_complement bit varying,
+  recorded_left bit varying,
+  recorded_right bit varying,
+  shift_distance integer,
+  use_fixed boolean,
+  CONSTRAINT transform_intersection CHECK ((source_mask & filter_mask) = recorded_intersection),
+  CONSTRAINT transform_union CHECK ((source_mask | filter_mask) = recorded_union),
+  CONSTRAINT transform_exclusive CHECK ((source_mask # filter_mask) = recorded_exclusive),
+  CONSTRAINT transform_complement CHECK ((~source_mask) = recorded_complement),
+  CONSTRAINT transform_left CHECK ((flexible_mask << shift_distance) = recorded_left),
+  CONSTRAINT transform_right CHECK ((flexible_mask >> shift_distance) = recorded_right),
+  CONSTRAINT transform_selected CHECK ((CASE WHEN use_fixed THEN source_mask & filter_mask ELSE flexible_mask & flexible_filter END) = recorded_intersection),
+  CONSTRAINT transform_default CHECK (CASE WHEN use_fixed THEN true ELSE COALESCE(flexible_mask & flexible_filter, source_mask & filter_mask) = recorded_intersection END),
+  CONSTRAINT transform_direct CHECK (CASE WHEN use_fixed THEN true ELSE bitxor(flexible_mask, flexible_filter) = recorded_exclusive END)
+);

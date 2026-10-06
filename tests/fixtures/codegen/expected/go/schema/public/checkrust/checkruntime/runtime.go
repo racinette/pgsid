@@ -386,8 +386,12 @@ const sqlErrorDivisionByZero = 3452582
 const sqlErrorInvalidRegex = 3452591
 const sqlErrorInvalidParameter = 3452619
 const sqlErrorInvalidTextRepresentation = 3484946
+const sqlErrorStringLengthMismatch = 3452622
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorStringLengthMismatch {
+		return SqlErrorDescription{Message: "string data length mismatch"}
+	}
 	if error.State == sqlErrorInvalidTextRepresentation {
 		return SqlErrorDescription{Message: "invalid text representation"}
 	}
@@ -697,7 +701,7 @@ func BitFromCaseGuard(value CheckOutcome) BitValue {
 func MakeBitValue(value string) BitValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)
-	if len(chars) > 2147483647 {
+	if len(chars) > 2147483640 {
 		return BitValue{Kind: BitValueUnknown}
 	}
 	index := 0
@@ -1937,7 +1941,7 @@ func BitFromLiteral(value string) BitValue {
 			hexadecimal = true
 		}
 	}
-	if len(chars) > 536870911 {
+	if len(chars) > 536870910 {
 		return BitValue{Kind: BitValueUnknown}
 	}
 	output := ""
