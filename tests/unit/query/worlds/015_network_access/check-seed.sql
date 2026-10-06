@@ -208,3 +208,66 @@ INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address
 
 -- name: resize_null_sources
 INSERT INTO network_resizes (id, address, subnet, prefix_length, resized_address, resized_subnet, skip_resize) VALUES (100, NULL, NULL, 24, '10.1.2.3/24', '10.1.2.0/24', false);
+
+-- name: filter_ipv4_host_bits
+INSERT INTO network_filters (id, address, address_mask, complemented_address, intersected_address, united_address, skip_filter) VALUES (100, '10.1.2.3/24', '255.255.255.0', '245.254.253.252/24', '10.1.2.0', '255.255.255.3', false);
+
+-- name: filter_ipv4_preserves_longer_address_prefix
+INSERT INTO network_filters (id, address, address_mask, complemented_address, intersected_address, united_address, skip_filter) VALUES (100, '10.1.2.3/24', '255.255.255.0/16', '245.254.253.252/24', '10.1.2.0/24', '255.255.255.3/24', false);
+
+-- name: filter_ipv4_preserves_longer_mask_prefix
+INSERT INTO network_filters (id, address, address_mask, complemented_address, intersected_address, united_address, skip_filter) VALUES (100, '10.1.2.3/16', '255.255.255.0/24', '245.254.253.252/16', '10.1.2.0/24', '255.255.255.3/24', false);
+
+-- name: filter_ipv4_alternating_bits
+INSERT INTO network_filters (id, address, address_mask, complemented_address, intersected_address, united_address, skip_filter) VALUES (100, '165.90.195.60/17', '90.165.60.195/9', '90.165.60.195/17', '0.0.0.0/17', '255.255.255.255/17', false);
+
+-- name: filter_ipv6_alternating_bits
+INSERT INTO network_filters (id, address, address_mask, complemented_address, intersected_address, united_address, skip_filter) VALUES (100, 'a55a:c33c:9669:f00f:5aa5:3cc3:6996:ff0/17', '5aa5:3cc3:6996:ff0:a55a:c33c:9669:f00f/9', '5aa5:3cc3:6996:ff0:a55a:c33c:9669:f00f/17', '::/17', 'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff/17', false);
+
+-- name: filter_ipv6_partial_word_mask
+INSERT INTO network_filters (id, address, address_mask, complemented_address, intersected_address, united_address, skip_filter) VALUES (100, '2001:db8::1/65', 'ffff:ffff:ffff:ffff:8000::', 'dffe:f247:ffff:ffff:ffff:ffff:ffff:fffe/65', '2001:db8::', 'ffff:ffff:ffff:ffff:8000::1', false);
+
+-- name: filter_ipv4_zero_prefix
+INSERT INTO network_filters (id, address, address_mask, complemented_address, intersected_address, united_address, skip_filter) VALUES (100, '10.1.2.3/0', '0.0.0.0/0', '245.254.253.252/0', '0.0.0.0/0', '10.1.2.3/0', false);
+
+-- name: filter_ipv6_zero_address
+INSERT INTO network_filters (id, address, address_mask, complemented_address, intersected_address, united_address, skip_filter) VALUES (100, '::', '::1/65', 'ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff', '::', '::1', false);
+
+-- name: filter_ipv4_full_address
+INSERT INTO network_filters (id, address, address_mask, complemented_address, intersected_address, united_address, skip_filter) VALUES (100, '255.255.255.255', '0.0.0.0', '0.0.0.0', '0.0.0.0', '255.255.255.255', false);
+
+-- name: filter_incorrect_complement
+INSERT INTO network_filters (id, address, address_mask, complemented_address, intersected_address, united_address, skip_filter) VALUES (100, '10.1.2.3/24', '255.255.255.0', '245.254.253.253/24', '10.1.2.0', '255.255.255.3', false);
+
+-- name: filter_complement_wrong_prefix
+INSERT INTO network_filters (id, address, complemented_address) VALUES (100, '10.1.2.3/24', '245.254.253.252/32');
+
+-- name: filter_incorrect_intersection
+INSERT INTO network_filters (id, address, address_mask, complemented_address, intersected_address, united_address, skip_filter) VALUES (100, '10.1.2.3/24', '255.255.255.0', '245.254.253.252/24', '10.1.2.1', '255.255.255.3', false);
+
+-- name: filter_intersection_wrong_prefix
+INSERT INTO network_filters (id, address, address_mask, intersected_address, skip_filter) VALUES (100, '10.1.2.3/16', '255.255.255.0/24', '10.1.2.0/16', false);
+
+-- name: filter_incorrect_union
+INSERT INTO network_filters (id, address, address_mask, complemented_address, intersected_address, united_address, skip_filter) VALUES (100, '10.1.2.3/24', '255.255.255.0', '245.254.253.252/24', '10.1.2.0', '255.255.255.2', false);
+
+-- name: filter_union_wrong_prefix
+INSERT INTO network_filters (id, address, address_mask, united_address, skip_filter) VALUES (100, '10.1.2.3/16', '255.255.255.0/24', '255.255.255.3/16', false);
+
+-- name: filter_ipv4_and_ipv6_error
+INSERT INTO network_filters (id, address, address_mask, intersected_address, united_address, skip_filter) VALUES (100, '10.1.2.3', '::1', '10.1.2.3', '10.1.2.3', false);
+
+-- name: filter_ipv6_and_ipv4_error
+INSERT INTO network_filters (id, address, address_mask, intersected_address, united_address, skip_filter) VALUES (100, '::1', '10.1.2.3', '::1', '::1', false);
+
+-- name: filter_null_sources
+INSERT INTO network_filters (id, address, address_mask, complemented_address, intersected_address, united_address, skip_filter) VALUES (100, NULL, '255.255.255.0', '245.254.253.252/24', '10.1.2.0', '255.255.255.3', false);
+
+-- name: filter_null_mask
+INSERT INTO network_filters (id, address, address_mask, complemented_address, intersected_address, united_address, skip_filter) VALUES (100, '10.1.2.3/24', NULL, '245.254.253.252/24', '10.1.2.0', '255.255.255.3', false);
+
+-- name: filter_null_outputs
+INSERT INTO network_filters (id, address, address_mask, complemented_address, intersected_address, united_address, skip_filter) VALUES (100, '10.1.2.3/24', '255.255.255.0', NULL, NULL, NULL, false);
+
+-- name: filter_skips_mixed_family_error
+INSERT INTO network_filters (id, address, address_mask, intersected_address, united_address, skip_filter) VALUES (100, '10.1.2.3', '::1', '10.1.2.3', '10.1.2.3', true);

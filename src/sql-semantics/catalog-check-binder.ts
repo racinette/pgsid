@@ -1032,7 +1032,7 @@ export function bindCatalogCheck(
       const name = names?.at(-1)
       if (!name || operator['rexpr'] === undefined) return unknown
       if (operator['lexpr'] === undefined)
-        return name === '+' || name === '-'
+        return name === '+' || name === '-' || name === '~'
           ? bindCall('operator', name, [operator['rexpr']])
           : unknown
       return bindCall('operator', name, [operator['lexpr'], operator['rexpr']])

@@ -2537,6 +2537,111 @@ export function inetMergeIflm(left: checkruntime.NetworkValue, right: checkrunti
     }
     return { kind: "Unknown" };
 }
+function networkAndWord(left: number, right: number): number {
+    left = langruntime.checkedI32(left);
+    right = langruntime.checkedI32(right);
+    let a: number = left;
+    let b: number = right;
+    let place: number = 1;
+    let result: number = 0;
+    while (place < 65536) {
+        if (langruntime.checkedSignedRemainder(a, 2) === 1 && langruntime.checkedSignedRemainder(b, 2) === 1) {
+            result = langruntime.checkedI32(langruntime.checkedSignedAdd(result, place));
+        }
+        a = langruntime.checkedI32(langruntime.checkedSignedDivide(a, 2));
+        b = langruntime.checkedI32(langruntime.checkedSignedDivide(b, 2));
+        place = langruntime.checkedI32(langruntime.checkedSignedMultiply(place, 2));
+    }
+    return result;
+}
+function networkBitwise(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue, union: boolean): checkruntime.NetworkValue {
+    left = checkruntime.copyNetworkValue(left);
+    right = checkruntime.copyNetworkValue(right);
+    union = langruntime.checkedBool(union);
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNetworkValue(left, { kind: "Unknown" }) || checkruntime.equalNetworkValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNetworkValue(left, { kind: "Null" }) || checkruntime.equalNetworkValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(left.value);
+        if (right.kind === "Value") {
+            const b: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(right.value);
+            if (!(a.family === b.family)) {
+                return { kind: "Error", value: checkruntime.makeSqlError(sqlstateInvalidParameterValue) };
+            }
+            let prefix: number = a.prefix;
+            if (b.prefix > prefix) {
+                prefix = langruntime.checkedI32(b.prefix);
+            }
+            let words: checkruntime.NetworkWord[] = [];
+            let index: number = 0;
+            while (index < 8) {
+                const first: number = checkruntime.networkAddressWord(a, index);
+                const second: number = checkruntime.networkAddressWord(b, index);
+                const intersection: number = networkAndWord(first, second);
+                let word: number = intersection;
+                if (union) {
+                    word = langruntime.checkedI32(langruntime.checkedSignedSubtract(langruntime.checkedSignedAdd(first, second), intersection));
+                }
+                langruntime.pushStruct(words, { value: word }, checkruntime.copyNetworkWord);
+                index = langruntime.checkedAdd(index, 1);
+            }
+            const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkResultAddress(a.family, prefix, words));
+            return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function inetandQxb6(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.NetworkValue {
+    left = checkruntime.copyNetworkValue(left);
+    right = checkruntime.copyNetworkValue(right);
+    return networkBitwise(left, right, false);
+}
+export function inetorKw39(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.NetworkValue {
+    left = checkruntime.copyNetworkValue(left);
+    right = checkruntime.copyNetworkValue(right);
+    return networkBitwise(left, right, true);
+}
+export function inetnot8bow(input: checkruntime.NetworkValue): checkruntime.NetworkValue {
+    input = checkruntime.copyNetworkValue(input);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(input.value);
+        let words: checkruntime.NetworkWord[] = [];
+        let index: number = 0;
+        while (index < 8) {
+            const source: number = checkruntime.networkAddressWord(address, index);
+            let word: number = langruntime.checkedSignedSubtract(65535, source);
+            if (address.family === 4 && index >= 2) {
+                word = langruntime.checkedI32(0);
+            }
+            langruntime.pushStruct(words, { value: word }, checkruntime.copyNetworkWord);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkResultAddress(address.family, address.prefix, words));
+        return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+    }
+    return { kind: "Unknown" };
+}
 function numericCompare(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.Int4Value {
     left = checkruntime.copyNumericValue(left);
     right = checkruntime.copyNumericValue(right);

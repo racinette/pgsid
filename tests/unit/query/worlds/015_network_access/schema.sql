@@ -84,3 +84,16 @@ CREATE TABLE network_resizes (
   CONSTRAINT resize_address CHECK (CASE WHEN skip_resize THEN true ELSE set_masklen(address, prefix_length) = resized_address END),
   CONSTRAINT resize_subnet CHECK (CASE WHEN skip_resize THEN true ELSE set_masklen(subnet, prefix_length) = resized_subnet END)
 );
+
+CREATE TABLE network_filters (
+  id integer PRIMARY KEY,
+  address inet,
+  address_mask inet,
+  complemented_address inet,
+  intersected_address inet,
+  united_address inet,
+  skip_filter boolean,
+  CONSTRAINT filter_complement CHECK (~address = complemented_address),
+  CONSTRAINT filter_intersection CHECK (CASE WHEN skip_filter THEN true ELSE (address & address_mask) = intersected_address END),
+  CONSTRAINT filter_union CHECK (CASE WHEN skip_filter THEN true ELSE (address | address_mask) = united_address END)
+);
