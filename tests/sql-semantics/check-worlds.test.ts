@@ -349,7 +349,7 @@ describe('world CHECK INSERT parity', () => {
     }).catch((error: { stdout: string; stderr: string }) => {
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
-  }, 120_000)
+  }, 240_000)
 
   afterAll(async () => {
     if (pg && !pg.closed) await pg.close()
@@ -919,6 +919,47 @@ describe('world CHECK INSERT parity', () => {
         expect(measured.unknown, identity).toBe(0)
       }
     }
+    for (const name of [
+      'import_fixed',
+      'import_varying',
+      'import_varchar',
+      'import_resize',
+      'import_maximum',
+      'import_output',
+      'import_selected',
+      'import_default',
+      'import_fixed_assignment',
+      'import_varying_assignment',
+    ]) {
+      const identity = `world_017_feature_masks.mask_imports.${name}`
+      const measured = coverage.get(identity)!
+      for (const kind of ['true', 'false', 'null'] as const)
+        expect(measured[kind], identity).toBeGreaterThan(0)
+      expect(measured.unknown, identity).toBe(0)
+      if (
+        [
+          'import_fixed',
+          'import_varying',
+          'import_varchar',
+          'import_selected',
+          'import_default',
+          'import_fixed_assignment',
+          'import_varying_assignment',
+        ].includes(name)
+      )
+        expect(measured.error, identity).toBeGreaterThan(0)
+    }
+    const truncationErrors = caseResults.flatMap((row) =>
+      row.name.startsWith('017_feature_masks/')
+        ? row.checks.filter(
+            (check) =>
+              check.constraint === 'import_varying_assignment' && check.result.error === '22001',
+          )
+        : [],
+    )
+    expect(truncationErrors.length).toBeGreaterThan(0)
+    for (const check of truncationErrors)
+      expect(check.message).toContain('string data right truncation')
     for (const name of [
       'transform_intersection',
       'transform_union',

@@ -1221,6 +1221,71 @@ export function bitshiftleftQf9d(input: checkruntime.BitValue, distance: checkru
 export function bitshiftrightHgyn(input: checkruntime.BitValue, distance: checkruntime.Int4Value): checkruntime.BitValue {
     return bitShift(input, distance, false);
 }
+const bitStringRightTruncation = 3452545;
+function bitCoerce(input: checkruntime.BitValue, width: checkruntime.Int4Value, explicit: checkruntime.BoolValue, varying: boolean): checkruntime.BitValue {
+    varying = langruntime.checkedBool(varying);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (width.kind === "Error") {
+        const error: checkruntime.SqlError = width.value;
+        return { kind: "Error", value: error };
+    }
+    if (explicit.kind === "Error") {
+        const error: checkruntime.SqlError = explicit.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(width, { kind: "Unknown" }) || checkruntime.equalBoolValue(explicit, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(width, { kind: "Null" }) || checkruntime.equalBoolValue(explicit, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (width.kind === "Value") {
+            const length: number = langruntime.checkedI32(width.value);
+            if (explicit.kind === "Value") {
+                const isExplicit: boolean = langruntime.checkedBool(explicit.value);
+                const current: number = checkruntime.bitPayloadLength(value);
+                if (length <= 0 || length > bitMaxLength || length === current) {
+                    return { kind: "Value", value: value };
+                }
+                if (varying && length > current) {
+                    return { kind: "Value", value: value };
+                }
+                if (isExplicit === false) {
+                    if (varying) {
+                        return { kind: "Error", value: checkruntime.makeSqlError(bitStringRightTruncation) };
+                    }
+                    return { kind: "Error", value: checkruntime.makeSqlError(bitStringLengthMismatch) };
+                }
+                const chars: string[] = Array.from(value);
+                let output: string = "";
+                let index: number = 0;
+                let count: number = 0;
+                while (count < length) {
+                    let ch: string = "0";
+                    if (index < chars.length) {
+                        ch = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                    }
+                    output = output + langruntime.checkedChar(ch);
+                    index = langruntime.checkedAdd(index, 1);
+                    count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+                }
+                return { kind: "Value", value: output };
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function bitEqck(input: checkruntime.BitValue, width: checkruntime.Int4Value, explicit: checkruntime.BoolValue): checkruntime.BitValue {
+    return bitCoerce(input, width, explicit, false);
+}
+export function varbit7ap7(input: checkruntime.BitValue, width: checkruntime.Int4Value, explicit: checkruntime.BoolValue): checkruntime.BitValue {
+    return bitCoerce(input, width, explicit, true);
+}
 export function booleqY6qu(left: checkruntime.BoolValue, right: checkruntime.BoolValue): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;

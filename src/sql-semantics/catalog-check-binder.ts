@@ -767,14 +767,72 @@ export function bindCatalogCheck(
           type === 'pg_catalog."timestamp"' ||
           type === 'pg_catalog."numeric"' ||
           type === 'pg_catalog."varchar"' ||
-          type === 'pg_catalog.bpchar' ||
-          type === 'pg_catalog."bit"' ||
-          type === 'pg_catalog.varbit') &&
+          type === 'pg_catalog.bpchar') &&
         Array.isArray(castType?.['typmods']) &&
         castType['typmods'].length
       )
         return unknown
       const operand = bind(cast['arg'])
+      if (type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit') {
+        const modifiers = castType?.['typmods']
+        let width = -1
+        if (Array.isArray(modifiers) && modifiers.length) {
+          if (modifiers.length !== 1) return unknown
+          const constant = fields(fields(modifiers[0])?.['A_Const'])
+          const length = fields(constant?.['ival'])?.['ival']
+          if (
+            typeof length !== 'number' ||
+            !Number.isInteger(length) ||
+            length <= 0 ||
+            length > 2147483640
+          )
+            return unknown
+          width = length
+        }
+        let value: EvalExpression | null = null
+        if (
+          (!operand.type && operand.literal) ||
+          operand.type === 'pg_catalog.text' ||
+          operand.type === 'pg_catalog."varchar"'
+        ) {
+          const text = materialize(operand, 'pg_catalog.text')
+          if (text) value = { kind: 'text-to-bit', type, operand: text }
+        } else if (operand.type === 'pg_catalog."bit"' || operand.type === 'pg_catalog.varbit') {
+          value = materialize(operand, type)
+        }
+        if (!value) return unknown
+        if (width === -1) return { type, value }
+        const conversion = builtinCast(type, type)
+        if (conversion?.method !== 'f' || !conversion.implementation) return unknown
+        return {
+          type,
+          value: {
+            kind: 'call',
+            call: { kind: 'function', signature: conversion.implementation, type },
+            operands: [
+              value,
+              {
+                kind: 'certain',
+                expression: { kind: 'integer', type: 'pg_catalog.int4', value: String(width) },
+              },
+              {
+                kind: 'certain',
+                expression: { kind: 'boolean', type: 'pg_catalog.bool', value: true },
+              },
+            ],
+          },
+        }
+      }
+      if (
+        (operand.type === 'pg_catalog."bit"' || operand.type === 'pg_catalog.varbit') &&
+        type === 'pg_catalog.text' &&
+        operand.value
+      )
+        return {
+          type,
+          collation: defaultCollation,
+          value: { kind: 'bit-to-text', type, operand: operand.value },
+        }
       if (
         (operand.type === 'pg_catalog.inet' || operand.type === 'pg_catalog.cidr') &&
         type === 'pg_catalog.text' &&
@@ -1284,14 +1342,22 @@ export function bindCatalogCheck(
       kind === 'function' &&
       name === 'text' &&
       args.length === 1 &&
-      (isMacType(args[0]!.type) || args[0]!.type === 'pg_catalog.uuid') &&
+      (isMacType(args[0]!.type) ||
+        args[0]!.type === 'pg_catalog.uuid' ||
+        args[0]!.type === 'pg_catalog."bit"' ||
+        args[0]!.type === 'pg_catalog.varbit') &&
       args[0]!.value
     )
       return {
         type: 'pg_catalog.text',
         collation: defaultCollation,
         value: {
-          kind: args[0]!.type === 'pg_catalog.uuid' ? 'uuid-to-text' : 'mac-to-text',
+          kind:
+            args[0]!.type === 'pg_catalog.uuid'
+              ? 'uuid-to-text'
+              : isMacType(args[0]!.type)
+                ? 'mac-to-text'
+                : 'bit-to-text',
           type: 'pg_catalog.text',
           operand: args[0]!.value,
         },
@@ -1300,24 +1366,28 @@ export function bindCatalogCheck(
     if (!resolved) {
       if (
         kind === 'function' &&
-        ['inet', 'cidr', 'macaddr', 'macaddr8', 'uuid'].includes(name) &&
+        ['inet', 'cidr', 'macaddr', 'macaddr8', 'uuid', 'bit', 'varbit'].includes(name) &&
         args.length === 1
       ) {
-        const type = ('pg_catalog.' + name) as
+        const type = (name === 'bit' ? 'pg_catalog."bit"' : 'pg_catalog.' + name) as
           | 'pg_catalog.inet'
           | 'pg_catalog.cidr'
           | 'pg_catalog.macaddr'
           | 'pg_catalog.macaddr8'
           | 'pg_catalog.uuid'
+          | 'pg_catalog."bit"'
+          | 'pg_catalog.varbit'
         const operand = args[0]!
         if (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') {
           const text = materialize(operand, 'pg_catalog.text')
           return text
-            ? type === 'pg_catalog.uuid'
-              ? { type, value: { kind: 'text-to-uuid', type, operand: text } }
-              : type === 'pg_catalog.macaddr' || type === 'pg_catalog.macaddr8'
-                ? { type, value: { kind: 'text-to-mac', type, operand: text } }
-                : { type, value: { kind: 'text-to-network', type, operand: text } }
+            ? type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit'
+              ? { type, value: { kind: 'text-to-bit', type, operand: text } }
+              : type === 'pg_catalog.uuid'
+                ? { type, value: { kind: 'text-to-uuid', type, operand: text } }
+                : type === 'pg_catalog.macaddr' || type === 'pg_catalog.macaddr8'
+                  ? { type, value: { kind: 'text-to-mac', type, operand: text } }
+                  : { type, value: { kind: 'text-to-network', type, operand: text } }
             : unknown
         }
         const value = materialize(operand, type)

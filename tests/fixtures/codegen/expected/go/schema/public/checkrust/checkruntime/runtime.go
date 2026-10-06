@@ -387,8 +387,12 @@ const sqlErrorInvalidRegex = 3452591
 const sqlErrorInvalidParameter = 3452619
 const sqlErrorInvalidTextRepresentation = 3484946
 const sqlErrorStringLengthMismatch = 3452622
+const sqlErrorStringRightTruncation = 3452545
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorStringRightTruncation {
+		return SqlErrorDescription{Message: "string data right truncation"}
+	}
 	if error.State == sqlErrorStringLengthMismatch {
 		return SqlErrorDescription{Message: "string data length mismatch"}
 	}
@@ -1981,6 +1985,40 @@ func BitPayloadLength(value string) int {
 		length = langruntime.CheckedI32(langruntime.CheckedSignedAdd(length, 1))
 	}
 	return length
+}
+func BitFromText(input TextValue) BitValue {
+	if input.Kind == TextValueError {
+		error := input.Error
+		return BitValue{Kind: BitValueError, Error: error}
+	}
+	if input == (TextValue{Kind: TextValueUnknown}) {
+		return BitValue{Kind: BitValueUnknown}
+	}
+	if input == (TextValue{Kind: TextValueNull}) {
+		return BitValue{Kind: BitValueNull}
+	}
+	if input.Kind == TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return BitFromLiteral(value)
+	}
+	return BitValue{Kind: BitValueUnknown}
+}
+func BitToText(input BitValue) TextValue {
+	if input.Kind == BitValueError {
+		error := input.Error
+		return TextValue{Kind: TextValueError, Error: error}
+	}
+	if input == (BitValue{Kind: BitValueUnknown}) {
+		return TextValue{Kind: TextValueUnknown}
+	}
+	if input == (BitValue{Kind: BitValueNull}) {
+		return TextValue{Kind: TextValueNull}
+	}
+	if input.Kind == BitValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return TextValue{Kind: TextValueValue, Value: value}
+	}
+	return TextValue{Kind: TextValueUnknown}
 }
 
 type HashByte struct {

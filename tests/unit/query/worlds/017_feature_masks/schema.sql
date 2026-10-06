@@ -86,3 +86,29 @@ CREATE TABLE mask_transforms (
   CONSTRAINT transform_default CHECK (CASE WHEN use_fixed THEN true ELSE COALESCE(flexible_mask & flexible_filter, source_mask & filter_mask) = recorded_intersection END),
   CONSTRAINT transform_direct CHECK (CASE WHEN use_fixed THEN true ELSE bitxor(flexible_mask, flexible_filter) = recorded_exclusive END)
 );
+
+CREATE TABLE mask_imports (
+  id integer PRIMARY KEY,
+  profile_id integer NOT NULL REFERENCES mask_profiles(id),
+  source_text text,
+  source_varchar varchar,
+  installed_bits installed_mask,
+  flexible_bits device_request,
+  expected_fixed bit(3),
+  expected_varying bit varying,
+  expected_assignment bit varying,
+  rendered_text text,
+  assignment_width integer,
+  assignment_explicit boolean,
+  use_installed boolean,
+  CONSTRAINT import_fixed CHECK (CASE WHEN use_installed THEN true ELSE source_text::bit(3) = expected_fixed END),
+  CONSTRAINT import_varying CHECK (CASE WHEN use_installed THEN true ELSE source_text::varbit(3) = expected_varying END),
+  CONSTRAINT import_varchar CHECK (CASE WHEN use_installed THEN true ELSE source_varchar::varbit(3) = expected_varying END),
+  CONSTRAINT import_resize CHECK (installed_bits::bit(3) = expected_fixed),
+  CONSTRAINT import_maximum CHECK (installed_bits::varbit(3) = expected_varying),
+  CONSTRAINT import_output CHECK (installed_bits::text = rendered_text),
+  CONSTRAINT import_selected CHECK ((CASE WHEN use_installed THEN installed_bits::bit(3) ELSE source_text::bit(3) END) = expected_fixed),
+  CONSTRAINT import_default CHECK (COALESCE(installed_bits::bit(3), source_text::bit(3)) = expected_fixed),
+  CONSTRAINT import_fixed_assignment CHECK (pg_catalog."bit"(flexible_bits, assignment_width, assignment_explicit) = expected_assignment),
+  CONSTRAINT import_varying_assignment CHECK (varbit(flexible_bits, assignment_width, assignment_explicit) = expected_assignment)
+);

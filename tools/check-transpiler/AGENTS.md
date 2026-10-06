@@ -32,6 +32,9 @@ change to the regex transpiler unless the regex engine itself changes.
   functions remain in the CHECK entry module and refer to operations through
   the schema namespace. Target operation names
   omit the `sql__pg_catalog__` source prefix while retaining the overload hash.
+- Resolve target module references by symbol identity. Local bindings may
+  shadow exported functions; declarations, field names, and literal contents
+  must retain their meanings when splitting files and adding namespaces.
 - Owned text uses Rust `String`, Go string, and TypeScript string. Accept only
   `String::new`, borrowed `to_owned`, owned `as_str`, Unicode `chars().collect`,
   and local mutable string `push(char)` / `push_str(&str)`. String length methods

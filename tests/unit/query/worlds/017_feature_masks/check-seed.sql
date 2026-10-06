@@ -241,3 +241,95 @@ VALUES (422, 1, X'A5', X'0F', X'A5', X'0F', X'05', X'AF', X'AA', X'5A', X'4A', X
 -- name: transform_null_masks
 INSERT INTO mask_transforms (id, profile_id, source_mask, filter_mask, flexible_mask, flexible_filter, recorded_intersection, recorded_union, recorded_exclusive, recorded_complement, recorded_left, recorded_right, shift_distance, use_fixed)
 VALUES (423, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: mask_import_truncates_explicit_casts
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (500, 1, '10101010', '10101010', B'10101010', B'101', B'101', B'101', B'101', '10101010', 3, false, false);
+
+-- name: mask_import_pads_fixed_casts_only
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (501, 1, '1', '1', NULL, B'1', B'100', B'1', B'1', NULL, 1, false, false);
+
+-- name: empty_mask_import_preserves_varying_width
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (502, 1, '', '', NULL, B'', B'000', B'', B'', NULL, 0, false, false);
+
+-- name: mask_import_decodes_hexadecimal
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (503, 1, 'xAf', 'XAF', X'AF', B'101', B'101', B'101', B'101', '10101111', 3, false, false);
+
+-- name: mask_import_decodes_binary_prefixes
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (504, 1, 'b01', 'B01', NULL, B'01', B'010', B'01', B'01', NULL, 2, false, false);
+
+-- name: mask_import_explicit_assignment_truncates
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (505, 1, '10101', '10101', NULL, B'10101', B'101', B'101', B'101', NULL, 3, true, false);
+
+-- name: mask_import_rejects_fixed_assignment_padding
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (506, 1, '1', '1', NULL, B'1', B'100', B'1', B'1', NULL, 3, false, false);
+
+-- name: mask_import_rejects_implicit_assignment_truncation
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (507, 1, '10101', '10101', NULL, B'10101', B'101', B'101', B'101', NULL, 3, false, false);
+
+-- name: mask_import_explicit_padding_differs_from_varying_coercion
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (508, 1, '1', '1', NULL, B'1', B'100', B'1', B'100', NULL, 3, true, false);
+
+-- name: mask_import_rejects_wrong_fixed_result
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (509, 1, '10101010', '10101010', B'10101010', B'101', B'100', B'101', B'101', '10101010', 3, false, false);
+
+-- name: mask_import_rejects_wrong_varying_result
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (510, 1, '10101010', '10101010', B'10101010', B'101', B'101', B'100', B'101', '10101010', 3, false, false);
+
+-- name: mask_import_rejects_wrong_text_output
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (511, 1, '10101010', '10101010', B'10101010', B'101', B'101', B'101', B'101', '101', 3, false, false);
+
+-- name: mask_import_rejects_wrong_assignment_result
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (512, 1, '10101010', '10101010', B'10101010', B'101', B'101', B'101', B'100', '10101010', 3, false, false);
+
+-- name: mask_import_rejects_malformed_binary_text
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (513, 1, '102', '101', NULL, B'101', B'101', B'101', B'101', NULL, 3, false, false);
+
+-- name: mask_import_rejects_malformed_hexadecimal_varchar
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (514, 1, '101', 'xG', NULL, B'101', B'101', B'101', B'101', NULL, 3, false, false);
+
+-- name: mask_import_does_not_trim_text_whitespace
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (515, 1, ' 101', '101', NULL, B'101', B'101', B'101', B'101', NULL, 3, false, false);
+
+-- name: mask_import_skips_malformed_text_through_installed_choice
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (516, 1, 'xG', '102', B'10101010', B'101', B'101', B'101', B'101', '10101010', 3, false, true);
+
+-- name: mask_import_unknown_choice_selects_text_arm
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (517, 1, 'xG', '101', B'10101010', B'101', B'101', B'101', B'101', '10101010', 3, false, NULL);
+
+-- name: mask_import_null_text_propagates
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (518, 1, NULL, NULL, B'10101010', B'101', B'101', B'101', B'101', '10101010', 3, false, false);
+
+-- name: mask_import_null_expected_values_propagate
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (519, 1, '101', '101', B'10101010', B'101', NULL, NULL, NULL, NULL, 3, false, false);
+
+-- name: mask_import_null_width_propagates
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (520, 1, '101', '101', B'10101010', B'101', B'101', B'101', B'101', '10101010', NULL, false, false);
+
+-- name: mask_import_null_explicit_flag_propagates
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (521, 1, '101', '101', B'10101010', B'101', B'101', B'101', B'101', '10101010', 3, NULL, false);
+
+-- name: mask_import_all_null_values_propagate
+INSERT INTO mask_imports (id, profile_id, source_text, source_varchar, installed_bits, flexible_bits, expected_fixed, expected_varying, expected_assignment, rendered_text, assignment_width, assignment_explicit, use_installed)
+VALUES (522, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);

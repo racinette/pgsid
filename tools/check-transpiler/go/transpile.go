@@ -157,7 +157,7 @@ func schemaFunctionName(name string) string {
 
 // qualifyModuleReferences replaces expression identifiers with selectors while
 // leaving declaration names, field names, and local bindings untouched.
-func qualifyModuleReferences(value reflect.Value, owned map[string]bool, module string) {
+func qualifyModuleReferences(value reflect.Value, owned map[*ast.Object]bool, module string) {
 	if !value.IsValid() {
 		return
 	}
@@ -167,14 +167,20 @@ func qualifyModuleReferences(value reflect.Value, owned map[string]bool, module 
 			return
 		}
 		if value.CanSet() {
-			if identifier, ok := value.Interface().(*ast.Ident); ok && owned[identifier.Name] {
-				value.Set(reflect.ValueOf(goSelect(goIdent(module), identifier.Name)))
+			if identifier, ok := value.Interface().(*ast.Ident); ok && owned[identifier.Obj] {
+				value.Set(reflect.ValueOf(&ast.SelectorExpr{
+					X:   &ast.Ident{Name: module, NamePos: identifier.NamePos},
+					Sel: identifier,
+				}))
 				return
 			}
 		}
 		qualifyModuleReferences(value.Elem(), owned, module)
 	case reflect.Pointer:
 		if !value.IsNil() {
+			if _, ok := value.Interface().(*ast.Ident); ok {
+				return
+			}
 			if pair, ok := value.Interface().(*ast.KeyValueExpr); ok {
 				qualifyModuleReferences(reflect.ValueOf(pair).Elem().FieldByName("Value"), owned, module)
 				return
@@ -193,6 +199,22 @@ func qualifyModuleReferences(value reflect.Value, owned map[string]bool, module 
 			qualifyModuleReferences(value.Index(index), owned, module)
 		}
 	}
+}
+
+func inspectModuleIdentifiers(node ast.Node, visit func(*ast.Ident)) {
+	ast.Inspect(node, func(node ast.Node) bool {
+		switch value := node.(type) {
+		case *ast.KeyValueExpr:
+			inspectModuleIdentifiers(value.Value, visit)
+			return false
+		case *ast.SelectorExpr:
+			inspectModuleIdentifiers(value.X, visit)
+			return false
+		case *ast.Ident:
+			visit(value)
+		}
+		return true
+	})
 }
 
 func opaqueStruct(value *node) bool {
@@ -544,6 +566,31 @@ func TranspileWithOptions(input []byte, options Options) (output []byte, err err
 		file.Decls = append(file.Decls, declarations...)
 		collectDeclarationNames(declarations, owned[item.Module])
 	}
+	var flat bytes.Buffer
+	var declarations []ast.Decl
+	for _, module := range moduleOrder {
+		declarations = append(declarations, files[module].Decls...)
+	}
+	if err := format.Node(&flat, fset, &ast.File{Name: goIdent("generated"), Decls: declarations}); err != nil {
+		return nil, err
+	}
+	bound, err := parser.ParseFile(fset, "bindings.go", flat.Bytes(), 0)
+	if err != nil {
+		return nil, err
+	}
+	objects := make(map[string]map[*ast.Object]bool)
+	offset := 0
+	for _, module := range moduleOrder {
+		length := len(files[module].Decls)
+		files[module].Decls = bound.Decls[offset : offset+length]
+		offset += length
+		objects[module] = make(map[*ast.Object]bool)
+		for name := range owned[module] {
+			if object := bound.Scope.Objects[name]; object != nil {
+				objects[module][object] = true
+			}
+		}
+	}
 	dependencies := make(map[string]map[string]bool)
 	for _, module := range moduleOrder {
 		dependencies[module] = make(map[string]bool)
@@ -553,11 +600,10 @@ func TranspileWithOptions(input []byte, options Options) (output []byte, err err
 			}
 			used := make(map[string]bool)
 			for _, declaration := range files[module].Decls {
-				ast.Inspect(declaration, func(node ast.Node) bool {
-					if identifier, ok := node.(*ast.Ident); ok && owned[owner][identifier.Name] {
+				inspectModuleIdentifiers(declaration, func(identifier *ast.Ident) {
+					if objects[owner][identifier.Obj] {
 						used[identifier.Name] = true
 					}
-					return true
 				})
 			}
 			if len(used) == 0 {
@@ -565,17 +611,17 @@ func TranspileWithOptions(input []byte, options Options) (output []byte, err err
 			}
 			dependencies[module][owner] = true
 			for name := range used {
+				object := bound.Scope.Objects[name]
 				exported := casedName(name, true)
 				if exported == name {
 					continue
 				}
 				for _, file := range files {
 					for _, declaration := range file.Decls {
-						ast.Inspect(declaration, func(node ast.Node) bool {
-							if identifier, ok := node.(*ast.Ident); ok && identifier.Name == name {
+						inspectModuleIdentifiers(declaration, func(identifier *ast.Ident) {
+							if identifier.Obj == object {
 								identifier.Name = exported
 							}
-							return true
 						})
 					}
 				}
@@ -597,7 +643,7 @@ func TranspileWithOptions(input []byte, options Options) (output []byte, err err
 				continue
 			}
 			for _, declaration := range file.Decls {
-				qualifyModuleReferences(reflect.ValueOf(declaration), owned[owner], packages[owner])
+				qualifyModuleReferences(reflect.ValueOf(declaration), objects[owner], packages[owner])
 			}
 			path := rootPath + "/" + packages[owner]
 			if owner == "checks" {

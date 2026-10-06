@@ -342,8 +342,14 @@ const SQL_ERROR_INVALID_REGEX: u32 = 3452591;
 const SQL_ERROR_INVALID_PARAMETER: u32 = 3452619;
 const SQL_ERROR_INVALID_TEXT_REPRESENTATION: u32 = 3484946;
 const SQL_ERROR_STRING_LENGTH_MISMATCH: u32 = 3452622;
+const SQL_ERROR_STRING_RIGHT_TRUNCATION: u32 = 3452545;
 
 pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
+    if error.state == SQL_ERROR_STRING_RIGHT_TRUNCATION {
+        return SqlErrorDescription {
+            message: "string data right truncation",
+        };
+    }
     if error.state == SQL_ERROR_STRING_LENGTH_MISMATCH {
         return SqlErrorDescription {
             message: "string data length mismatch",

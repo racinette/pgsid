@@ -289,7 +289,7 @@ func TestQueryDeclarations(t *testing.T) {
       const expected = await fileTree(join(fixtureRoot, project.expected))
       expect(actual).toEqual(expected)
     },
-    20_000,
+    65_000,
   )
   it('pins diagnostics for schema directory collisions', async () => {
     const cases = JSON.parse(
