@@ -639,6 +639,10 @@ describe('world CHECK INSERT parity', () => {
       ],
       ['network_resizes', ['resize_address', 'resize_subnet']],
       ['network_filters', ['filter_complement', 'filter_intersection', 'filter_union']],
+      [
+        'network_priorities',
+        ['priority_comparison', 'priority_larger', 'priority_smaller', 'priority_selected'],
+      ],
     ] as const) {
       for (const name of names) {
         const identity = `world_015_network_access.${table}.${name}`

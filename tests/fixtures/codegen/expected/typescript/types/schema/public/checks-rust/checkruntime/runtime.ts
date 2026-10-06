@@ -1088,33 +1088,53 @@ export function networkAddressWord(address: NetworkAddress, index: number): numb
     }
     return address.word7;
 }
+function networkAddressByte(address: NetworkAddress, index: number, high: boolean): number {
+    address = copyNetworkAddress(address);
+    index = langruntime.checkedIndex(index);
+    high = langruntime.checkedBool(high);
+    const word: number = networkAddressWord(address, index);
+    if (high) {
+        return langruntime.checkedSignedDivide(word, 256);
+    }
+    return langruntime.checkedSignedRemainder(word, 256);
+}
 export function networkPrefixCompare(left: NetworkAddress, right: NetworkAddress, bits: number): number {
     left = copyNetworkAddress(left);
     right = copyNetworkAddress(right);
     bits = langruntime.checkedI32(bits);
     let index: number = 0;
     let remaining: number = bits;
-    while (remaining > 0) {
-        let wordCount: number = remaining;
-        if (wordCount > 16) {
-            wordCount = langruntime.checkedI32(16);
+    let high: boolean = true;
+    while (remaining >= 8) {
+        const a: number = networkAddressByte(left, index, high);
+        const b: number = networkAddressByte(right, index, high);
+        if (!(a === b)) {
+            return langruntime.checkedSignedSubtract(a, b);
         }
+        remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, 8));
+        if (high) {
+            high = langruntime.checkedBool(false);
+        }
+        else {
+            high = langruntime.checkedBool(true);
+            index = langruntime.checkedAdd(index, 1);
+        }
+    }
+    if (remaining > 0) {
+        let padding: number = langruntime.checkedSignedSubtract(8, remaining);
         let divisor: number = 1;
-        let padding: number = langruntime.checkedSignedSubtract(16, wordCount);
         while (padding > 0) {
             divisor = langruntime.checkedI32(langruntime.checkedSignedMultiply(divisor, 2));
             padding = langruntime.checkedI32(langruntime.checkedSignedSubtract(padding, 1));
         }
-        const a: number = langruntime.checkedSignedDivide(networkAddressWord(left, index), divisor);
-        const b: number = langruntime.checkedSignedDivide(networkAddressWord(right, index), divisor);
+        const a: number = langruntime.checkedSignedDivide(networkAddressByte(left, index, high), divisor);
+        const b: number = langruntime.checkedSignedDivide(networkAddressByte(right, index, high), divisor);
         if (a < b) {
             return langruntime.checkedSignedNegate(1);
         }
         if (a > b) {
             return 1;
         }
-        remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, wordCount));
-        index = langruntime.checkedAdd(index, 1);
     }
     return 0;
 }

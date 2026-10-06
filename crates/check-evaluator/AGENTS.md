@@ -130,10 +130,14 @@ import them. Keep schema-only helpers with their callables.
   return 22023. Merge returns the smallest common network and rejects different
   families with 22023. Bitwise complement preserves the prefix; intersection and
   union use the longer input prefix, include host bits, and reject different
-  families with 22023. Output formatting remains separate callable work. Run
+  families with 22023. Direct comparison preserves PGlite's whole-byte differences
+  and prefix-length differences; partial-byte differences and family ordering use
+  signed unit results. Larger/smaller select by this comparator and choose the
+  second operand on ties. Output formatting remains separate callable work. Run
   `tests/sql-semantics/check-network.test.ts`,
   `tests/sql-semantics/check-network-functions.test.ts`,
-  `tests/sql-semantics/check-network-bitwise.test.ts`, and the network access
+  `tests/sql-semantics/check-network-bitwise.test.ts`,
+  `tests/sql-semantics/check-network-order.test.ts`, and the network access
   world for native/target and public INSERT parity.
 - Date payloads are signed day offsets from 2000-01-01. The signed int4
   minimum and maximum represent negative and positive infinity. Finite payloads

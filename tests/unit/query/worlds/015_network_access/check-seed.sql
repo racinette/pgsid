@@ -271,3 +271,60 @@ INSERT INTO network_filters (id, address, address_mask, complemented_address, in
 
 -- name: filter_skips_mixed_family_error
 INSERT INTO network_filters (id, address, address_mask, intersected_address, united_address, skip_filter) VALUES (100, '10.1.2.3', '::1', '10.1.2.3', '10.1.2.3', true);
+
+-- name: priority_prefix_before_host
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '10.0.0.255/8', '10.0.0.1/32', -24, '10.0.0.1/32', '10.0.0.255/8', true, '10.0.0.1/32');
+
+-- name: priority_reverse_prefix_difference
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '10.0.0.1/32', '10.0.0.255/8', 24, '10.0.0.1/32', '10.0.0.255/8', false, '10.0.0.255/8');
+
+-- name: priority_whole_byte_difference
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '0.0.0.0', '255.255.255.255', -255, '255.255.255.255', '0.0.0.0', true, '255.255.255.255');
+
+-- name: priority_ipv6_whole_byte_difference
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '::ffff', '::', 255, '::ffff', '::', false, '::');
+
+-- name: priority_partial_byte_difference
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '192.0.0.0/2', '128.0.0.0/2', 1, '192.0.0.0/2', '128.0.0.0/2', true, '192.0.0.0/2');
+
+-- name: priority_ipv6_partial_byte_difference
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '2001:db8:0:0:8000::/65', '2001:db8::/65', 1, '2001:db8:0:0:8000::/65', '2001:db8::/65', false, '2001:db8::/65');
+
+-- name: priority_zero_prefix_host_difference
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '10.0.0.1/0', '10.0.0.255/0', -254, '10.0.0.255/0', '10.0.0.1/0', true, '10.0.0.255/0');
+
+-- name: priority_ipv6_full_prefix_difference
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '::1/0', '::1/128', -128, '::1/128', '::1/0', false, '::1/0');
+
+-- name: priority_ipv4_before_ipv6
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '255.255.255.255', '::', -1, '::', '255.255.255.255', true, '::');
+
+-- name: priority_ipv6_after_ipv4
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '::', '255.255.255.255', 1, '::', '255.255.255.255', false, '255.255.255.255');
+
+-- name: priority_equal_addresses
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '2001:db8::1', '2001:db8:0:0:0:0:0:1', 0, '2001:db8::1', '2001:db8::1', true, '2001:db8::1');
+
+-- name: priority_incorrect_normalized_comparison
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '0.0.0.0', '255.255.255.255', -1, '255.255.255.255', '0.0.0.0', true, '255.255.255.255');
+
+-- name: priority_incorrect_larger
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '10.0.0.1', '10.0.0.2', -1, '10.0.0.1', '10.0.0.1', false, '10.0.0.1');
+
+-- name: priority_incorrect_smaller
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '10.0.0.1', '10.0.0.2', -1, '10.0.0.2', '10.0.0.2', true, '10.0.0.2');
+
+-- name: priority_incorrect_selected
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '10.0.0.1', '10.0.0.2', -1, '10.0.0.2', '10.0.0.1', true, '10.0.0.1');
+
+-- name: priority_null_first
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, NULL, '10.0.0.2', -1, '10.0.0.2', '10.0.0.1', true, '10.0.0.2');
+
+-- name: priority_null_second
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '10.0.0.1', NULL, -1, '10.0.0.2', '10.0.0.1', false, '10.0.0.1');
+
+-- name: priority_null_outputs
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '10.0.0.1', '10.0.0.2', NULL, NULL, NULL, true, NULL);
+
+-- name: priority_null_preference_selects_smaller
+INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '10.0.0.1', '10.0.0.2', -1, '10.0.0.2', '10.0.0.1', NULL, '10.0.0.1');
