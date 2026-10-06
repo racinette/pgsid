@@ -812,6 +812,41 @@ describe('world CHECK INSERT parity', () => {
       expect(measured.error, identity).toBeGreaterThan(0)
       expect(measured.unknown, identity).toBe(0)
     }
+    for (const name of [
+      'fingerprint_wire',
+      'fingerprint_hash',
+      'fingerprint_seeded',
+      'fingerprint_zero',
+      'fingerprint_version',
+      'fingerprint_parsed_hash',
+      'fingerprint_parsed_wire',
+      'fingerprint_parsed_version',
+      'fingerprint_lazy_parse',
+    ]) {
+      const identity = `world_016_device_identifiers.identifier_fingerprints.${name}`
+      const measured = coverage.get(identity)!
+      expect(measured.true, identity).toBeGreaterThan(0)
+      expect(measured.false, identity).toBeGreaterThan(0)
+      expect(measured.null, identity).toBeGreaterThan(0)
+      expect(measured.unknown, identity).toBe(0)
+    }
+    for (const name of ['fingerprint_version_null', 'fingerprint_version_default']) {
+      const identity = `world_016_device_identifiers.identifier_fingerprints.${name}`
+      const measured = coverage.get(identity)!
+      expect(measured.true, identity).toBeGreaterThan(0)
+      expect(measured.false, identity).toBeGreaterThan(0)
+      expect(measured.null, identity).toBe(0)
+      expect(measured.unknown, identity).toBe(0)
+    }
+    for (const name of [
+      'fingerprint_parsed_hash',
+      'fingerprint_parsed_wire',
+      'fingerprint_parsed_version',
+      'fingerprint_lazy_parse',
+    ]) {
+      const identity = `world_016_device_identifiers.identifier_fingerprints.${name}`
+      expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
+    }
     const constraints = [...coverage.values()].sort((left, right) =>
       left.constraint.localeCompare(right.constraint),
     )

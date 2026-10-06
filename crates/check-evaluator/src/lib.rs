@@ -34,6 +34,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/mac.rs");
     include!("operations/pg_catalog/mac_output.rs");
     include!("operations/pg_catalog/uuid.rs");
+    include!("operations/pg_catalog/uuid_output.rs");
     include!("operations/pg_catalog/network_output.rs");
     include!("operations/pg_catalog/binary.rs");
     include!("operations/pg_catalog/integer.rs");

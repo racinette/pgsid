@@ -4679,3 +4679,111 @@ func UuidToText(input checkruntime.UuidValue) checkruntime.TextValue {
 	}
 	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
 }
+func uuidByte(value checkruntime.Uuid, index int) int {
+	index = langruntime.CheckedI32(index)
+	word := checkruntime.UuidWord(value, langruntime.CheckedSignedDivide(index, 2))
+	if langruntime.CheckedSignedRemainder(index, 2) == 0 {
+		return langruntime.CheckedSignedDivide(word, 256)
+	}
+	return langruntime.CheckedSignedRemainder(word, 256)
+}
+func uuidHashBytes(value checkruntime.Uuid) []checkruntime.HashByte {
+	bytes := []checkruntime.HashByte{}
+	index := 0
+	for index < 16 {
+		byte := uuidByte(value, index)
+		langruntime.CheckedAdd(len(bytes), 1)
+		bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: int64(langruntime.CheckedI32(byte))}))
+		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+	}
+	return bytes
+}
+func UuidSend32nf(input checkruntime.UuidValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.UuidValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.UuidValue{Kind: checkruntime.UuidValueUnknown}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	if input == (checkruntime.UuidValue{Kind: checkruntime.UuidValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.UuidValueValue {
+		value := input.Value
+		output := ""
+		index := 0
+		for index < 16 {
+			byte := uuidByte(value, index)
+			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, byte))
+			index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+		}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func UuidHash8nnn(input checkruntime.UuidValue) checkruntime.Int4Value {
+	if input.Kind == checkruntime.UuidValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.UuidValue{Kind: checkruntime.UuidValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.UuidValue{Kind: checkruntime.UuidValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.UuidValueValue {
+		value := input.Value
+		bytes := uuidHashBytes(value)
+		hash := checkruntime.HashBytes32(bytes)
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: hash}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func UuidHashExtendedI59z(left checkruntime.UuidValue, right checkruntime.Int8Value) checkruntime.Int8Value {
+	if left.Kind == checkruntime.UuidValueError {
+		error := left.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int8ValueError {
+		error := right.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if left == (checkruntime.UuidValue{Kind: checkruntime.UuidValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if left == (checkruntime.UuidValue{Kind: checkruntime.UuidValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if left.Kind == checkruntime.UuidValueValue {
+		value := left.Value
+		if right.Kind == checkruntime.Int8ValueValue {
+			seed := right.Value
+			bytes := uuidHashBytes(value)
+			hash := checkruntime.HashBytes64(bytes, seed)
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: hash}
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func UuidExtractVersionYdwe(input checkruntime.UuidValue) checkruntime.Int2Value {
+	if input.Kind == checkruntime.UuidValueError {
+		error := input.Error
+		return checkruntime.Int2Value{Kind: checkruntime.Int2ValueError, Error: error}
+	}
+	if input == (checkruntime.UuidValue{Kind: checkruntime.UuidValueUnknown}) {
+		return checkruntime.Int2Value{Kind: checkruntime.Int2ValueUnknown}
+	}
+	if input == (checkruntime.UuidValue{Kind: checkruntime.UuidValueNull}) {
+		return checkruntime.Int2Value{Kind: checkruntime.Int2ValueNull}
+	}
+	if input.Kind == checkruntime.UuidValueValue {
+		value := input.Value
+		if langruntime.CheckedSignedDivide(value.Word4, 16384) != 2 {
+			return checkruntime.Int2Value{Kind: checkruntime.Int2ValueNull}
+		}
+		return checkruntime.Int2Value{Kind: checkruntime.Int2ValueValue, Value: langruntime.CheckedSignedDivide(value.Word3, 4096)}
+	}
+	return checkruntime.Int2Value{Kind: checkruntime.Int2ValueUnknown}
+}

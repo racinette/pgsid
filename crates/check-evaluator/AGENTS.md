@@ -174,9 +174,13 @@ import them. Keep schema-only helpers with their callables.
   first unequal octet's difference. Text output uses lowercase canonical groups.
   I/O casts use maintained Rust helpers rather than exposing cstring callables.
   Domains, literals, NULL tests, CASE, COALESCE, IN and BETWEEN share the wrapper.
-  UUID hashing, send and extraction require separate callable slices; random
-  generation requires a volatility assessment. Run
-  `tests/sql-semantics/check-uuid.test.ts` and the device identifiers world.
+  Binary send emits exactly sixteen bytes. Hashes reuse PostgreSQL Jenkins mixing
+  over those bytes and preserve every seed bit; catalog widening supplies bigint
+  seed arguments. Version extraction returns the version nibble for RFC variants
+  whose top two bits are 10, and SQL NULL for all other variants. Timestamp
+  extraction requires a separate callable slice; random generation requires a
+  volatility assessment. Run `tests/sql-semantics/check-uuid.test.ts`,
+  `tests/sql-semantics/check-uuid-output.test.ts`, and the device identifiers world.
 - Text payloads own Rust `String`, lowered to immutable strings in both targets.
   Builders mutate only local strings through character or borrowed-text appends.
   Explicit wrapper clones preserve Rust ownership when generated branches reuse
