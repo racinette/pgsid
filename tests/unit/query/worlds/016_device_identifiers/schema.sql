@@ -59,3 +59,21 @@ CREATE TABLE identifier_fingerprints (
   CONSTRAINT fingerprint_parsed_version CHECK (uuid_extract_version(raw_identifier::uuid) = recorded_version),
   CONSTRAINT fingerprint_lazy_parse CHECK (CASE WHEN skip_parse THEN true ELSE uuid_hash_extended(raw_identifier::uuid, seed) = recorded_seeded END)
 );
+
+CREATE TABLE identifier_events (
+  id integer PRIMARY KEY,
+  identifier installed_identifier,
+  raw_identifier text,
+  recorded_at timestamptz,
+  floor_at timestamptz,
+  ceiling_at timestamptz,
+  prefer_recorded boolean,
+  skip_parse boolean,
+  CONSTRAINT event_recorded CHECK (uuid_extract_timestamp(identifier) = recorded_at),
+  CONSTRAINT event_timestamp_null CHECK ((uuid_extract_timestamp(identifier) IS NULL) = (recorded_at IS NULL)),
+  CONSTRAINT event_timestamp_default CHECK (COALESCE(uuid_extract_timestamp(identifier), '-infinity'::timestamptz) = COALESCE(recorded_at, '-infinity'::timestamptz)),
+  CONSTRAINT event_window CHECK (uuid_extract_timestamp(identifier) BETWEEN floor_at AND ceiling_at),
+  CONSTRAINT event_selected CHECK ((CASE WHEN prefer_recorded THEN recorded_at ELSE uuid_extract_timestamp(identifier) END) = recorded_at),
+  CONSTRAINT event_parsed CHECK (uuid_extract_timestamp(raw_identifier::uuid) = recorded_at),
+  CONSTRAINT event_lazy_parse CHECK (CASE WHEN skip_parse THEN true ELSE uuid_extract_timestamp(raw_identifier::uuid) = recorded_at END)
+);

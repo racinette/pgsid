@@ -847,6 +847,32 @@ describe('world CHECK INSERT parity', () => {
       const identity = `world_016_device_identifiers.identifier_fingerprints.${name}`
       expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
     }
+    for (const name of [
+      'event_recorded',
+      'event_window',
+      'event_selected',
+      'event_parsed',
+      'event_lazy_parse',
+    ]) {
+      const identity = `world_016_device_identifiers.identifier_events.${name}`
+      const measured = coverage.get(identity)!
+      expect(measured.true, identity).toBeGreaterThan(0)
+      expect(measured.false, identity).toBeGreaterThan(0)
+      expect(measured.null, identity).toBeGreaterThan(0)
+      expect(measured.unknown, identity).toBe(0)
+    }
+    for (const name of ['event_timestamp_null', 'event_timestamp_default']) {
+      const identity = `world_016_device_identifiers.identifier_events.${name}`
+      const measured = coverage.get(identity)!
+      expect(measured.true, identity).toBeGreaterThan(0)
+      expect(measured.false, identity).toBeGreaterThan(0)
+      expect(measured.null, identity).toBe(0)
+      expect(measured.unknown, identity).toBe(0)
+    }
+    for (const name of ['event_parsed', 'event_lazy_parse']) {
+      const identity = `world_016_device_identifiers.identifier_events.${name}`
+      expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
+    }
     const constraints = [...coverage.values()].sort((left, right) =>
       left.constraint.localeCompare(right.constraint),
     )
