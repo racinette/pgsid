@@ -112,3 +112,27 @@ CREATE TABLE network_priorities (
   CONSTRAINT priority_smaller CHECK (network_smaller(first_address, second_address) = smaller_address),
   CONSTRAINT priority_selected CHECK ((CASE WHEN prefer_larger THEN network_larger(first_address, second_address) ELSE network_smaller(first_address, second_address) END) = selected_address)
 );
+
+CREATE TABLE network_outputs (
+  id integer PRIMARY KEY,
+  address inet,
+  subnet cidr,
+  hash_seed bigint,
+  host_text text COLLATE "C",
+  full_text text COLLATE "C",
+  short_text text COLLATE "C",
+  subnet_text text COLLATE "C",
+  address_bytes bytea,
+  subnet_bytes bytea,
+  hash_value integer,
+  seeded_hash bigint,
+  CONSTRAINT output_host CHECK (host(address) = host_text),
+  CONSTRAINT output_text CHECK (text(address) = full_text),
+  CONSTRAINT output_abbrev CHECK (abbrev(address) = short_text),
+  CONSTRAINT output_cidr_abbrev CHECK (abbrev(subnet) = subnet_text),
+  CONSTRAINT output_inet_send CHECK (inet_send(address) = address_bytes),
+  CONSTRAINT output_cidr_send CHECK (cidr_send(subnet) = subnet_bytes),
+  CONSTRAINT output_hash CHECK (hashinet(address) = hash_value),
+  CONSTRAINT output_hash_extended CHECK (hashinetextended(address, hash_seed) = seeded_hash),
+  CONSTRAINT output_literal CHECK (address IS NULL OR inet_send(address) <> '\x'::bytea)
+);

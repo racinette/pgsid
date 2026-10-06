@@ -114,7 +114,7 @@ pub fn sql__pg_catalog__text_lt__zinq(left: TextValue, right: TextValue) -> Bool
     }
     if let TextValue::Value(left_value) = left {
         if let TextValue::Value(right_value) = right {
-            return BoolValue::Value(text_codepoint_before(left_value, right_value));
+            return BoolValue::Value(text_codepoint_before(left_value.as_str(), right_value.as_str()));
         }
     }
     BoolValue::Unknown
@@ -136,7 +136,7 @@ pub fn sql__pg_catalog__text_le__wb3z(left: TextValue, right: TextValue) -> Bool
     if let TextValue::Value(left_value) = left {
         if let TextValue::Value(right_value) = right {
             return BoolValue::Value(
-                text_codepoint_before(left_value, right_value) || left_value == right_value,
+                text_codepoint_before(left_value.as_str(), right_value.as_str()) || left_value == right_value,
             );
         }
     }
@@ -158,7 +158,7 @@ pub fn sql__pg_catalog__text_gt__rb7n(left: TextValue, right: TextValue) -> Bool
     }
     if let TextValue::Value(left_value) = left {
         if let TextValue::Value(right_value) = right {
-            return BoolValue::Value(text_codepoint_before(right_value, left_value));
+            return BoolValue::Value(text_codepoint_before(right_value.as_str(), left_value.as_str()));
         }
     }
     BoolValue::Unknown
@@ -179,7 +179,7 @@ pub fn sql__pg_catalog__starts_with__6ctf(text: TextValue, prefix: TextValue) ->
     }
     if let TextValue::Value(text_value) = text {
         if let TextValue::Value(prefix_value) = prefix {
-            return BoolValue::Value(text_has_prefix(text_value, prefix_value));
+            return BoolValue::Value(text_has_prefix(text_value.as_str(), prefix_value.as_str()));
         }
     }
     BoolValue::Unknown
@@ -201,7 +201,7 @@ pub fn sql__pg_catalog__text_ge__t8pg(left: TextValue, right: TextValue) -> Bool
     if let TextValue::Value(left_value) = left {
         if let TextValue::Value(right_value) = right {
             return BoolValue::Value(
-                text_codepoint_before(right_value, left_value) || left_value == right_value,
+                text_codepoint_before(right_value.as_str(), left_value.as_str()) || left_value == right_value,
             );
         }
     }

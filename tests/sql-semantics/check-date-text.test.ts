@@ -129,7 +129,7 @@ describe('Rust text-to-date CHECK casts', () => {
   it('emits casts and literals through the same shared Rust parser', () => {
     const cast = prepare('raw::date = anchor')
     expect(cast.checks[0]!.kind).toBe('supported')
-    expect(cast.evaluatorSource).toContain('date_from_text(input_raw)')
+    expect(cast.evaluatorSource).toContain('date_from_text(input_raw.clone())')
     expect(prepare("anchor = DATE '2000-01-01'").evaluatorSource).toContain('date_from_text(')
     expect(prepare('raw::date IS NULL').checks[0]!.kind).toBe('supported')
     expect(prepare('flag::date IS NULL').evaluatorSource).not.toContain('date_from_text(')

@@ -182,7 +182,7 @@ pub fn sql__pg_catalog__timezone__9nbk(zone: TextValue, value: TimestampValue) -
             return make_timestamptz_value(microseconds);
         }
         if let TextValue::Value(name) = zone {
-            let offset = timezone_offset(name, microseconds, true);
+            let offset = timezone_offset(name.as_str(), microseconds, true);
             if let Int4Value::Error(error) = offset {
                 return TimestamptzValue::Error(error);
             }
@@ -213,7 +213,7 @@ pub fn sql__pg_catalog__timezone__blof(zone: TextValue, value: TimestamptzValue)
             return make_timestamp_value(microseconds);
         }
         if let TextValue::Value(name) = zone {
-            let offset = timezone_offset(name, microseconds, false);
+            let offset = timezone_offset(name.as_str(), microseconds, false);
             if let Int4Value::Error(error) = offset {
                 return TimestampValue::Error(error);
             }

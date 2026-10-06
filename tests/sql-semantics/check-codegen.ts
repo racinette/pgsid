@@ -122,6 +122,24 @@ export function renderGoCheckTests(
         statements.push(go.assign([go.selector(field, 'V')], [dateValue], '='))
         continue
       }
+      if (value instanceof Uint8Array) {
+        const bytes = go.ident(goName(column.name) + 'Bytes')
+        statements.push(
+          go.assign(
+            [bytes],
+            [
+              go.composite(
+                go.slice(go.ident('byte')),
+                [...value].map((byte) => go.number(byte)),
+              ),
+            ],
+          ),
+        )
+        statements.push(
+          go.assign([go.selector(field, 'V')], [column.notNull ? bytes : go.address(bytes)], '='),
+        )
+        continue
+      }
       jsonUsed = true
       const encoded =
         typeof value === 'bigint'

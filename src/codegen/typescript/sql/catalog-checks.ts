@@ -129,6 +129,7 @@ export function renderTypescriptSchemaCheckArtifacts(
               'Int4Value',
               'Int8Value',
               'NetworkValue',
+              'ByteaValue',
               'NumericValue',
               'DateValue',
               'TimestampValue',
@@ -140,32 +141,35 @@ export function renderTypescriptSchemaCheckArtifacts(
           )
             throw new Error(`Unsupported TypeScript Rust CHECK input: ${item.rustType}`)
           const helper =
-            item.rustType === 'NetworkValue'
-              ? 'checkRustNetwork'
-              : item.rustType === 'NumericValue'
-                ? 'checkRustNumeric'
-                : item.rustType === 'DateValue'
-                  ? 'checkRustDate'
-                  : item.rustType === 'TimestampValue'
-                    ? 'checkRustTimestamp'
-                    : item.rustType === 'TimestamptzValue'
-                      ? 'checkRustTimestamptz'
-                      : item.nullness
-                        ? 'checkRustNullness'
-                        : item.enum
-                          ? 'checkRustEnum'
-                          : item.rustType === 'Int2Value'
-                            ? 'checkRustInt2'
-                            : item.rustType === 'Int4Value'
-                              ? 'checkRustInt4'
-                              : item.rustType === 'Int8Value'
-                                ? 'checkRustInt8'
-                                : item.rustType === 'TextValue'
-                                  ? 'checkRustText'
-                                  : 'checkRustBool'
+            item.rustType === 'ByteaValue'
+              ? 'checkRustBytea'
+              : item.rustType === 'NetworkValue'
+                ? 'checkRustNetwork'
+                : item.rustType === 'NumericValue'
+                  ? 'checkRustNumeric'
+                  : item.rustType === 'DateValue'
+                    ? 'checkRustDate'
+                    : item.rustType === 'TimestampValue'
+                      ? 'checkRustTimestamp'
+                      : item.rustType === 'TimestamptzValue'
+                        ? 'checkRustTimestamptz'
+                        : item.nullness
+                          ? 'checkRustNullness'
+                          : item.enum
+                            ? 'checkRustEnum'
+                            : item.rustType === 'Int2Value'
+                              ? 'checkRustInt2'
+                              : item.rustType === 'Int4Value'
+                                ? 'checkRustInt4'
+                                : item.rustType === 'Int8Value'
+                                  ? 'checkRustInt8'
+                                  : item.rustType === 'TextValue'
+                                    ? 'checkRustText'
+                                    : 'checkRustBool'
           rustInputAdapters.add(helper)
           if (
             item.rustType !== 'NetworkValue' &&
+            item.rustType !== 'ByteaValue' &&
             item.rustType !== 'NumericValue' &&
             item.rustType !== 'DateValue' &&
             item.rustType !== 'TimestampValue' &&
@@ -500,6 +504,15 @@ function checkRustTimestamptz(row: object, name: string): _checkRust.Timestamptz
   if (value.kind === 'Unknown' || value.kind === 'Null' || value.kind === 'Error') return value as _checkRust.TimestamptzValue
   if (value.kind === 'Value' && 'value' in value && typeof value.value === 'bigint' && value.value >= -9223372036854775808n && value.value <= 9223372036854775807n) return _checkRust.makeTimestamptzValue(value.value)
   return _checkRust.timestamptzUnknown()
+}
+function checkRustBytea(row: object, name: string): _checkRust.ByteaValue {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.byteaUnknown()
+  if (value === null) return _checkRust.byteaNull()
+  if (!(value instanceof Uint8Array)) return _checkRust.byteaUnknown()
+  let hex = ''
+  for (const byte of value) hex += byte.toString(16).padStart(2, '0')
+  return _checkRust.makeByteaValue(hex)
 }
 function checkRustNetwork(row: object, name: string): _checkRust.NetworkValue {
   const value = Reflect.get(row, name)

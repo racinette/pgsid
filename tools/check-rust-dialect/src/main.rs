@@ -55,6 +55,9 @@ fn type_name(ty: &Type) -> Result<&'static str, String> {
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("NumericValue") => {
             Ok("NumericValue")
         }
+        Type::Path(path) if path.qself.is_none() && path.path.is_ident("ByteaValue") => {
+            Ok("ByteaValue")
+        }
         Type::Path(path) if path.qself.is_none() && path.path.is_ident("TextValue") => {
             Ok("TextValue")
         }
@@ -146,6 +149,21 @@ fn int8_literal(expr: &Expr) -> bool {
             .is_ok_and(|value| value <= i64::MAX as u64 + u64::from(negative))
 }
 
+fn owned_clone(expr: &Expr, bindings: &BTreeMap<String, bool>) -> Result<(), String> {
+    let Expr::MethodCall(call) = expr else {
+        return Err("expected an immutable value clone".into());
+    };
+    if !call.attrs.is_empty()
+        || call.turbofish.is_some()
+        || call.method != "clone"
+        || !call.args.is_empty()
+        || !bindings.contains_key(&identifier(&call.receiver)?)
+    {
+        return Err("expected a bound immutable value clone".into());
+    }
+    Ok(())
+}
+
 fn call(expr: &Expr, bindings: &BTreeMap<String, bool>) -> Result<(), String> {
     let Expr::Call(call) = expr else {
         return Err("expected a direct function call".into());
@@ -167,6 +185,7 @@ fn call(expr: &Expr, bindings: &BTreeMap<String, bool>) -> Result<(), String> {
         match arg {
             _ if int8_literal(arg) => {}
             Expr::Path(_) if bindings.contains_key(&identifier(arg)?) => {}
+            Expr::MethodCall(_) => owned_clone(arg, bindings)?,
             Expr::Lit(_) if positive_literal(arg).is_some() => {}
             Expr::Unary(_) if negative_literal(arg).is_some() => {}
             Expr::Binary(_) if int4_minimum(arg) => {}
@@ -186,6 +205,9 @@ fn value(expr: &Expr, bindings: &BTreeMap<String, bool>) -> Result<(), String> {
             return Ok(());
         }
         return Err(format!("unbound identifier {name}"));
+    }
+    if matches!(expr, Expr::MethodCall(_)) {
+        return owned_clone(expr, bindings);
     }
     call(expr, bindings)
 }
@@ -330,6 +352,7 @@ fn check_function(function: &syn::ItemFn, names: &mut BTreeSet<String>) -> Resul
                     | "NetworkValue"
                     | "NumericValue"
                     | "TextValue"
+                    | "ByteaValue"
                     | "BoolValue"
             )
         {
@@ -399,6 +422,15 @@ pub fn evaluate_check(amount: Int4Value, flag: BoolValue) -> CheckOutcome {
     result
 }
 "#;
+
+    #[test]
+    fn accepts_bound_value_clones_only() {
+        let source = "pub fn evaluate_check(input: TextValue) -> CheckOutcome { let saved = input.clone(); let nullness = text_is_null(saved.clone()); let outcome = check_from_bool(nullness); outcome }";
+        assert!(check_source(source).is_ok());
+        for expression in ["missing.clone()", "input.clone(1)", "input.to_owned()"] {
+            assert!(check_source(&source.replace("input.clone()", expression)).is_err());
+        }
+    }
 
     #[test]
     fn accepts_int8_values_and_exact_literals() {

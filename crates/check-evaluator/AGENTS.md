@@ -37,7 +37,7 @@ import them. Keep schema-only helpers with their callables.
   binder resolves identity and explicit overrides. Ordering and other
   collation-sensitive operations require C. Text ordering compares Unicode
   scalars. Keep nondeterministic and conflicting collations unknown.
-- Varchar values share borrowed text; binary relabels preserve their contents.
+- Varchar values share owned text; binary relabels preserve their contents.
   Char comparisons use the same wrapper and ignore only trailing ASCII spaces.
   Equality accepts deterministic collations; ordering requires C. Inputs are
   already SQL-coerced. Raw bounded varchar and char query parameters defer until
@@ -133,12 +133,26 @@ import them. Keep schema-only helpers with their callables.
   families with 22023. Direct comparison preserves PGlite's whole-byte differences
   and prefix-length differences; partial-byte differences and family ordering use
   signed unit results. Larger/smaller select by this comparator and choose the
-  second operand on ties. Output formatting remains separate callable work. Run
+  second operand on ties. Hashes preserve PostgreSQL Jenkins mixing and seeded
+  unsigned wrapping. Text output follows distinct host, cast, INET abbreviation,
+  and CIDR abbreviation formatting. Binary send emits the PostgreSQL family,
+  prefix, type flag, address size, and network-order bytes. Run
   `tests/sql-semantics/check-network.test.ts`,
   `tests/sql-semantics/check-network-functions.test.ts`,
   `tests/sql-semantics/check-network-bitwise.test.ts`,
-  `tests/sql-semantics/check-network-order.test.ts`, and the network access
+  `tests/sql-semantics/check-network-order.test.ts`,
+  `tests/sql-semantics/check-network-hash.test.ts`,
+  `tests/sql-semantics/check-network-output.test.ts`, and the network access
   world for native/target and public INSERT parity.
+- Text payloads own Rust `String`, lowered to immutable strings in both targets.
+  Builders mutate only local strings through character or borrowed-text appends.
+  Explicit wrapper clones preserve Rust ownership when generated branches reuse
+  text; target immutable wrappers need no copy helpers.
+- Bytea payloads own canonical lowercase hexadecimal strings without a prefix.
+  Public row adapters convert Go byte slices and TypeScript Uint8Array values;
+  Rust validates hexadecimal constructor inputs. SQL literals accept hex input.
+  Binary send, equality/inequality, NULL tests, CASE, and COALESCE use this wrapper.
+  Other binary operations and runtime text casts require separate slices.
 - Date payloads are signed day offsets from 2000-01-01. The signed int4
   minimum and maximum represent negative and positive infinity. Finite payloads
   range from -2451545 through 2145031948. Public CHECK inputs use this portable
@@ -202,4 +216,5 @@ import them. Keep schema-only helpers with their callables.
 - If a callable needs a new value representation, primitive, SQL error, or
   Rust syntax rule, surface that as a separate foundation change before
   porting more functions that depend on it. The CHECK transpiler's own `AGENTS.md`
-  requires user approval before adding syntax to its Rust dialect.
+  requires a concrete CHECK expression, focused parser checks, and behavior
+  tests in both targets before adding syntax.

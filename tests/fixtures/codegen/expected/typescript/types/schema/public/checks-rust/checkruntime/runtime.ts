@@ -1,23 +1,15 @@
 import * as langruntime from "../langruntime/runtime.js";
 export type Int2Value = {
-    kind: "Unknown";
+    readonly kind: "Unknown";
 } | {
-    kind: "Null";
+    readonly kind: "Null";
 } | {
-    kind: "Value";
-    value: number;
+    readonly kind: "Value";
+    readonly value: number;
 } | {
-    kind: "Error";
-    value: SqlError;
+    readonly kind: "Error";
+    readonly value: SqlError;
 };
-export function copyInt2Value(value: Int2Value): Int2Value {
-    switch (value.kind) {
-        case "Unknown": return { kind: "Unknown" };
-        case "Null": return { kind: "Null" };
-        case "Value": return { kind: "Value", value: langruntime.checkedI32(value.value) };
-        case "Error": return { kind: "Error", value: value.value };
-    }
-}
 function equalInt2Value(left: Int2Value, right: Int2Value): boolean {
     if (left.kind !== right.kind)
         return false;
@@ -41,7 +33,6 @@ export function makeInt2Value(value: number): Int2Value {
     return { kind: "Value", value: value };
 }
 export function int2IsNull(value: Int2Value): BoolValue {
-    value = copyInt2Value(value);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -59,7 +50,6 @@ export function int2FromCaseGuard(value: CheckOutcome): Int2Value {
     return { kind: "Unknown" };
 }
 export function int2ToInt4(value: Int2Value): Int4Value {
-    value = copyInt2Value(value);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -74,7 +64,6 @@ export function int2ToInt4(value: Int2Value): Int4Value {
     return { kind: "Unknown" };
 }
 export function int2ToInt8(value: Int2Value): Int8Value {
-    value = copyInt2Value(value);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -90,24 +79,16 @@ export function int2ToInt8(value: Int2Value): Int8Value {
     return { kind: "Unknown" };
 }
 export type Int4Value = {
-    kind: "Unknown";
+    readonly kind: "Unknown";
 } | {
-    kind: "Null";
+    readonly kind: "Null";
 } | {
-    kind: "Value";
-    value: number;
+    readonly kind: "Value";
+    readonly value: number;
 } | {
-    kind: "Error";
-    value: SqlError;
+    readonly kind: "Error";
+    readonly value: SqlError;
 };
-export function copyInt4Value(value: Int4Value): Int4Value {
-    switch (value.kind) {
-        case "Unknown": return { kind: "Unknown" };
-        case "Null": return { kind: "Null" };
-        case "Value": return { kind: "Value", value: langruntime.checkedI32(value.value) };
-        case "Error": return { kind: "Error", value: value.value };
-    }
-}
 export function equalInt4Value(left: Int4Value, right: Int4Value): boolean {
     if (left.kind !== right.kind)
         return false;
@@ -143,24 +124,16 @@ function timestampMicrosecondsValid(value: bigint): boolean {
     return value === -9223372036854775808n || value === 9223372036854775807n || (value >= -211813488000000000n && value < 9223371331200000000n);
 }
 export type TimestampValue = {
-    kind: "Unknown";
+    readonly kind: "Unknown";
 } | {
-    kind: "Null";
+    readonly kind: "Null";
 } | {
-    kind: "Value";
-    value: bigint;
+    readonly kind: "Value";
+    readonly value: bigint;
 } | {
-    kind: "Error";
-    value: SqlError;
+    readonly kind: "Error";
+    readonly value: SqlError;
 };
-export function copyTimestampValue(value: TimestampValue): TimestampValue {
-    switch (value.kind) {
-        case "Unknown": return { kind: "Unknown" };
-        case "Null": return { kind: "Null" };
-        case "Value": return { kind: "Value", value: langruntime.checkedI64(value.value) };
-        case "Error": return { kind: "Error", value: value.value };
-    }
-}
 export function equalTimestampValue(left: TimestampValue, right: TimestampValue): boolean {
     if (left.kind !== right.kind)
         return false;
@@ -184,7 +157,6 @@ export function makeTimestampValue(value: bigint): TimestampValue {
     return { kind: "Value", value: value };
 }
 export function timestampIsNull(value: TimestampValue): BoolValue {
-    value = copyTimestampValue(value);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -202,24 +174,16 @@ export function timestampFromCaseGuard(value: CheckOutcome): TimestampValue {
     return { kind: "Unknown" };
 }
 export type TimestamptzValue = {
-    kind: "Unknown";
+    readonly kind: "Unknown";
 } | {
-    kind: "Null";
+    readonly kind: "Null";
 } | {
-    kind: "Value";
-    value: bigint;
+    readonly kind: "Value";
+    readonly value: bigint;
 } | {
-    kind: "Error";
-    value: SqlError;
+    readonly kind: "Error";
+    readonly value: SqlError;
 };
-export function copyTimestamptzValue(value: TimestamptzValue): TimestamptzValue {
-    switch (value.kind) {
-        case "Unknown": return { kind: "Unknown" };
-        case "Null": return { kind: "Null" };
-        case "Value": return { kind: "Value", value: langruntime.checkedI64(value.value) };
-        case "Error": return { kind: "Error", value: value.value };
-    }
-}
 export function equalTimestamptzValue(left: TimestamptzValue, right: TimestamptzValue): boolean {
     if (left.kind !== right.kind)
         return false;
@@ -243,7 +207,6 @@ export function makeTimestamptzValue(value: bigint): TimestamptzValue {
     return { kind: "Value", value: value };
 }
 export function timestamptzIsNull(value: TimestamptzValue): BoolValue {
-    value = copyTimestamptzValue(value);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -261,24 +224,16 @@ export function timestamptzFromCaseGuard(value: CheckOutcome): TimestamptzValue 
     return { kind: "Unknown" };
 }
 export type EnumValue = {
-    kind: "Unknown";
+    readonly kind: "Unknown";
 } | {
-    kind: "Null";
+    readonly kind: "Null";
 } | {
-    kind: "Value";
-    value: number;
+    readonly kind: "Value";
+    readonly value: number;
 } | {
-    kind: "Error";
-    value: SqlError;
+    readonly kind: "Error";
+    readonly value: SqlError;
 };
-export function copyEnumValue(value: EnumValue): EnumValue {
-    switch (value.kind) {
-        case "Unknown": return { kind: "Unknown" };
-        case "Null": return { kind: "Null" };
-        case "Value": return { kind: "Value", value: langruntime.checkedI32(value.value) };
-        case "Error": return { kind: "Error", value: value.value };
-    }
-}
 export function equalEnumValue(left: EnumValue, right: EnumValue): boolean {
     if (left.kind !== right.kind)
         return false;
@@ -299,7 +254,6 @@ export function makeEnumValue(value: number): EnumValue {
     return { kind: "Value", value: value };
 }
 export function enumIsNull(value: EnumValue): BoolValue {
-    value = copyEnumValue(value);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -317,24 +271,16 @@ export function enumFromCaseGuard(value: CheckOutcome): EnumValue {
     return { kind: "Unknown" };
 }
 export type DateValue = {
-    kind: "Unknown";
+    readonly kind: "Unknown";
 } | {
-    kind: "Null";
+    readonly kind: "Null";
 } | {
-    kind: "Value";
-    value: number;
+    readonly kind: "Value";
+    readonly value: number;
 } | {
-    kind: "Error";
-    value: SqlError;
+    readonly kind: "Error";
+    readonly value: SqlError;
 };
-export function copyDateValue(value: DateValue): DateValue {
-    switch (value.kind) {
-        case "Unknown": return { kind: "Unknown" };
-        case "Null": return { kind: "Null" };
-        case "Value": return { kind: "Value", value: langruntime.checkedI32(value.value) };
-        case "Error": return { kind: "Error", value: value.value };
-    }
-}
 export function equalDateValue(left: DateValue, right: DateValue): boolean {
     if (left.kind !== right.kind)
         return false;
@@ -360,7 +306,6 @@ export function makeDateValue(value: number): DateValue {
     return { kind: "Value", value: value };
 }
 export function dateIsNull(value: DateValue): BoolValue {
-    value = copyDateValue(value);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -378,24 +323,16 @@ export function dateFromCaseGuard(value: CheckOutcome): DateValue {
     return { kind: "Unknown" };
 }
 export type TextValue = {
-    kind: "Unknown";
+    readonly kind: "Unknown";
 } | {
-    kind: "Null";
+    readonly kind: "Null";
 } | {
-    kind: "Value";
-    value: string;
+    readonly kind: "Value";
+    readonly value: string;
 } | {
-    kind: "Error";
-    value: SqlError;
+    readonly kind: "Error";
+    readonly value: SqlError;
 };
-export function copyTextValue(value: TextValue): TextValue {
-    switch (value.kind) {
-        case "Unknown": return { kind: "Unknown" };
-        case "Null": return { kind: "Null" };
-        case "Value": return { kind: "Value", value: langruntime.checkedString(value.value) };
-        case "Error": return { kind: "Error", value: value.value };
-    }
-}
 export function equalTextValue(left: TextValue, right: TextValue): boolean {
     if (left.kind !== right.kind)
         return false;
@@ -519,24 +456,16 @@ export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
     return { message: "SQL evaluation failed" };
 }
 export type BoolValue = {
-    kind: "Unknown";
+    readonly kind: "Unknown";
 } | {
-    kind: "Null";
+    readonly kind: "Null";
 } | {
-    kind: "Value";
-    value: boolean;
+    readonly kind: "Value";
+    readonly value: boolean;
 } | {
-    kind: "Error";
-    value: SqlError;
+    readonly kind: "Error";
+    readonly value: SqlError;
 };
-export function copyBoolValue(value: BoolValue): BoolValue {
-    switch (value.kind) {
-        case "Unknown": return { kind: "Unknown" };
-        case "Null": return { kind: "Null" };
-        case "Value": return { kind: "Value", value: langruntime.checkedBool(value.value) };
-        case "Error": return { kind: "Error", value: value.value };
-    }
-}
 export function equalBoolValue(left: BoolValue, right: BoolValue): boolean {
     if (left.kind !== right.kind)
         return false;
@@ -547,7 +476,6 @@ export function equalBoolValue(left: BoolValue, right: BoolValue): boolean {
     return true;
 }
 export function checkFromBool(value: BoolValue): CheckOutcome {
-    value = copyBoolValue(value);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -567,7 +495,6 @@ export function checkUnknown(): CheckOutcome {
     return { kind: "Unknown" };
 }
 export function int4IsNull(value: Int4Value): BoolValue {
-    value = copyInt4Value(value);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -588,7 +515,6 @@ export function int8IsNull(value: Int8Value): BoolValue {
     return { kind: "Value", value: equalInt8Value(value, { kind: "Null" }) };
 }
 export function textIsNull(value: TextValue): BoolValue {
-    value = copyTextValue(value);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -599,7 +525,6 @@ export function textIsNull(value: TextValue): BoolValue {
     return { kind: "Value", value: equalTextValue(value, { kind: "Null" }) };
 }
 export function boolIsNull(value: BoolValue): BoolValue {
-    value = copyBoolValue(value);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -610,7 +535,6 @@ export function boolIsNull(value: BoolValue): BoolValue {
     return { kind: "Value", value: equalBoolValue(value, { kind: "Null" }) };
 }
 export function boolNotValue(value: BoolValue): BoolValue {
-    value = copyBoolValue(value);
     if (value.kind === "Value") {
         const result: boolean = langruntime.checkedBool(value.value);
         if (result) {
@@ -655,24 +579,16 @@ export function textFromCaseGuard(value: CheckOutcome): TextValue {
     return { kind: "Unknown" };
 }
 export type NumericValue = {
-    kind: "Unknown";
+    readonly kind: "Unknown";
 } | {
-    kind: "Null";
+    readonly kind: "Null";
 } | {
-    kind: "Value";
-    value: string;
+    readonly kind: "Value";
+    readonly value: string;
 } | {
-    kind: "Error";
-    value: SqlError;
+    readonly kind: "Error";
+    readonly value: SqlError;
 };
-export function copyNumericValue(value: NumericValue): NumericValue {
-    switch (value.kind) {
-        case "Unknown": return { kind: "Unknown" };
-        case "Null": return { kind: "Null" };
-        case "Value": return { kind: "Value", value: langruntime.checkedString(value.value) };
-        case "Error": return { kind: "Error", value: value.value };
-    }
-}
 export function equalNumericValue(left: NumericValue, right: NumericValue): boolean {
     if (left.kind !== right.kind)
         return false;
@@ -689,7 +605,6 @@ export function numericNull(): NumericValue {
     return { kind: "Null" };
 }
 export function numericIsNull(value: NumericValue): BoolValue {
-    value = copyNumericValue(value);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -715,42 +630,31 @@ export function makeNumericValue(value: string): NumericValue {
     return { kind: "Value", value: value };
 }
 export interface NetworkAddress {
-    family: number;
-    prefix: number;
-    word0: number;
-    word1: number;
-    word2: number;
-    word3: number;
-    word4: number;
-    word5: number;
-    word6: number;
-    word7: number;
-}
-export function copyNetworkAddress(value: NetworkAddress): NetworkAddress {
-    return { family: langruntime.checkedIndex(value.family), prefix: langruntime.checkedI32(value.prefix), word0: langruntime.checkedI32(value.word0), word1: langruntime.checkedI32(value.word1), word2: langruntime.checkedI32(value.word2), word3: langruntime.checkedI32(value.word3), word4: langruntime.checkedI32(value.word4), word5: langruntime.checkedI32(value.word5), word6: langruntime.checkedI32(value.word6), word7: langruntime.checkedI32(value.word7) };
+    readonly family: number;
+    readonly prefix: number;
+    readonly word0: number;
+    readonly word1: number;
+    readonly word2: number;
+    readonly word3: number;
+    readonly word4: number;
+    readonly word5: number;
+    readonly word6: number;
+    readonly word7: number;
 }
 function equalNetworkAddress(left: NetworkAddress, right: NetworkAddress): boolean {
     return left.family === right.family && left.prefix === right.prefix && left.word0 === right.word0 && left.word1 === right.word1 && left.word2 === right.word2 && left.word3 === right.word3 && left.word4 === right.word4 && left.word5 === right.word5 && left.word6 === right.word6 && left.word7 === right.word7;
 }
 export type NetworkValue = {
-    kind: "Unknown";
+    readonly kind: "Unknown";
 } | {
-    kind: "Null";
+    readonly kind: "Null";
 } | {
-    kind: "Value";
-    value: NetworkAddress;
+    readonly kind: "Value";
+    readonly value: NetworkAddress;
 } | {
-    kind: "Error";
-    value: SqlError;
+    readonly kind: "Error";
+    readonly value: SqlError;
 };
-export function copyNetworkValue(value: NetworkValue): NetworkValue {
-    switch (value.kind) {
-        case "Unknown": return { kind: "Unknown" };
-        case "Null": return { kind: "Null" };
-        case "Value": return { kind: "Value", value: copyNetworkAddress(value.value) };
-        case "Error": return { kind: "Error", value: value.value };
-    }
-}
 export function equalNetworkValue(left: NetworkValue, right: NetworkValue): boolean {
     if (left.kind !== right.kind)
         return false;
@@ -767,7 +671,6 @@ export function networkNull(): NetworkValue {
     return { kind: "Null" };
 }
 export function networkIsNull(value: NetworkValue): BoolValue {
-    value = copyNetworkValue(value);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -790,7 +693,7 @@ export function makeNetworkValue(value: string): NetworkValue {
     if (chars.length > 256) {
         return { kind: "Unknown" };
     }
-    const parsed: NetworkValue = copyNetworkValue(networkParse(value, false));
+    const parsed: NetworkValue = networkParse(value, false);
     if (parsed.kind === "Error") {
         return { kind: "Unknown" };
     }
@@ -802,11 +705,75 @@ export function makeCidrValue(value: string): NetworkValue {
     if (chars.length > 256) {
         return { kind: "Unknown" };
     }
-    const parsed: NetworkValue = copyNetworkValue(networkParse(value, true));
+    const parsed: NetworkValue = networkParse(value, true);
     if (parsed.kind === "Error") {
         return { kind: "Unknown" };
     }
     return parsed;
+}
+export type ByteaValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: string;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalByteaValue(left: ByteaValue, right: ByteaValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function byteaUnknown(): ByteaValue {
+    return { kind: "Unknown" };
+}
+export function byteaNull(): ByteaValue {
+    return { kind: "Null" };
+}
+export function byteaIsNull(value: ByteaValue): BoolValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalByteaValue(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: equalByteaValue(value, { kind: "Null" }) };
+}
+export function byteaFromCaseGuard(value: CheckOutcome): ByteaValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function makeByteaValue(value: string): ByteaValue {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    let even: boolean = true;
+    let output: string = "";
+    let index: number = 0;
+    while (index < chars.length) {
+        const character: string = langruntime.asciiLowercase(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+        const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+        if ((code < 48 || code > 57) && (code < 97 || code > 102)) {
+            return { kind: "Unknown" };
+        }
+        output = output + langruntime.checkedChar(character);
+        even = langruntime.checkedBool(even === false);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (even === false) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: output };
 }
 export interface NumericLayout {
     valid: boolean;
@@ -1063,7 +1030,6 @@ function networkDigit(ch: string): number {
     return 16;
 }
 export function networkAddressWord(address: NetworkAddress, index: number): number {
-    address = copyNetworkAddress(address);
     index = langruntime.checkedIndex(index);
     if (index === 0) {
         return address.word0;
@@ -1088,8 +1054,7 @@ export function networkAddressWord(address: NetworkAddress, index: number): numb
     }
     return address.word7;
 }
-function networkAddressByte(address: NetworkAddress, index: number, high: boolean): number {
-    address = copyNetworkAddress(address);
+export function networkAddressByte(address: NetworkAddress, index: number, high: boolean): number {
     index = langruntime.checkedIndex(index);
     high = langruntime.checkedBool(high);
     const word: number = networkAddressWord(address, index);
@@ -1099,8 +1064,6 @@ function networkAddressByte(address: NetworkAddress, index: number, high: boolea
     return langruntime.checkedSignedRemainder(word, 256);
 }
 export function networkPrefixCompare(left: NetworkAddress, right: NetworkAddress, bits: number): number {
-    left = copyNetworkAddress(left);
-    right = copyNetworkAddress(right);
     bits = langruntime.checkedI32(bits);
     let index: number = 0;
     let remaining: number = bits;
@@ -1398,7 +1361,7 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
     while (words.length < 8) {
         langruntime.pushStruct(words, { value: 0 }, copyNetworkWord);
     }
-    const address: NetworkAddress = copyNetworkAddress({ family: family, prefix: prefix, word0: langruntime.indexStruct(words, langruntime.checkedIndex(0), copyNetworkWord).value, word1: langruntime.indexStruct(words, langruntime.checkedIndex(1), copyNetworkWord).value, word2: langruntime.indexStruct(words, langruntime.checkedIndex(2), copyNetworkWord).value, word3: langruntime.indexStruct(words, langruntime.checkedIndex(3), copyNetworkWord).value, word4: langruntime.indexStruct(words, langruntime.checkedIndex(4), copyNetworkWord).value, word5: langruntime.indexStruct(words, langruntime.checkedIndex(5), copyNetworkWord).value, word6: langruntime.indexStruct(words, langruntime.checkedIndex(6), copyNetworkWord).value, word7: langruntime.indexStruct(words, langruntime.checkedIndex(7), copyNetworkWord).value });
+    const address: NetworkAddress = { family: family, prefix: prefix, word0: langruntime.indexStruct(words, langruntime.checkedIndex(0), copyNetworkWord).value, word1: langruntime.indexStruct(words, langruntime.checkedIndex(1), copyNetworkWord).value, word2: langruntime.indexStruct(words, langruntime.checkedIndex(2), copyNetworkWord).value, word3: langruntime.indexStruct(words, langruntime.checkedIndex(3), copyNetworkWord).value, word4: langruntime.indexStruct(words, langruntime.checkedIndex(4), copyNetworkWord).value, word5: langruntime.indexStruct(words, langruntime.checkedIndex(5), copyNetworkWord).value, word6: langruntime.indexStruct(words, langruntime.checkedIndex(6), copyNetworkWord).value, word7: langruntime.indexStruct(words, langruntime.checkedIndex(7), copyNetworkWord).value };
     if (cidr) {
         let remaining: number = prefix;
         let wordIndex: number = 0;
@@ -1424,10 +1387,9 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
             wordIndex = langruntime.checkedAdd(wordIndex, 1);
         }
     }
-    return { kind: "Value", value: copyNetworkAddress(address) };
+    return { kind: "Value", value: address };
 }
 export function networkFromText(input: TextValue): NetworkValue {
-    input = copyTextValue(input);
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -1445,7 +1407,6 @@ export function networkFromText(input: TextValue): NetworkValue {
     return { kind: "Unknown" };
 }
 export function cidrFromText(input: TextValue): NetworkValue {
-    input = copyTextValue(input);
     if (input.kind === "Error") {
         const error: SqlError = input.value;
         return { kind: "Error", value: error };
@@ -1461,6 +1422,272 @@ export function cidrFromText(input: TextValue): NetworkValue {
         return networkParse(value, true);
     }
     return { kind: "Unknown" };
+}
+export interface HashByte {
+    value: bigint;
+}
+export function copyHashByte(value: HashByte): HashByte {
+    return { value: langruntime.checkedI64(value.value) };
+}
+function equalHashByte(left: HashByte, right: HashByte): boolean {
+    return left.value === right.value;
+}
+interface HashState {
+    a: bigint;
+    b: bigint;
+    c: bigint;
+}
+function copyHashState(value: HashState): HashState {
+    return { a: langruntime.checkedI64(value.a), b: langruntime.checkedI64(value.b), c: langruntime.checkedI64(value.c) };
+}
+function equalHashState(left: HashState, right: HashState): boolean {
+    return left.a === right.a && left.b === right.b && left.c === right.c;
+}
+function hashWrap(value: bigint): bigint {
+    value = langruntime.checkedI64(value);
+    let result: bigint = langruntime.checkedI64Remainder(value, 4294967296n);
+    if (result < 0n) {
+        result = langruntime.checkedI64(langruntime.checkedI64Add(result, 4294967296n));
+    }
+    return result;
+}
+function hashXor(left: bigint, right: bigint): bigint {
+    left = langruntime.checkedI64(left);
+    right = langruntime.checkedI64(right);
+    let a: bigint = left;
+    let b: bigint = right;
+    let place: bigint = 1n;
+    let result: bigint = 0n;
+    while (place < 4294967296n) {
+        if (!(langruntime.checkedI64Remainder(a, 2n) === langruntime.checkedI64Remainder(b, 2n))) {
+            result = langruntime.checkedI64(langruntime.checkedI64Add(result, place));
+        }
+        a = langruntime.checkedI64(langruntime.checkedI64Divide(a, 2n));
+        b = langruntime.checkedI64(langruntime.checkedI64Divide(b, 2n));
+        place = langruntime.checkedI64(langruntime.checkedI64Multiply(place, 2n));
+    }
+    return result;
+}
+function hashRotate(value: bigint, bits: number): bigint {
+    value = langruntime.checkedI64(value);
+    bits = langruntime.checkedI32(bits);
+    let multiplier: bigint = 1n;
+    let divisor: bigint = 4294967296n;
+    let remaining: number = bits;
+    while (remaining > 0) {
+        multiplier = langruntime.checkedI64(langruntime.checkedI64Multiply(multiplier, 2n));
+        divisor = langruntime.checkedI64(langruntime.checkedI64Divide(divisor, 2n));
+        remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, 1));
+    }
+    return langruntime.checkedI64Add(langruntime.checkedI64Remainder(langruntime.checkedI64Multiply(value, multiplier), 4294967296n), langruntime.checkedI64Divide(value, divisor));
+}
+function hashMix(state: HashState): HashState {
+    state = copyHashState(state);
+    let a: bigint = state.a;
+    let b: bigint = state.b;
+    let c: bigint = state.c;
+    a = langruntime.checkedI64(hashWrap(langruntime.checkedI64Subtract(a, c)));
+    const rotated0: bigint = hashRotate(c, 4);
+    a = langruntime.checkedI64(hashXor(a, rotated0));
+    c = langruntime.checkedI64(hashWrap(langruntime.checkedI64Add(c, b)));
+    b = langruntime.checkedI64(hashWrap(langruntime.checkedI64Subtract(b, a)));
+    const rotated1: bigint = hashRotate(a, 6);
+    b = langruntime.checkedI64(hashXor(b, rotated1));
+    a = langruntime.checkedI64(hashWrap(langruntime.checkedI64Add(a, c)));
+    c = langruntime.checkedI64(hashWrap(langruntime.checkedI64Subtract(c, b)));
+    const rotated2: bigint = hashRotate(b, 8);
+    c = langruntime.checkedI64(hashXor(c, rotated2));
+    b = langruntime.checkedI64(hashWrap(langruntime.checkedI64Add(b, a)));
+    a = langruntime.checkedI64(hashWrap(langruntime.checkedI64Subtract(a, c)));
+    const rotated3: bigint = hashRotate(c, 16);
+    a = langruntime.checkedI64(hashXor(a, rotated3));
+    c = langruntime.checkedI64(hashWrap(langruntime.checkedI64Add(c, b)));
+    b = langruntime.checkedI64(hashWrap(langruntime.checkedI64Subtract(b, a)));
+    const rotated4: bigint = hashRotate(a, 19);
+    b = langruntime.checkedI64(hashXor(b, rotated4));
+    a = langruntime.checkedI64(hashWrap(langruntime.checkedI64Add(a, c)));
+    c = langruntime.checkedI64(hashWrap(langruntime.checkedI64Subtract(c, b)));
+    const rotated5: bigint = hashRotate(b, 4);
+    c = langruntime.checkedI64(hashXor(c, rotated5));
+    b = langruntime.checkedI64(hashWrap(langruntime.checkedI64Add(b, a)));
+    return { a: a, b: b, c: c };
+}
+function hashFinal(state: HashState): HashState {
+    state = copyHashState(state);
+    let a: bigint = state.a;
+    let b: bigint = state.b;
+    let c: bigint = state.c;
+    c = langruntime.checkedI64(hashXor(c, b));
+    const rotated0: bigint = hashRotate(b, 14);
+    c = langruntime.checkedI64(hashWrap(langruntime.checkedI64Subtract(c, rotated0)));
+    a = langruntime.checkedI64(hashXor(a, c));
+    const rotated1: bigint = hashRotate(c, 11);
+    a = langruntime.checkedI64(hashWrap(langruntime.checkedI64Subtract(a, rotated1)));
+    b = langruntime.checkedI64(hashXor(b, a));
+    const rotated2: bigint = hashRotate(a, 25);
+    b = langruntime.checkedI64(hashWrap(langruntime.checkedI64Subtract(b, rotated2)));
+    c = langruntime.checkedI64(hashXor(c, b));
+    const rotated3: bigint = hashRotate(b, 16);
+    c = langruntime.checkedI64(hashWrap(langruntime.checkedI64Subtract(c, rotated3)));
+    a = langruntime.checkedI64(hashXor(a, c));
+    const rotated4: bigint = hashRotate(c, 4);
+    a = langruntime.checkedI64(hashWrap(langruntime.checkedI64Subtract(a, rotated4)));
+    b = langruntime.checkedI64(hashXor(b, a));
+    const rotated5: bigint = hashRotate(a, 14);
+    b = langruntime.checkedI64(hashWrap(langruntime.checkedI64Subtract(b, rotated5)));
+    c = langruntime.checkedI64(hashXor(c, b));
+    const rotated6: bigint = hashRotate(b, 24);
+    c = langruntime.checkedI64(hashWrap(langruntime.checkedI64Subtract(c, rotated6)));
+    return { a: a, b: b, c: c };
+}
+function hashBytesState(bytes: HashByte[], seed: bigint): HashState {
+    bytes = langruntime.checkedStructs(bytes, copyHashByte);
+    seed = langruntime.checkedI64(seed);
+    let length: bigint = 0n;
+    let scan: number = 0;
+    while (scan < bytes.length) {
+        length = langruntime.checkedI64(langruntime.checkedI64Add(length, 1n));
+        scan = langruntime.checkedAdd(scan, 1);
+    }
+    const initial: bigint = langruntime.checkedI64Add(langruntime.checkedI64Add(2654435769n, length), 3923095n);
+    let stateA: bigint = initial;
+    let stateB: bigint = initial;
+    let stateC: bigint = initial;
+    if (!(seed === 0n)) {
+        const low: bigint = hashWrap(seed);
+        let high: bigint = langruntime.checkedI64Divide((langruntime.checkedI64Subtract(seed, low)), 4294967296n);
+        if (high < 0n) {
+            high = langruntime.checkedI64(langruntime.checkedI64Add(high, 4294967296n));
+        }
+        const a: bigint = hashWrap(langruntime.checkedI64Add(stateA, high));
+        const b: bigint = hashWrap(langruntime.checkedI64Add(stateB, low));
+        const mixed: HashState = copyHashState(hashMix({ a: a, b: b, c: stateC }));
+        stateA = langruntime.checkedI64(mixed.a);
+        stateB = langruntime.checkedI64(mixed.b);
+        stateC = langruntime.checkedI64(mixed.c);
+    }
+    let index: number = 0;
+    let remaining: bigint = length;
+    while (remaining >= 12n) {
+        let a: bigint = stateA;
+        let b: bigint = stateB;
+        let c: bigint = stateC;
+        let position: number = 0;
+        let place: bigint = 1n;
+        while (position < 12) {
+            const value: bigint = langruntime.checkedI64Multiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(index), copyHashByte).value, place);
+            if (position < 4) {
+                a = langruntime.checkedI64(hashWrap(langruntime.checkedI64Add(a, value)));
+            }
+            else if (position < 8) {
+                b = langruntime.checkedI64(hashWrap(langruntime.checkedI64Add(b, value)));
+            }
+            else {
+                c = langruntime.checkedI64(hashWrap(langruntime.checkedI64Add(c, value)));
+            }
+            position = langruntime.checkedAdd(position, 1);
+            index = langruntime.checkedAdd(index, 1);
+            place = langruntime.checkedI64(langruntime.checkedI64Multiply(place, 256n));
+            if (position === 4 || position === 8) {
+                place = langruntime.checkedI64(1n);
+            }
+        }
+        const mixed: HashState = copyHashState(hashMix({ a: a, b: b, c: c }));
+        stateA = langruntime.checkedI64(mixed.a);
+        stateB = langruntime.checkedI64(mixed.b);
+        stateC = langruntime.checkedI64(mixed.c);
+        remaining = langruntime.checkedI64(langruntime.checkedI64Subtract(remaining, 12n));
+    }
+    let a: bigint = stateA;
+    let b: bigint = stateB;
+    let c: bigint = stateC;
+    let position: number = 0;
+    let place: bigint = 1n;
+    while (index < bytes.length) {
+        const value: bigint = langruntime.checkedI64Multiply(langruntime.indexStruct(bytes, langruntime.checkedIndex(index), copyHashByte).value, place);
+        if (position < 4) {
+            a = langruntime.checkedI64(hashWrap(langruntime.checkedI64Add(a, value)));
+        }
+        else if (position < 8) {
+            b = langruntime.checkedI64(hashWrap(langruntime.checkedI64Add(b, value)));
+        }
+        else {
+            c = langruntime.checkedI64(hashWrap(langruntime.checkedI64Add(c, value)));
+        }
+        position = langruntime.checkedAdd(position, 1);
+        index = langruntime.checkedAdd(index, 1);
+        place = langruntime.checkedI64(langruntime.checkedI64Multiply(place, 256n));
+        if (position === 4) {
+            place = langruntime.checkedI64(1n);
+        }
+        if (position === 8) {
+            place = langruntime.checkedI64(256n);
+        }
+    }
+    return hashFinal({ a: a, b: b, c: c });
+}
+export function hashBytes32(bytes: HashByte[]): number {
+    bytes = langruntime.checkedStructs(bytes, copyHashByte);
+    const state: HashState = copyHashState(hashBytesState(bytes, 0n));
+    return Number(BigInt.asIntN(32, langruntime.checkedI64(state.c)));
+}
+export function hashBytes64(bytes: HashByte[], seed: bigint): bigint {
+    bytes = langruntime.checkedStructs(bytes, copyHashByte);
+    seed = langruntime.checkedI64(seed);
+    const state: HashState = copyHashState(hashBytesState(bytes, seed));
+    let high: bigint = state.b;
+    if (high >= 2147483648n) {
+        high = langruntime.checkedI64(langruntime.checkedI64Subtract(high, 4294967296n));
+    }
+    return langruntime.checkedI64Add(langruntime.checkedI64Multiply(high, 4294967296n), state.c);
+}
+export function textNumber(value: number, base: number): string {
+    value = langruntime.checkedI32(value);
+    base = langruntime.checkedI32(base);
+    const digits: string[] = Array.from("0123456789abcdef");
+    let reversed: string[] = [];
+    let remaining: number = value;
+    if (remaining === 0) {
+        langruntime.pushChar(reversed, "0");
+    }
+    while (remaining > 0) {
+        let digit: number = langruntime.checkedSignedRemainder(remaining, base);
+        let index: number = 0;
+        while (digit > 0) {
+            index = langruntime.checkedAdd(index, 1);
+            digit = langruntime.checkedI32(langruntime.checkedSignedSubtract(digit, 1));
+        }
+        langruntime.pushChar(reversed, langruntime.indexChar(digits, langruntime.checkedIndex(index)));
+        remaining = langruntime.checkedI32(langruntime.checkedSignedDivide(remaining, base));
+    }
+    let output: string = "";
+    let position: number = reversed.length;
+    while (position > 0) {
+        position = langruntime.checkedIndex(langruntime.checkedSubtract(position, 1));
+        output = output + langruntime.checkedChar(langruntime.indexChar(reversed, langruntime.checkedIndex(position)));
+    }
+    return output;
+}
+export function byteaAppendByte(value: string, byte: number): string {
+    value = langruntime.checkedString(value);
+    byte = langruntime.checkedI32(byte);
+    const digits: string[] = Array.from("0123456789abcdef");
+    let high: number = langruntime.checkedSignedDivide(byte, 16);
+    let low: number = langruntime.checkedSignedRemainder(byte, 16);
+    let highIndex: number = 0;
+    let lowIndex: number = 0;
+    while (high > 0) {
+        highIndex = langruntime.checkedAdd(highIndex, 1);
+        high = langruntime.checkedI32(langruntime.checkedSignedSubtract(high, 1));
+    }
+    while (low > 0) {
+        lowIndex = langruntime.checkedAdd(lowIndex, 1);
+        low = langruntime.checkedI32(langruntime.checkedSignedSubtract(low, 1));
+    }
+    let output: string = value;
+    output = output + langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(highIndex)));
+    output = output + langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(lowIndex)));
+    return output;
 }
 const dateFieldOverflow = 3452552;
 const invalidDateText = 3452551;
@@ -1503,7 +1730,6 @@ function dateTextDigit(value: string): number {
     return langruntime.checkedSignedNegate(1);
 }
 export function dateFromText(value: TextValue): DateValue {
-    value = copyTextValue(value);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
         return { kind: "Error", value: error };
@@ -1621,7 +1847,7 @@ export function dateFromYmd(year: number, month: number, day: number): DateValue
     year = langruntime.checkedI32(year);
     month = langruntime.checkedI32(month);
     day = langruntime.checkedI32(day);
-    const days: Int4Value = copyInt4Value(calendarDaysFromYmd(year, month, day));
+    const days: Int4Value = calendarDaysFromYmd(year, month, day);
     if (days.kind === "Error") {
         const error: SqlError = days.value;
         return { kind: "Error", value: error };
@@ -1731,7 +1957,7 @@ function timestampCalendarMicroseconds(year: number, month: number, day: number,
     if (offsetSeconds < langruntime.checkedSignedNegate(57599) || offsetSeconds > 57599) {
         return { kind: "Error", value: { state: invalidTimestampZone } };
     }
-    const days: Int4Value = copyInt4Value(calendarDaysFromYmd(year, month, day));
+    const days: Int4Value = calendarDaysFromYmd(year, month, day);
     if (days.kind === "Error") {
         const error: SqlError = days.value;
         return { kind: "Error", value: error };
@@ -1756,7 +1982,6 @@ function timestampCalendarMicroseconds(year: number, month: number, day: number,
     return { kind: "Unknown" };
 }
 function parseTimestampText(value: TextValue, withTimezone: boolean): Int8Value {
-    value = copyTextValue(value);
     withTimezone = langruntime.checkedBool(withTimezone);
     if (value.kind === "Error") {
         const error: SqlError = value.value;
@@ -1997,7 +2222,6 @@ export function timestampFromCalendar(year: number, month: number, day: number, 
     return timestampFromMicroseconds(parsed);
 }
 export function timestampFromText(value: TextValue): TimestampValue {
-    value = copyTextValue(value);
     const parsed: Int8Value = parseTimestampText(value, false);
     return timestampFromMicroseconds(parsed);
 }
@@ -2028,7 +2252,6 @@ export function timestamptzFromCalendar(year: number, month: number, day: number
     return timestamptzFromMicroseconds(parsed);
 }
 export function timestamptzFromText(value: TextValue): TimestamptzValue {
-    value = copyTextValue(value);
     const parsed: Int8Value = parseTimestampText(value, true);
     return timestamptzFromMicroseconds(parsed);
 }

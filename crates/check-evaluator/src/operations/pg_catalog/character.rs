@@ -51,7 +51,7 @@ pub fn sql__pg_catalog__bpchareq__npys(left: TextValue, right: TextValue) -> Boo
     }
     if let TextValue::Value(left_value) = left {
         if let TextValue::Value(right_value) = right {
-            let comparison = bpchar_codepoint_compare(left_value, right_value);
+            let comparison = bpchar_codepoint_compare(left_value.as_str(), right_value.as_str());
             return BoolValue::Value(comparison == 0);
         }
     }
@@ -73,7 +73,7 @@ pub fn sql__pg_catalog__bpcharge__o6oj(left: TextValue, right: TextValue) -> Boo
     }
     if let TextValue::Value(left_value) = left {
         if let TextValue::Value(right_value) = right {
-            let comparison = bpchar_codepoint_compare(left_value, right_value);
+            let comparison = bpchar_codepoint_compare(left_value.as_str(), right_value.as_str());
             return BoolValue::Value(comparison >= 0);
         }
     }
@@ -95,7 +95,7 @@ pub fn sql__pg_catalog__bpchargt__kxc4(left: TextValue, right: TextValue) -> Boo
     }
     if let TextValue::Value(left_value) = left {
         if let TextValue::Value(right_value) = right {
-            let comparison = bpchar_codepoint_compare(left_value, right_value);
+            let comparison = bpchar_codepoint_compare(left_value.as_str(), right_value.as_str());
             return BoolValue::Value(comparison > 0);
         }
     }
@@ -117,7 +117,7 @@ pub fn sql__pg_catalog__bpcharle__0rch(left: TextValue, right: TextValue) -> Boo
     }
     if let TextValue::Value(left_value) = left {
         if let TextValue::Value(right_value) = right {
-            let comparison = bpchar_codepoint_compare(left_value, right_value);
+            let comparison = bpchar_codepoint_compare(left_value.as_str(), right_value.as_str());
             return BoolValue::Value(comparison <= 0);
         }
     }
@@ -139,7 +139,7 @@ pub fn sql__pg_catalog__bpcharlt__qrb5(left: TextValue, right: TextValue) -> Boo
     }
     if let TextValue::Value(left_value) = left {
         if let TextValue::Value(right_value) = right {
-            let comparison = bpchar_codepoint_compare(left_value, right_value);
+            let comparison = bpchar_codepoint_compare(left_value.as_str(), right_value.as_str());
             return BoolValue::Value(comparison < 0);
         }
     }
@@ -161,7 +161,7 @@ pub fn sql__pg_catalog__bpcharne__qkuu(left: TextValue, right: TextValue) -> Boo
     }
     if let TextValue::Value(left_value) = left {
         if let TextValue::Value(right_value) = right {
-            let comparison = bpchar_codepoint_compare(left_value, right_value);
+            let comparison = bpchar_codepoint_compare(left_value.as_str(), right_value.as_str());
             return BoolValue::Value(comparison != 0);
         }
     }

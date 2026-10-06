@@ -182,7 +182,11 @@ fn expr(expr: &Expr) -> Result {
             if method == "len" && node.args.is_empty() {
                 return self::expr(&node.receiver);
             }
-            if method == "to_ascii_lowercase" && node.args.is_empty() {
+            if matches!(
+                method.as_str(),
+                "to_ascii_lowercase" | "to_owned" | "as_str" | "clone"
+            ) && node.args.is_empty()
+            {
                 return self::expr(&node.receiver);
             }
             if method == "collect" && node.args.is_empty() {
@@ -221,7 +225,8 @@ fn expr(expr: &Expr) -> Result {
             }
             path(&callee.path, 2)?;
             if callee.path.segments.len() == 2
-                && callee.path.segments[0].ident == "Vec"
+                && (callee.path.segments[0].ident == "Vec"
+                    || callee.path.segments[0].ident == "String")
                 && callee.path.segments[1].ident == "new"
                 && node.args.is_empty()
             {
@@ -381,7 +386,7 @@ fn block(block: &syn::Block, function_body: bool) -> Result {
             Stmt::Expr(Expr::MethodCall(node), _)
                 if node.attrs.is_empty()
                     && node.turbofish.is_none()
-                    && node.method == "push"
+                    && (node.method == "push" || node.method == "push_str")
                     && node.args.len() == 1 =>
             {
                 expr(&node.receiver)?;

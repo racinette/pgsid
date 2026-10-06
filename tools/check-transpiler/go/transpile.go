@@ -326,6 +326,12 @@ func (g *generator) inferType(value *node) *node {
 			return namedType("usize")
 		case "to_ascii_lowercase":
 			return namedType("char")
+		case "to_owned":
+			return namedType("String")
+		case "as_str":
+			return &node{Kind: "reference", Inner: namedType("str")}
+		case "clone":
+			return g.inferType(value.Receiver)
 		case "collect":
 			return &node{Kind: "path", Segments: []string{"Vec"}, TypeArguments: []*node{namedType("char")}}
 		}
@@ -475,8 +481,8 @@ func TranspileWithOptions(input []byte, options Options) (output []byte, err err
 				}
 			}
 		}
-		if item == nil || !hasDerive(item, "Copy") || opaqueStruct(item) {
-			return nil, fmt.Errorf("immutable value type must be a nonopaque Copy type: %s", name)
+		if item == nil || !hasDerive(item, "Clone") || opaqueStruct(item) {
+			return nil, fmt.Errorf("immutable value type must be a nonopaque Clone type: %s", name)
 		}
 		if item.Kind == "struct" {
 			for _, field := range item.Fields {
@@ -651,7 +657,7 @@ func (g *generator) immutableField(value *node) bool {
 		return path(value.Inner) == "str"
 	}
 	switch path(value) {
-	case "usize", "u32", "i32", "i64", "bool", "char":
+	case "usize", "u32", "i32", "i64", "bool", "char", "String":
 		return true
 	default:
 		return g.immutable[path(value)]

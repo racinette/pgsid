@@ -254,11 +254,11 @@ pub fn date_from_case_guard(value: CheckOutcome) -> DateValue {
     DateValue::Unknown
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum TextValue<'a> {
+#[derive(Clone, PartialEq, Eq)]
+pub enum TextValue {
     Unknown,
     Null,
-    Value(&'a str),
+    Value(String),
     Error(SqlError),
 }
 
@@ -286,16 +286,16 @@ pub fn make_int8_value(value: i64) -> Int8Value {
     Int8Value::Value(value)
 }
 
-pub fn text_unknown() -> TextValue<'static> {
+pub fn text_unknown() -> TextValue {
     TextValue::Unknown
 }
 
-pub fn text_null() -> TextValue<'static> {
+pub fn text_null() -> TextValue {
     TextValue::Null
 }
 
-pub fn make_text_value(value: &str) -> TextValue<'_> {
-    TextValue::Value(value)
+pub fn make_text_value(value: &str) -> TextValue {
+    TextValue::Value(value.to_owned())
 }
 
 pub fn bool_unknown() -> BoolValue {
@@ -493,7 +493,7 @@ pub fn int8_from_case_guard(value: CheckOutcome) -> Int8Value {
     Int8Value::Unknown
 }
 
-pub fn text_from_case_guard(value: CheckOutcome) -> TextValue<'static> {
+pub fn text_from_case_guard(value: CheckOutcome) -> TextValue {
     if let CheckOutcome::Error(error) = value {
         return TextValue::Error(error);
     }
@@ -606,4 +606,54 @@ pub fn make_cidr_value(value: &str) -> NetworkValue {
         return NetworkValue::Unknown;
     }
     parsed
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub enum ByteaValue {
+    Unknown,
+    Null,
+    Value(String),
+    Error(SqlError),
+}
+
+pub fn bytea_unknown() -> ByteaValue {
+    ByteaValue::Unknown
+}
+pub fn bytea_null() -> ByteaValue {
+    ByteaValue::Null
+}
+pub fn bytea_is_null(value: ByteaValue) -> BoolValue {
+    if let ByteaValue::Error(error) = value {
+        return BoolValue::Error(error);
+    }
+    if value == ByteaValue::Unknown {
+        return BoolValue::Unknown;
+    }
+    BoolValue::Value(value == ByteaValue::Null)
+}
+pub fn bytea_from_case_guard(value: CheckOutcome) -> ByteaValue {
+    if let CheckOutcome::Error(error) = value {
+        return ByteaValue::Error(error);
+    }
+    ByteaValue::Unknown
+}
+pub fn make_bytea_value(value: &str) -> ByteaValue {
+    let chars: Vec<char> = value.chars().collect();
+    let mut even = true;
+    let mut output = String::new();
+    let mut index: usize = 0;
+    while index < chars.len() {
+        let character = chars[index].to_ascii_lowercase();
+        let code = character as u32;
+        if (code < 48 || code > 57) && (code < 97 || code > 102) {
+            return ByteaValue::Unknown;
+        }
+        output.push(character);
+        even = even == false;
+        index += 1;
+    }
+    if even == false {
+        return ByteaValue::Unknown;
+    }
+    ByteaValue::Value(output)
 }

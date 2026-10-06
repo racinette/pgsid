@@ -232,6 +232,7 @@ export function renderGoSchemaCheckArtifacts(
               'Int4Value',
               'Int8Value',
               'NetworkValue',
+              'ByteaValue',
               'NumericValue',
               'DateValue',
               'TimestampValue',
@@ -243,31 +244,35 @@ export function renderGoSchemaCheckArtifacts(
           )
             throw new Error(`Unsupported Go Rust CHECK input: ${item.rustType}`)
           const helper =
-            item.rustType === 'NetworkValue'
-              ? 'checkRustNetwork'
-              : item.rustType === 'NumericValue'
-                ? 'checkRustNumeric'
-                : item.rustType === 'DateValue'
-                  ? 'checkRustDate'
-                  : item.rustType === 'TimestampValue'
-                    ? 'checkRustTimestamp'
-                    : item.rustType === 'TimestamptzValue'
-                      ? 'checkRustTimestamptz'
-                      : item.nullness
-                        ? 'checkRustNullness'
-                        : item.enum
-                          ? 'checkRustEnum'
-                          : item.rustType === 'Int2Value'
-                            ? 'checkRustInt2'
-                            : item.rustType === 'Int4Value'
-                              ? 'checkRustInt4'
-                              : item.rustType === 'Int8Value'
-                                ? 'checkRustInt8'
-                                : item.rustType === 'TextValue' || item.rustType === 'NetworkValue'
-                                  ? 'checkRustText'
-                                  : 'checkRustBool'
+            item.rustType === 'ByteaValue'
+              ? 'checkRustBytea'
+              : item.rustType === 'NetworkValue'
+                ? 'checkRustNetwork'
+                : item.rustType === 'NumericValue'
+                  ? 'checkRustNumeric'
+                  : item.rustType === 'DateValue'
+                    ? 'checkRustDate'
+                    : item.rustType === 'TimestampValue'
+                      ? 'checkRustTimestamp'
+                      : item.rustType === 'TimestamptzValue'
+                        ? 'checkRustTimestamptz'
+                        : item.nullness
+                          ? 'checkRustNullness'
+                          : item.enum
+                            ? 'checkRustEnum'
+                            : item.rustType === 'Int2Value'
+                              ? 'checkRustInt2'
+                              : item.rustType === 'Int4Value'
+                                ? 'checkRustInt4'
+                                : item.rustType === 'Int8Value'
+                                  ? 'checkRustInt8'
+                                  : item.rustType === 'TextValue' ||
+                                      item.rustType === 'NetworkValue'
+                                    ? 'checkRustText'
+                                    : 'checkRustBool'
           rustInputAdapters.add(helper)
           if (
+            item.rustType !== 'ByteaValue' &&
             item.rustType !== 'NumericValue' &&
             item.rustType !== 'DateValue' &&
             item.rustType !== 'TimestampValue' &&
@@ -498,6 +503,22 @@ func checkRustTimestamptz[T any](field CheckOptional[T]) checkruntime.Timestampt
   if field.Null { return checkruntime.TimestamptzNull() }
   if value, ok := any(field.V).(checkruntime.TimestamptzValue); ok { return value }
   return checkruntime.TimestamptzUnknown()
+}
+func checkRustBytea[T any](field CheckOptional[T]) checkruntime.ByteaValue {
+  if !field.Set { return checkruntime.ByteaUnknown() }
+  if field.Null { return checkruntime.ByteaNull() }
+  if value, ok := any(field.V).(checkruntime.ByteaValue); ok { return value }
+  if bytes, ok := any(field.V).(*[]byte); ok {
+    if bytes == nil { return checkruntime.ByteaNull() }
+    return checkRustBytea(CheckOptional[[]byte]{Set: true, V: *bytes})
+  }
+  if bytes, ok := any(field.V).([]byte); ok {
+    const digits = "0123456789abcdef"
+    hex := make([]byte, len(bytes) * 2)
+    for index, value := range bytes { hex[index * 2] = digits[value / 16]; hex[index * 2 + 1] = digits[value % 16] }
+    return checkruntime.MakeByteaValue(string(hex))
+  }
+  return checkruntime.ByteaUnknown()
 }
 func checkRustNetwork[T any](field CheckOptional[T]) checkruntime.NetworkValue {
   value := checkInputText(field)

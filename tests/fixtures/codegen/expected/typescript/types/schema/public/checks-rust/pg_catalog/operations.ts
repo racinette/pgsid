@@ -1,7 +1,6 @@
 import * as checkruntime from "../checkruntime/runtime.js";
 import * as langruntime from "../langruntime/runtime.js";
 export function int48lt65ji(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -27,7 +26,6 @@ export function int48lt65ji(left: checkruntime.Int4Value, right: checkruntime.In
     return { kind: "Unknown" };
 }
 export function int84ltZ0bo(left: checkruntime.Int8Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    right = checkruntime.copyInt4Value(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -77,7 +75,6 @@ export function int8ltCryd(left: checkruntime.Int8Value, right: checkruntime.Int
     return { kind: "Unknown" };
 }
 export function int48le532p(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -103,7 +100,6 @@ export function int48le532p(left: checkruntime.Int4Value, right: checkruntime.In
     return { kind: "Unknown" };
 }
 export function int84le0gdr(left: checkruntime.Int8Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    right = checkruntime.copyInt4Value(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -153,7 +149,6 @@ export function int8le9fr4(left: checkruntime.Int8Value, right: checkruntime.Int
     return { kind: "Unknown" };
 }
 export function int48neInar(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -179,7 +174,6 @@ export function int48neInar(left: checkruntime.Int4Value, right: checkruntime.In
     return { kind: "Unknown" };
 }
 export function int84ne6b8h(left: checkruntime.Int8Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    right = checkruntime.copyInt4Value(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -229,7 +223,6 @@ export function int8neUr2k(left: checkruntime.Int8Value, right: checkruntime.Int
     return { kind: "Unknown" };
 }
 export function int48eq7ot5(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -255,7 +248,6 @@ export function int48eq7ot5(left: checkruntime.Int4Value, right: checkruntime.In
     return { kind: "Unknown" };
 }
 export function int84eqBnoq(left: checkruntime.Int8Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    right = checkruntime.copyInt4Value(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -305,7 +297,6 @@ export function int8eqJdhd(left: checkruntime.Int8Value, right: checkruntime.Int
     return { kind: "Unknown" };
 }
 export function int48gtSrgr(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -331,7 +322,6 @@ export function int48gtSrgr(left: checkruntime.Int4Value, right: checkruntime.In
     return { kind: "Unknown" };
 }
 export function int84gtP7f5(left: checkruntime.Int8Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    right = checkruntime.copyInt4Value(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -381,7 +371,6 @@ export function int8gt3ehj(left: checkruntime.Int8Value, right: checkruntime.Int
     return { kind: "Unknown" };
 }
 export function int48geD53z(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -407,7 +396,6 @@ export function int48geD53z(left: checkruntime.Int4Value, right: checkruntime.In
     return { kind: "Unknown" };
 }
 export function int84geBiti(left: checkruntime.Int8Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    right = checkruntime.copyInt4Value(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -542,42 +530,34 @@ export function abs36t4(input: checkruntime.Int8Value): checkruntime.Int8Value {
     return int8absCmj6(input);
 }
 export function int28plBh5j(left: checkruntime.Int2Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
-    left = checkruntime.copyInt2Value(left);
     const widened: checkruntime.Int8Value = checkruntime.int2ToInt8(left);
     return int8pl1v1h(widened, right);
 }
 export function int82plE0uq(left: checkruntime.Int8Value, right: checkruntime.Int2Value): checkruntime.Int8Value {
-    right = checkruntime.copyInt2Value(right);
     const widened: checkruntime.Int8Value = checkruntime.int2ToInt8(right);
     return int8pl1v1h(left, widened);
 }
 export function int28miUjbh(left: checkruntime.Int2Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
-    left = checkruntime.copyInt2Value(left);
     const widened: checkruntime.Int8Value = checkruntime.int2ToInt8(left);
     return int8miJasl(widened, right);
 }
 export function int82miUovj(left: checkruntime.Int8Value, right: checkruntime.Int2Value): checkruntime.Int8Value {
-    right = checkruntime.copyInt2Value(right);
     const widened: checkruntime.Int8Value = checkruntime.int2ToInt8(right);
     return int8miJasl(left, widened);
 }
 export function int48plY1r4(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
-    left = checkruntime.copyInt4Value(left);
     const widened: checkruntime.Int8Value = int8Mzac(left);
     return int8pl1v1h(widened, right);
 }
 export function int84pl2n77(left: checkruntime.Int8Value, right: checkruntime.Int4Value): checkruntime.Int8Value {
-    right = checkruntime.copyInt4Value(right);
     const widened: checkruntime.Int8Value = int8Mzac(right);
     return int8pl1v1h(left, widened);
 }
 export function int48miNeop(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
-    left = checkruntime.copyInt4Value(left);
     const widened: checkruntime.Int8Value = int8Mzac(left);
     return int8miJasl(widened, right);
 }
 export function int84mi867a(left: checkruntime.Int8Value, right: checkruntime.Int4Value): checkruntime.Int8Value {
-    right = checkruntime.copyInt4Value(right);
     const widened: checkruntime.Int8Value = int8Mzac(right);
     return int8miJasl(left, widened);
 }
@@ -678,48 +658,86 @@ export function int8mod2t8f(left: checkruntime.Int8Value, right: checkruntime.In
     return { kind: "Unknown" };
 }
 export function int28mulLmrp(left: checkruntime.Int2Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
-    left = checkruntime.copyInt2Value(left);
     const widened: checkruntime.Int8Value = checkruntime.int2ToInt8(left);
     return int8mul6t1m(widened, right);
 }
 export function int28divYfcw(left: checkruntime.Int2Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
-    left = checkruntime.copyInt2Value(left);
     const widened: checkruntime.Int8Value = checkruntime.int2ToInt8(left);
     return int8div8s66(widened, right);
 }
 export function int82mul60eu(left: checkruntime.Int8Value, right: checkruntime.Int2Value): checkruntime.Int8Value {
-    right = checkruntime.copyInt2Value(right);
     const widened: checkruntime.Int8Value = checkruntime.int2ToInt8(right);
     return int8mul6t1m(left, widened);
 }
 export function int82divBfmp(left: checkruntime.Int8Value, right: checkruntime.Int2Value): checkruntime.Int8Value {
-    right = checkruntime.copyInt2Value(right);
     const widened: checkruntime.Int8Value = checkruntime.int2ToInt8(right);
     return int8div8s66(left, widened);
 }
 export function int48mulKykj(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
-    left = checkruntime.copyInt4Value(left);
     const widened: checkruntime.Int8Value = int8Mzac(left);
     return int8mul6t1m(widened, right);
 }
 export function int48divXx1r(left: checkruntime.Int4Value, right: checkruntime.Int8Value): checkruntime.Int8Value {
-    left = checkruntime.copyInt4Value(left);
     const widened: checkruntime.Int8Value = int8Mzac(left);
     return int8div8s66(widened, right);
 }
 export function int84mul636w(left: checkruntime.Int8Value, right: checkruntime.Int4Value): checkruntime.Int8Value {
-    right = checkruntime.copyInt4Value(right);
     const widened: checkruntime.Int8Value = int8Mzac(right);
     return int8mul6t1m(left, widened);
 }
 export function int84divW65p(left: checkruntime.Int8Value, right: checkruntime.Int4Value): checkruntime.Int8Value {
-    right = checkruntime.copyInt4Value(right);
     const widened: checkruntime.Int8Value = int8Mzac(right);
     return int8div8s66(left, widened);
 }
+export function byteaeqZ0yh(left: checkruntime.ByteaValue, right: checkruntime.ByteaValue): checkruntime.BoolValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalByteaValue(left, { kind: "Unknown" }) || checkruntime.equalByteaValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalByteaValue(left, { kind: "Null" }) || checkruntime.equalByteaValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: string = langruntime.checkedString(left.value);
+        if (right.kind === "Value") {
+            const b: string = langruntime.checkedString(right.value);
+            return { kind: "Value", value: a === b };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function byteaneVolo(left: checkruntime.ByteaValue, right: checkruntime.ByteaValue): checkruntime.BoolValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalByteaValue(left, { kind: "Unknown" }) || checkruntime.equalByteaValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalByteaValue(left, { kind: "Null" }) || checkruntime.equalByteaValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: string = langruntime.checkedString(left.value);
+        if (right.kind === "Value") {
+            const b: string = langruntime.checkedString(right.value);
+            return { kind: "Value", value: !(a === b) };
+        }
+    }
+    return { kind: "Unknown" };
+}
 export function booleqY6qu(left: checkruntime.BoolValue, right: checkruntime.BoolValue): checkruntime.BoolValue {
-    left = checkruntime.copyBoolValue(left);
-    right = checkruntime.copyBoolValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -744,8 +762,6 @@ export function booleqY6qu(left: checkruntime.BoolValue, right: checkruntime.Boo
     return { kind: "Unknown" };
 }
 export function boolneZlce(left: checkruntime.BoolValue, right: checkruntime.BoolValue): checkruntime.BoolValue {
-    left = checkruntime.copyBoolValue(left);
-    right = checkruntime.copyBoolValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -770,8 +786,6 @@ export function boolneZlce(left: checkruntime.BoolValue, right: checkruntime.Boo
     return { kind: "Unknown" };
 }
 export function boolltCgkk(left: checkruntime.BoolValue, right: checkruntime.BoolValue): checkruntime.BoolValue {
-    left = checkruntime.copyBoolValue(left);
-    right = checkruntime.copyBoolValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -796,8 +810,6 @@ export function boolltCgkk(left: checkruntime.BoolValue, right: checkruntime.Boo
     return { kind: "Unknown" };
 }
 export function boolle0cme(left: checkruntime.BoolValue, right: checkruntime.BoolValue): checkruntime.BoolValue {
-    left = checkruntime.copyBoolValue(left);
-    right = checkruntime.copyBoolValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -822,8 +834,6 @@ export function boolle0cme(left: checkruntime.BoolValue, right: checkruntime.Boo
     return { kind: "Unknown" };
 }
 export function boolgt6vb2(left: checkruntime.BoolValue, right: checkruntime.BoolValue): checkruntime.BoolValue {
-    left = checkruntime.copyBoolValue(left);
-    right = checkruntime.copyBoolValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -848,8 +858,6 @@ export function boolgt6vb2(left: checkruntime.BoolValue, right: checkruntime.Boo
     return { kind: "Unknown" };
 }
 export function boolgeGviq(left: checkruntime.BoolValue, right: checkruntime.BoolValue): checkruntime.BoolValue {
-    left = checkruntime.copyBoolValue(left);
-    right = checkruntime.copyBoolValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -913,8 +921,6 @@ function bpcharCodepointCompare(left: string, right: string): number {
     return 0;
 }
 export function bpchareqNpys(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
-    left = checkruntime.copyTextValue(left);
-    right = checkruntime.copyTextValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -940,8 +946,6 @@ export function bpchareqNpys(left: checkruntime.TextValue, right: checkruntime.T
     return { kind: "Unknown" };
 }
 export function bpchargeO6oj(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
-    left = checkruntime.copyTextValue(left);
-    right = checkruntime.copyTextValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -967,8 +971,6 @@ export function bpchargeO6oj(left: checkruntime.TextValue, right: checkruntime.T
     return { kind: "Unknown" };
 }
 export function bpchargtKxc4(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
-    left = checkruntime.copyTextValue(left);
-    right = checkruntime.copyTextValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -994,8 +996,6 @@ export function bpchargtKxc4(left: checkruntime.TextValue, right: checkruntime.T
     return { kind: "Unknown" };
 }
 export function bpcharle0rch(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
-    left = checkruntime.copyTextValue(left);
-    right = checkruntime.copyTextValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1021,8 +1021,6 @@ export function bpcharle0rch(left: checkruntime.TextValue, right: checkruntime.T
     return { kind: "Unknown" };
 }
 export function bpcharltQrb5(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
-    left = checkruntime.copyTextValue(left);
-    right = checkruntime.copyTextValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1048,8 +1046,6 @@ export function bpcharltQrb5(left: checkruntime.TextValue, right: checkruntime.T
     return { kind: "Unknown" };
 }
 export function bpcharneQkuu(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
-    left = checkruntime.copyTextValue(left);
-    right = checkruntime.copyTextValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1075,9 +1071,6 @@ export function bpcharneQkuu(left: checkruntime.TextValue, right: checkruntime.T
     return { kind: "Unknown" };
 }
 export function makeDateZ9pv(year: checkruntime.Int4Value, month: checkruntime.Int4Value, day: checkruntime.Int4Value): checkruntime.DateValue {
-    year = checkruntime.copyInt4Value(year);
-    month = checkruntime.copyInt4Value(month);
-    day = checkruntime.copyInt4Value(day);
     if (year.kind === "Error") {
         const error: checkruntime.SqlError = year.value;
         return { kind: "Error", value: error };
@@ -1109,8 +1102,6 @@ export function makeDateZ9pv(year: checkruntime.Int4Value, month: checkruntime.I
     return { kind: "Unknown" };
 }
 export function dateEqD4us(left: checkruntime.DateValue, right: checkruntime.DateValue): checkruntime.BoolValue {
-    left = checkruntime.copyDateValue(left);
-    right = checkruntime.copyDateValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1135,8 +1126,6 @@ export function dateEqD4us(left: checkruntime.DateValue, right: checkruntime.Dat
     return { kind: "Unknown" };
 }
 export function dateNeNpdb(left: checkruntime.DateValue, right: checkruntime.DateValue): checkruntime.BoolValue {
-    left = checkruntime.copyDateValue(left);
-    right = checkruntime.copyDateValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1161,8 +1150,6 @@ export function dateNeNpdb(left: checkruntime.DateValue, right: checkruntime.Dat
     return { kind: "Unknown" };
 }
 export function dateLt843e(left: checkruntime.DateValue, right: checkruntime.DateValue): checkruntime.BoolValue {
-    left = checkruntime.copyDateValue(left);
-    right = checkruntime.copyDateValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1187,8 +1174,6 @@ export function dateLt843e(left: checkruntime.DateValue, right: checkruntime.Dat
     return { kind: "Unknown" };
 }
 export function dateLe5cqw(left: checkruntime.DateValue, right: checkruntime.DateValue): checkruntime.BoolValue {
-    left = checkruntime.copyDateValue(left);
-    right = checkruntime.copyDateValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1213,8 +1198,6 @@ export function dateLe5cqw(left: checkruntime.DateValue, right: checkruntime.Dat
     return { kind: "Unknown" };
 }
 export function dateGt5025(left: checkruntime.DateValue, right: checkruntime.DateValue): checkruntime.BoolValue {
-    left = checkruntime.copyDateValue(left);
-    right = checkruntime.copyDateValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1239,8 +1222,6 @@ export function dateGt5025(left: checkruntime.DateValue, right: checkruntime.Dat
     return { kind: "Unknown" };
 }
 export function dateGe8wil(left: checkruntime.DateValue, right: checkruntime.DateValue): checkruntime.BoolValue {
-    left = checkruntime.copyDateValue(left);
-    right = checkruntime.copyDateValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1265,8 +1246,6 @@ export function dateGe8wil(left: checkruntime.DateValue, right: checkruntime.Dat
     return { kind: "Unknown" };
 }
 export function enumEqW63e(left: checkruntime.EnumValue, right: checkruntime.EnumValue): checkruntime.BoolValue {
-    left = checkruntime.copyEnumValue(left);
-    right = checkruntime.copyEnumValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1291,8 +1270,6 @@ export function enumEqW63e(left: checkruntime.EnumValue, right: checkruntime.Enu
     return { kind: "Unknown" };
 }
 export function enumNeTph2(left: checkruntime.EnumValue, right: checkruntime.EnumValue): checkruntime.BoolValue {
-    left = checkruntime.copyEnumValue(left);
-    right = checkruntime.copyEnumValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1317,8 +1294,6 @@ export function enumNeTph2(left: checkruntime.EnumValue, right: checkruntime.Enu
     return { kind: "Unknown" };
 }
 export function int4gt5vlv(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt4Value(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1343,8 +1318,6 @@ export function int4gt5vlv(left: checkruntime.Int4Value, right: checkruntime.Int
     return { kind: "Unknown" };
 }
 export function int4eqLrxe(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt4Value(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1369,8 +1342,6 @@ export function int4eqLrxe(left: checkruntime.Int4Value, right: checkruntime.Int
     return { kind: "Unknown" };
 }
 export function int4ge2xvk(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt4Value(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1395,8 +1366,6 @@ export function int4ge2xvk(left: checkruntime.Int4Value, right: checkruntime.Int
     return { kind: "Unknown" };
 }
 export function int4le9wb6(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt4Value(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1421,8 +1390,6 @@ export function int4le9wb6(left: checkruntime.Int4Value, right: checkruntime.Int
     return { kind: "Unknown" };
 }
 export function int4lt9gej(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt4Value(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1447,8 +1414,6 @@ export function int4lt9gej(left: checkruntime.Int4Value, right: checkruntime.Int
     return { kind: "Unknown" };
 }
 export function int4neQhun(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt4Value(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1474,8 +1439,6 @@ export function int4neQhun(left: checkruntime.Int4Value, right: checkruntime.Int
 }
 const sqlstateNumericValueOutOfRange = 3452547;
 export function int4plSj3s(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.Int4Value {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt4Value(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1507,8 +1470,6 @@ export function int4plSj3s(left: checkruntime.Int4Value, right: checkruntime.Int
     return { kind: "Unknown" };
 }
 export function int4miDtqk(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.Int4Value {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt4Value(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1541,8 +1502,6 @@ export function int4miDtqk(left: checkruntime.Int4Value, right: checkruntime.Int
 }
 const sqlstateDivisionByZero = 3452582;
 export function int4mul284v(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.Int4Value {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt4Value(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1580,8 +1539,6 @@ export function int4mul284v(left: checkruntime.Int4Value, right: checkruntime.In
     return { kind: "Unknown" };
 }
 export function int4div8ogr(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.Int4Value {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt4Value(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1612,8 +1569,6 @@ export function int4div8ogr(left: checkruntime.Int4Value, right: checkruntime.In
     return { kind: "Unknown" };
 }
 export function int4modJ4pe(left: checkruntime.Int4Value, right: checkruntime.Int4Value): checkruntime.Int4Value {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt4Value(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1644,7 +1599,6 @@ export function int4modJ4pe(left: checkruntime.Int4Value, right: checkruntime.In
     return { kind: "Unknown" };
 }
 export function abs5ajw(input: checkruntime.Int4Value): checkruntime.Int4Value {
-    input = checkruntime.copyInt4Value(input);
     if (input.kind === "Value") {
         const value: number = langruntime.checkedI32(input.value);
         if (value === langruntime.checkedSignedSubtract(langruntime.checkedSignedNegate(2147483647), 1)) {
@@ -1657,19 +1611,15 @@ export function abs5ajw(input: checkruntime.Int4Value): checkruntime.Int4Value {
     return input;
 }
 export function int41z1k(input: checkruntime.Int2Value): checkruntime.Int4Value {
-    input = checkruntime.copyInt2Value(input);
     return checkruntime.int2ToInt4(input);
 }
 export function int8Sxtp(input: checkruntime.Int2Value): checkruntime.Int8Value {
-    input = checkruntime.copyInt2Value(input);
     return checkruntime.int2ToInt8(input);
 }
 export function int215a3(input: checkruntime.Int4Value): checkruntime.Int2Value {
-    input = checkruntime.copyInt4Value(input);
     return smallintResult(input);
 }
 export function int8Mzac(input: checkruntime.Int4Value): checkruntime.Int8Value {
-    input = checkruntime.copyInt4Value(input);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -1722,8 +1672,6 @@ export function int2Gmpv(input: checkruntime.Int8Value): checkruntime.Int2Value 
 }
 const sqlstateInvalidParameterValue = 3452619;
 function networkCompare(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.Int4Value {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1739,9 +1687,9 @@ function networkCompare(left: checkruntime.NetworkValue, right: checkruntime.Net
         return { kind: "Null" };
     }
     if (left.kind === "Value") {
-        const a: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(left.value);
+        const a: checkruntime.NetworkAddress = left.value;
         if (right.kind === "Value") {
-            const b: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(right.value);
+            const b: checkruntime.NetworkAddress = right.value;
             if (a.family < b.family) {
                 return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
             }
@@ -1771,9 +1719,7 @@ function networkCompare(left: checkruntime.NetworkValue, right: checkruntime.Net
     return { kind: "Unknown" };
 }
 export function networkEqI7hn(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.BoolValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(networkCompare(left, right));
+    const result: checkruntime.Int4Value = networkCompare(left, right);
     if (result.kind === "Error") {
         const error: checkruntime.SqlError = result.value;
         return { kind: "Error", value: error };
@@ -1791,9 +1737,7 @@ export function networkEqI7hn(left: checkruntime.NetworkValue, right: checkrunti
     return { kind: "Unknown" };
 }
 export function networkNeVmql(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.BoolValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(networkCompare(left, right));
+    const result: checkruntime.Int4Value = networkCompare(left, right);
     if (result.kind === "Error") {
         const error: checkruntime.SqlError = result.value;
         return { kind: "Error", value: error };
@@ -1811,9 +1755,7 @@ export function networkNeVmql(left: checkruntime.NetworkValue, right: checkrunti
     return { kind: "Unknown" };
 }
 export function networkLt0kbr(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.BoolValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(networkCompare(left, right));
+    const result: checkruntime.Int4Value = networkCompare(left, right);
     if (result.kind === "Error") {
         const error: checkruntime.SqlError = result.value;
         return { kind: "Error", value: error };
@@ -1831,9 +1773,7 @@ export function networkLt0kbr(left: checkruntime.NetworkValue, right: checkrunti
     return { kind: "Unknown" };
 }
 export function networkLeN61s(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.BoolValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(networkCompare(left, right));
+    const result: checkruntime.Int4Value = networkCompare(left, right);
     if (result.kind === "Error") {
         const error: checkruntime.SqlError = result.value;
         return { kind: "Error", value: error };
@@ -1851,9 +1791,7 @@ export function networkLeN61s(left: checkruntime.NetworkValue, right: checkrunti
     return { kind: "Unknown" };
 }
 export function networkGtI6x7(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.BoolValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(networkCompare(left, right));
+    const result: checkruntime.Int4Value = networkCompare(left, right);
     if (result.kind === "Error") {
         const error: checkruntime.SqlError = result.value;
         return { kind: "Error", value: error };
@@ -1871,9 +1809,7 @@ export function networkGtI6x7(left: checkruntime.NetworkValue, right: checkrunti
     return { kind: "Unknown" };
 }
 export function networkGeQ7pc(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.BoolValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(networkCompare(left, right));
+    const result: checkruntime.Int4Value = networkCompare(left, right);
     if (result.kind === "Error") {
         const error: checkruntime.SqlError = result.value;
         return { kind: "Error", value: error };
@@ -1891,8 +1827,6 @@ export function networkGeQ7pc(left: checkruntime.NetworkValue, right: checkrunti
     return { kind: "Unknown" };
 }
 function networkContains(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue, strict: boolean): checkruntime.BoolValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
     strict = langruntime.checkedBool(strict);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
@@ -1909,9 +1843,9 @@ function networkContains(left: checkruntime.NetworkValue, right: checkruntime.Ne
         return { kind: "Null" };
     }
     if (left.kind === "Value") {
-        const a: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(left.value);
+        const a: checkruntime.NetworkAddress = left.value;
         if (right.kind === "Value") {
-            const b: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(right.value);
+            const b: checkruntime.NetworkAddress = right.value;
             if (!(a.family === b.family) || a.prefix < b.prefix) {
                 return { kind: "Value", value: false };
             }
@@ -1925,8 +1859,6 @@ function networkContains(left: checkruntime.NetworkValue, right: checkruntime.Ne
     return { kind: "Unknown" };
 }
 export function networkSubY7j2(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.BoolValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1938,8 +1870,6 @@ export function networkSubY7j2(left: checkruntime.NetworkValue, right: checkrunt
     return networkContains(left, right, true);
 }
 export function networkSubeq9psu(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.BoolValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1951,8 +1881,6 @@ export function networkSubeq9psu(left: checkruntime.NetworkValue, right: checkru
     return networkContains(left, right, false);
 }
 export function networkSup1zu4(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.BoolValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1964,8 +1892,6 @@ export function networkSup1zu4(left: checkruntime.NetworkValue, right: checkrunt
     return networkContains(right, left, true);
 }
 export function networkSupeqUtj6(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.BoolValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1977,8 +1903,6 @@ export function networkSupeqUtj6(left: checkruntime.NetworkValue, right: checkru
     return networkContains(right, left, false);
 }
 export function networkOverlapZbdv(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.BoolValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -1994,9 +1918,9 @@ export function networkOverlapZbdv(left: checkruntime.NetworkValue, right: check
         return { kind: "Null" };
     }
     if (left.kind === "Value") {
-        const a: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(left.value);
+        const a: checkruntime.NetworkAddress = left.value;
         if (right.kind === "Value") {
-            const b: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(right.value);
+            const b: checkruntime.NetworkAddress = right.value;
             if (!(a.family === b.family)) {
                 return { kind: "Value", value: false };
             }
@@ -2017,7 +1941,6 @@ function networkResultAddress(family: number, prefix: number, words: checkruntim
     return { family: family, prefix: prefix, word0: langruntime.indexStruct(words, langruntime.checkedIndex(0), checkruntime.copyNetworkWord).value, word1: langruntime.indexStruct(words, langruntime.checkedIndex(1), checkruntime.copyNetworkWord).value, word2: langruntime.indexStruct(words, langruntime.checkedIndex(2), checkruntime.copyNetworkWord).value, word3: langruntime.indexStruct(words, langruntime.checkedIndex(3), checkruntime.copyNetworkWord).value, word4: langruntime.indexStruct(words, langruntime.checkedIndex(4), checkruntime.copyNetworkWord).value, word5: langruntime.indexStruct(words, langruntime.checkedIndex(5), checkruntime.copyNetworkWord).value, word6: langruntime.indexStruct(words, langruntime.checkedIndex(6), checkruntime.copyNetworkWord).value, word7: langruntime.indexStruct(words, langruntime.checkedIndex(7), checkruntime.copyNetworkWord).value };
 }
 function networkAddOffset(address: checkruntime.NetworkAddress, offset: bigint): checkruntime.NetworkValue {
-    address = checkruntime.copyNetworkAddress(address);
     offset = langruntime.checkedI64(offset);
     let words: checkruntime.NetworkWord[] = [];
     while (words.length < 8) {
@@ -2045,11 +1968,10 @@ function networkAddOffset(address: checkruntime.NetworkAddress, offset: bigint):
     if ((!(remaining === 0n) || !(carry === 0)) && (!(remaining === -1n) || !(carry === 1))) {
         return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNumericValueOutOfRange) };
     }
-    const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkResultAddress(address.family, address.prefix, words));
-    return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+    const result: checkruntime.NetworkAddress = networkResultAddress(address.family, address.prefix, words);
+    return { kind: "Value", value: result };
 }
 export function inetplEu7x(left: checkruntime.NetworkValue, right: checkruntime.Int8Value): checkruntime.NetworkValue {
-    left = checkruntime.copyNetworkValue(left);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -2065,7 +1987,7 @@ export function inetplEu7x(left: checkruntime.NetworkValue, right: checkruntime.
         return { kind: "Null" };
     }
     if (left.kind === "Value") {
-        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(left.value);
+        const address: checkruntime.NetworkAddress = left.value;
         if (right.kind === "Value") {
             const offset: bigint = langruntime.checkedI64(right.value);
             return networkAddOffset(address, offset);
@@ -2074,7 +1996,6 @@ export function inetplEu7x(left: checkruntime.NetworkValue, right: checkruntime.
     return { kind: "Unknown" };
 }
 export function int8plInet3uh7(left: checkruntime.Int8Value, right: checkruntime.NetworkValue): checkruntime.NetworkValue {
-    right = checkruntime.copyNetworkValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -2090,7 +2011,7 @@ export function int8plInet3uh7(left: checkruntime.Int8Value, right: checkruntime
         return { kind: "Null" };
     }
     if (right.kind === "Value") {
-        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(right.value);
+        const address: checkruntime.NetworkAddress = right.value;
         if (left.kind === "Value") {
             const offset: bigint = langruntime.checkedI64(left.value);
             return networkAddOffset(address, offset);
@@ -2099,7 +2020,6 @@ export function int8plInet3uh7(left: checkruntime.Int8Value, right: checkruntime
     return { kind: "Unknown" };
 }
 export function inetmiInt8Z4fj(left: checkruntime.NetworkValue, right: checkruntime.Int8Value): checkruntime.NetworkValue {
-    left = checkruntime.copyNetworkValue(left);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -2115,7 +2035,7 @@ export function inetmiInt8Z4fj(left: checkruntime.NetworkValue, right: checkrunt
         return { kind: "Null" };
     }
     if (left.kind === "Value") {
-        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(left.value);
+        const address: checkruntime.NetworkAddress = left.value;
         if (right.kind === "Value") {
             const offset: bigint = langruntime.checkedI64(right.value);
             if (offset === -9223372036854775808n) {
@@ -2128,8 +2048,6 @@ export function inetmiInt8Z4fj(left: checkruntime.NetworkValue, right: checkrunt
     return { kind: "Unknown" };
 }
 export function inetmiJocm(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.Int8Value {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -2145,9 +2063,9 @@ export function inetmiJocm(left: checkruntime.NetworkValue, right: checkruntime.
         return { kind: "Null" };
     }
     if (left.kind === "Value") {
-        const a: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(left.value);
+        const a: checkruntime.NetworkAddress = left.value;
         if (right.kind === "Value") {
-            const b: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(right.value);
+            const b: checkruntime.NetworkAddress = right.value;
             if (!(a.family === b.family)) {
                 return { kind: "Error", value: checkruntime.makeSqlError(sqlstateInvalidParameterValue) };
             }
@@ -2206,7 +2124,6 @@ export function inetmiJocm(left: checkruntime.NetworkValue, right: checkruntime.
     return { kind: "Unknown" };
 }
 function networkMaxBits(address: checkruntime.NetworkAddress): number {
-    address = checkruntime.copyNetworkAddress(address);
     if (address.family === 4) {
         return 32;
     }
@@ -2223,7 +2140,6 @@ function networkHostDivisor(bits: number): number {
     return divisor;
 }
 function networkApplyPrefix(address: checkruntime.NetworkAddress, prefix: number, fillHost: boolean): checkruntime.NetworkAddress {
-    address = checkruntime.copyNetworkAddress(address);
     prefix = langruntime.checkedI32(prefix);
     fillHost = langruntime.checkedBool(fillHost);
     let words: checkruntime.NetworkWord[] = [];
@@ -2250,7 +2166,6 @@ function networkApplyPrefix(address: checkruntime.NetworkAddress, prefix: number
     return networkResultAddress(address.family, prefix, words);
 }
 function networkMask(address: checkruntime.NetworkAddress, host: boolean): checkruntime.NetworkAddress {
-    address = checkruntime.copyNetworkAddress(address);
     host = langruntime.checkedBool(host);
     let words: checkruntime.NetworkWord[] = [];
     let remaining: number = address.prefix;
@@ -2276,8 +2191,6 @@ function networkMask(address: checkruntime.NetworkAddress, host: boolean): check
     return networkResultAddress(address.family, width, words);
 }
 function networkSetMasklen(left: checkruntime.NetworkValue, right: checkruntime.Int4Value, clearHost: boolean): checkruntime.NetworkValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyInt4Value(right);
     clearHost = langruntime.checkedBool(clearHost);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
@@ -2294,7 +2207,7 @@ function networkSetMasklen(left: checkruntime.NetworkValue, right: checkruntime.
         return { kind: "Null" };
     }
     if (left.kind === "Value") {
-        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(left.value);
+        const address: checkruntime.NetworkAddress = left.value;
         if (right.kind === "Value") {
             const requested: number = langruntime.checkedI32(right.value);
             const width: number = networkMaxBits(address);
@@ -2306,8 +2219,8 @@ function networkSetMasklen(left: checkruntime.NetworkValue, right: checkruntime.
                 return { kind: "Error", value: checkruntime.makeSqlError(sqlstateInvalidParameterValue) };
             }
             if (clearHost) {
-                const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkApplyPrefix(address, prefix, false));
-                return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+                const result: checkruntime.NetworkAddress = networkApplyPrefix(address, prefix, false);
+                return { kind: "Value", value: result };
             }
             let words: checkruntime.NetworkWord[] = [];
             let index: number = 0;
@@ -2316,14 +2229,13 @@ function networkSetMasklen(left: checkruntime.NetworkValue, right: checkruntime.
                 langruntime.pushStruct(words, { value: word }, checkruntime.copyNetworkWord);
                 index = langruntime.checkedAdd(index, 1);
             }
-            const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkResultAddress(address.family, prefix, words));
-            return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+            const result: checkruntime.NetworkAddress = networkResultAddress(address.family, prefix, words);
+            return { kind: "Value", value: result };
         }
     }
     return { kind: "Unknown" };
 }
 export function family2lcf(input: checkruntime.NetworkValue): checkruntime.Int4Value {
-    input = checkruntime.copyNetworkValue(input);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -2335,7 +2247,7 @@ export function family2lcf(input: checkruntime.NetworkValue): checkruntime.Int4V
         return { kind: "Null" };
     }
     if (input.kind === "Value") {
-        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(input.value);
+        const address: checkruntime.NetworkAddress = input.value;
         if (address.family === 4) {
             return { kind: "Value", value: 4 };
         }
@@ -2344,7 +2256,6 @@ export function family2lcf(input: checkruntime.NetworkValue): checkruntime.Int4V
     return { kind: "Unknown" };
 }
 export function masklenKk20(input: checkruntime.NetworkValue): checkruntime.Int4Value {
-    input = checkruntime.copyNetworkValue(input);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -2356,13 +2267,12 @@ export function masklenKk20(input: checkruntime.NetworkValue): checkruntime.Int4
         return { kind: "Null" };
     }
     if (input.kind === "Value") {
-        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(input.value);
+        const address: checkruntime.NetworkAddress = input.value;
         return { kind: "Value", value: address.prefix };
     }
     return { kind: "Unknown" };
 }
 export function networkO215(input: checkruntime.NetworkValue): checkruntime.NetworkValue {
-    input = checkruntime.copyNetworkValue(input);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -2374,14 +2284,13 @@ export function networkO215(input: checkruntime.NetworkValue): checkruntime.Netw
         return { kind: "Null" };
     }
     if (input.kind === "Value") {
-        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(input.value);
-        const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkApplyPrefix(address, address.prefix, false));
-        return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+        const address: checkruntime.NetworkAddress = input.value;
+        const result: checkruntime.NetworkAddress = networkApplyPrefix(address, address.prefix, false);
+        return { kind: "Value", value: result };
     }
     return { kind: "Unknown" };
 }
 export function cidr6idb(input: checkruntime.NetworkValue): checkruntime.NetworkValue {
-    input = checkruntime.copyNetworkValue(input);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -2393,14 +2302,13 @@ export function cidr6idb(input: checkruntime.NetworkValue): checkruntime.Network
         return { kind: "Null" };
     }
     if (input.kind === "Value") {
-        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(input.value);
-        const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkApplyPrefix(address, address.prefix, false));
-        return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+        const address: checkruntime.NetworkAddress = input.value;
+        const result: checkruntime.NetworkAddress = networkApplyPrefix(address, address.prefix, false);
+        return { kind: "Value", value: result };
     }
     return { kind: "Unknown" };
 }
 export function broadcastIlgu(input: checkruntime.NetworkValue): checkruntime.NetworkValue {
-    input = checkruntime.copyNetworkValue(input);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -2412,14 +2320,13 @@ export function broadcastIlgu(input: checkruntime.NetworkValue): checkruntime.Ne
         return { kind: "Null" };
     }
     if (input.kind === "Value") {
-        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(input.value);
-        const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkApplyPrefix(address, address.prefix, true));
-        return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+        const address: checkruntime.NetworkAddress = input.value;
+        const result: checkruntime.NetworkAddress = networkApplyPrefix(address, address.prefix, true);
+        return { kind: "Value", value: result };
     }
     return { kind: "Unknown" };
 }
 export function netmaskBt5i(input: checkruntime.NetworkValue): checkruntime.NetworkValue {
-    input = checkruntime.copyNetworkValue(input);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -2431,14 +2338,13 @@ export function netmaskBt5i(input: checkruntime.NetworkValue): checkruntime.Netw
         return { kind: "Null" };
     }
     if (input.kind === "Value") {
-        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(input.value);
-        const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkMask(address, false));
-        return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+        const address: checkruntime.NetworkAddress = input.value;
+        const result: checkruntime.NetworkAddress = networkMask(address, false);
+        return { kind: "Value", value: result };
     }
     return { kind: "Unknown" };
 }
 export function hostmaskVz12(input: checkruntime.NetworkValue): checkruntime.NetworkValue {
-    input = checkruntime.copyNetworkValue(input);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -2450,25 +2356,19 @@ export function hostmaskVz12(input: checkruntime.NetworkValue): checkruntime.Net
         return { kind: "Null" };
     }
     if (input.kind === "Value") {
-        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(input.value);
-        const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkMask(address, true));
-        return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+        const address: checkruntime.NetworkAddress = input.value;
+        const result: checkruntime.NetworkAddress = networkMask(address, true);
+        return { kind: "Value", value: result };
     }
     return { kind: "Unknown" };
 }
 export function setMasklenA6b0(left: checkruntime.NetworkValue, right: checkruntime.Int4Value): checkruntime.NetworkValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyInt4Value(right);
     return networkSetMasklen(left, right, false);
 }
 export function setMasklen00t7(left: checkruntime.NetworkValue, right: checkruntime.Int4Value): checkruntime.NetworkValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyInt4Value(right);
     return networkSetMasklen(left, right, true);
 }
 export function inetSameFamilyOgv6(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.BoolValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -2484,17 +2384,15 @@ export function inetSameFamilyOgv6(left: checkruntime.NetworkValue, right: check
         return { kind: "Null" };
     }
     if (left.kind === "Value") {
-        const a: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(left.value);
+        const a: checkruntime.NetworkAddress = left.value;
         if (right.kind === "Value") {
-            const b: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(right.value);
+            const b: checkruntime.NetworkAddress = right.value;
             return { kind: "Value", value: a.family === b.family };
         }
     }
     return { kind: "Unknown" };
 }
 export function inetMergeIflm(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.NetworkValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -2510,9 +2408,9 @@ export function inetMergeIflm(left: checkruntime.NetworkValue, right: checkrunti
         return { kind: "Null" };
     }
     if (left.kind === "Value") {
-        const a: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(left.value);
+        const a: checkruntime.NetworkAddress = left.value;
         if (right.kind === "Value") {
-            const b: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(right.value);
+            const b: checkruntime.NetworkAddress = right.value;
             if (!(a.family === b.family)) {
                 return { kind: "Error", value: checkruntime.makeSqlError(sqlstateInvalidParameterValue) };
             }
@@ -2529,8 +2427,8 @@ export function inetMergeIflm(left: checkruntime.NetworkValue, right: checkrunti
                 }
                 common = langruntime.checkedI32(next);
             }
-            const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkApplyPrefix(a, common, false));
-            return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+            const result: checkruntime.NetworkAddress = networkApplyPrefix(a, common, false);
+            return { kind: "Value", value: result };
         }
     }
     return { kind: "Unknown" };
@@ -2553,8 +2451,6 @@ function networkAndWord(left: number, right: number): number {
     return result;
 }
 function networkBitwise(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue, union: boolean): checkruntime.NetworkValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
     union = langruntime.checkedBool(union);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
@@ -2571,9 +2467,9 @@ function networkBitwise(left: checkruntime.NetworkValue, right: checkruntime.Net
         return { kind: "Null" };
     }
     if (left.kind === "Value") {
-        const a: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(left.value);
+        const a: checkruntime.NetworkAddress = left.value;
         if (right.kind === "Value") {
-            const b: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(right.value);
+            const b: checkruntime.NetworkAddress = right.value;
             if (!(a.family === b.family)) {
                 return { kind: "Error", value: checkruntime.makeSqlError(sqlstateInvalidParameterValue) };
             }
@@ -2594,24 +2490,19 @@ function networkBitwise(left: checkruntime.NetworkValue, right: checkruntime.Net
                 langruntime.pushStruct(words, { value: word }, checkruntime.copyNetworkWord);
                 index = langruntime.checkedAdd(index, 1);
             }
-            const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkResultAddress(a.family, prefix, words));
-            return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+            const result: checkruntime.NetworkAddress = networkResultAddress(a.family, prefix, words);
+            return { kind: "Value", value: result };
         }
     }
     return { kind: "Unknown" };
 }
 export function inetandQxb6(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.NetworkValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
     return networkBitwise(left, right, false);
 }
 export function inetorKw39(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.NetworkValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
     return networkBitwise(left, right, true);
 }
 export function inetnot8bow(input: checkruntime.NetworkValue): checkruntime.NetworkValue {
-    input = checkruntime.copyNetworkValue(input);
     if (input.kind === "Error") {
         const error: checkruntime.SqlError = input.value;
         return { kind: "Error", value: error };
@@ -2623,7 +2514,7 @@ export function inetnot8bow(input: checkruntime.NetworkValue): checkruntime.Netw
         return { kind: "Null" };
     }
     if (input.kind === "Value") {
-        const address: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(input.value);
+        const address: checkruntime.NetworkAddress = input.value;
         let words: checkruntime.NetworkWord[] = [];
         let index: number = 0;
         while (index < 8) {
@@ -2635,21 +2526,17 @@ export function inetnot8bow(input: checkruntime.NetworkValue): checkruntime.Netw
             langruntime.pushStruct(words, { value: word }, checkruntime.copyNetworkWord);
             index = langruntime.checkedAdd(index, 1);
         }
-        const result: checkruntime.NetworkAddress = checkruntime.copyNetworkAddress(networkResultAddress(address.family, address.prefix, words));
-        return { kind: "Value", value: checkruntime.copyNetworkAddress(result) };
+        const result: checkruntime.NetworkAddress = networkResultAddress(address.family, address.prefix, words);
+        return { kind: "Value", value: result };
     }
     return { kind: "Unknown" };
 }
 export function networkCmp7dun(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.Int4Value {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
     return networkCompare(left, right);
 }
 function networkSelect(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue, larger: boolean): checkruntime.NetworkValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
     larger = langruntime.checkedBool(larger);
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(networkCompare(left, right));
+    const result: checkruntime.Int4Value = networkCompare(left, right);
     if (result.kind === "Error") {
         const error: checkruntime.SqlError = result.value;
         return { kind: "Error", value: error };
@@ -2670,18 +2557,351 @@ function networkSelect(left: checkruntime.NetworkValue, right: checkruntime.Netw
     return { kind: "Unknown" };
 }
 export function networkLargerWb5u(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.NetworkValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
     return networkSelect(left, right, true);
 }
 export function networkSmallerNmw8(left: checkruntime.NetworkValue, right: checkruntime.NetworkValue): checkruntime.NetworkValue {
-    left = checkruntime.copyNetworkValue(left);
-    right = checkruntime.copyNetworkValue(right);
     return networkSelect(left, right, false);
 }
+function networkHashBytes(address: checkruntime.NetworkAddress): checkruntime.HashByte[] {
+    let bytes: checkruntime.HashByte[] = [];
+    let family: bigint = 2n;
+    let wordCount: number = 2;
+    if (address.family === 6) {
+        family = langruntime.checkedI64(3n);
+        wordCount = langruntime.checkedIndex(8);
+    }
+    langruntime.pushStruct(bytes, { value: family }, checkruntime.copyHashByte);
+    const prefix: bigint = BigInt(langruntime.checkedI32(address.prefix));
+    langruntime.pushStruct(bytes, { value: prefix }, checkruntime.copyHashByte);
+    let index: number = 0;
+    while (index < wordCount) {
+        const word: number = checkruntime.networkAddressWord(address, index);
+        const high: number = langruntime.checkedSignedDivide(word, 256);
+        const low: number = langruntime.checkedSignedRemainder(word, 256);
+        const highByte: bigint = BigInt(langruntime.checkedI32(high));
+        const lowByte: bigint = BigInt(langruntime.checkedI32(low));
+        langruntime.pushStruct(bytes, { value: highByte }, checkruntime.copyHashByte);
+        langruntime.pushStruct(bytes, { value: lowByte }, checkruntime.copyHashByte);
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return bytes;
+}
+export function hashinetFhly(input: checkruntime.NetworkValue): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const address: checkruntime.NetworkAddress = input.value;
+        const bytes: checkruntime.HashByte[] = networkHashBytes(address);
+        const hash: number = checkruntime.hashBytes32(bytes);
+        return { kind: "Value", value: hash };
+    }
+    return { kind: "Unknown" };
+}
+export function hashinetextendedN7xh(left: checkruntime.NetworkValue, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNetworkValue(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNetworkValue(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const address: checkruntime.NetworkAddress = left.value;
+        if (right.kind === "Value") {
+            const seed: bigint = langruntime.checkedI64(right.value);
+            const bytes: checkruntime.HashByte[] = networkHashBytes(address);
+            const hash: bigint = checkruntime.hashBytes64(bytes, seed);
+            return { kind: "Value", value: hash };
+        }
+    }
+    return { kind: "Unknown" };
+}
+function networkIpv4Text(address: checkruntime.NetworkAddress, start: number, octets: number): string {
+    start = langruntime.checkedIndex(start);
+    octets = langruntime.checkedI32(octets);
+    let output: string = "";
+    let index: number = start;
+    let high: boolean = true;
+    let remaining: number = octets;
+    while (remaining > 0) {
+        if (!(remaining === octets)) {
+            output = output + langruntime.checkedChar(".");
+        }
+        const byte: number = checkruntime.networkAddressByte(address, index, high);
+        const number: string = checkruntime.textNumber(byte, 10);
+        output = output + number;
+        if (high) {
+            high = langruntime.checkedBool(false);
+        }
+        else {
+            high = langruntime.checkedBool(true);
+            index = langruntime.checkedAdd(index, 1);
+        }
+        remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, 1));
+    }
+    return output;
+}
+function networkHostText(address: checkruntime.NetworkAddress): string {
+    if (address.family === 4) {
+        return networkIpv4Text(address, 0, 4);
+    }
+    let bestStart: number = 0;
+    let bestLength: number = 0;
+    let currentStart: number = 0;
+    let currentLength: number = 0;
+    let index: number = 0;
+    while (index < 8) {
+        if (checkruntime.networkAddressWord(address, index) === 0) {
+            if (currentLength === 0) {
+                currentStart = langruntime.checkedIndex(index);
+            }
+            currentLength = langruntime.checkedAdd(currentLength, 1);
+        }
+        else {
+            if (currentLength > bestLength) {
+                bestStart = langruntime.checkedIndex(currentStart);
+                bestLength = langruntime.checkedIndex(currentLength);
+            }
+            currentLength = langruntime.checkedIndex(0);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (currentLength > bestLength) {
+        bestStart = langruntime.checkedIndex(currentStart);
+        bestLength = langruntime.checkedIndex(currentLength);
+    }
+    if (bestLength < 2) {
+        bestLength = langruntime.checkedIndex(0);
+    }
+    let output: string = "";
+    let position: number = 0;
+    while (position < 8) {
+        if (!(bestLength === 0) && position >= bestStart && position < langruntime.checkedAdd(bestStart, bestLength)) {
+            if (position === bestStart) {
+                output = output + langruntime.checkedChar(":");
+            }
+        }
+        else {
+            if (!(position === 0)) {
+                output = output + langruntime.checkedChar(":");
+            }
+            if (position === 6 && bestStart === 0 && (bestLength === 6 || (bestLength === 7 && !(address.word7 === 1)) || (bestLength === 5 && address.word5 === 65535))) {
+                const dotted: string = networkIpv4Text(address, 6, 4);
+                output = output + dotted;
+                break;
+            }
+            const word: number = checkruntime.networkAddressWord(address, position);
+            const number: string = checkruntime.textNumber(word, 16);
+            output = output + number;
+        }
+        position = langruntime.checkedAdd(position, 1);
+    }
+    if (!(bestLength === 0) && langruntime.checkedAdd(bestStart, bestLength) === 8) {
+        output = output + langruntime.checkedChar(":");
+    }
+    return output;
+}
+function networkCidrText(address: checkruntime.NetworkAddress): string {
+    let output: string = "";
+    if (address.family === 4) {
+        if (address.prefix === 0) {
+            output = output + langruntime.checkedChar("0");
+        }
+        else {
+            const octets: number = langruntime.checkedSignedDivide((langruntime.checkedSignedAdd(address.prefix, 7)), 8);
+            output = langruntime.checkedString(networkIpv4Text(address, 0, octets));
+        }
+    }
+    else if (address.prefix === 0) {
+        output = output + "::";
+    }
+    else {
+        let words: number = langruntime.checkedSignedDivide((langruntime.checkedSignedAdd(address.prefix, 15)), 16);
+        if (words === 1) {
+            words = langruntime.checkedI32(2);
+        }
+        let zeroStart: number = 0;
+        let zeroLength: number = 0;
+        let currentStart: number = 0;
+        let currentLength: number = 0;
+        let index: number = 0;
+        let remaining: number = words;
+        while (remaining > 0) {
+            if (checkruntime.networkAddressWord(address, index) === 0) {
+                if (currentLength === 0) {
+                    currentStart = langruntime.checkedIndex(index);
+                }
+                currentLength = langruntime.checkedAdd(currentLength, 1);
+            }
+            else if (!(currentLength === 0) && zeroLength < currentLength) {
+                zeroStart = langruntime.checkedIndex(currentStart);
+                zeroLength = langruntime.checkedIndex(currentLength);
+                currentLength = langruntime.checkedIndex(0);
+            }
+            index = langruntime.checkedAdd(index, 1);
+            remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, 1));
+        }
+        if (!(currentLength === 0) && zeroLength < currentLength) {
+            zeroStart = langruntime.checkedIndex(currentStart);
+            zeroLength = langruntime.checkedIndex(currentLength);
+        }
+        const ipv4: boolean = !(zeroLength === index) && zeroStart === 0 && (zeroLength === 6 || (zeroLength === 5 && address.word5 === 65535) || (zeroLength === 7 && !(langruntime.checkedSignedDivide(address.word7, 256) === 0) && !(langruntime.checkedSignedRemainder(address.word7, 256) === 1)));
+        let position: number = 0;
+        let printed: boolean = false;
+        while (position < index) {
+            if (!(zeroLength === 0) && position >= zeroStart && position < langruntime.checkedAdd(zeroStart, zeroLength)) {
+                if (position === zeroStart) {
+                    output = output + langruntime.checkedChar(":");
+                    printed = langruntime.checkedBool(true);
+                }
+                if (position === langruntime.checkedSubtract(index, 1)) {
+                    output = output + langruntime.checkedChar(":");
+                }
+            }
+            else if (ipv4 && position > 5) {
+                if (position === 6) {
+                    output = output + langruntime.checkedChar(":");
+                }
+                else {
+                    output = output + langruntime.checkedChar(".");
+                }
+                const high: number = checkruntime.networkAddressByte(address, position, true);
+                const number: string = checkruntime.textNumber(high, 10);
+                output = output + number;
+                if (!(position === 7) || address.prefix > 120) {
+                    output = output + langruntime.checkedChar(".");
+                    const low: number = checkruntime.networkAddressByte(address, position, false);
+                    const lowNumber: string = checkruntime.textNumber(low, 10);
+                    output = output + lowNumber;
+                }
+                printed = langruntime.checkedBool(true);
+            }
+            else {
+                if (printed) {
+                    output = output + langruntime.checkedChar(":");
+                }
+                const word: number = checkruntime.networkAddressWord(address, position);
+                const number: string = checkruntime.textNumber(word, 16);
+                output = output + number;
+                printed = langruntime.checkedBool(true);
+            }
+            position = langruntime.checkedAdd(position, 1);
+        }
+    }
+    output = output + langruntime.checkedChar("/");
+    const prefix: string = checkruntime.textNumber(address.prefix, 10);
+    output = output + prefix;
+    return output;
+}
+function networkOutput(input: checkruntime.NetworkValue, mode: number): checkruntime.TextValue {
+    mode = langruntime.checkedI32(mode);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const address: checkruntime.NetworkAddress = input.value;
+        if (mode === 3) {
+            return { kind: "Value", value: networkCidrText(address) };
+        }
+        let output: string = networkHostText(address);
+        if (mode === 1 || (mode === 2 && !(address.prefix === networkMaxBits(address)))) {
+            output = output + langruntime.checkedChar("/");
+            const prefix: string = checkruntime.textNumber(address.prefix, 10);
+            output = output + prefix;
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function hostH4jb(input: checkruntime.NetworkValue): checkruntime.TextValue {
+    return networkOutput(input, 0);
+}
+export function text99pc(input: checkruntime.NetworkValue): checkruntime.TextValue {
+    return networkOutput(input, 1);
+}
+export function abbrevXdee(input: checkruntime.NetworkValue): checkruntime.TextValue {
+    return networkOutput(input, 2);
+}
+export function abbrev5tby(input: checkruntime.NetworkValue): checkruntime.TextValue {
+    return networkOutput(input, 3);
+}
+function networkSend(input: checkruntime.NetworkValue, cidr: boolean): checkruntime.ByteaValue {
+    cidr = langruntime.checkedBool(cidr);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNetworkValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const address: checkruntime.NetworkAddress = input.value;
+        let family: number = 2;
+        let size: number = 4;
+        let cidrFlag: number = 0;
+        if (address.family === 6) {
+            family = langruntime.checkedI32(3);
+            size = langruntime.checkedI32(16);
+        }
+        if (cidr) {
+            cidrFlag = langruntime.checkedI32(1);
+        }
+        let output: string = "";
+        output = langruntime.checkedString(checkruntime.byteaAppendByte(output, family));
+        output = langruntime.checkedString(checkruntime.byteaAppendByte(output, address.prefix));
+        output = langruntime.checkedString(checkruntime.byteaAppendByte(output, cidrFlag));
+        output = langruntime.checkedString(checkruntime.byteaAppendByte(output, size));
+        let index: number = 0;
+        let high: boolean = true;
+        let remaining: number = size;
+        while (remaining > 0) {
+            const byte: number = checkruntime.networkAddressByte(address, index, high);
+            output = langruntime.checkedString(checkruntime.byteaAppendByte(output, byte));
+            if (high) {
+                high = langruntime.checkedBool(false);
+            }
+            else {
+                high = langruntime.checkedBool(true);
+                index = langruntime.checkedAdd(index, 1);
+            }
+            remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, 1));
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function inetSendZ9ng(input: checkruntime.NetworkValue): checkruntime.ByteaValue {
+    return networkSend(input, false);
+}
+export function cidrSendS007(input: checkruntime.NetworkValue): checkruntime.ByteaValue {
+    return networkSend(input, true);
+}
 function numericCompare(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.Int4Value {
-    left = checkruntime.copyNumericValue(left);
-    right = checkruntime.copyNumericValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -2765,9 +2985,7 @@ function numericCompare(left: checkruntime.NumericValue, right: checkruntime.Num
     return { kind: "Unknown" };
 }
 export function numericEqFw7r(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.BoolValue {
-    left = checkruntime.copyNumericValue(left);
-    right = checkruntime.copyNumericValue(right);
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(numericCompare(left, right));
+    const result: checkruntime.Int4Value = numericCompare(left, right);
     if (result.kind === "Error") {
         const error: checkruntime.SqlError = result.value;
         return { kind: "Error", value: error };
@@ -2785,9 +3003,7 @@ export function numericEqFw7r(left: checkruntime.NumericValue, right: checkrunti
     return { kind: "Unknown" };
 }
 export function numericGeW8pw(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.BoolValue {
-    left = checkruntime.copyNumericValue(left);
-    right = checkruntime.copyNumericValue(right);
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(numericCompare(left, right));
+    const result: checkruntime.Int4Value = numericCompare(left, right);
     if (result.kind === "Error") {
         const error: checkruntime.SqlError = result.value;
         return { kind: "Error", value: error };
@@ -2805,9 +3021,7 @@ export function numericGeW8pw(left: checkruntime.NumericValue, right: checkrunti
     return { kind: "Unknown" };
 }
 export function numericGtH1pi(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.BoolValue {
-    left = checkruntime.copyNumericValue(left);
-    right = checkruntime.copyNumericValue(right);
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(numericCompare(left, right));
+    const result: checkruntime.Int4Value = numericCompare(left, right);
     if (result.kind === "Error") {
         const error: checkruntime.SqlError = result.value;
         return { kind: "Error", value: error };
@@ -2825,9 +3039,7 @@ export function numericGtH1pi(left: checkruntime.NumericValue, right: checkrunti
     return { kind: "Unknown" };
 }
 export function numericLeBbpc(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.BoolValue {
-    left = checkruntime.copyNumericValue(left);
-    right = checkruntime.copyNumericValue(right);
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(numericCompare(left, right));
+    const result: checkruntime.Int4Value = numericCompare(left, right);
     if (result.kind === "Error") {
         const error: checkruntime.SqlError = result.value;
         return { kind: "Error", value: error };
@@ -2845,9 +3057,7 @@ export function numericLeBbpc(left: checkruntime.NumericValue, right: checkrunti
     return { kind: "Unknown" };
 }
 export function numericLtZl16(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.BoolValue {
-    left = checkruntime.copyNumericValue(left);
-    right = checkruntime.copyNumericValue(right);
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(numericCompare(left, right));
+    const result: checkruntime.Int4Value = numericCompare(left, right);
     if (result.kind === "Error") {
         const error: checkruntime.SqlError = result.value;
         return { kind: "Error", value: error };
@@ -2865,9 +3075,7 @@ export function numericLtZl16(left: checkruntime.NumericValue, right: checkrunti
     return { kind: "Unknown" };
 }
 export function numericNeGyip(left: checkruntime.NumericValue, right: checkruntime.NumericValue): checkruntime.BoolValue {
-    left = checkruntime.copyNumericValue(left);
-    right = checkruntime.copyNumericValue(right);
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(numericCompare(left, right));
+    const result: checkruntime.Int4Value = numericCompare(left, right);
     if (result.kind === "Error") {
         const error: checkruntime.SqlError = result.value;
         return { kind: "Error", value: error };
@@ -2885,181 +3093,132 @@ export function numericNeGyip(left: checkruntime.NumericValue, right: checkrunti
     return { kind: "Unknown" };
 }
 export function int24eqCfkl(left: checkruntime.Int2Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt4Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
     return int4eqLrxe(leftWide, right);
 }
 export function int24geHurd(left: checkruntime.Int2Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt4Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
     return int4ge2xvk(leftWide, right);
 }
 export function int24gt98sb(left: checkruntime.Int2Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt4Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
     return int4gt5vlv(leftWide, right);
 }
 export function int24le56y6(left: checkruntime.Int2Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt4Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
     return int4le9wb6(leftWide, right);
 }
 export function int24ltGuxt(left: checkruntime.Int2Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt4Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
     return int4lt9gej(leftWide, right);
 }
 export function int24ne11ts(left: checkruntime.Int2Value, right: checkruntime.Int4Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt4Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
     return int4neQhun(leftWide, right);
 }
 export function int28eq47dr(left: checkruntime.Int2Value, right: checkruntime.Int8Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
     const leftWide: checkruntime.Int8Value = checkruntime.int2ToInt8(left);
     return int8eqJdhd(leftWide, right);
 }
 export function int28geXhie(left: checkruntime.Int2Value, right: checkruntime.Int8Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
     const leftWide: checkruntime.Int8Value = checkruntime.int2ToInt8(left);
     return int8geQfhv(leftWide, right);
 }
 export function int28gtXmpc(left: checkruntime.Int2Value, right: checkruntime.Int8Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
     const leftWide: checkruntime.Int8Value = checkruntime.int2ToInt8(left);
     return int8gt3ehj(leftWide, right);
 }
 export function int28leJsoj(left: checkruntime.Int2Value, right: checkruntime.Int8Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
     const leftWide: checkruntime.Int8Value = checkruntime.int2ToInt8(left);
     return int8le9fr4(leftWide, right);
 }
 export function int28ltF4ka(left: checkruntime.Int2Value, right: checkruntime.Int8Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
     const leftWide: checkruntime.Int8Value = checkruntime.int2ToInt8(left);
     return int8ltCryd(leftWide, right);
 }
 export function int28ne4fh8(left: checkruntime.Int2Value, right: checkruntime.Int8Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
     const leftWide: checkruntime.Int8Value = checkruntime.int2ToInt8(left);
     return int8neUr2k(leftWide, right);
 }
 export function int2eqU7zv(left: checkruntime.Int2Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4eqLrxe(leftWide, rightWide);
 }
 export function int2geLd2i(left: checkruntime.Int2Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4ge2xvk(leftWide, rightWide);
 }
 export function int2gt681i(left: checkruntime.Int2Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4gt5vlv(leftWide, rightWide);
 }
 export function int2leEp4u(left: checkruntime.Int2Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4le9wb6(leftWide, rightWide);
 }
 export function int2ltQvze(left: checkruntime.Int2Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4lt9gej(leftWide, rightWide);
 }
 export function int2neUz14(left: checkruntime.Int2Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4neQhun(leftWide, rightWide);
 }
 export function int42eqRd78(left: checkruntime.Int4Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4eqLrxe(left, rightWide);
 }
 export function int42geT5ib(left: checkruntime.Int4Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4ge2xvk(left, rightWide);
 }
 export function int42gtBicd(left: checkruntime.Int4Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4gt5vlv(left, rightWide);
 }
 export function int42le570s(left: checkruntime.Int4Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4le9wb6(left, rightWide);
 }
 export function int42ltEtdm(left: checkruntime.Int4Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4lt9gej(left, rightWide);
 }
 export function int42neBeca(left: checkruntime.Int4Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4neQhun(left, rightWide);
 }
 export function int82eqJdpt(left: checkruntime.Int8Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    right = checkruntime.copyInt2Value(right);
     const rightWide: checkruntime.Int8Value = checkruntime.int2ToInt8(right);
     return int8eqJdhd(left, rightWide);
 }
 export function int82geEh8t(left: checkruntime.Int8Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    right = checkruntime.copyInt2Value(right);
     const rightWide: checkruntime.Int8Value = checkruntime.int2ToInt8(right);
     return int8geQfhv(left, rightWide);
 }
 export function int82gt7e3o(left: checkruntime.Int8Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    right = checkruntime.copyInt2Value(right);
     const rightWide: checkruntime.Int8Value = checkruntime.int2ToInt8(right);
     return int8gt3ehj(left, rightWide);
 }
 export function int82leJth3(left: checkruntime.Int8Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    right = checkruntime.copyInt2Value(right);
     const rightWide: checkruntime.Int8Value = checkruntime.int2ToInt8(right);
     return int8le9fr4(left, rightWide);
 }
 export function int82ltXt99(left: checkruntime.Int8Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    right = checkruntime.copyInt2Value(right);
     const rightWide: checkruntime.Int8Value = checkruntime.int2ToInt8(right);
     return int8ltCryd(left, rightWide);
 }
 export function int82ne6rol(left: checkruntime.Int8Value, right: checkruntime.Int2Value): checkruntime.BoolValue {
-    right = checkruntime.copyInt2Value(right);
     const rightWide: checkruntime.Int8Value = checkruntime.int2ToInt8(right);
     return int8neUr2k(left, rightWide);
 }
 function smallintResult(value: checkruntime.Int4Value): checkruntime.Int2Value {
-    value = checkruntime.copyInt4Value(value);
     if (value.kind === "Value") {
         const payload: number = langruntime.checkedI32(value.value);
         if (payload < langruntime.checkedSignedNegate(32768) || payload > 32767) {
@@ -3077,117 +3236,85 @@ function smallintResult(value: checkruntime.Int4Value): checkruntime.Int2Value {
     return { kind: "Unknown" };
 }
 export function int2plYujm(left: checkruntime.Int2Value, right: checkruntime.Int2Value): checkruntime.Int2Value {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(int4plSj3s(leftWide, rightWide));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
+    const result: checkruntime.Int4Value = int4plSj3s(leftWide, rightWide);
     return smallintResult(result);
 }
 export function int2miUxzm(left: checkruntime.Int2Value, right: checkruntime.Int2Value): checkruntime.Int2Value {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(int4miDtqk(leftWide, rightWide));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
+    const result: checkruntime.Int4Value = int4miDtqk(leftWide, rightWide);
     return smallintResult(result);
 }
 export function int2mulK2lr(left: checkruntime.Int2Value, right: checkruntime.Int2Value): checkruntime.Int2Value {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(int4mul284v(leftWide, rightWide));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
+    const result: checkruntime.Int4Value = int4mul284v(leftWide, rightWide);
     return smallintResult(result);
 }
 export function int2divFnwp(left: checkruntime.Int2Value, right: checkruntime.Int2Value): checkruntime.Int2Value {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(int4div8ogr(leftWide, rightWide));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
+    const result: checkruntime.Int4Value = int4div8ogr(leftWide, rightWide);
     return smallintResult(result);
 }
 export function int2modZds7(left: checkruntime.Int2Value, right: checkruntime.Int2Value): checkruntime.Int2Value {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(int4modJ4pe(leftWide, rightWide));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
+    const result: checkruntime.Int4Value = int4modJ4pe(leftWide, rightWide);
     return smallintResult(result);
 }
 export function int2absTyad(input: checkruntime.Int2Value): checkruntime.Int2Value {
-    input = checkruntime.copyInt2Value(input);
-    const wide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(input));
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(abs5ajw(wide));
+    const wide: checkruntime.Int4Value = checkruntime.int2ToInt4(input);
+    const result: checkruntime.Int4Value = abs5ajw(wide);
     return smallintResult(result);
 }
 export function abs43i0(input: checkruntime.Int2Value): checkruntime.Int2Value {
-    input = checkruntime.copyInt2Value(input);
     return int2absTyad(input);
 }
 export function modMzjb(left: checkruntime.Int2Value, right: checkruntime.Int2Value): checkruntime.Int2Value {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt2Value(right);
     return int2modZds7(left, right);
 }
 export function int2um8puj(input: checkruntime.Int2Value): checkruntime.Int2Value {
-    input = checkruntime.copyInt2Value(input);
-    const zero: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.makeInt4Value(0));
-    const wide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(input));
-    const result: checkruntime.Int4Value = checkruntime.copyInt4Value(int4miDtqk(zero, wide));
+    const zero: checkruntime.Int4Value = checkruntime.makeInt4Value(0);
+    const wide: checkruntime.Int4Value = checkruntime.int2ToInt4(input);
+    const result: checkruntime.Int4Value = int4miDtqk(zero, wide);
     return smallintResult(result);
 }
 export function int2upNe4g(input: checkruntime.Int2Value): checkruntime.Int2Value {
-    input = checkruntime.copyInt2Value(input);
     return input;
 }
 export function int24plIpr8(left: checkruntime.Int2Value, right: checkruntime.Int4Value): checkruntime.Int4Value {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt4Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
     return int4plSj3s(leftWide, right);
 }
 export function int42plCx9n(left: checkruntime.Int4Value, right: checkruntime.Int2Value): checkruntime.Int4Value {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4plSj3s(left, rightWide);
 }
 export function int24miClza(left: checkruntime.Int2Value, right: checkruntime.Int4Value): checkruntime.Int4Value {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt4Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
     return int4miDtqk(leftWide, right);
 }
 export function int42miNaln(left: checkruntime.Int4Value, right: checkruntime.Int2Value): checkruntime.Int4Value {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4miDtqk(left, rightWide);
 }
 export function int24mulRdky(left: checkruntime.Int2Value, right: checkruntime.Int4Value): checkruntime.Int4Value {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt4Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
     return int4mul284v(leftWide, right);
 }
 export function int42mulDh4o(left: checkruntime.Int4Value, right: checkruntime.Int2Value): checkruntime.Int4Value {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4mul284v(left, rightWide);
 }
 export function int24divY2zx(left: checkruntime.Int2Value, right: checkruntime.Int4Value): checkruntime.Int4Value {
-    left = checkruntime.copyInt2Value(left);
-    right = checkruntime.copyInt4Value(right);
-    const leftWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(left));
+    const leftWide: checkruntime.Int4Value = checkruntime.int2ToInt4(left);
     return int4div8ogr(leftWide, right);
 }
 export function int42div0fx0(left: checkruntime.Int4Value, right: checkruntime.Int2Value): checkruntime.Int4Value {
-    left = checkruntime.copyInt4Value(left);
-    right = checkruntime.copyInt2Value(right);
-    const rightWide: checkruntime.Int4Value = checkruntime.copyInt4Value(checkruntime.int2ToInt4(right));
+    const rightWide: checkruntime.Int4Value = checkruntime.int2ToInt4(right);
     return int4div8ogr(left, rightWide);
 }
 function textHasPrefix(text: string, prefix: string): boolean {
@@ -3229,7 +3356,6 @@ function textCodepointBefore(left: string, right: string): boolean {
     return leftChars.length < rightChars.length;
 }
 export function lengthEhpe(value: checkruntime.TextValue): checkruntime.Int4Value {
-    value = checkruntime.copyTextValue(value);
     if (value.kind === "Error") {
         const error: checkruntime.SqlError = value.value;
         return { kind: "Error", value: error };
@@ -3254,8 +3380,6 @@ export function lengthEhpe(value: checkruntime.TextValue): checkruntime.Int4Valu
     return { kind: "Unknown" };
 }
 export function texteqAet8(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
-    left = checkruntime.copyTextValue(left);
-    right = checkruntime.copyTextValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -3280,8 +3404,6 @@ export function texteqAet8(left: checkruntime.TextValue, right: checkruntime.Tex
     return { kind: "Unknown" };
 }
 export function textne1urq(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
-    left = checkruntime.copyTextValue(left);
-    right = checkruntime.copyTextValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -3306,8 +3428,6 @@ export function textne1urq(left: checkruntime.TextValue, right: checkruntime.Tex
     return { kind: "Unknown" };
 }
 export function textLtZinq(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
-    left = checkruntime.copyTextValue(left);
-    right = checkruntime.copyTextValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -3332,8 +3452,6 @@ export function textLtZinq(left: checkruntime.TextValue, right: checkruntime.Tex
     return { kind: "Unknown" };
 }
 export function textLeWb3z(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
-    left = checkruntime.copyTextValue(left);
-    right = checkruntime.copyTextValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -3358,8 +3476,6 @@ export function textLeWb3z(left: checkruntime.TextValue, right: checkruntime.Tex
     return { kind: "Unknown" };
 }
 export function textGtRb7n(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
-    left = checkruntime.copyTextValue(left);
-    right = checkruntime.copyTextValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -3384,8 +3500,6 @@ export function textGtRb7n(left: checkruntime.TextValue, right: checkruntime.Tex
     return { kind: "Unknown" };
 }
 export function startsWith6ctf(text: checkruntime.TextValue, prefix: checkruntime.TextValue): checkruntime.BoolValue {
-    text = checkruntime.copyTextValue(text);
-    prefix = checkruntime.copyTextValue(prefix);
     if (text.kind === "Error") {
         const error: checkruntime.SqlError = text.value;
         return { kind: "Error", value: error };
@@ -3410,8 +3524,6 @@ export function startsWith6ctf(text: checkruntime.TextValue, prefix: checkruntim
     return { kind: "Unknown" };
 }
 export function textGeT8pg(left: checkruntime.TextValue, right: checkruntime.TextValue): checkruntime.BoolValue {
-    left = checkruntime.copyTextValue(left);
-    right = checkruntime.copyTextValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -3436,8 +3548,6 @@ export function textGeT8pg(left: checkruntime.TextValue, right: checkruntime.Tex
     return { kind: "Unknown" };
 }
 export function timestampEqJd79(left: checkruntime.TimestampValue, right: checkruntime.TimestampValue): checkruntime.BoolValue {
-    left = checkruntime.copyTimestampValue(left);
-    right = checkruntime.copyTimestampValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -3462,8 +3572,6 @@ export function timestampEqJd79(left: checkruntime.TimestampValue, right: checkr
     return { kind: "Unknown" };
 }
 export function timestampGe80hi(left: checkruntime.TimestampValue, right: checkruntime.TimestampValue): checkruntime.BoolValue {
-    left = checkruntime.copyTimestampValue(left);
-    right = checkruntime.copyTimestampValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -3488,8 +3596,6 @@ export function timestampGe80hi(left: checkruntime.TimestampValue, right: checkr
     return { kind: "Unknown" };
 }
 export function timestampGtHxfo(left: checkruntime.TimestampValue, right: checkruntime.TimestampValue): checkruntime.BoolValue {
-    left = checkruntime.copyTimestampValue(left);
-    right = checkruntime.copyTimestampValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -3514,8 +3620,6 @@ export function timestampGtHxfo(left: checkruntime.TimestampValue, right: checkr
     return { kind: "Unknown" };
 }
 export function timestampLe1qj4(left: checkruntime.TimestampValue, right: checkruntime.TimestampValue): checkruntime.BoolValue {
-    left = checkruntime.copyTimestampValue(left);
-    right = checkruntime.copyTimestampValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -3540,8 +3644,6 @@ export function timestampLe1qj4(left: checkruntime.TimestampValue, right: checkr
     return { kind: "Unknown" };
 }
 export function timestampLtOgss(left: checkruntime.TimestampValue, right: checkruntime.TimestampValue): checkruntime.BoolValue {
-    left = checkruntime.copyTimestampValue(left);
-    right = checkruntime.copyTimestampValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -3566,8 +3668,6 @@ export function timestampLtOgss(left: checkruntime.TimestampValue, right: checkr
     return { kind: "Unknown" };
 }
 export function timestampNeQsye(left: checkruntime.TimestampValue, right: checkruntime.TimestampValue): checkruntime.BoolValue {
-    left = checkruntime.copyTimestampValue(left);
-    right = checkruntime.copyTimestampValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -3592,8 +3692,6 @@ export function timestampNeQsye(left: checkruntime.TimestampValue, right: checkr
     return { kind: "Unknown" };
 }
 export function timestamptzEqK4n3(left: checkruntime.TimestamptzValue, right: checkruntime.TimestamptzValue): checkruntime.BoolValue {
-    left = checkruntime.copyTimestamptzValue(left);
-    right = checkruntime.copyTimestamptzValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -3618,8 +3716,6 @@ export function timestamptzEqK4n3(left: checkruntime.TimestamptzValue, right: ch
     return { kind: "Unknown" };
 }
 export function timestamptzGeP2rz(left: checkruntime.TimestamptzValue, right: checkruntime.TimestamptzValue): checkruntime.BoolValue {
-    left = checkruntime.copyTimestamptzValue(left);
-    right = checkruntime.copyTimestamptzValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -3644,8 +3740,6 @@ export function timestamptzGeP2rz(left: checkruntime.TimestamptzValue, right: ch
     return { kind: "Unknown" };
 }
 export function timestamptzGt89jo(left: checkruntime.TimestamptzValue, right: checkruntime.TimestamptzValue): checkruntime.BoolValue {
-    left = checkruntime.copyTimestamptzValue(left);
-    right = checkruntime.copyTimestamptzValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -3670,8 +3764,6 @@ export function timestamptzGt89jo(left: checkruntime.TimestamptzValue, right: ch
     return { kind: "Unknown" };
 }
 export function timestamptzLe0urp(left: checkruntime.TimestamptzValue, right: checkruntime.TimestamptzValue): checkruntime.BoolValue {
-    left = checkruntime.copyTimestamptzValue(left);
-    right = checkruntime.copyTimestamptzValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -3696,8 +3788,6 @@ export function timestamptzLe0urp(left: checkruntime.TimestamptzValue, right: ch
     return { kind: "Unknown" };
 }
 export function timestamptzLtB2w5(left: checkruntime.TimestamptzValue, right: checkruntime.TimestamptzValue): checkruntime.BoolValue {
-    left = checkruntime.copyTimestamptzValue(left);
-    right = checkruntime.copyTimestamptzValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };
@@ -3722,8 +3812,6 @@ export function timestamptzLtB2w5(left: checkruntime.TimestamptzValue, right: ch
     return { kind: "Unknown" };
 }
 export function timestamptzNe4iy1(left: checkruntime.TimestamptzValue, right: checkruntime.TimestamptzValue): checkruntime.BoolValue {
-    left = checkruntime.copyTimestamptzValue(left);
-    right = checkruntime.copyTimestamptzValue(right);
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;
         return { kind: "Error", value: error };

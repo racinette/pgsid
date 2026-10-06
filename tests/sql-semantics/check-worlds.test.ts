@@ -637,6 +637,19 @@ describe('world CHECK INSERT parity', () => {
           'plan_combined',
         ],
       ],
+      [
+        'network_outputs',
+        [
+          'output_host',
+          'output_text',
+          'output_abbrev',
+          'output_cidr_abbrev',
+          'output_inet_send',
+          'output_cidr_send',
+          'output_hash',
+          'output_hash_extended',
+        ],
+      ],
       ['network_resizes', ['resize_address', 'resize_subnet']],
       ['network_filters', ['filter_complement', 'filter_intersection', 'filter_union']],
       [

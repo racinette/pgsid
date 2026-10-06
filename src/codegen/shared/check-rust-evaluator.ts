@@ -23,6 +23,7 @@ type Input = {
 export class UnsupportedCheckRustExpression extends Error {}
 
 const rustType = (type: string): string => {
+  if (type === 'pg_catalog.bytea') return 'ByteaValue'
   if (type === 'pg_catalog.int2') return 'Int2Value'
   if (type === 'pg_catalog.inet' || type === 'pg_catalog.cidr') return 'NetworkValue'
   if (type === 'pg_catalog.int4') return 'Int4Value'
@@ -96,6 +97,11 @@ export function emitCheckRustEvaluator(
     ordered(names)
       .map((item) => `${item.rustName}: ${item.rustType}`)
       .join(', ')
+  const ownedOperand = (operand: { name: string; type: string }): string =>
+    ['TextValue', 'ByteaValue'].includes(rustType(operand.type))
+      ? `${operand.name}.clone()`
+      : operand.name
+
   const emitScalar = (
     node: EvalExpression,
     bindings: string[],
@@ -182,7 +188,7 @@ export function emitCheckRustEvaluator(
       callables.add(implementation.rustName)
       const name = fresh('value')
       destination.push(
-        `let ${name} = ${implementation.rustName}(${operands.map((operand) => operand.name).join(', ')});`,
+        `let ${name} = ${implementation.rustName}(${operands.map((operand) => ownedOperand(operand)).join(', ')});`,
       )
       return { name, type: call.type }
     }
@@ -231,7 +237,7 @@ export function emitCheckRustEvaluator(
               : node.type === 'pg_catalog.cidr'
                 ? 'cidr_from_text'
                 : 'network_from_text'
-      return { name: bind(`${helper}(${operand.name})`), type: node.type }
+      return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
     }
     if (node.kind === 'certain') {
       const value = node.expression
@@ -284,6 +290,15 @@ export function emitCheckRustEvaluator(
             value.value === null
               ? 'numeric_null()'
               : `make_numeric_value(${rustStringLiteral(value.value)})`,
+          ),
+          type: value.type,
+        }
+      if (value.kind === 'bytea')
+        return {
+          name: bind(
+            value.value === null
+              ? 'bytea_null()'
+              : `make_bytea_value(${rustStringLiteral(value.value)})`,
           ),
           type: value.type,
         }
@@ -368,7 +383,7 @@ export function emitCheckRustEvaluator(
       const operand = emitScalar(node.operand, bindings, used)
       const kind = rustType(operand.type)
       const helper = kind.slice(0, -'Value'.length).toLowerCase() + '_is_null'
-      const result = bind(`${helper}(${operand.name})`)
+      const result = bind(`${helper}(${ownedOperand(operand)})`)
       return {
         name: node.negated ? bind(`bool_not_value(${result})`) : result,
         type: 'pg_catalog.bool',
@@ -438,9 +453,11 @@ export function emitCheckRustEvaluator(
         throw new UnsupportedCheckRustExpression('COALESCE argument type mismatch')
       if (node.operands.length === 1) return first
       const name = fresh('coalesce_result')
-      bindings.push(`let mut ${name}: ${kind} = ${first.name};`)
+      bindings.push(`let mut ${name}: ${kind} = ${ownedOperand(first)};`)
       for (const operand of node.operands.slice(1)) {
-        const nullness = bind(`${prefix}_is_null(${name})`)
+        const nullness = bind(
+          `${prefix}_is_null(${['TextValue', 'ByteaValue'].includes(kind) ? `${name}.clone()` : name})`,
+        )
         const guard = bind(`check_from_bool(${nullness})`)
         const lines: string[] = []
         const selected = emitScalar(operand, lines, used)
@@ -449,7 +466,7 @@ export function emitCheckRustEvaluator(
         bindings.push(
           `if case_guard_takes(${guard}) {`,
           ...indent(lines),
-          `    ${name} = ${selected.name};`,
+          `    ${name} = ${ownedOperand(selected)};`,
           '}',
         )
       }
@@ -470,7 +487,7 @@ export function emitCheckRustEvaluator(
           const otherwise = emitScalar(node.otherwise, lines, used)
           if (otherwise.type !== node.type)
             throw new UnsupportedCheckRustExpression('CASE result type mismatch')
-          return [...lines, `${name} = ${otherwise.name};`]
+          return [...lines, `${name} = ${ownedOperand(otherwise)};`]
         }
         const branch = node.branches[position]!
         let condition = emitScalar(branch.when, lines, used)
@@ -493,7 +510,7 @@ export function emitCheckRustEvaluator(
           `    ${name} = ${prefix === 'bool' ? 'bool_from_check' : `${prefix}_from_case_guard`}(${guard});`,
           `} else if case_guard_takes(${guard}) {`,
           ...indent(selectedLines),
-          `    ${name} = ${selected.name};`,
+          `    ${name} = ${ownedOperand(selected)};`,
           '} else {',
           ...indent(branchLines(position + 1)),
           '};',
@@ -635,7 +652,7 @@ export function emitCheckRustEvaluator(
           ...(typeof pattern === 'string'
             ? [`let ${patternName} = make_text_value(${rustStringLiteral(pattern)});`]
             : []),
-          `let ${result} = eval_regex(${subject.rustName}, ${patternName});`,
+          `let ${result} = eval_regex(${subject.rustName}.clone(), ${patternName}.clone());`,
           `let ${name} = check_from_bool(${result});`,
         ],
         name,

@@ -48,7 +48,8 @@ function checkValueOptions(items: RustItem[]): { immutableValueTypes: string[] }
       !(
         item.module === 'checks' ||
         item.name === 'evaluate_check' ||
-        item.name.startsWith('evaluate_check_')
+        item.name.startsWith('evaluate_check_') ||
+        item.name.startsWith('sql__')
       )
     )
       continue

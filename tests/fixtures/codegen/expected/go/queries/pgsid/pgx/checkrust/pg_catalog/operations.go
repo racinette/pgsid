@@ -6,7 +6,6 @@ import (
 )
 
 func Int48lt65ji(left checkruntime.Int4Value, right checkruntime.Int8Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -32,7 +31,6 @@ func Int48lt65ji(left checkruntime.Int4Value, right checkruntime.Int8Value) chec
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int84ltZ0bo(left checkruntime.Int8Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.Int8ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -82,7 +80,6 @@ func Int8ltCryd(left checkruntime.Int8Value, right checkruntime.Int8Value) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int48le532p(left checkruntime.Int4Value, right checkruntime.Int8Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -108,7 +105,6 @@ func Int48le532p(left checkruntime.Int4Value, right checkruntime.Int8Value) chec
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int84le0gdr(left checkruntime.Int8Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.Int8ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -158,7 +154,6 @@ func Int8le9fr4(left checkruntime.Int8Value, right checkruntime.Int8Value) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int48neInar(left checkruntime.Int4Value, right checkruntime.Int8Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -184,7 +179,6 @@ func Int48neInar(left checkruntime.Int4Value, right checkruntime.Int8Value) chec
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int84ne6b8h(left checkruntime.Int8Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.Int8ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -234,7 +228,6 @@ func Int8neUr2k(left checkruntime.Int8Value, right checkruntime.Int8Value) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int48eq7ot5(left checkruntime.Int4Value, right checkruntime.Int8Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -260,7 +253,6 @@ func Int48eq7ot5(left checkruntime.Int4Value, right checkruntime.Int8Value) chec
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int84eqBnoq(left checkruntime.Int8Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.Int8ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -310,7 +302,6 @@ func Int8eqJdhd(left checkruntime.Int8Value, right checkruntime.Int8Value) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int48gtSrgr(left checkruntime.Int4Value, right checkruntime.Int8Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -336,7 +327,6 @@ func Int48gtSrgr(left checkruntime.Int4Value, right checkruntime.Int8Value) chec
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int84gtP7f5(left checkruntime.Int8Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.Int8ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -386,7 +376,6 @@ func Int8gt3ehj(left checkruntime.Int8Value, right checkruntime.Int8Value) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int48geD53z(left checkruntime.Int4Value, right checkruntime.Int8Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -412,7 +401,6 @@ func Int48geD53z(left checkruntime.Int4Value, right checkruntime.Int8Value) chec
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int84geBiti(left checkruntime.Int8Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.Int8ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -547,42 +535,34 @@ func Abs36t4(input checkruntime.Int8Value) checkruntime.Int8Value {
 	return Int8absCmj6(input)
 }
 func Int28plBh5j(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.Int8Value {
-	left = checkruntime.CopyInt2Value(left)
 	widened := checkruntime.Int2ToInt8(left)
 	return Int8pl1v1h(widened, right)
 }
 func Int82plE0uq(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.Int8Value {
-	right = checkruntime.CopyInt2Value(right)
 	widened := checkruntime.Int2ToInt8(right)
 	return Int8pl1v1h(left, widened)
 }
 func Int28miUjbh(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.Int8Value {
-	left = checkruntime.CopyInt2Value(left)
 	widened := checkruntime.Int2ToInt8(left)
 	return Int8miJasl(widened, right)
 }
 func Int82miUovj(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.Int8Value {
-	right = checkruntime.CopyInt2Value(right)
 	widened := checkruntime.Int2ToInt8(right)
 	return Int8miJasl(left, widened)
 }
 func Int48plY1r4(left checkruntime.Int4Value, right checkruntime.Int8Value) checkruntime.Int8Value {
-	left = checkruntime.CopyInt4Value(left)
 	widened := Int8Mzac(left)
 	return Int8pl1v1h(widened, right)
 }
 func Int84pl2n77(left checkruntime.Int8Value, right checkruntime.Int4Value) checkruntime.Int8Value {
-	right = checkruntime.CopyInt4Value(right)
 	widened := Int8Mzac(right)
 	return Int8pl1v1h(left, widened)
 }
 func Int48miNeop(left checkruntime.Int4Value, right checkruntime.Int8Value) checkruntime.Int8Value {
-	left = checkruntime.CopyInt4Value(left)
 	widened := Int8Mzac(left)
 	return Int8miJasl(widened, right)
 }
 func Int84mi867a(left checkruntime.Int8Value, right checkruntime.Int4Value) checkruntime.Int8Value {
-	right = checkruntime.CopyInt4Value(right)
 	widened := Int8Mzac(right)
 	return Int8miJasl(left, widened)
 }
@@ -683,48 +663,86 @@ func Int8mod2t8f(left checkruntime.Int8Value, right checkruntime.Int8Value) chec
 	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 }
 func Int28mulLmrp(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.Int8Value {
-	left = checkruntime.CopyInt2Value(left)
 	widened := checkruntime.Int2ToInt8(left)
 	return Int8mul6t1m(widened, right)
 }
 func Int28divYfcw(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.Int8Value {
-	left = checkruntime.CopyInt2Value(left)
 	widened := checkruntime.Int2ToInt8(left)
 	return Int8div8s66(widened, right)
 }
 func Int82mul60eu(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.Int8Value {
-	right = checkruntime.CopyInt2Value(right)
 	widened := checkruntime.Int2ToInt8(right)
 	return Int8mul6t1m(left, widened)
 }
 func Int82divBfmp(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.Int8Value {
-	right = checkruntime.CopyInt2Value(right)
 	widened := checkruntime.Int2ToInt8(right)
 	return Int8div8s66(left, widened)
 }
 func Int48mulKykj(left checkruntime.Int4Value, right checkruntime.Int8Value) checkruntime.Int8Value {
-	left = checkruntime.CopyInt4Value(left)
 	widened := Int8Mzac(left)
 	return Int8mul6t1m(widened, right)
 }
 func Int48divXx1r(left checkruntime.Int4Value, right checkruntime.Int8Value) checkruntime.Int8Value {
-	left = checkruntime.CopyInt4Value(left)
 	widened := Int8Mzac(left)
 	return Int8div8s66(widened, right)
 }
 func Int84mul636w(left checkruntime.Int8Value, right checkruntime.Int4Value) checkruntime.Int8Value {
-	right = checkruntime.CopyInt4Value(right)
 	widened := Int8Mzac(right)
 	return Int8mul6t1m(left, widened)
 }
 func Int84divW65p(left checkruntime.Int8Value, right checkruntime.Int4Value) checkruntime.Int8Value {
-	right = checkruntime.CopyInt4Value(right)
 	widened := Int8Mzac(right)
 	return Int8div8s66(left, widened)
 }
+func ByteaeqZ0yh(left checkruntime.ByteaValue, right checkruntime.ByteaValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.ByteaValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.ByteaValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) || right == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) || right == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.ByteaValueValue {
+		a := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.ByteaValueValue {
+			b := langruntime.CheckedString(right.Value)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: a == b}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func ByteaneVolo(left checkruntime.ByteaValue, right checkruntime.ByteaValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.ByteaValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.ByteaValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) || right == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) || right == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.ByteaValueValue {
+		a := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.ByteaValueValue {
+			b := langruntime.CheckedString(right.Value)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: a != b}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
 func BooleqY6qu(left checkruntime.BoolValue, right checkruntime.BoolValue) checkruntime.BoolValue {
-	left = checkruntime.CopyBoolValue(left)
-	right = checkruntime.CopyBoolValue(right)
 	if left.Kind == checkruntime.BoolValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -749,8 +767,6 @@ func BooleqY6qu(left checkruntime.BoolValue, right checkruntime.BoolValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func BoolneZlce(left checkruntime.BoolValue, right checkruntime.BoolValue) checkruntime.BoolValue {
-	left = checkruntime.CopyBoolValue(left)
-	right = checkruntime.CopyBoolValue(right)
 	if left.Kind == checkruntime.BoolValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -775,8 +791,6 @@ func BoolneZlce(left checkruntime.BoolValue, right checkruntime.BoolValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func BoolltCgkk(left checkruntime.BoolValue, right checkruntime.BoolValue) checkruntime.BoolValue {
-	left = checkruntime.CopyBoolValue(left)
-	right = checkruntime.CopyBoolValue(right)
 	if left.Kind == checkruntime.BoolValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -801,8 +815,6 @@ func BoolltCgkk(left checkruntime.BoolValue, right checkruntime.BoolValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Boolle0cme(left checkruntime.BoolValue, right checkruntime.BoolValue) checkruntime.BoolValue {
-	left = checkruntime.CopyBoolValue(left)
-	right = checkruntime.CopyBoolValue(right)
 	if left.Kind == checkruntime.BoolValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -827,8 +839,6 @@ func Boolle0cme(left checkruntime.BoolValue, right checkruntime.BoolValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Boolgt6vb2(left checkruntime.BoolValue, right checkruntime.BoolValue) checkruntime.BoolValue {
-	left = checkruntime.CopyBoolValue(left)
-	right = checkruntime.CopyBoolValue(right)
 	if left.Kind == checkruntime.BoolValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -853,8 +863,6 @@ func Boolgt6vb2(left checkruntime.BoolValue, right checkruntime.BoolValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func BoolgeGviq(left checkruntime.BoolValue, right checkruntime.BoolValue) checkruntime.BoolValue {
-	left = checkruntime.CopyBoolValue(left)
-	right = checkruntime.CopyBoolValue(right)
 	if left.Kind == checkruntime.BoolValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -918,8 +926,6 @@ func bpcharCodepointCompare(left string, right string) int {
 	return 0
 }
 func BpchareqNpys(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTextValue(left)
-	right = checkruntime.CopyTextValue(right)
 	if left.Kind == checkruntime.TextValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -945,8 +951,6 @@ func BpchareqNpys(left checkruntime.TextValue, right checkruntime.TextValue) che
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func BpchargeO6oj(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTextValue(left)
-	right = checkruntime.CopyTextValue(right)
 	if left.Kind == checkruntime.TextValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -972,8 +976,6 @@ func BpchargeO6oj(left checkruntime.TextValue, right checkruntime.TextValue) che
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func BpchargtKxc4(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTextValue(left)
-	right = checkruntime.CopyTextValue(right)
 	if left.Kind == checkruntime.TextValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -999,8 +1001,6 @@ func BpchargtKxc4(left checkruntime.TextValue, right checkruntime.TextValue) che
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Bpcharle0rch(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTextValue(left)
-	right = checkruntime.CopyTextValue(right)
 	if left.Kind == checkruntime.TextValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1026,8 +1026,6 @@ func Bpcharle0rch(left checkruntime.TextValue, right checkruntime.TextValue) che
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func BpcharltQrb5(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTextValue(left)
-	right = checkruntime.CopyTextValue(right)
 	if left.Kind == checkruntime.TextValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1053,8 +1051,6 @@ func BpcharltQrb5(left checkruntime.TextValue, right checkruntime.TextValue) che
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func BpcharneQkuu(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTextValue(left)
-	right = checkruntime.CopyTextValue(right)
 	if left.Kind == checkruntime.TextValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1080,9 +1076,6 @@ func BpcharneQkuu(left checkruntime.TextValue, right checkruntime.TextValue) che
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func MakeDateZ9pv(year checkruntime.Int4Value, month checkruntime.Int4Value, day checkruntime.Int4Value) checkruntime.DateValue {
-	year = checkruntime.CopyInt4Value(year)
-	month = checkruntime.CopyInt4Value(month)
-	day = checkruntime.CopyInt4Value(day)
 	if year.Kind == checkruntime.Int4ValueError {
 		error := year.Error
 		return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: error}
@@ -1114,8 +1107,6 @@ func MakeDateZ9pv(year checkruntime.Int4Value, month checkruntime.Int4Value, day
 	return checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
 }
 func DateEqD4us(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.BoolValue {
-	left = checkruntime.CopyDateValue(left)
-	right = checkruntime.CopyDateValue(right)
 	if left.Kind == checkruntime.DateValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1140,8 +1131,6 @@ func DateEqD4us(left checkruntime.DateValue, right checkruntime.DateValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func DateNeNpdb(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.BoolValue {
-	left = checkruntime.CopyDateValue(left)
-	right = checkruntime.CopyDateValue(right)
 	if left.Kind == checkruntime.DateValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1166,8 +1155,6 @@ func DateNeNpdb(left checkruntime.DateValue, right checkruntime.DateValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func DateLt843e(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.BoolValue {
-	left = checkruntime.CopyDateValue(left)
-	right = checkruntime.CopyDateValue(right)
 	if left.Kind == checkruntime.DateValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1192,8 +1179,6 @@ func DateLt843e(left checkruntime.DateValue, right checkruntime.DateValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func DateLe5cqw(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.BoolValue {
-	left = checkruntime.CopyDateValue(left)
-	right = checkruntime.CopyDateValue(right)
 	if left.Kind == checkruntime.DateValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1218,8 +1203,6 @@ func DateLe5cqw(left checkruntime.DateValue, right checkruntime.DateValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func DateGt5025(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.BoolValue {
-	left = checkruntime.CopyDateValue(left)
-	right = checkruntime.CopyDateValue(right)
 	if left.Kind == checkruntime.DateValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1244,8 +1227,6 @@ func DateGt5025(left checkruntime.DateValue, right checkruntime.DateValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func DateGe8wil(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.BoolValue {
-	left = checkruntime.CopyDateValue(left)
-	right = checkruntime.CopyDateValue(right)
 	if left.Kind == checkruntime.DateValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1270,8 +1251,6 @@ func DateGe8wil(left checkruntime.DateValue, right checkruntime.DateValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func EnumEqW63e(left checkruntime.EnumValue, right checkruntime.EnumValue) checkruntime.BoolValue {
-	left = checkruntime.CopyEnumValue(left)
-	right = checkruntime.CopyEnumValue(right)
 	if left.Kind == checkruntime.EnumValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1296,8 +1275,6 @@ func EnumEqW63e(left checkruntime.EnumValue, right checkruntime.EnumValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func EnumNeTph2(left checkruntime.EnumValue, right checkruntime.EnumValue) checkruntime.BoolValue {
-	left = checkruntime.CopyEnumValue(left)
-	right = checkruntime.CopyEnumValue(right)
 	if left.Kind == checkruntime.EnumValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1322,8 +1299,6 @@ func EnumNeTph2(left checkruntime.EnumValue, right checkruntime.EnumValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int4gt5vlv(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1348,8 +1323,6 @@ func Int4gt5vlv(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int4eqLrxe(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1374,8 +1347,6 @@ func Int4eqLrxe(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int4ge2xvk(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1400,8 +1371,6 @@ func Int4ge2xvk(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int4le9wb6(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1426,8 +1395,6 @@ func Int4le9wb6(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int4lt9gej(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1452,8 +1419,6 @@ func Int4lt9gej(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int4neQhun(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1481,8 +1446,6 @@ func Int4neQhun(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 const sqlstateNumericValueOutOfRange = 3452547
 
 func Int4plSj3s(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.Int4Value {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -1514,8 +1477,6 @@ func Int4plSj3s(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
 func Int4miDtqk(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.Int4Value {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -1550,8 +1511,6 @@ func Int4miDtqk(left checkruntime.Int4Value, right checkruntime.Int4Value) check
 const sqlstateDivisionByZero = 3452582
 
 func Int4mul284v(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.Int4Value {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -1589,8 +1548,6 @@ func Int4mul284v(left checkruntime.Int4Value, right checkruntime.Int4Value) chec
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
 func Int4div8ogr(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.Int4Value {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -1621,8 +1578,6 @@ func Int4div8ogr(left checkruntime.Int4Value, right checkruntime.Int4Value) chec
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
 func Int4modJ4pe(left checkruntime.Int4Value, right checkruntime.Int4Value) checkruntime.Int4Value {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.Int4ValueError {
 		error := left.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -1653,7 +1608,6 @@ func Int4modJ4pe(left checkruntime.Int4Value, right checkruntime.Int4Value) chec
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
 func Abs5ajw(input checkruntime.Int4Value) checkruntime.Int4Value {
-	input = checkruntime.CopyInt4Value(input)
 	if input.Kind == checkruntime.Int4ValueValue {
 		value := langruntime.CheckedI32(input.Value)
 		if value == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) {
@@ -1666,19 +1620,15 @@ func Abs5ajw(input checkruntime.Int4Value) checkruntime.Int4Value {
 	return input
 }
 func Int41z1k(input checkruntime.Int2Value) checkruntime.Int4Value {
-	input = checkruntime.CopyInt2Value(input)
 	return checkruntime.Int2ToInt4(input)
 }
 func Int8Sxtp(input checkruntime.Int2Value) checkruntime.Int8Value {
-	input = checkruntime.CopyInt2Value(input)
 	return checkruntime.Int2ToInt8(input)
 }
 func Int215a3(input checkruntime.Int4Value) checkruntime.Int2Value {
-	input = checkruntime.CopyInt4Value(input)
 	return smallintResult(input)
 }
 func Int8Mzac(input checkruntime.Int4Value) checkruntime.Int8Value {
-	input = checkruntime.CopyInt4Value(input)
 	if input.Kind == checkruntime.Int4ValueError {
 		error := input.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
@@ -1733,8 +1683,6 @@ func Int2Gmpv(input checkruntime.Int8Value) checkruntime.Int2Value {
 const sqlstateInvalidParameterValue = 3452619
 
 func networkCompare(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.Int4Value {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	if left.Kind == checkruntime.NetworkValueError {
 		error := left.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -1750,9 +1698,9 @@ func networkCompare(left checkruntime.NetworkValue, right checkruntime.NetworkVa
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
 	}
 	if left.Kind == checkruntime.NetworkValueValue {
-		a := checkruntime.CopyNetworkAddress(left.Value)
+		a := left.Value
 		if right.Kind == checkruntime.NetworkValueValue {
-			b := checkruntime.CopyNetworkAddress(right.Value)
+			b := right.Value
 			if a.Family < b.Family {
 				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
 			}
@@ -1782,8 +1730,6 @@ func networkCompare(left checkruntime.NetworkValue, right checkruntime.NetworkVa
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
 func NetworkEqI7hn(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	result := networkCompare(left, right)
 	if result.Kind == checkruntime.Int4ValueError {
 		error := result.Error
@@ -1802,8 +1748,6 @@ func NetworkEqI7hn(left checkruntime.NetworkValue, right checkruntime.NetworkVal
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func NetworkNeVmql(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	result := networkCompare(left, right)
 	if result.Kind == checkruntime.Int4ValueError {
 		error := result.Error
@@ -1822,8 +1766,6 @@ func NetworkNeVmql(left checkruntime.NetworkValue, right checkruntime.NetworkVal
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func NetworkLt0kbr(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	result := networkCompare(left, right)
 	if result.Kind == checkruntime.Int4ValueError {
 		error := result.Error
@@ -1842,8 +1784,6 @@ func NetworkLt0kbr(left checkruntime.NetworkValue, right checkruntime.NetworkVal
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func NetworkLeN61s(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	result := networkCompare(left, right)
 	if result.Kind == checkruntime.Int4ValueError {
 		error := result.Error
@@ -1862,8 +1802,6 @@ func NetworkLeN61s(left checkruntime.NetworkValue, right checkruntime.NetworkVal
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func NetworkGtI6x7(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	result := networkCompare(left, right)
 	if result.Kind == checkruntime.Int4ValueError {
 		error := result.Error
@@ -1882,8 +1820,6 @@ func NetworkGtI6x7(left checkruntime.NetworkValue, right checkruntime.NetworkVal
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func NetworkGeQ7pc(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	result := networkCompare(left, right)
 	if result.Kind == checkruntime.Int4ValueError {
 		error := result.Error
@@ -1902,8 +1838,6 @@ func NetworkGeQ7pc(left checkruntime.NetworkValue, right checkruntime.NetworkVal
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func networkContains(left checkruntime.NetworkValue, right checkruntime.NetworkValue, strict bool) checkruntime.BoolValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	if left.Kind == checkruntime.NetworkValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1919,9 +1853,9 @@ func networkContains(left checkruntime.NetworkValue, right checkruntime.NetworkV
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
 	}
 	if left.Kind == checkruntime.NetworkValueValue {
-		a := checkruntime.CopyNetworkAddress(left.Value)
+		a := left.Value
 		if right.Kind == checkruntime.NetworkValueValue {
-			b := checkruntime.CopyNetworkAddress(right.Value)
+			b := right.Value
 			if a.Family != b.Family || a.Prefix < b.Prefix {
 				return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
 			}
@@ -1935,8 +1869,6 @@ func networkContains(left checkruntime.NetworkValue, right checkruntime.NetworkV
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func NetworkSubY7j2(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	if left.Kind == checkruntime.NetworkValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1948,8 +1880,6 @@ func NetworkSubY7j2(left checkruntime.NetworkValue, right checkruntime.NetworkVa
 	return networkContains(left, right, true)
 }
 func NetworkSubeq9psu(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	if left.Kind == checkruntime.NetworkValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1961,8 +1891,6 @@ func NetworkSubeq9psu(left checkruntime.NetworkValue, right checkruntime.Network
 	return networkContains(left, right, false)
 }
 func NetworkSup1zu4(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	if left.Kind == checkruntime.NetworkValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1974,8 +1902,6 @@ func NetworkSup1zu4(left checkruntime.NetworkValue, right checkruntime.NetworkVa
 	return networkContains(right, left, true)
 }
 func NetworkSupeqUtj6(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	if left.Kind == checkruntime.NetworkValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -1987,8 +1913,6 @@ func NetworkSupeqUtj6(left checkruntime.NetworkValue, right checkruntime.Network
 	return networkContains(right, left, false)
 }
 func NetworkOverlapZbdv(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	if left.Kind == checkruntime.NetworkValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -2004,9 +1928,9 @@ func NetworkOverlapZbdv(left checkruntime.NetworkValue, right checkruntime.Netwo
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
 	}
 	if left.Kind == checkruntime.NetworkValueValue {
-		a := checkruntime.CopyNetworkAddress(left.Value)
+		a := left.Value
 		if right.Kind == checkruntime.NetworkValueValue {
-			b := checkruntime.CopyNetworkAddress(right.Value)
+			b := right.Value
 			if a.Family != b.Family {
 				return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: false}
 			}
@@ -2027,7 +1951,6 @@ func networkResultAddress(family int, prefix int, words []checkruntime.NetworkWo
 	return checkruntime.NetworkAddress{Family: family, Prefix: prefix, Word0: words[0].Value, Word1: words[1].Value, Word2: words[2].Value, Word3: words[3].Value, Word4: words[4].Value, Word5: words[5].Value, Word6: words[6].Value, Word7: words[7].Value}
 }
 func networkAddOffset(address checkruntime.NetworkAddress, offset int64) checkruntime.NetworkValue {
-	address = checkruntime.CopyNetworkAddress(address)
 	words := []checkruntime.NetworkWord{}
 	for len(words) < 8 {
 		langruntime.CheckedAdd(len(words), 1)
@@ -2059,7 +1982,6 @@ func networkAddOffset(address checkruntime.NetworkAddress, offset int64) checkru
 	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueValue, Value: result}
 }
 func InetplEu7x(left checkruntime.NetworkValue, right checkruntime.Int8Value) checkruntime.NetworkValue {
-	left = checkruntime.CopyNetworkValue(left)
 	if left.Kind == checkruntime.NetworkValueError {
 		error := left.Error
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
@@ -2075,7 +1997,7 @@ func InetplEu7x(left checkruntime.NetworkValue, right checkruntime.Int8Value) ch
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
 	}
 	if left.Kind == checkruntime.NetworkValueValue {
-		address := checkruntime.CopyNetworkAddress(left.Value)
+		address := left.Value
 		if right.Kind == checkruntime.Int8ValueValue {
 			offset := right.Value
 			return networkAddOffset(address, offset)
@@ -2084,7 +2006,6 @@ func InetplEu7x(left checkruntime.NetworkValue, right checkruntime.Int8Value) ch
 	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
 }
 func Int8plInet3uh7(left checkruntime.Int8Value, right checkruntime.NetworkValue) checkruntime.NetworkValue {
-	right = checkruntime.CopyNetworkValue(right)
 	if left.Kind == checkruntime.Int8ValueError {
 		error := left.Error
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
@@ -2100,7 +2021,7 @@ func Int8plInet3uh7(left checkruntime.Int8Value, right checkruntime.NetworkValue
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
 	}
 	if right.Kind == checkruntime.NetworkValueValue {
-		address := checkruntime.CopyNetworkAddress(right.Value)
+		address := right.Value
 		if left.Kind == checkruntime.Int8ValueValue {
 			offset := left.Value
 			return networkAddOffset(address, offset)
@@ -2109,7 +2030,6 @@ func Int8plInet3uh7(left checkruntime.Int8Value, right checkruntime.NetworkValue
 	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
 }
 func InetmiInt8Z4fj(left checkruntime.NetworkValue, right checkruntime.Int8Value) checkruntime.NetworkValue {
-	left = checkruntime.CopyNetworkValue(left)
 	if left.Kind == checkruntime.NetworkValueError {
 		error := left.Error
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
@@ -2125,7 +2045,7 @@ func InetmiInt8Z4fj(left checkruntime.NetworkValue, right checkruntime.Int8Value
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
 	}
 	if left.Kind == checkruntime.NetworkValueValue {
-		address := checkruntime.CopyNetworkAddress(left.Value)
+		address := left.Value
 		if right.Kind == checkruntime.Int8ValueValue {
 			offset := right.Value
 			if offset == int64(-9223372036854775808) {
@@ -2138,8 +2058,6 @@ func InetmiInt8Z4fj(left checkruntime.NetworkValue, right checkruntime.Int8Value
 	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
 }
 func InetmiJocm(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.Int8Value {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	if left.Kind == checkruntime.NetworkValueError {
 		error := left.Error
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
@@ -2155,9 +2073,9 @@ func InetmiJocm(left checkruntime.NetworkValue, right checkruntime.NetworkValue)
 		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
 	}
 	if left.Kind == checkruntime.NetworkValueValue {
-		a := checkruntime.CopyNetworkAddress(left.Value)
+		a := left.Value
 		if right.Kind == checkruntime.NetworkValueValue {
-			b := checkruntime.CopyNetworkAddress(right.Value)
+			b := right.Value
 			if a.Family != b.Family {
 				return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(sqlstateInvalidParameterValue)}
 			}
@@ -2217,7 +2135,6 @@ func InetmiJocm(left checkruntime.NetworkValue, right checkruntime.NetworkValue)
 	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 }
 func networkMaxBits(address checkruntime.NetworkAddress) int {
-	address = checkruntime.CopyNetworkAddress(address)
 	if address.Family == 4 {
 		return 32
 	}
@@ -2234,7 +2151,6 @@ func networkHostDivisor(bits int) int {
 	return divisor
 }
 func networkApplyPrefix(address checkruntime.NetworkAddress, prefix int, fillHost bool) checkruntime.NetworkAddress {
-	address = checkruntime.CopyNetworkAddress(address)
 	prefix = langruntime.CheckedI32(prefix)
 	words := []checkruntime.NetworkWord{}
 	remaining := prefix
@@ -2261,7 +2177,6 @@ func networkApplyPrefix(address checkruntime.NetworkAddress, prefix int, fillHos
 	return networkResultAddress(address.Family, prefix, words)
 }
 func networkMask(address checkruntime.NetworkAddress, host bool) checkruntime.NetworkAddress {
-	address = checkruntime.CopyNetworkAddress(address)
 	words := []checkruntime.NetworkWord{}
 	remaining := address.Prefix
 	index := 0
@@ -2287,8 +2202,6 @@ func networkMask(address checkruntime.NetworkAddress, host bool) checkruntime.Ne
 	return networkResultAddress(address.Family, width, words)
 }
 func networkSetMasklen(left checkruntime.NetworkValue, right checkruntime.Int4Value, clearHost bool) checkruntime.NetworkValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyInt4Value(right)
 	if left.Kind == checkruntime.NetworkValueError {
 		error := left.Error
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
@@ -2304,7 +2217,7 @@ func networkSetMasklen(left checkruntime.NetworkValue, right checkruntime.Int4Va
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
 	}
 	if left.Kind == checkruntime.NetworkValueValue {
-		address := checkruntime.CopyNetworkAddress(left.Value)
+		address := left.Value
 		if right.Kind == checkruntime.Int4ValueValue {
 			requested := langruntime.CheckedI32(right.Value)
 			width := networkMaxBits(address)
@@ -2334,7 +2247,6 @@ func networkSetMasklen(left checkruntime.NetworkValue, right checkruntime.Int4Va
 	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
 }
 func Family2lcf(input checkruntime.NetworkValue) checkruntime.Int4Value {
-	input = checkruntime.CopyNetworkValue(input)
 	if input.Kind == checkruntime.NetworkValueError {
 		error := input.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -2346,7 +2258,7 @@ func Family2lcf(input checkruntime.NetworkValue) checkruntime.Int4Value {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
 	}
 	if input.Kind == checkruntime.NetworkValueValue {
-		address := checkruntime.CopyNetworkAddress(input.Value)
+		address := input.Value
 		if address.Family == 4 {
 			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 4}
 		}
@@ -2355,7 +2267,6 @@ func Family2lcf(input checkruntime.NetworkValue) checkruntime.Int4Value {
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
 func MasklenKk20(input checkruntime.NetworkValue) checkruntime.Int4Value {
-	input = checkruntime.CopyNetworkValue(input)
 	if input.Kind == checkruntime.NetworkValueError {
 		error := input.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -2367,13 +2278,12 @@ func MasklenKk20(input checkruntime.NetworkValue) checkruntime.Int4Value {
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
 	}
 	if input.Kind == checkruntime.NetworkValueValue {
-		address := checkruntime.CopyNetworkAddress(input.Value)
+		address := input.Value
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: address.Prefix}
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
 func NetworkO215(input checkruntime.NetworkValue) checkruntime.NetworkValue {
-	input = checkruntime.CopyNetworkValue(input)
 	if input.Kind == checkruntime.NetworkValueError {
 		error := input.Error
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
@@ -2385,14 +2295,13 @@ func NetworkO215(input checkruntime.NetworkValue) checkruntime.NetworkValue {
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
 	}
 	if input.Kind == checkruntime.NetworkValueValue {
-		address := checkruntime.CopyNetworkAddress(input.Value)
+		address := input.Value
 		result := networkApplyPrefix(address, address.Prefix, false)
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueValue, Value: result}
 	}
 	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
 }
 func Cidr6idb(input checkruntime.NetworkValue) checkruntime.NetworkValue {
-	input = checkruntime.CopyNetworkValue(input)
 	if input.Kind == checkruntime.NetworkValueError {
 		error := input.Error
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
@@ -2404,14 +2313,13 @@ func Cidr6idb(input checkruntime.NetworkValue) checkruntime.NetworkValue {
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
 	}
 	if input.Kind == checkruntime.NetworkValueValue {
-		address := checkruntime.CopyNetworkAddress(input.Value)
+		address := input.Value
 		result := networkApplyPrefix(address, address.Prefix, false)
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueValue, Value: result}
 	}
 	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
 }
 func BroadcastIlgu(input checkruntime.NetworkValue) checkruntime.NetworkValue {
-	input = checkruntime.CopyNetworkValue(input)
 	if input.Kind == checkruntime.NetworkValueError {
 		error := input.Error
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
@@ -2423,14 +2331,13 @@ func BroadcastIlgu(input checkruntime.NetworkValue) checkruntime.NetworkValue {
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
 	}
 	if input.Kind == checkruntime.NetworkValueValue {
-		address := checkruntime.CopyNetworkAddress(input.Value)
+		address := input.Value
 		result := networkApplyPrefix(address, address.Prefix, true)
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueValue, Value: result}
 	}
 	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
 }
 func NetmaskBt5i(input checkruntime.NetworkValue) checkruntime.NetworkValue {
-	input = checkruntime.CopyNetworkValue(input)
 	if input.Kind == checkruntime.NetworkValueError {
 		error := input.Error
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
@@ -2442,14 +2349,13 @@ func NetmaskBt5i(input checkruntime.NetworkValue) checkruntime.NetworkValue {
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
 	}
 	if input.Kind == checkruntime.NetworkValueValue {
-		address := checkruntime.CopyNetworkAddress(input.Value)
+		address := input.Value
 		result := networkMask(address, false)
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueValue, Value: result}
 	}
 	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
 }
 func HostmaskVz12(input checkruntime.NetworkValue) checkruntime.NetworkValue {
-	input = checkruntime.CopyNetworkValue(input)
 	if input.Kind == checkruntime.NetworkValueError {
 		error := input.Error
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
@@ -2461,25 +2367,19 @@ func HostmaskVz12(input checkruntime.NetworkValue) checkruntime.NetworkValue {
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
 	}
 	if input.Kind == checkruntime.NetworkValueValue {
-		address := checkruntime.CopyNetworkAddress(input.Value)
+		address := input.Value
 		result := networkMask(address, true)
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueValue, Value: result}
 	}
 	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
 }
 func SetMasklenA6b0(left checkruntime.NetworkValue, right checkruntime.Int4Value) checkruntime.NetworkValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyInt4Value(right)
 	return networkSetMasklen(left, right, false)
 }
 func SetMasklen00t7(left checkruntime.NetworkValue, right checkruntime.Int4Value) checkruntime.NetworkValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyInt4Value(right)
 	return networkSetMasklen(left, right, true)
 }
 func InetSameFamilyOgv6(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	if left.Kind == checkruntime.NetworkValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -2495,17 +2395,15 @@ func InetSameFamilyOgv6(left checkruntime.NetworkValue, right checkruntime.Netwo
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
 	}
 	if left.Kind == checkruntime.NetworkValueValue {
-		a := checkruntime.CopyNetworkAddress(left.Value)
+		a := left.Value
 		if right.Kind == checkruntime.NetworkValueValue {
-			b := checkruntime.CopyNetworkAddress(right.Value)
+			b := right.Value
 			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: a.Family == b.Family}
 		}
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func InetMergeIflm(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.NetworkValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	if left.Kind == checkruntime.NetworkValueError {
 		error := left.Error
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
@@ -2521,9 +2419,9 @@ func InetMergeIflm(left checkruntime.NetworkValue, right checkruntime.NetworkVal
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
 	}
 	if left.Kind == checkruntime.NetworkValueValue {
-		a := checkruntime.CopyNetworkAddress(left.Value)
+		a := left.Value
 		if right.Kind == checkruntime.NetworkValueValue {
-			b := checkruntime.CopyNetworkAddress(right.Value)
+			b := right.Value
 			if a.Family != b.Family {
 				return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: checkruntime.MakeSqlError(sqlstateInvalidParameterValue)}
 			}
@@ -2564,8 +2462,6 @@ func networkAndWord(left int, right int) int {
 	return result
 }
 func networkBitwise(left checkruntime.NetworkValue, right checkruntime.NetworkValue, union bool) checkruntime.NetworkValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	if left.Kind == checkruntime.NetworkValueError {
 		error := left.Error
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
@@ -2581,9 +2477,9 @@ func networkBitwise(left checkruntime.NetworkValue, right checkruntime.NetworkVa
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
 	}
 	if left.Kind == checkruntime.NetworkValueValue {
-		a := checkruntime.CopyNetworkAddress(left.Value)
+		a := left.Value
 		if right.Kind == checkruntime.NetworkValueValue {
-			b := checkruntime.CopyNetworkAddress(right.Value)
+			b := right.Value
 			if a.Family != b.Family {
 				return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: checkruntime.MakeSqlError(sqlstateInvalidParameterValue)}
 			}
@@ -2612,17 +2508,12 @@ func networkBitwise(left checkruntime.NetworkValue, right checkruntime.NetworkVa
 	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
 }
 func InetandQxb6(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.NetworkValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	return networkBitwise(left, right, false)
 }
 func InetorKw39(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.NetworkValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	return networkBitwise(left, right, true)
 }
 func Inetnot8bow(input checkruntime.NetworkValue) checkruntime.NetworkValue {
-	input = checkruntime.CopyNetworkValue(input)
 	if input.Kind == checkruntime.NetworkValueError {
 		error := input.Error
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueError, Error: error}
@@ -2634,7 +2525,7 @@ func Inetnot8bow(input checkruntime.NetworkValue) checkruntime.NetworkValue {
 		return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}
 	}
 	if input.Kind == checkruntime.NetworkValueValue {
-		address := checkruntime.CopyNetworkAddress(input.Value)
+		address := input.Value
 		words := []checkruntime.NetworkWord{}
 		index := 0
 		for index < 8 {
@@ -2653,13 +2544,9 @@ func Inetnot8bow(input checkruntime.NetworkValue) checkruntime.NetworkValue {
 	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
 }
 func NetworkCmp7dun(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.Int4Value {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	return networkCompare(left, right)
 }
 func networkSelect(left checkruntime.NetworkValue, right checkruntime.NetworkValue, larger bool) checkruntime.NetworkValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	result := networkCompare(left, right)
 	if result.Kind == checkruntime.Int4ValueError {
 		error := result.Error
@@ -2681,18 +2568,343 @@ func networkSelect(left checkruntime.NetworkValue, right checkruntime.NetworkVal
 	return checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}
 }
 func NetworkLargerWb5u(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.NetworkValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	return networkSelect(left, right, true)
 }
 func NetworkSmallerNmw8(left checkruntime.NetworkValue, right checkruntime.NetworkValue) checkruntime.NetworkValue {
-	left = checkruntime.CopyNetworkValue(left)
-	right = checkruntime.CopyNetworkValue(right)
 	return networkSelect(left, right, false)
 }
+func networkHashBytes(address checkruntime.NetworkAddress) []checkruntime.HashByte {
+	bytes := []checkruntime.HashByte{}
+	family := int64(2)
+	wordCount := 2
+	if address.Family == 6 {
+		family = int64(3)
+		wordCount = langruntime.CheckedIndex(8)
+	}
+	langruntime.CheckedAdd(len(bytes), 1)
+	bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: family}))
+	prefix := int64(langruntime.CheckedI32(address.Prefix))
+	langruntime.CheckedAdd(len(bytes), 1)
+	bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: prefix}))
+	index := 0
+	for index < wordCount {
+		word := checkruntime.NetworkAddressWord(address, index)
+		high := langruntime.CheckedSignedDivide(word, 256)
+		low := langruntime.CheckedSignedRemainder(word, 256)
+		highByte := int64(langruntime.CheckedI32(high))
+		lowByte := int64(langruntime.CheckedI32(low))
+		langruntime.CheckedAdd(len(bytes), 1)
+		bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: highByte}))
+		langruntime.CheckedAdd(len(bytes), 1)
+		bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: lowByte}))
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return bytes
+}
+func HashinetFhly(input checkruntime.NetworkValue) checkruntime.Int4Value {
+	if input.Kind == checkruntime.NetworkValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.NetworkValueValue {
+		address := input.Value
+		bytes := networkHashBytes(address)
+		hash := checkruntime.HashBytes32(bytes)
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: hash}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func HashinetextendedN7xh(left checkruntime.NetworkValue, right checkruntime.Int8Value) checkruntime.Int8Value {
+	if left.Kind == checkruntime.NetworkValueError {
+		error := left.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int8ValueError {
+		error := right.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if left == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if left == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if left.Kind == checkruntime.NetworkValueValue {
+		address := left.Value
+		if right.Kind == checkruntime.Int8ValueValue {
+			seed := right.Value
+			bytes := networkHashBytes(address)
+			hash := checkruntime.HashBytes64(bytes, seed)
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: hash}
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func networkIpv4Text(address checkruntime.NetworkAddress, start int, octets int) string {
+	start = langruntime.CheckedIndex(start)
+	octets = langruntime.CheckedI32(octets)
+	output := ""
+	index := start
+	high := true
+	remaining := octets
+	for remaining > 0 {
+		if remaining != octets {
+			output = output + string(langruntime.CheckedChar('.'))
+		}
+		byte := checkruntime.NetworkAddressByte(address, index, high)
+		number := checkruntime.TextNumber(byte, 10)
+		output = output + number
+		if high {
+			high = false
+		} else {
+			high = true
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, 1))
+	}
+	return output
+}
+func networkHostText(address checkruntime.NetworkAddress) string {
+	if address.Family == 4 {
+		return networkIpv4Text(address, 0, 4)
+	}
+	bestStart := 0
+	bestLength := 0
+	currentStart := 0
+	currentLength := 0
+	index := 0
+	for index < 8 {
+		if checkruntime.NetworkAddressWord(address, index) == 0 {
+			if currentLength == 0 {
+				currentStart = langruntime.CheckedIndex(index)
+			}
+			currentLength = langruntime.CheckedAdd(currentLength, 1)
+		} else {
+			if currentLength > bestLength {
+				bestStart = langruntime.CheckedIndex(currentStart)
+				bestLength = langruntime.CheckedIndex(currentLength)
+			}
+			currentLength = langruntime.CheckedIndex(0)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if currentLength > bestLength {
+		bestStart = langruntime.CheckedIndex(currentStart)
+		bestLength = langruntime.CheckedIndex(currentLength)
+	}
+	if bestLength < 2 {
+		bestLength = langruntime.CheckedIndex(0)
+	}
+	output := ""
+	position := 0
+	for position < 8 {
+		if bestLength != 0 && position >= bestStart && position < langruntime.CheckedAdd(bestStart, bestLength) {
+			if position == bestStart {
+				output = output + string(langruntime.CheckedChar(':'))
+			}
+		} else {
+			if position != 0 {
+				output = output + string(langruntime.CheckedChar(':'))
+			}
+			if position == 6 && bestStart == 0 && (bestLength == 6 || (bestLength == 7 && address.Word7 != 1) || (bestLength == 5 && address.Word5 == 65535)) {
+				dotted := networkIpv4Text(address, 6, 4)
+				output = output + dotted
+				break
+			}
+			word := checkruntime.NetworkAddressWord(address, position)
+			number := checkruntime.TextNumber(word, 16)
+			output = output + number
+		}
+		position = langruntime.CheckedAdd(position, 1)
+	}
+	if bestLength != 0 && langruntime.CheckedAdd(bestStart, bestLength) == 8 {
+		output = output + string(langruntime.CheckedChar(':'))
+	}
+	return output
+}
+func networkCidrText(address checkruntime.NetworkAddress) string {
+	output := ""
+	if address.Family == 4 {
+		if address.Prefix == 0 {
+			output = output + string(langruntime.CheckedChar('0'))
+		} else {
+			octets := langruntime.CheckedSignedDivide((langruntime.CheckedSignedAdd(address.Prefix, 7)), 8)
+			output = langruntime.CheckedString(networkIpv4Text(address, 0, octets))
+		}
+	} else if address.Prefix == 0 {
+		output = output + "::"
+	} else {
+		words := langruntime.CheckedSignedDivide((langruntime.CheckedSignedAdd(address.Prefix, 15)), 16)
+		if words == 1 {
+			words = langruntime.CheckedI32(2)
+		}
+		zeroStart := 0
+		zeroLength := 0
+		currentStart := 0
+		currentLength := 0
+		index := 0
+		remaining := words
+		for remaining > 0 {
+			if checkruntime.NetworkAddressWord(address, index) == 0 {
+				if currentLength == 0 {
+					currentStart = langruntime.CheckedIndex(index)
+				}
+				currentLength = langruntime.CheckedAdd(currentLength, 1)
+			} else if currentLength != 0 && zeroLength < currentLength {
+				zeroStart = langruntime.CheckedIndex(currentStart)
+				zeroLength = langruntime.CheckedIndex(currentLength)
+				currentLength = langruntime.CheckedIndex(0)
+			}
+			index = langruntime.CheckedAdd(index, 1)
+			remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, 1))
+		}
+		if currentLength != 0 && zeroLength < currentLength {
+			zeroStart = langruntime.CheckedIndex(currentStart)
+			zeroLength = langruntime.CheckedIndex(currentLength)
+		}
+		ipv4 := zeroLength != index && zeroStart == 0 && (zeroLength == 6 || (zeroLength == 5 && address.Word5 == 65535) || (zeroLength == 7 && langruntime.CheckedSignedDivide(address.Word7, 256) != 0 && langruntime.CheckedSignedRemainder(address.Word7, 256) != 1))
+		position := 0
+		printed := false
+		for position < index {
+			if zeroLength != 0 && position >= zeroStart && position < langruntime.CheckedAdd(zeroStart, zeroLength) {
+				if position == zeroStart {
+					output = output + string(langruntime.CheckedChar(':'))
+					printed = true
+				}
+				if position == langruntime.CheckedSubtract(index, 1) {
+					output = output + string(langruntime.CheckedChar(':'))
+				}
+			} else if ipv4 && position > 5 {
+				if position == 6 {
+					output = output + string(langruntime.CheckedChar(':'))
+				} else {
+					output = output + string(langruntime.CheckedChar('.'))
+				}
+				high := checkruntime.NetworkAddressByte(address, position, true)
+				number := checkruntime.TextNumber(high, 10)
+				output = output + number
+				if position != 7 || address.Prefix > 120 {
+					output = output + string(langruntime.CheckedChar('.'))
+					low := checkruntime.NetworkAddressByte(address, position, false)
+					lowNumber := checkruntime.TextNumber(low, 10)
+					output = output + lowNumber
+				}
+				printed = true
+			} else {
+				if printed {
+					output = output + string(langruntime.CheckedChar(':'))
+				}
+				word := checkruntime.NetworkAddressWord(address, position)
+				number := checkruntime.TextNumber(word, 16)
+				output = output + number
+				printed = true
+			}
+			position = langruntime.CheckedAdd(position, 1)
+		}
+	}
+	output = output + string(langruntime.CheckedChar('/'))
+	prefix := checkruntime.TextNumber(address.Prefix, 10)
+	output = output + prefix
+	return output
+}
+func networkOutput(input checkruntime.NetworkValue, mode int) checkruntime.TextValue {
+	mode = langruntime.CheckedI32(mode)
+	if input.Kind == checkruntime.NetworkValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.NetworkValueValue {
+		address := input.Value
+		if mode == 3 {
+			return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: networkCidrText(address)}
+		}
+		output := networkHostText(address)
+		if mode == 1 || (mode == 2 && address.Prefix != networkMaxBits(address)) {
+			output = output + string(langruntime.CheckedChar('/'))
+			prefix := checkruntime.TextNumber(address.Prefix, 10)
+			output = output + prefix
+		}
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: output}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func HostH4jb(input checkruntime.NetworkValue) checkruntime.TextValue {
+	return networkOutput(input, 0)
+}
+func Text99pc(input checkruntime.NetworkValue) checkruntime.TextValue {
+	return networkOutput(input, 1)
+}
+func AbbrevXdee(input checkruntime.NetworkValue) checkruntime.TextValue {
+	return networkOutput(input, 2)
+}
+func Abbrev5tby(input checkruntime.NetworkValue) checkruntime.TextValue {
+	return networkOutput(input, 3)
+}
+func networkSend(input checkruntime.NetworkValue, cidr bool) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.NetworkValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueUnknown}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	if input == (checkruntime.NetworkValue{Kind: checkruntime.NetworkValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.NetworkValueValue {
+		address := input.Value
+		family := 2
+		size := 4
+		cidrFlag := 0
+		if address.Family == 6 {
+			family = langruntime.CheckedI32(3)
+			size = langruntime.CheckedI32(16)
+		}
+		if cidr {
+			cidrFlag = langruntime.CheckedI32(1)
+		}
+		output := ""
+		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, family))
+		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, address.Prefix))
+		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, cidrFlag))
+		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, size))
+		index := 0
+		high := true
+		remaining := size
+		for remaining > 0 {
+			byte := checkruntime.NetworkAddressByte(address, index, high)
+			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, byte))
+			if high {
+				high = false
+			} else {
+				high = true
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, 1))
+		}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func InetSendZ9ng(input checkruntime.NetworkValue) checkruntime.ByteaValue {
+	return networkSend(input, false)
+}
+func CidrSendS007(input checkruntime.NetworkValue) checkruntime.ByteaValue {
+	return networkSend(input, true)
+}
 func numericCompare(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.Int4Value {
-	left = checkruntime.CopyNumericValue(left)
-	right = checkruntime.CopyNumericValue(right)
 	if left.Kind == checkruntime.NumericValueError {
 		error := left.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -2776,8 +2988,6 @@ func numericCompare(left checkruntime.NumericValue, right checkruntime.NumericVa
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
 func NumericEqFw7r(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNumericValue(left)
-	right = checkruntime.CopyNumericValue(right)
 	result := numericCompare(left, right)
 	if result.Kind == checkruntime.Int4ValueError {
 		error := result.Error
@@ -2796,8 +3006,6 @@ func NumericEqFw7r(left checkruntime.NumericValue, right checkruntime.NumericVal
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func NumericGeW8pw(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNumericValue(left)
-	right = checkruntime.CopyNumericValue(right)
 	result := numericCompare(left, right)
 	if result.Kind == checkruntime.Int4ValueError {
 		error := result.Error
@@ -2816,8 +3024,6 @@ func NumericGeW8pw(left checkruntime.NumericValue, right checkruntime.NumericVal
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func NumericGtH1pi(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNumericValue(left)
-	right = checkruntime.CopyNumericValue(right)
 	result := numericCompare(left, right)
 	if result.Kind == checkruntime.Int4ValueError {
 		error := result.Error
@@ -2836,8 +3042,6 @@ func NumericGtH1pi(left checkruntime.NumericValue, right checkruntime.NumericVal
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func NumericLeBbpc(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNumericValue(left)
-	right = checkruntime.CopyNumericValue(right)
 	result := numericCompare(left, right)
 	if result.Kind == checkruntime.Int4ValueError {
 		error := result.Error
@@ -2856,8 +3060,6 @@ func NumericLeBbpc(left checkruntime.NumericValue, right checkruntime.NumericVal
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func NumericLtZl16(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNumericValue(left)
-	right = checkruntime.CopyNumericValue(right)
 	result := numericCompare(left, right)
 	if result.Kind == checkruntime.Int4ValueError {
 		error := result.Error
@@ -2876,8 +3078,6 @@ func NumericLtZl16(left checkruntime.NumericValue, right checkruntime.NumericVal
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func NumericNeGyip(left checkruntime.NumericValue, right checkruntime.NumericValue) checkruntime.BoolValue {
-	left = checkruntime.CopyNumericValue(left)
-	right = checkruntime.CopyNumericValue(right)
 	result := numericCompare(left, right)
 	if result.Kind == checkruntime.Int4ValueError {
 		error := result.Error
@@ -2896,181 +3096,132 @@ func NumericNeGyip(left checkruntime.NumericValue, right checkruntime.NumericVal
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Int24eqCfkl(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	return Int4eqLrxe(leftWide, right)
 }
 func Int24geHurd(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	return Int4ge2xvk(leftWide, right)
 }
 func Int24gt98sb(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	return Int4gt5vlv(leftWide, right)
 }
 func Int24le56y6(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	return Int4le9wb6(leftWide, right)
 }
 func Int24ltGuxt(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	return Int4lt9gej(leftWide, right)
 }
 func Int24ne11ts(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	return Int4neQhun(leftWide, right)
 }
 func Int28eq47dr(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
 	leftWide := checkruntime.Int2ToInt8(left)
 	return Int8eqJdhd(leftWide, right)
 }
 func Int28geXhie(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
 	leftWide := checkruntime.Int2ToInt8(left)
 	return Int8geQfhv(leftWide, right)
 }
 func Int28gtXmpc(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
 	leftWide := checkruntime.Int2ToInt8(left)
 	return Int8gt3ehj(leftWide, right)
 }
 func Int28leJsoj(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
 	leftWide := checkruntime.Int2ToInt8(left)
 	return Int8le9fr4(leftWide, right)
 }
 func Int28ltF4ka(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
 	leftWide := checkruntime.Int2ToInt8(left)
 	return Int8ltCryd(leftWide, right)
 }
 func Int28ne4fh8(left checkruntime.Int2Value, right checkruntime.Int8Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
 	leftWide := checkruntime.Int2ToInt8(left)
 	return Int8neUr2k(leftWide, right)
 }
 func Int2eqU7zv(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4eqLrxe(leftWide, rightWide)
 }
 func Int2geLd2i(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4ge2xvk(leftWide, rightWide)
 }
 func Int2gt681i(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4gt5vlv(leftWide, rightWide)
 }
 func Int2leEp4u(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4le9wb6(leftWide, rightWide)
 }
 func Int2ltQvze(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4lt9gej(leftWide, rightWide)
 }
 func Int2neUz14(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4neQhun(leftWide, rightWide)
 }
 func Int42eqRd78(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4eqLrxe(left, rightWide)
 }
 func Int42geT5ib(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4ge2xvk(left, rightWide)
 }
 func Int42gtBicd(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4gt5vlv(left, rightWide)
 }
 func Int42le570s(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4le9wb6(left, rightWide)
 }
 func Int42ltEtdm(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4lt9gej(left, rightWide)
 }
 func Int42neBeca(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4neQhun(left, rightWide)
 }
 func Int82eqJdpt(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	right = checkruntime.CopyInt2Value(right)
 	rightWide := checkruntime.Int2ToInt8(right)
 	return Int8eqJdhd(left, rightWide)
 }
 func Int82geEh8t(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	right = checkruntime.CopyInt2Value(right)
 	rightWide := checkruntime.Int2ToInt8(right)
 	return Int8geQfhv(left, rightWide)
 }
 func Int82gt7e3o(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	right = checkruntime.CopyInt2Value(right)
 	rightWide := checkruntime.Int2ToInt8(right)
 	return Int8gt3ehj(left, rightWide)
 }
 func Int82leJth3(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	right = checkruntime.CopyInt2Value(right)
 	rightWide := checkruntime.Int2ToInt8(right)
 	return Int8le9fr4(left, rightWide)
 }
 func Int82ltXt99(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	right = checkruntime.CopyInt2Value(right)
 	rightWide := checkruntime.Int2ToInt8(right)
 	return Int8ltCryd(left, rightWide)
 }
 func Int82ne6rol(left checkruntime.Int8Value, right checkruntime.Int2Value) checkruntime.BoolValue {
-	right = checkruntime.CopyInt2Value(right)
 	rightWide := checkruntime.Int2ToInt8(right)
 	return Int8neUr2k(left, rightWide)
 }
 func smallintResult(value checkruntime.Int4Value) checkruntime.Int2Value {
-	value = checkruntime.CopyInt4Value(value)
 	if value.Kind == checkruntime.Int4ValueValue {
 		payload := langruntime.CheckedI32(value.Value)
 		if payload < langruntime.CheckedSignedNegate(32768) || payload > 32767 {
@@ -3088,116 +3239,84 @@ func smallintResult(value checkruntime.Int4Value) checkruntime.Int2Value {
 	return checkruntime.Int2Value{Kind: checkruntime.Int2ValueUnknown}
 }
 func Int2plYujm(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.Int2Value {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	rightWide := checkruntime.Int2ToInt4(right)
 	result := Int4plSj3s(leftWide, rightWide)
 	return smallintResult(result)
 }
 func Int2miUxzm(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.Int2Value {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	rightWide := checkruntime.Int2ToInt4(right)
 	result := Int4miDtqk(leftWide, rightWide)
 	return smallintResult(result)
 }
 func Int2mulK2lr(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.Int2Value {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	rightWide := checkruntime.Int2ToInt4(right)
 	result := Int4mul284v(leftWide, rightWide)
 	return smallintResult(result)
 }
 func Int2divFnwp(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.Int2Value {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	rightWide := checkruntime.Int2ToInt4(right)
 	result := Int4div8ogr(leftWide, rightWide)
 	return smallintResult(result)
 }
 func Int2modZds7(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.Int2Value {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	rightWide := checkruntime.Int2ToInt4(right)
 	result := Int4modJ4pe(leftWide, rightWide)
 	return smallintResult(result)
 }
 func Int2absTyad(input checkruntime.Int2Value) checkruntime.Int2Value {
-	input = checkruntime.CopyInt2Value(input)
 	wide := checkruntime.Int2ToInt4(input)
 	result := Abs5ajw(wide)
 	return smallintResult(result)
 }
 func Abs43i0(input checkruntime.Int2Value) checkruntime.Int2Value {
-	input = checkruntime.CopyInt2Value(input)
 	return Int2absTyad(input)
 }
 func ModMzjb(left checkruntime.Int2Value, right checkruntime.Int2Value) checkruntime.Int2Value {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	return Int2modZds7(left, right)
 }
 func Int2um8puj(input checkruntime.Int2Value) checkruntime.Int2Value {
-	input = checkruntime.CopyInt2Value(input)
 	zero := checkruntime.MakeInt4Value(0)
 	wide := checkruntime.Int2ToInt4(input)
 	result := Int4miDtqk(zero, wide)
 	return smallintResult(result)
 }
 func Int2upNe4g(input checkruntime.Int2Value) checkruntime.Int2Value {
-	input = checkruntime.CopyInt2Value(input)
 	return input
 }
 func Int24plIpr8(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.Int4Value {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	return Int4plSj3s(leftWide, right)
 }
 func Int42plCx9n(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.Int4Value {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4plSj3s(left, rightWide)
 }
 func Int24miClza(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.Int4Value {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	return Int4miDtqk(leftWide, right)
 }
 func Int42miNaln(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.Int4Value {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4miDtqk(left, rightWide)
 }
 func Int24mulRdky(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.Int4Value {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	return Int4mul284v(leftWide, right)
 }
 func Int42mulDh4o(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.Int4Value {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4mul284v(left, rightWide)
 }
 func Int24divY2zx(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.Int4Value {
-	left = checkruntime.CopyInt2Value(left)
-	right = checkruntime.CopyInt4Value(right)
 	leftWide := checkruntime.Int2ToInt4(left)
 	return Int4div8ogr(leftWide, right)
 }
 func Int42div0fx0(left checkruntime.Int4Value, right checkruntime.Int2Value) checkruntime.Int4Value {
-	left = checkruntime.CopyInt4Value(left)
-	right = checkruntime.CopyInt2Value(right)
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4div8ogr(left, rightWide)
 }
@@ -3240,7 +3359,6 @@ func textCodepointBefore(left string, right string) bool {
 	return len(leftChars) < len(rightChars)
 }
 func LengthEhpe(value checkruntime.TextValue) checkruntime.Int4Value {
-	value = checkruntime.CopyTextValue(value)
 	if value.Kind == checkruntime.TextValueError {
 		error := value.Error
 		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
@@ -3265,8 +3383,6 @@ func LengthEhpe(value checkruntime.TextValue) checkruntime.Int4Value {
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
 }
 func TexteqAet8(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTextValue(left)
-	right = checkruntime.CopyTextValue(right)
 	if left.Kind == checkruntime.TextValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3291,8 +3407,6 @@ func TexteqAet8(left checkruntime.TextValue, right checkruntime.TextValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func Textne1urq(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTextValue(left)
-	right = checkruntime.CopyTextValue(right)
 	if left.Kind == checkruntime.TextValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3317,8 +3431,6 @@ func Textne1urq(left checkruntime.TextValue, right checkruntime.TextValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func TextLtZinq(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTextValue(left)
-	right = checkruntime.CopyTextValue(right)
 	if left.Kind == checkruntime.TextValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3343,8 +3455,6 @@ func TextLtZinq(left checkruntime.TextValue, right checkruntime.TextValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func TextLeWb3z(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTextValue(left)
-	right = checkruntime.CopyTextValue(right)
 	if left.Kind == checkruntime.TextValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3369,8 +3479,6 @@ func TextLeWb3z(left checkruntime.TextValue, right checkruntime.TextValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func TextGtRb7n(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTextValue(left)
-	right = checkruntime.CopyTextValue(right)
 	if left.Kind == checkruntime.TextValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3395,8 +3503,6 @@ func TextGtRb7n(left checkruntime.TextValue, right checkruntime.TextValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func StartsWith6ctf(text checkruntime.TextValue, prefix checkruntime.TextValue) checkruntime.BoolValue {
-	text = checkruntime.CopyTextValue(text)
-	prefix = checkruntime.CopyTextValue(prefix)
 	if text.Kind == checkruntime.TextValueError {
 		error := text.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3421,8 +3527,6 @@ func StartsWith6ctf(text checkruntime.TextValue, prefix checkruntime.TextValue) 
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func TextGeT8pg(left checkruntime.TextValue, right checkruntime.TextValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTextValue(left)
-	right = checkruntime.CopyTextValue(right)
 	if left.Kind == checkruntime.TextValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3447,8 +3551,6 @@ func TextGeT8pg(left checkruntime.TextValue, right checkruntime.TextValue) check
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func TimestampEqJd79(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTimestampValue(left)
-	right = checkruntime.CopyTimestampValue(right)
 	if left.Kind == checkruntime.TimestampValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3473,8 +3575,6 @@ func TimestampEqJd79(left checkruntime.TimestampValue, right checkruntime.Timest
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func TimestampGe80hi(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTimestampValue(left)
-	right = checkruntime.CopyTimestampValue(right)
 	if left.Kind == checkruntime.TimestampValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3499,8 +3599,6 @@ func TimestampGe80hi(left checkruntime.TimestampValue, right checkruntime.Timest
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func TimestampGtHxfo(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTimestampValue(left)
-	right = checkruntime.CopyTimestampValue(right)
 	if left.Kind == checkruntime.TimestampValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3525,8 +3623,6 @@ func TimestampGtHxfo(left checkruntime.TimestampValue, right checkruntime.Timest
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func TimestampLe1qj4(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTimestampValue(left)
-	right = checkruntime.CopyTimestampValue(right)
 	if left.Kind == checkruntime.TimestampValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3551,8 +3647,6 @@ func TimestampLe1qj4(left checkruntime.TimestampValue, right checkruntime.Timest
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func TimestampLtOgss(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTimestampValue(left)
-	right = checkruntime.CopyTimestampValue(right)
 	if left.Kind == checkruntime.TimestampValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3577,8 +3671,6 @@ func TimestampLtOgss(left checkruntime.TimestampValue, right checkruntime.Timest
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func TimestampNeQsye(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTimestampValue(left)
-	right = checkruntime.CopyTimestampValue(right)
 	if left.Kind == checkruntime.TimestampValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3603,8 +3695,6 @@ func TimestampNeQsye(left checkruntime.TimestampValue, right checkruntime.Timest
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func TimestamptzEqK4n3(left checkruntime.TimestamptzValue, right checkruntime.TimestamptzValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTimestamptzValue(left)
-	right = checkruntime.CopyTimestamptzValue(right)
 	if left.Kind == checkruntime.TimestamptzValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3629,8 +3719,6 @@ func TimestamptzEqK4n3(left checkruntime.TimestamptzValue, right checkruntime.Ti
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func TimestamptzGeP2rz(left checkruntime.TimestamptzValue, right checkruntime.TimestamptzValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTimestamptzValue(left)
-	right = checkruntime.CopyTimestamptzValue(right)
 	if left.Kind == checkruntime.TimestamptzValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3655,8 +3743,6 @@ func TimestamptzGeP2rz(left checkruntime.TimestamptzValue, right checkruntime.Ti
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func TimestamptzGt89jo(left checkruntime.TimestamptzValue, right checkruntime.TimestamptzValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTimestamptzValue(left)
-	right = checkruntime.CopyTimestamptzValue(right)
 	if left.Kind == checkruntime.TimestamptzValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3681,8 +3767,6 @@ func TimestamptzGt89jo(left checkruntime.TimestamptzValue, right checkruntime.Ti
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func TimestamptzLe0urp(left checkruntime.TimestamptzValue, right checkruntime.TimestamptzValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTimestamptzValue(left)
-	right = checkruntime.CopyTimestamptzValue(right)
 	if left.Kind == checkruntime.TimestamptzValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3707,8 +3791,6 @@ func TimestamptzLe0urp(left checkruntime.TimestamptzValue, right checkruntime.Ti
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func TimestamptzLtB2w5(left checkruntime.TimestamptzValue, right checkruntime.TimestamptzValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTimestamptzValue(left)
-	right = checkruntime.CopyTimestamptzValue(right)
 	if left.Kind == checkruntime.TimestamptzValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
@@ -3733,8 +3815,6 @@ func TimestamptzLtB2w5(left checkruntime.TimestamptzValue, right checkruntime.Ti
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
 func TimestamptzNe4iy1(left checkruntime.TimestamptzValue, right checkruntime.TimestamptzValue) checkruntime.BoolValue {
-	left = checkruntime.CopyTimestamptzValue(left)
-	right = checkruntime.CopyTimestamptzValue(right)
 	if left.Kind == checkruntime.TimestamptzValueError {
 		error := left.Error
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}

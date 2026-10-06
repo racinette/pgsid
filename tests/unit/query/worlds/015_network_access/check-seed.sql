@@ -328,3 +328,72 @@ INSERT INTO network_priorities (id, first_address, second_address, comparison_re
 
 -- name: priority_null_preference_selects_smaller
 INSERT INTO network_priorities (id, first_address, second_address, comparison_result, larger_address, smaller_address, prefer_larger, selected_address) VALUES (100, '10.0.0.1', '10.0.0.2', -1, '10.0.0.2', '10.0.0.1', NULL, '10.0.0.1');
+
+-- name: output_null
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (1, NULL, NULL, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: output_1
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (2, '10.1.2.3/32', '10.1.2.3/32', 0, '10.1.2.3', '10.1.2.3/32', '10.1.2.3', '10.1.2.3/32', '\x022000040a010203', '\x022001040a010203', 1464440404, 468164686702548564);
+
+-- name: output_2
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (3, '10.1.2.3/24', '10.1.2.0/24', 1, '10.1.2.3', '10.1.2.3/24', '10.1.2.3/24', '10.1.2/24', '\x021800040a010203', '\x021801040a010200', 1074326899, -4272391789629553272);
+
+-- name: output_3
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (4, '0.0.0.0/0', '0.0.0.0/0', -1, '0.0.0.0', '0.0.0.0/0', '0.0.0.0/0', '0/0', '\x0200000400000000', '\x0200010400000000', -1053905972, -5968335589437008529);
+
+-- name: output_4
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (5, '255.255.255.255/32', '255.255.255.255/32', 9223372036854775807, '255.255.255.255', '255.255.255.255/32', '255.255.255.255', '255.255.255.255/32', '\x02200004ffffffff', '\x02200104ffffffff', -1013336768, 4368588769894212371);
+
+-- name: output_5
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (6, '::/128', '::/128', -9223372036854775808, '::', '::/128', '::', '::/128', '\x0380001000000000000000000000000000000000', '\x0380011000000000000000000000000000000000', -1216017092, 8125171125098989797);
+
+-- name: output_6
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (7, '::1/128', '::1/128', 0, '::1', '::1/128', '::1', '::1/128', '\x0380001000000000000000000000000000000001', '\x0380011000000000000000000000000000000001', 1984372031, -973879421452214977);
+
+-- name: output_7
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (8, '2001:db8::1/65', '2001:db8::/65', 4294967296, '2001:db8::1', '2001:db8::1/65', '2001:db8::1/65', '2001:db8::/65', '\x0341001020010db8000000000000000000000001', '\x0341011020010db8000000000000000000000000', -1375690503, -1375766532026040662);
+
+-- name: output_8
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (9, '::ffff:192.0.2.129/120', '::ffff:192.0.2.0/120', -4294967297, '::ffff:192.0.2.129', '::ffff:192.0.2.129/120', '::ffff:192.0.2.129/120', '::ffff:192.0.2/120', '\x0378001000000000000000000000ffffc0000281', '\x0378011000000000000000000000ffffc0000200', 1907902212, 3300151646970973118);
+
+-- name: output_9
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (10, '::192.0.2.129/112', '::192.0.0.0/112', -1, '::192.0.2.129', '::192.0.2.129/112', '::192.0.2.129/112', '::192.0/112', '\x03700010000000000000000000000000c0000281', '\x03700110000000000000000000000000c0000000', 1418265561, -4808814117578577675);
+
+-- name: output_10
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (11, '1::2:0:0:3:4/97', '1:0:0:2::/97', 1, '1::2:0:0:3:4', '1::2:0:0:3:4/97', '1::2:0:0:3:4/97', '1:0:0:2::/97', '\x0361001000010000000000020000000000030004', '\x0361011000010000000000020000000000000000', -623762959, 7630558224841208189);
+
+-- name: output_11
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (12, '1:0:2:0:3:0:4:0/128', '1:0:2:0:3:0:4:0/128', 0, '1:0:2:0:3:0:4:0', '1:0:2:0:3:0:4:0/128', '1:0:2:0:3:0:4:0', '1:0:2::0:4:0/128', '\x0380001000010000000200000003000000040000', '\x0380011000010000000200000003000000040000', -1785320547, 6681915014147091357);
+
+-- name: output_reject_host_text
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (13, '10.1.2.3/32', '10.1.2.3/32', 0, 'wrong', '10.1.2.3/32', '10.1.2.3', '10.1.2.3/32', '\x022000040a010203', '\x022001040a010203', 1464440404, 468164686702548564);
+
+-- name: output_reject_full_text
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (14, '10.1.2.3/32', '10.1.2.3/32', 0, '10.1.2.3', 'wrong', '10.1.2.3', '10.1.2.3/32', '\x022000040a010203', '\x022001040a010203', 1464440404, 468164686702548564);
+
+-- name: output_reject_short_text
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (15, '10.1.2.3/32', '10.1.2.3/32', 0, '10.1.2.3', '10.1.2.3/32', 'wrong', '10.1.2.3/32', '\x022000040a010203', '\x022001040a010203', 1464440404, 468164686702548564);
+
+-- name: output_reject_subnet_text
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (16, '10.1.2.3/32', '10.1.2.3/32', 0, '10.1.2.3', '10.1.2.3/32', '10.1.2.3', 'wrong', '\x022000040a010203', '\x022001040a010203', 1464440404, 468164686702548564);
+
+-- name: output_reject_address_bytes
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (17, '10.1.2.3/32', '10.1.2.3/32', 0, '10.1.2.3', '10.1.2.3/32', '10.1.2.3', '10.1.2.3/32', '\x00', '\x022001040a010203', 1464440404, 468164686702548564);
+
+-- name: output_reject_subnet_bytes
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (18, '10.1.2.3/32', '10.1.2.3/32', 0, '10.1.2.3', '10.1.2.3/32', '10.1.2.3', '10.1.2.3/32', '\x022000040a010203', '\x00', 1464440404, 468164686702548564);
+
+-- name: output_reject_hash_value
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (19, '10.1.2.3/32', '10.1.2.3/32', 0, '10.1.2.3', '10.1.2.3/32', '10.1.2.3', '10.1.2.3/32', '\x022000040a010203', '\x022001040a010203', 0, 468164686702548564);
+
+-- name: output_reject_seeded_hash
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (20, '10.1.2.3/32', '10.1.2.3/32', 0, '10.1.2.3', '10.1.2.3/32', '10.1.2.3', '10.1.2.3/32', '\x022000040a010203', '\x022001040a010203', 1464440404, 0);
+
+-- name: output_null_seed
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (21, '10.1.2.3/32', '10.1.2.3/32', NULL, '10.1.2.3', '10.1.2.3/32', '10.1.2.3', '10.1.2.3/32', '\x022000040a010203', '\x022001040a010203', 1464440404, 0);
+
+-- name: output_empty_host
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (22, '10.1.2.3/32', '10.1.2.3/32', 0, '', '10.1.2.3/32', '10.1.2.3', '10.1.2.3/32', '\x022000040a010203', '\x022001040a010203', 1464440404, 468164686702548564);
+
+-- name: output_null_expected
+INSERT INTO network_outputs (id, address, subnet, hash_seed, host_text, full_text, short_text, subnet_text, address_bytes, subnet_bytes, hash_value, seeded_hash) VALUES (23, '10.1.2.3/32', '10.1.2.3/32', 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
