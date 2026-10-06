@@ -104,10 +104,10 @@ describe('Rust CHECK UUID timestamp extraction', () => {
           await pg.query<{ value: boolean | null }>(
             `SELECT (${expressions[name]}) value FROM (SELECT $1::installed_identifier identifier,$2::text raw,$3::device_instant recorded_at,$4::bool skip) candidate`,
             [
-              row.identifier.kind === 'Value' ? row.identifier.value : null,
-              row.raw.kind === 'Value' ? row.raw.value : null,
+              row.identifier?.kind === 'Value' ? row.identifier.value : null,
+              row.raw?.kind === 'Value' ? row.raw.value : null,
               recordedAt,
-              row.skip.kind === 'Value' ? row.skip.value : null,
+              row.skip?.kind === 'Value' ? row.skip.value : null,
             ],
           )
         ).rows[0]!.value

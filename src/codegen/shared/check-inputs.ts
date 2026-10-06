@@ -102,6 +102,8 @@ const textInputNeedsCoercion = (column: ColumnInfo, catalog: CatalogSnapshot): b
   }
   const type = catalogScalarType(name)
   return (
+    type === 'pg_catalog."bit"' ||
+    type === 'pg_catalog.varbit' ||
     type === 'pg_catalog.bpchar' ||
     (type === 'pg_catalog."varchar"' && ((column.typeMod ?? -1) >= 0 || name.includes('(')))
   )

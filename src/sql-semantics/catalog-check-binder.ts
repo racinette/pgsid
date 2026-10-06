@@ -14,6 +14,7 @@ import {
 import {
   enumType,
   isBinaryTextRelabel,
+  isBinaryBitRelabel,
   enumEqualityOperation,
   type ScalarType,
   type SqlExpression,
@@ -93,6 +94,9 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     macaddr: 'pg_catalog.macaddr',
     macaddr8: 'pg_catalog.macaddr8',
     bytea: 'pg_catalog.bytea',
+    bit: 'pg_catalog."bit"',
+    varbit: 'pg_catalog.varbit',
+    'bit varying': 'pg_catalog.varbit',
     date: 'pg_catalog.date',
     timestamp: 'pg_catalog."timestamp"',
     'timestamp without time zone': 'pg_catalog."timestamp"',
@@ -105,6 +109,8 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     bpchar: 'pg_catalog.bpchar',
   }
   if (/^(?:numeric|decimal)\(/u.test(name)) return 'pg_catalog."numeric"'
+  if (/^bit\(\d+\)$/u.test(name)) return 'pg_catalog."bit"'
+  if (/^(?:bit varying|varbit)\(\d+\)$/u.test(name)) return 'pg_catalog.varbit'
   if (name.startsWith('character varying(')) return 'pg_catalog."varchar"'
   if (name.startsWith('character(')) return 'pg_catalog.bpchar'
   if (/^timestamp\(\d+\) without time zone$/u.test(name)) return 'pg_catalog."timestamp"'
@@ -174,6 +180,11 @@ type Bound = {
 const unknown: Bound = { type: null, value: null }
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
+  if (
+    (type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit') &&
+    (literal.kind === 'string' || literal.kind === 'null')
+  )
+    return { kind: 'bit', type, value: literal.value }
   if (type === 'pg_catalog.uuid' && (literal.kind === 'string' || literal.kind === 'null'))
     return { kind: 'uuid', type, value: literal.value }
   if (type === 'pg_catalog.bytea') {
@@ -283,6 +294,13 @@ const materialize = (
     return expression ? { kind: 'certain', expression } : null
   }
   if (
+    bound.type !== null &&
+    bound.type !== type &&
+    bound.value &&
+    isBinaryBitRelabel(bound.type, type)
+  )
+    return { kind: 'call', call: { kind: 'cast', signature: null, type }, operands: [bound.value] }
+  if (
     bound.type === 'pg_catalog.cidr' &&
     type === 'pg_catalog.inet' &&
     bound.value &&
@@ -347,6 +365,13 @@ const isMacType = (type: string | null): boolean =>
 const macCommonType = (arms: readonly Bound[]): ScalarType | undefined => {
   const types = arms.flatMap((arm) => (arm.type ? [arm.type] : []))
   return types.length && types.every(isMacType) ? types[0] : undefined
+}
+
+const bitCommonType = (arms: readonly Bound[]): ScalarType | undefined => {
+  const types = arms.flatMap((arm) => (arm.type ? [arm.type] : []))
+  return types.length && types.every((type) => isBinaryBitRelabel(type, type))
+    ? types[0]
+    : undefined
 }
 
 const networkCommonType = (arms: readonly Bound[]): ScalarType | undefined => {
@@ -486,6 +511,16 @@ const candidate = (
       if (assumed.length === 1) return assumed[0]!
     }
   }
+  if (
+    kind === 'operator' &&
+    types.includes('pg_catalog.varbit') &&
+    types.every((type) => type !== null && isBinaryBitRelabel(type, type))
+  ) {
+    const preferred = matches.filter(({ item }) =>
+      item.args.every((type) => type === 'pg_catalog.varbit'),
+    )
+    if (preferred.length === 1) return preferred[0]!
+  }
   return matches.length === 1 ? matches[0]! : null
 }
 
@@ -547,12 +582,14 @@ export function bindCatalogCheck(
       const typed = args.flatMap((arg) => (arg.type ? [arg.type] : []))
       const textTypes = ['pg_catalog.text', 'pg_catalog."varchar"']
       const networkType = networkCommonType(args)
+      const bitType = bitCommonType(args)
       const macType = macCommonType(args)
-      const type = integerType ?? networkType ?? macType ?? typed[0] ?? 'pg_catalog.text'
+      const type = integerType ?? networkType ?? macType ?? bitType ?? typed[0] ?? 'pg_catalog.text'
       if (
         integerType === undefined &&
         networkType === undefined &&
         macType === undefined &&
+        bitType === undefined &&
         typed.some(
           (other) => other !== type && !(textTypes.includes(type) && textTypes.includes(other)),
         )
@@ -590,11 +627,13 @@ export function bindCatalogCheck(
       const integerType = integerCommonType([otherwise, ...results])
       const typed = arms.flatMap((arm) => (arm.type ? [arm.type] : []))
       const networkType = networkCommonType(arms)
+      const bitType = bitCommonType([otherwise, ...results])
       const macType = macCommonType([otherwise, ...results])
       const type =
         integerType ??
         networkType ??
         macType ??
+        bitType ??
         expectedType ??
         typed[0] ??
         (arms.some((arm) => arm.literal?.kind === 'integer')
@@ -604,6 +643,7 @@ export function bindCatalogCheck(
         integerType === undefined &&
         networkType === undefined &&
         macType === undefined &&
+        bitType === undefined &&
         typed.some((other) => other !== type)
       )
         return unknown
@@ -724,7 +764,9 @@ export function bindCatalogCheck(
           type === 'pg_catalog."timestamp"' ||
           type === 'pg_catalog."numeric"' ||
           type === 'pg_catalog."varchar"' ||
-          type === 'pg_catalog.bpchar') &&
+          type === 'pg_catalog.bpchar' ||
+          type === 'pg_catalog."bit"' ||
+          type === 'pg_catalog.varbit') &&
         Array.isArray(castType?.['typmods']) &&
         castType['typmods'].length
       )
@@ -808,6 +850,8 @@ export function bindCatalogCheck(
             }
           : unknown
       }
+      if (operand.type && operand.value && isBinaryBitRelabel(operand.type, type))
+        return { type, value: materialize(operand, type) }
       if (operand.type && operand.value && isBinaryTextRelabel(operand.type, type))
         return {
           type,
@@ -900,6 +944,16 @@ export function bindCatalogCheck(
     if (constant) {
       if (constant['isnull'] === true)
         return { type: null, value: null, literal: { kind: 'null', value: null } }
+      const bitNode = fields(constant['bsval'])
+      const bit = bitNode?.['bsval']
+      if (typeof bit === 'string')
+        return {
+          type: 'pg_catalog."bit"',
+          value: {
+            kind: 'certain',
+            expression: { kind: 'bit', type: 'pg_catalog."bit"', value: bit },
+          },
+        }
       const stringNode = fields(constant['sval'])
       if (stringNode) {
         const string = stringNode['sval'] ?? ''

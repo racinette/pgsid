@@ -42,6 +42,7 @@ export interface ResolvedGoType {
 }
 
 const defaultTypes: Readonly<Record<string, { type: string; imports?: GoTypeImport[] }>> = {
+  bit: { type: 'string' },
   bool: { type: 'bool' },
   bpchar: { type: 'string' },
   bytea: { type: '[]byte' },
@@ -76,6 +77,7 @@ const defaultTypes: Readonly<Record<string, { type: string; imports?: GoTypeImpo
 
 const aliases: Readonly<Record<string, string>> = {
   bigint: 'int8',
+  'bit varying': 'varbit',
   boolean: 'bool',
   character: 'bpchar',
   'character varying': 'varchar',

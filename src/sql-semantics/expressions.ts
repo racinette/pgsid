@@ -13,6 +13,7 @@ export type NumericType = IntegerType | FloatType | DecimalType
 export type TextType = 'pg_catalog.text' | 'pg_catalog."varchar"' | 'pg_catalog.bpchar'
 export type NetworkType = 'pg_catalog.inet' | 'pg_catalog.cidr'
 export type MacType = 'pg_catalog.macaddr' | 'pg_catalog.macaddr8'
+export type BitType = 'pg_catalog."bit"' | 'pg_catalog.varbit'
 export type UuidType = 'pg_catalog.uuid'
 export type JsonType = 'pg_catalog."json"'
 export type JsonbType = 'pg_catalog.jsonb'
@@ -47,6 +48,7 @@ export type ScalarType =
   | MacType
   | 'pg_catalog.bytea'
   | UuidType
+  | BitType
   | JsonType
   | JsonbType
   | TemporalType
@@ -416,6 +418,11 @@ export interface ExpressionBackend<Ast> {
   integer: (type: IntegerType, value: string | null) => Ast
   float: (type: FloatType, bits: string | null) => Ast
   decimal: (value: string | null) => Ast
+}
+
+export function isBinaryBitRelabel(source: string, target: string): boolean {
+  const types = ['pg_catalog."bit"', 'pg_catalog.varbit']
+  return types.includes(source) && types.includes(target)
 }
 
 export function isBinaryTextRelabel(source: string, target: string): boolean {

@@ -6,6 +6,7 @@ pub mod checkruntime {
     include!("network.rs");
     include!("mac.rs");
     include!("uuid.rs");
+    include!("bit.rs");
     include!("hash.rs");
     include!("text_builder.rs");
     include!("date.rs");
@@ -38,6 +39,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/uuid_timestamp.rs");
     include!("operations/pg_catalog/network_output.rs");
     include!("operations/pg_catalog/binary.rs");
+    include!("operations/pg_catalog/bit.rs");
     include!("operations/pg_catalog/integer.rs");
     include!("operations/pg_catalog/smallint.rs");
     include!("operations/pg_catalog/integer_cast.rs");

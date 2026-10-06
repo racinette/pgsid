@@ -759,6 +759,328 @@ func ByteaneVolo(left checkruntime.ByteaValue, right checkruntime.ByteaValue) ch
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func bitComparePayload(left string, right string) int {
+	left = langruntime.CheckedString(left)
+	right = langruntime.CheckedString(right)
+	a := []rune(left)
+	b := []rune(right)
+	index := 0
+	for index < len(a) && index < len(b) {
+		leftByte := 0
+		rightByte := 0
+		weight := 128
+		for weight > 0 {
+			if index < len(a) {
+				if a[index] == '1' {
+					leftByte = langruntime.CheckedI32(langruntime.CheckedSignedAdd(leftByte, weight))
+				}
+			}
+			if index < len(b) {
+				if b[index] == '1' {
+					rightByte = langruntime.CheckedI32(langruntime.CheckedSignedAdd(rightByte, weight))
+				}
+			}
+			weight = langruntime.CheckedI32(langruntime.CheckedSignedDivide(weight, 2))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		if leftByte != rightByte {
+			return langruntime.CheckedSignedSubtract(leftByte, rightByte)
+		}
+	}
+	if len(a) < len(b) {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if len(a) > len(b) {
+		return 1
+	}
+	return 0
+}
+func bitCompare(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.BitValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.BitValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) || right == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) || right == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.BitValueValue {
+		a := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.BitValueValue {
+			b := langruntime.CheckedString(right.Value)
+			borrowedA := a
+			borrowedB := b
+			result := bitComparePayload(borrowedA, borrowedB)
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: result}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func bitLength(input checkruntime.BitValue) checkruntime.Int4Value {
+	if input.Kind == checkruntime.BitValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.BitValueValue {
+		value := langruntime.CheckedString(input.Value)
+		borrowed := value
+		result := checkruntime.BitPayloadLength(borrowed)
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: result}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func BitLengthE2i8(input checkruntime.BitValue) checkruntime.Int4Value {
+	return bitLength(input)
+}
+func Bitcmp2r1v(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.Int4Value {
+	return bitCompare(left, right)
+}
+func Biteq320u(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.BoolValue {
+	compared := bitCompare(left, right)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value == 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func BitgePy56(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.BoolValue {
+	compared := bitCompare(left, right)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value >= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Bitgt2srl(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.BoolValue {
+	compared := bitCompare(left, right)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value > 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func BitleY0d7(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.BoolValue {
+	compared := bitCompare(left, right)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value <= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Bitlt6ybn(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.BoolValue {
+	compared := bitCompare(left, right)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value < 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func BitneXjg3(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.BoolValue {
+	compared := bitCompare(left, right)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value != 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func LengthR5f9(input checkruntime.BitValue) checkruntime.Int4Value {
+	return bitLength(input)
+}
+func OctetLengthAcdm(input checkruntime.BitValue) checkruntime.Int4Value {
+	length := bitLength(input)
+	if length.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(length.Value)
+		result := langruntime.CheckedSignedDivide(value, 8)
+		if langruntime.CheckedSignedRemainder(value, 8) != 0 {
+			result = langruntime.CheckedI32(langruntime.CheckedSignedAdd(result, 1))
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: result}
+	}
+	return length
+}
+func VarbitcmpVqwo(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.Int4Value {
+	return bitCompare(left, right)
+}
+func VarbiteqD8r9(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.BoolValue {
+	compared := bitCompare(left, right)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value == 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Varbitge3izz(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.BoolValue {
+	compared := bitCompare(left, right)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value >= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Varbitgt31v4(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.BoolValue {
+	compared := bitCompare(left, right)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value > 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Varbitle42o0(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.BoolValue {
+	compared := bitCompare(left, right)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value <= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func VarbitltXsv2(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.BoolValue {
+	compared := bitCompare(left, right)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value < 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func VarbitneSbck(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.BoolValue {
+	compared := bitCompare(left, right)
+	if compared.Kind == checkruntime.Int4ValueError {
+		error := compared.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if compared == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if compared.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(compared.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value != 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
 func BooleqY6qu(left checkruntime.BoolValue, right checkruntime.BoolValue) checkruntime.BoolValue {
 	if left.Kind == checkruntime.BoolValueError {
 		error := left.Error

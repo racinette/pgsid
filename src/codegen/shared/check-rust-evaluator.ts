@@ -7,6 +7,7 @@ import { rustStringLiteral } from './rust-literals.js'
 import {
   enumType,
   isBinaryTextRelabel,
+  isBinaryBitRelabel,
   enumEqualityOperation,
   type EnumDefinition,
 } from '../../sql-semantics/expressions.js'
@@ -23,6 +24,7 @@ type Input = {
 export class UnsupportedCheckRustExpression extends Error {}
 
 const rustType = (type: string): string => {
+  if (type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit') return 'BitValue'
   if (type === 'pg_catalog.uuid') return 'UuidValue'
   if (type === 'pg_catalog.bytea') return 'ByteaValue'
   if (type === 'pg_catalog.macaddr') return 'MacaddrValue'
@@ -101,7 +103,7 @@ export function emitCheckRustEvaluator(
       .map((item) => `${item.rustName}: ${item.rustType}`)
       .join(', ')
   const ownedOperand = (operand: { name: string; type: string }): string =>
-    ['TextValue', 'ByteaValue'].includes(rustType(operand.type))
+    ['TextValue', 'ByteaValue', 'BitValue'].includes(rustType(operand.type))
       ? `${operand.name}.clone()`
       : operand.name
 
@@ -125,6 +127,7 @@ export function emitCheckRustEvaluator(
           operands.length !== 1 ||
           (operands[0]!.type !== call.type &&
             !isBinaryTextRelabel(operands[0]!.type, call.type) &&
+            !isBinaryBitRelabel(operands[0]!.type, call.type) &&
             !(
               operands[0]!.type === 'pg_catalog.cidr' &&
               call.type === 'pg_catalog.inet' &&
@@ -328,6 +331,15 @@ export function emitCheckRustEvaluator(
           ),
           type: value.type,
         }
+      if (value.kind === 'bit')
+        return {
+          name: bind(
+            value.value === null
+              ? 'bit_null()'
+              : `bit_from_literal(${rustStringLiteral(value.value)})`,
+          ),
+          type: value.type,
+        }
       if (value.kind === 'bytea')
         return {
           name: bind(
@@ -491,7 +503,7 @@ export function emitCheckRustEvaluator(
       bindings.push(`let mut ${name}: ${kind} = ${ownedOperand(first)};`)
       for (const operand of node.operands.slice(1)) {
         const nullness = bind(
-          `${prefix}_is_null(${['TextValue', 'ByteaValue'].includes(kind) ? `${name}.clone()` : name})`,
+          `${prefix}_is_null(${['TextValue', 'ByteaValue', 'BitValue'].includes(kind) ? `${name}.clone()` : name})`,
         )
         const guard = bind(`check_from_bool(${nullness})`)
         const lines: string[] = []

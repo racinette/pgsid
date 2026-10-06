@@ -35,6 +35,12 @@ beforeAll(async () => {
       fixed char(3) CHECK (fixed = 'abc'),
       nested nested_label CHECK (nested = 'abc'),
       unbounded varchar CHECK (unbounded = 'abc')
+    );
+    CREATE DOMAIN mask_boundary AS bit(8);
+    CREATE TABLE bit_boundary (
+      fixed bit(8) CHECK (fixed = B'00001111'),
+      varying bit varying CHECK (varying = B'00000000'),
+      nested mask_boundary CHECK (nested = B'00001111')
     )
   `)
   catalog = await snapshotCatalog(db)
@@ -64,6 +70,28 @@ const sources = (plan: ReturnType<typeof planCheckWrite>) =>
   Object.fromEntries(plan?.columns.map(({ name, source }) => [name, source]) ?? [])
 
 describe('CHECK write boundary', () => {
+  it('defers raw bit inputs until SQL notation and assignment widths are coerced', async () => {
+    const insert = await statement(
+      'INSERT INTO bit_boundary (fixed, varying, nested) VALUES ($1, $2, $3)',
+    )
+    const writes: WriteValueLineage[] = ['fixed', 'varying', 'nested'].map((column, index) => ({
+      target: { schema: 'public', relation: 'bit_boundary', column },
+      source: 'insert',
+      value: parameter(index + 1),
+      partial: false,
+    }))
+    expect(
+      planCheckInputs(insert, writes, catalog, ['bit(8)', 'bit varying', 'mask_boundary']),
+    ).toEqual([])
+    expect(
+      (
+        await db.query(
+          'INSERT INTO bit_boundary VALUES ($1,$2,$3) RETURNING fixed,varying,nested',
+          ['x0f', 'X00', 'B00001111'],
+        )
+      ).rows,
+    ).toEqual([{ fixed: '00001111', varying: '00000000', nested: '00001111' }])
+  })
   it('defers raw bounded varchar and char inputs until assignment coercion is modeled', async () => {
     const insert = await statement(
       'INSERT INTO text_boundary (short, fixed, nested, unbounded) VALUES ($1, $2, $3, $4)',

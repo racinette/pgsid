@@ -34,6 +34,7 @@ export interface ResolvedTypescriptType {
 }
 
 const DEFAULT_TYPES: Readonly<Record<string, string>> = {
+  bit: 'string',
   bool: 'boolean',
   boolean: 'boolean',
   bpchar: 'string',
@@ -72,6 +73,7 @@ const DEFAULT_TYPES: Readonly<Record<string, string>> = {
 
 const TYPE_ALIASES: Readonly<Record<string, string>> = {
   bigint: 'int8',
+  'bit varying': 'varbit',
   boolean: 'bool',
   character: 'bpchar',
   'character varying': 'varchar',

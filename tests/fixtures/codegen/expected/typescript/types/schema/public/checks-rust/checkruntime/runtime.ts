@@ -711,6 +711,64 @@ export function makeCidrValue(value: string): NetworkValue {
     }
     return parsed;
 }
+export type BitValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: string;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalBitValue(left: BitValue, right: BitValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return left.value === right.value;
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function bitUnknown(): BitValue {
+    return { kind: "Unknown" };
+}
+export function bitNull(): BitValue {
+    return { kind: "Null" };
+}
+export function bitIsNull(value: BitValue): BoolValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalBitValue(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: equalBitValue(value, { kind: "Null" }) };
+}
+export function bitFromCaseGuard(value: CheckOutcome): BitValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function makeBitValue(value: string): BitValue {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    if (chars.length > 2147483647) {
+        return { kind: "Unknown" };
+    }
+    let index: number = 0;
+    while (index < chars.length) {
+        if (!(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "0") && !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "1")) {
+            return { kind: "Unknown" };
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { kind: "Value", value: value };
+}
 export type ByteaValue = {
     readonly kind: "Unknown";
 } | {
@@ -1953,6 +2011,63 @@ export function uuidWord(value: Uuid, index: number): number {
         return value.word6;
     }
     return value.word7;
+}
+export function bitFromLiteral(value: string): BitValue {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    let index: number = 0;
+    let hexadecimal: boolean = false;
+    if (chars.length > 0) {
+        if (langruntime.indexChar(chars, langruntime.checkedIndex(0)) === "b" || langruntime.indexChar(chars, langruntime.checkedIndex(0)) === "B") {
+            index = langruntime.checkedIndex(1);
+        }
+        if (langruntime.indexChar(chars, langruntime.checkedIndex(0)) === "x" || langruntime.indexChar(chars, langruntime.checkedIndex(0)) === "X") {
+            index = langruntime.checkedIndex(1);
+            hexadecimal = langruntime.checkedBool(true);
+        }
+    }
+    if (chars.length > 536870911) {
+        return { kind: "Unknown" };
+    }
+    let output: string = "";
+    while (index < chars.length) {
+        const ch: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+        if (hexadecimal) {
+            const digit: number = hexDigit(ch);
+            if (digit === 16) {
+                return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
+            }
+            let weight: number = 8;
+            while (weight > 0) {
+                if (langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(digit, weight), 2) === 0) {
+                    output = output + langruntime.checkedChar("0");
+                }
+                else {
+                    output = output + langruntime.checkedChar("1");
+                }
+                weight = langruntime.checkedI32(langruntime.checkedSignedDivide(weight, 2));
+            }
+        }
+        else {
+            if (!(ch === "0") && !(ch === "1")) {
+                return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
+            }
+            output = output + langruntime.checkedChar(ch);
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    return { kind: "Value", value: output };
+}
+export function bitPayloadLength(value: string): number {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    let index: number = 0;
+    let length: number = 0;
+    while (index < chars.length) {
+        index = langruntime.checkedAdd(index, 1);
+        length = langruntime.checkedI32(langruntime.checkedSignedAdd(length, 1));
+    }
+    return length;
 }
 export interface HashByte {
     value: bigint;

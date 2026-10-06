@@ -194,6 +194,16 @@ import them. Keep schema-only helpers with their callables.
   Rust validates hexadecimal constructor inputs. SQL literals accept hex input.
   Binary send, equality/inequality, NULL tests, CASE, and COALESCE use this wrapper.
   Other binary operations and runtime text casts require separate slices.
+- Bit and varbit share an owned binary string in BitValue, preserving leading
+  zeros, trailing zeros, and empty values. Public inputs are already SQL-coerced
+  strings; nonbinary spellings defer. Literals accept binary and hexadecimal
+  notation through the Rust decoder. Comparisons inspect padded bytes before
+  bit length, and direct comparators preserve the first unequal byte difference.
+  Length returns bits; octet length rounds up. Both types implicitly relabel
+  without modifying contents, and mixed operators prefer varbit. CASE considers
+  ELSE first; COALESCE uses its first typed arm. Width-changing casts, runtime
+  text casts, and raw query parameter coercion remain deferred. Run
+  `tests/sql-semantics/check-bit.test.ts` and the feature masks world for parity.
 - Date payloads are signed day offsets from 2000-01-01. The signed int4
   minimum and maximum represent negative and positive infinity. Finite payloads
   range from -2451545 through 2145031948. Public CHECK inputs use this portable
