@@ -13,70 +13,70 @@ fn generated_check_distinguishes_null_unknown_and_errors() {
             make_int4_value(-1),
             make_text_value("abc"),
             make_text_value("("),
-            open,
+            open.clone(),
             CheckOutcome::False,
         ),
         (
             make_int4_value(1),
             make_text_value("abc"),
             make_text_value("a"),
-            open,
+            open.clone(),
             CheckOutcome::True,
         ),
         (
             make_int4_value(1),
             make_text_value("abc"),
             make_text_value("z"),
-            open,
+            open.clone(),
             CheckOutcome::False,
         ),
         (
             make_int4_value(1),
             make_text_value("abc"),
             make_text_value("("),
-            open,
+            open.clone(),
             CheckOutcome::Error(make_sql_error(3452591)),
         ),
         (
             int4_unknown(),
             make_text_value("abc"),
             make_text_value("z"),
-            open,
+            open.clone(),
             CheckOutcome::False,
         ),
         (
             int4_unknown(),
             make_text_value("abc"),
             make_text_value("a"),
-            open,
+            open.clone(),
             CheckOutcome::Unknown,
         ),
         (
             int4_null(),
             make_text_value("abc"),
             make_text_value("a"),
-            open,
+            open.clone(),
             CheckOutcome::Null,
         ),
         (
             make_int4_value(1),
             text_unknown(),
             make_text_value("a"),
-            open,
+            open.clone(),
             CheckOutcome::Unknown,
         ),
         (
             make_int4_value(1),
             text_null(),
             make_text_value("a"),
-            open,
+            open.clone(),
             CheckOutcome::Null,
         ),
         (
             make_int4_value(1),
             make_text_value("abc"),
             text_unknown(),
-            open,
+            open.clone(),
             CheckOutcome::Unknown,
         ),
         (
@@ -117,7 +117,7 @@ fn generated_check_distinguishes_null_unknown_and_errors() {
             make_int4_value(1),
             make_text_value(&owned),
             make_text_value("a"),
-            open
+            open.clone()
         ) == CheckOutcome::True
     );
     let error = make_sql_error(3452591);
@@ -126,7 +126,7 @@ fn generated_check_distinguishes_null_unknown_and_errors() {
             Int4Value::Error(error),
             make_text_value("abc"),
             make_text_value("a"),
-            open
+            open.clone()
         ) == CheckOutcome::Error(error)
     );
     assert!(
@@ -134,7 +134,7 @@ fn generated_check_distinguishes_null_unknown_and_errors() {
             make_int4_value(-1),
             TextValue::Error(error),
             make_text_value("a"),
-            open
+            open.clone()
         ) == CheckOutcome::False
     );
     assert!(

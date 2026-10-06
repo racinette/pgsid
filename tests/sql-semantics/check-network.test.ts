@@ -281,8 +281,8 @@ describe('portable Rust CHECK INET/CIDR', () => {
     )
     for (const [index, check] of group.checks.entries())
       expect(check.kind, fixtureNames[index]).toBe('supported')
-    expect(group.evaluatorSource).toContain('network_from_text(input_raw)')
-    expect(group.evaluatorSource).toContain('cidr_from_text(input_raw)')
+    expect(group.evaluatorSource).toContain('network_from_text(input_raw.clone())')
+    expect(group.evaluatorSource).toContain('cidr_from_text(input_raw.clone())')
     oraclePg = await PGlite.create()
     let oracleFailures = 0
     const oracleQuery = async <T>(sql: string, parameters: unknown[]) => {

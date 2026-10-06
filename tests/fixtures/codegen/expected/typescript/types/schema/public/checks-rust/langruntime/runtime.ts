@@ -148,7 +148,7 @@ function pushIndex(values: number[], value: number): void {
     checkedAdd(values.length, 1);
     values.push(checkedIndex(value));
 }
-function pushChar(values: string[], value: string): void {
+export function pushChar(values: string[], value: string): void {
     checkedAdd(values.length, 1);
     values.push(checkedChar(value));
 }

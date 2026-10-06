@@ -863,3 +863,69 @@ pub fn sql__pg_catalog__network_smaller__nmw8(
 ) -> NetworkValue {
     network_select(left, right, false)
 }
+
+fn network_hash_bytes(address: NetworkAddress) -> Vec<HashByte> {
+    let mut bytes: Vec<HashByte> = Vec::new();
+    let mut family: i64 = 2i64;
+    let mut word_count: usize = 2;
+    if address.family == 6 {
+        family = 3i64;
+        word_count = 8;
+    }
+    bytes.push(HashByte { value: family });
+    let prefix = address.prefix as i64;
+    bytes.push(HashByte { value: prefix });
+    let mut index: usize = 0;
+    while index < word_count {
+        let word = network_address_word(address, index);
+        let high = word / 256;
+        let low = word % 256;
+        let high_byte = high as i64;
+        let low_byte = low as i64;
+        bytes.push(HashByte { value: high_byte });
+        bytes.push(HashByte { value: low_byte });
+        index += 1;
+    }
+    bytes
+}
+
+pub fn sql__pg_catalog__hashinet__fhly(input: NetworkValue) -> Int4Value {
+    if let NetworkValue::Error(error) = input {
+        return Int4Value::Error(error);
+    }
+    if input == NetworkValue::Unknown {
+        return Int4Value::Unknown;
+    }
+    if input == NetworkValue::Null {
+        return Int4Value::Null;
+    }
+    if let NetworkValue::Value(address) = input {
+        let bytes = network_hash_bytes(address);
+        let hash = hash_bytes32(bytes);
+        return Int4Value::Value(hash);
+    }
+    Int4Value::Unknown
+}
+
+pub fn sql__pg_catalog__hashinetextended__n7xh(left: NetworkValue, right: Int8Value) -> Int8Value {
+    if let NetworkValue::Error(error) = left {
+        return Int8Value::Error(error);
+    }
+    if let Int8Value::Error(error) = right {
+        return Int8Value::Error(error);
+    }
+    if left == NetworkValue::Unknown || right == Int8Value::Unknown {
+        return Int8Value::Unknown;
+    }
+    if left == NetworkValue::Null || right == Int8Value::Null {
+        return Int8Value::Null;
+    }
+    if let NetworkValue::Value(address) = left {
+        if let Int8Value::Value(seed) = right {
+            let bytes = network_hash_bytes(address);
+            let hash = hash_bytes64(bytes, seed);
+            return Int8Value::Value(hash);
+        }
+    }
+    Int8Value::Unknown
+}

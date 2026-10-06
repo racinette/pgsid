@@ -17,19 +17,6 @@ type Int2Value struct {
 	Error SqlError
 }
 
-func CopyInt2Value(value Int2Value) Int2Value {
-	switch value.Kind {
-	case Int2ValueUnknown:
-		return Int2Value{Kind: Int2ValueUnknown}
-	case Int2ValueNull:
-		return Int2Value{Kind: Int2ValueNull}
-	case Int2ValueValue:
-		return Int2Value{Kind: Int2ValueValue, Value: langruntime.CheckedI32(value.Value)}
-	case Int2ValueError:
-		return Int2Value{Kind: Int2ValueError, Error: value.Error}
-	}
-	panic("unknown enum variant")
-}
 func Int2Unknown() Int2Value {
 	return Int2Value{Kind: Int2ValueUnknown}
 }
@@ -44,7 +31,6 @@ func MakeInt2Value(value int) Int2Value {
 	return Int2Value{Kind: Int2ValueValue, Value: value}
 }
 func Int2IsNull(value Int2Value) BoolValue {
-	value = CopyInt2Value(value)
 	if value.Kind == Int2ValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
@@ -62,7 +48,6 @@ func Int2FromCaseGuard(value CheckOutcome) Int2Value {
 	return Int2Value{Kind: Int2ValueUnknown}
 }
 func Int2ToInt4(value Int2Value) Int4Value {
-	value = CopyInt2Value(value)
 	if value.Kind == Int2ValueError {
 		error := value.Error
 		return Int4Value{Kind: Int4ValueError, Error: error}
@@ -77,7 +62,6 @@ func Int2ToInt4(value Int2Value) Int4Value {
 	return Int4Value{Kind: Int4ValueUnknown}
 }
 func Int2ToInt8(value Int2Value) Int8Value {
-	value = CopyInt2Value(value)
 	if value.Kind == Int2ValueError {
 		error := value.Error
 		return Int8Value{Kind: Int8ValueError, Error: error}
@@ -107,21 +91,6 @@ type Int4Value struct {
 	Value int
 	Error SqlError
 }
-
-func CopyInt4Value(value Int4Value) Int4Value {
-	switch value.Kind {
-	case Int4ValueUnknown:
-		return Int4Value{Kind: Int4ValueUnknown}
-	case Int4ValueNull:
-		return Int4Value{Kind: Int4ValueNull}
-	case Int4ValueValue:
-		return Int4Value{Kind: Int4ValueValue, Value: langruntime.CheckedI32(value.Value)}
-	case Int4ValueError:
-		return Int4Value{Kind: Int4ValueError, Error: value.Error}
-	}
-	panic("unknown enum variant")
-}
-
 type Int8ValueKind uint8
 
 const (
@@ -158,19 +127,6 @@ type TimestampValue struct {
 	Error SqlError
 }
 
-func CopyTimestampValue(value TimestampValue) TimestampValue {
-	switch value.Kind {
-	case TimestampValueUnknown:
-		return TimestampValue{Kind: TimestampValueUnknown}
-	case TimestampValueNull:
-		return TimestampValue{Kind: TimestampValueNull}
-	case TimestampValueValue:
-		return TimestampValue{Kind: TimestampValueValue, Value: value.Value}
-	case TimestampValueError:
-		return TimestampValue{Kind: TimestampValueError, Error: value.Error}
-	}
-	panic("unknown enum variant")
-}
 func TimestampUnknown() TimestampValue {
 	return TimestampValue{Kind: TimestampValueUnknown}
 }
@@ -184,7 +140,6 @@ func MakeTimestampValue(value int64) TimestampValue {
 	return TimestampValue{Kind: TimestampValueValue, Value: value}
 }
 func TimestampIsNull(value TimestampValue) BoolValue {
-	value = CopyTimestampValue(value)
 	if value.Kind == TimestampValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
@@ -217,19 +172,6 @@ type TimestamptzValue struct {
 	Error SqlError
 }
 
-func CopyTimestamptzValue(value TimestamptzValue) TimestamptzValue {
-	switch value.Kind {
-	case TimestamptzValueUnknown:
-		return TimestamptzValue{Kind: TimestamptzValueUnknown}
-	case TimestamptzValueNull:
-		return TimestamptzValue{Kind: TimestamptzValueNull}
-	case TimestamptzValueValue:
-		return TimestamptzValue{Kind: TimestamptzValueValue, Value: value.Value}
-	case TimestamptzValueError:
-		return TimestamptzValue{Kind: TimestamptzValueError, Error: value.Error}
-	}
-	panic("unknown enum variant")
-}
 func TimestamptzUnknown() TimestamptzValue {
 	return TimestamptzValue{Kind: TimestamptzValueUnknown}
 }
@@ -243,7 +185,6 @@ func MakeTimestamptzValue(value int64) TimestamptzValue {
 	return TimestamptzValue{Kind: TimestamptzValueValue, Value: value}
 }
 func TimestamptzIsNull(value TimestamptzValue) BoolValue {
-	value = CopyTimestamptzValue(value)
 	if value.Kind == TimestamptzValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
@@ -276,19 +217,6 @@ type EnumValue struct {
 	Error SqlError
 }
 
-func CopyEnumValue(value EnumValue) EnumValue {
-	switch value.Kind {
-	case EnumValueUnknown:
-		return EnumValue{Kind: EnumValueUnknown}
-	case EnumValueNull:
-		return EnumValue{Kind: EnumValueNull}
-	case EnumValueValue:
-		return EnumValue{Kind: EnumValueValue, Value: langruntime.CheckedI32(value.Value)}
-	case EnumValueError:
-		return EnumValue{Kind: EnumValueError, Error: value.Error}
-	}
-	panic("unknown enum variant")
-}
 func EnumUnknown() EnumValue {
 	return EnumValue{Kind: EnumValueUnknown}
 }
@@ -300,7 +228,6 @@ func MakeEnumValue(value int) EnumValue {
 	return EnumValue{Kind: EnumValueValue, Value: value}
 }
 func EnumIsNull(value EnumValue) BoolValue {
-	value = CopyEnumValue(value)
 	if value.Kind == EnumValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
@@ -333,19 +260,6 @@ type DateValue struct {
 	Error SqlError
 }
 
-func CopyDateValue(value DateValue) DateValue {
-	switch value.Kind {
-	case DateValueUnknown:
-		return DateValue{Kind: DateValueUnknown}
-	case DateValueNull:
-		return DateValue{Kind: DateValueNull}
-	case DateValueValue:
-		return DateValue{Kind: DateValueValue, Value: langruntime.CheckedI32(value.Value)}
-	case DateValueError:
-		return DateValue{Kind: DateValueError, Error: value.Error}
-	}
-	panic("unknown enum variant")
-}
 func DateUnknown() DateValue {
 	return DateValue{Kind: DateValueUnknown}
 }
@@ -362,7 +276,6 @@ func MakeDateValue(value int) DateValue {
 	return DateValue{Kind: DateValueValue, Value: value}
 }
 func DateIsNull(value DateValue) BoolValue {
-	value = CopyDateValue(value)
 	if value.Kind == DateValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
@@ -395,19 +308,6 @@ type TextValue struct {
 	Error SqlError
 }
 
-func CopyTextValue(value TextValue) TextValue {
-	switch value.Kind {
-	case TextValueUnknown:
-		return TextValue{Kind: TextValueUnknown}
-	case TextValueNull:
-		return TextValue{Kind: TextValueNull}
-	case TextValueValue:
-		return TextValue{Kind: TextValueValue, Value: langruntime.CheckedString(value.Value)}
-	case TextValueError:
-		return TextValue{Kind: TextValueError, Error: value.Error}
-	}
-	panic("unknown enum variant")
-}
 func Int4Unknown() Int4Value {
 	return Int4Value{Kind: Int4ValueUnknown}
 }
@@ -530,21 +430,7 @@ type BoolValue struct {
 	Error SqlError
 }
 
-func CopyBoolValue(value BoolValue) BoolValue {
-	switch value.Kind {
-	case BoolValueUnknown:
-		return BoolValue{Kind: BoolValueUnknown}
-	case BoolValueNull:
-		return BoolValue{Kind: BoolValueNull}
-	case BoolValueValue:
-		return BoolValue{Kind: BoolValueValue, Value: value.Value}
-	case BoolValueError:
-		return BoolValue{Kind: BoolValueError, Error: value.Error}
-	}
-	panic("unknown enum variant")
-}
 func CheckFromBool(value BoolValue) CheckOutcome {
-	value = CopyBoolValue(value)
 	if value.Kind == BoolValueError {
 		error := value.Error
 		return CheckOutcome{Kind: CheckOutcomeError, Error: error}
@@ -564,7 +450,6 @@ func CheckUnknown() CheckOutcome {
 	return CheckOutcome{Kind: CheckOutcomeUnknown}
 }
 func Int4IsNull(value Int4Value) BoolValue {
-	value = CopyInt4Value(value)
 	if value.Kind == Int4ValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
@@ -585,7 +470,6 @@ func Int8IsNull(value Int8Value) BoolValue {
 	return BoolValue{Kind: BoolValueValue, Value: value == (Int8Value{Kind: Int8ValueNull})}
 }
 func TextIsNull(value TextValue) BoolValue {
-	value = CopyTextValue(value)
 	if value.Kind == TextValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
@@ -596,7 +480,6 @@ func TextIsNull(value TextValue) BoolValue {
 	return BoolValue{Kind: BoolValueValue, Value: value == (TextValue{Kind: TextValueNull})}
 }
 func BoolIsNull(value BoolValue) BoolValue {
-	value = CopyBoolValue(value)
 	if value.Kind == BoolValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
@@ -607,7 +490,6 @@ func BoolIsNull(value BoolValue) BoolValue {
 	return BoolValue{Kind: BoolValueValue, Value: value == (BoolValue{Kind: BoolValueNull})}
 }
 func BoolNotValue(value BoolValue) BoolValue {
-	value = CopyBoolValue(value)
 	if value.Kind == BoolValueValue {
 		result := value.Value
 		if result {
@@ -667,19 +549,6 @@ type NumericValue struct {
 	Error SqlError
 }
 
-func CopyNumericValue(value NumericValue) NumericValue {
-	switch value.Kind {
-	case NumericValueUnknown:
-		return NumericValue{Kind: NumericValueUnknown}
-	case NumericValueNull:
-		return NumericValue{Kind: NumericValueNull}
-	case NumericValueValue:
-		return NumericValue{Kind: NumericValueValue, Value: langruntime.CheckedString(value.Value)}
-	case NumericValueError:
-		return NumericValue{Kind: NumericValueError, Error: value.Error}
-	}
-	panic("unknown enum variant")
-}
 func NumericUnknown() NumericValue {
 	return NumericValue{Kind: NumericValueUnknown}
 }
@@ -687,7 +556,6 @@ func NumericNull() NumericValue {
 	return NumericValue{Kind: NumericValueNull}
 }
 func NumericIsNull(value NumericValue) BoolValue {
-	value = CopyNumericValue(value)
 	if value.Kind == NumericValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
@@ -725,11 +593,6 @@ type NetworkAddress struct {
 	Word6  int
 	Word7  int
 }
-
-func CopyNetworkAddress(value NetworkAddress) NetworkAddress {
-	return NetworkAddress{Family: langruntime.CheckedIndex(value.Family), Prefix: langruntime.CheckedI32(value.Prefix), Word0: langruntime.CheckedI32(value.Word0), Word1: langruntime.CheckedI32(value.Word1), Word2: langruntime.CheckedI32(value.Word2), Word3: langruntime.CheckedI32(value.Word3), Word4: langruntime.CheckedI32(value.Word4), Word5: langruntime.CheckedI32(value.Word5), Word6: langruntime.CheckedI32(value.Word6), Word7: langruntime.CheckedI32(value.Word7)}
-}
-
 type NetworkValueKind uint8
 
 const (
@@ -745,19 +608,6 @@ type NetworkValue struct {
 	Error SqlError
 }
 
-func CopyNetworkValue(value NetworkValue) NetworkValue {
-	switch value.Kind {
-	case NetworkValueUnknown:
-		return NetworkValue{Kind: NetworkValueUnknown}
-	case NetworkValueNull:
-		return NetworkValue{Kind: NetworkValueNull}
-	case NetworkValueValue:
-		return NetworkValue{Kind: NetworkValueValue, Value: CopyNetworkAddress(value.Value)}
-	case NetworkValueError:
-		return NetworkValue{Kind: NetworkValueError, Error: value.Error}
-	}
-	panic("unknown enum variant")
-}
 func NetworkUnknown() NetworkValue {
 	return NetworkValue{Kind: NetworkValueUnknown}
 }
@@ -765,7 +615,6 @@ func NetworkNull() NetworkValue {
 	return NetworkValue{Kind: NetworkValueNull}
 }
 func NetworkIsNull(value NetworkValue) BoolValue {
-	value = CopyNetworkValue(value)
 	if value.Kind == NetworkValueError {
 		error := value.Error
 		return BoolValue{Kind: BoolValueError, Error: error}
@@ -805,6 +654,66 @@ func MakeCidrValue(value string) NetworkValue {
 		return NetworkValue{Kind: NetworkValueUnknown}
 	}
 	return parsed
+}
+
+type ByteaValueKind uint8
+
+const (
+	ByteaValueUnknown ByteaValueKind = iota
+	ByteaValueNull
+	ByteaValueValue
+	ByteaValueError
+)
+
+type ByteaValue struct {
+	Kind  ByteaValueKind
+	Value string
+	Error SqlError
+}
+
+func ByteaUnknown() ByteaValue {
+	return ByteaValue{Kind: ByteaValueUnknown}
+}
+func ByteaNull() ByteaValue {
+	return ByteaValue{Kind: ByteaValueNull}
+}
+func ByteaIsNull(value ByteaValue) BoolValue {
+	if value.Kind == ByteaValueError {
+		error := value.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if value == (ByteaValue{Kind: ByteaValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: value == (ByteaValue{Kind: ByteaValueNull})}
+}
+func ByteaFromCaseGuard(value CheckOutcome) ByteaValue {
+	if value.Kind == CheckOutcomeError {
+		error := value.Error
+		return ByteaValue{Kind: ByteaValueError, Error: error}
+	}
+	return ByteaValue{Kind: ByteaValueUnknown}
+}
+func MakeByteaValue(value string) ByteaValue {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	even := true
+	output := ""
+	index := 0
+	for index < len(chars) {
+		character := langruntime.AsciiLowercase(chars[index])
+		code := int(langruntime.CheckedChar(character))
+		if (code < 48 || code > 57) && (code < 97 || code > 102) {
+			return ByteaValue{Kind: ByteaValueUnknown}
+		}
+		output = output + string(langruntime.CheckedChar(character))
+		even = even == false
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if even == false {
+		return ByteaValue{Kind: ByteaValueUnknown}
+	}
+	return ByteaValue{Kind: ByteaValueValue, Value: output}
 }
 
 type NumericLayout struct {
@@ -1057,7 +966,6 @@ func networkDigit(ch rune) int {
 	return 16
 }
 func NetworkAddressWord(address NetworkAddress, index int) int {
-	address = CopyNetworkAddress(address)
 	index = langruntime.CheckedIndex(index)
 	if index == 0 {
 		return address.Word0
@@ -1082,8 +990,7 @@ func NetworkAddressWord(address NetworkAddress, index int) int {
 	}
 	return address.Word7
 }
-func networkAddressByte(address NetworkAddress, index int, high bool) int {
-	address = CopyNetworkAddress(address)
+func NetworkAddressByte(address NetworkAddress, index int, high bool) int {
 	index = langruntime.CheckedIndex(index)
 	word := NetworkAddressWord(address, index)
 	if high {
@@ -1092,15 +999,13 @@ func networkAddressByte(address NetworkAddress, index int, high bool) int {
 	return langruntime.CheckedSignedRemainder(word, 256)
 }
 func NetworkPrefixCompare(left NetworkAddress, right NetworkAddress, bits int) int {
-	left = CopyNetworkAddress(left)
-	right = CopyNetworkAddress(right)
 	bits = langruntime.CheckedI32(bits)
 	index := 0
 	remaining := bits
 	high := true
 	for remaining >= 8 {
-		a := networkAddressByte(left, index, high)
-		b := networkAddressByte(right, index, high)
+		a := NetworkAddressByte(left, index, high)
+		b := NetworkAddressByte(right, index, high)
 		if a != b {
 			return langruntime.CheckedSignedSubtract(a, b)
 		}
@@ -1119,8 +1024,8 @@ func NetworkPrefixCompare(left NetworkAddress, right NetworkAddress, bits int) i
 			divisor = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(divisor, 2))
 			padding = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(padding, 1))
 		}
-		a := langruntime.CheckedSignedDivide(networkAddressByte(left, index, high), divisor)
-		b := langruntime.CheckedSignedDivide(networkAddressByte(right, index, high), divisor)
+		a := langruntime.CheckedSignedDivide(NetworkAddressByte(left, index, high), divisor)
+		b := langruntime.CheckedSignedDivide(NetworkAddressByte(right, index, high), divisor)
 		if a < b {
 			return langruntime.CheckedSignedNegate(1)
 		}
@@ -1421,7 +1326,6 @@ func networkParse(value string, cidr bool) NetworkValue {
 	return NetworkValue{Kind: NetworkValueValue, Value: address}
 }
 func NetworkFromText(input TextValue) NetworkValue {
-	input = CopyTextValue(input)
 	if input.Kind == TextValueError {
 		error := input.Error
 		return NetworkValue{Kind: NetworkValueError, Error: error}
@@ -1439,7 +1343,6 @@ func NetworkFromText(input TextValue) NetworkValue {
 	return NetworkValue{Kind: NetworkValueUnknown}
 }
 func CidrFromText(input TextValue) NetworkValue {
-	input = CopyTextValue(input)
 	if input.Kind == TextValueError {
 		error := input.Error
 		return NetworkValue{Kind: NetworkValueError, Error: error}
@@ -1455,6 +1358,262 @@ func CidrFromText(input TextValue) NetworkValue {
 		return networkParse(value, true)
 	}
 	return NetworkValue{Kind: NetworkValueUnknown}
+}
+
+type HashByte struct {
+	Value int64
+}
+
+func CopyHashByte(value HashByte) HashByte {
+	return HashByte{Value: value.Value}
+}
+
+type hashState struct {
+	a int64
+	b int64
+	c int64
+}
+
+func copyhashState(value hashState) hashState {
+	return hashState{a: value.a, b: value.b, c: value.c}
+}
+func hashWrap(value int64) int64 {
+	result := langruntime.CheckedI64Remainder(value, int64(4294967296))
+	if result < int64(0) {
+		result = langruntime.CheckedI64Add(result, int64(4294967296))
+	}
+	return result
+}
+func hashXor(left int64, right int64) int64 {
+	a := left
+	b := right
+	place := int64(1)
+	result := int64(0)
+	for place < int64(4294967296) {
+		if langruntime.CheckedI64Remainder(a, int64(2)) != langruntime.CheckedI64Remainder(b, int64(2)) {
+			result = langruntime.CheckedI64Add(result, place)
+		}
+		a = langruntime.CheckedI64Divide(a, int64(2))
+		b = langruntime.CheckedI64Divide(b, int64(2))
+		place = langruntime.CheckedI64Multiply(place, int64(2))
+	}
+	return result
+}
+func hashRotate(value int64, bits int) int64 {
+	bits = langruntime.CheckedI32(bits)
+	multiplier := int64(1)
+	divisor := int64(4294967296)
+	remaining := bits
+	for remaining > 0 {
+		multiplier = langruntime.CheckedI64Multiply(multiplier, int64(2))
+		divisor = langruntime.CheckedI64Divide(divisor, int64(2))
+		remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, 1))
+	}
+	return langruntime.CheckedI64Add(langruntime.CheckedI64Remainder(langruntime.CheckedI64Multiply(value, multiplier), int64(4294967296)), langruntime.CheckedI64Divide(value, divisor))
+}
+func hashMix(state hashState) hashState {
+	state = copyhashState(state)
+	a := state.a
+	b := state.b
+	c := state.c
+	a = hashWrap(langruntime.CheckedI64Subtract(a, c))
+	rotated0 := hashRotate(c, 4)
+	a = hashXor(a, rotated0)
+	c = hashWrap(langruntime.CheckedI64Add(c, b))
+	b = hashWrap(langruntime.CheckedI64Subtract(b, a))
+	rotated1 := hashRotate(a, 6)
+	b = hashXor(b, rotated1)
+	a = hashWrap(langruntime.CheckedI64Add(a, c))
+	c = hashWrap(langruntime.CheckedI64Subtract(c, b))
+	rotated2 := hashRotate(b, 8)
+	c = hashXor(c, rotated2)
+	b = hashWrap(langruntime.CheckedI64Add(b, a))
+	a = hashWrap(langruntime.CheckedI64Subtract(a, c))
+	rotated3 := hashRotate(c, 16)
+	a = hashXor(a, rotated3)
+	c = hashWrap(langruntime.CheckedI64Add(c, b))
+	b = hashWrap(langruntime.CheckedI64Subtract(b, a))
+	rotated4 := hashRotate(a, 19)
+	b = hashXor(b, rotated4)
+	a = hashWrap(langruntime.CheckedI64Add(a, c))
+	c = hashWrap(langruntime.CheckedI64Subtract(c, b))
+	rotated5 := hashRotate(b, 4)
+	c = hashXor(c, rotated5)
+	b = hashWrap(langruntime.CheckedI64Add(b, a))
+	return hashState{a: a, b: b, c: c}
+}
+func hashFinal(state hashState) hashState {
+	state = copyhashState(state)
+	a := state.a
+	b := state.b
+	c := state.c
+	c = hashXor(c, b)
+	rotated0 := hashRotate(b, 14)
+	c = hashWrap(langruntime.CheckedI64Subtract(c, rotated0))
+	a = hashXor(a, c)
+	rotated1 := hashRotate(c, 11)
+	a = hashWrap(langruntime.CheckedI64Subtract(a, rotated1))
+	b = hashXor(b, a)
+	rotated2 := hashRotate(a, 25)
+	b = hashWrap(langruntime.CheckedI64Subtract(b, rotated2))
+	c = hashXor(c, b)
+	rotated3 := hashRotate(b, 16)
+	c = hashWrap(langruntime.CheckedI64Subtract(c, rotated3))
+	a = hashXor(a, c)
+	rotated4 := hashRotate(c, 4)
+	a = hashWrap(langruntime.CheckedI64Subtract(a, rotated4))
+	b = hashXor(b, a)
+	rotated5 := hashRotate(a, 14)
+	b = hashWrap(langruntime.CheckedI64Subtract(b, rotated5))
+	c = hashXor(c, b)
+	rotated6 := hashRotate(b, 24)
+	c = hashWrap(langruntime.CheckedI64Subtract(c, rotated6))
+	return hashState{a: a, b: b, c: c}
+}
+func hashBytesState(bytes []HashByte, seed int64) hashState {
+	bytes = langruntime.CheckedStructs(bytes, CopyHashByte)
+	length := int64(0)
+	scan := 0
+	for scan < len(bytes) {
+		length = langruntime.CheckedI64Add(length, int64(1))
+		scan = langruntime.CheckedAdd(scan, 1)
+	}
+	initial := langruntime.CheckedI64Add(langruntime.CheckedI64Add(int64(2654435769), length), int64(3923095))
+	stateA := initial
+	stateB := initial
+	stateC := initial
+	if seed != int64(0) {
+		low := hashWrap(seed)
+		high := langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(seed, low)), int64(4294967296))
+		if high < int64(0) {
+			high = langruntime.CheckedI64Add(high, int64(4294967296))
+		}
+		a := hashWrap(langruntime.CheckedI64Add(stateA, high))
+		b := hashWrap(langruntime.CheckedI64Add(stateB, low))
+		mixed := hashMix(hashState{a: a, b: b, c: stateC})
+		stateA = mixed.a
+		stateB = mixed.b
+		stateC = mixed.c
+	}
+	index := 0
+	remaining := length
+	for remaining >= int64(12) {
+		a := stateA
+		b := stateB
+		c := stateC
+		position := 0
+		place := int64(1)
+		for position < 12 {
+			value := langruntime.CheckedI64Multiply(bytes[index].Value, place)
+			if position < 4 {
+				a = hashWrap(langruntime.CheckedI64Add(a, value))
+			} else if position < 8 {
+				b = hashWrap(langruntime.CheckedI64Add(b, value))
+			} else {
+				c = hashWrap(langruntime.CheckedI64Add(c, value))
+			}
+			position = langruntime.CheckedAdd(position, 1)
+			index = langruntime.CheckedAdd(index, 1)
+			place = langruntime.CheckedI64Multiply(place, int64(256))
+			if position == 4 || position == 8 {
+				place = int64(1)
+			}
+		}
+		mixed := hashMix(hashState{a: a, b: b, c: c})
+		stateA = mixed.a
+		stateB = mixed.b
+		stateC = mixed.c
+		remaining = langruntime.CheckedI64Subtract(remaining, int64(12))
+	}
+	a := stateA
+	b := stateB
+	c := stateC
+	position := 0
+	place := int64(1)
+	for index < len(bytes) {
+		value := langruntime.CheckedI64Multiply(bytes[index].Value, place)
+		if position < 4 {
+			a = hashWrap(langruntime.CheckedI64Add(a, value))
+		} else if position < 8 {
+			b = hashWrap(langruntime.CheckedI64Add(b, value))
+		} else {
+			c = hashWrap(langruntime.CheckedI64Add(c, value))
+		}
+		position = langruntime.CheckedAdd(position, 1)
+		index = langruntime.CheckedAdd(index, 1)
+		place = langruntime.CheckedI64Multiply(place, int64(256))
+		if position == 4 {
+			place = int64(1)
+		}
+		if position == 8 {
+			place = int64(256)
+		}
+	}
+	return hashFinal(hashState{a: a, b: b, c: c})
+}
+func HashBytes32(bytes []HashByte) int {
+	bytes = langruntime.CheckedStructs(bytes, CopyHashByte)
+	state := hashBytesState(bytes, int64(0))
+	return int(int32(state.c))
+}
+func HashBytes64(bytes []HashByte, seed int64) int64 {
+	bytes = langruntime.CheckedStructs(bytes, CopyHashByte)
+	state := hashBytesState(bytes, seed)
+	high := state.b
+	if high >= int64(2147483648) {
+		high = langruntime.CheckedI64Subtract(high, int64(4294967296))
+	}
+	return langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(high, int64(4294967296)), state.c)
+}
+func TextNumber(value int, base int) string {
+	value = langruntime.CheckedI32(value)
+	base = langruntime.CheckedI32(base)
+	digits := []rune("0123456789abcdef")
+	reversed := []rune{}
+	remaining := value
+	if remaining == 0 {
+		langruntime.CheckedAdd(len(reversed), 1)
+		reversed = append(reversed, langruntime.CheckedChar('0'))
+	}
+	for remaining > 0 {
+		digit := langruntime.CheckedSignedRemainder(remaining, base)
+		index := 0
+		for digit > 0 {
+			index = langruntime.CheckedAdd(index, 1)
+			digit = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(digit, 1))
+		}
+		langruntime.CheckedAdd(len(reversed), 1)
+		reversed = append(reversed, langruntime.CheckedChar(digits[index]))
+		remaining = langruntime.CheckedI32(langruntime.CheckedSignedDivide(remaining, base))
+	}
+	output := ""
+	position := len(reversed)
+	for position > 0 {
+		position = langruntime.CheckedIndex(langruntime.CheckedSubtract(position, 1))
+		output = output + string(langruntime.CheckedChar(reversed[position]))
+	}
+	return output
+}
+func ByteaAppendByte(value string, byte int) string {
+	value = langruntime.CheckedString(value)
+	byte = langruntime.CheckedI32(byte)
+	digits := []rune("0123456789abcdef")
+	high := langruntime.CheckedSignedDivide(byte, 16)
+	low := langruntime.CheckedSignedRemainder(byte, 16)
+	highIndex := 0
+	lowIndex := 0
+	for high > 0 {
+		highIndex = langruntime.CheckedAdd(highIndex, 1)
+		high = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(high, 1))
+	}
+	for low > 0 {
+		lowIndex = langruntime.CheckedAdd(lowIndex, 1)
+		low = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(low, 1))
+	}
+	output := value
+	output = output + string(langruntime.CheckedChar(digits[highIndex]))
+	output = output + string(langruntime.CheckedChar(digits[lowIndex]))
+	return output
 }
 
 const dateFieldOverflow = 3452552
@@ -1499,7 +1658,6 @@ func dateTextDigit(value rune) int {
 	return langruntime.CheckedSignedNegate(1)
 }
 func DateFromText(value TextValue) DateValue {
-	value = CopyTextValue(value)
 	if value.Kind == TextValueError {
 		error := value.Error
 		return DateValue{Kind: DateValueError, Error: error}
@@ -1752,7 +1910,6 @@ func timestampCalendarMicroseconds(year int, month int, day int, hour int, minut
 	return Int8Value{Kind: Int8ValueUnknown}
 }
 func parseTimestampText(value TextValue, withTimezone bool) Int8Value {
-	value = CopyTextValue(value)
 	if value.Kind == TextValueError {
 		error := value.Error
 		return Int8Value{Kind: Int8ValueError, Error: error}
@@ -1984,7 +2141,6 @@ func TimestampFromCalendar(year int, month int, day int, hour int, minute int, s
 	return timestampFromMicroseconds(parsed)
 }
 func TimestampFromText(value TextValue) TimestampValue {
-	value = CopyTextValue(value)
 	parsed := parseTimestampText(value, false)
 	return timestampFromMicroseconds(parsed)
 }
@@ -2015,7 +2171,6 @@ func TimestamptzFromCalendar(year int, month int, day int, hour int, minute int,
 	return timestamptzFromMicroseconds(parsed)
 }
 func TimestamptzFromText(value TextValue) TimestamptzValue {
-	value = CopyTextValue(value)
 	parsed := parseTimestampText(value, true)
 	return timestamptzFromMicroseconds(parsed)
 }

@@ -78,8 +78,8 @@ fn derives(attrs: &[syn::Attribute]) -> Result<BTreeSet<String>> {
             names.insert(name);
         }
     }
-    if names.contains("Copy") != names.contains("Clone") {
-        return Err("this subset requires Clone and Copy together".into());
+    if names.contains("Copy") && !names.contains("Clone") {
+        return Err("derive(Copy) requires Clone".into());
     }
     if names.contains("Eq") && !names.contains("PartialEq") {
         return Err("derive(Eq) requires PartialEq".into());
@@ -90,7 +90,7 @@ fn derives(attrs: &[syn::Attribute]) -> Result<BTreeSet<String>> {
 fn scalar(name: &str) -> bool {
     matches!(
         name,
-        "usize" | "u32" | "i32" | "i64" | "bool" | "char" | "&str"
+        "usize" | "u32" | "i32" | "i64" | "bool" | "char" | "&str" | "String"
     )
 }
 
@@ -177,7 +177,9 @@ pub fn inspect(file: &syn::File) -> Result<()> {
                     if !field.attrs.is_empty() {
                         return Err(format!("{name}: field attributes are outside the subset"));
                     }
-                    if copy.contains(&name) && !scalar(&ty) && !copy.contains(&ty) {
+                    if copy.contains(&name)
+                        && (ty == "String" || (!scalar(&ty) && !copy.contains(&ty)))
+                    {
                         return Err(format!(
                             "{name}: Copy field type {ty} has no target lowering"
                         ));
@@ -193,7 +195,9 @@ pub fn inspect(file: &syn::File) -> Result<()> {
                 let name = enumeration.ident.to_string();
                 for payload in &enums[&name] {
                     if let Some(ty) = payload {
-                        if copy.contains(&name) && !scalar(ty) && !copy.contains(ty) {
+                        if copy.contains(&name)
+                            && (ty == "String" || (!scalar(ty) && !copy.contains(ty)))
+                        {
                             return Err(format!(
                                 "{name}: Copy payload type {ty} has no target lowering"
                             ));
@@ -216,6 +220,7 @@ struct Semantics {
     return_type: Option<String>,
     fields: BTreeMap<String, BTreeMap<String, String>>,
     copy: BTreeSet<String>,
+    clone: BTreeSet<String>,
     equality: BTreeSet<String>,
     variants: BTreeMap<(String, String), Option<String>>,
     functions: BTreeMap<String, (Vec<String>, String)>,
@@ -535,14 +540,47 @@ fn infer_expr_type(
             }
             Ok(Some("usize".into()))
         }
-        Expr::MethodCall(call) if call.method == "push" => {
+        Expr::MethodCall(call)
+            if call.method == "to_owned" || call.method == "as_str" || call.method == "clone" =>
+        {
+            let receiver = infer_expr_type(&call.receiver, locals, semantics)?
+                .ok_or("method receiver has no type")?;
+            if call.method == "to_owned" && receiver == "&str" {
+                return Ok(Some("String".into()));
+            }
+            if call.method == "as_str" && receiver == "String" {
+                return Ok(Some("&str".into()));
+            }
+            if call.method == "clone"
+                && (receiver == "String" || semantics.clone.contains(&receiver))
+            {
+                return Ok(Some(receiver));
+            }
+            Err("owned text method requires a matching immutable value".into())
+        }
+        Expr::MethodCall(call) if call.method == "push" || call.method == "push_str" => {
             let receiver = infer_expr_type(&call.receiver, locals, semantics)?;
             let value = infer_expr_type(&call.args[0], locals, semantics)?;
-            if receiver
-                .as_deref()
-                .and_then(|name| shared_vector_element(name, semantics))
-                != value
-            {
+            if receiver.as_deref() == Some("String") && !matches!(&*call.receiver, Expr::Path(_)) {
+                return Err("String builders require a local binding".into());
+            }
+            let expected = if receiver.as_deref() == Some("String") {
+                Some(
+                    if call.method == "push" {
+                        "char"
+                    } else {
+                        "&str"
+                    }
+                    .to_owned(),
+                )
+            } else if call.method == "push" {
+                receiver
+                    .as_deref()
+                    .and_then(|name| shared_vector_element(name, semantics))
+            } else {
+                None
+            };
+            if expected.is_none() || expected != value {
                 return Err("push() requires a mutable vector and matching element".into());
             }
             let root = assignment_root(&call.receiver)
@@ -562,7 +600,10 @@ fn infer_expr_type(
             let Expr::MethodCall(chars) = &*call.receiver else {
                 unreachable!()
             };
-            if infer_expr_type(&chars.receiver, locals, semantics)?.as_deref() != Some("&str") {
+            if !matches!(
+                infer_expr_type(&chars.receiver, locals, semantics)?.as_deref(),
+                Some("&str" | "String")
+            ) {
                 return Err("chars().collect() is supported only on &str".into());
             }
             Ok(Some("Vec<char>".into()))
@@ -594,6 +635,9 @@ fn infer_expr_type(
         }
         Expr::Call(call) => {
             if let Expr::Path(path) = &*call.func {
+                if path_name(&path.path) == "String::new" && call.args.is_empty() {
+                    return Ok(Some("String".into()));
+                }
                 if path_name(&path.path) == "Vec::new" && call.args.is_empty() {
                     return Err("Vec::new() requires an explicitly typed Vec<usize> local".into());
                 }
@@ -661,7 +705,7 @@ fn infer_expr_type(
             match &*assign.left {
                 Expr::Path(_)
                     if scalar(&destination)
-                        || (semantics.copy.contains(&destination)
+                        || (semantics.clone.contains(&destination)
                             && semantics
                                 .variants
                                 .keys()
@@ -776,6 +820,7 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
         return_type: None,
         fields: BTreeMap::new(),
         copy: BTreeSet::new(),
+        clone: BTreeSet::new(),
         equality: BTreeSet::new(),
         variants: BTreeMap::new(),
         functions: BTreeMap::new(),
@@ -785,6 +830,9 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
             Item::Struct(structure) => {
                 let name = structure.ident.to_string();
                 let traits = derives(&structure.attrs)?;
+                if traits.contains("Clone") {
+                    semantics.clone.insert(name.clone());
+                }
                 if traits.contains("Copy") {
                     semantics.copy.insert(name.clone());
                 }
@@ -806,6 +854,9 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
             Item::Enum(enumeration) => {
                 let name = enumeration.ident.to_string();
                 let traits = derives(&enumeration.attrs)?;
+                if traits.contains("Clone") {
+                    semantics.clone.insert(name.clone());
+                }
                 if traits.contains("Copy") {
                     semantics.copy.insert(name.clone());
                 }
@@ -842,6 +893,21 @@ pub fn check_operations(file: &syn::File) -> Result<()> {
                 );
             }
             _ => {}
+        }
+    }
+    for name in &semantics.clone {
+        let supported = |ty: &String| scalar(ty) || semantics.copy.contains(ty);
+        if semantics
+            .fields
+            .get(name)
+            .is_some_and(|fields| fields.values().any(|ty| !supported(ty)))
+            || semantics.variants.iter().any(|((owner, _), payload)| {
+                owner == name && payload.as_ref().is_some_and(|ty| !supported(ty))
+            })
+        {
+            return Err(format!(
+                "Clone type {name} requires immutable scalar or Copy fields"
+            ));
         }
     }
     let constants = file

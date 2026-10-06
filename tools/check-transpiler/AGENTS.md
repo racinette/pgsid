@@ -32,6 +32,14 @@ change to the regex transpiler unless the regex engine itself changes.
   functions remain in the CHECK entry module and refer to operations through
   the schema namespace. Target operation names
   omit the `sql__pg_catalog__` source prefix while retaining the overload hash.
+- Owned text uses Rust `String`, Go string, and TypeScript string. Accept only
+  `String::new`, borrowed `to_owned`, owned `as_str`, Unicode `chars().collect`,
+  and local mutable string `push(char)` / `push_str(&str)`. String length methods
+  remain rejected because target string lengths measure different units.
+  Clone-only wrappers require scalar or Copy payloads. Explicit `clone()` on
+  immutable text/wrappers has value semantics; keep aggregate vector copying.
+  Never append through a wrapper field. The network host and binary-send CHECKs
+  exercise builders, and `check-owned-text.test.ts` covers Unicode and rejection.
 - Payload enum tests accept a single immutable identifier binding or `_`.
   A wildcard tests only the variant and emits no payload access or local binding.
 - When adding syntax, first show a CHECK expression that needs it, then add a

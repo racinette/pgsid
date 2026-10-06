@@ -16,8 +16,8 @@ pub fn eval_regex(subject: TextValue, pattern: TextValue) -> BoolValue {
     if let TextValue::Value(subject_value) = subject {
         if let TextValue::Value(pattern_value) = pattern {
             let result = find(
-                pattern_value,
-                subject_value,
+                pattern_value.as_str(),
+                subject_value.as_str(),
                 0,
                 RegexOptions {
                     syntax: Syntax::Advanced,

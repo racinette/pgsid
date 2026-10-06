@@ -167,8 +167,8 @@ class Transpiler {
     }
     for (const name of this.immutableValues) {
       const item = this.structs.get(name) ?? this.enums.get(name)
-      if (!item || !this.copy.has(name) || this.opaque.has(name))
-        throw new Error(`immutable value type must be a nonopaque Copy type: ${name}`)
+      if (!item || !item.derives.includes('Clone') || this.opaque.has(name))
+        throw new Error(`immutable value type must be a nonopaque Clone type: ${name}`)
       const types =
         item.kind === 'struct'
           ? item.fields.map((field) => field.type)
@@ -181,7 +181,7 @@ class Transpiler {
   private immutableField(type: TypeNode): boolean {
     const name = this.path(type)
     return (
-      ['usize', 'u32', 'i32', 'i64', 'bool', 'char', '&str'].includes(name) ||
+      ['usize', 'u32', 'i32', 'i64', 'bool', 'char', '&str', 'String'].includes(name) ||
       this.immutableValues.has(name)
     )
   }
@@ -212,7 +212,7 @@ class Transpiler {
       return f.createKeywordTypeNode(ts.SyntaxKind.NumberKeyword)
     if (name === 'i64') return f.createKeywordTypeNode(ts.SyntaxKind.BigIntKeyword)
     if (name === 'bool') return f.createKeywordTypeNode(ts.SyntaxKind.BooleanKeyword)
-    if (['char', 'str', '&str'].includes(name))
+    if (['char', 'str', '&str', 'String'].includes(name))
       return f.createKeywordTypeNode(ts.SyntaxKind.StringKeyword)
     if (name.startsWith('&') && this.structs.has(name.slice(1))) return this.typeName(name.slice(1))
     if (name === 'Vec<char>')
@@ -240,7 +240,7 @@ class Transpiler {
     if (name === 'i64') return call('checkedI64', value)
     if (name === 'bool') return call('checkedBool', value)
     if (name === 'char') return call('checkedChar', value)
-    if (name === '&str') return call('checkedString', value)
+    if (name === '&str' || name === 'String') return call('checkedString', value)
     if (this.immutableValues.has(name)) return value
     if (name.startsWith('&') && this.structs.has(name.slice(1))) {
       const inner = name.slice(1)
@@ -318,6 +318,9 @@ class Transpiler {
       case 'struct-literal':
         return value.path.join('::')
       case 'method-call':
+        if (value.method === 'clone') return this.infer(value.receiver, locals)
+        if (value.method === 'to_owned') return 'String'
+        if (value.method === 'as_str') return '&str'
         return value.method === 'collect'
           ? 'Vec<char>'
           : value.method === 'len'
@@ -472,6 +475,13 @@ class Transpiler {
         return call(element === 'usize' ? 'indexNumber' : 'indexChar', values, index)
       }
       case 'method-call':
+        if (value.method === 'clone')
+          return this.detach(
+            this.expression(value.receiver, locals),
+            this.infer(value.receiver, locals)!,
+          )
+        if (value.method === 'to_owned' || value.method === 'as_str')
+          return this.expression(value.receiver, locals)
         if (value.method === 'len' && value.arguments.length === 0)
           return member(this.expression(value.receiver, locals), 'length')
         if (value.method === 'to_ascii_lowercase' && value.arguments.length === 0)
@@ -502,6 +512,12 @@ class Transpiler {
         )
       }
       case 'call': {
+        if (
+          value.callee.kind === 'path' &&
+          value.callee.segments.join('::') === 'String::new' &&
+          value.arguments.length === 0
+        )
+          return f.createStringLiteral('')
         if (
           value.callee.kind === 'path' &&
           value.callee.segments.join('::') === 'Vec::new' &&
@@ -603,6 +619,26 @@ class Transpiler {
               left,
               ts.SyntaxKind.EqualsToken,
               this.detach(this.expression(value.right, locals), type),
+            ),
+          ),
+        )
+      } else if (
+        value.kind === 'method-call' &&
+        ['push', 'push_str'].includes(value.method) &&
+        this.infer(value.receiver, locals) === 'String'
+      ) {
+        const receiver = this.expression(value.receiver, locals)
+        const argument = this.expression(value.arguments[0]!, locals)
+        result.push(
+          f.createExpressionStatement(
+            comparison(
+              receiver,
+              ts.SyntaxKind.EqualsToken,
+              comparison(
+                receiver,
+                ts.SyntaxKind.PlusToken,
+                value.method === 'push' ? call('checkedChar', argument) : argument,
+              ),
             ),
           ),
         )

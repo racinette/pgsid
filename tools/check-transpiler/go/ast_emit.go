@@ -93,7 +93,7 @@ func (g *generator) goType(value *node) ast.Expr {
 		return goIdent("bool")
 	case "char":
 		return goIdent("rune")
-	case "str":
+	case "str", "String":
 		return goIdent("string")
 	default:
 		if g.types[name] {
@@ -130,6 +130,8 @@ func (g *generator) goDetach(value ast.Expr, valueType *node) ast.Expr {
 		return goCall("checkedI32", value)
 	case "i64":
 		return value
+	case "String":
+		return goCall("checkedString", value)
 	case "char":
 		return goCall("checkedChar", value)
 	case "Vec":
@@ -276,6 +278,10 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		return &ast.IndexExpr{X: g.goExpression(value.Base), Index: g.goExpression(value.Index)}
 	case "method-call":
 		switch {
+		case value.Method == "clone":
+			return g.goDetach(g.goExpression(value.Receiver), g.inferType(value.Receiver))
+		case value.Method == "to_owned" || value.Method == "as_str":
+			return g.goExpression(value.Receiver)
 		case value.Method == "len" && len(value.Arguments) == 0:
 			return goCall("len", g.goExpression(value.Receiver))
 		case value.Method == "to_ascii_lowercase" && len(value.Arguments) == 0:
@@ -292,6 +298,9 @@ func (g *generator) goExpression(value *node) ast.Expr {
 		}
 		return goComposite(g.name(name), fields...)
 	case "call":
+		if value.Callee != nil && len(value.Callee.Segments) == 2 && value.Callee.Segments[0] == "String" && value.Callee.Segments[1] == "new" && len(value.Arguments) == 0 {
+			return &ast.BasicLit{Kind: token.STRING, Value: "\"\""}
+		}
 		if value.Callee != nil && len(value.Callee.Segments) == 2 && value.Callee.Segments[0] == "Vec" && value.Callee.Segments[1] == "new" && len(value.Arguments) == 0 {
 			return &ast.CompositeLit{Type: &ast.ArrayType{Elt: goIdent("int")}}
 		}
@@ -358,6 +367,15 @@ func (g *generator) goStatements(statements []*node) []ast.Stmt {
 		case "assign":
 			result = append(result, goAssign(g.goExpression(value.Left), g.goDetach(g.goExpression(value.Right), g.inferType(value.Left)), token.ASSIGN))
 		case "method-call":
+			if (value.Method == "push" || value.Method == "push_str") && path(g.inferType(value.Receiver)) == "String" {
+				receiver := g.goExpression(value.Receiver)
+				argument := g.goExpression(value.Arguments[0])
+				if value.Method == "push" {
+					argument = goCall("string", goCall("checkedChar", argument))
+				}
+				result = append(result, goAssign(receiver, &ast.BinaryExpr{X: receiver, Op: token.ADD, Y: argument}, token.ASSIGN))
+				continue
+			}
 			if value.Method == "push" && len(value.Arguments) == 1 {
 				receiver := g.goExpression(value.Receiver)
 				result = append(result, &ast.ExprStmt{X: goCall("checkedAdd", goCall("len", receiver), goInteger("1"))})

@@ -43,6 +43,7 @@ export type ScalarType =
   | 'pg_catalog.bool'
   | TextType
   | NetworkType
+  | 'pg_catalog.bytea'
   | UuidType
   | JsonType
   | JsonbType

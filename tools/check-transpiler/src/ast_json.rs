@@ -48,7 +48,15 @@ fn check_type(
             let name = type_name(value)?;
             if !matches!(
                 name.as_str(),
-                "usize" | "u32" | "i32" | "i64" | "bool" | "char" | "Vec<char>" | "Vec<usize>"
+                "usize"
+                    | "u32"
+                    | "i32"
+                    | "i64"
+                    | "bool"
+                    | "char"
+                    | "String"
+                    | "Vec<char>"
+                    | "Vec<usize>"
             ) && !declarations.contains(&name)
                 && !name
                     .strip_prefix("Vec<")

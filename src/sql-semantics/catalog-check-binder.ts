@@ -1,7 +1,7 @@
 import { parseSync } from 'libpg-query'
 import type { ColumnInfo, DomainInfo, EnumInfo } from '../catalog/types.js'
 import { PG18_BUILTIN_GROUPS } from '../postgres/builtins/groups.generated.js'
-import { builtinCast } from '../postgres/builtins/inventory.js'
+import { builtinCast, builtinMetadata } from '../postgres/builtins/inventory.js'
 import type { BuiltinCallable } from '../postgres/builtins/taxonomy.js'
 import type { EvalExpression } from './eval-expressions.js'
 import type { EvalBoolExpression } from './check-expressions.js'
@@ -89,6 +89,7 @@ export const catalogScalarType = (name: string): ScalarType | null => {
     decimal: 'pg_catalog."numeric"',
     inet: 'pg_catalog.inet',
     cidr: 'pg_catalog.cidr',
+    bytea: 'pg_catalog.bytea',
     date: 'pg_catalog.date',
     timestamp: 'pg_catalog."timestamp"',
     'timestamp without time zone': 'pg_catalog."timestamp"',
@@ -170,6 +171,16 @@ type Bound = {
 const unknown: Bound = { type: null, value: null }
 
 const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null => {
+  if (type === 'pg_catalog.bytea') {
+    if (literal.kind === 'null') return { kind: 'bytea', type, value: null }
+    if (
+      literal.kind === 'string' &&
+      literal.value?.startsWith('\\x') &&
+      /^(?:[0-9a-f]{2})*$/iu.test(literal.value.slice(2))
+    )
+      return { kind: 'bytea', type, value: literal.value.slice(2).toLowerCase() }
+    return null
+  }
   if (
     (type === 'pg_catalog.date' ||
       type === 'pg_catalog."timestamp"' ||
@@ -674,6 +685,28 @@ export function bindCatalogCheck(
       )
         return unknown
       const operand = bind(cast['arg'])
+      if (
+        (operand.type === 'pg_catalog.inet' || operand.type === 'pg_catalog.cidr') &&
+        type === 'pg_catalog.text' &&
+        operand.value
+      ) {
+        const conversion = builtinCast(operand.type, type)
+        if (conversion?.method !== 'f' || !conversion.implementation) return unknown
+        const implementation = builtinMetadata(conversion.implementation)
+        if (implementation.kind !== 'function' || implementation.args.length !== 1) return unknown
+        const value = materialize(operand, implementation.args[0]! as ScalarType)
+        return value
+          ? {
+              type,
+              collation: defaultCollation,
+              value: {
+                kind: 'call',
+                call: { kind: 'cast', signature: conversion.implementation, type },
+                operands: [value],
+              },
+            }
+          : unknown
+      }
       if (operand.type === 'pg_catalog.cidr' && type === 'pg_catalog.inet' && operand.value)
         return { type, value: materialize(operand, type) }
       if (operand.type === 'pg_catalog.inet' && type === 'pg_catalog.cidr' && operand.value) {

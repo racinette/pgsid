@@ -186,7 +186,7 @@ describe('Rust text-to-timestamp CHECK casts', () => {
   it('emits casts and literals through the same shared Rust parser', () => {
     const cast = prepare('raw::timestamp = anchor')
     expect(cast.checks[0]!.kind).toBe('supported')
-    expect(cast.evaluatorSource).toContain('timestamp_from_text(input_raw)')
+    expect(cast.evaluatorSource).toContain('timestamp_from_text(input_raw.clone())')
     expect(prepare("anchor = TIMESTAMP '2000-01-01 00:00:00+00'").evaluatorSource).toContain(
       'timestamp_from_text(',
     )

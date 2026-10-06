@@ -82,7 +82,7 @@ pub fn network_address_word(address: NetworkAddress, index: usize) -> i32 {
     address.word7
 }
 
-fn network_address_byte(address: NetworkAddress, index: usize, high: bool) -> i32 {
+pub fn network_address_byte(address: NetworkAddress, index: usize, high: bool) -> i32 {
     let word = network_address_word(address, index);
     if high {
         return word / 256;
@@ -468,7 +468,7 @@ pub fn network_from_text(input: TextValue) -> NetworkValue {
         return NetworkValue::Null;
     }
     if let TextValue::Value(value) = input {
-        return network_parse(value, false);
+        return network_parse(value.as_str(), false);
     }
     NetworkValue::Unknown
 }
@@ -484,7 +484,7 @@ pub fn cidr_from_text(input: TextValue) -> NetworkValue {
         return NetworkValue::Null;
     }
     if let TextValue::Value(value) = input {
-        return network_parse(value, true);
+        return network_parse(value.as_str(), true);
     }
     NetworkValue::Unknown
 }
