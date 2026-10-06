@@ -783,6 +783,35 @@ describe('world CHECK INSERT parity', () => {
       const identity = `world_015_network_access.${table}.${name}`
       expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
     }
+    for (const name of [
+      'identifier_nonzero',
+      'identifier_range',
+      'identifier_default',
+      'identifier_selected',
+      'identifier_allowed',
+      'identifier_text',
+      'identifier_comparison',
+    ]) {
+      const identity = `world_016_device_identifiers.device_identifiers.${name}`
+      const measured = coverage.get(identity)!
+      expect(measured.true, identity).toBeGreaterThan(0)
+      expect(measured.false, identity).toBeGreaterThan(0)
+      expect(measured.null, identity).toBeGreaterThan(0)
+      expect(measured.unknown, identity).toBe(0)
+    }
+    for (const name of [
+      'import_parsed',
+      'import_legacy',
+      'import_lazy',
+      'import_selected',
+      'import_default',
+    ]) {
+      const identity = `world_016_device_identifiers.identifier_imports.${name}`
+      const measured = coverage.get(identity)!
+      expect(measured.true, identity).toBeGreaterThan(0)
+      expect(measured.error, identity).toBeGreaterThan(0)
+      expect(measured.unknown, identity).toBe(0)
+    }
     const constraints = [...coverage.values()].sort((left, right) =>
       left.constraint.localeCompare(right.constraint),
     )

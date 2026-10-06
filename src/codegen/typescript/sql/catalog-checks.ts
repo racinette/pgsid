@@ -129,6 +129,7 @@ export function renderTypescriptSchemaCheckArtifacts(
               'Int4Value',
               'Int8Value',
               'NetworkValue',
+              'UuidValue',
               'MacaddrValue',
               'Macaddr8Value',
               'ByteaValue',
@@ -143,38 +144,41 @@ export function renderTypescriptSchemaCheckArtifacts(
           )
             throw new Error(`Unsupported TypeScript Rust CHECK input: ${item.rustType}`)
           const helper =
-            item.rustType === 'ByteaValue'
-              ? 'checkRustBytea'
-              : item.rustType === 'MacaddrValue'
-                ? 'checkRustMacaddr'
-                : item.rustType === 'Macaddr8Value'
-                  ? 'checkRustMacaddr8'
-                  : item.rustType === 'NetworkValue'
-                    ? 'checkRustNetwork'
-                    : item.rustType === 'NumericValue'
-                      ? 'checkRustNumeric'
-                      : item.rustType === 'DateValue'
-                        ? 'checkRustDate'
-                        : item.rustType === 'TimestampValue'
-                          ? 'checkRustTimestamp'
-                          : item.rustType === 'TimestamptzValue'
-                            ? 'checkRustTimestamptz'
-                            : item.nullness
-                              ? 'checkRustNullness'
-                              : item.enum
-                                ? 'checkRustEnum'
-                                : item.rustType === 'Int2Value'
-                                  ? 'checkRustInt2'
-                                  : item.rustType === 'Int4Value'
-                                    ? 'checkRustInt4'
-                                    : item.rustType === 'Int8Value'
-                                      ? 'checkRustInt8'
-                                      : item.rustType === 'TextValue'
-                                        ? 'checkRustText'
-                                        : 'checkRustBool'
+            item.rustType === 'UuidValue'
+              ? 'checkRustUuid'
+              : item.rustType === 'ByteaValue'
+                ? 'checkRustBytea'
+                : item.rustType === 'MacaddrValue'
+                  ? 'checkRustMacaddr'
+                  : item.rustType === 'Macaddr8Value'
+                    ? 'checkRustMacaddr8'
+                    : item.rustType === 'NetworkValue'
+                      ? 'checkRustNetwork'
+                      : item.rustType === 'NumericValue'
+                        ? 'checkRustNumeric'
+                        : item.rustType === 'DateValue'
+                          ? 'checkRustDate'
+                          : item.rustType === 'TimestampValue'
+                            ? 'checkRustTimestamp'
+                            : item.rustType === 'TimestamptzValue'
+                              ? 'checkRustTimestamptz'
+                              : item.nullness
+                                ? 'checkRustNullness'
+                                : item.enum
+                                  ? 'checkRustEnum'
+                                  : item.rustType === 'Int2Value'
+                                    ? 'checkRustInt2'
+                                    : item.rustType === 'Int4Value'
+                                      ? 'checkRustInt4'
+                                      : item.rustType === 'Int8Value'
+                                        ? 'checkRustInt8'
+                                        : item.rustType === 'TextValue'
+                                          ? 'checkRustText'
+                                          : 'checkRustBool'
           rustInputAdapters.add(helper)
           if (
             item.rustType !== 'NetworkValue' &&
+            item.rustType !== 'UuidValue' &&
             item.rustType !== 'MacaddrValue' &&
             item.rustType !== 'Macaddr8Value' &&
             item.rustType !== 'ByteaValue' &&
@@ -262,6 +266,7 @@ export function renderTypescriptSchemaCheckArtifacts(
                 }
               }
               if (
+                type === 'pg_catalog.uuid' ||
                 type === 'pg_catalog.date' ||
                 type === 'pg_catalog."timestamp"' ||
                 type === 'pg_catalog.timestamptz'
@@ -528,6 +533,13 @@ function checkRustNetwork(row: object, name: string): _checkRust.NetworkValue {
   if (value === null) return _checkRust.networkNull()
   if (typeof value === 'string') return _checkRust.makeNetworkValue(value)
   return _checkRust.networkUnknown()
+}
+function checkRustUuid(row: object, name: string): _checkRust.UuidValue {
+  const value = Reflect.get(row, name)
+  if (!Object.hasOwn(row, name) || value === undefined) return _checkRust.uuidUnknown()
+  if (value === null) return _checkRust.uuidNull()
+  if (typeof value === 'string') return _checkRust.makeUuidValue(value)
+  return _checkRust.uuidUnknown()
 }
 function checkRustMacaddr(row: object, name: string): _checkRust.MacaddrValue {
   const value = Reflect.get(row, name)

@@ -896,6 +896,70 @@ export function makeMacaddr8Value(value: string): Macaddr8Value {
     }
     return { kind: "Value", value: parsed.address };
 }
+export interface Uuid {
+    readonly word0: number;
+    readonly word1: number;
+    readonly word2: number;
+    readonly word3: number;
+    readonly word4: number;
+    readonly word5: number;
+    readonly word6: number;
+    readonly word7: number;
+}
+function equalUuid(left: Uuid, right: Uuid): boolean {
+    return left.word0 === right.word0 && left.word1 === right.word1 && left.word2 === right.word2 && left.word3 === right.word3 && left.word4 === right.word4 && left.word5 === right.word5 && left.word6 === right.word6 && left.word7 === right.word7;
+}
+export type UuidValue = {
+    readonly kind: "Unknown";
+} | {
+    readonly kind: "Null";
+} | {
+    readonly kind: "Value";
+    readonly value: Uuid;
+} | {
+    readonly kind: "Error";
+    readonly value: SqlError;
+};
+export function equalUuidValue(left: UuidValue, right: UuidValue): boolean {
+    if (left.kind !== right.kind)
+        return false;
+    if (left.kind === "Value" && right.kind === "Value")
+        return equalUuid(left.value, right.value);
+    if (left.kind === "Error" && right.kind === "Error")
+        return equalSqlError(left.value, right.value);
+    return true;
+}
+export function uuidUnknown(): UuidValue {
+    return { kind: "Unknown" };
+}
+export function uuidNull(): UuidValue {
+    return { kind: "Null" };
+}
+export function uuidIsNull(value: UuidValue): BoolValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalUuidValue(value, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    return { kind: "Value", value: equalUuidValue(value, { kind: "Null" }) };
+}
+export function uuidFromCaseGuard(value: CheckOutcome): UuidValue {
+    if (value.kind === "Error") {
+        const error: SqlError = value.value;
+        return { kind: "Error", value: error };
+    }
+    return { kind: "Unknown" };
+}
+export function makeUuidValue(value: string): UuidValue {
+    value = langruntime.checkedString(value);
+    const parsed: UuidValue = uuidParse(value);
+    if (parsed.kind === "Error") {
+        return { kind: "Unknown" };
+    }
+    return parsed;
+}
 export interface NumericLayout {
     valid: boolean;
     special: number;
@@ -1772,6 +1836,123 @@ export function macaddr8FromText(input: TextValue): Macaddr8Value {
         return { kind: "Value", value: parsed.address };
     }
     return { kind: "Unknown" };
+}
+function uuidParse(value: string): UuidValue {
+    value = langruntime.checkedString(value);
+    const chars: string[] = Array.from(value);
+    if (chars.length < 32 || chars.length > 41) {
+        return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
+    }
+    let index: number = 0;
+    const braces: boolean = langruntime.indexChar(chars, langruntime.checkedIndex(0)) === "{";
+    if (braces) {
+        index = langruntime.checkedAdd(index, 1);
+    }
+    let word0: number = 0;
+    let word1: number = 0;
+    let word2: number = 0;
+    let word3: number = 0;
+    let word4: number = 0;
+    let word5: number = 0;
+    let word6: number = 0;
+    let word7: number = 0;
+    let group: number = 0;
+    while (group < 8) {
+        let word: number = 0;
+        let digitIndex: number = 0;
+        while (digitIndex < 4) {
+            if (index >= chars.length) {
+                return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
+            }
+            const digit: number = hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+            if (digit === 16) {
+                return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
+            }
+            word = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(word, 16), digit));
+            index = langruntime.checkedAdd(index, 1);
+            digitIndex = langruntime.checkedAdd(digitIndex, 1);
+        }
+        if (group === 0) {
+            word0 = langruntime.checkedI32(word);
+        }
+        else if (group === 1) {
+            word1 = langruntime.checkedI32(word);
+        }
+        else if (group === 2) {
+            word2 = langruntime.checkedI32(word);
+        }
+        else if (group === 3) {
+            word3 = langruntime.checkedI32(word);
+        }
+        else if (group === 4) {
+            word4 = langruntime.checkedI32(word);
+        }
+        else if (group === 5) {
+            word5 = langruntime.checkedI32(word);
+        }
+        else if (group === 6) {
+            word6 = langruntime.checkedI32(word);
+        }
+        else {
+            word7 = langruntime.checkedI32(word);
+        }
+        group = langruntime.checkedAdd(group, 1);
+        if (group < 8 && index < chars.length && langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-") {
+            index = langruntime.checkedAdd(index, 1);
+        }
+    }
+    if (braces) {
+        if (index >= chars.length || !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "}")) {
+            return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    if (!(index === chars.length)) {
+        return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
+    }
+    return { kind: "Value", value: { word0: word0, word1: word1, word2: word2, word3: word3, word4: word4, word5: word5, word6: word6, word7: word7 } };
+}
+export function uuidFromText(input: TextValue): UuidValue {
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalTextValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return uuidParse(value);
+    }
+    return { kind: "Unknown" };
+}
+export function uuidWord(value: Uuid, index: number): number {
+    index = langruntime.checkedI32(index);
+    if (index === 0) {
+        return value.word0;
+    }
+    if (index === 1) {
+        return value.word1;
+    }
+    if (index === 2) {
+        return value.word2;
+    }
+    if (index === 3) {
+        return value.word3;
+    }
+    if (index === 4) {
+        return value.word4;
+    }
+    if (index === 5) {
+        return value.word5;
+    }
+    if (index === 6) {
+        return value.word6;
+    }
+    return value.word7;
 }
 export interface HashByte {
     value: bigint;

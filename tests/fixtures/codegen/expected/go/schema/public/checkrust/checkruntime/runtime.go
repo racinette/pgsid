@@ -826,6 +826,63 @@ func MakeMacaddr8Value(value string) Macaddr8Value {
 	return Macaddr8Value{Kind: Macaddr8ValueValue, Value: parsed.address}
 }
 
+type Uuid struct {
+	Word0 int
+	Word1 int
+	Word2 int
+	Word3 int
+	Word4 int
+	Word5 int
+	Word6 int
+	Word7 int
+}
+type UuidValueKind uint8
+
+const (
+	UuidValueUnknown UuidValueKind = iota
+	UuidValueNull
+	UuidValueValue
+	UuidValueError
+)
+
+type UuidValue struct {
+	Kind  UuidValueKind
+	Value Uuid
+	Error SqlError
+}
+
+func UuidUnknown() UuidValue {
+	return UuidValue{Kind: UuidValueUnknown}
+}
+func UuidNull() UuidValue {
+	return UuidValue{Kind: UuidValueNull}
+}
+func UuidIsNull(value UuidValue) BoolValue {
+	if value.Kind == UuidValueError {
+		error := value.Error
+		return BoolValue{Kind: BoolValueError, Error: error}
+	}
+	if value == (UuidValue{Kind: UuidValueUnknown}) {
+		return BoolValue{Kind: BoolValueUnknown}
+	}
+	return BoolValue{Kind: BoolValueValue, Value: value == (UuidValue{Kind: UuidValueNull})}
+}
+func UuidFromCaseGuard(value CheckOutcome) UuidValue {
+	if value.Kind == CheckOutcomeError {
+		error := value.Error
+		return UuidValue{Kind: UuidValueError, Error: error}
+	}
+	return UuidValue{Kind: UuidValueUnknown}
+}
+func MakeUuidValue(value string) UuidValue {
+	value = langruntime.CheckedString(value)
+	parsed := uuidParse(value)
+	if parsed.Kind == UuidValueError {
+		return UuidValue{Kind: UuidValueUnknown}
+	}
+	return parsed
+}
+
 type NumericLayout struct {
 	Valid   bool
 	Special int
@@ -1701,6 +1758,116 @@ func Macaddr8FromText(input TextValue) Macaddr8Value {
 		return Macaddr8Value{Kind: Macaddr8ValueValue, Value: parsed.address}
 	}
 	return Macaddr8Value{Kind: Macaddr8ValueUnknown}
+}
+func uuidParse(value string) UuidValue {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	if len(chars) < 32 || len(chars) > 41 {
+		return UuidValue{Kind: UuidValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
+	}
+	index := 0
+	braces := chars[0] == '{'
+	if braces {
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	word0 := 0
+	word1 := 0
+	word2 := 0
+	word3 := 0
+	word4 := 0
+	word5 := 0
+	word6 := 0
+	word7 := 0
+	group := 0
+	for group < 8 {
+		word := 0
+		digitIndex := 0
+		for digitIndex < 4 {
+			if index >= len(chars) {
+				return UuidValue{Kind: UuidValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
+			}
+			digit := hexDigit(chars[index])
+			if digit == 16 {
+				return UuidValue{Kind: UuidValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
+			}
+			word = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(word, 16), digit))
+			index = langruntime.CheckedAdd(index, 1)
+			digitIndex = langruntime.CheckedAdd(digitIndex, 1)
+		}
+		if group == 0 {
+			word0 = langruntime.CheckedI32(word)
+		} else if group == 1 {
+			word1 = langruntime.CheckedI32(word)
+		} else if group == 2 {
+			word2 = langruntime.CheckedI32(word)
+		} else if group == 3 {
+			word3 = langruntime.CheckedI32(word)
+		} else if group == 4 {
+			word4 = langruntime.CheckedI32(word)
+		} else if group == 5 {
+			word5 = langruntime.CheckedI32(word)
+		} else if group == 6 {
+			word6 = langruntime.CheckedI32(word)
+		} else {
+			word7 = langruntime.CheckedI32(word)
+		}
+		group = langruntime.CheckedAdd(group, 1)
+		if group < 8 && index < len(chars) && chars[index] == '-' {
+			index = langruntime.CheckedAdd(index, 1)
+		}
+	}
+	if braces {
+		if index >= len(chars) || chars[index] != '}' {
+			return UuidValue{Kind: UuidValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	if index != len(chars) {
+		return UuidValue{Kind: UuidValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
+	}
+	return UuidValue{Kind: UuidValueValue, Value: Uuid{Word0: word0, Word1: word1, Word2: word2, Word3: word3, Word4: word4, Word5: word5, Word6: word6, Word7: word7}}
+}
+func UuidFromText(input TextValue) UuidValue {
+	if input.Kind == TextValueError {
+		error := input.Error
+		return UuidValue{Kind: UuidValueError, Error: error}
+	}
+	if input == (TextValue{Kind: TextValueUnknown}) {
+		return UuidValue{Kind: UuidValueUnknown}
+	}
+	if input == (TextValue{Kind: TextValueNull}) {
+		return UuidValue{Kind: UuidValueNull}
+	}
+	if input.Kind == TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return uuidParse(value)
+	}
+	return UuidValue{Kind: UuidValueUnknown}
+}
+func UuidWord(value Uuid, index int) int {
+	index = langruntime.CheckedI32(index)
+	if index == 0 {
+		return value.Word0
+	}
+	if index == 1 {
+		return value.Word1
+	}
+	if index == 2 {
+		return value.Word2
+	}
+	if index == 3 {
+		return value.Word3
+	}
+	if index == 4 {
+		return value.Word4
+	}
+	if index == 5 {
+		return value.Word5
+	}
+	if index == 6 {
+		return value.Word6
+	}
+	return value.Word7
 }
 
 type HashByte struct {
