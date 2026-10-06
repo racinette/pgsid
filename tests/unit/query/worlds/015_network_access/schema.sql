@@ -24,3 +24,27 @@ CREATE TABLE network_subnets (
   CONSTRAINT subnet_strictly_inside_parent CHECK (subnet << parent_network),
   CONSTRAINT subnet_avoids_forbidden CHECK (NOT (subnet && forbidden_network))
 );
+
+CREATE TABLE network_imports (
+  id integer PRIMARY KEY,
+  raw_address text,
+  raw_network text,
+  expected_address inet,
+  expected_network cidr,
+  skip_import boolean,
+  CONSTRAINT import_address_parsed CHECK (CASE WHEN skip_import THEN true ELSE raw_address::inet = expected_address END),
+  CONSTRAINT import_network_parsed CHECK (CASE WHEN skip_import THEN true ELSE raw_network::cidr = expected_network END)
+);
+
+CREATE TABLE network_allocations (
+  id integer PRIMARY KEY,
+  address inet,
+  address_offset bigint,
+  allocated_address inet,
+  comparison_address inet,
+  address_distance bigint,
+  CONSTRAINT allocation_shifted CHECK (address + address_offset = allocated_address),
+  CONSTRAINT allocation_shifted_reverse CHECK (address_offset + address = allocated_address),
+  CONSTRAINT allocation_restored CHECK (allocated_address - address_offset = address),
+  CONSTRAINT allocation_distance CHECK (address - comparison_address = address_distance)
+);

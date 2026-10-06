@@ -112,8 +112,8 @@ pub fn network_prefix_compare(left: NetworkAddress, right: NetworkAddress, bits:
 
 fn network_parse(value: &str, cidr: bool) -> NetworkValue {
     let chars: Vec<char> = value.chars().collect();
-    if chars.len() == 0 || chars.len() > 256 {
-        return NetworkValue::Unknown;
+    if chars.len() == 0 {
+        return NetworkValue::Error(make_sql_error(SQL_ERROR_INVALID_TEXT_REPRESENTATION));
     }
     let mut end = chars.len();
     let mut family: usize = 4;
@@ -124,7 +124,7 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
         }
         if chars[scan] == '/' {
             if end != chars.len() {
-                return NetworkValue::Unknown;
+                return NetworkValue::Error(make_sql_error(SQL_ERROR_INVALID_TEXT_REPRESENTATION));
             }
             end = scan;
         }
@@ -137,22 +137,34 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
     if end != chars.len() {
         let mut index = end + 1;
         if index == chars.len() {
-            return NetworkValue::Unknown;
+            return NetworkValue::Error(make_sql_error(SQL_ERROR_INVALID_TEXT_REPRESENTATION));
         }
         if family == 6 && chars[index] == '0' && index + 1 < chars.len() {
-            return NetworkValue::Unknown;
+            return NetworkValue::Error(make_sql_error(SQL_ERROR_INVALID_TEXT_REPRESENTATION));
         }
         prefix = 0;
         while index < chars.len() {
             let digit = network_digit(chars[index]);
             if digit > 9 {
-                return NetworkValue::Unknown;
+                return NetworkValue::Error(make_sql_error(SQL_ERROR_INVALID_TEXT_REPRESENTATION));
             }
-            prefix = prefix * 10 + digit;
-            if prefix > 128 || (family == 4 && prefix > 32) {
-                return NetworkValue::Unknown;
+            if family == 4 {
+                let wide_prefix = prefix as i64;
+                let wide_digit = digit as i64;
+                let next_prefix: i64 = wide_prefix * 10i64 + wide_digit;
+                prefix = next_prefix as i32;
+            } else {
+                prefix = prefix * 10 + digit;
+                if prefix > 128 {
+                    return NetworkValue::Error(make_sql_error(
+                        SQL_ERROR_INVALID_TEXT_REPRESENTATION,
+                    ));
+                }
             }
             index += 1;
+        }
+        if prefix < 0 || (family == 4 && prefix > 32) {
+            return NetworkValue::Error(make_sql_error(SQL_ERROR_INVALID_TEXT_REPRESENTATION));
         }
     }
     let mut words: Vec<NetworkWord> = Vec::new();
@@ -165,14 +177,18 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
             while index < end {
                 let high = network_digit(chars[index]);
                 if high > 15 || octets.len() == 4 {
-                    return NetworkValue::Unknown;
+                    return NetworkValue::Error(make_sql_error(
+                        SQL_ERROR_INVALID_TEXT_REPRESENTATION,
+                    ));
                 }
                 index += 1;
                 let mut low: i32 = 0;
                 if index < end {
                     low = network_digit(chars[index]);
                     if low > 15 {
-                        return NetworkValue::Unknown;
+                        return NetworkValue::Error(make_sql_error(
+                            SQL_ERROR_INVALID_TEXT_REPRESENTATION,
+                        ));
                     }
                     index += 1;
                 }
@@ -188,29 +204,37 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
                 while index < end && chars[index] != '.' {
                     let digit = network_digit(chars[index]);
                     if digit > 9 {
-                        return NetworkValue::Unknown;
+                        return NetworkValue::Error(make_sql_error(
+                            SQL_ERROR_INVALID_TEXT_REPRESENTATION,
+                        ));
                     }
                     octet = octet * 10 + digit;
                     if octet > 255 {
-                        return NetworkValue::Unknown;
+                        return NetworkValue::Error(make_sql_error(
+                            SQL_ERROR_INVALID_TEXT_REPRESENTATION,
+                        ));
                     }
                     index += 1;
                 }
                 if begin == index || octets.len() == 4 {
-                    return NetworkValue::Unknown;
+                    return NetworkValue::Error(make_sql_error(
+                        SQL_ERROR_INVALID_TEXT_REPRESENTATION,
+                    ));
                 }
                 octets.push(NetworkWord { value: octet });
                 octet_count = octet_count + 1;
                 if index < end {
                     index += 1;
-                    if index == end {
-                        return NetworkValue::Unknown;
+                    if index == end && cidr {
+                        return NetworkValue::Error(make_sql_error(
+                            SQL_ERROR_INVALID_TEXT_REPRESENTATION,
+                        ));
                     }
                 }
             }
         }
         if octets.len() == 0 {
-            return NetworkValue::Unknown;
+            return NetworkValue::Error(make_sql_error(SQL_ERROR_INVALID_TEXT_REPRESENTATION));
         }
         if end == chars.len() {
             if cidr {
@@ -231,10 +255,10 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
                     prefix = 4;
                 }
             } else if octets.len() != 4 {
-                return NetworkValue::Unknown;
+                return NetworkValue::Error(make_sql_error(SQL_ERROR_INVALID_TEXT_REPRESENTATION));
             };
         } else if cidr == false && prefix / 8 > octet_count {
-            return NetworkValue::Unknown;
+            return NetworkValue::Error(make_sql_error(SQL_ERROR_INVALID_TEXT_REPRESENTATION));
         }
         while octets.len() < 4 {
             octets.push(NetworkWord { value: 0 });
@@ -249,7 +273,7 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
         let mut compression: usize = 9;
         if end > 0 && chars[0] == ':' {
             if end < 2 || chars[1] != ':' {
-                return NetworkValue::Unknown;
+                return NetworkValue::Error(make_sql_error(SQL_ERROR_INVALID_TEXT_REPRESENTATION));
             }
             compression = 0;
             index = 2;
@@ -266,7 +290,9 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
             }
             if dotted {
                 if stop != end || words.len() > 6 {
-                    return NetworkValue::Unknown;
+                    return NetworkValue::Error(make_sql_error(
+                        SQL_ERROR_INVALID_TEXT_REPRESENTATION,
+                    ));
                 }
                 let mut octets: Vec<NetworkWord> = Vec::new();
                 while index < end {
@@ -275,27 +301,38 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
                     while index < end && chars[index] != '.' {
                         let digit = network_digit(chars[index]);
                         if digit > 9 || (index > start && chars[start] == '0') {
-                            return NetworkValue::Unknown;
+                            return NetworkValue::Error(make_sql_error(
+                                SQL_ERROR_INVALID_TEXT_REPRESENTATION,
+                            ));
                         }
                         octet = octet * 10 + digit;
                         if octet > 255 {
-                            return NetworkValue::Unknown;
+                            return NetworkValue::Error(make_sql_error(
+                                SQL_ERROR_INVALID_TEXT_REPRESENTATION,
+                            ));
                         }
                         index += 1;
                     }
-                    if index == start || octets.len() == 4 {
-                        return NetworkValue::Unknown;
+                    if octets.len() == 4 {
+                        return NetworkValue::Error(make_sql_error(
+                            SQL_ERROR_INVALID_TEXT_REPRESENTATION,
+                        ));
                     }
                     octets.push(NetworkWord { value: octet });
                     if index < end {
                         index += 1;
                         if index == end {
-                            return NetworkValue::Unknown;
+                            if end == chars.len() || octets.len() == 4 {
+                                return NetworkValue::Error(make_sql_error(
+                                    SQL_ERROR_INVALID_TEXT_REPRESENTATION,
+                                ));
+                            }
+                            octets.push(NetworkWord { value: 0 });
                         }
                     }
                 }
-                if octets.len() != 4 {
-                    return NetworkValue::Unknown;
+                while octets.len() < 4 {
+                    octets.push(NetworkWord { value: 0 });
                 }
                 words.push(NetworkWord {
                     value: octets[0].value * 256 + octets[1].value,
@@ -305,13 +342,17 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
                 });
             } else {
                 if stop == begin || stop - begin > 4 || words.len() == 8 {
-                    return NetworkValue::Unknown;
+                    return NetworkValue::Error(make_sql_error(
+                        SQL_ERROR_INVALID_TEXT_REPRESENTATION,
+                    ));
                 }
                 let mut word: i32 = 0;
                 while index < stop {
                     let digit = network_digit(chars[index]);
                     if digit > 15 {
-                        return NetworkValue::Unknown;
+                        return NetworkValue::Error(make_sql_error(
+                            SQL_ERROR_INVALID_TEXT_REPRESENTATION,
+                        ));
                     }
                     word = word * 16 + digit;
                     index += 1;
@@ -321,12 +362,16 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
                     index += 1;
                     if index < end && chars[index] == ':' {
                         if compression != 9 {
-                            return NetworkValue::Unknown;
+                            return NetworkValue::Error(make_sql_error(
+                                SQL_ERROR_INVALID_TEXT_REPRESENTATION,
+                            ));
                         }
                         compression = words.len();
                         index += 1;
-                    } else if index == end {
-                        return NetworkValue::Unknown;
+                    } else if index == end && end == chars.len() {
+                        return NetworkValue::Error(make_sql_error(
+                            SQL_ERROR_INVALID_TEXT_REPRESENTATION,
+                        ));
                     };
                 }
             };
@@ -334,7 +379,7 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
         if compression != 9 {
             let word_count = words.len();
             if word_count >= 8 {
-                return NetworkValue::Unknown;
+                return NetworkValue::Error(make_sql_error(SQL_ERROR_INVALID_TEXT_REPRESENTATION));
             }
             while words.len() < 8 {
                 words.push(NetworkWord { value: 0 });
@@ -349,7 +394,7 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
             }
         }
         if words.len() != 8 {
-            return NetworkValue::Unknown;
+            return NetworkValue::Error(make_sql_error(SQL_ERROR_INVALID_TEXT_REPRESENTATION));
         }
     }
     while words.len() < 8 {
@@ -387,10 +432,42 @@ fn network_parse(value: &str, cidr: bool) -> NetworkValue {
                 padding = padding - 1;
             }
             if network_address_word(address, word_index) % divisor != 0 {
-                return NetworkValue::Unknown;
+                return NetworkValue::Error(make_sql_error(SQL_ERROR_INVALID_TEXT_REPRESENTATION));
             }
             word_index += 1;
         }
     }
     NetworkValue::Value(address)
+}
+
+pub fn network_from_text(input: TextValue) -> NetworkValue {
+    if let TextValue::Error(error) = input {
+        return NetworkValue::Error(error);
+    }
+    if input == TextValue::Unknown {
+        return NetworkValue::Unknown;
+    }
+    if input == TextValue::Null {
+        return NetworkValue::Null;
+    }
+    if let TextValue::Value(value) = input {
+        return network_parse(value, false);
+    }
+    NetworkValue::Unknown
+}
+
+pub fn cidr_from_text(input: TextValue) -> NetworkValue {
+    if let TextValue::Error(error) = input {
+        return NetworkValue::Error(error);
+    }
+    if input == TextValue::Unknown {
+        return NetworkValue::Unknown;
+    }
+    if input == TextValue::Null {
+        return NetworkValue::Null;
+    }
+    if let TextValue::Value(value) = input {
+        return network_parse(value, true);
+    }
+    NetworkValue::Unknown
 }

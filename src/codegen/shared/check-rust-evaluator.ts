@@ -215,17 +215,22 @@ export function emitCheckRustEvaluator(
     if (
       node.kind === 'text-to-date' ||
       node.kind === 'text-to-timestamp' ||
-      node.kind === 'text-to-timestamptz'
+      node.kind === 'text-to-timestamptz' ||
+      node.kind === 'text-to-network'
     ) {
       const operand = emitScalar(node.operand, bindings, used)
       if (operand.type !== 'pg_catalog.text')
-        throw new UnsupportedCheckRustExpression('A temporal text cast requires text')
+        throw new UnsupportedCheckRustExpression('A SQL text cast requires text')
       const helper =
         node.kind === 'text-to-date'
           ? 'date_from_text'
           : node.kind === 'text-to-timestamp'
             ? 'timestamp_from_text'
-            : 'timestamptz_from_text'
+            : node.kind === 'text-to-timestamptz'
+              ? 'timestamptz_from_text'
+              : node.type === 'pg_catalog.cidr'
+                ? 'cidr_from_text'
+                : 'network_from_text'
       return { name: bind(`${helper}(${operand.name})`), type: node.type }
     }
     if (node.kind === 'certain') {

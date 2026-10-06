@@ -490,7 +490,11 @@ const sqlErrorTimezoneDisplacement = 3452553;
 const sqlErrorDivisionByZero = 3452582;
 const sqlErrorInvalidRegex = 3452591;
 const sqlErrorInvalidParameter = 3452619;
+const sqlErrorInvalidTextRepresentation = 3484946;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorInvalidTextRepresentation) {
+        return { message: "invalid text representation" };
+    }
     if (error.state === sqlErrorNumericOutOfRange) {
         return { message: "numeric value out of range" };
     }
@@ -782,11 +786,27 @@ export function networkFromCaseGuard(value: CheckOutcome): NetworkValue {
 }
 export function makeNetworkValue(value: string): NetworkValue {
     value = langruntime.checkedString(value);
-    return networkParse(value, false);
+    const chars: string[] = Array.from(value);
+    if (chars.length > 256) {
+        return { kind: "Unknown" };
+    }
+    const parsed: NetworkValue = copyNetworkValue(networkParse(value, false));
+    if (parsed.kind === "Error") {
+        return { kind: "Unknown" };
+    }
+    return parsed;
 }
 export function makeCidrValue(value: string): NetworkValue {
     value = langruntime.checkedString(value);
-    return networkParse(value, true);
+    const chars: string[] = Array.from(value);
+    if (chars.length > 256) {
+        return { kind: "Unknown" };
+    }
+    const parsed: NetworkValue = copyNetworkValue(networkParse(value, true));
+    if (parsed.kind === "Error") {
+        return { kind: "Unknown" };
+    }
+    return parsed;
 }
 export interface NumericLayout {
     valid: boolean;
@@ -986,7 +1006,7 @@ export function numericParts(value: string): NumericLayout {
 export interface NetworkWord {
     value: number;
 }
-function copyNetworkWord(value: NetworkWord): NetworkWord {
+export function copyNetworkWord(value: NetworkWord): NetworkWord {
     return { value: langruntime.checkedI32(value.value) };
 }
 function networkDigit(ch: string): number {
@@ -1102,8 +1122,8 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
     value = langruntime.checkedString(value);
     cidr = langruntime.checkedBool(cidr);
     const chars: string[] = Array.from(value);
-    if (chars.length === 0 || chars.length > 256) {
-        return { kind: "Unknown" };
+    if (chars.length === 0) {
+        return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
     }
     let end: number = chars.length;
     let family: number = 4;
@@ -1114,7 +1134,7 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
         }
         if (langruntime.indexChar(chars, langruntime.checkedIndex(scan)) === "/") {
             if (!(end === chars.length)) {
-                return { kind: "Unknown" };
+                return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
             }
             end = langruntime.checkedIndex(scan);
         }
@@ -1127,22 +1147,33 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
     if (!(end === chars.length)) {
         let index: number = langruntime.checkedAdd(end, 1);
         if (index === chars.length) {
-            return { kind: "Unknown" };
+            return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
         }
         if (family === 6 && langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "0" && langruntime.checkedAdd(index, 1) < chars.length) {
-            return { kind: "Unknown" };
+            return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
         }
         prefix = langruntime.checkedI32(0);
         while (index < chars.length) {
             const digit: number = networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
             if (digit > 9) {
-                return { kind: "Unknown" };
+                return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
             }
-            prefix = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(prefix, 10), digit));
-            if (prefix > 128 || (family === 4 && prefix > 32)) {
-                return { kind: "Unknown" };
+            if (family === 4) {
+                const widePrefix: bigint = BigInt(langruntime.checkedI32(prefix));
+                const wideDigit: bigint = BigInt(langruntime.checkedI32(digit));
+                const nextPrefix: bigint = langruntime.checkedI64Add(langruntime.checkedI64Multiply(widePrefix, 10n), wideDigit);
+                prefix = langruntime.checkedI32(Number(BigInt.asIntN(32, langruntime.checkedI64(nextPrefix))));
+            }
+            else {
+                prefix = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(prefix, 10), digit));
+                if (prefix > 128) {
+                    return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
+                }
             }
             index = langruntime.checkedAdd(index, 1);
+        }
+        if (prefix < 0 || (family === 4 && prefix > 32)) {
+            return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
         }
     }
     let words: NetworkWord[] = [];
@@ -1155,14 +1186,14 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
             while (index < end) {
                 const high: number = networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
                 if (high > 15 || octets.length === 4) {
-                    return { kind: "Unknown" };
+                    return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                 }
                 index = langruntime.checkedAdd(index, 1);
                 let low: number = 0;
                 if (index < end) {
                     low = langruntime.checkedI32(networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index))));
                     if (low > 15) {
-                        return { kind: "Unknown" };
+                        return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                     }
                     index = langruntime.checkedAdd(index, 1);
                 }
@@ -1177,29 +1208,29 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
                 while (index < end && !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ".")) {
                     const digit: number = networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
                     if (digit > 9) {
-                        return { kind: "Unknown" };
+                        return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                     }
                     octet = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(octet, 10), digit));
                     if (octet > 255) {
-                        return { kind: "Unknown" };
+                        return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                     }
                     index = langruntime.checkedAdd(index, 1);
                 }
                 if (begin === index || octets.length === 4) {
-                    return { kind: "Unknown" };
+                    return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                 }
                 langruntime.pushStruct(octets, { value: octet }, copyNetworkWord);
                 octetCount = langruntime.checkedI32(langruntime.checkedSignedAdd(octetCount, 1));
                 if (index < end) {
                     index = langruntime.checkedAdd(index, 1);
-                    if (index === end) {
-                        return { kind: "Unknown" };
+                    if (index === end && cidr) {
+                        return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                     }
                 }
             }
         }
         if (octets.length === 0) {
-            return { kind: "Unknown" };
+            return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
         }
         if (end === chars.length) {
             if (cidr) {
@@ -1224,11 +1255,11 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
                 }
             }
             else if (!(octets.length === 4)) {
-                return { kind: "Unknown" };
+                return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
             }
         }
         else if (cidr === false && langruntime.checkedSignedDivide(prefix, 8) > octetCount) {
-            return { kind: "Unknown" };
+            return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
         }
         while (octets.length < 4) {
             langruntime.pushStruct(octets, { value: 0 }, copyNetworkWord);
@@ -1240,7 +1271,7 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
         let compression: number = 9;
         if (end > 0 && langruntime.indexChar(chars, langruntime.checkedIndex(0)) === ":") {
             if (end < 2 || !(langruntime.indexChar(chars, langruntime.checkedIndex(1)) === ":")) {
-                return { kind: "Unknown" };
+                return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
             }
             compression = langruntime.checkedIndex(0);
             index = langruntime.checkedIndex(2);
@@ -1257,7 +1288,7 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
             }
             if (dotted) {
                 if (!(stop === end) || words.length > 6) {
-                    return { kind: "Unknown" };
+                    return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                 }
                 let octets: NetworkWord[] = [];
                 while (index < end) {
@@ -1266,40 +1297,43 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
                     while (index < end && !(langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ".")) {
                         const digit: number = networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
                         if (digit > 9 || (index > start && langruntime.indexChar(chars, langruntime.checkedIndex(start)) === "0")) {
-                            return { kind: "Unknown" };
+                            return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                         }
                         octet = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(octet, 10), digit));
                         if (octet > 255) {
-                            return { kind: "Unknown" };
+                            return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                         }
                         index = langruntime.checkedAdd(index, 1);
                     }
-                    if (index === start || octets.length === 4) {
-                        return { kind: "Unknown" };
+                    if (octets.length === 4) {
+                        return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                     }
                     langruntime.pushStruct(octets, { value: octet }, copyNetworkWord);
                     if (index < end) {
                         index = langruntime.checkedAdd(index, 1);
                         if (index === end) {
-                            return { kind: "Unknown" };
+                            if (end === chars.length || octets.length === 4) {
+                                return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
+                            }
+                            langruntime.pushStruct(octets, { value: 0 }, copyNetworkWord);
                         }
                     }
                 }
-                if (!(octets.length === 4)) {
-                    return { kind: "Unknown" };
+                while (octets.length < 4) {
+                    langruntime.pushStruct(octets, { value: 0 }, copyNetworkWord);
                 }
                 langruntime.pushStruct(words, { value: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(octets, langruntime.checkedIndex(0), copyNetworkWord).value, 256), langruntime.indexStruct(octets, langruntime.checkedIndex(1), copyNetworkWord).value) }, copyNetworkWord);
                 langruntime.pushStruct(words, { value: langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(langruntime.indexStruct(octets, langruntime.checkedIndex(2), copyNetworkWord).value, 256), langruntime.indexStruct(octets, langruntime.checkedIndex(3), copyNetworkWord).value) }, copyNetworkWord);
             }
             else {
                 if (stop === begin || langruntime.checkedSubtract(stop, begin) > 4 || words.length === 8) {
-                    return { kind: "Unknown" };
+                    return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                 }
                 let word: number = 0;
                 while (index < stop) {
                     const digit: number = networkDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
                     if (digit > 15) {
-                        return { kind: "Unknown" };
+                        return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                     }
                     word = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(word, 16), digit));
                     index = langruntime.checkedAdd(index, 1);
@@ -1309,13 +1343,13 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
                     index = langruntime.checkedAdd(index, 1);
                     if (index < end && langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ":") {
                         if (!(compression === 9)) {
-                            return { kind: "Unknown" };
+                            return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                         }
                         compression = langruntime.checkedIndex(words.length);
                         index = langruntime.checkedAdd(index, 1);
                     }
-                    else if (index === end) {
-                        return { kind: "Unknown" };
+                    else if (index === end && end === chars.length) {
+                        return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
                     }
                 }
             }
@@ -1323,7 +1357,7 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
         if (!(compression === 9)) {
             const wordCount: number = words.length;
             if (wordCount >= 8) {
-                return { kind: "Unknown" };
+                return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
             }
             while (words.length < 8) {
                 langruntime.pushStruct(words, { value: 0 }, copyNetworkWord);
@@ -1338,7 +1372,7 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
             }
         }
         if (!(words.length === 8)) {
-            return { kind: "Unknown" };
+            return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
         }
     }
     while (words.length < 8) {
@@ -1365,12 +1399,48 @@ function networkParse(value: string, cidr: boolean): NetworkValue {
                 padding = langruntime.checkedI32(langruntime.checkedSignedSubtract(padding, 1));
             }
             if (!(langruntime.checkedSignedRemainder(networkAddressWord(address, wordIndex), divisor) === 0)) {
-                return { kind: "Unknown" };
+                return { kind: "Error", value: makeSqlError(sqlErrorInvalidTextRepresentation) };
             }
             wordIndex = langruntime.checkedAdd(wordIndex, 1);
         }
     }
     return { kind: "Value", value: copyNetworkAddress(address) };
+}
+export function networkFromText(input: TextValue): NetworkValue {
+    input = copyTextValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalTextValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return networkParse(value, false);
+    }
+    return { kind: "Unknown" };
+}
+export function cidrFromText(input: TextValue): NetworkValue {
+    input = copyTextValue(input);
+    if (input.kind === "Error") {
+        const error: SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (equalTextValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        return networkParse(value, true);
+    }
+    return { kind: "Unknown" };
 }
 const dateFieldOverflow = 3452552;
 const invalidDateText = 3452551;

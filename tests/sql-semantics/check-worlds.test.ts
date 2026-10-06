@@ -613,6 +613,16 @@ describe('world CHECK INSERT parity', () => {
         ],
       ],
       ['network_subnets', ['subnet_strictly_inside_parent', 'subnet_avoids_forbidden']],
+      ['network_imports', ['import_address_parsed', 'import_network_parsed']],
+      [
+        'network_allocations',
+        [
+          'allocation_shifted',
+          'allocation_shifted_reverse',
+          'allocation_restored',
+          'allocation_distance',
+        ],
+      ],
     ] as const) {
       for (const name of names) {
         const identity = `world_015_network_access.${table}.${name}`
@@ -622,6 +632,18 @@ describe('world CHECK INSERT parity', () => {
         expect(measured.null, identity).toBeGreaterThan(0)
         expect(measured.unknown, identity).toBe(0)
       }
+    }
+    for (const name of [
+      'import_address_parsed',
+      'import_network_parsed',
+      'allocation_shifted',
+      'allocation_shifted_reverse',
+      'allocation_restored',
+      'allocation_distance',
+    ]) {
+      const table = name.startsWith('import_') ? 'network_imports' : 'network_allocations'
+      const identity = `world_015_network_access.${table}.${name}`
+      expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)
     }
     const constraints = [...coverage.values()].sort((left, right) =>
       left.constraint.localeCompare(right.constraint),

@@ -485,8 +485,12 @@ const sqlErrorTimezoneDisplacement = 3452553
 const sqlErrorDivisionByZero = 3452582
 const sqlErrorInvalidRegex = 3452591
 const sqlErrorInvalidParameter = 3452619
+const sqlErrorInvalidTextRepresentation = 3484946
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorInvalidTextRepresentation {
+		return SqlErrorDescription{Message: "invalid text representation"}
+	}
 	if error.State == sqlErrorNumericOutOfRange {
 		return SqlErrorDescription{Message: "numeric value out of range"}
 	}
@@ -780,11 +784,27 @@ func NetworkFromCaseGuard(value CheckOutcome) NetworkValue {
 }
 func MakeNetworkValue(value string) NetworkValue {
 	value = langruntime.CheckedString(value)
-	return networkParse(value, false)
+	chars := []rune(value)
+	if len(chars) > 256 {
+		return NetworkValue{Kind: NetworkValueUnknown}
+	}
+	parsed := networkParse(value, false)
+	if parsed.Kind == NetworkValueError {
+		return NetworkValue{Kind: NetworkValueUnknown}
+	}
+	return parsed
 }
 func MakeCidrValue(value string) NetworkValue {
 	value = langruntime.CheckedString(value)
-	return networkParse(value, true)
+	chars := []rune(value)
+	if len(chars) > 256 {
+		return NetworkValue{Kind: NetworkValueUnknown}
+	}
+	parsed := networkParse(value, true)
+	if parsed.Kind == NetworkValueError {
+		return NetworkValue{Kind: NetworkValueUnknown}
+	}
+	return parsed
 }
 
 type NumericLayout struct {
@@ -980,7 +1000,7 @@ type NetworkWord struct {
 	Value int
 }
 
-func copyNetworkWord(value NetworkWord) NetworkWord {
+func CopyNetworkWord(value NetworkWord) NetworkWord {
 	return NetworkWord{Value: langruntime.CheckedI32(value.Value)}
 }
 func networkDigit(ch rune) int {
@@ -1095,8 +1115,8 @@ func NetworkPrefixCompare(left NetworkAddress, right NetworkAddress, bits int) i
 func networkParse(value string, cidr bool) NetworkValue {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)
-	if len(chars) == 0 || len(chars) > 256 {
-		return NetworkValue{Kind: NetworkValueUnknown}
+	if len(chars) == 0 {
+		return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 	}
 	end := len(chars)
 	family := 4
@@ -1107,7 +1127,7 @@ func networkParse(value string, cidr bool) NetworkValue {
 		}
 		if chars[scan] == '/' {
 			if end != len(chars) {
-				return NetworkValue{Kind: NetworkValueUnknown}
+				return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 			}
 			end = langruntime.CheckedIndex(scan)
 		}
@@ -1120,22 +1140,32 @@ func networkParse(value string, cidr bool) NetworkValue {
 	if end != len(chars) {
 		index := langruntime.CheckedAdd(end, 1)
 		if index == len(chars) {
-			return NetworkValue{Kind: NetworkValueUnknown}
+			return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 		}
 		if family == 6 && chars[index] == '0' && langruntime.CheckedAdd(index, 1) < len(chars) {
-			return NetworkValue{Kind: NetworkValueUnknown}
+			return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 		}
 		prefix = langruntime.CheckedI32(0)
 		for index < len(chars) {
 			digit := networkDigit(chars[index])
 			if digit > 9 {
-				return NetworkValue{Kind: NetworkValueUnknown}
+				return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 			}
-			prefix = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(prefix, 10), digit))
-			if prefix > 128 || (family == 4 && prefix > 32) {
-				return NetworkValue{Kind: NetworkValueUnknown}
+			if family == 4 {
+				widePrefix := int64(langruntime.CheckedI32(prefix))
+				wideDigit := int64(langruntime.CheckedI32(digit))
+				nextPrefix := langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(widePrefix, int64(10)), wideDigit)
+				prefix = langruntime.CheckedI32(int(int32(nextPrefix)))
+			} else {
+				prefix = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(prefix, 10), digit))
+				if prefix > 128 {
+					return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
+				}
 			}
 			index = langruntime.CheckedAdd(index, 1)
+		}
+		if prefix < 0 || (family == 4 && prefix > 32) {
+			return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 		}
 	}
 	words := []NetworkWord{}
@@ -1148,19 +1178,19 @@ func networkParse(value string, cidr bool) NetworkValue {
 			for index < end {
 				high := networkDigit(chars[index])
 				if high > 15 || len(octets) == 4 {
-					return NetworkValue{Kind: NetworkValueUnknown}
+					return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 				}
 				index = langruntime.CheckedAdd(index, 1)
 				low := 0
 				if index < end {
 					low = langruntime.CheckedI32(networkDigit(chars[index]))
 					if low > 15 {
-						return NetworkValue{Kind: NetworkValueUnknown}
+						return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 					}
 					index = langruntime.CheckedAdd(index, 1)
 				}
 				langruntime.CheckedAdd(len(octets), 1)
-				octets = append(octets, copyNetworkWord(NetworkWord{Value: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(high, 16), low)}))
+				octets = append(octets, CopyNetworkWord(NetworkWord{Value: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(high, 16), low)}))
 				octetCount = langruntime.CheckedI32(langruntime.CheckedSignedAdd(octetCount, 1))
 			}
 		} else {
@@ -1170,30 +1200,30 @@ func networkParse(value string, cidr bool) NetworkValue {
 				for index < end && chars[index] != '.' {
 					digit := networkDigit(chars[index])
 					if digit > 9 {
-						return NetworkValue{Kind: NetworkValueUnknown}
+						return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 					}
 					octet = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(octet, 10), digit))
 					if octet > 255 {
-						return NetworkValue{Kind: NetworkValueUnknown}
+						return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 					}
 					index = langruntime.CheckedAdd(index, 1)
 				}
 				if begin == index || len(octets) == 4 {
-					return NetworkValue{Kind: NetworkValueUnknown}
+					return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 				}
 				langruntime.CheckedAdd(len(octets), 1)
-				octets = append(octets, copyNetworkWord(NetworkWord{Value: octet}))
+				octets = append(octets, CopyNetworkWord(NetworkWord{Value: octet}))
 				octetCount = langruntime.CheckedI32(langruntime.CheckedSignedAdd(octetCount, 1))
 				if index < end {
 					index = langruntime.CheckedAdd(index, 1)
-					if index == end {
-						return NetworkValue{Kind: NetworkValueUnknown}
+					if index == end && cidr {
+						return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 					}
 				}
 			}
 		}
 		if len(octets) == 0 {
-			return NetworkValue{Kind: NetworkValueUnknown}
+			return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 		}
 		if end == len(chars) {
 			if cidr {
@@ -1214,24 +1244,24 @@ func networkParse(value string, cidr bool) NetworkValue {
 					prefix = langruntime.CheckedI32(4)
 				}
 			} else if len(octets) != 4 {
-				return NetworkValue{Kind: NetworkValueUnknown}
+				return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 			}
 		} else if cidr == false && langruntime.CheckedSignedDivide(prefix, 8) > octetCount {
-			return NetworkValue{Kind: NetworkValueUnknown}
+			return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 		}
 		for len(octets) < 4 {
 			langruntime.CheckedAdd(len(octets), 1)
-			octets = append(octets, copyNetworkWord(NetworkWord{Value: 0}))
+			octets = append(octets, CopyNetworkWord(NetworkWord{Value: 0}))
 		}
 		langruntime.CheckedAdd(len(words), 1)
-		words = append(words, copyNetworkWord(NetworkWord{Value: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(octets[0].Value, 256), octets[1].Value)}))
+		words = append(words, CopyNetworkWord(NetworkWord{Value: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(octets[0].Value, 256), octets[1].Value)}))
 		langruntime.CheckedAdd(len(words), 1)
-		words = append(words, copyNetworkWord(NetworkWord{Value: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(octets[2].Value, 256), octets[3].Value)}))
+		words = append(words, CopyNetworkWord(NetworkWord{Value: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(octets[2].Value, 256), octets[3].Value)}))
 	} else {
 		compression := 9
 		if end > 0 && chars[0] == ':' {
 			if end < 2 || chars[1] != ':' {
-				return NetworkValue{Kind: NetworkValueUnknown}
+				return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 			}
 			compression = langruntime.CheckedIndex(0)
 			index = langruntime.CheckedIndex(2)
@@ -1248,7 +1278,7 @@ func networkParse(value string, cidr bool) NetworkValue {
 			}
 			if dotted {
 				if stop != end || len(words) > 6 {
-					return NetworkValue{Kind: NetworkValueUnknown}
+					return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 				}
 				octets := []NetworkWord{}
 				for index < end {
@@ -1257,58 +1287,63 @@ func networkParse(value string, cidr bool) NetworkValue {
 					for index < end && chars[index] != '.' {
 						digit := networkDigit(chars[index])
 						if digit > 9 || (index > start && chars[start] == '0') {
-							return NetworkValue{Kind: NetworkValueUnknown}
+							return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 						}
 						octet = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(octet, 10), digit))
 						if octet > 255 {
-							return NetworkValue{Kind: NetworkValueUnknown}
+							return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 						}
 						index = langruntime.CheckedAdd(index, 1)
 					}
-					if index == start || len(octets) == 4 {
-						return NetworkValue{Kind: NetworkValueUnknown}
+					if len(octets) == 4 {
+						return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 					}
 					langruntime.CheckedAdd(len(octets), 1)
-					octets = append(octets, copyNetworkWord(NetworkWord{Value: octet}))
+					octets = append(octets, CopyNetworkWord(NetworkWord{Value: octet}))
 					if index < end {
 						index = langruntime.CheckedAdd(index, 1)
 						if index == end {
-							return NetworkValue{Kind: NetworkValueUnknown}
+							if end == len(chars) || len(octets) == 4 {
+								return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
+							}
+							langruntime.CheckedAdd(len(octets), 1)
+							octets = append(octets, CopyNetworkWord(NetworkWord{Value: 0}))
 						}
 					}
 				}
-				if len(octets) != 4 {
-					return NetworkValue{Kind: NetworkValueUnknown}
+				for len(octets) < 4 {
+					langruntime.CheckedAdd(len(octets), 1)
+					octets = append(octets, CopyNetworkWord(NetworkWord{Value: 0}))
 				}
 				langruntime.CheckedAdd(len(words), 1)
-				words = append(words, copyNetworkWord(NetworkWord{Value: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(octets[0].Value, 256), octets[1].Value)}))
+				words = append(words, CopyNetworkWord(NetworkWord{Value: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(octets[0].Value, 256), octets[1].Value)}))
 				langruntime.CheckedAdd(len(words), 1)
-				words = append(words, copyNetworkWord(NetworkWord{Value: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(octets[2].Value, 256), octets[3].Value)}))
+				words = append(words, CopyNetworkWord(NetworkWord{Value: langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(octets[2].Value, 256), octets[3].Value)}))
 			} else {
 				if stop == begin || langruntime.CheckedSubtract(stop, begin) > 4 || len(words) == 8 {
-					return NetworkValue{Kind: NetworkValueUnknown}
+					return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 				}
 				word := 0
 				for index < stop {
 					digit := networkDigit(chars[index])
 					if digit > 15 {
-						return NetworkValue{Kind: NetworkValueUnknown}
+						return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 					}
 					word = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(word, 16), digit))
 					index = langruntime.CheckedAdd(index, 1)
 				}
 				langruntime.CheckedAdd(len(words), 1)
-				words = append(words, copyNetworkWord(NetworkWord{Value: word}))
+				words = append(words, CopyNetworkWord(NetworkWord{Value: word}))
 				if index < end {
 					index = langruntime.CheckedAdd(index, 1)
 					if index < end && chars[index] == ':' {
 						if compression != 9 {
-							return NetworkValue{Kind: NetworkValueUnknown}
+							return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 						}
 						compression = langruntime.CheckedIndex(len(words))
 						index = langruntime.CheckedAdd(index, 1)
-					} else if index == end {
-						return NetworkValue{Kind: NetworkValueUnknown}
+					} else if index == end && end == len(chars) {
+						return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 					}
 				}
 			}
@@ -1316,28 +1351,28 @@ func networkParse(value string, cidr bool) NetworkValue {
 		if compression != 9 {
 			wordCount := len(words)
 			if wordCount >= 8 {
-				return NetworkValue{Kind: NetworkValueUnknown}
+				return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 			}
 			for len(words) < 8 {
 				langruntime.CheckedAdd(len(words), 1)
-				words = append(words, copyNetworkWord(NetworkWord{Value: 0}))
+				words = append(words, CopyNetworkWord(NetworkWord{Value: 0}))
 			}
 			source := wordCount
 			dest := 8
 			for source > compression {
 				source = langruntime.CheckedIndex(langruntime.CheckedSubtract(source, 1))
 				dest = langruntime.CheckedIndex(langruntime.CheckedSubtract(dest, 1))
-				words[dest] = copyNetworkWord(words[source])
-				words[source] = copyNetworkWord(NetworkWord{Value: 0})
+				words[dest] = CopyNetworkWord(words[source])
+				words[source] = CopyNetworkWord(NetworkWord{Value: 0})
 			}
 		}
 		if len(words) != 8 {
-			return NetworkValue{Kind: NetworkValueUnknown}
+			return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 		}
 	}
 	for len(words) < 8 {
 		langruntime.CheckedAdd(len(words), 1)
-		words = append(words, copyNetworkWord(NetworkWord{Value: 0}))
+		words = append(words, CopyNetworkWord(NetworkWord{Value: 0}))
 	}
 	address := NetworkAddress{Family: family, Prefix: prefix, Word0: words[0].Value, Word1: words[1].Value, Word2: words[2].Value, Word3: words[3].Value, Word4: words[4].Value, Word5: words[5].Value, Word6: words[6].Value, Word7: words[7].Value}
 	if cidr {
@@ -1360,12 +1395,48 @@ func networkParse(value string, cidr bool) NetworkValue {
 				padding = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(padding, 1))
 			}
 			if langruntime.CheckedSignedRemainder(NetworkAddressWord(address, wordIndex), divisor) != 0 {
-				return NetworkValue{Kind: NetworkValueUnknown}
+				return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 			}
 			wordIndex = langruntime.CheckedAdd(wordIndex, 1)
 		}
 	}
 	return NetworkValue{Kind: NetworkValueValue, Value: address}
+}
+func NetworkFromText(input TextValue) NetworkValue {
+	input = CopyTextValue(input)
+	if input.Kind == TextValueError {
+		error := input.Error
+		return NetworkValue{Kind: NetworkValueError, Error: error}
+	}
+	if input == (TextValue{Kind: TextValueUnknown}) {
+		return NetworkValue{Kind: NetworkValueUnknown}
+	}
+	if input == (TextValue{Kind: TextValueNull}) {
+		return NetworkValue{Kind: NetworkValueNull}
+	}
+	if input.Kind == TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return networkParse(value, false)
+	}
+	return NetworkValue{Kind: NetworkValueUnknown}
+}
+func CidrFromText(input TextValue) NetworkValue {
+	input = CopyTextValue(input)
+	if input.Kind == TextValueError {
+		error := input.Error
+		return NetworkValue{Kind: NetworkValueError, Error: error}
+	}
+	if input == (TextValue{Kind: TextValueUnknown}) {
+		return NetworkValue{Kind: NetworkValueUnknown}
+	}
+	if input == (TextValue{Kind: TextValueNull}) {
+		return NetworkValue{Kind: NetworkValueNull}
+	}
+	if input.Kind == TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		return networkParse(value, true)
+	}
+	return NetworkValue{Kind: NetworkValueUnknown}
 }
 
 const dateFieldOverflow = 3452552

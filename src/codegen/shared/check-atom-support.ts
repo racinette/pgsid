@@ -34,7 +34,8 @@ export function portableCheckAtoms(expression: EvalBoolExpression): EvalBoolExpr
     if (
       value.kind === 'text-to-date' ||
       value.kind === 'text-to-timestamp' ||
-      value.kind === 'text-to-timestamptz'
+      value.kind === 'text-to-timestamptz' ||
+      value.kind === 'text-to-network'
     )
       return { ...value, operand: scalar(value.operand) }
     if (value.kind === 'check') return { ...value, expression: bool(value.expression) }

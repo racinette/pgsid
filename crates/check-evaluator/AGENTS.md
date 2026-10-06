@@ -116,10 +116,16 @@ import them. Keep schema-only helpers with their callables.
   defer, as do oversized spellings. Comparisons order family, common network
   bits, prefix length, then host bits. Containment and overlap compare network
   bits, and CIDR implicitly relabels to INET using the catalog binary cast.
-  CASE and COALESCE promote mixed CIDR/INET arms to INET. Text casts, network
-  arithmetic, address-building functions, and output formatting need their own
-  slices. Run `tests/sql-semantics/check-network.test.ts` and the network access
-  world for native/target and public INSERT parity.
+  CASE and COALESCE promote mixed CIDR/INET arms to INET. Runtime text/varchar
+  casts share the parser but return SQLSTATE 22P02 for malformed syntax or CIDR
+  host bits. Already-coerced public inputs continue to defer malformed spellings.
+  Addition and subtraction preserve the input prefix and check address overflow;
+  address differences ignore prefixes, require equal families, and check the
+  bigint range after PostgreSQL's address-width subtraction. Subtracting the
+  minimum bigint offset retains PostgreSQL's two's-complement negation behavior.
+  Address-building functions, bitwise operators, and output formatting remain
+  separate callable work. Run `tests/sql-semantics/check-network.test.ts` and the
+  network access world for native/target and public INSERT parity.
 - Date payloads are signed day offsets from 2000-01-01. The signed int4
   minimum and maximum represent negative and positive infinity. Finite payloads
   range from -2451545 through 2145031948. Public CHECK inputs use this portable
