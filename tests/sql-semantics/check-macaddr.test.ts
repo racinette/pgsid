@@ -383,13 +383,8 @@ describe('portable Rust CHECK MAC addresses', () => {
     await mkdir(join(directory, 'domains'))
     await runCheckParity(join(directory, 'domains'), 'macdomains', group, names, fixtures)
   }, 180000)
-  it('defers ambiguous mixed comparisons and unported output callables', () => {
-    for (const sql of [
-      'a = d',
-      'CASE a WHEN d THEN true ELSE false END',
-      'hashmacaddr(a) > 0',
-      "macaddr_send(a) <> '\\x'::bytea",
-    ]) {
+  it('defers ambiguous mixed comparisons', () => {
+    for (const sql of ['a = d', 'CASE a WHEN d THEN true ELSE false END']) {
       const expression = lowerTableCheck(
         table,
         { name: 'unsupported', type: 'check', definition: `CHECK (${sql})` },

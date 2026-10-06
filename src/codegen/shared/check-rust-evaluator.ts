@@ -220,6 +220,13 @@ export function emitCheckRustEvaluator(
       const helper = kind.slice(0, -'Value'.length).toLowerCase() + '_unknown'
       return { name: bind(`${helper}()`), type: node.type }
     }
+    if (node.kind === 'mac-to-text') {
+      const operand = emitScalar(node.operand, bindings, used)
+      if (operand.type !== 'pg_catalog.macaddr' && operand.type !== 'pg_catalog.macaddr8')
+        throw new UnsupportedCheckRustExpression('A MAC output cast requires a MAC value')
+      const helper = operand.type === 'pg_catalog.macaddr' ? 'macaddr_to_text' : 'macaddr8_to_text'
+      return { name: bind(`${helper}(${operand.name})`), type: node.type }
+    }
     if (
       node.kind === 'text-to-date' ||
       node.kind === 'text-to-timestamp' ||

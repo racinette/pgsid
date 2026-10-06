@@ -235,3 +235,33 @@ CREATE TABLE hardware_imports (
   CONSTRAINT hardware_parse_varchar_short CHECK (CASE WHEN skip_import THEN true ELSE raw_varchar::macaddr = short_address END),
   CONSTRAINT hardware_parse_varchar_extended CHECK (CASE WHEN skip_import THEN true ELSE raw_varchar::macaddr8 = extended_address END)
 );
+
+CREATE TABLE hardware_outputs (
+  id integer PRIMARY KEY,
+  address6 device_address,
+  address8 interface_address,
+  text6 text COLLATE "C",
+  text8 text COLLATE "C",
+  wire6 bytea,
+  wire8 bytea,
+  hash6 integer,
+  hash8 integer,
+  seed bigint,
+  seeded6 bigint,
+  seeded8 bigint,
+  zero6 bigint,
+  zero8 bigint,
+  skip_output boolean,
+  CONSTRAINT hardware_text6 CHECK (address6::text = text6),
+  CONSTRAINT hardware_text8 CHECK (text(address8) = text8),
+  CONSTRAINT hardware_wire6 CHECK (macaddr_send(address6) = wire6),
+  CONSTRAINT hardware_wire8 CHECK (macaddr8_send(address8) = wire8),
+  CONSTRAINT hardware_hash6 CHECK (hashmacaddr(address6) = hash6),
+  CONSTRAINT hardware_hash8 CHECK (hashmacaddr8(address8) = hash8),
+  CONSTRAINT hardware_seed6 CHECK (hashmacaddrextended(address6,seed) = seeded6),
+  CONSTRAINT hardware_seed8 CHECK (hashmacaddr8extended(address8,seed) = seeded8),
+  CONSTRAINT hardware_zero6 CHECK (hashmacaddrextended(address6,0) = zero6),
+  CONSTRAINT hardware_zero8 CHECK (hashmacaddr8extended(address8,0) = zero8),
+  CONSTRAINT hardware_output_case CHECK (CASE WHEN skip_output THEN true ELSE address6::text = text6 AND macaddr_send(address6) = wire6 END),
+  CONSTRAINT hardware_output_default CHECK (COALESCE(text(address8),'fallback') = text8)
+);

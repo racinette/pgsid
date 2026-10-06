@@ -31,6 +31,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/address_bits.rs");
     include!("operations/pg_catalog/network.rs");
     include!("operations/pg_catalog/mac.rs");
+    include!("operations/pg_catalog/mac_output.rs");
     include!("operations/pg_catalog/network_output.rs");
     include!("operations/pg_catalog/binary.rs");
     include!("operations/pg_catalog/integer.rs");
