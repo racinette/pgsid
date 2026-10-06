@@ -458,6 +458,7 @@ const candidate = (
           'pg_catalog.cidr',
           'pg_catalog.macaddr',
           'pg_catalog.macaddr8',
+          'pg_catalog.uuid',
         ].includes(type),
       ) && isIntegerType(item.args[index]!)
         ? materializeInteger(arg, item.args[index]! as ScalarType)

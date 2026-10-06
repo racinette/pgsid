@@ -16,8 +16,8 @@ import {
   type Row,
 } from '../../tools/check-rust/parity.js'
 
-import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
-import { renderGoSchemaCheckArtifacts } from '../../src/codegen/go/sql/catalog-checks.js'
+import { renderTypescriptSchemaChecks } from '../../src/codegen/typescript/sql/catalog-checks.js'
+import { renderGoSchemaChecks } from '../../src/codegen/go/sql/catalog-checks.js'
 import { parseConfigString } from '../../src/config/loader.js'
 import { renderGoCheckTests } from './check-codegen.js'
 
@@ -339,7 +339,7 @@ describe('portable Rust CHECK UUID values', () => {
     await mkdir(join(directory, 'domains'))
     await runCheckParity(join(directory, 'domains'), 'uuiddomains', group, names, fixtures)
   }, 180000)
-  it('defers unported UUID callables through both public fallback validators', async () => {
+  it('keeps UUID operands unknown in legacy fallback validators', async () => {
     await pg.exec(
       'CREATE TABLE pending_uuid (identifier uuid CONSTRAINT pending_version CHECK (uuid_extract_version(identifier) = 4))',
     )
@@ -347,9 +347,8 @@ describe('portable Rust CHECK UUID values', () => {
     const table = catalog.tables.find((item) => item.name === 'pending_uuid')!
     const root = join(directory, 'fallback')
     await mkdir(root)
-    const typescript = renderTypescriptSchemaCheckArtifacts([table])
-    expect(typescript.rustFiles).toBeNull()
-    await writeFile(join(root, 'checks.ts'), typescript.checks)
+    const typescript = renderTypescriptSchemaChecks([table])
+    await writeFile(join(root, 'checks.ts'), typescript)
     const run = promisify(execFile)
     await run('node_modules/.bin/tsc', [
       '--strict',
@@ -370,7 +369,7 @@ describe('portable Rust CHECK UUID values', () => {
       expect(result[0].result).toEqual({ certain: false })
       expect(result[0].message).toEqual(expect.any(String))
     }
-    const go = renderGoSchemaCheckArtifacts(
+    const go = renderGoSchemaChecks(
       [table],
       'uuidfallback',
       [],
@@ -378,8 +377,7 @@ describe('portable Rust CHECK UUID values', () => {
       catalog,
       parseConfigString('schema: schema.sql\nsql:\n  codegen:\n    go:\n      nulls: pointers\n'),
     )
-    expect(go.rustFiles).toBeNull()
-    await writeFile(join(root, 'checks.go'), go.checks)
+    await writeFile(join(root, 'checks.go'), go)
     await writeFile(join(root, 'go.mod'), 'module uuidfallback\n\ngo 1.25\n')
     await writeFile(
       join(root, 'checks_test.go'),

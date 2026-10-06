@@ -4677,3 +4677,110 @@ export function uuidToText(input: checkruntime.UuidValue): checkruntime.TextValu
     }
     return { kind: "Unknown" };
 }
+function uuidByte(value: checkruntime.Uuid, index: number): number {
+    index = langruntime.checkedI32(index);
+    const word: number = checkruntime.uuidWord(value, langruntime.checkedSignedDivide(index, 2));
+    if (langruntime.checkedSignedRemainder(index, 2) === 0) {
+        return langruntime.checkedSignedDivide(word, 256);
+    }
+    return langruntime.checkedSignedRemainder(word, 256);
+}
+function uuidHashBytes(value: checkruntime.Uuid): checkruntime.HashByte[] {
+    let bytes: checkruntime.HashByte[] = [];
+    let index: number = 0;
+    while (index < 16) {
+        const byte: number = uuidByte(value, index);
+        langruntime.pushStruct(bytes, { value: BigInt(langruntime.checkedI32(byte)) }, checkruntime.copyHashByte);
+        index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+    }
+    return bytes;
+}
+export function uuidSend32nf(input: checkruntime.UuidValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalUuidValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalUuidValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.Uuid = input.value;
+        let output: string = "";
+        let index: number = 0;
+        while (index < 16) {
+            const byte: number = uuidByte(value, index);
+            output = langruntime.checkedString(checkruntime.byteaAppendByte(output, byte));
+            index = langruntime.checkedI32(langruntime.checkedSignedAdd(index, 1));
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function uuidHash8nnn(input: checkruntime.UuidValue): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalUuidValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalUuidValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.Uuid = input.value;
+        const bytes: checkruntime.HashByte[] = uuidHashBytes(value);
+        const hash: number = checkruntime.hashBytes32(bytes);
+        return { kind: "Value", value: hash };
+    }
+    return { kind: "Unknown" };
+}
+export function uuidHashExtendedI59z(left: checkruntime.UuidValue, right: checkruntime.Int8Value): checkruntime.Int8Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalUuidValue(left, { kind: "Unknown" }) || checkruntime.equalInt8Value(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalUuidValue(left, { kind: "Null" }) || checkruntime.equalInt8Value(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const value: checkruntime.Uuid = left.value;
+        if (right.kind === "Value") {
+            const seed: bigint = langruntime.checkedI64(right.value);
+            const bytes: checkruntime.HashByte[] = uuidHashBytes(value);
+            const hash: bigint = checkruntime.hashBytes64(bytes, seed);
+            return { kind: "Value", value: hash };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function uuidExtractVersionYdwe(input: checkruntime.UuidValue): checkruntime.Int2Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalUuidValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalUuidValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: checkruntime.Uuid = input.value;
+        if (!(langruntime.checkedSignedDivide(value.word4, 16384) === 2)) {
+            return { kind: "Null" };
+        }
+        return { kind: "Value", value: langruntime.checkedSignedDivide(value.word3, 4096) };
+    }
+    return { kind: "Unknown" };
+}
