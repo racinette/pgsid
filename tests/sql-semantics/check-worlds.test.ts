@@ -638,6 +638,7 @@ describe('world CHECK INSERT parity', () => {
         ],
       ],
       ['network_resizes', ['resize_address', 'resize_subnet']],
+      ['network_filters', ['filter_complement', 'filter_intersection', 'filter_union']],
     ] as const) {
       for (const name of names) {
         const identity = `world_015_network_access.${table}.${name}`
@@ -664,6 +665,8 @@ describe('world CHECK INSERT parity', () => {
       ['network_plans', 'plan_combined'],
       ['network_resizes', 'resize_address'],
       ['network_resizes', 'resize_subnet'],
+      ['network_filters', 'filter_intersection'],
+      ['network_filters', 'filter_union'],
     ]) {
       const identity = `world_015_network_access.${table}.${name}`
       expect(coverage.get(identity)!.error, identity).toBeGreaterThan(0)

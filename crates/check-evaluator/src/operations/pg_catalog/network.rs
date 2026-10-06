@@ -733,3 +733,97 @@ pub fn sql__pg_catalog__inet_merge__iflm(left: NetworkValue, right: NetworkValue
     }
     NetworkValue::Unknown
 }
+
+fn network_and_word(left: i32, right: i32) -> i32 {
+    let mut a = left;
+    let mut b = right;
+    let mut place: i32 = 1;
+    let mut result: i32 = 0;
+    while place < 65536 {
+        if a % 2 == 1 && b % 2 == 1 {
+            result = result + place;
+        }
+        a = a / 2;
+        b = b / 2;
+        place = place * 2;
+    }
+    result
+}
+
+fn network_bitwise(left: NetworkValue, right: NetworkValue, union: bool) -> NetworkValue {
+    if let NetworkValue::Error(error) = left {
+        return NetworkValue::Error(error);
+    }
+    if let NetworkValue::Error(error) = right {
+        return NetworkValue::Error(error);
+    }
+    if left == NetworkValue::Unknown || right == NetworkValue::Unknown {
+        return NetworkValue::Unknown;
+    }
+    if left == NetworkValue::Null || right == NetworkValue::Null {
+        return NetworkValue::Null;
+    }
+    if let NetworkValue::Value(a) = left {
+        if let NetworkValue::Value(b) = right {
+            if a.family != b.family {
+                return NetworkValue::Error(make_sql_error(SQLSTATE_INVALID_PARAMETER_VALUE));
+            }
+            let mut prefix = a.prefix;
+            if b.prefix > prefix {
+                prefix = b.prefix;
+            }
+            let mut words: Vec<NetworkWord> = Vec::new();
+            let mut index: usize = 0;
+            while index < 8 {
+                let first = network_address_word(a, index);
+                let second = network_address_word(b, index);
+                let intersection = network_and_word(first, second);
+                let mut word = intersection;
+                if union {
+                    word = first + second - intersection;
+                }
+                words.push(NetworkWord { value: word });
+                index += 1;
+            }
+            let result = network_result_address(a.family, prefix, words);
+            return NetworkValue::Value(result);
+        }
+    }
+    NetworkValue::Unknown
+}
+
+pub fn sql__pg_catalog__inetand__qxb6(left: NetworkValue, right: NetworkValue) -> NetworkValue {
+    network_bitwise(left, right, false)
+}
+
+pub fn sql__pg_catalog__inetor__kw39(left: NetworkValue, right: NetworkValue) -> NetworkValue {
+    network_bitwise(left, right, true)
+}
+
+pub fn sql__pg_catalog__inetnot__8bow(input: NetworkValue) -> NetworkValue {
+    if let NetworkValue::Error(error) = input {
+        return NetworkValue::Error(error);
+    }
+    if input == NetworkValue::Unknown {
+        return NetworkValue::Unknown;
+    }
+    if input == NetworkValue::Null {
+        return NetworkValue::Null;
+    }
+    if let NetworkValue::Value(address) = input {
+        let mut words: Vec<NetworkWord> = Vec::new();
+        let mut index: usize = 0;
+        while index < 8 {
+            let source = network_address_word(address, index);
+            let mut word = 65535 - source;
+            if address.family == 4 && index >= 2 {
+                word = 0;
+            }
+            words.push(NetworkWord { value: word });
+            index += 1;
+        }
+        let result = network_result_address(address.family, address.prefix, words);
+        return NetworkValue::Value(result);
+    }
+    NetworkValue::Unknown
+}
