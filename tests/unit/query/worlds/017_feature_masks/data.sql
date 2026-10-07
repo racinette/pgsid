@@ -36,3 +36,6 @@ VALUES (1, 1, B'00101101', B'00101101', '\x000000082d', NULL, false);
 
 INSERT INTO mask_payloads (id, profile_id, packet, peer_packet, recorded_comparison, larger_packet, smaller_packet, reversed_packet, transmitted_packet, recorded_length, recorded_bits, recorded_count)
 VALUES (1, 1, '\x0080ff', '\x008100', -1, '\x008100', '\x0080ff', '\xff8000', '\x0080ff', 3, 24, 9);
+
+INSERT INTO payload_patches (id, profile_id, packet, byte_position, bit_position, replacement_byte, replacement_bit, recorded_byte, recorded_bit, byte_patch, bit_patch)
+VALUES (1, 1, '\x0080ff', 1, 15, -1, 0, 128, 1, '\x00ffff', '\x0000ff');

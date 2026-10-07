@@ -478,17 +478,7 @@ const candidate = (
     const enumCall = item.args.includes('pg_catalog.anyenum')
     if (enumCall && (!definition || !enumEqualityOperation(signature))) return []
     const operands = args.map((arg, index) =>
-      item.args.some((type) =>
-        [
-          'pg_catalog.inet',
-          'pg_catalog.cidr',
-          'pg_catalog.macaddr',
-          'pg_catalog.macaddr8',
-          'pg_catalog.uuid',
-          'pg_catalog."bit"',
-          'pg_catalog.varbit',
-        ].includes(type),
-      ) && isIntegerType(item.args[index]!)
+      isIntegerType(item.args[index]!)
         ? materializeInteger(arg, item.args[index]! as ScalarType)
         : materialize(
             arg,

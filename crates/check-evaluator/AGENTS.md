@@ -190,13 +190,13 @@ import them. Keep schema-only helpers with their callables.
   Explicit wrapper clones preserve Rust ownership when generated branches reuse
   text; target immutable wrappers need no copy helpers.
 - Bytea payloads own canonical lowercase hexadecimal strings without a prefix.
-  Public row adapters convert Go byte slices and TypeScript Uint8Array values;
-  Rust validates hexadecimal constructor inputs. SQL literals accept hex input.
-  Comparisons use unsigned byte order; direct comparison preserves the first
-  byte difference and signed-unit prefix ordering. Lengths count bytes or bits;
-  set-bit counts return int8. Reversal preserves hexadecimal pairs, and send
-  preserves the payload. Run `tests/sql-semantics/check-bytea-core.test.ts` and
-  the feature masks world. Editing and runtime text casts require separate slices.
+  Public adapters convert byte arrays and nested domains; Rust validates hex input.
+  Comparison preserves unsigned octet differences and signed-unit prefix order.
+  Lengths count bytes or bits; popcounts return int8. Reversal preserves pairs.
+  Get/set use zero-based byte indices and int8 bit indices, LSB-first per byte.
+  Bounds fail with 2202E before set_bit rejects nonbinary replacements with 22023.
+  Set_byte truncates replacements to eight bits; edits preserve their inputs.
+  Run `tests/sql-semantics/check-bytea*.test.ts` and the feature masks world.
 - Bit and varbit share an owned binary string in BitValue, preserving leading
   zeros, trailing zeros, and empty values. Public inputs are already SQL-coerced
   strings; nonbinary spellings defer. Literals accept binary and hexadecimal

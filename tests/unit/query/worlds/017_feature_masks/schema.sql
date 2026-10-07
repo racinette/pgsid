@@ -284,3 +284,23 @@ CREATE TABLE mask_payloads (
   CONSTRAINT payload_reversed CHECK (reverse(packet) = reversed_packet),
   CONSTRAINT payload_sent CHECK (byteasend(packet) = transmitted_packet)
 );
+
+CREATE TABLE payload_patches (
+  id integer PRIMARY KEY,
+  profile_id integer NOT NULL REFERENCES mask_profiles(id),
+  packet stored_payload,
+  byte_position integer,
+  bit_position bigint,
+  replacement_byte integer,
+  replacement_bit integer,
+  recorded_byte integer,
+  recorded_bit integer,
+  byte_patch bytea,
+  bit_patch bytea,
+  CONSTRAINT patch_byte_value CHECK (get_byte(packet, byte_position) = recorded_byte),
+  CONSTRAINT patch_bit_value CHECK (get_bit(packet, bit_position) = recorded_bit),
+  CONSTRAINT patch_byte_result CHECK (set_byte(packet, byte_position, replacement_byte) = byte_patch),
+  CONSTRAINT patch_bit_result CHECK (set_bit(packet, bit_position, replacement_bit) = bit_patch),
+  CONSTRAINT patch_preserves_byte CHECK (set_byte(packet, byte_position, get_byte(packet, byte_position)) = packet),
+  CONSTRAINT patch_preserves_bit CHECK (set_bit(packet, bit_position, get_bit(packet, bit_position)) = packet)
+);

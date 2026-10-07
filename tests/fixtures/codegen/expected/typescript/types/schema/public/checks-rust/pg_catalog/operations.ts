@@ -2212,6 +2212,218 @@ export function reverseW0od(input: checkruntime.ByteaValue): checkruntime.ByteaV
 export function byteasend3q2t(input: checkruntime.ByteaValue): checkruntime.ByteaValue {
     return input;
 }
+const byteaArraySubscriptError = 3452630;
+function byteaPayloadLength(input: string): number {
+    input = langruntime.checkedString(input);
+    const chars: string[] = Array.from(input);
+    let index: number = 0;
+    let length: number = 0;
+    while (index < chars.length) {
+        index = langruntime.checkedIndex(langruntime.checkedAdd(index, 2));
+        length = langruntime.checkedI32(langruntime.checkedSignedAdd(length, 1));
+    }
+    return length;
+}
+function byteaReadByte(input: string, position: number): number {
+    input = langruntime.checkedString(input);
+    position = langruntime.checkedI32(position);
+    const chars: string[] = Array.from(input);
+    let index: number = 0;
+    let current: number = 0;
+    while (current < position) {
+        index = langruntime.checkedIndex(langruntime.checkedAdd(index, 2));
+        current = langruntime.checkedI32(langruntime.checkedSignedAdd(current, 1));
+    }
+    const high: number = checkruntime.hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+    const low: number = checkruntime.hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))));
+    return langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(high, 16), low);
+}
+function byteaPatchByte(input: string, position: number, replacement: number): string {
+    input = langruntime.checkedString(input);
+    position = langruntime.checkedI32(position);
+    replacement = langruntime.checkedI32(replacement);
+    const chars: string[] = Array.from(input);
+    let index: number = 0;
+    let current: number = 0;
+    let output: string = "";
+    while (index < chars.length) {
+        if (current === position) {
+            output = langruntime.checkedString(checkruntime.byteaAppendByte(output, replacement));
+        }
+        else {
+            output = output + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+            output = output + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))));
+        }
+        index = langruntime.checkedIndex(langruntime.checkedAdd(index, 2));
+        current = langruntime.checkedI32(langruntime.checkedSignedAdd(current, 1));
+    }
+    return output;
+}
+function byteaBitMask(position: number): number {
+    position = langruntime.checkedI32(position);
+    let remaining: number = position;
+    let mask: number = 1;
+    while (remaining > 0) {
+        mask = langruntime.checkedI32(langruntime.checkedSignedMultiply(mask, 2));
+        remaining = langruntime.checkedI32(langruntime.checkedSignedSubtract(remaining, 1));
+    }
+    return mask;
+}
+export function getByte48am(input: checkruntime.ByteaValue, position: checkruntime.Int4Value): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (position.kind === "Error") {
+        const error: checkruntime.SqlError = position.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(position, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(position, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (position.kind === "Value") {
+            const offset: number = langruntime.checkedI32(position.value);
+            const length: number = byteaPayloadLength(value);
+            if (offset < 0 || offset >= length) {
+                return { kind: "Error", value: checkruntime.makeSqlError(byteaArraySubscriptError) };
+            }
+            const byte: number = byteaReadByte(value, offset);
+            return { kind: "Value", value: byte };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function getBitThv7(input: checkruntime.ByteaValue, position: checkruntime.Int8Value): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (position.kind === "Error") {
+        const error: checkruntime.SqlError = position.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(position, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Null" }) || checkruntime.equalInt8Value(position, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (position.kind === "Value") {
+            const offset: bigint = langruntime.checkedI64(position.value);
+            const length: number = byteaPayloadLength(value);
+            const wideLength: bigint = BigInt(langruntime.checkedI32(length));
+            const bitLength: bigint = langruntime.checkedI64Multiply(wideLength, 8n);
+            if (offset < 0n || offset >= bitLength) {
+                return { kind: "Error", value: checkruntime.makeSqlError(byteaArraySubscriptError) };
+            }
+            const wideByte: bigint = langruntime.checkedI64Divide(offset, 8n);
+            const bytePosition: number = Number(BigInt.asIntN(32, langruntime.checkedI64(wideByte)));
+            const wideBit: bigint = langruntime.checkedI64Remainder(offset, 8n);
+            const bitPosition: number = Number(BigInt.asIntN(32, langruntime.checkedI64(wideBit)));
+            const byte: number = byteaReadByte(value, bytePosition);
+            const mask: number = byteaBitMask(bitPosition);
+            return { kind: "Value", value: langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(byte, mask)), 2) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function setByte8mtw(input: checkruntime.ByteaValue, position: checkruntime.Int4Value, replacement: checkruntime.Int4Value): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (position.kind === "Error") {
+        const error: checkruntime.SqlError = position.value;
+        return { kind: "Error", value: error };
+    }
+    if (replacement.kind === "Error") {
+        const error: checkruntime.SqlError = replacement.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(position, { kind: "Unknown" }) || checkruntime.equalInt4Value(replacement, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(position, { kind: "Null" }) || checkruntime.equalInt4Value(replacement, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (position.kind === "Value") {
+            const offset: number = langruntime.checkedI32(position.value);
+            if (replacement.kind === "Value") {
+                const newValue: number = langruntime.checkedI32(replacement.value);
+                const length: number = byteaPayloadLength(value);
+                if (offset < 0 || offset >= length) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(byteaArraySubscriptError) };
+                }
+                let newByte: number = langruntime.checkedSignedRemainder(newValue, 256);
+                if (newByte < 0) {
+                    newByte = langruntime.checkedI32(langruntime.checkedSignedAdd(newByte, 256));
+                }
+                const output: string = byteaPatchByte(value, offset, newByte);
+                return { kind: "Value", value: output };
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function setBit06f4(input: checkruntime.ByteaValue, position: checkruntime.Int8Value, replacement: checkruntime.Int4Value): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (position.kind === "Error") {
+        const error: checkruntime.SqlError = position.value;
+        return { kind: "Error", value: error };
+    }
+    if (replacement.kind === "Error") {
+        const error: checkruntime.SqlError = replacement.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalInt8Value(position, { kind: "Unknown" }) || checkruntime.equalInt4Value(replacement, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Null" }) || checkruntime.equalInt8Value(position, { kind: "Null" }) || checkruntime.equalInt4Value(replacement, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (position.kind === "Value") {
+            const offset: bigint = langruntime.checkedI64(position.value);
+            if (replacement.kind === "Value") {
+                const newValue: number = langruntime.checkedI32(replacement.value);
+                const length: number = byteaPayloadLength(value);
+                const wideLength: bigint = BigInt(langruntime.checkedI32(length));
+                const bitLength: bigint = langruntime.checkedI64Multiply(wideLength, 8n);
+                if (offset < 0n || offset >= bitLength) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(byteaArraySubscriptError) };
+                }
+                if (!(newValue === 0) && !(newValue === 1)) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(sqlstateInvalidParameterValue) };
+                }
+                const wideByte: bigint = langruntime.checkedI64Divide(offset, 8n);
+                const bytePosition: number = Number(BigInt.asIntN(32, langruntime.checkedI64(wideByte)));
+                const wideBit: bigint = langruntime.checkedI64Remainder(offset, 8n);
+                const bitPosition: number = Number(BigInt.asIntN(32, langruntime.checkedI64(wideBit)));
+                const byte: number = byteaReadByte(value, bytePosition);
+                const mask: number = byteaBitMask(bitPosition);
+                const oldBit: number = langruntime.checkedSignedRemainder((langruntime.checkedSignedDivide(byte, mask)), 2);
+                const difference: number = langruntime.checkedSignedMultiply((langruntime.checkedSignedSubtract(newValue, oldBit)), mask);
+                const newByte: number = langruntime.checkedSignedAdd(byte, difference);
+                const output: string = byteaPatchByte(value, bytePosition, newByte);
+                return { kind: "Value", value: output };
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
 function bpcharCodepointCompare(left: string, right: string): number {
     left = langruntime.checkedString(left);
     right = langruntime.checkedString(right);

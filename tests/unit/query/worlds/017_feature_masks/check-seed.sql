@@ -1013,3 +1013,47 @@ VALUES (1307, 1, NULL, NULL, -1, '\x008100', '\x0080ff', '\xff8000', '\x0080ff',
 -- name: payload_summary_null_metadata
 INSERT INTO mask_payloads (id, profile_id, packet, peer_packet, recorded_comparison, larger_packet, smaller_packet, reversed_packet, transmitted_packet, recorded_length, recorded_bits, recorded_count)
 VALUES (1308, 1, '\x0080ff', '\x008100', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: payload_patch_changes_values
+INSERT INTO payload_patches (id, profile_id, packet, byte_position, bit_position, replacement_byte, replacement_bit, recorded_byte, recorded_bit, byte_patch, bit_patch)
+VALUES (1400, 1, '\x0080ff', 1, 15, -1, 0, 128, 1, '\x00ffff', '\x0000ff');
+
+-- name: payload_patch_low_bit_first
+INSERT INTO payload_patches (id, profile_id, packet, byte_position, bit_position, replacement_byte, replacement_bit, recorded_byte, recorded_bit, byte_patch, bit_patch)
+VALUES (1401, 1, '\x8001', 1, 8, 256, 0, 1, 1, '\x8000', '\x8000');
+
+-- name: payload_patch_sets_high_bit
+INSERT INTO payload_patches (id, profile_id, packet, byte_position, bit_position, replacement_byte, replacement_bit, recorded_byte, recorded_bit, byte_patch, bit_patch)
+VALUES (1402, 1, '\x0000', 0, 15, 257, 1, 0, 0, '\x0100', '\x0080');
+
+-- name: payload_patch_rejects_wrong_values
+INSERT INTO payload_patches (id, profile_id, packet, byte_position, bit_position, replacement_byte, replacement_bit, recorded_byte, recorded_bit, byte_patch, bit_patch)
+VALUES (1403, 1, '\x0080ff', 1, 15, -1, 0, 0, 0, '\x1234', '\x1234');
+
+-- name: payload_patch_rejects_negative_positions
+INSERT INTO payload_patches (id, profile_id, packet, byte_position, bit_position, replacement_byte, replacement_bit, recorded_byte, recorded_bit, byte_patch, bit_patch)
+VALUES (1404, 1, '\x0080ff', -1, -1, 0, 2, 128, 1, '\x00ffff', '\x0000ff');
+
+-- name: payload_patch_rejects_large_bit_position
+INSERT INTO payload_patches (id, profile_id, packet, byte_position, bit_position, replacement_byte, replacement_bit, recorded_byte, recorded_bit, byte_patch, bit_patch)
+VALUES (1405, 1, '\x0080ff', 1, 2147483648, -1, 0, 128, 1, '\x00ffff', '\x0000ff');
+
+-- name: payload_patch_rejects_invalid_bit
+INSERT INTO payload_patches (id, profile_id, packet, byte_position, bit_position, replacement_byte, replacement_bit, recorded_byte, recorded_bit, byte_patch, bit_patch)
+VALUES (1406, 1, '\x0080ff', 1, 15, -1, 2, 128, 1, '\x00ffff', '\x0000ff');
+
+-- name: payload_patch_null_packet
+INSERT INTO payload_patches (id, profile_id, packet, byte_position, bit_position, replacement_byte, replacement_bit, recorded_byte, recorded_bit, byte_patch, bit_patch)
+VALUES (1407, 1, NULL, 1, 15, -1, 0, 128, 1, '\x00ffff', '\x0000ff');
+
+-- name: payload_patch_null_positions
+INSERT INTO payload_patches (id, profile_id, packet, byte_position, bit_position, replacement_byte, replacement_bit, recorded_byte, recorded_bit, byte_patch, bit_patch)
+VALUES (1408, 1, '\x0080ff', NULL, NULL, -1, 0, 128, 1, '\x00ffff', '\x0000ff');
+
+-- name: payload_patch_null_expected
+INSERT INTO payload_patches (id, profile_id, packet, byte_position, bit_position, replacement_byte, replacement_bit, recorded_byte, recorded_bit, byte_patch, bit_patch)
+VALUES (1409, 1, '\x0080ff', 1, 15, -1, 0, NULL, NULL, NULL, NULL);
+
+-- name: payload_patch_null_replacements
+INSERT INTO payload_patches (id, profile_id, packet, byte_position, bit_position, replacement_byte, replacement_bit, recorded_byte, recorded_bit, byte_patch, bit_patch)
+VALUES (1410, 1, '\x0080ff', 1, 15, NULL, NULL, 128, 1, '\x00ffff', '\x0000ff');
