@@ -588,6 +588,26 @@ describe('world CHECK INSERT parity', () => {
       }
     }
     expect(integerFunctionConstraints).toBe(74)
+    let temporalFunctionConstraints = 0
+    for (const table of [
+      'flight_date_order',
+      'flight_timestamp_order',
+      'flight_instant_order',
+      'flight_mixed_order',
+      'flight_calendar_shift',
+      'flight_precision',
+    ]) {
+      const prefix = `world_011_flight_arrivals.${table}.`
+      const checks = [...coverage].filter(([identity]) => identity.startsWith(prefix))
+      expect(checks.length, table).toBeGreaterThan(0)
+      for (const [identity, measured] of checks) {
+        for (const kind of ['true', 'false', 'null'] as const)
+          expect(measured[kind], identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(0)
+        temporalFunctionConstraints++
+      }
+    }
+    expect(temporalFunctionConstraints).toBe(40)
     for (const name of [
       'chosen_pair',
       'chosen_stock',

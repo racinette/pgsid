@@ -127,15 +127,39 @@ describe('portable Rust CHECK dates', () => {
   const bind = (sql: string) =>
     lowerTableCheck(table, { name: 'probe', type: 'check', definition: `CHECK (${sql})` })!
       .expression
-  it('keeps cross-type comparisons and date arithmetic unsupported', () => {
-    for (const sql of ["a > '2000-01-01'::timestamp", 'a + 1 > b']) {
+  it('binds date arithmetic and comparisons with local timestamps', () => {
+    for (const sql of [
+      "a > '2000-01-01'::timestamp",
+      'a + 1 > b',
+      'a::timestamp >= b::timestamp',
+    ]) {
+      const expression = bind(sql)
+      expect(expression.kind, sql).not.toBe('uncertain')
       const group = prepareCheckRustGroup([
         {
-          expression: bind(sql),
+          expression,
           identity: { schema: 'public', kind: 'table', owner: table.name, constraint: 'probe' },
         },
       ])
-      expect(group.checks[0]!.kind === 'unsupported' || bind(sql).kind === 'uncertain').toBe(true)
+      expect(group.checks[0]!.kind, sql).toBe('supported')
+    }
+  })
+  it('defers session-dependent timestamps and unrepresented interval arithmetic', () => {
+    for (const sql of [
+      "a > '2000-01-01+00'::timestamptz",
+      'a::timestamptz IS NOT NULL',
+      "a + interval '1 day' > b",
+    ]) {
+      const expression = bind(sql)
+      const group = prepareCheckRustGroup([
+        {
+          expression,
+          identity: { schema: 'public', kind: 'table', owner: table.name, constraint: 'probe' },
+        },
+      ])
+      expect(group.checks[0]!.kind === 'unsupported' || expression.kind === 'uncertain', sql).toBe(
+        true,
+      )
     }
   })
   it('matches the PostgreSQL epoch, range, BC years, and infinity representation', () => {

@@ -8771,6 +8771,1038 @@ func Int42div0fx0(left checkruntime.Int4Value, right checkruntime.Int2Value) che
 	rightWide := checkruntime.Int2ToInt4(right)
 	return Int4div8ogr(left, rightWide)
 }
+
+const temporalRangeError = 3452552
+
+func DateBvna(left checkruntime.TimestampValue) checkruntime.DateValue {
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.DateValue{Kind: checkruntime.DateValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if leftValue == int64(-9223372036854775808) {
+			return checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1)}
+		}
+		if leftValue == int64(9223372036854775807) {
+			return checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: 2147483647}
+		}
+		days := langruntime.CheckedI64Divide(leftValue, int64(86400000000))
+		if leftValue < int64(0) && langruntime.CheckedI64Remainder(leftValue, int64(86400000000)) != int64(0) {
+			days = langruntime.CheckedI64Subtract(days, int64(1))
+		}
+		return checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: int(int32(days))}
+	}
+	return checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
+}
+func DateMiF4wh(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			if leftValue == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) || leftValue == 2147483647 || rightValue == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) || rightValue == 2147483647 {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(temporalRangeError)}
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(leftValue, rightValue)}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func DateMiiL50u(left checkruntime.DateValue, right checkruntime.Int4Value) checkruntime.DateValue {
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int4ValueError {
+		error := right.Error
+		return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.DateValue{Kind: checkruntime.DateValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.Int4ValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			if leftValue == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) || leftValue == 2147483647 {
+				return checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: leftValue}
+			}
+			result := langruntime.CheckedI64Subtract((int64(langruntime.CheckedI32(leftValue))), (int64(langruntime.CheckedI32(rightValue))))
+			if result < int64(-2451545) || result >= int64(2145031949) {
+				return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: checkruntime.MakeSqlError(temporalRangeError)}
+			}
+			return checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: int(int32(result))}
+		}
+	}
+	return checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
+}
+func DatePliPxlb(left checkruntime.DateValue, right checkruntime.Int4Value) checkruntime.DateValue {
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int4ValueError {
+		error := right.Error
+		return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.DateValue{Kind: checkruntime.DateValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.Int4ValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			if leftValue == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) || leftValue == 2147483647 {
+				return checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: leftValue}
+			}
+			result := langruntime.CheckedI64Add((int64(langruntime.CheckedI32(leftValue))), (int64(langruntime.CheckedI32(rightValue))))
+			if result < int64(-2451545) || result >= int64(2145031949) {
+				return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: checkruntime.MakeSqlError(temporalRangeError)}
+			}
+			return checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: int(int32(result))}
+		}
+	}
+	return checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
+}
+func IntegerPlDateFjuj(left checkruntime.Int4Value, right checkruntime.DateValue) checkruntime.DateValue {
+	if left.Kind == checkruntime.Int4ValueError {
+		error := left.Error
+		return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: error}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
+	}
+	if left == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.DateValue{Kind: checkruntime.DateValueNull}
+	}
+	if left.Kind == checkruntime.Int4ValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			if rightValue == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) || rightValue == 2147483647 {
+				return checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: rightValue}
+			}
+			result := langruntime.CheckedI64Add((int64(langruntime.CheckedI32(rightValue))), (int64(langruntime.CheckedI32(leftValue))))
+			if result < int64(-2451545) || result >= int64(2145031949) {
+				return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: checkruntime.MakeSqlError(temporalRangeError)}
+			}
+			return checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: int(int32(result))}
+		}
+	}
+	return checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
+}
+func TimestampSwxj(left checkruntime.DateValue) checkruntime.TimestampValue {
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if leftValue == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) {
+			return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: int64(-9223372036854775808)}
+		}
+		if leftValue == 2147483647 {
+			return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: int64(9223372036854775807)}
+		}
+		if leftValue >= 106751983 {
+			return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: checkruntime.MakeSqlError(temporalRangeError)}
+		}
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(leftValue))), int64(86400000000))}
+	}
+	return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+}
+func temporalCompare(left int64, right int64) int {
+	if left < right {
+		return langruntime.CheckedSignedNegate(1)
+	}
+	if left > right {
+		return 1
+	}
+	return 0
+}
+func temporalDateTimestampOrder(date int, timestamp int64) int {
+	date = langruntime.CheckedI32(date)
+	if date == langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) {
+		return temporalCompare(int64(-9223372036854775808), timestamp)
+	}
+	if date == 2147483647 {
+		return temporalCompare(int64(9223372036854775807), timestamp)
+	}
+	if date >= 106751983 {
+		if timestamp == int64(9223372036854775807) {
+			return langruntime.CheckedSignedNegate(1)
+		}
+		return 1
+	}
+	return temporalCompare(langruntime.CheckedI64Multiply((int64(langruntime.CheckedI32(date))), int64(86400000000)), timestamp)
+}
+func DateCmpTimestampPpmh(left checkruntime.DateValue, right checkruntime.TimestampValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestampValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.TimestampValueValue {
+			rightValue := right.Value
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: temporalDateTimestampOrder(leftValue, rightValue)}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func DateEqTimestamp6d24(left checkruntime.DateValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestampValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.TimestampValueValue {
+			rightValue := right.Value
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: temporalDateTimestampOrder(leftValue, rightValue) == 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func DateGeTimestampDx1w(left checkruntime.DateValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestampValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.TimestampValueValue {
+			rightValue := right.Value
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: temporalDateTimestampOrder(leftValue, rightValue) >= 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func DateGtTimestamp0703(left checkruntime.DateValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestampValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.TimestampValueValue {
+			rightValue := right.Value
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: temporalDateTimestampOrder(leftValue, rightValue) > 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func DateLeTimestampQ2yz(left checkruntime.DateValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestampValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.TimestampValueValue {
+			rightValue := right.Value
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: temporalDateTimestampOrder(leftValue, rightValue) <= 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func DateLtTimestampJqrs(left checkruntime.DateValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestampValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.TimestampValueValue {
+			rightValue := right.Value
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: temporalDateTimestampOrder(leftValue, rightValue) < 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func DateNeTimestampM0cz(left checkruntime.DateValue, right checkruntime.TimestampValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestampValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.TimestampValueValue {
+			rightValue := right.Value
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: temporalDateTimestampOrder(leftValue, rightValue) != 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TimestampCmpDateRsh8(left checkruntime.TimestampValue, right checkruntime.DateValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(0, temporalDateTimestampOrder(rightValue, leftValue))}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func TimestampEqDate7q7f(left checkruntime.TimestampValue, right checkruntime.DateValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: langruntime.CheckedSignedSubtract(0, temporalDateTimestampOrder(rightValue, leftValue)) == 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TimestampGeDate6d0e(left checkruntime.TimestampValue, right checkruntime.DateValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: langruntime.CheckedSignedSubtract(0, temporalDateTimestampOrder(rightValue, leftValue)) >= 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TimestampGtDatePh8t(left checkruntime.TimestampValue, right checkruntime.DateValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: langruntime.CheckedSignedSubtract(0, temporalDateTimestampOrder(rightValue, leftValue)) > 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TimestampLeDateSshx(left checkruntime.TimestampValue, right checkruntime.DateValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: langruntime.CheckedSignedSubtract(0, temporalDateTimestampOrder(rightValue, leftValue)) <= 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TimestampLtDate8wsq(left checkruntime.TimestampValue, right checkruntime.DateValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: langruntime.CheckedSignedSubtract(0, temporalDateTimestampOrder(rightValue, leftValue)) < 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TimestampNeDateBxi2(left checkruntime.TimestampValue, right checkruntime.DateValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: langruntime.CheckedSignedSubtract(0, temporalDateTimestampOrder(rightValue, leftValue)) != 0}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+
+const temporalPrecisionError = 3452619
+
+func temporalAdjustPrecision(value int64, precision int) checkruntime.Int8Value {
+	precision = langruntime.CheckedI32(precision)
+	if value == int64(-9223372036854775808) || value == int64(9223372036854775807) || precision == langruntime.CheckedSignedNegate(1) || precision == 6 {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: value}
+	}
+	if precision < 0 || precision > 6 {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(temporalPrecisionError)}
+	}
+	scale := int64(1000000)
+	index := 0
+	for index < precision {
+		scale = langruntime.CheckedI64Divide(scale, int64(10))
+		index = langruntime.CheckedI32(langruntime.CheckedSignedAdd(index, 1))
+	}
+	offset := langruntime.CheckedI64Divide(scale, int64(2))
+	if value < int64(0) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: langruntime.CheckedI64Subtract(int64(0), langruntime.CheckedI64Multiply((langruntime.CheckedI64Divide((langruntime.CheckedI64Add((langruntime.CheckedI64Subtract(int64(0), value)), offset)), scale)), scale))}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: langruntime.CheckedI64Multiply((langruntime.CheckedI64Divide((langruntime.CheckedI64Add(value, offset)), scale)), scale)}
+}
+func TimestampAkly(left checkruntime.TimestampValue, right checkruntime.Int4Value) checkruntime.TimestampValue {
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int4ValueError {
+		error := right.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.Int4ValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			result := temporalAdjustPrecision(leftValue, rightValue)
+			if result.Kind == checkruntime.Int8ValueError {
+				error := result.Error
+				return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+			}
+			if result.Kind == checkruntime.Int8ValueValue {
+				value := result.Value
+				return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: value}
+			}
+		}
+	}
+	return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+}
+func TimestamptzUwsx(left checkruntime.TimestamptzValue, right checkruntime.Int4Value) checkruntime.TimestamptzValue {
+	if left.Kind == checkruntime.TimestamptzValueError {
+		error := left.Error
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int4ValueError {
+		error := right.Error
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	if left == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
+	}
+	if left == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}) || right == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}
+	}
+	if left.Kind == checkruntime.TimestamptzValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.Int4ValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			result := temporalAdjustPrecision(leftValue, rightValue)
+			if result.Kind == checkruntime.Int8ValueError {
+				error := result.Error
+				return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+			}
+			if result.Kind == checkruntime.Int8ValueValue {
+				value := result.Value
+				return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueValue, Value: value}
+			}
+		}
+	}
+	return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
+}
+func DateCmpU18z(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: temporalCompare(int64(langruntime.CheckedI32(leftValue)), int64(langruntime.CheckedI32(rightValue)))}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func DateLargerXxhy(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.DateValue {
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.DateValue{Kind: checkruntime.DateValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			if leftValue > rightValue {
+				return checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: leftValue}
+			}
+			return checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: rightValue}
+		}
+	}
+	return checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
+}
+func DateSmallerE286(left checkruntime.DateValue, right checkruntime.DateValue) checkruntime.DateValue {
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: error}
+	}
+	if right.Kind == checkruntime.DateValueError {
+		error := right.Error
+		return checkruntime.DateValue{Kind: checkruntime.DateValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.DateValue{Kind: checkruntime.DateValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.DateValueValue {
+			rightValue := langruntime.CheckedI32(right.Value)
+			if leftValue < rightValue {
+				return checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: leftValue}
+			}
+			return checkruntime.DateValue{Kind: checkruntime.DateValueValue, Value: rightValue}
+		}
+	}
+	return checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}
+}
+func HashdateKnfp(left checkruntime.DateValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		return Hashint4Zr00(checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: leftValue})
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func Hashdateextended863n(left checkruntime.DateValue, right checkruntime.Int8Value) checkruntime.Int8Value {
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int8ValueError {
+		error := right.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		if right.Kind == checkruntime.Int8ValueValue {
+			rightValue := right.Value
+			return Hashint4extendedXf6v(checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: leftValue}, checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: rightValue})
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func Isfinite2dqo(left checkruntime.DateValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.DateValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.DateValue{Kind: checkruntime.DateValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.DateValueValue {
+		leftValue := langruntime.CheckedI32(left.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue != langruntime.CheckedSignedSubtract(langruntime.CheckedSignedNegate(2147483647), 1) && leftValue != 2147483647}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func IsfiniteCdmf(left checkruntime.TimestamptzValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.TimestamptzValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TimestamptzValueValue {
+		leftValue := left.Value
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue != int64(-9223372036854775808) && leftValue != int64(9223372036854775807)}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Isfinite4zxx(left checkruntime.TimestampValue) checkruntime.BoolValue {
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: leftValue != int64(-9223372036854775808) && leftValue != int64(9223372036854775807)}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func TimestampCmpLpkm(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestampValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.TimestampValueValue {
+			rightValue := right.Value
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: temporalCompare(leftValue, rightValue)}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func TimestampHash71nv(left checkruntime.TimestampValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		return Hashint83wid(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: leftValue})
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func TimestampHashExtendedXc4h(left checkruntime.TimestampValue, right checkruntime.Int8Value) checkruntime.Int8Value {
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int8ValueError {
+		error := right.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.Int8ValueValue {
+			rightValue := right.Value
+			return Hashint8extendedFrvh(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: leftValue}, checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: rightValue})
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func TimestampLargerUtuv(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.TimestampValue {
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestampValueError {
+		error := right.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.TimestampValueValue {
+			rightValue := right.Value
+			if leftValue > rightValue {
+				return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: leftValue}
+			}
+			return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: rightValue}
+		}
+	}
+	return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+}
+func TimestampSmaller5aln(left checkruntime.TimestampValue, right checkruntime.TimestampValue) checkruntime.TimestampValue {
+	if left.Kind == checkruntime.TimestampValueError {
+		error := left.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestampValueError {
+		error := right.Error
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueError, Error: error}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+	}
+	if left == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) || right == (checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}) {
+		return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueNull}
+	}
+	if left.Kind == checkruntime.TimestampValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.TimestampValueValue {
+			rightValue := right.Value
+			if leftValue < rightValue {
+				return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: leftValue}
+			}
+			return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueValue, Value: rightValue}
+		}
+	}
+	return checkruntime.TimestampValue{Kind: checkruntime.TimestampValueUnknown}
+}
+func TimestamptzCmpCa0r(left checkruntime.TimestamptzValue, right checkruntime.TimestamptzValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.TimestamptzValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestamptzValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}) || right == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}) || right == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.TimestamptzValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.TimestamptzValueValue {
+			rightValue := right.Value
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: temporalCompare(leftValue, rightValue)}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func TimestamptzHashUsaa(left checkruntime.TimestamptzValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.TimestamptzValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.TimestamptzValueValue {
+		leftValue := left.Value
+		return Hashint83wid(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: leftValue})
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func TimestamptzHashExtendedVeri(left checkruntime.TimestamptzValue, right checkruntime.Int8Value) checkruntime.Int8Value {
+	if left.Kind == checkruntime.TimestamptzValueError {
+		error := left.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.Int8ValueError {
+		error := right.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if left == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if left == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}) || right == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if left.Kind == checkruntime.TimestamptzValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.Int8ValueValue {
+			rightValue := right.Value
+			return Hashint8extendedFrvh(checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: leftValue}, checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: rightValue})
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func TimestamptzLarger63cv(left checkruntime.TimestamptzValue, right checkruntime.TimestamptzValue) checkruntime.TimestamptzValue {
+	if left.Kind == checkruntime.TimestamptzValueError {
+		error := left.Error
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestamptzValueError {
+		error := right.Error
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	if left == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}) || right == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}) {
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
+	}
+	if left == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}) || right == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}) {
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}
+	}
+	if left.Kind == checkruntime.TimestamptzValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.TimestamptzValueValue {
+			rightValue := right.Value
+			if leftValue > rightValue {
+				return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueValue, Value: leftValue}
+			}
+			return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueValue, Value: rightValue}
+		}
+	}
+	return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
+}
+func TimestamptzSmallerLbk9(left checkruntime.TimestamptzValue, right checkruntime.TimestamptzValue) checkruntime.TimestamptzValue {
+	if left.Kind == checkruntime.TimestamptzValueError {
+		error := left.Error
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	if right.Kind == checkruntime.TimestamptzValueError {
+		error := right.Error
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueError, Error: error}
+	}
+	if left == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}) || right == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}) {
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
+	}
+	if left == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}) || right == (checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}) {
+		return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueNull}
+	}
+	if left.Kind == checkruntime.TimestamptzValueValue {
+		leftValue := left.Value
+		if right.Kind == checkruntime.TimestamptzValueValue {
+			rightValue := right.Value
+			if leftValue < rightValue {
+				return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueValue, Value: leftValue}
+			}
+			return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueValue, Value: rightValue}
+		}
+	}
+	return checkruntime.TimestamptzValue{Kind: checkruntime.TimestamptzValueUnknown}
+}
 func textHasPrefix(text string, prefix string) bool {
 	text = langruntime.CheckedString(text)
 	prefix = langruntime.CheckedString(prefix)
