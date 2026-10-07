@@ -3262,6 +3262,34 @@ export function bpcharneQkuu(left: checkruntime.TextValue, right: checkruntime.T
     }
     return { kind: "Unknown" };
 }
+export function textVc4r(input: checkruntime.TextValue): checkruntime.TextValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(value);
+        let end: number = chars.length;
+        while (end > 0 && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedSubtract(end, 1))) === " ") {
+            end = langruntime.checkedIndex(langruntime.checkedSubtract(end, 1));
+        }
+        let output: string = "";
+        let index: number = 0;
+        while (index < end) {
+            output = output + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
 export function makeDateZ9pv(year: checkruntime.Int4Value, month: checkruntime.Int4Value, day: checkruntime.Int4Value): checkruntime.DateValue {
     if (year.kind === "Error") {
         const error: checkruntime.SqlError = year.value;
@@ -6377,6 +6405,28 @@ export function textGeT8pg(left: checkruntime.TextValue, right: checkruntime.Tex
             const rightValue: string = langruntime.checkedString(right.value);
             return { kind: "Value", value: textCodepointBefore(rightValue, leftValue) || leftValue === rightValue };
         }
+    }
+    return { kind: "Unknown" };
+}
+export function ascii7m47(input: checkruntime.TextValue): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(value);
+        if (chars.length === 0) {
+            return { kind: "Value", value: 0 };
+        }
+        const code: number = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(0))).codePointAt(0)!;
+        return { kind: "Value", value: code };
     }
     return { kind: "Unknown" };
 }

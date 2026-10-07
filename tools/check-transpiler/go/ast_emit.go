@@ -206,6 +206,9 @@ func (g *generator) goExpression(value *node) ast.Expr {
 	case "cast":
 		switch path(value.TargetType) {
 		case "i32":
+			if path(g.inferType(value.Value)) == "char" {
+				return goCall("int", goCall("checkedChar", g.goExpression(value.Value)))
+			}
 			return goCall("int", goCall("int32", g.goExpression(value.Value)))
 		case "i64":
 			return goCall("int64", goCall("checkedI32", g.goExpression(value.Value)))

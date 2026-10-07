@@ -41,6 +41,8 @@ change to the regex transpiler unless the regex engine itself changes.
   remain rejected because target string lengths measure different units.
   Clone-only wrappers require scalar or Copy payloads. Explicit `clone()` on
   immutable text/wrappers has value semantics; keep aggregate vector copying.
+  Unicode scalars cast to `u32` or `i32` without truncation. Other character casts
+  remain rejected. The ASCII CHECK and code-point suite exercise signed conversion.
   Never append through a wrapper field. The network host and binary-send CHECKs
   exercise builders, and `check-owned-text.test.ts` covers Unicode and rejection.
 - Payload enum tests accept a single immutable identifier binding or `_`.

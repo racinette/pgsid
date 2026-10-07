@@ -1132,6 +1132,7 @@ describe('world CHECK INSERT parity', () => {
         ],
       ],
       ['payload_hashes', ['digest_hash', 'digest_seeded', 'digest_crc', 'digest_crc_c']],
+      ['payload_labels', ['label_code', 'label_varchar_code', 'label_fixed_code', 'label_trimmed']],
     ] as const) {
       for (const name of names) {
         const identity = `world_017_feature_masks.${table}.${name}`
