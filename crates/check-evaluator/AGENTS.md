@@ -43,16 +43,16 @@ import them. Keep schema-only helpers with their callables.
   already SQL-coerced. Raw bounded varchar and char query parameters defer until
   assignment coercion is modeled. Char-to-text removes only trailing ASCII spaces;
   length-changing casts require separate conversion semantics.
-- The operation parity command discovers the immutable, strict
-  `int4 × int4 → bool`, `int8 × int8 → bool`, mixed `int4`/`int8` comparisons,
-  `bool × bool → bool`, and `text × text → bool`
-  implementations in the operation sources, including `starts_with`, plus
-  `int2 × int2 → int2` and `int2 → int2` arithmetic, `int4 × int4 → int4`
-  and `int4 → int4` arithmetic, mixed int2/int4 arithmetic returning int4,
-  and `text → int4`, and integer casts from int2 to int4/int8 and from int4
-  to int2/int8, plus int8 to int2/int4, and bigint arithmetic, unary
-  signs, absolute value, and mixed int2/int4-to-int8 arithmetic.
-  It tests these automatically.
+- The operation parity command discovers comparisons, arithmetic and casts
+  in selected sources. The integer-functions suite discovers catalog identities
+  in the integer support, bitwise, hash, range, formatting and metadata sources.
+  Run `tests/sql-semantics/check-integer-functions.test.ts` and the package-capacity world.
+- Integer comparators return signed unit ordering except btint2cmp's full i32
+  difference. Selection chooses the second on ties. Strict Boolean state calls
+  preserve NULL despite decisive values. Bitwise helpers use bounded limbs;
+  smallint/int4 shifts mask counts to five bits, bigint to six, including negatives.
+  Right shifts extend signs; smallint left shifts promote before narrowing.
+  Hashes retain signed bigint folding; radix output uses the original unsigned width.
 - Int2 payloads use the existing i32 primitive, restricted to the PostgreSQL
   smallint range. Public inputs are already SQL-coerced; out-of-range values
   defer. Mixed comparisons widen in Rust before using int4 or int8 comparisons.

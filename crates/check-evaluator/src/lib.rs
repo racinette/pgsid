@@ -70,6 +70,12 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/integer.rs");
     include!("operations/pg_catalog/smallint.rs");
     include!("operations/pg_catalog/integer_cast.rs");
+    include!("operations/pg_catalog/integer_support.rs");
+    include!("operations/pg_catalog/integer_hash.rs");
+    include!("operations/pg_catalog/integer_bitwise.rs");
+    include!("operations/pg_catalog/integer_range.rs");
+    include!("operations/pg_catalog/integer_format.rs");
+    include!("operations/pg_catalog/integer_metadata.rs");
     include!("operations/pg_catalog/bigint.rs");
     include!("operations/pg_catalog/bigint_arithmetic.rs");
     include!("operations/pg_catalog/text.rs");

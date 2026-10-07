@@ -934,3 +934,135 @@ INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, us
 
 -- name: chosen_package_error_before_null
 INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (2, 32767, 3, 5, true, false, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: stock_comparisons_positive
+INSERT INTO stock_count_comparisons (id, small_count, ordinary_count, bulk_count, small_baseline, ordinary_baseline, bulk_baseline, small_difference, recorded_order, largest_small, smallest_small, largest_ordinary, smallest_ordinary, largest_bulk, smallest_bulk)
+VALUES (2, 7, 7, 7, 3, 3, 3, 4, 1, 7, 3, 7, 3, 7, 3);
+
+-- name: stock_comparisons_incorrect_records
+INSERT INTO stock_count_comparisons (id, small_count, ordinary_count, bulk_count, small_baseline, ordinary_baseline, bulk_baseline, small_difference, recorded_order, largest_small, smallest_small, largest_ordinary, smallest_ordinary, largest_bulk, smallest_bulk)
+VALUES (2, 7, 7, 7, 3, 3, 3, 0, 0, 0, 0, 0, 0, 0, 0);
+
+-- name: stock_comparisons_null_counts
+INSERT INTO stock_count_comparisons (id, small_count, ordinary_count, bulk_count, small_baseline, ordinary_baseline, bulk_baseline, small_difference, recorded_order, largest_small, smallest_small, largest_ordinary, smallest_ordinary, largest_bulk, smallest_bulk)
+VALUES (2, NULL, NULL, NULL, 3, 3, 3, 4, 1, 7, 3, 7, 3, 7, 3);
+
+-- name: stock_comparisons_small_full_difference
+INSERT INTO stock_count_comparisons (id, small_count, ordinary_count, bulk_count, small_baseline, ordinary_baseline, bulk_baseline, small_difference, recorded_order, largest_small, smallest_small, largest_ordinary, smallest_ordinary, largest_bulk, smallest_bulk)
+VALUES (2, -32768, -2147483648, -9223372036854775808, 32767, 2147483647, 9223372036854775807, -65535, -1, 32767, -32768, 2147483647, -2147483648, 9223372036854775807, -9223372036854775808);
+
+-- name: stock_masks_positive
+INSERT INTO stock_integer_masks (id, small_bits, ordinary_bits, bulk_bits, small_mask, ordinary_mask, bulk_mask, shift_distance, small_intersection, ordinary_intersection, bulk_intersection, small_union, ordinary_union, bulk_union, small_difference, ordinary_difference, bulk_difference, small_complement, ordinary_complement, bulk_complement, small_shift_left, ordinary_shift_left, bulk_shift_left, small_shift_right, ordinary_shift_right, bulk_shift_right)
+VALUES (2, 7, 7, 7, 3, 3, 3, 2, 3, 3, 3, 7, 7, 7, 4, 4, 4, -8, -8, -8, 28, 28, 28, 1, 1, 1);
+
+-- name: stock_masks_incorrect_records
+INSERT INTO stock_integer_masks (id, small_bits, ordinary_bits, bulk_bits, small_mask, ordinary_mask, bulk_mask, shift_distance, small_intersection, ordinary_intersection, bulk_intersection, small_union, ordinary_union, bulk_union, small_difference, ordinary_difference, bulk_difference, small_complement, ordinary_complement, bulk_complement, small_shift_left, ordinary_shift_left, bulk_shift_left, small_shift_right, ordinary_shift_right, bulk_shift_right)
+VALUES (2, 7, 7, 7, 3, 3, 3, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+-- name: stock_masks_null_bits
+INSERT INTO stock_integer_masks (id, small_bits, ordinary_bits, bulk_bits, small_mask, ordinary_mask, bulk_mask, shift_distance, small_intersection, ordinary_intersection, bulk_intersection, small_union, ordinary_union, bulk_union, small_difference, ordinary_difference, bulk_difference, small_complement, ordinary_complement, bulk_complement, small_shift_left, ordinary_shift_left, bulk_shift_left, small_shift_right, ordinary_shift_right, bulk_shift_right)
+VALUES (2, NULL, NULL, NULL, 3, 3, 3, 2, 3, 3, 3, 7, 7, 7, 4, 4, 4, -8, -8, -8, 28, 28, 28, 1, 1, 1);
+
+-- name: stock_masks_signed_minima
+INSERT INTO stock_integer_masks (id, small_bits, ordinary_bits, bulk_bits, small_mask, ordinary_mask, bulk_mask, shift_distance, small_intersection, ordinary_intersection, bulk_intersection, small_union, ordinary_union, bulk_union, small_difference, ordinary_difference, bulk_difference, small_complement, ordinary_complement, bulk_complement, small_shift_left, ordinary_shift_left, bulk_shift_left, small_shift_right, ordinary_shift_right, bulk_shift_right)
+VALUES (2, -32768, -2147483648, -9223372036854775808, -1, -1, -1, 1, -32768, -2147483648, -9223372036854775808, -1, -1, -1, 32767, 2147483647, 9223372036854775807, 32767, 2147483647, 9223372036854775807, 0, 0, 0, -16384, -1073741824, -4611686018427387904);
+
+-- name: stock_masks_negative_shift
+INSERT INTO stock_integer_masks (id, small_bits, ordinary_bits, bulk_bits, small_mask, ordinary_mask, bulk_mask, shift_distance, small_intersection, ordinary_intersection, bulk_intersection, small_union, ordinary_union, bulk_union, small_difference, ordinary_difference, bulk_difference, small_complement, ordinary_complement, bulk_complement, small_shift_left, ordinary_shift_left, bulk_shift_left, small_shift_right, ordinary_shift_right, bulk_shift_right)
+VALUES (2, 7, 7, 7, 3, 3, 3, -1, 3, 3, 3, 7, 7, 7, 4, 4, 4, -8, -8, -8, 0, -2147483648, -9223372036854775808, 0, 0, 0);
+
+-- name: stock_math_positive
+INSERT INTO stock_count_math (id, ordinary_count, ordinary_batch, bulk_count, bulk_batch, ordinary_divisor, bulk_divisor, ordinary_multiple, bulk_multiple, ordinary_remainder, bulk_remainder, ordinary_next, bulk_next, bulk_previous, ordinary_absolute, ordinary_positive, ordinary_negative, skip_calculation)
+VALUES (2, 18, 12, 18, 12, 6, 6, 36, 36, 6, 6, 19, 19, 17, 18, 18, -18, false);
+
+-- name: stock_math_incorrect_records
+INSERT INTO stock_count_math (id, ordinary_count, ordinary_batch, bulk_count, bulk_batch, ordinary_divisor, bulk_divisor, ordinary_multiple, bulk_multiple, ordinary_remainder, bulk_remainder, ordinary_next, bulk_next, bulk_previous, ordinary_absolute, ordinary_positive, ordinary_negative, skip_calculation)
+VALUES (2, 18, 12, 18, 12, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, false);
+
+-- name: stock_math_null_counts
+INSERT INTO stock_count_math (id, ordinary_count, ordinary_batch, bulk_count, bulk_batch, ordinary_divisor, bulk_divisor, ordinary_multiple, bulk_multiple, ordinary_remainder, bulk_remainder, ordinary_next, bulk_next, bulk_previous, ordinary_absolute, ordinary_positive, ordinary_negative, skip_calculation)
+VALUES (2, NULL, 12, NULL, 12, 6, 6, 36, 36, 6, 6, 19, 19, 17, 18, 18, -18, false);
+
+-- name: stock_math_negative_counts
+INSERT INTO stock_count_math (id, ordinary_count, ordinary_batch, bulk_count, bulk_batch, ordinary_divisor, bulk_divisor, ordinary_multiple, bulk_multiple, ordinary_remainder, bulk_remainder, ordinary_next, bulk_next, bulk_previous, ordinary_absolute, ordinary_positive, ordinary_negative, skip_calculation)
+VALUES (2, -18, 12, -18, 12, 6, 6, 36, 36, -6, -6, -17, -17, -19, 18, -18, 18, false);
+
+-- name: stock_math_overflows
+INSERT INTO stock_count_math (id, ordinary_count, ordinary_batch, bulk_count, bulk_batch, ordinary_divisor, bulk_divisor, ordinary_multiple, bulk_multiple, ordinary_remainder, bulk_remainder, ordinary_next, bulk_next, bulk_previous, ordinary_absolute, ordinary_positive, ordinary_negative, skip_calculation)
+VALUES (2, 2147483647, 2, 9223372036854775807, 2, 1, 1, 0, 0, 1, 1, 0, 0, 9223372036854775806, 2147483647, 2147483647, -2147483647, false);
+
+-- name: stock_math_zero_divisors
+INSERT INTO stock_count_math (id, ordinary_count, ordinary_batch, bulk_count, bulk_batch, ordinary_divisor, bulk_divisor, ordinary_multiple, bulk_multiple, ordinary_remainder, bulk_remainder, ordinary_next, bulk_next, bulk_previous, ordinary_absolute, ordinary_positive, ordinary_negative, skip_calculation)
+VALUES (2, 18, 0, 18, 0, 18, 18, 0, 0, 0, 0, 19, 19, 17, 18, 18, -18, false);
+
+-- name: stock_math_skips_overflows
+INSERT INTO stock_count_math (id, ordinary_count, ordinary_batch, bulk_count, bulk_batch, ordinary_divisor, bulk_divisor, ordinary_multiple, bulk_multiple, ordinary_remainder, bulk_remainder, ordinary_next, bulk_next, bulk_previous, ordinary_absolute, ordinary_positive, ordinary_negative, skip_calculation)
+VALUES (2, 2147483647, 2, 9223372036854775807, 2, 1, 1, 0, 0, 1, 1, 0, 0, 9223372036854775806, 2147483647, 2147483647, -2147483647, true);
+
+-- name: stock_windows_positive
+INSERT INTO stock_window_bounds (id, small_count, ordinary_count, bulk_count, small_baseline, ordinary_baseline, bulk_baseline, small_offset, ordinary_offset, bulk_offset, subtract_offset, preceding, inside_window)
+VALUES (2, 3, 3, 3, 5, 5, 5, 2, 2, 2, true, false, true);
+
+-- name: stock_windows_incorrect_records
+INSERT INTO stock_window_bounds (id, small_count, ordinary_count, bulk_count, small_baseline, ordinary_baseline, bulk_baseline, small_offset, ordinary_offset, bulk_offset, subtract_offset, preceding, inside_window)
+VALUES (2, 3, 3, 3, 5, 5, 5, 2, 2, 2, true, false, false);
+
+-- name: stock_windows_null_counts
+INSERT INTO stock_window_bounds (id, small_count, ordinary_count, bulk_count, small_baseline, ordinary_baseline, bulk_baseline, small_offset, ordinary_offset, bulk_offset, subtract_offset, preceding, inside_window)
+VALUES (2, NULL, NULL, NULL, 5, 5, 5, 2, 2, 2, true, false, true);
+
+-- name: stock_windows_negative_offsets
+INSERT INTO stock_window_bounds (id, small_count, ordinary_count, bulk_count, small_baseline, ordinary_baseline, bulk_baseline, small_offset, ordinary_offset, bulk_offset, subtract_offset, preceding, inside_window)
+VALUES (2, 3, 3, 3, 5, 5, 5, -1, -1, -1, true, false, true);
+
+-- name: stock_windows_overflow_boundaries
+INSERT INTO stock_window_bounds (id, small_count, ordinary_count, bulk_count, small_baseline, ordinary_baseline, bulk_baseline, small_offset, ordinary_offset, bulk_offset, subtract_offset, preceding, inside_window)
+VALUES (2, -32768, -2147483648, -9223372036854775808, 32767, 2147483647, 9223372036854775807, 32767, 2147483647, 9223372036854775807, false, false, false);
+
+-- name: stock_booleans_positive
+INSERT INTO stock_boolean_records (id, selected, permitted, numeric_flag, recorded_flag, recorded_integer, recorded_both, recorded_either, recorded_order)
+VALUES (2, true, false, 1, true, 1, false, true, 1);
+
+-- name: stock_booleans_incorrect_records
+INSERT INTO stock_boolean_records (id, selected, permitted, numeric_flag, recorded_flag, recorded_integer, recorded_both, recorded_either, recorded_order)
+VALUES (2, true, false, 1, false, 0, true, false, 0);
+
+-- name: stock_booleans_null_inputs
+INSERT INTO stock_boolean_records (id, selected, permitted, numeric_flag, recorded_flag, recorded_integer, recorded_both, recorded_either, recorded_order)
+VALUES (2, NULL, false, NULL, true, 1, false, true, 1);
+
+-- name: stock_booleans_zero_and_negative
+INSERT INTO stock_boolean_records (id, selected, permitted, numeric_flag, recorded_flag, recorded_integer, recorded_both, recorded_either, recorded_order)
+VALUES (2, false, true, -1, true, 0, false, true, -1);
+
+-- name: stock_radix_positive
+INSERT INTO stock_radix_records (id, ordinary_count, bulk_count, ordinary_binary, ordinary_octal, ordinary_hex, bulk_binary, bulk_octal, bulk_hex, display_size, encoding_number, encoding_width, comparison_kind, comparison_strategy)
+VALUES (2, 255, 255, '11111111', '377', 'ff', '11111111', '377', 'ff', '255 bytes', 6, 4, 3, 18);
+
+-- name: stock_radix_incorrect_records
+INSERT INTO stock_radix_records (id, ordinary_count, bulk_count, ordinary_binary, ordinary_octal, ordinary_hex, bulk_binary, bulk_octal, bulk_hex, display_size, encoding_number, encoding_width, comparison_kind, comparison_strategy)
+VALUES (2, 255, 255, '', '', '', '', '', '', '', 6, 0, 3, 0);
+
+-- name: stock_radix_null_inputs
+INSERT INTO stock_radix_records (id, ordinary_count, bulk_count, ordinary_binary, ordinary_octal, ordinary_hex, bulk_binary, bulk_octal, bulk_hex, display_size, encoding_number, encoding_width, comparison_kind, comparison_strategy)
+VALUES (2, NULL, NULL, '11111111', '377', 'ff', '11111111', '377', 'ff', '255 bytes', NULL, 4, NULL, 18);
+
+-- name: stock_radix_unknown_encoding_returns_null
+INSERT INTO stock_radix_records (id, ordinary_count, bulk_count, ordinary_binary, ordinary_octal, ordinary_hex, bulk_binary, bulk_octal, bulk_hex, display_size, encoding_number, encoding_width, comparison_kind, comparison_strategy)
+VALUES (2, 255, 255, '11111111', '377', 'ff', '11111111', '377', 'ff', '255 bytes', 42, 4, 3, 18);
+
+-- name: stock_radix_negative_unsigned_width
+INSERT INTO stock_radix_records (id, ordinary_count, bulk_count, ordinary_binary, ordinary_octal, ordinary_hex, bulk_binary, bulk_octal, bulk_hex, display_size, encoding_number, encoding_width, comparison_kind, comparison_strategy)
+VALUES (2, -1, -1, '11111111111111111111111111111111', '37777777777', 'ffffffff', '1111111111111111111111111111111111111111111111111111111111111111', '1777777777777777777777', 'ffffffffffffffff', '-1 bytes', 6, 4, 3, 18);
+
+-- name: stock_hash_positive
+INSERT INTO stock_hash_records (id, small_count, ordinary_count, bulk_count, selected, hash_seed, small_hash, ordinary_hash, bulk_hash, boolean_hash, small_seeded_hash, ordinary_seeded_hash, bulk_seeded_hash, boolean_seeded_hash)
+VALUES (2, 1, 1, 1, true, 0, -1905060026, -1905060026, -1905060026, -1905060026, -3670598878359251130, -3670598878359251130, -3670598878359251130, -3670598878359251130);
+
+-- name: stock_hash_incorrect_records
+INSERT INTO stock_hash_records (id, small_count, ordinary_count, bulk_count, selected, hash_seed, small_hash, ordinary_hash, bulk_hash, boolean_hash, small_seeded_hash, ordinary_seeded_hash, bulk_seeded_hash, boolean_seeded_hash)
+VALUES (2, 1, 1, 1, true, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+-- name: stock_hash_null_inputs
+INSERT INTO stock_hash_records (id, small_count, ordinary_count, bulk_count, selected, hash_seed, small_hash, ordinary_hash, bulk_hash, boolean_hash, small_seeded_hash, ordinary_seeded_hash, bulk_seeded_hash, boolean_seeded_hash)
+VALUES (2, NULL, NULL, NULL, NULL, 0, -1905060026, -1905060026, -1905060026, -1905060026, -3670598878359251130, -3670598878359251130, -3670598878359251130, -3670598878359251130);
