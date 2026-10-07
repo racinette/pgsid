@@ -179,3 +179,24 @@ CREATE TABLE mask_windows (
   CONSTRAINT window_selected CHECK ((CASE WHEN use_original THEN original_mask ELSE substring(original_mask FROM start_position FOR window_length) END) = recorded_window),
   CONSTRAINT window_default CHECK (COALESCE(default_window,substring(original_mask FROM start_position FOR window_length)) = recorded_window)
 );
+
+CREATE TABLE mask_overlays (
+  id integer PRIMARY KEY,
+  profile_id integer NOT NULL REFERENCES mask_profiles(id),
+  original_mask installed_mask,
+  flexible_mask device_request,
+  replacement_mask bit varying,
+  start_position integer,
+  replacement_length integer,
+  recorded_overlay bit varying,
+  recorded_default_overlay bit varying,
+  default_mask bit varying,
+  use_original boolean,
+  CONSTRAINT overlay_fixed CHECK (CASE WHEN use_original THEN true ELSE overlay(original_mask PLACING replacement_mask FROM start_position FOR replacement_length) = recorded_overlay END),
+  CONSTRAINT overlay_flexible CHECK (CASE WHEN use_original THEN true ELSE overlay(flexible_mask PLACING replacement_mask FROM start_position FOR replacement_length) = recorded_overlay END),
+  CONSTRAINT overlay_direct CHECK (CASE WHEN use_original THEN true ELSE pg_catalog.overlay(original_mask,replacement_mask,start_position,replacement_length) = recorded_overlay END),
+  CONSTRAINT overlay_omitted CHECK (CASE WHEN use_original THEN true ELSE overlay(original_mask PLACING replacement_mask FROM start_position) = recorded_default_overlay END),
+  CONSTRAINT overlay_flexible_omitted CHECK (CASE WHEN use_original THEN true ELSE overlay(flexible_mask PLACING replacement_mask FROM start_position) = recorded_default_overlay END),
+  CONSTRAINT overlay_selected CHECK ((CASE WHEN use_original THEN original_mask ELSE overlay(original_mask PLACING replacement_mask FROM start_position FOR replacement_length) END) = recorded_overlay),
+  CONSTRAINT overlay_default CHECK (COALESCE(default_mask,overlay(original_mask PLACING replacement_mask FROM start_position FOR replacement_length)) = recorded_overlay)
+);

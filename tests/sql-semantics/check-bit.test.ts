@@ -270,9 +270,9 @@ describe('Rust CHECK bit and varbit values', () => {
     const expression = lowerTableCheck(
       table,
       {
-        name: 'overlay',
+        name: 'position',
         type: 'check',
-        definition: 'CHECK (overlay(a PLACING b FROM 1 FOR 1) = a)',
+        definition: 'CHECK (position(b IN a) > 0)',
       },
       [],
       catalog.domains,
@@ -284,7 +284,7 @@ describe('Rust CHECK bit and varbit values', () => {
           schema: 'public',
           kind: 'table',
           owner: table.name,
-          constraint: 'overlay',
+          constraint: 'position',
         },
       },
     ])

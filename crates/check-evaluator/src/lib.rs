@@ -45,6 +45,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/bit_integer.rs");
     include!("operations/pg_catalog/bit_edit.rs");
     include!("operations/pg_catalog/bit_substring.rs");
+    include!("operations/pg_catalog/bit_overlay.rs");
     include!("operations/pg_catalog/integer.rs");
     include!("operations/pg_catalog/smallint.rs");
     include!("operations/pg_catalog/integer_cast.rs");

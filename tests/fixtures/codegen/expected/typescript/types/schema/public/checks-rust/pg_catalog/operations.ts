@@ -1568,6 +1568,62 @@ export function int809r6(input: checkruntime.BitValue): checkruntime.Int8Value {
     }
     return { kind: "Unknown" };
 }
+function bitOverlay(input: checkruntime.BitValue, replacement: checkruntime.BitValue, position: checkruntime.Int4Value, length: checkruntime.Int4Value, hasLength: boolean): checkruntime.BitValue {
+    hasLength = langruntime.checkedBool(hasLength);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (replacement.kind === "Error") {
+        const error: checkruntime.SqlError = replacement.value;
+        return { kind: "Error", value: error };
+    }
+    if (position.kind === "Error") {
+        const error: checkruntime.SqlError = position.value;
+        return { kind: "Error", value: error };
+    }
+    if (length.kind === "Error") {
+        const error: checkruntime.SqlError = length.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Unknown" }) || checkruntime.equalBitValue(replacement, { kind: "Unknown" }) || checkruntime.equalInt4Value(position, { kind: "Unknown" }) || checkruntime.equalInt4Value(length, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Null" }) || checkruntime.equalBitValue(replacement, { kind: "Null" }) || checkruntime.equalInt4Value(position, { kind: "Null" }) || checkruntime.equalInt4Value(length, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (replacement.kind === "Value") {
+        const bits: string = langruntime.checkedString(replacement.value);
+        if (position.kind === "Value") {
+            const start: number = langruntime.checkedI32(position.value);
+            if (length.kind === "Value") {
+                const supplied: number = langruntime.checkedI32(length.value);
+                if (start <= 0) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(bitSubstringError) };
+                }
+                let count: number = supplied;
+                if (hasLength === false) {
+                    count = langruntime.checkedI32(checkruntime.bitPayloadLength(bits));
+                }
+                if (count > 0 && start > langruntime.checkedSignedSubtract(2147483647, count)) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(sqlstateNumericValueOutOfRange) };
+                }
+                const end: number = langruntime.checkedSignedAdd(start, count);
+                const prefix: checkruntime.BitValue = bitSubstring(input, { kind: "Value", value: 1 }, { kind: "Value", value: langruntime.checkedSignedSubtract(start, 1) }, true);
+                const suffix: checkruntime.BitValue = bitSubstring(input, { kind: "Value", value: end }, { kind: "Value", value: 0 }, false);
+                const combined: checkruntime.BitValue = bitcatT5mn(prefix, { kind: "Value", value: bits });
+                return bitcatT5mn(combined, suffix);
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function overlayDac4(input: checkruntime.BitValue, replacement: checkruntime.BitValue, position: checkruntime.Int4Value): checkruntime.BitValue {
+    return bitOverlay(input, replacement, position, { kind: "Value", value: 0 }, false);
+}
+export function overlayMoi0(input: checkruntime.BitValue, replacement: checkruntime.BitValue, position: checkruntime.Int4Value, length: checkruntime.Int4Value): checkruntime.BitValue {
+    return bitOverlay(input, replacement, position, length, true);
+}
 const bitSubstringError = 3452581;
 function bitSubstring(input: checkruntime.BitValue, position: checkruntime.Int4Value, length: checkruntime.Int4Value, hasLength: boolean): checkruntime.BitValue {
     hasLength = langruntime.checkedBool(hasLength);
