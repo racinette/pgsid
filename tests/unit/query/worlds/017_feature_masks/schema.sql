@@ -112,3 +112,28 @@ CREATE TABLE mask_imports (
   CONSTRAINT import_fixed_assignment CHECK (pg_catalog."bit"(flexible_bits, assignment_width, assignment_explicit) = expected_assignment),
   CONSTRAINT import_varying_assignment CHECK (varbit(flexible_bits, assignment_width, assignment_explicit) = expected_assignment)
 );
+
+CREATE DOMAIN integer_mask_bits AS pg_catalog."bit";
+
+CREATE TABLE mask_encodings (
+  id integer PRIMARY KEY,
+  profile_id integer NOT NULL REFERENCES mask_profiles(id),
+  source_integer integer,
+  source_bigint bigint,
+  source_bits integer_mask_bits,
+  expected_integer_bits bit(8),
+  expected_bigint_bits bit(16),
+  expected_integer integer,
+  expected_bigint bigint,
+  expected_low_bit bit(1),
+  skip_decode boolean,
+  select_integer boolean,
+  CONSTRAINT encoding_integer CHECK (source_integer::bit(8) = expected_integer_bits),
+  CONSTRAINT encoding_bigint CHECK (source_bigint::bit(16) = expected_bigint_bits),
+  CONSTRAINT encoding_decode_integer CHECK (CASE WHEN skip_decode THEN true ELSE source_bits::int4 = expected_integer END),
+  CONSTRAINT encoding_decode_bigint CHECK (CASE WHEN skip_decode THEN true ELSE source_bits::int8 = expected_bigint END),
+  CONSTRAINT encoding_low_bit CHECK (source_integer::bit = expected_low_bit),
+  CONSTRAINT encoding_selected CHECK ((CASE WHEN select_integer THEN source_integer ELSE source_bits::int4 END) = expected_integer),
+  CONSTRAINT encoding_default CHECK (COALESCE(source_integer, source_bits::int4) = expected_integer),
+  CONSTRAINT encoding_direct CHECK (pg_catalog."bit"(source_bigint,16) = expected_bigint_bits)
+);

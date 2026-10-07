@@ -790,6 +790,27 @@ export function bindCatalogCheck(
           width = length
         }
         let value: EvalExpression | null = null
+        const source = boundType(operand)
+        if (isIntegerType(source)) {
+          const conversion = source ? builtinCast(source, type) : null
+          if (conversion?.method !== 'f' || !conversion.implementation) return unknown
+          const input = materialize(operand, source!)
+          if (!input) return unknown
+          return {
+            type,
+            value: {
+              kind: 'call',
+              call: { kind: 'function', signature: conversion.implementation, type },
+              operands: [
+                input,
+                {
+                  kind: 'certain',
+                  expression: { kind: 'integer', type: 'pg_catalog.int4', value: String(width) },
+                },
+              ],
+            },
+          }
+        }
         if (
           (!operand.type && operand.literal) ||
           operand.type === 'pg_catalog.text' ||
@@ -822,6 +843,23 @@ export function bindCatalogCheck(
             ],
           },
         }
+      }
+      if (
+        operand.type === 'pg_catalog."bit"' &&
+        (type === 'pg_catalog.int4' || type === 'pg_catalog.int8') &&
+        operand.value
+      ) {
+        const conversion = builtinCast(operand.type, type)
+        return conversion?.method === 'f' && conversion.implementation
+          ? {
+              type,
+              value: {
+                kind: 'call',
+                call: { kind: 'cast', signature: conversion.implementation, type },
+                operands: [operand.value],
+              },
+            }
+          : unknown
       }
       if (
         (operand.type === 'pg_catalog."bit"' || operand.type === 'pg_catalog.varbit') &&

@@ -209,9 +209,16 @@ import them. Keep schema-only helpers with their callables.
   requires an exact width (22026); varying coercion rejects excess length (22001).
   Text/varchar I/O casts parse binary and hexadecimal prefixes before explicit
   width coercion; invalid digits return 22P02. Output casts preserve every bit.
-  Raw query parameter coercion and integer casts remain deferred. Run
+  Int4/int8 casts to fixed bit keep the low bits and sign-extend wider outputs;
+  unspecified or invalid direct-call widths select one bit. Bit-to-int4/int8
+  treats shorter strings as unsigned and full-width strings as two's complement.
+  Longer strings return 22003 even when their high bits are zero. Resolve casts
+  through catalog links; do not invent smallint-to-bit or varbit-to-integer paths.
+  Function calls may use the catalog's implicit bit/varbit relabels. Raw query
+  parameter coercion remains deferred. Run
   `tests/sql-semantics/check-bit.test.ts`, `tests/sql-semantics/check-bitwise.test.ts`,
-  `tests/sql-semantics/check-bit-casts.test.ts`, and the feature masks world for parity.
+  `tests/sql-semantics/check-bit-casts.test.ts`,
+  `tests/sql-semantics/check-bit-integers.test.ts`, and the feature masks world for parity.
 - Date payloads are signed day offsets from 2000-01-01. The signed int4
   minimum and maximum represent negative and positive infinity. Finite payloads
   range from -2451545 through 2145031948. Public CHECK inputs use this portable
