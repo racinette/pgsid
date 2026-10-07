@@ -529,6 +529,15 @@ fn infer_expr_type(
                 .map(Some)
                 .ok_or_else(|| "indexing is supported only on shared vectors".into())
         }
+        Expr::MethodCall(call) if crate::syntax::character_from_codepoint(call).is_some() => {
+            let (value, fallback) = crate::syntax::character_from_codepoint(call).unwrap();
+            if infer_expr_type(value, locals, semantics)?.as_deref() != Some("i32")
+                || infer_expr_type(fallback, locals, semantics)?.as_deref() != Some("char")
+            {
+                return Err("character construction requires i32 and a char fallback".into());
+            }
+            Ok(Some("char".into()))
+        }
         Expr::MethodCall(call) if call.method == "len" => {
             let receiver = infer_expr_type(&call.receiver, locals, semantics)?;
             if receiver

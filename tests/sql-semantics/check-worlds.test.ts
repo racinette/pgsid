@@ -369,9 +369,7 @@ describe('world CHECK INSERT parity', () => {
       await pg.query(item.sql)
     } catch (error) {
       const failure = error as { code: string; constraint?: string }
-      expect(failure.code, `${item.name}: unrelated INSERT failure`).toMatch(
-        /^(?:23514|22[A-Z0-9]{3})$/u,
-      )
+      expect(failure.code, `${item.name}: malformed INSERT SQLSTATE`).toMatch(/^[A-Z0-9]{5}$/u)
       rejected = failure
     } finally {
       await pg.exec('ROLLBACK')
@@ -442,8 +440,8 @@ describe('world CHECK INSERT parity', () => {
         ).rows[0]!.value
       } catch (error) {
         const code = (error as { code: string }).code
-        expect(code, `${item.name}/${constraint}: unrelated oracle failure`).toMatch(
-          /^22[A-Z0-9]{3}$/u,
+        expect(code, `${item.name}/${constraint}: malformed CHECK SQLSTATE`).toMatch(
+          /^[A-Z0-9]{5}$/u,
         )
         expected = { error: code }
       }

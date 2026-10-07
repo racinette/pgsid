@@ -347,10 +347,16 @@ const SQL_ERROR_INVALID_TEXT_REPRESENTATION: u32 = 3484946;
 const SQL_ERROR_STRING_LENGTH_MISMATCH: u32 = 3452622;
 const SQL_ERROR_STRING_RIGHT_TRUNCATION: u32 = 3452545;
 const SQL_ERROR_ARRAY_SUBSCRIPT: u32 = 3452630;
+const SQL_ERROR_FEATURE_NOT_SUPPORTED: u32 = 466560;
 const SQL_ERROR_PROGRAM_LIMIT: u32 = 8584704;
 const SQL_ERROR_INTERNAL: u32 = 56966976;
 
 pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
+    if error.state == SQL_ERROR_FEATURE_NOT_SUPPORTED {
+        return SqlErrorDescription {
+            message: "feature not supported",
+        };
+    }
     if error.state == SQL_ERROR_INVALID_FRAME_SIZE {
         return SqlErrorDescription {
             message: "invalid preceding or following size",
@@ -548,19 +554,19 @@ pub fn text_from_case_guard(value: CheckOutcome) -> TextValue {
     TextValue::Unknown
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum NumericValue<'a> {
+#[derive(Clone, PartialEq, Eq)]
+pub enum NumericValue {
     Unknown,
     Null,
-    Value(&'a str),
+    Value(String),
     Error(SqlError),
 }
 
-pub fn numeric_unknown() -> NumericValue<'static> {
+pub fn numeric_unknown() -> NumericValue {
     NumericValue::Unknown
 }
 
-pub fn numeric_null() -> NumericValue<'static> {
+pub fn numeric_null() -> NumericValue {
     NumericValue::Null
 }
 
@@ -574,19 +580,19 @@ pub fn numeric_is_null(value: NumericValue) -> BoolValue {
     BoolValue::Value(value == NumericValue::Null)
 }
 
-pub fn numeric_from_case_guard(value: CheckOutcome) -> NumericValue<'static> {
+pub fn numeric_from_case_guard(value: CheckOutcome) -> NumericValue {
     if let CheckOutcome::Error(error) = value {
         return NumericValue::Error(error);
     }
     NumericValue::Unknown
 }
 
-pub fn make_numeric_value(value: &str) -> NumericValue<'_> {
+pub fn make_numeric_value(value: &str) -> NumericValue {
     let parts = numeric_parts(value);
     if parts.valid == false {
         return NumericValue::Unknown;
     }
-    NumericValue::Value(value)
+    NumericValue::Value(value.to_owned())
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]

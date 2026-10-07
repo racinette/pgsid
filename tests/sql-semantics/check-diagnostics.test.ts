@@ -23,6 +23,7 @@ const conditions = [
   ['22026', 'string data length mismatch'],
   ['22001', 'string data right truncation'],
   ['2202E', 'array subscript error'],
+  ['0A000', 'feature not supported'],
   ['54000', 'program limit exceeded'],
   ['XX000', 'internal error'],
   ['ZZZZZ', 'SQL evaluation failed'],

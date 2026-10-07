@@ -37,36 +37,55 @@ fn numeric_wire_scale(input: &str) -> i32 {
         index += 1;
     }
     let scale = fractional - exponent * sign;
-    if scale < 0 { return 0; }
+    if scale < 0 {
+        return 0;
+    }
     scale
 }
 
 fn numeric_wire_word(output: String, word: i32) -> String {
     let mut unsigned = word;
-    if word < 0 { unsigned = word + 65536; }
+    if word < 0 {
+        unsigned = word + 65536;
+    }
     let result = bytea_append_byte(output, unsigned / 256);
     bytea_append_byte(result, unsigned % 256)
 }
 
 pub fn sql__pg_catalog__numeric_send__3mnb(input: NumericValue) -> ByteaValue {
-    if let NumericValue::Error(error) = input { return ByteaValue::Error(error); }
-    if input == NumericValue::Unknown { return ByteaValue::Unknown; }
-    if input == NumericValue::Null { return ByteaValue::Null; }
+    if let NumericValue::Error(error) = input {
+        return ByteaValue::Error(error);
+    }
+    if input == NumericValue::Unknown {
+        return ByteaValue::Unknown;
+    }
+    if input == NumericValue::Null {
+        return ByteaValue::Null;
+    }
     if let NumericValue::Value(value) = input {
-        let layout = numeric_parts(value);
-        if layout.valid == false { return ByteaValue::Unknown; }
+        let layout = numeric_parts(value.as_str());
+        if layout.valid == false {
+            return ByteaValue::Unknown;
+        }
         let mut sign: i32 = 0;
-        if layout.special == 0 { sign = 61440; }
-        else if layout.special == 2 { sign = 53248; }
-        else if layout.special == 3 { sign = 49152; }
-        else if layout.sign < 0 { sign = 16384; }
+        if layout.special == 0 {
+            sign = 61440;
+        } else if layout.special == 2 {
+            sign = 53248;
+        } else if layout.special == 3 {
+            sign = 49152;
+        } else if layout.sign < 0 {
+            sign = 16384;
+        }
         let mut scale: i32 = 0;
-        if layout.special == 0 || layout.special == 2 { scale = 32; }
+        if layout.special == 0 || layout.special == 2 {
+            scale = 32;
+        }
         let mut weight: i32 = 0;
         let mut count: i32 = 0;
         let mut words: Vec<NumericWireDigit> = Vec::new();
         if layout.special == 1 {
-            scale = numeric_wire_scale(value);
+            scale = numeric_wire_scale(value.as_str());
             if layout.sign != 0 {
                 weight = layout.weight / 4;
                 let mut remainder = layout.weight % 4;
@@ -93,7 +112,10 @@ pub fn sql__pg_catalog__numeric_send__3mnb(input: NumericValue) -> ByteaValue {
                     index += 1;
                 }
                 if position > 0 {
-                    while position < 4 { group = group * 10; position = position + 1; }
+                    while position < 4 {
+                        group = group * 10;
+                        position = position + 1;
+                    }
                     words.push(NumericWireDigit { value: group });
                     count = count + 1;
                 }

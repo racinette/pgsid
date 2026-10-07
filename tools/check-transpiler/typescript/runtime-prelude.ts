@@ -117,6 +117,14 @@ function checkedChar(value: string): string {
   return value
 }
 
+function characterFromI32(value: number, fallback: string): string {
+  checkedI32(value)
+  checkedChar(fallback)
+  return value < 0 || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff)
+    ? fallback
+    : String.fromCodePoint(value)
+}
+
 function asciiLowercase(value: string): string {
   const codepoint = checkedChar(value).codePointAt(0)!
   return codepoint >= 65 && codepoint <= 90 ? String.fromCodePoint(codepoint + 32) : value

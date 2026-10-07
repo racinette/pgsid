@@ -24,6 +24,43 @@ fn path(path: &syn::Path, max_segments: usize) -> Result {
     Ok(())
 }
 
+pub(crate) fn character_from_codepoint(call: &syn::ExprMethodCall) -> Option<(&Expr, &Expr)> {
+    if !call.attrs.is_empty()
+        || call.turbofish.is_some()
+        || call.method != "unwrap_or"
+        || call.args.len() != 1
+    {
+        return None;
+    }
+    let Expr::Call(constructor) = &*call.receiver else {
+        return None;
+    };
+    let Expr::Path(callee) = &*constructor.func else {
+        return None;
+    };
+    if !constructor.attrs.is_empty()
+        || constructor.args.len() != 1
+        || !callee.attrs.is_empty()
+        || callee.qself.is_some()
+        || path(&callee.path, 2).is_err()
+        || callee.path.segments.len() != 2
+        || callee.path.segments[0].ident != "char"
+        || callee.path.segments[1].ident != "from_u32"
+    {
+        return None;
+    }
+    let Expr::Cast(cast) = &constructor.args[0] else {
+        return None;
+    };
+    let Type::Path(target) = &*cast.ty else {
+        return None;
+    };
+    if !cast.attrs.is_empty() || target.qself.is_some() || !target.path.is_ident("u32") {
+        return None;
+    }
+    Some((&cast.expr, &call.args[0]))
+}
+
 fn ty(ty: &Type) -> Result {
     match ty {
         Type::Reference(reference) if reference.mutability.is_none() => self::ty(&reference.elem),
@@ -178,6 +215,10 @@ fn expr(expr: &Expr) -> Result {
             self::expr(&node.index)
         }
         Expr::MethodCall(node) if node.attrs.is_empty() && node.turbofish.is_none() => {
+            if let Some((value, fallback)) = character_from_codepoint(node) {
+                self::expr(value)?;
+                return self::expr(fallback);
+            }
             let method = node.method.to_string();
             if method == "len" && node.args.is_empty() {
                 return self::expr(&node.receiver);

@@ -461,6 +461,7 @@ const candidate = (
   const integer = integerCandidate(kind, name, args)
   if (integer !== undefined) return integer
   const collation = combineCollations(args.map((arg) => arg.collation))
+  if (collation?.explicit && collation.identity === 'conflict') return null
   const matches = callables.flatMap(({ signature, item }) => {
     if (
       item.kind !== kind ||

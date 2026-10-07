@@ -167,6 +167,15 @@ func CheckedChar(value rune) rune {
 	return value
 }
 
+func characterFromI32(value int, fallback rune) rune {
+	CheckedI32(value)
+	CheckedChar(fallback)
+	if value < 0 || value > 0x10ffff || (value >= 0xd800 && value <= 0xdfff) {
+		return fallback
+	}
+	return rune(value)
+}
+
 func AsciiLowercase(value rune) rune {
 	CheckedChar(value)
 	if value >= 'A' && value <= 'Z' {

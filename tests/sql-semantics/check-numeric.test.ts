@@ -42,6 +42,7 @@ const expressions: Record<string, string> = {
   negative_infinity_literal: "a > '-Infinity'::numeric",
   simple_case: 'CASE a WHEN b THEN true ELSE false END',
   scalar_case: '(CASE WHEN flag THEN a ELSE b END) = b',
+  coalesce: 'COALESCE(a,b) = b',
   scalar_literal: '(CASE WHEN flag THEN a ELSE 0 END) = b',
   scalar_null: '(CASE WHEN flag THEN a END) IS NULL',
   membership: 'a IN (b, NULL)',

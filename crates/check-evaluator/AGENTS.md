@@ -98,7 +98,7 @@ import them. Keep schema-only helpers with their callables.
   for zero and 22003 for minimum divided by negative one; SQL remainder returns
   zero for a divisor of negative one, bypassing the Rust primitive. Narrow with
   `as i32` only after checking the SQL range.
-- Numeric payloads borrow exact decimal strings in `NumericValue`; Go uses
+- Numeric payloads own exact decimal strings in `NumericValue`; Go uses
   strings and TypeScript accepts strings or the readonly wrapper. Inputs represent
   already-coerced SQL values. Reject target numeric objects and floating-point
   numbers at this boundary. Shared Rust validates decimal notation, exponents,
@@ -180,7 +180,7 @@ import them. Keep schema-only helpers with their callables.
   `tests/sql-semantics/check-uuid-timestamp.test.ts`, and the device identifiers world.
 - Text payloads own Rust `String`, lowered to immutable strings in both targets.
   Builders mutate local strings; wrapper clones preserve ownership across branches.
-  Target wrappers need no copies; character codes and byte encodings/digests ignore collation.
+  Target wrappers need no copies; character codes, codecs, digests and temporal field decoding ignore collation.
 - Bytea payloads own canonical lowercase hexadecimal strings without a prefix.
   Public adapters convert byte arrays and nested domains; Rust validates hex input.
   Comparison preserves unsigned octet differences and signed-unit prefix order.

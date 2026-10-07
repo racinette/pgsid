@@ -103,7 +103,7 @@ export function emitCheckRustEvaluator(
       .map((item) => `${item.rustName}: ${item.rustType}`)
       .join(', ')
   const ownedOperand = (operand: { name: string; type: string }): string =>
-    ['TextValue', 'ByteaValue', 'BitValue'].includes(rustType(operand.type))
+    ['TextValue', 'ByteaValue', 'BitValue', 'NumericValue'].includes(rustType(operand.type))
       ? `${operand.name}.clone()`
       : operand.name
 
@@ -524,7 +524,7 @@ export function emitCheckRustEvaluator(
       bindings.push(`let mut ${name}: ${kind} = ${ownedOperand(first)};`)
       for (const operand of node.operands.slice(1)) {
         const nullness = bind(
-          `${prefix}_is_null(${['TextValue', 'ByteaValue', 'BitValue'].includes(kind) ? `${name}.clone()` : name})`,
+          `${prefix}_is_null(${['TextValue', 'ByteaValue', 'BitValue', 'NumericValue'].includes(kind) ? `${name}.clone()` : name})`,
         )
         const guard = bind(`check_from_bool(${nullness})`)
         const lines: string[] = []

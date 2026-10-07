@@ -60,7 +60,27 @@ export function supportsTextCallableCollation(signature: string, collation?: str
     metadata.args.length === 2 &&
     metadata.args[0] === 'pg_catalog.text' &&
     (metadata.args[1] === 'pg_catalog."timestamp"' || metadata.args[1] === 'pg_catalog.timestamptz')
+  const temporalField =
+    metadata.kind === 'function' &&
+    metadata.schema === 'pg_catalog' &&
+    metadata.strict &&
+    metadata.volatility === 'i' &&
+    !metadata.returnsSet &&
+    metadata.args[0] === 'pg_catalog.text' &&
+    ((metadata.name === 'date_trunc' &&
+      ((metadata.args.length === 2 &&
+        metadata.args[1] === 'pg_catalog."timestamp"' &&
+        metadata.result === 'pg_catalog."timestamp"') ||
+        (metadata.args.length === 3 &&
+          metadata.args[1] === 'pg_catalog.timestamptz' &&
+          metadata.args[2] === 'pg_catalog.text' &&
+          metadata.result === 'pg_catalog.timestamptz'))) ||
+      (metadata.name === 'extract' &&
+        metadata.args.length === 2 &&
+        ['pg_catalog.date', 'pg_catalog."timestamp"'].includes(metadata.args[1]!) &&
+        metadata.result === 'pg_catalog."numeric"'))
   return (
+    temporalField ||
     characterCode ||
     characterText ||
     byteCodec ||
@@ -96,6 +116,6 @@ export function combineCollations(
   const first = selected[0]
   if (!first) return undefined
   if (selected.some((value) => value.identity !== first.identity))
-    return { kind: 'other', identity: 'conflict' }
+    return { kind: 'other', identity: 'conflict', ...(explicit.length ? { explicit: true } : {}) }
   return selected.some((value) => value.kind === 'other') ? { ...first, kind: 'other' } : first
 }

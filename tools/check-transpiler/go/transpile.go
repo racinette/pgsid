@@ -28,6 +28,7 @@ type node struct {
 	TargetType     *node       `json:"targetType"`
 	Inner          *node       `json:"inner"`
 	Value          *node       `json:"value"`
+	Fallback       *node       `json:"fallback"`
 	IntegerType    string      `json:"integerType"`
 	Digits         string      `json:"digits"`
 	Scalar         string      `json:"scalar"`
@@ -317,7 +318,7 @@ func (g *generator) inferType(value *node) *node {
 		if value.Operator == "negate" {
 			return namedType("i32")
 		}
-	case "character":
+	case "character", "character-from-codepoint":
 		return namedType("char")
 	case "boolean":
 		return namedType("bool")
