@@ -47,6 +47,7 @@ export type EvalExpression =
     }
   | { kind: 'mac-to-text'; type: 'pg_catalog.text'; operand: EvalExpression }
   | { kind: 'text-to-uuid'; type: 'pg_catalog.uuid'; operand: EvalExpression }
+  | { kind: 'text-to-bytea'; type: 'pg_catalog.bytea'; operand: EvalExpression }
   | { kind: 'uuid-to-text'; type: 'pg_catalog.text'; operand: EvalExpression }
   | { kind: 'bit-to-text'; type: 'pg_catalog.text'; operand: EvalExpression }
   | {
@@ -208,6 +209,7 @@ export function emitEvalExpression<Ast>(
       node.kind === 'text-to-mac' ||
       node.kind === 'mac-to-text' ||
       node.kind === 'text-to-uuid' ||
+      node.kind === 'text-to-bytea' ||
       node.kind === 'uuid-to-text' ||
       node.kind === 'text-to-bit' ||
       node.kind === 'bit-to-text'

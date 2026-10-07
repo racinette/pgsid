@@ -1305,3 +1305,123 @@ VALUES (2005, 1, NULL, NULL, 'wrong', 'wrong', '\x00', '\x00', '\x00', '\x00');
 -- name: payload_crypto_null_results
 INSERT INTO payload_crypto (id, profile_id, packet, label, recorded_md5, recorded_text_md5, recorded_sha224, recorded_sha256, recorded_sha384, recorded_sha512)
 VALUES (2006, 1, '\x616263', 'abc', NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: binary_pattern_prefix
+INSERT INTO payload_patterns (pattern_id, packet, pattern, escape_bytes, recorded_escape, recorded_match, recorded_escaped_match, backup_match, use_backup)
+VALUES (2, '\x6162', '\x6125', '\x5c', '\x6125', true, true, NULL, false);
+
+-- name: binary_pattern_empty
+INSERT INTO payload_patterns (pattern_id, packet, pattern, escape_bytes, recorded_escape, recorded_match, recorded_escaped_match, backup_match, use_backup)
+VALUES (3, '\x', '\x25', '\x5c', '\x25', true, true, NULL, false);
+
+-- name: binary_pattern_unsigned_octet
+INSERT INTO payload_patterns (pattern_id, packet, pattern, escape_bytes, recorded_escape, recorded_match, recorded_escaped_match, backup_match, use_backup)
+VALUES (4, '\xff', '\x5f', '\x5c', '\x5f', true, true, NULL, false);
+
+-- name: binary_pattern_counts_bytes
+INSERT INTO payload_patterns (pattern_id, packet, pattern, escape_bytes, recorded_escape, recorded_match, recorded_escaped_match, backup_match, use_backup)
+VALUES (5, '\xc3a9', '\x5f', '\x5c', '\x5f', false, false, NULL, false);
+
+-- name: binary_pattern_custom_escape
+INSERT INTO payload_patterns (pattern_id, packet, pattern, escape_bytes, recorded_escape, recorded_match, recorded_escaped_match, backup_match, use_backup)
+VALUES (6, '\x6125', '\x612325', '\x23', '\x615c25', false, true, NULL, false);
+
+-- name: binary_pattern_false_record
+INSERT INTO payload_patterns (pattern_id, packet, pattern, escape_bytes, recorded_escape, recorded_match, recorded_escaped_match, backup_match, use_backup)
+VALUES (7, '\x6162', '\x6125', '\x5c', '\x6125', false, false, NULL, false);
+
+-- name: binary_pattern_false_escape_record
+INSERT INTO payload_patterns (pattern_id, packet, pattern, escape_bytes, recorded_escape, recorded_match, recorded_escaped_match, backup_match, use_backup)
+VALUES (8, '\x6162', '\x6125', '\x5c', '\x00', true, false, NULL, false);
+
+-- name: binary_pattern_false_selected
+INSERT INTO payload_patterns (pattern_id, packet, pattern, escape_bytes, recorded_escape, recorded_match, recorded_escaped_match, backup_match, use_backup)
+VALUES (9, '\x6162', '\x6125', '\x5c', '\x6125', true, true, false, true);
+
+-- name: binary_pattern_nulls
+INSERT INTO payload_patterns (pattern_id, packet, pattern, escape_bytes, recorded_escape, recorded_match, recorded_escaped_match, backup_match, use_backup)
+VALUES (10, NULL, NULL, NULL, NULL, NULL, NULL, NULL, false);
+
+-- name: binary_pattern_reached_trailing_escape
+INSERT INTO payload_patterns (pattern_id, packet, pattern, escape_bytes, recorded_escape, recorded_match, recorded_escaped_match, backup_match, use_backup)
+VALUES (11, '\x61', '\x5c', '\x5c', '\x5c', true, true, NULL, false);
+
+-- name: binary_pattern_unreached_trailing_escape
+INSERT INTO payload_patterns (pattern_id, packet, pattern, escape_bytes, recorded_escape, recorded_match, recorded_escaped_match, backup_match, use_backup)
+VALUES (12, '\x62', '\x615c', '\x5c', '\x615c', false, false, NULL, false);
+
+-- name: binary_pattern_invalid_escape_width
+INSERT INTO payload_patterns (pattern_id, packet, pattern, escape_bytes, recorded_escape, recorded_match, recorded_escaped_match, backup_match, use_backup)
+VALUES (13, '\x61', '\x25', '\xc3a9', '\x25', true, true, NULL, false);
+
+-- name: decimal_wire_scale
+INSERT INTO payload_decimal_records (record_id, amount, recorded_payload, backup_payload, use_backup)
+VALUES (2, 1.23000, '\x0002000000000005000108fc', NULL, false);
+
+-- name: decimal_wire_negative_weight
+INSERT INTO payload_decimal_records (record_id, amount, recorded_payload, backup_payload, use_backup)
+VALUES (3, 0.00001, '\x0001fffe0000000503e8', NULL, false);
+
+-- name: decimal_wire_scaled_zero
+INSERT INTO payload_decimal_records (record_id, amount, recorded_payload, backup_payload, use_backup)
+VALUES (4, 0.0000, '\x0000000000000004', NULL, false);
+
+-- name: decimal_wire_infinity
+INSERT INTO payload_decimal_records (record_id, amount, recorded_payload, backup_payload, use_backup)
+VALUES (5, 'Infinity', '\x00000000d0000020', NULL, false);
+
+-- name: decimal_wire_nan
+INSERT INTO payload_decimal_records (record_id, amount, recorded_payload, backup_payload, use_backup)
+VALUES (6, 'NaN', '\x00000000c0000000', NULL, false);
+
+-- name: decimal_wire_false_record
+INSERT INTO payload_decimal_records (record_id, amount, recorded_payload, backup_payload, use_backup)
+VALUES (7, 1.23000, '\x0002000000000004000108fc', NULL, false);
+
+-- name: decimal_wire_false_selected
+INSERT INTO payload_decimal_records (record_id, amount, recorded_payload, backup_payload, use_backup)
+VALUES (8, 1.23000, '\x0002000000000005000108fc', '\x00', true);
+
+-- name: decimal_wire_nulls
+INSERT INTO payload_decimal_records (record_id, amount, recorded_payload, backup_payload, use_backup)
+VALUES (9, NULL, NULL, NULL, false);
+
+-- name: binary_text_input_hexadecimal
+INSERT INTO payload_text_inputs (input_id, encoded_label, varying_label, fixed_label, recorded_payload, recorded_fixed, backup_payload, use_backup)
+VALUES (2, '\x FF 00', '\x FF 00', 'a   ', '\xff00', '\x61202020', NULL, false);
+
+-- name: binary_text_input_octal
+INSERT INTO payload_text_inputs (input_id, encoded_label, varying_label, fixed_label, recorded_payload, recorded_fixed, backup_payload, use_backup)
+VALUES (3, 'a\377', 'a\377', '\377', '\x61ff', '\xff', NULL, false);
+
+-- name: binary_text_input_utf8
+INSERT INTO payload_text_inputs (input_id, encoded_label, varying_label, fixed_label, recorded_payload, recorded_fixed, backup_payload, use_backup)
+VALUES (4, 'é😀', 'é😀', 'é   ', '\xc3a9f09f9880', '\xc3a9202020', NULL, false);
+
+-- name: binary_text_input_empty
+INSERT INTO payload_text_inputs (input_id, encoded_label, varying_label, fixed_label, recorded_payload, recorded_fixed, backup_payload, use_backup)
+VALUES (5, '', '', '    ', '\x', '\x20202020', NULL, false);
+
+-- name: binary_text_input_false_record
+INSERT INTO payload_text_inputs (input_id, encoded_label, varying_label, fixed_label, recorded_payload, recorded_fixed, backup_payload, use_backup)
+VALUES (6, '\xff00', '\xff00', 'a   ', '\x00', '\x00', NULL, false);
+
+-- name: binary_text_input_false_selected
+INSERT INTO payload_text_inputs (input_id, encoded_label, varying_label, fixed_label, recorded_payload, recorded_fixed, backup_payload, use_backup)
+VALUES (7, '\xff00', '\xff00', 'a   ', '\xff00', '\x61202020', '\x00', true);
+
+-- name: binary_text_input_invalid_hexadecimal
+INSERT INTO payload_text_inputs (input_id, encoded_label, varying_label, fixed_label, recorded_payload, recorded_fixed, backup_payload, use_backup)
+VALUES (8, '\xgg', '\xgg', '\xgg', '\x00', '\x00', NULL, false);
+
+-- name: binary_text_input_invalid_octal
+INSERT INTO payload_text_inputs (input_id, encoded_label, varying_label, fixed_label, recorded_payload, recorded_fixed, backup_payload, use_backup)
+VALUES (9, '\400', '\400', '\400', '\x00', '\x00', NULL, false);
+
+-- name: binary_text_input_skips_invalid_default
+INSERT INTO payload_text_inputs (input_id, encoded_label, varying_label, fixed_label, recorded_payload, recorded_fixed, backup_payload, use_backup)
+VALUES (10, '\xgg', '\xgg', 'a   ', '\x00', '\x61202020', '\x00', true);
+
+-- name: binary_text_input_nulls
+INSERT INTO payload_text_inputs (input_id, encoded_label, varying_label, fixed_label, recorded_payload, recorded_fixed, backup_payload, use_backup)
+VALUES (11, NULL, NULL, NULL, NULL, NULL, NULL, false);

@@ -1154,6 +1154,32 @@ describe('world CHECK INSERT parity', () => {
           'crypto_sha512',
         ],
       ],
+      [
+        'payload_patterns',
+        [
+          'pattern_match',
+          'pattern_not_match',
+          'pattern_escaped_match',
+          'pattern_escape_record',
+          'pattern_selected',
+          'pattern_default',
+        ],
+      ],
+      [
+        'payload_decimal_records',
+        ['decimal_wire_record', 'decimal_wire_selected', 'decimal_wire_default'],
+      ],
+      [
+        'payload_text_inputs',
+        [
+          'input_text_bytes',
+          'input_direct_bytes',
+          'input_varying_bytes',
+          'input_fixed_bytes',
+          'input_selected',
+          'input_default',
+        ],
+      ],
     ] as const) {
       for (const name of names) {
         const identity = `world_017_feature_masks.${table}.${name}`
@@ -1190,6 +1216,21 @@ describe('world CHECK INSERT parity', () => {
     )
     expect(substringErrors.length).toBeGreaterThan(0)
     for (const check of substringErrors) expect(check.message).toContain('substring error')
+    const escapeErrors = caseResults.flatMap((row) =>
+      row.name.startsWith('017_feature_masks/')
+        ? row.checks.filter((check) => check.result.error === '22025')
+        : [],
+    )
+    expect(escapeErrors.length).toBeGreaterThan(0)
+    for (const check of escapeErrors) expect(check.message).toContain('invalid escape sequence')
+    const skippedInput = caseResults.find(
+      (row) => row.name === '017_feature_masks/binary_text_input_skips_invalid_default',
+    )!
+    for (const name of ['input_selected', 'input_default'])
+      expect(skippedInput.checks.find((check) => check.constraint === name)!.result).toEqual({
+        certain: true,
+        value: true,
+      })
     const skippedSubstring = caseResults.find(
       (row) => row.name === '017_feature_masks/mask_window_skips_negative_length',
     )!

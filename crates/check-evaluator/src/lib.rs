@@ -54,6 +54,9 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/bytea_sha256.rs");
     include!("operations/pg_catalog/bytea_sha512.rs");
     include!("operations/pg_catalog/bytea_md5.rs");
+    include!("operations/pg_catalog/bytea_like.rs");
+    include!("operations/pg_catalog/bytea_input.rs");
+    include!("operations/pg_catalog/numeric_send.rs");
     include!("operations/pg_catalog/bit.rs");
     include!("operations/pg_catalog/bit_bitwise.rs");
     include!("operations/pg_catalog/bit_cast.rs");

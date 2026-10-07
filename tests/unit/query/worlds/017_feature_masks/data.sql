@@ -57,3 +57,11 @@ VALUES (1, 1, '\x0080ff', '0080ff', 'hex', '0080ff', '\x0080ff', NULL, false);
 
 INSERT INTO payload_crypto (id, profile_id, packet, label, recorded_md5, recorded_text_md5, recorded_sha224, recorded_sha256, recorded_sha384, recorded_sha512)
 VALUES (1, 1, '\x616263', 'abc', '900150983cd24fb0d6963f7d28e17f72', '900150983cd24fb0d6963f7d28e17f72', '\x23097d223405d8228642a477bda255b32aadbce4bda0b3f7e36c9da7', '\xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad', '\xcb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7', '\xddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f');
+
+INSERT INTO payload_patterns (pattern_id, packet, pattern, escape_bytes, recorded_escape, recorded_match, recorded_escaped_match, backup_match, use_backup)
+VALUES (1, '\x6162', '\x6125', '\x5c', '\x6125', true, true, NULL, false);
+INSERT INTO payload_decimal_records (record_id, amount, recorded_payload, backup_payload, use_backup)
+VALUES (1, 1.23000, '\x0002000000000005000108fc', NULL, false);
+
+INSERT INTO payload_text_inputs (input_id, encoded_label, varying_label, fixed_label, recorded_payload, recorded_fixed, backup_payload, use_backup)
+VALUES (1, '\xff00', '\xff00', 'a   ', '\xff00', '\x61202020', NULL, false);

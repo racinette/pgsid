@@ -3044,6 +3044,48 @@ export function crc320obw(input: checkruntime.ByteaValue): checkruntime.Int8Valu
 export function crc32cF1hu(input: checkruntime.ByteaValue): checkruntime.Int8Value {
     return byteaCrc(input, 2197175160n);
 }
+export function byteaFromText(input: checkruntime.TextValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalTextValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(value);
+        if (chars.length >= 2 && langruntime.indexChar(chars, langruntime.checkedIndex(0)) === "\\" && langruntime.indexChar(chars, langruntime.checkedIndex(1)) === "x") {
+            const length: bigint = langruntime.checkedI64Divide((langruntime.checkedI64Subtract(byteaCodecUtf8Length(value), 2n)), 2n);
+            if (byteaCodecLengthFits(length) === false) {
+                return { kind: "Error", value: checkruntime.makeSqlError(byteaAllocationError) };
+            }
+            let payload: string = "";
+            let index: number = 2;
+            while (index < chars.length) {
+                payload = payload + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                index = langruntime.checkedAdd(index, 1);
+            }
+            return byteaHexDecode(payload);
+        }
+        const estimate: checkruntime.Int8Value = byteaEscapeDecodedLength(value);
+        if (estimate.kind === "Error") {
+            const error: checkruntime.SqlError = estimate.value;
+            return { kind: "Error", value: error };
+        }
+        if (estimate.kind === "Value") {
+            const length: bigint = langruntime.checkedI64(estimate.value);
+            if (byteaCodecLengthFits(length) === false) {
+                return { kind: "Error", value: checkruntime.makeSqlError(byteaAllocationError) };
+            }
+        }
+        return byteaEscapeDecode(value);
+    }
+    return { kind: "Unknown" };
+}
 function byteaIntegerValue(input: checkruntime.ByteaValue, width: number): checkruntime.Int8Value {
     width = langruntime.checkedI32(width);
     if (input.kind === "Error") {
@@ -3287,6 +3329,238 @@ export function boolsendOo82(input: checkruntime.BoolValue): checkruntime.ByteaV
         }
         const output: string = checkruntime.byteaAppendByte("", byte);
         return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+const byteaEscapeError = 3452621;
+interface ByteaLikeFrame {
+    text: number;
+    pattern: number;
+    searching: boolean;
+    firstHigh: string;
+    firstLow: string;
+}
+function copyByteaLikeFrame(value: ByteaLikeFrame): ByteaLikeFrame {
+    return { text: langruntime.checkedIndex(value.text), pattern: langruntime.checkedIndex(value.pattern), searching: langruntime.checkedBool(value.searching), firstHigh: langruntime.checkedChar(value.firstHigh), firstLow: langruntime.checkedChar(value.firstLow) };
+}
+function equalByteaLikeFrame(left: ByteaLikeFrame, right: ByteaLikeFrame): boolean {
+    return left.text === right.text && left.pattern === right.pattern && left.searching === right.searching && left.firstHigh === right.firstHigh && left.firstLow === right.firstLow;
+}
+function byteaLikeMatch(input: string, pattern: string): checkruntime.Int4Value {
+    input = langruntime.checkedString(input);
+    pattern = langruntime.checkedString(pattern);
+    const text: string[] = Array.from(input);
+    const chars: string[] = Array.from(pattern);
+    let frames: ByteaLikeFrame[] = [];
+    langruntime.pushStruct(frames, { text: 0, pattern: 0, searching: false, firstHigh: "0", firstLow: "0" }, copyByteaLikeFrame);
+    let depth: number = 1;
+    while (depth > 0) {
+        const current: number = langruntime.checkedSubtract(depth, 1);
+        const frame: ByteaLikeFrame = copyByteaLikeFrame(langruntime.indexStruct(frames, langruntime.checkedIndex(current), copyByteaLikeFrame));
+        let t: number = frame.text;
+        let p: number = frame.pattern;
+        let searching: boolean = frame.searching;
+        let firstHigh: string = frame.firstHigh;
+        let firstLow: string = frame.firstLow;
+        let failed: boolean = false;
+        if (searching) {
+            while (t < text.length && (!(langruntime.indexChar(text, langruntime.checkedIndex(t)) === firstHigh) || !(langruntime.indexChar(text, langruntime.checkedIndex(langruntime.checkedAdd(t, 1))) === firstLow))) {
+                t = langruntime.checkedIndex(langruntime.checkedAdd(t, 2));
+            }
+            if (t >= text.length) {
+                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+            }
+            frames[langruntime.checkedIndexIn(frames, current)] = copyByteaLikeFrame({ text: langruntime.checkedAdd(t, 2), pattern: p, searching: true, firstHigh: firstHigh, firstLow: firstLow });
+            const child: ByteaLikeFrame = copyByteaLikeFrame({ text: t, pattern: p, searching: false, firstHigh: "0", firstLow: "0" });
+            if (depth < frames.length) {
+                frames[langruntime.checkedIndexIn(frames, depth)] = copyByteaLikeFrame(child);
+            }
+            else {
+                langruntime.pushStruct(frames, child, copyByteaLikeFrame);
+            }
+            depth = langruntime.checkedAdd(depth, 1);
+        }
+        else {
+            if (t < text.length && p < chars.length) {
+                if (langruntime.indexChar(chars, langruntime.checkedIndex(p)) === "2" && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(p, 1))) === "5") {
+                    p = langruntime.checkedIndex(langruntime.checkedAdd(p, 2));
+                    let wildcards: boolean = true;
+                    while (p < chars.length && wildcards) {
+                        if (langruntime.indexChar(chars, langruntime.checkedIndex(p)) === "2" && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(p, 1))) === "5") {
+                            p = langruntime.checkedIndex(langruntime.checkedAdd(p, 2));
+                        }
+                        else if (langruntime.indexChar(chars, langruntime.checkedIndex(p)) === "5" && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(p, 1))) === "f") {
+                            if (t >= text.length) {
+                                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+                            }
+                            t = langruntime.checkedIndex(langruntime.checkedAdd(t, 2));
+                            p = langruntime.checkedIndex(langruntime.checkedAdd(p, 2));
+                        }
+                        else {
+                            wildcards = langruntime.checkedBool(false);
+                        }
+                    }
+                    if (p >= chars.length) {
+                        return { kind: "Value", value: 1 };
+                    }
+                    let literal: number = p;
+                    if (langruntime.indexChar(chars, langruntime.checkedIndex(p)) === "5" && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(p, 1))) === "c") {
+                        literal = langruntime.checkedIndex(langruntime.checkedAdd(literal, 2));
+                        if (literal >= chars.length) {
+                            return { kind: "Error", value: checkruntime.makeSqlError(byteaEscapeError) };
+                        }
+                    }
+                    firstHigh = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(literal)));
+                    firstLow = langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(literal, 1))));
+                    searching = langruntime.checkedBool(true);
+                }
+                else if (langruntime.indexChar(chars, langruntime.checkedIndex(p)) === "5" && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(p, 1))) === "f") {
+                    t = langruntime.checkedIndex(langruntime.checkedAdd(t, 2));
+                    p = langruntime.checkedIndex(langruntime.checkedAdd(p, 2));
+                }
+                else {
+                    if (langruntime.indexChar(chars, langruntime.checkedIndex(p)) === "5" && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(p, 1))) === "c") {
+                        p = langruntime.checkedIndex(langruntime.checkedAdd(p, 2));
+                        if (p >= chars.length) {
+                            return { kind: "Error", value: checkruntime.makeSqlError(byteaEscapeError) };
+                        }
+                    }
+                    if (!(langruntime.indexChar(text, langruntime.checkedIndex(t)) === langruntime.indexChar(chars, langruntime.checkedIndex(p))) || !(langruntime.indexChar(text, langruntime.checkedIndex(langruntime.checkedAdd(t, 1))) === langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(p, 1))))) {
+                        failed = langruntime.checkedBool(true);
+                    }
+                    else {
+                        t = langruntime.checkedIndex(langruntime.checkedAdd(t, 2));
+                        p = langruntime.checkedIndex(langruntime.checkedAdd(p, 2));
+                    }
+                }
+            }
+            else if (t < text.length) {
+                failed = langruntime.checkedBool(true);
+            }
+            else {
+                while (p < chars.length && langruntime.indexChar(chars, langruntime.checkedIndex(p)) === "2" && langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(p, 1))) === "5") {
+                    p = langruntime.checkedIndex(langruntime.checkedAdd(p, 2));
+                }
+                if (p >= chars.length) {
+                    return { kind: "Value", value: 1 };
+                }
+                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+            }
+            if (failed) {
+                depth = langruntime.checkedIndex(langruntime.checkedSubtract(depth, 1));
+            }
+            else {
+                frames[langruntime.checkedIndexIn(frames, current)] = copyByteaLikeFrame({ text: t, pattern: p, searching: searching, firstHigh: firstHigh, firstLow: firstLow });
+            }
+        }
+    }
+    return { kind: "Value", value: 0 };
+}
+function byteaLike(input: checkruntime.ByteaValue, pattern: checkruntime.ByteaValue, negate: boolean): checkruntime.BoolValue {
+    negate = langruntime.checkedBool(negate);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (pattern.kind === "Error") {
+        const error: checkruntime.SqlError = pattern.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(pattern, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Null" }) || checkruntime.equalByteaValue(pattern, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (pattern.kind === "Value") {
+            const pat: string = langruntime.checkedString(pattern.value);
+            const result: checkruntime.Int4Value = byteaLikeMatch(value, pat);
+            if (result.kind === "Error") {
+                const error: checkruntime.SqlError = result.value;
+                return { kind: "Error", value: error };
+            }
+            if (result.kind === "Value") {
+                const matched: number = langruntime.checkedI32(result.value);
+                const value: boolean = matched === 1;
+                return { kind: "Value", value: !(value === negate) };
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function bytealikeJhpm(input: checkruntime.ByteaValue, pattern: checkruntime.ByteaValue): checkruntime.BoolValue {
+    return byteaLike(input, pattern, false);
+}
+export function like9b5r(input: checkruntime.ByteaValue, pattern: checkruntime.ByteaValue): checkruntime.BoolValue {
+    return byteaLike(input, pattern, false);
+}
+export function byteanlikeQodo(input: checkruntime.ByteaValue, pattern: checkruntime.ByteaValue): checkruntime.BoolValue {
+    return byteaLike(input, pattern, true);
+}
+export function notlikeCy7a(input: checkruntime.ByteaValue, pattern: checkruntime.ByteaValue): checkruntime.BoolValue {
+    return byteaLike(input, pattern, true);
+}
+export function likeEscapeHk4j(input: checkruntime.ByteaValue, escape: checkruntime.ByteaValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (escape.kind === "Error") {
+        const error: checkruntime.SqlError = escape.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(escape, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Null" }) || checkruntime.equalByteaValue(escape, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (escape.kind === "Value") {
+            const esc: string = langruntime.checkedString(escape.value);
+            const length: number = byteaPayloadLength(value);
+            const allocated: checkruntime.Int4Value = byteaConcatLength(length, length);
+            if (allocated.kind === "Error") {
+                const error: checkruntime.SqlError = allocated.value;
+                return { kind: "Error", value: error };
+            }
+            const chars: string[] = Array.from(value);
+            const escapeChars: string[] = Array.from(esc);
+            if (escapeChars.length > 2) {
+                return { kind: "Error", value: checkruntime.makeSqlError(byteaEscapeError) };
+            }
+            if (escapeChars.length === 2 && langruntime.indexChar(escapeChars, langruntime.checkedIndex(0)) === "5" && langruntime.indexChar(escapeChars, langruntime.checkedIndex(1)) === "c") {
+                return { kind: "Value", value: value };
+            }
+            let output: string = "";
+            let index: number = 0;
+            let afterEscape: boolean = false;
+            while (index < chars.length) {
+                const high: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+                const low: string = langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1)));
+                let isEscape: boolean = false;
+                if (escapeChars.length === 2) {
+                    isEscape = langruntime.checkedBool(high === langruntime.indexChar(escapeChars, langruntime.checkedIndex(0)) && low === langruntime.indexChar(escapeChars, langruntime.checkedIndex(1)) && afterEscape === false);
+                }
+                if (isEscape) {
+                    output = output + "5c";
+                    afterEscape = langruntime.checkedBool(true);
+                }
+                else {
+                    if (high === "5" && low === "c" && afterEscape === false) {
+                        output = output + "5c";
+                    }
+                    output = output + langruntime.checkedChar(high);
+                    output = output + langruntime.checkedChar(low);
+                    afterEscape = langruntime.checkedBool(false);
+                }
+                index = langruntime.checkedIndex(langruntime.checkedAdd(index, 2));
+            }
+            return { kind: "Value", value: output };
+        }
     }
     return { kind: "Unknown" };
 }
@@ -7064,6 +7338,154 @@ export function numericNeGyip(left: checkruntime.NumericValue, right: checkrunti
     if (result.kind === "Value") {
         const order: number = langruntime.checkedI32(result.value);
         return { kind: "Value", value: !(order === 0) };
+    }
+    return { kind: "Unknown" };
+}
+interface NumericWireDigit {
+    value: number;
+}
+function copyNumericWireDigit(value: NumericWireDigit): NumericWireDigit {
+    return { value: langruntime.checkedI32(value.value) };
+}
+function numericWireDecimalDigit(character: string): number {
+    character = langruntime.checkedChar(character);
+    const code: number = langruntime.checkedChar(character).codePointAt(0)!;
+    if (code >= 48 && code <= 57) {
+        return langruntime.checkedSignedSubtract(code, 48);
+    }
+    return langruntime.checkedSignedNegate(1);
+}
+function numericWireScale(input: string): number {
+    input = langruntime.checkedString(input);
+    const chars: string[] = Array.from(input);
+    let index: number = 0;
+    let point: boolean = false;
+    let power: boolean = false;
+    let fractional: number = 0;
+    let exponent: number = 0;
+    let sign: number = 1;
+    while (index < chars.length) {
+        const digit: number = numericWireDecimalDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+        if (digit >= 0) {
+            if (power) {
+                exponent = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(exponent, 10), digit));
+            }
+            else if (point) {
+                fractional = langruntime.checkedI32(langruntime.checkedSignedAdd(fractional, 1));
+            }
+        }
+        else if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === ".") {
+            point = langruntime.checkedBool(true);
+        }
+        else if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "e" || langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "E") {
+            power = langruntime.checkedBool(true);
+        }
+        else if (power && langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "-") {
+            sign = langruntime.checkedI32(langruntime.checkedSignedNegate(1));
+        }
+        index = langruntime.checkedAdd(index, 1);
+    }
+    const scale: number = langruntime.checkedSignedSubtract(fractional, langruntime.checkedSignedMultiply(exponent, sign));
+    if (scale < 0) {
+        return 0;
+    }
+    return scale;
+}
+function numericWireWord(output: string, word: number): string {
+    output = langruntime.checkedString(output);
+    word = langruntime.checkedI32(word);
+    let unsigned: number = word;
+    if (word < 0) {
+        unsigned = langruntime.checkedI32(langruntime.checkedSignedAdd(word, 65536));
+    }
+    const result: string = checkruntime.byteaAppendByte(output, langruntime.checkedSignedDivide(unsigned, 256));
+    return checkruntime.byteaAppendByte(result, langruntime.checkedSignedRemainder(unsigned, 256));
+}
+export function numericSend3mnb(input: checkruntime.NumericValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalNumericValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const layout: checkruntime.NumericLayout = checkruntime.copyNumericLayout(checkruntime.numericParts(value));
+        if (layout.valid === false) {
+            return { kind: "Unknown" };
+        }
+        let sign: number = 0;
+        if (layout.special === 0) {
+            sign = langruntime.checkedI32(61440);
+        }
+        else if (layout.special === 2) {
+            sign = langruntime.checkedI32(53248);
+        }
+        else if (layout.special === 3) {
+            sign = langruntime.checkedI32(49152);
+        }
+        else if (layout.sign < 0) {
+            sign = langruntime.checkedI32(16384);
+        }
+        let scale: number = 0;
+        if (layout.special === 0 || layout.special === 2) {
+            scale = langruntime.checkedI32(32);
+        }
+        let weight: number = 0;
+        let count: number = 0;
+        let words: NumericWireDigit[] = [];
+        if (layout.special === 1) {
+            scale = langruntime.checkedI32(numericWireScale(value));
+            if (!(layout.sign === 0)) {
+                weight = langruntime.checkedI32(langruntime.checkedSignedDivide(layout.weight, 4));
+                let remainder: number = langruntime.checkedSignedRemainder(layout.weight, 4);
+                if (remainder < 0) {
+                    weight = langruntime.checkedI32(langruntime.checkedSignedSubtract(weight, 1));
+                    remainder = langruntime.checkedI32(langruntime.checkedSignedAdd(remainder, 4));
+                }
+                const chars: string[] = Array.from(value);
+                let index: number = layout.first;
+                let position: number = langruntime.checkedSignedSubtract(3, remainder);
+                let group: number = 0;
+                while (index < layout.end) {
+                    const digit: number = numericWireDecimalDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                    if (digit >= 0) {
+                        group = langruntime.checkedI32(langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(group, 10), digit));
+                        position = langruntime.checkedI32(langruntime.checkedSignedAdd(position, 1));
+                        if (position === 4) {
+                            langruntime.pushStruct(words, { value: group }, copyNumericWireDigit);
+                            count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+                            position = langruntime.checkedI32(0);
+                            group = langruntime.checkedI32(0);
+                        }
+                    }
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                if (position > 0) {
+                    while (position < 4) {
+                        group = langruntime.checkedI32(langruntime.checkedSignedMultiply(group, 10));
+                        position = langruntime.checkedI32(langruntime.checkedSignedAdd(position, 1));
+                    }
+                    langruntime.pushStruct(words, { value: group }, copyNumericWireDigit);
+                    count = langruntime.checkedI32(langruntime.checkedSignedAdd(count, 1));
+                }
+            }
+        }
+        let output: string = "";
+        output = langruntime.checkedString(numericWireWord(output, count));
+        output = langruntime.checkedString(numericWireWord(output, weight));
+        output = langruntime.checkedString(numericWireWord(output, sign));
+        output = langruntime.checkedString(numericWireWord(output, scale));
+        let index: number = 0;
+        while (index < words.length) {
+            output = langruntime.checkedString(numericWireWord(output, langruntime.indexStruct(words, langruntime.checkedIndex(index), copyNumericWireDigit).value));
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return { kind: "Value", value: output };
     }
     return { kind: "Unknown" };
 }

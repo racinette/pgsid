@@ -190,12 +190,6 @@ const literalValue = (literal: Literal, type: ScalarType): SqlExpression | null 
     return { kind: 'uuid', type, value: literal.value }
   if (type === 'pg_catalog.bytea') {
     if (literal.kind === 'null') return { kind: 'bytea', type, value: null }
-    if (
-      literal.kind === 'string' &&
-      literal.value?.startsWith('\\x') &&
-      /^(?:[0-9a-f]{2})*$/iu.test(literal.value.slice(2))
-    )
-      return { kind: 'bytea', type, value: literal.value.slice(2).toLowerCase() }
     return null
   }
   if (
@@ -281,6 +275,15 @@ const materialize = (
     }
   }
   if (bound.literal) {
+    if (type === 'pg_catalog.bytea' && bound.literal.kind === 'string')
+      return {
+        kind: 'text-to-bytea',
+        type,
+        operand: {
+          kind: 'certain',
+          expression: { kind: 'text', type: 'pg_catalog.text', value: bound.literal.value },
+        },
+      }
     if (type.startsWith('enum:') && definition && enumType(definition) === type) {
       const value = bound.literal.value
       return bound.literal.kind === 'null' ||
@@ -890,6 +893,19 @@ export function bindCatalogCheck(
           value: { kind: 'uuid-to-text', type, operand: operand.value },
         }
       if (
+        type === 'pg_catalog.bytea' &&
+        (operand.type === 'pg_catalog.text' ||
+          operand.type === 'pg_catalog."varchar"' ||
+          operand.type === 'pg_catalog.bpchar') &&
+        operand.value
+      ) {
+        const text =
+          operand.type === 'pg_catalog.bpchar'
+            ? operand.value
+            : materialize(operand, 'pg_catalog.text')
+        return text ? { type, value: { kind: 'text-to-bytea', type, operand: text } } : unknown
+      }
+      if (
         type === 'pg_catalog.uuid' &&
         (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') &&
         operand.value
@@ -1290,7 +1306,7 @@ export function bindCatalogCheck(
         },
       }
     }
-    if (operator?.['kind'] === 'AEXPR_OP') {
+    if (operator && ['AEXPR_OP', 'AEXPR_LIKE', 'AEXPR_ILIKE'].includes(String(operator['kind']))) {
       const names = strings(operator['name'])
       if (names && names.length > 1 && names[0] !== 'pg_catalog') return unknown
       const name = names?.at(-1)
@@ -1396,7 +1412,7 @@ export function bindCatalogCheck(
     if (!resolved) {
       if (
         kind === 'function' &&
-        ['inet', 'cidr', 'macaddr', 'macaddr8', 'uuid', 'bit', 'varbit'].includes(name) &&
+        ['inet', 'cidr', 'macaddr', 'macaddr8', 'uuid', 'bit', 'varbit', 'bytea'].includes(name) &&
         args.length === 1
       ) {
         const type = (name === 'bit' ? 'pg_catalog."bit"' : 'pg_catalog.' + name) as
@@ -1405,19 +1421,29 @@ export function bindCatalogCheck(
           | 'pg_catalog.macaddr'
           | 'pg_catalog.macaddr8'
           | 'pg_catalog.uuid'
+          | 'pg_catalog.bytea'
           | 'pg_catalog."bit"'
           | 'pg_catalog.varbit'
         const operand = args[0]!
-        if (operand.type === 'pg_catalog.text' || operand.type === 'pg_catalog."varchar"') {
-          const text = materialize(operand, 'pg_catalog.text')
+        if (
+          operand.type === 'pg_catalog.text' ||
+          operand.type === 'pg_catalog."varchar"' ||
+          (type === 'pg_catalog.bytea' && operand.type === 'pg_catalog.bpchar')
+        ) {
+          const text =
+            operand.type === 'pg_catalog.bpchar'
+              ? operand.value
+              : materialize(operand, 'pg_catalog.text')
           return text
-            ? type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit'
-              ? { type, value: { kind: 'text-to-bit', type, operand: text } }
-              : type === 'pg_catalog.uuid'
-                ? { type, value: { kind: 'text-to-uuid', type, operand: text } }
-                : type === 'pg_catalog.macaddr' || type === 'pg_catalog.macaddr8'
-                  ? { type, value: { kind: 'text-to-mac', type, operand: text } }
-                  : { type, value: { kind: 'text-to-network', type, operand: text } }
+            ? type === 'pg_catalog.bytea'
+              ? { type, value: { kind: 'text-to-bytea', type, operand: text } }
+              : type === 'pg_catalog."bit"' || type === 'pg_catalog.varbit'
+                ? { type, value: { kind: 'text-to-bit', type, operand: text } }
+                : type === 'pg_catalog.uuid'
+                  ? { type, value: { kind: 'text-to-uuid', type, operand: text } }
+                  : type === 'pg_catalog.macaddr' || type === 'pg_catalog.macaddr8'
+                    ? { type, value: { kind: 'text-to-mac', type, operand: text } }
+                    : { type, value: { kind: 'text-to-network', type, operand: text } }
             : unknown
         }
         const value = materialize(operand, type)
