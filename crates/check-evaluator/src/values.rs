@@ -343,8 +343,20 @@ const SQL_ERROR_INVALID_PARAMETER: u32 = 3452619;
 const SQL_ERROR_INVALID_TEXT_REPRESENTATION: u32 = 3484946;
 const SQL_ERROR_STRING_LENGTH_MISMATCH: u32 = 3452622;
 const SQL_ERROR_STRING_RIGHT_TRUNCATION: u32 = 3452545;
+const SQL_ERROR_ARRAY_SUBSCRIPT: u32 = 3452630;
+const SQL_ERROR_PROGRAM_LIMIT: u32 = 8584704;
 
 pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
+    if error.state == SQL_ERROR_ARRAY_SUBSCRIPT {
+        return SqlErrorDescription {
+            message: "array subscript error",
+        };
+    }
+    if error.state == SQL_ERROR_PROGRAM_LIMIT {
+        return SqlErrorDescription {
+            message: "program limit exceeded",
+        };
+    }
     if error.state == SQL_ERROR_STRING_RIGHT_TRUNCATION {
         return SqlErrorDescription {
             message: "string data right truncation",

@@ -388,8 +388,16 @@ const sqlErrorInvalidParameter = 3452619
 const sqlErrorInvalidTextRepresentation = 3484946
 const sqlErrorStringLengthMismatch = 3452622
 const sqlErrorStringRightTruncation = 3452545
+const sqlErrorArraySubscript = 3452630
+const sqlErrorProgramLimit = 8584704
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorArraySubscript {
+		return SqlErrorDescription{Message: "array subscript error"}
+	}
+	if error.State == sqlErrorProgramLimit {
+		return SqlErrorDescription{Message: "program limit exceeded"}
+	}
 	if error.State == sqlErrorStringRightTruncation {
 		return SqlErrorDescription{Message: "string data right truncation"}
 	}

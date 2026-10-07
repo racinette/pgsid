@@ -920,6 +920,37 @@ describe('world CHECK INSERT parity', () => {
       }
     }
     for (const name of [
+      'patch_combination',
+      'patch_direct_combination',
+      'patch_read',
+      'patch_write',
+      'patch_flexible_read',
+      'patch_flexible_write',
+      'patch_selected',
+      'patch_default',
+    ]) {
+      const identity = `world_017_feature_masks.mask_patches.${name}`
+      const measured = coverage.get(identity)!
+      for (const kind of ['true', 'false', 'null'] as const)
+        expect(measured[kind], identity).toBeGreaterThan(0)
+      expect(measured.unknown, identity).toBe(0)
+      if (!name.includes('combination')) expect(measured.error, identity).toBeGreaterThan(0)
+    }
+    const indexErrors = caseResults.flatMap((row) =>
+      row.name.startsWith('017_feature_masks/')
+        ? row.checks.filter((check) => check.result.error === '2202E')
+        : [],
+    )
+    expect(indexErrors.length).toBeGreaterThan(0)
+    for (const check of indexErrors) expect(check.message).toContain('array subscript error')
+    const orderedErrors = caseResults.find(
+      (row) => row.name === '017_feature_masks/mask_patch_checks_index_before_replacement',
+    )!
+    for (const name of ['patch_write', 'patch_selected', 'patch_default'])
+      expect(orderedErrors.checks.find((check) => check.constraint === name)!.result.error).toBe(
+        '2202E',
+      )
+    for (const name of [
       'encoding_integer',
       'encoding_bigint',
       'encoding_decode_integer',

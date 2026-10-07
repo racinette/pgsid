@@ -15,3 +15,6 @@ VALUES (1, 1, '10101010', '10101010', B'10101010', B'101', B'101', B'101', B'101
 
 INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
 VALUES (1, 1, 7, 7, B'111', B'00000111', B'0000000000000111', 7, 7, B'1', false, false);
+
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (1, 1, B'10101010', NULL, B'101', B'10101010101', 0, 0, 1, B'00101010', false);

@@ -137,3 +137,25 @@ CREATE TABLE mask_encodings (
   CONSTRAINT encoding_default CHECK (COALESCE(source_integer, source_bits::int4) = expected_integer),
   CONSTRAINT encoding_direct CHECK (pg_catalog."bit"(source_bigint,16) = expected_bigint_bits)
 );
+
+CREATE TABLE mask_patches (
+  id integer PRIMARY KEY,
+  profile_id integer NOT NULL REFERENCES mask_profiles(id),
+  original_mask installed_mask,
+  flexible_mask device_request,
+  suffix_mask bit varying,
+  recorded_combination bit varying,
+  bit_position integer,
+  replacement_bit integer,
+  recorded_bit integer,
+  recorded_patch bit varying,
+  use_original boolean,
+  CONSTRAINT patch_combination CHECK ((original_mask || suffix_mask) = recorded_combination),
+  CONSTRAINT patch_direct_combination CHECK (bitcat(original_mask, suffix_mask) = recorded_combination),
+  CONSTRAINT patch_read CHECK (CASE WHEN use_original THEN true ELSE get_bit(original_mask,bit_position) = recorded_bit END),
+  CONSTRAINT patch_write CHECK (CASE WHEN use_original THEN true ELSE set_bit(original_mask,bit_position,replacement_bit) = recorded_patch END),
+  CONSTRAINT patch_flexible_read CHECK (CASE WHEN use_original THEN true ELSE get_bit(flexible_mask,bit_position) = recorded_bit END),
+  CONSTRAINT patch_flexible_write CHECK (CASE WHEN use_original THEN true ELSE set_bit(flexible_mask,bit_position,replacement_bit) = recorded_patch END),
+  CONSTRAINT patch_selected CHECK ((CASE WHEN use_original THEN original_mask ELSE set_bit(original_mask,bit_position,replacement_bit) END) = recorded_patch),
+  CONSTRAINT patch_default CHECK (COALESCE(flexible_mask,set_bit(original_mask,bit_position,replacement_bit)) = recorded_patch)
+);

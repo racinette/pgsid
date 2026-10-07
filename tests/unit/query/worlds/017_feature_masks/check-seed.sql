@@ -417,3 +417,111 @@ VALUES (619, 1, NULL, NULL, NULL, X'07', X'0007', 7, 7, B'1', false, false);
 -- name: mask_encoding_null_expected_values_propagate
 INSERT INTO mask_encodings (id, profile_id, source_integer, source_bigint, source_bits, expected_integer_bits, expected_bigint_bits, expected_integer, expected_bigint, expected_low_bit, skip_decode, select_integer)
 VALUES (620, 1, 7, 7, B'111', NULL, NULL, NULL, NULL, NULL, false, false);
+
+-- name: mask_patch_clears_leftmost_bit
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (700, 1, B'10101010', NULL, B'101', B'10101010101', 0, 0, 1, B'00101010', false);
+
+-- name: mask_patch_preserves_an_existing_bit
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (701, 1, B'10101010', B'10101010', B'101', B'10101010101', 0, 1, 1, B'10101010', false);
+
+-- name: mask_patch_sets_rightmost_bit
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (702, 1, B'10101010', NULL, B'1', B'101010101', 7, 1, 0, B'10101011', false);
+
+-- name: mask_patch_appends_empty_suffix
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (703, 1, B'10101010', NULL, B'', B'10101010', 0, 0, 1, B'00101010', false);
+
+-- name: mask_patch_appends_a_whole_byte
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (704, 1, B'10101010', NULL, X'0F', B'1010101000001111', 0, 0, 1, B'00101010', false);
+
+-- name: mask_patch_retains_zero_bits
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (705, 1, X'00', X'00', B'00', B'0000000000', 7, 0, 0, X'00', false);
+
+-- name: mask_patch_rejects_negative_index
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (706, 1, B'10101010', NULL, B'101', B'10101010101', -1, 0, 1, B'00101010', false);
+
+-- name: mask_patch_rejects_index_at_length
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (707, 1, B'10101010', NULL, B'101', B'10101010101', 8, 0, 1, B'00101010', false);
+
+-- name: mask_patch_rejects_minimum_index
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (708, 1, B'10101010', NULL, B'101', B'10101010101', -2147483648, 0, 1, B'00101010', false);
+
+-- name: mask_patch_rejects_maximum_index
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (709, 1, B'10101010', NULL, B'101', B'10101010101', 2147483647, 0, 1, B'00101010', false);
+
+-- name: mask_patch_rejects_replacement_two
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (710, 1, B'10101010', NULL, B'101', B'10101010101', 0, 2, 1, B'00101010', false);
+
+-- name: mask_patch_rejects_negative_replacement
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (711, 1, B'10101010', NULL, B'101', B'10101010101', 0, -1, 1, B'00101010', false);
+
+-- name: mask_patch_checks_index_before_replacement
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (712, 1, B'10101010', NULL, B'101', B'10101010101', -1, 2, 1, B'00101010', false);
+
+-- name: mask_patch_skips_invalid_arguments
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (713, 1, B'10101010', B'10101010', B'101', B'10101010101', -1, 2, 1, B'10101010', true);
+
+-- name: mask_patch_null_choice_reaches_invalid_arguments
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (714, 1, B'10101010', B'10101010', B'101', B'10101010101', -1, 2, 1, B'10101010', NULL);
+
+-- name: mask_patch_reads_partial_byte
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (715, 1, NULL, B'101010101', NULL, NULL, 8, 1, 1, B'101010101', false);
+
+-- name: mask_patch_rejects_changed_partial_byte
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (716, 1, NULL, B'101010101', NULL, NULL, 8, 0, 1, B'101010101', false);
+
+-- name: mask_patch_rejects_incorrect_partial_bit
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (717, 1, NULL, B'101010101', NULL, NULL, 8, 1, 0, B'101010101', false);
+
+-- name: mask_patch_rejects_index_into_empty_mask
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (718, 1, NULL, B'', NULL, NULL, 0, 0, 0, B'', false);
+
+-- name: mask_patch_skips_empty_mask_index
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (719, 1, NULL, B'', NULL, NULL, 0, 0, 0, B'', true);
+
+-- name: mask_patch_rejects_wrong_concatenation
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (720, 1, B'10101010', NULL, B'101', B'10101010100', 0, 0, 1, B'00101010', false);
+
+-- name: mask_patch_rejects_wrong_read_bit
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (721, 1, B'10101010', NULL, B'101', B'10101010101', 0, 0, 0, B'00101010', false);
+
+-- name: mask_patch_rejects_wrong_patch
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (722, 1, B'10101010', NULL, B'101', B'10101010101', 0, 0, 1, B'10101010', false);
+
+-- name: mask_patch_null_inputs_propagate
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (723, 1, NULL, NULL, NULL, NULL, 0, 0, 1, B'00101010', false);
+
+-- name: mask_patch_null_expected_values_propagate
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (724, 1, B'10101010', NULL, B'101', NULL, 0, 0, NULL, NULL, false);
+
+-- name: mask_patch_null_index_propagates
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (725, 1, B'10101010', NULL, B'101', B'10101010101', NULL, 0, 1, B'00101010', false);
+
+-- name: mask_patch_null_replacement_propagates
+INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
+VALUES (726, 1, B'10101010', NULL, B'101', B'10101010101', 0, NULL, 1, B'00101010', false);
