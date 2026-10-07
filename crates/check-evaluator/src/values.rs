@@ -338,6 +338,7 @@ const SQL_ERROR_INVALID_DATETIME_FORMAT: u32 = 3452551;
 const SQL_ERROR_DATETIME_FIELD_OVERFLOW: u32 = 3452552;
 const SQL_ERROR_TIMEZONE_DISPLACEMENT: u32 = 3452553;
 const SQL_ERROR_DIVISION_BY_ZERO: u32 = 3452582;
+const SQL_ERROR_SUBSTRING: u32 = 3452581;
 const SQL_ERROR_INVALID_REGEX: u32 = 3452591;
 const SQL_ERROR_INVALID_PARAMETER: u32 = 3452619;
 const SQL_ERROR_INVALID_TEXT_REPRESENTATION: u32 = 3484946;
@@ -347,6 +348,11 @@ const SQL_ERROR_ARRAY_SUBSCRIPT: u32 = 3452630;
 const SQL_ERROR_PROGRAM_LIMIT: u32 = 8584704;
 
 pub fn sql_error_message(error: SqlError) -> SqlErrorDescription<'static> {
+    if error.state == SQL_ERROR_SUBSTRING {
+        return SqlErrorDescription {
+            message: "substring error",
+        };
+    }
     if error.state == SQL_ERROR_ARRAY_SUBSCRIPT {
         return SqlErrorDescription {
             message: "array subscript error",

@@ -383,6 +383,7 @@ const sqlErrorInvalidDatetimeFormat = 3452551
 const sqlErrorDatetimeFieldOverflow = 3452552
 const sqlErrorTimezoneDisplacement = 3452553
 const sqlErrorDivisionByZero = 3452582
+const sqlErrorSubstring = 3452581
 const sqlErrorInvalidRegex = 3452591
 const sqlErrorInvalidParameter = 3452619
 const sqlErrorInvalidTextRepresentation = 3484946
@@ -392,6 +393,9 @@ const sqlErrorArraySubscript = 3452630
 const sqlErrorProgramLimit = 8584704
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorSubstring {
+		return SqlErrorDescription{Message: "substring error"}
+	}
 	if error.State == sqlErrorArraySubscript {
 		return SqlErrorDescription{Message: "array subscript error"}
 	}

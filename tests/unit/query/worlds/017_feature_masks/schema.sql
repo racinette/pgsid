@@ -159,3 +159,23 @@ CREATE TABLE mask_patches (
   CONSTRAINT patch_selected CHECK ((CASE WHEN use_original THEN original_mask ELSE set_bit(original_mask,bit_position,replacement_bit) END) = recorded_patch),
   CONSTRAINT patch_default CHECK (COALESCE(flexible_mask,set_bit(original_mask,bit_position,replacement_bit)) = recorded_patch)
 );
+
+CREATE TABLE mask_windows (
+  id integer PRIMARY KEY,
+  profile_id integer NOT NULL REFERENCES mask_profiles(id),
+  original_mask installed_mask,
+  flexible_mask device_request,
+  start_position integer,
+  window_length integer,
+  recorded_window bit varying,
+  recorded_suffix bit varying,
+  default_window bit varying,
+  use_original boolean,
+  CONSTRAINT window_fixed CHECK (CASE WHEN use_original THEN true ELSE substring(original_mask FROM start_position FOR window_length) = recorded_window END),
+  CONSTRAINT window_flexible CHECK (CASE WHEN use_original THEN true ELSE substring(flexible_mask FROM start_position FOR window_length) = recorded_window END),
+  CONSTRAINT window_direct CHECK (CASE WHEN use_original THEN true ELSE pg_catalog.substring(original_mask,start_position,window_length) = recorded_window END),
+  CONSTRAINT window_suffix CHECK (substring(original_mask FROM start_position) = recorded_suffix),
+  CONSTRAINT window_flexible_suffix CHECK (substring(flexible_mask FROM start_position) = recorded_suffix),
+  CONSTRAINT window_selected CHECK ((CASE WHEN use_original THEN original_mask ELSE substring(original_mask FROM start_position FOR window_length) END) = recorded_window),
+  CONSTRAINT window_default CHECK (COALESCE(default_window,substring(original_mask FROM start_position FOR window_length)) = recorded_window)
+);
