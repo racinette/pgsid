@@ -24,3 +24,6 @@ VALUES (1, 1, B'10101010', B'10101010', 2, 3, B'010', B'0101010', NULL, false);
 
 INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
 VALUES (1, 1, B'10101010', B'10101010', B'11', 3, 2, B'10111010', B'10111010', NULL, false);
+
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1, 1, B'00101101', B'00101101', B'101', 3, true, NULL, false);

@@ -981,6 +981,27 @@ describe('world CHECK INSERT parity', () => {
     expect(
       defaultedOverlay.checks.find((check) => check.constraint === 'overlay_fixed')!.result.error,
     ).toBe('22003')
+    for (const name of [
+      'search_fixed',
+      'search_flexible',
+      'search_direct',
+      'search_present',
+      'search_selected',
+      'search_default',
+      'search_flexible_default',
+    ]) {
+      const identity = `world_017_feature_masks.mask_searches.${name}`
+      const measured = coverage.get(identity)!
+      for (const kind of ['true', 'false', 'null'] as const)
+        expect(measured[kind], identity).toBeGreaterThan(0)
+      expect(measured.unknown, identity).toBe(0)
+      expect(measured.error, identity).toBe(0)
+    }
+    const defaultedSearch = caseResults.find(
+      (row) => row.name === '017_feature_masks/mask_search_default_skips_null_search',
+    )!
+    for (const check of defaultedSearch.checks)
+      expect(check.result).toEqual({ certain: true, value: true })
     const substringErrors = caseResults.flatMap((row) =>
       row.name.startsWith('017_feature_masks/')
         ? row.checks.filter((check) => check.result.error === '22011')
