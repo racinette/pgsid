@@ -215,10 +215,15 @@ import them. Keep schema-only helpers with their callables.
   Longer strings return 22003 even when their high bits are zero. Resolve casts
   through catalog links; do not invent smallint-to-bit or varbit-to-integer paths.
   Function calls may use the catalog's implicit bit/varbit relabels. Raw query
-  parameter coercion remains deferred. Run
+  parameter coercion remains deferred. Concatenation preserves exact lengths
+  and returns 54000 when their sum exceeds the bit limit. Get/set use zero-based
+  positions from the left, returning 2202E outside the payload. Set validates
+  the position before rejecting a replacement other than zero or one (22023),
+  and builds a new value. Run
   `tests/sql-semantics/check-bit.test.ts`, `tests/sql-semantics/check-bitwise.test.ts`,
   `tests/sql-semantics/check-bit-casts.test.ts`,
-  `tests/sql-semantics/check-bit-integers.test.ts`, and the feature masks world for parity.
+  `tests/sql-semantics/check-bit-integers.test.ts`,
+  `tests/sql-semantics/check-bit-edit.test.ts`, and the feature masks world for parity.
 - Date payloads are signed day offsets from 2000-01-01. The signed int4
   minimum and maximum represent negative and positive infinity. Finite payloads
   range from -2451545 through 2145031948. Public CHECK inputs use this portable

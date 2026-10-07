@@ -269,7 +269,7 @@ describe('Rust CHECK bit and varbit values', () => {
     }
     const expression = lowerTableCheck(
       table,
-      { name: 'concatenation', type: 'check', definition: 'CHECK ((a || b) = a)' },
+      { name: 'substring', type: 'check', definition: 'CHECK (substring(a FROM 1 FOR 1) = a)' },
       [],
       catalog.domains,
     )!.expression
@@ -280,7 +280,7 @@ describe('Rust CHECK bit and varbit values', () => {
           schema: 'public',
           kind: 'table',
           owner: table.name,
-          constraint: 'concatenation',
+          constraint: 'substring',
         },
       },
     ])

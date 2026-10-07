@@ -1290,6 +1290,145 @@ func BitEqck(input checkruntime.BitValue, width checkruntime.Int4Value, explicit
 func Varbit7ap7(input checkruntime.BitValue, width checkruntime.Int4Value, explicit checkruntime.BoolValue) checkruntime.BitValue {
 	return bitCoerce(input, width, explicit, true)
 }
+
+const bitArraySubscriptError = 3452630
+const bitProgramLimitExceeded = 8584704
+
+func bitConcatLength(left int, right int) checkruntime.Int4Value {
+	left = langruntime.CheckedI32(left)
+	right = langruntime.CheckedI32(right)
+	if left > langruntime.CheckedSignedSubtract(bitMaxLength, right) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(bitProgramLimitExceeded)}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedAdd(left, right)}
+}
+func BitcatT5mn(left checkruntime.BitValue, right checkruntime.BitValue) checkruntime.BitValue {
+	if left.Kind == checkruntime.BitValueError {
+		error := left.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if right.Kind == checkruntime.BitValueError {
+		error := right.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if left == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) || right == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+	}
+	if left == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) || right == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueNull}
+	}
+	if left.Kind == checkruntime.BitValueValue {
+		a := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.BitValueValue {
+			b := langruntime.CheckedString(right.Value)
+			first := checkruntime.BitPayloadLength(a)
+			second := checkruntime.BitPayloadLength(b)
+			length := bitConcatLength(first, second)
+			if length.Kind == checkruntime.Int4ValueError {
+				error := length.Error
+				return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+			}
+			output := a
+			output = output + b
+			return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: output}
+		}
+	}
+	return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+}
+func GetBitYgqy(input checkruntime.BitValue, position checkruntime.Int4Value) checkruntime.Int4Value {
+	if input.Kind == checkruntime.BitValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if position.Kind == checkruntime.Int4ValueError {
+		error := position.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.BitValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if position.Kind == checkruntime.Int4ValueValue {
+			offset := langruntime.CheckedI32(position.Value)
+			if offset < 0 {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(bitArraySubscriptError)}
+			}
+			chars := []rune(value)
+			index := 0
+			current := 0
+			for index < len(chars) {
+				if current == offset {
+					if chars[index] == '1' {
+						return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+					}
+					return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+				}
+				index = langruntime.CheckedAdd(index, 1)
+				current = langruntime.CheckedI32(langruntime.CheckedSignedAdd(current, 1))
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(bitArraySubscriptError)}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func SetBit2mfa(input checkruntime.BitValue, position checkruntime.Int4Value, replacement checkruntime.Int4Value) checkruntime.BitValue {
+	if input.Kind == checkruntime.BitValueError {
+		error := input.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if position.Kind == checkruntime.Int4ValueError {
+		error := position.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if replacement.Kind == checkruntime.Int4ValueError {
+		error := replacement.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || replacement == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || replacement == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueNull}
+	}
+	if input.Kind == checkruntime.BitValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if position.Kind == checkruntime.Int4ValueValue {
+			offset := langruntime.CheckedI32(position.Value)
+			if replacement.Kind == checkruntime.Int4ValueValue {
+				bit := langruntime.CheckedI32(replacement.Value)
+				length := checkruntime.BitPayloadLength(value)
+				if offset < 0 || offset >= length {
+					return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: checkruntime.MakeSqlError(bitArraySubscriptError)}
+				}
+				if bit != 0 && bit != 1 {
+					return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: checkruntime.MakeSqlError(sqlstateInvalidParameterValue)}
+				}
+				chars := []rune(value)
+				output := ""
+				index := 0
+				current := 0
+				for index < len(chars) {
+					ch := chars[index]
+					if current == offset {
+						ch = langruntime.CheckedChar('0')
+						if bit == 1 {
+							ch = langruntime.CheckedChar('1')
+						}
+					}
+					output = output + string(langruntime.CheckedChar(ch))
+					index = langruntime.CheckedAdd(index, 1)
+					current = langruntime.CheckedI32(langruntime.CheckedSignedAdd(current, 1))
+				}
+				return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: output}
+			}
+		}
+	}
+	return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+}
 func bitIntegerEncode(input int64, requested int) string {
 	requested = langruntime.CheckedI32(requested)
 	width := requested

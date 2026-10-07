@@ -1286,6 +1286,143 @@ export function bitEqck(input: checkruntime.BitValue, width: checkruntime.Int4Va
 export function varbit7ap7(input: checkruntime.BitValue, width: checkruntime.Int4Value, explicit: checkruntime.BoolValue): checkruntime.BitValue {
     return bitCoerce(input, width, explicit, true);
 }
+const bitArraySubscriptError = 3452630;
+const bitProgramLimitExceeded = 8584704;
+function bitConcatLength(left: number, right: number): checkruntime.Int4Value {
+    left = langruntime.checkedI32(left);
+    right = langruntime.checkedI32(right);
+    if (left > langruntime.checkedSignedSubtract(bitMaxLength, right)) {
+        return { kind: "Error", value: checkruntime.makeSqlError(bitProgramLimitExceeded) };
+    }
+    return { kind: "Value", value: langruntime.checkedSignedAdd(left, right) };
+}
+export function bitcatT5mn(left: checkruntime.BitValue, right: checkruntime.BitValue): checkruntime.BitValue {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBitValue(left, { kind: "Unknown" }) || checkruntime.equalBitValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBitValue(left, { kind: "Null" }) || checkruntime.equalBitValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: string = langruntime.checkedString(left.value);
+        if (right.kind === "Value") {
+            const b: string = langruntime.checkedString(right.value);
+            const first: number = checkruntime.bitPayloadLength(a);
+            const second: number = checkruntime.bitPayloadLength(b);
+            const length: checkruntime.Int4Value = bitConcatLength(first, second);
+            if (length.kind === "Error") {
+                const error: checkruntime.SqlError = length.value;
+                return { kind: "Error", value: error };
+            }
+            let output: string = a;
+            output = output + b;
+            return { kind: "Value", value: output };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function getBitYgqy(input: checkruntime.BitValue, position: checkruntime.Int4Value): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (position.kind === "Error") {
+        const error: checkruntime.SqlError = position.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(position, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(position, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (position.kind === "Value") {
+            const offset: number = langruntime.checkedI32(position.value);
+            if (offset < 0) {
+                return { kind: "Error", value: checkruntime.makeSqlError(bitArraySubscriptError) };
+            }
+            const chars: string[] = Array.from(value);
+            let index: number = 0;
+            let current: number = 0;
+            while (index < chars.length) {
+                if (current === offset) {
+                    if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "1") {
+                        return { kind: "Value", value: 1 };
+                    }
+                    return { kind: "Value", value: 0 };
+                }
+                index = langruntime.checkedAdd(index, 1);
+                current = langruntime.checkedI32(langruntime.checkedSignedAdd(current, 1));
+            }
+            return { kind: "Error", value: checkruntime.makeSqlError(bitArraySubscriptError) };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function setBit2mfa(input: checkruntime.BitValue, position: checkruntime.Int4Value, replacement: checkruntime.Int4Value): checkruntime.BitValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (position.kind === "Error") {
+        const error: checkruntime.SqlError = position.value;
+        return { kind: "Error", value: error };
+    }
+    if (replacement.kind === "Error") {
+        const error: checkruntime.SqlError = replacement.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(position, { kind: "Unknown" }) || checkruntime.equalInt4Value(replacement, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(position, { kind: "Null" }) || checkruntime.equalInt4Value(replacement, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (position.kind === "Value") {
+            const offset: number = langruntime.checkedI32(position.value);
+            if (replacement.kind === "Value") {
+                const bit: number = langruntime.checkedI32(replacement.value);
+                const length: number = checkruntime.bitPayloadLength(value);
+                if (offset < 0 || offset >= length) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(bitArraySubscriptError) };
+                }
+                if (!(bit === 0) && !(bit === 1)) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(sqlstateInvalidParameterValue) };
+                }
+                const chars: string[] = Array.from(value);
+                let output: string = "";
+                let index: number = 0;
+                let current: number = 0;
+                while (index < chars.length) {
+                    let ch: string = langruntime.indexChar(chars, langruntime.checkedIndex(index));
+                    if (current === offset) {
+                        ch = langruntime.checkedChar("0");
+                        if (bit === 1) {
+                            ch = langruntime.checkedChar("1");
+                        }
+                    }
+                    output = output + langruntime.checkedChar(ch);
+                    index = langruntime.checkedAdd(index, 1);
+                    current = langruntime.checkedI32(langruntime.checkedSignedAdd(current, 1));
+                }
+                return { kind: "Value", value: output };
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
 function bitIntegerEncode(input: bigint, requested: number): string {
     input = langruntime.checkedI64(input);
     requested = langruntime.checkedI32(requested);

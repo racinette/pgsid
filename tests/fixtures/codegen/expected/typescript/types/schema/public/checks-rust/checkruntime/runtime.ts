@@ -430,7 +430,15 @@ const sqlErrorInvalidParameter = 3452619;
 const sqlErrorInvalidTextRepresentation = 3484946;
 const sqlErrorStringLengthMismatch = 3452622;
 const sqlErrorStringRightTruncation = 3452545;
+const sqlErrorArraySubscript = 3452630;
+const sqlErrorProgramLimit = 8584704;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorArraySubscript) {
+        return { message: "array subscript error" };
+    }
+    if (error.state === sqlErrorProgramLimit) {
+        return { message: "program limit exceeded" };
+    }
     if (error.state === sqlErrorStringRightTruncation) {
         return { message: "string data right truncation" };
     }
