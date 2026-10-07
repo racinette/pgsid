@@ -219,3 +219,21 @@ CREATE TABLE mask_searches (
   CONSTRAINT search_default CHECK (COALESCE(default_position,position(pattern_mask IN original_mask)) = recorded_position),
   CONSTRAINT search_flexible_default CHECK (COALESCE(default_position,position(pattern_mask IN flexible_mask)) = recorded_position)
 );
+
+CREATE TABLE mask_counts (
+  id integer PRIMARY KEY,
+  profile_id integer NOT NULL REFERENCES mask_profiles(id),
+  original_mask installed_mask,
+  flexible_mask device_request,
+  recorded_count bigint,
+  recorded_small_count smallint,
+  default_count bigint,
+  use_default boolean,
+  CONSTRAINT count_fixed CHECK (CASE WHEN use_default THEN true ELSE bit_count(original_mask) = recorded_count END),
+  CONSTRAINT count_flexible CHECK (CASE WHEN use_default THEN true ELSE bit_count(flexible_mask) = recorded_count END),
+  CONSTRAINT count_direct CHECK (CASE WHEN use_default THEN true ELSE pg_catalog.bit_count(original_mask) = recorded_count END),
+  CONSTRAINT count_small CHECK (CASE WHEN use_default THEN true ELSE bit_count(original_mask) = recorded_small_count END),
+  CONSTRAINT count_selected CHECK ((CASE WHEN use_default THEN default_count ELSE bit_count(original_mask) END) = recorded_count),
+  CONSTRAINT count_default CHECK (COALESCE(default_count,bit_count(original_mask)) = recorded_count),
+  CONSTRAINT count_flexible_default CHECK (COALESCE(default_count,bit_count(flexible_mask)) = recorded_count)
+);

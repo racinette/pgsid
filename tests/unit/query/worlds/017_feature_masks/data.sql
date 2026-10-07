@@ -27,3 +27,6 @@ VALUES (1, 1, B'10101010', B'10101010', B'11', 3, 2, B'10111010', B'10111010', N
 
 INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
 VALUES (1, 1, B'00101101', B'00101101', B'101', 3, true, NULL, false);
+
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1, 1, B'00101101', B'00101101', 4, 4, NULL, false);

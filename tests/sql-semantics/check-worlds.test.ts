@@ -1002,6 +1002,27 @@ describe('world CHECK INSERT parity', () => {
     )!
     for (const check of defaultedSearch.checks)
       expect(check.result).toEqual({ certain: true, value: true })
+    for (const name of [
+      'count_fixed',
+      'count_flexible',
+      'count_direct',
+      'count_small',
+      'count_selected',
+      'count_default',
+      'count_flexible_default',
+    ]) {
+      const identity = `world_017_feature_masks.mask_counts.${name}`
+      const measured = coverage.get(identity)!
+      for (const kind of ['true', 'false', 'null'] as const)
+        expect(measured[kind], identity).toBeGreaterThan(0)
+      expect(measured.unknown, identity).toBe(0)
+      expect(measured.error, identity).toBe(0)
+    }
+    const defaultedCount = caseResults.find(
+      (row) => row.name === '017_feature_masks/mask_count_default_skips_null_count',
+    )!
+    for (const check of defaultedCount.checks)
+      expect(check.result).toEqual({ certain: true, value: true })
     const substringErrors = caseResults.flatMap((row) =>
       row.name.startsWith('017_feature_masks/')
         ? row.checks.filter((check) => check.result.error === '22011')

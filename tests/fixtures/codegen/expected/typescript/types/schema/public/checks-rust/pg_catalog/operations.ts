@@ -1286,6 +1286,32 @@ export function bitEqck(input: checkruntime.BitValue, width: checkruntime.Int4Va
 export function varbit7ap7(input: checkruntime.BitValue, width: checkruntime.Int4Value, explicit: checkruntime.BoolValue): checkruntime.BitValue {
     return bitCoerce(input, width, explicit, true);
 }
+export function bitCountFri1(input: checkruntime.BitValue): checkruntime.Int8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(value);
+        let index: number = 0;
+        let count: bigint = 0n;
+        while (index < chars.length) {
+            if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "1") {
+                count = langruntime.checkedI64(langruntime.checkedI64Add(count, 1n));
+            }
+            index = langruntime.checkedAdd(index, 1);
+        }
+        return { kind: "Value", value: count };
+    }
+    return { kind: "Unknown" };
+}
 const bitArraySubscriptError = 3452630;
 const bitProgramLimitExceeded = 8584704;
 function bitConcatLength(left: number, right: number): checkruntime.Int4Value {

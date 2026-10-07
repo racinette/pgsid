@@ -821,3 +821,83 @@ VALUES (1022, 1, NULL, NULL, NULL, 7, true, 7, true);
 -- name: mask_search_null_default_and_null_search
 INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
 VALUES (1023, 1, NULL, NULL, NULL, 7, true, NULL, true);
+
+-- name: mask_count_counts_enabled_features
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1100, 1, B'00101101', B'00101101', 4, 4, NULL, false);
+
+-- name: mask_count_all_disabled
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1101, 1, B'00000000', B'00000000', 0, 0, NULL, false);
+
+-- name: mask_count_all_enabled
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1102, 1, B'11111111', B'11111111', 8, 8, NULL, false);
+
+-- name: mask_count_last_bit_enabled
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1103, 1, B'00000001', B'00000001', 1, 1, NULL, false);
+
+-- name: mask_count_partial_byte_ignores_padding
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1104, 1, NULL, B'1', 1, 1, NULL, false);
+
+-- name: mask_count_partial_byte_with_leading_zeros
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1105, 1, NULL, B'00101', 2, 2, NULL, false);
+
+-- name: mask_count_empty_mask
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1106, 1, NULL, B'', 0, 0, NULL, false);
+
+-- name: mask_count_crosses_byte_boundary
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1107, 1, NULL, B'111111111', 9, 9, NULL, false);
+
+-- name: mask_count_crosses_word_boundary
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1108, 1, NULL, B'11111111111111111111111111111111111111111111111111111111111111111', 65, 65, NULL, false);
+
+-- name: mask_count_rejects_wrong_count
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1109, 1, B'00101101', B'00101101', 5, 4, NULL, false);
+
+-- name: mask_count_rejects_wrong_small_count
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1110, 1, B'00101101', B'00101101', 4, 5, NULL, false);
+
+-- name: mask_count_rejects_wrong_default
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1111, 1, B'00101101', B'00101101', 4, 4, 7, false);
+
+-- name: mask_count_rejects_minimum_bigint_count
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1112, 1, B'00101101', B'00101101', -9223372036854775808, 4, NULL, false);
+
+-- name: mask_count_rejects_maximum_bigint_count
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1113, 1, B'00101101', B'00101101', 9223372036854775807, 4, NULL, false);
+
+-- name: mask_count_null_masks
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1114, 1, NULL, NULL, 4, 4, NULL, false);
+
+-- name: mask_count_null_expected
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1115, 1, B'00101101', B'00101101', NULL, NULL, NULL, false);
+
+-- name: mask_count_selects_override
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1116, 1, B'00101101', B'00101101', 7, 4, 7, true);
+
+-- name: mask_count_null_choice_uses_count
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1117, 1, B'00101101', B'00101101', 4, 4, NULL, NULL);
+
+-- name: mask_count_default_skips_null_count
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1118, 1, NULL, NULL, 7, 7, 7, true);
+
+-- name: mask_count_null_default_and_null_count
+INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
+VALUES (1119, 1, NULL, NULL, 7, 7, NULL, true);
