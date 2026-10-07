@@ -3029,6 +3029,48 @@ func Crc320obw(input checkruntime.ByteaValue) checkruntime.Int8Value {
 func Crc32cF1hu(input checkruntime.ByteaValue) checkruntime.Int8Value {
 	return byteaCrc(input, int64(2197175160))
 }
+func ByteaFromText(input checkruntime.TextValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		if len(chars) >= 2 && chars[0] == '\\' && chars[1] == 'x' {
+			length := langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(byteaCodecUtf8Length(value), int64(2))), int64(2))
+			if byteaCodecLengthFits(length) == false {
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaAllocationError)}
+			}
+			payload := ""
+			index := 2
+			for index < len(chars) {
+				payload = payload + string(langruntime.CheckedChar(chars[index]))
+				index = langruntime.CheckedAdd(index, 1)
+			}
+			return byteaHexDecode(payload)
+		}
+		estimate := byteaEscapeDecodedLength(value)
+		if estimate.Kind == checkruntime.Int8ValueError {
+			error := estimate.Error
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+		}
+		if estimate.Kind == checkruntime.Int8ValueValue {
+			length := estimate.Value
+			if byteaCodecLengthFits(length) == false {
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaAllocationError)}
+			}
+		}
+		return byteaEscapeDecode(value)
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
 func byteaIntegerValue(input checkruntime.ByteaValue, width int) checkruntime.Int8Value {
 	width = langruntime.CheckedI32(width)
 	if input.Kind == checkruntime.ByteaValueError {
@@ -3272,6 +3314,228 @@ func BoolsendOo82(input checkruntime.BoolValue) checkruntime.ByteaValue {
 		}
 		output := checkruntime.ByteaAppendByte("", byte)
 		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+
+const byteaEscapeError = 3452621
+
+type byteaLikeFrame struct {
+	text      int
+	pattern   int
+	searching bool
+	firstHigh rune
+	firstLow  rune
+}
+
+func copybyteaLikeFrame(value byteaLikeFrame) byteaLikeFrame {
+	return byteaLikeFrame{text: langruntime.CheckedIndex(value.text), pattern: langruntime.CheckedIndex(value.pattern), searching: value.searching, firstHigh: langruntime.CheckedChar(value.firstHigh), firstLow: langruntime.CheckedChar(value.firstLow)}
+}
+func byteaLikeMatch(input string, pattern string) checkruntime.Int4Value {
+	input = langruntime.CheckedString(input)
+	pattern = langruntime.CheckedString(pattern)
+	text := []rune(input)
+	chars := []rune(pattern)
+	frames := []byteaLikeFrame{}
+	langruntime.CheckedAdd(len(frames), 1)
+	frames = append(frames, copybyteaLikeFrame(byteaLikeFrame{text: 0, pattern: 0, searching: false, firstHigh: '0', firstLow: '0'}))
+	depth := 1
+	for depth > 0 {
+		current := langruntime.CheckedSubtract(depth, 1)
+		frame := frames[current]
+		t := frame.text
+		p := frame.pattern
+		searching := frame.searching
+		firstHigh := frame.firstHigh
+		firstLow := frame.firstLow
+		failed := false
+		if searching {
+			for t < len(text) && (text[t] != firstHigh || text[langruntime.CheckedAdd(t, 1)] != firstLow) {
+				t = langruntime.CheckedIndex(langruntime.CheckedAdd(t, 2))
+			}
+			if t >= len(text) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+			}
+			frames[current] = copybyteaLikeFrame(byteaLikeFrame{text: langruntime.CheckedAdd(t, 2), pattern: p, searching: true, firstHigh: firstHigh, firstLow: firstLow})
+			child := byteaLikeFrame{text: t, pattern: p, searching: false, firstHigh: '0', firstLow: '0'}
+			if depth < len(frames) {
+				frames[depth] = copybyteaLikeFrame(child)
+			} else {
+				langruntime.CheckedAdd(len(frames), 1)
+				frames = append(frames, copybyteaLikeFrame(child))
+			}
+			depth = langruntime.CheckedAdd(depth, 1)
+		} else {
+			if t < len(text) && p < len(chars) {
+				if chars[p] == '2' && chars[langruntime.CheckedAdd(p, 1)] == '5' {
+					p = langruntime.CheckedIndex(langruntime.CheckedAdd(p, 2))
+					wildcards := true
+					for p < len(chars) && wildcards {
+						if chars[p] == '2' && chars[langruntime.CheckedAdd(p, 1)] == '5' {
+							p = langruntime.CheckedIndex(langruntime.CheckedAdd(p, 2))
+						} else if chars[p] == '5' && chars[langruntime.CheckedAdd(p, 1)] == 'f' {
+							if t >= len(text) {
+								return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+							}
+							t = langruntime.CheckedIndex(langruntime.CheckedAdd(t, 2))
+							p = langruntime.CheckedIndex(langruntime.CheckedAdd(p, 2))
+						} else {
+							wildcards = false
+						}
+					}
+					if p >= len(chars) {
+						return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+					}
+					literal := p
+					if chars[p] == '5' && chars[langruntime.CheckedAdd(p, 1)] == 'c' {
+						literal = langruntime.CheckedIndex(langruntime.CheckedAdd(literal, 2))
+						if literal >= len(chars) {
+							return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(byteaEscapeError)}
+						}
+					}
+					firstHigh = langruntime.CheckedChar(chars[literal])
+					firstLow = langruntime.CheckedChar(chars[langruntime.CheckedAdd(literal, 1)])
+					searching = true
+				} else if chars[p] == '5' && chars[langruntime.CheckedAdd(p, 1)] == 'f' {
+					t = langruntime.CheckedIndex(langruntime.CheckedAdd(t, 2))
+					p = langruntime.CheckedIndex(langruntime.CheckedAdd(p, 2))
+				} else {
+					if chars[p] == '5' && chars[langruntime.CheckedAdd(p, 1)] == 'c' {
+						p = langruntime.CheckedIndex(langruntime.CheckedAdd(p, 2))
+						if p >= len(chars) {
+							return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(byteaEscapeError)}
+						}
+					}
+					if text[t] != chars[p] || text[langruntime.CheckedAdd(t, 1)] != chars[langruntime.CheckedAdd(p, 1)] {
+						failed = true
+					} else {
+						t = langruntime.CheckedIndex(langruntime.CheckedAdd(t, 2))
+						p = langruntime.CheckedIndex(langruntime.CheckedAdd(p, 2))
+					}
+				}
+			} else if t < len(text) {
+				failed = true
+			} else {
+				for p < len(chars) && chars[p] == '2' && chars[langruntime.CheckedAdd(p, 1)] == '5' {
+					p = langruntime.CheckedIndex(langruntime.CheckedAdd(p, 2))
+				}
+				if p >= len(chars) {
+					return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+				}
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+			}
+			if failed {
+				depth = langruntime.CheckedIndex(langruntime.CheckedSubtract(depth, 1))
+			} else {
+				frames[current] = copybyteaLikeFrame(byteaLikeFrame{text: t, pattern: p, searching: searching, firstHigh: firstHigh, firstLow: firstLow})
+			}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+}
+func byteaLike(input checkruntime.ByteaValue, pattern checkruntime.ByteaValue, negate bool) checkruntime.BoolValue {
+	if input.Kind == checkruntime.ByteaValueError {
+		error := input.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if pattern.Kind == checkruntime.ByteaValueError {
+		error := pattern.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) || pattern == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) || pattern == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if input.Kind == checkruntime.ByteaValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if pattern.Kind == checkruntime.ByteaValueValue {
+			pat := langruntime.CheckedString(pattern.Value)
+			result := byteaLikeMatch(value, pat)
+			if result.Kind == checkruntime.Int4ValueError {
+				error := result.Error
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+			}
+			if result.Kind == checkruntime.Int4ValueValue {
+				matched := langruntime.CheckedI32(result.Value)
+				value := matched == 1
+				return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: value != negate}
+			}
+		}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func BytealikeJhpm(input checkruntime.ByteaValue, pattern checkruntime.ByteaValue) checkruntime.BoolValue {
+	return byteaLike(input, pattern, false)
+}
+func Like9b5r(input checkruntime.ByteaValue, pattern checkruntime.ByteaValue) checkruntime.BoolValue {
+	return byteaLike(input, pattern, false)
+}
+func ByteanlikeQodo(input checkruntime.ByteaValue, pattern checkruntime.ByteaValue) checkruntime.BoolValue {
+	return byteaLike(input, pattern, true)
+}
+func NotlikeCy7a(input checkruntime.ByteaValue, pattern checkruntime.ByteaValue) checkruntime.BoolValue {
+	return byteaLike(input, pattern, true)
+}
+func LikeEscapeHk4j(input checkruntime.ByteaValue, escape checkruntime.ByteaValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.ByteaValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if escape.Kind == checkruntime.ByteaValueError {
+		error := escape.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) || escape == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) || escape == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.ByteaValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if escape.Kind == checkruntime.ByteaValueValue {
+			esc := langruntime.CheckedString(escape.Value)
+			length := byteaPayloadLength(value)
+			allocated := byteaConcatLength(length, length)
+			if allocated.Kind == checkruntime.Int4ValueError {
+				error := allocated.Error
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+			}
+			chars := []rune(value)
+			escapeChars := []rune(esc)
+			if len(escapeChars) > 2 {
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaEscapeError)}
+			}
+			if len(escapeChars) == 2 && escapeChars[0] == '5' && escapeChars[1] == 'c' {
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: value}
+			}
+			output := ""
+			index := 0
+			afterEscape := false
+			for index < len(chars) {
+				high := chars[index]
+				low := chars[langruntime.CheckedAdd(index, 1)]
+				isEscape := false
+				if len(escapeChars) == 2 {
+					isEscape = high == escapeChars[0] && low == escapeChars[1] && afterEscape == false
+				}
+				if isEscape {
+					output = output + "5c"
+					afterEscape = true
+				} else {
+					if high == '5' && low == 'c' && afterEscape == false {
+						output = output + "5c"
+					}
+					output = output + string(langruntime.CheckedChar(high))
+					output = output + string(langruntime.CheckedChar(low))
+					afterEscape = false
+				}
+				index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 2))
+			}
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+		}
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
@@ -7035,6 +7299,151 @@ func NumericNeGyip(left checkruntime.NumericValue, right checkruntime.NumericVal
 		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order != 0}
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+
+type numericWireDigit struct {
+	value int
+}
+
+func copynumericWireDigit(value numericWireDigit) numericWireDigit {
+	return numericWireDigit{value: langruntime.CheckedI32(value.value)}
+}
+func numericWireDecimalDigit(character rune) int {
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	if code >= 48 && code <= 57 {
+		return langruntime.CheckedSignedSubtract(code, 48)
+	}
+	return langruntime.CheckedSignedNegate(1)
+}
+func numericWireScale(input string) int {
+	input = langruntime.CheckedString(input)
+	chars := []rune(input)
+	index := 0
+	point := false
+	power := false
+	fractional := 0
+	exponent := 0
+	sign := 1
+	for index < len(chars) {
+		digit := numericWireDecimalDigit(chars[index])
+		if digit >= 0 {
+			if power {
+				exponent = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(exponent, 10), digit))
+			} else if point {
+				fractional = langruntime.CheckedI32(langruntime.CheckedSignedAdd(fractional, 1))
+			}
+		} else if chars[index] == '.' {
+			point = true
+		} else if chars[index] == 'e' || chars[index] == 'E' {
+			power = true
+		} else if power && chars[index] == '-' {
+			sign = langruntime.CheckedI32(langruntime.CheckedSignedNegate(1))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	scale := langruntime.CheckedSignedSubtract(fractional, langruntime.CheckedSignedMultiply(exponent, sign))
+	if scale < 0 {
+		return 0
+	}
+	return scale
+}
+func numericWireWord(output string, word int) string {
+	output = langruntime.CheckedString(output)
+	word = langruntime.CheckedI32(word)
+	unsigned := word
+	if word < 0 {
+		unsigned = langruntime.CheckedI32(langruntime.CheckedSignedAdd(word, 65536))
+	}
+	result := checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedDivide(unsigned, 256))
+	return checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedRemainder(unsigned, 256))
+}
+func NumericSend3mnb(input checkruntime.NumericValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.NumericValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueUnknown}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	if input == (checkruntime.NumericValue{Kind: checkruntime.NumericValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.NumericValueValue {
+		value := langruntime.CheckedString(input.Value)
+		layout := checkruntime.NumericParts(value)
+		if layout.Valid == false {
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+		}
+		sign := 0
+		if layout.Special == 0 {
+			sign = langruntime.CheckedI32(61440)
+		} else if layout.Special == 2 {
+			sign = langruntime.CheckedI32(53248)
+		} else if layout.Special == 3 {
+			sign = langruntime.CheckedI32(49152)
+		} else if layout.Sign < 0 {
+			sign = langruntime.CheckedI32(16384)
+		}
+		scale := 0
+		if layout.Special == 0 || layout.Special == 2 {
+			scale = langruntime.CheckedI32(32)
+		}
+		weight := 0
+		count := 0
+		words := []numericWireDigit{}
+		if layout.Special == 1 {
+			scale = langruntime.CheckedI32(numericWireScale(value))
+			if layout.Sign != 0 {
+				weight = langruntime.CheckedI32(langruntime.CheckedSignedDivide(layout.Weight, 4))
+				remainder := langruntime.CheckedSignedRemainder(layout.Weight, 4)
+				if remainder < 0 {
+					weight = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(weight, 1))
+					remainder = langruntime.CheckedI32(langruntime.CheckedSignedAdd(remainder, 4))
+				}
+				chars := []rune(value)
+				index := layout.First
+				position := langruntime.CheckedSignedSubtract(3, remainder)
+				group := 0
+				for index < layout.End {
+					digit := numericWireDecimalDigit(chars[index])
+					if digit >= 0 {
+						group = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(group, 10), digit))
+						position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
+						if position == 4 {
+							langruntime.CheckedAdd(len(words), 1)
+							words = append(words, copynumericWireDigit(numericWireDigit{value: group}))
+							count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+							position = langruntime.CheckedI32(0)
+							group = langruntime.CheckedI32(0)
+						}
+					}
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				if position > 0 {
+					for position < 4 {
+						group = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(group, 10))
+						position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
+					}
+					langruntime.CheckedAdd(len(words), 1)
+					words = append(words, copynumericWireDigit(numericWireDigit{value: group}))
+					count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+				}
+			}
+		}
+		output := ""
+		output = langruntime.CheckedString(numericWireWord(output, count))
+		output = langruntime.CheckedString(numericWireWord(output, weight))
+		output = langruntime.CheckedString(numericWireWord(output, sign))
+		output = langruntime.CheckedString(numericWireWord(output, scale))
+		index := 0
+		for index < len(words) {
+			output = langruntime.CheckedString(numericWireWord(output, words[index].value))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
 func Int24eqCfkl(left checkruntime.Int2Value, right checkruntime.Int4Value) checkruntime.BoolValue {
 	leftWide := checkruntime.Int2ToInt4(left)

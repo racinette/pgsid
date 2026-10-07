@@ -434,3 +434,49 @@ CREATE TABLE payload_crypto (
   CONSTRAINT crypto_sha384 CHECK (sha384(packet) = recorded_sha384),
   CONSTRAINT crypto_sha512 CHECK (sha512(packet) = recorded_sha512)
 );
+
+CREATE TABLE payload_patterns (
+  pattern_id integer PRIMARY KEY,
+  packet bytea,
+  pattern bytea,
+  escape_bytes bytea,
+  recorded_escape bytea,
+  recorded_match boolean,
+  recorded_escaped_match boolean,
+  backup_match boolean,
+  use_backup boolean,
+  CONSTRAINT pattern_match CHECK ((packet LIKE pattern) = recorded_match),
+  CONSTRAINT pattern_not_match CHECK ((packet NOT LIKE pattern) = NOT recorded_match),
+  CONSTRAINT pattern_escaped_match CHECK ((packet LIKE pattern ESCAPE escape_bytes) = recorded_escaped_match),
+  CONSTRAINT pattern_escape_record CHECK (like_escape(pattern, escape_bytes) = recorded_escape),
+  CONSTRAINT pattern_selected CHECK ((CASE WHEN use_backup THEN backup_match ELSE packet LIKE pattern END) = recorded_match),
+  CONSTRAINT pattern_default CHECK (COALESCE(backup_match, packet LIKE pattern) = recorded_match)
+);
+
+CREATE TABLE payload_decimal_records (
+  record_id integer PRIMARY KEY,
+  amount numeric,
+  recorded_payload bytea,
+  backup_payload bytea,
+  use_backup boolean,
+  CONSTRAINT decimal_wire_record CHECK (numeric_send(amount) = recorded_payload),
+  CONSTRAINT decimal_wire_selected CHECK ((CASE WHEN use_backup THEN backup_payload ELSE numeric_send(amount) END) = recorded_payload),
+  CONSTRAINT decimal_wire_default CHECK (COALESCE(backup_payload, numeric_send(amount)) = recorded_payload)
+);
+
+CREATE TABLE payload_text_inputs (
+  input_id integer PRIMARY KEY,
+  encoded_label text,
+  varying_label varchar,
+  fixed_label character(4),
+  recorded_payload bytea,
+  recorded_fixed bytea,
+  backup_payload bytea,
+  use_backup boolean,
+  CONSTRAINT input_text_bytes CHECK (encoded_label::bytea = recorded_payload),
+  CONSTRAINT input_direct_bytes CHECK (bytea(encoded_label) = recorded_payload),
+  CONSTRAINT input_varying_bytes CHECK (varying_label::bytea = recorded_payload),
+  CONSTRAINT input_fixed_bytes CHECK (fixed_label::bytea = recorded_fixed),
+  CONSTRAINT input_selected CHECK ((CASE WHEN use_backup THEN backup_payload ELSE encoded_label::bytea END) = recorded_payload),
+  CONSTRAINT input_default CHECK (COALESCE(backup_payload, encoded_label::bytea) = recorded_payload)
+);

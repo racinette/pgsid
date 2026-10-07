@@ -106,8 +106,8 @@ import them. Keep schema-only helpers with their callables.
   representations defer. Comparisons ignore display scale and signed zero;
   PostgreSQL orders negative infinity, finite values, positive infinity, then NaN,
   and equates NaNs. Numeric arithmetic, runtime casts, and precision coercion
-  require separate slices. Run `tests/sql-semantics/check-numeric.test.ts` for
-  native Rust and both target comparisons against PGlite.
+  require separate slices. Binary send retains base-10000 words, weight, sign and
+  display scale; run `check-numeric.test.ts` and `check-numeric-send.test.ts` against PGlite.
 - Inet and cidr share an immutable address payload with a family, prefix length,
   and sixteen-bit address words. Public row inputs use already SQL-coerced
   strings; the shared Rust parser handles IPv4, compressed IPv6, and embedded
@@ -179,10 +179,8 @@ import them. Keep schema-only helpers with their callables.
   `tests/sql-semantics/check-uuid-output.test.ts`,
   `tests/sql-semantics/check-uuid-timestamp.test.ts`, and the device identifiers world.
 - Text payloads own Rust `String`, lowered to immutable strings in both targets.
-  Builders mutate only local strings through character or borrowed-text appends.
-  Explicit wrapper clones preserve ownership across branches; target immutable
-  wrappers need no copy helpers.
-  Character codes and byte encodings/digests operate independently of collation.
+  Builders mutate local strings; wrapper clones preserve ownership across branches.
+  Target wrappers need no copies; character codes and byte encodings/digests ignore collation.
 - Bytea payloads own canonical lowercase hexadecimal strings without a prefix.
   Public adapters convert byte arrays and nested domains; Rust validates hex input.
   Comparison preserves unsigned octet differences and signed-unit prefix order.
@@ -196,7 +194,9 @@ import them. Keep schema-only helpers with their callables.
   network order for integers, dates, timestamps and booleans. Jenkins hashes,
   CRCs, MD5 and SHA preserve every bit. Hex/base64/escape codecs preserve wrapping,
   padding and UTF8 decoding; syntax returns 22023 or 22P02, size limits 54000.
-  Concatenation checks allocation limits (XX000). Run `tests/sql-semantics/check-bytea*.test.ts` and the feature masks world.
+  LIKE preserves byte wildcards, reached 22025 escapes, and failed-search aborts.
+  Text input shares hex/escape parsing; bpchar I/O retains padding. Concat limits return XX000.
+  Run `tests/sql-semantics/check-bytea*.test.ts` and the feature masks world.
 - Bit and varbit share an owned binary string in BitValue, preserving leading
   zeros, trailing zeros, and empty values. Public inputs are already SQL-coerced
   strings; nonbinary spellings defer. Literals accept binary and hexadecimal

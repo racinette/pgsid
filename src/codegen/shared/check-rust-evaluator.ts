@@ -258,27 +258,33 @@ export function emitCheckRustEvaluator(
       node.kind === 'text-to-timestamptz' ||
       node.kind === 'text-to-network' ||
       node.kind === 'text-to-mac' ||
-      node.kind === 'text-to-uuid'
+      node.kind === 'text-to-uuid' ||
+      node.kind === 'text-to-bytea'
     ) {
       const operand = emitScalar(node.operand, bindings, used)
-      if (operand.type !== 'pg_catalog.text')
+      if (
+        operand.type !== 'pg_catalog.text' &&
+        !(node.kind === 'text-to-bytea' && operand.type === 'pg_catalog.bpchar')
+      )
         throw new UnsupportedCheckRustExpression('A SQL text cast requires text')
       const helper =
-        node.kind === 'text-to-uuid'
-          ? 'uuid_from_text'
-          : node.kind === 'text-to-date'
-            ? 'date_from_text'
-            : node.kind === 'text-to-timestamp'
-              ? 'timestamp_from_text'
-              : node.kind === 'text-to-timestamptz'
-                ? 'timestamptz_from_text'
-                : node.kind === 'text-to-mac'
-                  ? node.type === 'pg_catalog.macaddr'
-                    ? 'macaddr_from_text'
-                    : 'macaddr8_from_text'
-                  : node.type === 'pg_catalog.cidr'
-                    ? 'cidr_from_text'
-                    : 'network_from_text'
+        node.kind === 'text-to-bytea'
+          ? 'bytea_from_text'
+          : node.kind === 'text-to-uuid'
+            ? 'uuid_from_text'
+            : node.kind === 'text-to-date'
+              ? 'date_from_text'
+              : node.kind === 'text-to-timestamp'
+                ? 'timestamp_from_text'
+                : node.kind === 'text-to-timestamptz'
+                  ? 'timestamptz_from_text'
+                  : node.kind === 'text-to-mac'
+                    ? node.type === 'pg_catalog.macaddr'
+                      ? 'macaddr_from_text'
+                      : 'macaddr8_from_text'
+                    : node.type === 'pg_catalog.cidr'
+                      ? 'cidr_from_text'
+                      : 'network_from_text'
       return { name: bind(`${helper}(${ownedOperand(operand)})`), type: node.type }
     }
     if (node.kind === 'certain') {
