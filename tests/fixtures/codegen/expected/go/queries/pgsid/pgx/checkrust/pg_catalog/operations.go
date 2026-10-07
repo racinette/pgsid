@@ -1290,6 +1290,32 @@ func BitEqck(input checkruntime.BitValue, width checkruntime.Int4Value, explicit
 func Varbit7ap7(input checkruntime.BitValue, width checkruntime.Int4Value, explicit checkruntime.BoolValue) checkruntime.BitValue {
 	return bitCoerce(input, width, explicit, true)
 }
+func BitCountFri1(input checkruntime.BitValue) checkruntime.Int8Value {
+	if input.Kind == checkruntime.BitValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.BitValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		index := 0
+		count := int64(0)
+		for index < len(chars) {
+			if chars[index] == '1' {
+				count = langruntime.CheckedI64Add(count, int64(1))
+			}
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: count}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
 
 const bitArraySubscriptError = 3452630
 const bitProgramLimitExceeded = 8584704

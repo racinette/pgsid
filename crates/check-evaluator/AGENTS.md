@@ -225,13 +225,13 @@ import them. Keep schema-only helpers with their callables.
   run through the end. Overlay composes substring and concatenation; nonpositive
   starts return 22011 before checked endpoint overflow (22003). Negative removal
   lengths retain PostgreSQL overlap semantics; omitted lengths use the replacement.
-  Position returns the first one-based match or zero; empty inputs return zero,
-  including an empty pattern, while empty patterns in nonempty inputs return one. Run
+  Position returns the first one-based match or zero for absence or empty inputs;
+  empty patterns in nonempty inputs return one. Bit count returns int8 set-bit counts. Run
   `tests/sql-semantics/check-bit.test.ts`, `tests/sql-semantics/check-bitwise.test.ts`,
   `tests/sql-semantics/check-bit-casts.test.ts`,
   `tests/sql-semantics/check-bit-integers.test.ts`, `tests/sql-semantics/check-bit-edit.test.ts`,
-  `tests/sql-semantics/check-bit-substring.test.ts`,
-  `tests/sql-semantics/check-bit-overlay.test.ts`, `tests/sql-semantics/check-bit-position.test.ts`,
+  `tests/sql-semantics/check-bit-substring.test.ts`, `tests/sql-semantics/check-bit-overlay.test.ts`,
+  `tests/sql-semantics/check-bit-position.test.ts`, `tests/sql-semantics/check-bit-count.test.ts`,
   and the feature masks world for parity.
 - Date payloads are signed day offsets from 2000-01-01. The signed int4
   minimum and maximum represent negative and positive infinity. Finite payloads
