@@ -1217,3 +1217,91 @@ VALUES (1810, 1, NULL, NULL, NULL, 233, 'é');
 -- name: payload_label_null_results
 INSERT INTO payload_labels (id, profile_id, label, short_label, fixed_label, recorded_code, recorded_trim)
 VALUES (1811, 1, 'é', 'é', 'é', NULL, NULL);
+
+-- name: payload_encoding_hex
+INSERT INTO payload_encodings (id, profile_id, packet, encoded, format, recorded_text, recorded_packet, default_packet, use_default)
+VALUES (1900, 1, '\x0080ff', '0080ff', 'hex', '0080ff', '\x0080ff', NULL, false);
+
+-- name: payload_encoding_mixed_case
+INSERT INTO payload_encodings (id, profile_id, packet, encoded, format, recorded_text, recorded_packet, default_packet, use_default)
+VALUES (1901, 1, '\x0080ff', E'00 80\nff', 'HeX', '0080ff', '\x0080ff', NULL, false);
+
+-- name: payload_encoding_base64
+INSERT INTO payload_encodings (id, profile_id, packet, encoded, format, recorded_text, recorded_packet, default_packet, use_default)
+VALUES (1902, 1, '\x0080ff', E' A\tI\rD\n/ ', 'BaSe64', 'AID/', '\x0080ff', NULL, false);
+
+-- name: payload_encoding_escape
+INSERT INTO payload_encodings (id, profile_id, packet, encoded, format, recorded_text, recorded_packet, default_packet, use_default)
+VALUES (1903, 1, '\x0080ff', '\000\200\377', 'escape', '\000\200\377', '\x0080ff', NULL, false);
+
+-- name: payload_encoding_unicode_escape
+INSERT INTO payload_encodings (id, profile_id, packet, encoded, format, recorded_text, recorded_packet, default_packet, use_default)
+VALUES (1904, 1, '\xc3a9f09f9880', 'é😀', 'escape', '\303\251\360\237\230\200', '\xc3a9f09f9880', NULL, false);
+
+-- name: payload_encoding_empty
+INSERT INTO payload_encodings (id, profile_id, packet, encoded, format, recorded_text, recorded_packet, default_packet, use_default)
+VALUES (1905, 1, '\x', '', 'hex', '', '\x', NULL, false);
+
+-- name: payload_encoding_rejects_wrong_results
+INSERT INTO payload_encodings (id, profile_id, packet, encoded, format, recorded_text, recorded_packet, default_packet, use_default)
+VALUES (1906, 1, '\x0080ff', '0080ff', 'hex', 'wrong', '\x00', NULL, false);
+
+-- name: payload_encoding_rejects_unknown_format
+INSERT INTO payload_encodings (id, profile_id, packet, encoded, format, recorded_text, recorded_packet, default_packet, use_default)
+VALUES (1907, 1, '\x0080ff', '0080ff', 'utf8', '0080ff', '\x0080ff', NULL, false);
+
+-- name: payload_encoding_rejects_hex_digit
+INSERT INTO payload_encodings (id, profile_id, packet, encoded, format, recorded_text, recorded_packet, default_packet, use_default)
+VALUES (1908, 1, '\x0080ff', '0 0', 'hex', '0080ff', '\x0080ff', NULL, false);
+
+-- name: payload_encoding_rejects_base64_padding
+INSERT INTO payload_encodings (id, profile_id, packet, encoded, format, recorded_text, recorded_packet, default_packet, use_default)
+VALUES (1909, 1, '\x0080ff', 'A===', 'base64', 'AID/', '\x0080ff', NULL, false);
+
+-- name: payload_encoding_rejects_escape
+INSERT INTO payload_encodings (id, profile_id, packet, encoded, format, recorded_text, recorded_packet, default_packet, use_default)
+VALUES (1910, 1, '\x0080ff', '\400', 'escape', '\000\200\377', '\x0080ff', NULL, false);
+
+-- name: payload_encoding_skips_bad_decode
+INSERT INTO payload_encodings (id, profile_id, packet, encoded, format, recorded_text, recorded_packet, default_packet, use_default)
+VALUES (1911, 1, '\x0080ff', 'bad', 'invalid', 'ignored', '\x0080ff', '\x0080ff', true);
+
+-- name: payload_encoding_null_inputs
+INSERT INTO payload_encodings (id, profile_id, packet, encoded, format, recorded_text, recorded_packet, default_packet, use_default)
+VALUES (1912, 1, NULL, NULL, 'hex', '0080ff', '\x0080ff', NULL, false);
+
+-- name: payload_encoding_null_format
+INSERT INTO payload_encodings (id, profile_id, packet, encoded, format, recorded_text, recorded_packet, default_packet, use_default)
+VALUES (1913, 1, '\x0080ff', '0080ff', NULL, '0080ff', '\x0080ff', NULL, false);
+
+-- name: payload_encoding_null_results
+INSERT INTO payload_encodings (id, profile_id, packet, encoded, format, recorded_text, recorded_packet, default_packet, use_default)
+VALUES (1914, 1, '\x0080ff', '0080ff', 'hex', NULL, NULL, NULL, false);
+
+-- name: payload_crypto_abc
+INSERT INTO payload_crypto (id, profile_id, packet, label, recorded_md5, recorded_text_md5, recorded_sha224, recorded_sha256, recorded_sha384, recorded_sha512)
+VALUES (2000, 1, '\x616263', 'abc', '900150983cd24fb0d6963f7d28e17f72', '900150983cd24fb0d6963f7d28e17f72', '\x23097d223405d8228642a477bda255b32aadbce4bda0b3f7e36c9da7', '\xba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad', '\xcb00753f45a35e8bb5a03d699ac65007272c32ab0eded1631a8b605a43ff5bed8086072ba1e7cc2358baeca134c825a7', '\xddaf35a193617abacc417349ae20413112e6fa4e89a97ea20a9eeee64b55d39a2192992a274fc1a836ba3c23a3feebbd454d4423643ce80e2a9ac94fa54ca49f');
+
+-- name: payload_crypto_empty
+INSERT INTO payload_crypto (id, profile_id, packet, label, recorded_md5, recorded_text_md5, recorded_sha224, recorded_sha256, recorded_sha384, recorded_sha512)
+VALUES (2001, 1, '\x', '', 'd41d8cd98f00b204e9800998ecf8427e', 'd41d8cd98f00b204e9800998ecf8427e', '\xd14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f', '\xe3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855', '\x38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b', '\xcf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e');
+
+-- name: payload_crypto_unsigned_octet
+INSERT INTO payload_crypto (id, profile_id, packet, label, recorded_md5, recorded_text_md5, recorded_sha224, recorded_sha256, recorded_sha384, recorded_sha512)
+VALUES (2002, 1, '\xff', 'abc', '00594fd4f42ba43fc1ca0427a0576295', '900150983cd24fb0d6963f7d28e17f72', '\xe33f9d75e6ae1369dbabf81b96b4591ae46bba30b591a6b6c62542b5', '\xa8100ae6aa1940d0b663bb31cd466142ebbdbd5187131b92d93818987832eb89', '\x43950796d9883503655e35b5190aee687a2dd99f265012625b95753978e4efff3e8414d178a6e2318480d8eb6ddee643', '\x6700df6600b118ab0432715a7e8a68b0bf37cdf4adaf0fb9e2b3ebe04ad19c7032cbad55e932792af360bafaa09962e2e690652bc075b2dad0c30688ba2f31a3');
+
+-- name: payload_crypto_unicode_text
+INSERT INTO payload_crypto (id, profile_id, packet, label, recorded_md5, recorded_text_md5, recorded_sha224, recorded_sha256, recorded_sha384, recorded_sha512)
+VALUES (2003, 1, '\xc3a9f09f9880', 'é😀', '62b3afe3b01f6f80152b567d9b216cde', '62b3afe3b01f6f80152b567d9b216cde', '\x3ac307c62841b5aa138b7b5275e5dbac6109204db967ea83030715b1', '\x1184d1f608158eea09d297565575892231550c403aaa913008d867a97cfd5c76', '\x77a2c41056578fa40598e5bc7d5ae303f19809968a9d096e8738aa305115c847dd743f048fc158236eb82781b186b8a5', '\x905df5023edc4edc358c113332a55dca6709162a84b6f43b05023118d34393a6ae82e03821d6cdbee1e11e1d1d7625aad31e7717590b43e4166a2272bfaeb22f');
+
+-- name: payload_crypto_rejects_wrong_results
+INSERT INTO payload_crypto (id, profile_id, packet, label, recorded_md5, recorded_text_md5, recorded_sha224, recorded_sha256, recorded_sha384, recorded_sha512)
+VALUES (2004, 1, '\x616263', 'abc', 'wrong', 'wrong', '\x00', '\x00', '\x00', '\x00');
+
+-- name: payload_crypto_null_inputs
+INSERT INTO payload_crypto (id, profile_id, packet, label, recorded_md5, recorded_text_md5, recorded_sha224, recorded_sha256, recorded_sha384, recorded_sha512)
+VALUES (2005, 1, NULL, NULL, 'wrong', 'wrong', '\x00', '\x00', '\x00', '\x00');
+
+-- name: payload_crypto_null_results
+INSERT INTO payload_crypto (id, profile_id, packet, label, recorded_md5, recorded_text_md5, recorded_sha224, recorded_sha256, recorded_sha384, recorded_sha512)
+VALUES (2006, 1, '\x616263', 'abc', NULL, NULL, NULL, NULL, NULL, NULL);

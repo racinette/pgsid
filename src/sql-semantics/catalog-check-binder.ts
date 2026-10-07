@@ -1429,7 +1429,9 @@ export function bindCatalogCheck(
     const collation = resolved.collation
     return {
       type,
-      collation,
+      collation: ['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type)
+        ? (collation ?? defaultCollation)
+        : undefined,
       value: {
         kind: 'call',
         call: { kind, signature: resolved.signature, type, collation: collation?.kind },

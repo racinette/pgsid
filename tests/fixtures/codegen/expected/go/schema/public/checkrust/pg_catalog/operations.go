@@ -1961,6 +1961,17 @@ func BoolgeGviq(left checkruntime.BoolValue, right checkruntime.BoolValue) check
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func byteaAsciiCharacter(value int) rune {
+	value = langruntime.CheckedI32(value)
+	chars := []rune("\x00\x01\x02\x03\x04\x05\x06\a\b\t\n\v\f\r\x0e\x0f\x10\x11\x12\x13\x14\x15\x16\x17\x18\x19\x1a\x1b\x1c\x1d\x1e\x1f !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~\x7f")
+	index := 0
+	count := value
+	for count > 0 {
+		index = langruntime.CheckedAdd(index, 1)
+		count = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(count, 1))
+	}
+	return chars[index]
+}
 
 const byteaMaxLength = 1073741819
 const byteaAllocationError = 56966976
@@ -2474,6 +2485,446 @@ func SetBit06f4(input checkruntime.ByteaValue, position checkruntime.Int8Value, 
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
+
+const byteaEncodingError = 3452619
+const byteaSyntaxError = 3484946
+const byteaCodecLimit = 8584704
+
+func byteaCodecLengthFits(length int64) bool {
+	return length <= int64(1073741819)
+}
+func byteaBase64EncodedLength(length int64) int64 {
+	return langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(langruntime.CheckedI64Divide((langruntime.CheckedI64Add(length, int64(2))), int64(3)), int64(4)), langruntime.CheckedI64Divide(length, int64(57)))
+}
+func byteaCodecUtf8Length(value string) int64 {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	index := 0
+	length := int64(0)
+	for index < len(chars) {
+		codepoint := int(langruntime.CheckedChar(chars[index]))
+		if codepoint <= 127 {
+			length = langruntime.CheckedI64Add(length, int64(1))
+		} else if codepoint <= 2047 {
+			length = langruntime.CheckedI64Add(length, int64(2))
+		} else if codepoint <= 65535 {
+			length = langruntime.CheckedI64Add(length, int64(3))
+		} else {
+			length = langruntime.CheckedI64Add(length, int64(4))
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return length
+}
+func byteaEscapeEncodedLength(value string) int64 {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	index := 0
+	length := int64(0)
+	for index < len(chars) {
+		high := checkruntime.HexDigit(chars[index])
+		low := checkruntime.HexDigit(chars[langruntime.CheckedAdd(index, 1)])
+		byte := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(high, 16), low)
+		if byte == 0 || byte >= 128 {
+			length = langruntime.CheckedI64Add(length, int64(4))
+		} else if byte == 92 {
+			length = langruntime.CheckedI64Add(length, int64(2))
+		} else {
+			length = langruntime.CheckedI64Add(length, int64(1))
+		}
+		index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 2))
+	}
+	return length
+}
+func byteaFormatIs(input string, expected string) bool {
+	input = langruntime.CheckedString(input)
+	expected = langruntime.CheckedString(expected)
+	chars := []rune(input)
+	spelling := []rune(expected)
+	if len(chars) != len(spelling) {
+		return false
+	}
+	index := 0
+	for index < len(chars) {
+		if langruntime.AsciiLowercase(chars[index]) != spelling[index] {
+			return false
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return true
+}
+func byteaCodecSpace(value rune) bool {
+	value = langruntime.CheckedChar(value)
+	return value == ' ' || value == '\t' || value == '\r' || value == '\n'
+}
+func byteaBase64Digit(value rune) int {
+	value = langruntime.CheckedChar(value)
+	alphabet := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
+	index := 0
+	number := 0
+	for index < len(alphabet) {
+		if alphabet[index] == value {
+			return number
+		}
+		index = langruntime.CheckedAdd(index, 1)
+		number = langruntime.CheckedI32(langruntime.CheckedSignedAdd(number, 1))
+	}
+	return langruntime.CheckedSignedNegate(1)
+}
+func byteaBase64Character(value int) rune {
+	value = langruntime.CheckedI32(value)
+	alphabet := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/")
+	index := 0
+	remaining := value
+	for remaining > 0 {
+		index = langruntime.CheckedAdd(index, 1)
+		remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, 1))
+	}
+	return alphabet[index]
+}
+func byteaBase64Encode(value string) string {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	output := ""
+	index := 0
+	packed := 0
+	count := 0
+	line := 0
+	for index < len(chars) {
+		high := checkruntime.HexDigit(chars[index])
+		low := checkruntime.HexDigit(chars[langruntime.CheckedAdd(index, 1)])
+		byte := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(high, 16), low)
+		packed = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(packed, 256), byte))
+		count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+		index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 2))
+		if count == 3 {
+			a := byteaBase64Character(langruntime.CheckedSignedDivide(packed, 262144))
+			b := byteaBase64Character(langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(packed, 4096), 64))
+			c := byteaBase64Character(langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(packed, 64), 64))
+			d := byteaBase64Character(langruntime.CheckedSignedRemainder(packed, 64))
+			output = output + string(langruntime.CheckedChar(a))
+			output = output + string(langruntime.CheckedChar(b))
+			output = output + string(langruntime.CheckedChar(c))
+			output = output + string(langruntime.CheckedChar(d))
+			packed = langruntime.CheckedI32(0)
+			count = langruntime.CheckedI32(0)
+			line = langruntime.CheckedI32(langruntime.CheckedSignedAdd(line, 4))
+			if line == 76 {
+				output = output + string(langruntime.CheckedChar('\n'))
+				line = langruntime.CheckedI32(0)
+			}
+		}
+	}
+	if count != 0 {
+		if count == 1 {
+			packed = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(packed, 65536))
+		} else {
+			packed = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(packed, 256))
+		}
+		a := byteaBase64Character(langruntime.CheckedSignedDivide(packed, 262144))
+		b := byteaBase64Character(langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(packed, 4096), 64))
+		output = output + string(langruntime.CheckedChar(a))
+		output = output + string(langruntime.CheckedChar(b))
+		if count == 2 {
+			c := byteaBase64Character(langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(packed, 64), 64))
+			output = output + string(langruntime.CheckedChar(c))
+		} else {
+			output = output + string(langruntime.CheckedChar('='))
+		}
+		output = output + string(langruntime.CheckedChar('='))
+	}
+	return output
+}
+func byteaBase64Decode(value string) checkruntime.ByteaValue {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	output := ""
+	index := 0
+	packed := 0
+	count := 0
+	end := 0
+	for index < len(chars) {
+		character := chars[index]
+		index = langruntime.CheckedAdd(index, 1)
+		if byteaCodecSpace(character) == false {
+			digit := 0
+			if character == '=' {
+				if end == 0 {
+					if count == 2 {
+						end = langruntime.CheckedI32(1)
+					} else if count == 3 {
+						end = langruntime.CheckedI32(2)
+					} else {
+						return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaEncodingError)}
+					}
+				}
+			} else {
+				digit = langruntime.CheckedI32(byteaBase64Digit(character))
+				if digit < 0 {
+					return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaEncodingError)}
+				}
+			}
+			packed = langruntime.CheckedI32(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(packed, 64), digit))
+			count = langruntime.CheckedI32(langruntime.CheckedSignedAdd(count, 1))
+			if count == 4 {
+				output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(packed, 65536), 256)))
+				if end == 0 || end > 1 {
+					output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(packed, 256), 256)))
+				}
+				if end == 0 || end > 2 {
+					output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedRemainder(packed, 256)))
+				}
+				packed = langruntime.CheckedI32(0)
+				count = langruntime.CheckedI32(0)
+			}
+		}
+	}
+	if count != 0 {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaEncodingError)}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+}
+func byteaHexDecode(value string) checkruntime.ByteaValue {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	output := ""
+	index := 0
+	for index < len(chars) {
+		if byteaCodecSpace(chars[index]) {
+			index = langruntime.CheckedAdd(index, 1)
+		} else {
+			high := checkruntime.HexDigit(chars[index])
+			index = langruntime.CheckedAdd(index, 1)
+			if high > 15 || index >= len(chars) {
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaEncodingError)}
+			}
+			low := checkruntime.HexDigit(chars[index])
+			index = langruntime.CheckedAdd(index, 1)
+			if low > 15 {
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaEncodingError)}
+			}
+			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(high, 16), low)))
+		}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+}
+func byteaOctalDigit(value rune) int {
+	value = langruntime.CheckedChar(value)
+	if value == '0' {
+		return 0
+	}
+	if value == '1' {
+		return 1
+	}
+	if value == '2' {
+		return 2
+	}
+	if value == '3' {
+		return 3
+	}
+	if value == '4' {
+		return 4
+	}
+	if value == '5' {
+		return 5
+	}
+	if value == '6' {
+		return 6
+	}
+	if value == '7' {
+		return 7
+	}
+	return 8
+}
+func byteaEscapeDecodedLength(value string) checkruntime.Int8Value {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	index := 0
+	length := int64(0)
+	for index < len(chars) {
+		character := chars[index]
+		index = langruntime.CheckedAdd(index, 1)
+		if character != '\\' {
+			codepoint := int(langruntime.CheckedChar(character))
+			if codepoint <= 127 {
+				length = langruntime.CheckedI64Add(length, int64(1))
+			} else if codepoint <= 2047 {
+				length = langruntime.CheckedI64Add(length, int64(2))
+			} else if codepoint <= 65535 {
+				length = langruntime.CheckedI64Add(length, int64(3))
+			} else {
+				length = langruntime.CheckedI64Add(length, int64(4))
+			}
+		} else if langruntime.CheckedAdd(index, 2) < len(chars) && byteaOctalDigit(chars[index]) <= 3 && byteaOctalDigit(chars[langruntime.CheckedAdd(index, 1)]) <= 7 && byteaOctalDigit(chars[langruntime.CheckedAdd(index, 2)]) <= 7 {
+			index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 3))
+			length = langruntime.CheckedI64Add(length, int64(1))
+		} else if index < len(chars) && chars[index] == '\\' {
+			index = langruntime.CheckedAdd(index, 1)
+			length = langruntime.CheckedI64Add(length, int64(1))
+		} else {
+			return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: checkruntime.MakeSqlError(byteaSyntaxError)}
+		}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: length}
+}
+func byteaEscapeDecode(value string) checkruntime.ByteaValue {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	output := ""
+	index := 0
+	for index < len(chars) {
+		character := chars[index]
+		index = langruntime.CheckedAdd(index, 1)
+		if character != '\\' {
+			output = langruntime.CheckedString(byteaUtf8Character(output, character))
+		} else if index < len(chars) && chars[index] == '\\' {
+			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, 92))
+			index = langruntime.CheckedAdd(index, 1)
+		} else if langruntime.CheckedAdd(index, 2) < len(chars) {
+			a := byteaOctalDigit(chars[index])
+			b := byteaOctalDigit(chars[langruntime.CheckedAdd(index, 1)])
+			c := byteaOctalDigit(chars[langruntime.CheckedAdd(index, 2)])
+			if a > 3 || b > 7 || c > 7 {
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaSyntaxError)}
+			}
+			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedAdd(langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(a, 64), langruntime.CheckedSignedMultiply(b, 8)), c)))
+			index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 3))
+		} else {
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaSyntaxError)}
+		}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+}
+func byteaEscapeEncode(value string) string {
+	value = langruntime.CheckedString(value)
+	chars := []rune(value)
+	output := ""
+	index := 0
+	for index < len(chars) {
+		high := checkruntime.HexDigit(chars[index])
+		low := checkruntime.HexDigit(chars[langruntime.CheckedAdd(index, 1)])
+		byte := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(high, 16), low)
+		if byte == 0 || byte >= 128 {
+			output = output + string(langruntime.CheckedChar('\\'))
+			a := byteaAsciiCharacter(langruntime.CheckedSignedAdd(langruntime.CheckedSignedDivide(byte, 64), 48))
+			b := byteaAsciiCharacter(langruntime.CheckedSignedAdd(langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(byte, 8), 8), 48))
+			c := byteaAsciiCharacter(langruntime.CheckedSignedAdd(langruntime.CheckedSignedRemainder(byte, 8), 48))
+			output = output + string(langruntime.CheckedChar(a))
+			output = output + string(langruntime.CheckedChar(b))
+			output = output + string(langruntime.CheckedChar(c))
+		} else if byte == 92 {
+			output = output + string(langruntime.CheckedChar('\\'))
+			output = output + string(langruntime.CheckedChar('\\'))
+		} else {
+			character := byteaAsciiCharacter(byte)
+			output = output + string(langruntime.CheckedChar(character))
+		}
+		index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 2))
+	}
+	return output
+}
+func EncodeBvkp(input checkruntime.ByteaValue, format checkruntime.TextValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.ByteaValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if format.Kind == checkruntime.TextValueError {
+		error := format.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) || format == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) || format == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.ByteaValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if format.Kind == checkruntime.TextValueValue {
+			name := langruntime.CheckedString(format.Value)
+			if byteaFormatIs(name, "hex") {
+				length := byteaPayloadLength(value)
+				encoded := int64(langruntime.CheckedI32(length))
+				if byteaCodecLengthFits(langruntime.CheckedI64Multiply(encoded, int64(2))) == false {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(byteaCodecLimit)}
+				}
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: value}
+			}
+			if byteaFormatIs(name, "base64") {
+				length := byteaPayloadLength(value)
+				bytes := int64(langruntime.CheckedI32(length))
+				encoded := byteaBase64EncodedLength(bytes)
+				if byteaCodecLengthFits(encoded) == false {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(byteaCodecLimit)}
+				}
+				result := byteaBase64Encode(value)
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: result}
+			}
+			if byteaFormatIs(name, "escape") {
+				encoded := byteaEscapeEncodedLength(value)
+				if byteaCodecLengthFits(encoded) == false {
+					return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(byteaCodecLimit)}
+				}
+				result := byteaEscapeEncode(value)
+				return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: result}
+			}
+			return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: checkruntime.MakeSqlError(byteaEncodingError)}
+		}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func DecodeB6gt(input checkruntime.TextValue, format checkruntime.TextValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if format.Kind == checkruntime.TextValueError {
+		error := format.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) || format == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) || format == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if format.Kind == checkruntime.TextValueValue {
+			name := langruntime.CheckedString(format.Value)
+			if byteaFormatIs(name, "hex") {
+				bytes := byteaCodecUtf8Length(value)
+				if byteaCodecLengthFits(langruntime.CheckedI64Divide(bytes, int64(2))) == false {
+					return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaCodecLimit)}
+				}
+				return byteaHexDecode(value)
+			}
+			if byteaFormatIs(name, "base64") {
+				bytes := byteaCodecUtf8Length(value)
+				if byteaCodecLengthFits(langruntime.CheckedI64Divide(langruntime.CheckedI64Multiply(bytes, int64(3)), int64(4))) == false {
+					return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaCodecLimit)}
+				}
+				return byteaBase64Decode(value)
+			}
+			if byteaFormatIs(name, "escape") {
+				estimate := byteaEscapeDecodedLength(value)
+				if estimate.Kind == checkruntime.Int8ValueError {
+					error := estimate.Error
+					return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+				}
+				if estimate.Kind == checkruntime.Int8ValueValue {
+					length := estimate.Value
+					if byteaCodecLengthFits(length) == false {
+						return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaCodecLimit)}
+					}
+				}
+				return byteaEscapeDecode(value)
+			}
+			return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaEncodingError)}
+		}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
 func byteaHashBytes(value string) []checkruntime.HashByte {
 	value = langruntime.CheckedString(value)
 	chars := []rune(value)
@@ -2824,6 +3275,156 @@ func BoolsendOo82(input checkruntime.BoolValue) checkruntime.ByteaValue {
 	}
 	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
 }
+
+var digestMd5K = []int64{int64(3614090360), int64(3905402710), int64(606105819), int64(3250441966), int64(4118548399), int64(1200080426), int64(2821735955), int64(4249261313), int64(1770035416), int64(2336552879), int64(4294925233), int64(2304563134), int64(1804603682), int64(4254626195), int64(2792965006), int64(1236535329), int64(4129170786), int64(3225465664), int64(643717713), int64(3921069994), int64(3593408605), int64(38016083), int64(3634488961), int64(3889429448), int64(568446438), int64(3275163606), int64(4107603335), int64(1163531501), int64(2850285829), int64(4243563512), int64(1735328473), int64(2368359562), int64(4294588738), int64(2272392833), int64(1839030562), int64(4259657740), int64(2763975236), int64(1272893353), int64(4139469664), int64(3200236656), int64(681279174), int64(3936430074), int64(3572445317), int64(76029189), int64(3654602809), int64(3873151461), int64(530742520), int64(3299628645), int64(4096336452), int64(1126891415), int64(2878612391), int64(4237533241), int64(1700485571), int64(2399980690), int64(4293915773), int64(2240044497), int64(1873313359), int64(4264355552), int64(2734768916), int64(1309151649), int64(4149444226), int64(3174756917), int64(718787259), int64(3951481745)}
+var digestMd5Shifts = []int{7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21}
+
+func digestMd5Select(round int, b int64, c int64, d int64) int64 {
+	round = langruntime.CheckedIndex(round)
+	if round < 16 {
+		chosen := digestAnd(b, c)
+		unchosen := digestAnd(langruntime.CheckedI64Subtract(int64(4294967295), b), d)
+		return checkruntime.HashXor(chosen, unchosen)
+	}
+	if round < 32 {
+		chosen := digestAnd(b, d)
+		unchosen := digestAnd(c, langruntime.CheckedI64Subtract(int64(4294967295), d))
+		return checkruntime.HashXor(chosen, unchosen)
+	}
+	if round < 48 {
+		return digestXor3(b, c, d)
+	}
+	opposite := langruntime.CheckedI64Subtract(int64(4294967295), d)
+	exclusive := checkruntime.HashXor(b, opposite)
+	common := digestAnd(b, opposite)
+	return checkruntime.HashXor(c, langruntime.CheckedI64Add(exclusive, common))
+}
+func digestMd5Hex(input string) string {
+	input = langruntime.CheckedString(input)
+	stateA := int64(1732584193)
+	stateB := int64(4023233417)
+	stateC := int64(2562383102)
+	stateD := int64(271733878)
+	bytes := digestPadding(input, false, true)
+	offset := 0
+	for offset < len(bytes) {
+		words := []checkruntime.HashByte{}
+		index := 0
+		for index < 16 {
+			word := int64(0)
+			place := int64(1)
+			octet := 0
+			for octet < 4 {
+				word = langruntime.CheckedI64Add(word, langruntime.CheckedI64Multiply(bytes[offset].Value, place))
+				place = langruntime.CheckedI64Multiply(place, int64(256))
+				offset = langruntime.CheckedAdd(offset, 1)
+				octet = langruntime.CheckedAdd(octet, 1)
+			}
+			langruntime.CheckedAdd(len(words), 1)
+			words = append(words, checkruntime.CopyHashByte(checkruntime.HashByte{Value: word}))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		a := stateA
+		b := stateB
+		c := stateC
+		d := stateD
+		round := 0
+		roundNumber := 0
+		for round < 64 {
+			selected := digestMd5Select(round, b, c, d)
+			needed := roundNumber
+			if round >= 48 {
+				needed = langruntime.CheckedI32(langruntime.CheckedSignedRemainder(langruntime.CheckedSignedMultiply(roundNumber, 7), 16))
+			} else if round >= 32 {
+				needed = langruntime.CheckedI32(langruntime.CheckedSignedRemainder((langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(roundNumber, 3), 5)), 16))
+			} else if round >= 16 {
+				needed = langruntime.CheckedI32(langruntime.CheckedSignedRemainder((langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(roundNumber, 5), 1)), 16))
+			}
+			position := 0
+			for needed > 0 {
+				position = langruntime.CheckedAdd(position, 1)
+				needed = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(needed, 1))
+			}
+			sum := digestWrap(langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Add(a, selected), digestMd5K[round]), words[position].Value))
+			rotated := digestRight(sum, langruntime.CheckedSignedSubtract(32, digestMd5Shifts[round]), true)
+			next := digestWrap(langruntime.CheckedI64Add(b, rotated))
+			a = d
+			d = c
+			c = b
+			b = next
+			round = langruntime.CheckedAdd(round, 1)
+			roundNumber = langruntime.CheckedI32(langruntime.CheckedSignedAdd(roundNumber, 1))
+		}
+		stateA = digestWrap(langruntime.CheckedI64Add(stateA, a))
+		stateB = digestWrap(langruntime.CheckedI64Add(stateB, b))
+		stateC = digestWrap(langruntime.CheckedI64Add(stateC, c))
+		stateD = digestWrap(langruntime.CheckedI64Add(stateD, d))
+	}
+	output := ""
+	index := 0
+	for index < 4 {
+		word := stateA
+		if index == 1 {
+			word = stateB
+		} else if index == 2 {
+			word = stateC
+		} else if index == 3 {
+			word = stateD
+		}
+		octet := 0
+		for octet < 4 {
+			byte := langruntime.CheckedI64Remainder(word, int64(256))
+			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, int(int32(byte))))
+			word = langruntime.CheckedI64Divide(word, int64(256))
+			octet = langruntime.CheckedAdd(octet, 1)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return output
+}
+func Md5Vpfl(input checkruntime.ByteaValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.ByteaValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.ByteaValueValue {
+		value := langruntime.CheckedString(input.Value)
+		result := digestMd5Hex(value)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: result}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
+func Md5Kt50(input checkruntime.TextValue) checkruntime.TextValue {
+	if input.Kind == checkruntime.TextValueError {
+		error := input.Error
+		return checkruntime.TextValue{Kind: checkruntime.TextValueError, Error: error}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+	}
+	if input == (checkruntime.TextValue{Kind: checkruntime.TextValueNull}) {
+		return checkruntime.TextValue{Kind: checkruntime.TextValueNull}
+	}
+	if input.Kind == checkruntime.TextValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		encoded := ""
+		index := 0
+		for index < len(chars) {
+			encoded = langruntime.CheckedString(byteaUtf8Character(encoded, chars[index]))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		result := digestMd5Hex(encoded)
+		return checkruntime.TextValue{Kind: checkruntime.TextValueValue, Value: result}
+	}
+	return checkruntime.TextValue{Kind: checkruntime.TextValueUnknown}
+}
 func byteaOverlay(input checkruntime.ByteaValue, replacement checkruntime.ByteaValue, position checkruntime.Int4Value, length checkruntime.Int4Value, hasLength bool) checkruntime.ByteaValue {
 	if input.Kind == checkruntime.ByteaValueError {
 		error := input.Error
@@ -2930,6 +3531,464 @@ func Position9w14(input checkruntime.ByteaValue, pattern checkruntime.ByteaValue
 		}
 	}
 	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+
+var digestSha256K = []int64{int64(1116352408), int64(1899447441), int64(3049323471), int64(3921009573), int64(961987163), int64(1508970993), int64(2453635748), int64(2870763221), int64(3624381080), int64(310598401), int64(607225278), int64(1426881987), int64(1925078388), int64(2162078206), int64(2614888103), int64(3248222580), int64(3835390401), int64(4022224774), int64(264347078), int64(604807628), int64(770255983), int64(1249150122), int64(1555081692), int64(1996064986), int64(2554220882), int64(2821834349), int64(2952996808), int64(3210313671), int64(3336571891), int64(3584528711), int64(113926993), int64(338241895), int64(666307205), int64(773529912), int64(1294757372), int64(1396182291), int64(1695183700), int64(1986661051), int64(2177026350), int64(2456956037), int64(2730485921), int64(2820302411), int64(3259730800), int64(3345764771), int64(3516065817), int64(3600352804), int64(4094571909), int64(275423344), int64(430227734), int64(506948616), int64(659060556), int64(883997877), int64(958139571), int64(1322822218), int64(1537002063), int64(1747873779), int64(1955562222), int64(2024104815), int64(2227730452), int64(2361852424), int64(2428436474), int64(2756734187), int64(3204031479), int64(3329325298)}
+var digestSha224Initial = []int64{int64(3238371032), int64(914150663), int64(812702999), int64(4144912697), int64(4290775857), int64(1750603025), int64(1694076839), int64(3204075428)}
+var digestSha256Initial = []int64{int64(1779033703), int64(3144134277), int64(1013904242), int64(2773480762), int64(1359893119), int64(2600822924), int64(528734635), int64(1541459225)}
+
+func digestWrap(value int64) int64 {
+	return langruntime.CheckedI64Remainder(value, int64(4294967296))
+}
+func digestAnd(left int64, right int64) int64 {
+	unequal := checkruntime.HashXor(left, right)
+	return langruntime.CheckedI64Divide((langruntime.CheckedI64Subtract(langruntime.CheckedI64Add(left, right), unequal)), int64(2))
+}
+func digestRight(value int64, bits int, rotate bool) int64 {
+	bits = langruntime.CheckedI32(bits)
+	divisor := int64(1)
+	remaining := bits
+	for remaining > 0 {
+		divisor = langruntime.CheckedI64Multiply(divisor, int64(2))
+		remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, 1))
+	}
+	result := langruntime.CheckedI64Divide(value, divisor)
+	if rotate {
+		result = langruntime.CheckedI64Add(result, langruntime.CheckedI64Multiply(langruntime.CheckedI64Remainder(value, divisor), (langruntime.CheckedI64Divide(int64(4294967296), divisor))))
+	}
+	return result
+}
+func digestXor3(a int64, b int64, c int64) int64 {
+	pair := checkruntime.HashXor(a, b)
+	return checkruntime.HashXor(pair, c)
+}
+func digestSigma(value int64, first int, second int, last int, rotateLast bool) int64 {
+	first = langruntime.CheckedI32(first)
+	second = langruntime.CheckedI32(second)
+	last = langruntime.CheckedI32(last)
+	a := digestRight(value, first, true)
+	b := digestRight(value, second, true)
+	c := digestRight(value, last, rotateLast)
+	return digestXor3(a, b, c)
+}
+func digestPadding(input string, wide bool, little bool) []checkruntime.HashByte {
+	input = langruntime.CheckedString(input)
+	chars := []rune(input)
+	bytes := []checkruntime.HashByte{}
+	bits := int64(0)
+	index := 0
+	position := 0
+	width := 64
+	limit := 56
+	if wide {
+		width = langruntime.CheckedI32(128)
+		limit = langruntime.CheckedI32(112)
+	}
+	for index < len(chars) {
+		high := checkruntime.HexDigit(chars[index])
+		low := checkruntime.HexDigit(chars[langruntime.CheckedAdd(index, 1)])
+		byte := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(high, 16), low)
+		langruntime.CheckedAdd(len(bytes), 1)
+		bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: int64(langruntime.CheckedI32(byte))}))
+		bits = langruntime.CheckedI64Add(bits, int64(8))
+		index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 2))
+		position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
+		if position == width {
+			position = langruntime.CheckedI32(0)
+		}
+	}
+	langruntime.CheckedAdd(len(bytes), 1)
+	bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: int64(128)}))
+	position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
+	if position == width {
+		position = langruntime.CheckedI32(0)
+	}
+	for position != limit {
+		langruntime.CheckedAdd(len(bytes), 1)
+		bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: int64(0)}))
+		position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
+		if position == width {
+			position = langruntime.CheckedI32(0)
+		}
+	}
+	if wide {
+		zeros := 0
+		for zeros < 8 {
+			langruntime.CheckedAdd(len(bytes), 1)
+			bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: int64(0)}))
+			zeros = langruntime.CheckedAdd(zeros, 1)
+		}
+	}
+	count := 0
+	divisor := int64(72057594037927936)
+	for count < 8 {
+		if little {
+			langruntime.CheckedAdd(len(bytes), 1)
+			bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: langruntime.CheckedI64Remainder(bits, int64(256))}))
+			bits = langruntime.CheckedI64Divide(bits, int64(256))
+		} else {
+			langruntime.CheckedAdd(len(bytes), 1)
+			bytes = append(bytes, checkruntime.CopyHashByte(checkruntime.HashByte{Value: langruntime.CheckedI64Remainder(langruntime.CheckedI64Divide(bits, divisor), int64(256))}))
+			divisor = langruntime.CheckedI64Divide(divisor, int64(256))
+		}
+		count = langruntime.CheckedAdd(count, 1)
+	}
+	return bytes
+}
+func digestSha256Hex(input string, short bool) string {
+	input = langruntime.CheckedString(input)
+	state := []checkruntime.HashByte{}
+	initial := 0
+	for initial < 8 {
+		value := digestSha256Initial[initial]
+		if short {
+			value = digestSha224Initial[initial]
+		}
+		langruntime.CheckedAdd(len(state), 1)
+		state = append(state, checkruntime.CopyHashByte(checkruntime.HashByte{Value: value}))
+		initial = langruntime.CheckedAdd(initial, 1)
+	}
+	bytes := digestPadding(input, false, false)
+	offset := 0
+	for offset < len(bytes) {
+		words := []checkruntime.HashByte{}
+		index := 0
+		for index < 16 {
+			word := int64(0)
+			octet := 0
+			for octet < 4 {
+				word = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(word, int64(256)), bytes[offset].Value)
+				offset = langruntime.CheckedAdd(offset, 1)
+				octet = langruntime.CheckedAdd(octet, 1)
+			}
+			langruntime.CheckedAdd(len(words), 1)
+			words = append(words, checkruntime.CopyHashByte(checkruntime.HashByte{Value: word}))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		for index < 64 {
+			a := digestSigma(words[langruntime.CheckedSubtract(index, 15)].Value, 7, 18, 3, false)
+			b := digestSigma(words[langruntime.CheckedSubtract(index, 2)].Value, 17, 19, 10, false)
+			sum := langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Add(words[langruntime.CheckedSubtract(index, 16)].Value, a), words[langruntime.CheckedSubtract(index, 7)].Value), b)
+			word := digestWrap(sum)
+			langruntime.CheckedAdd(len(words), 1)
+			words = append(words, checkruntime.CopyHashByte(checkruntime.HashByte{Value: word}))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		a := state[0].Value
+		b := state[1].Value
+		c := state[2].Value
+		d := state[3].Value
+		e := state[4].Value
+		f := state[5].Value
+		g := state[6].Value
+		h := state[7].Value
+		round := 0
+		for round < 64 {
+			sigmaE := digestSigma(e, 6, 11, 25, true)
+			chosen := digestAnd(e, f)
+			unchosen := digestAnd(langruntime.CheckedI64Subtract(int64(4294967295), e), g)
+			choice := checkruntime.HashXor(chosen, unchosen)
+			t1 := digestWrap(langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Add(langruntime.CheckedI64Add(h, sigmaE), choice), digestSha256K[round]), words[round].Value))
+			sigmaA := digestSigma(a, 2, 13, 22, true)
+			ab := digestAnd(a, b)
+			ac := digestAnd(a, c)
+			bc := digestAnd(b, c)
+			majority := digestXor3(ab, ac, bc)
+			t2 := digestWrap(langruntime.CheckedI64Add(sigmaA, majority))
+			h = g
+			g = f
+			f = e
+			e = digestWrap(langruntime.CheckedI64Add(d, t1))
+			d = c
+			c = b
+			b = a
+			a = digestWrap(langruntime.CheckedI64Add(t1, t2))
+			round = langruntime.CheckedAdd(round, 1)
+		}
+		state[0] = checkruntime.CopyHashByte(checkruntime.HashByte{Value: digestWrap(langruntime.CheckedI64Add(state[0].Value, a))})
+		state[1] = checkruntime.CopyHashByte(checkruntime.HashByte{Value: digestWrap(langruntime.CheckedI64Add(state[1].Value, b))})
+		state[2] = checkruntime.CopyHashByte(checkruntime.HashByte{Value: digestWrap(langruntime.CheckedI64Add(state[2].Value, c))})
+		state[3] = checkruntime.CopyHashByte(checkruntime.HashByte{Value: digestWrap(langruntime.CheckedI64Add(state[3].Value, d))})
+		state[4] = checkruntime.CopyHashByte(checkruntime.HashByte{Value: digestWrap(langruntime.CheckedI64Add(state[4].Value, e))})
+		state[5] = checkruntime.CopyHashByte(checkruntime.HashByte{Value: digestWrap(langruntime.CheckedI64Add(state[5].Value, f))})
+		state[6] = checkruntime.CopyHashByte(checkruntime.HashByte{Value: digestWrap(langruntime.CheckedI64Add(state[6].Value, g))})
+		state[7] = checkruntime.CopyHashByte(checkruntime.HashByte{Value: digestWrap(langruntime.CheckedI64Add(state[7].Value, h))})
+	}
+	output := ""
+	index := 0
+	count := 8
+	if short {
+		count = langruntime.CheckedIndex(7)
+	}
+	for index < count {
+		divisor := int64(16777216)
+		octet := 0
+		for octet < 4 {
+			value := langruntime.CheckedI64Remainder(langruntime.CheckedI64Divide(state[index].Value, divisor), int64(256))
+			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, int(int32(value))))
+			divisor = langruntime.CheckedI64Divide(divisor, int64(256))
+			octet = langruntime.CheckedAdd(octet, 1)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return output
+}
+func digestSha256(input checkruntime.ByteaValue, short bool) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.ByteaValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.ByteaValueValue {
+		value := langruntime.CheckedString(input.Value)
+		result := digestSha256Hex(value, short)
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: result}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func Sha224S7oo(input checkruntime.ByteaValue) checkruntime.ByteaValue {
+	return digestSha256(input, true)
+}
+func Sha25619zu(input checkruntime.ByteaValue) checkruntime.ByteaValue {
+	return digestSha256(input, false)
+}
+
+var digestSha512KHigh = []int64{int64(1116352408), int64(1899447441), int64(3049323471), int64(3921009573), int64(961987163), int64(1508970993), int64(2453635748), int64(2870763221), int64(3624381080), int64(310598401), int64(607225278), int64(1426881987), int64(1925078388), int64(2162078206), int64(2614888103), int64(3248222580), int64(3835390401), int64(4022224774), int64(264347078), int64(604807628), int64(770255983), int64(1249150122), int64(1555081692), int64(1996064986), int64(2554220882), int64(2821834349), int64(2952996808), int64(3210313671), int64(3336571891), int64(3584528711), int64(113926993), int64(338241895), int64(666307205), int64(773529912), int64(1294757372), int64(1396182291), int64(1695183700), int64(1986661051), int64(2177026350), int64(2456956037), int64(2730485921), int64(2820302411), int64(3259730800), int64(3345764771), int64(3516065817), int64(3600352804), int64(4094571909), int64(275423344), int64(430227734), int64(506948616), int64(659060556), int64(883997877), int64(958139571), int64(1322822218), int64(1537002063), int64(1747873779), int64(1955562222), int64(2024104815), int64(2227730452), int64(2361852424), int64(2428436474), int64(2756734187), int64(3204031479), int64(3329325298), int64(3391569614), int64(3515267271), int64(3940187606), int64(4118630271), int64(116418474), int64(174292421), int64(289380356), int64(460393269), int64(685471733), int64(852142971), int64(1017036298), int64(1126000580), int64(1288033470), int64(1501505948), int64(1607167915), int64(1816402316)}
+var digestSha512KLow = []int64{int64(3609767458), int64(602891725), int64(3964484399), int64(2173295548), int64(4081628472), int64(3053834265), int64(2937671579), int64(3664609560), int64(2734883394), int64(1164996542), int64(1323610764), int64(3590304994), int64(4068182383), int64(991336113), int64(633803317), int64(3479774868), int64(2666613458), int64(944711139), int64(2341262773), int64(2007800933), int64(1495990901), int64(1856431235), int64(3175218132), int64(2198950837), int64(3999719339), int64(766784016), int64(2566594879), int64(3203337956), int64(1034457026), int64(2466948901), int64(3758326383), int64(168717936), int64(1188179964), int64(1546045734), int64(1522805485), int64(2643833823), int64(2343527390), int64(1014477480), int64(1206759142), int64(344077627), int64(1290863460), int64(3158454273), int64(3505952657), int64(106217008), int64(3606008344), int64(1432725776), int64(1467031594), int64(851169720), int64(3100823752), int64(1363258195), int64(3750685593), int64(3785050280), int64(3318307427), int64(3812723403), int64(2003034995), int64(3602036899), int64(1575990012), int64(1125592928), int64(2716904306), int64(442776044), int64(593698344), int64(3733110249), int64(2999351573), int64(3815920427), int64(3928383900), int64(566280711), int64(3454069534), int64(4000239992), int64(1914138554), int64(2731055270), int64(3203993006), int64(320620315), int64(587496836), int64(1086792851), int64(365543100), int64(2618297676), int64(3409855158), int64(4234509866), int64(987167468), int64(1246189591)}
+var digestSha384InitialHigh = []int64{int64(3418070365), int64(1654270250), int64(2438529370), int64(355462360), int64(1731405415), int64(2394180231), int64(3675008525), int64(1203062813)}
+var digestSha384InitialLow = []int64{int64(3238371032), int64(914150663), int64(812702999), int64(4144912697), int64(4290775857), int64(1750603025), int64(1694076839), int64(3204075428)}
+var digestSha512InitialHigh = []int64{int64(1779033703), int64(3144134277), int64(1013904242), int64(2773480762), int64(1359893119), int64(2600822924), int64(528734635), int64(1541459225)}
+var digestSha512InitialLow = []int64{int64(4089235720), int64(2227873595), int64(4271175723), int64(1595750129), int64(2917565137), int64(725511199), int64(4215389547), int64(327033209)}
+
+type digestWord struct {
+	high int64
+	low  int64
+}
+
+func copydigestWord(value digestWord) digestWord {
+	return digestWord{high: value.high, low: value.low}
+}
+func digestWideAdd(left digestWord, right digestWord) digestWord {
+	left = copydigestWord(left)
+	right = copydigestWord(right)
+	sum := langruntime.CheckedI64Add(left.low, right.low)
+	low := digestWrap(sum)
+	high := digestWrap(langruntime.CheckedI64Add(langruntime.CheckedI64Add(left.high, right.high), langruntime.CheckedI64Divide(sum, int64(4294967296))))
+	return digestWord{high: high, low: low}
+}
+func digestWideAnd(left digestWord, right digestWord) digestWord {
+	left = copydigestWord(left)
+	right = copydigestWord(right)
+	high := digestAnd(left.high, right.high)
+	low := digestAnd(left.low, right.low)
+	return digestWord{high: high, low: low}
+}
+func digestWideXor(left digestWord, right digestWord) digestWord {
+	left = copydigestWord(left)
+	right = copydigestWord(right)
+	high := checkruntime.HashXor(left.high, right.high)
+	low := checkruntime.HashXor(left.low, right.low)
+	return digestWord{high: high, low: low}
+}
+func digestWideNot(value digestWord) digestWord {
+	value = copydigestWord(value)
+	return digestWord{high: langruntime.CheckedI64Subtract(int64(4294967295), value.high), low: langruntime.CheckedI64Subtract(int64(4294967295), value.low)}
+}
+func digestWideRight(value digestWord, bits int, rotate bool) digestWord {
+	value = copydigestWord(value)
+	bits = langruntime.CheckedI32(bits)
+	remaining := bits
+	high := value.high
+	low := value.low
+	if remaining >= 32 {
+		low = value.high
+		high = int64(0)
+		if rotate {
+			high = value.low
+		}
+		remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, 32))
+	}
+	if remaining == 0 {
+		return digestWord{high: high, low: low}
+	}
+	divisor := int64(1)
+	for remaining > 0 {
+		divisor = langruntime.CheckedI64Multiply(divisor, int64(2))
+		remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, 1))
+	}
+	multiplier := langruntime.CheckedI64Divide(int64(4294967296), divisor)
+	shiftedLow := langruntime.CheckedI64Add(langruntime.CheckedI64Divide(low, divisor), langruntime.CheckedI64Multiply(langruntime.CheckedI64Remainder(high, divisor), multiplier))
+	shiftedHigh := langruntime.CheckedI64Divide(high, divisor)
+	if rotate {
+		shiftedHigh = langruntime.CheckedI64Add(shiftedHigh, langruntime.CheckedI64Multiply(langruntime.CheckedI64Remainder(low, divisor), multiplier))
+	}
+	return digestWord{high: shiftedHigh, low: shiftedLow}
+}
+func digestWideSigma(value digestWord, first int, second int, last int, rotateLast bool) digestWord {
+	value = copydigestWord(value)
+	first = langruntime.CheckedI32(first)
+	second = langruntime.CheckedI32(second)
+	last = langruntime.CheckedI32(last)
+	a := digestWideRight(value, first, true)
+	b := digestWideRight(value, second, true)
+	c := digestWideRight(value, last, rotateLast)
+	pair := digestWideXor(a, b)
+	return digestWideXor(pair, c)
+}
+func digestSha512Hex(input string, short bool) string {
+	input = langruntime.CheckedString(input)
+	state := []digestWord{}
+	initial := 0
+	for initial < 8 {
+		high := digestSha512InitialHigh[initial]
+		low := digestSha512InitialLow[initial]
+		if short {
+			high = digestSha384InitialHigh[initial]
+			low = digestSha384InitialLow[initial]
+		}
+		langruntime.CheckedAdd(len(state), 1)
+		state = append(state, copydigestWord(digestWord{high: high, low: low}))
+		initial = langruntime.CheckedAdd(initial, 1)
+	}
+	bytes := digestPadding(input, true, false)
+	offset := 0
+	for offset < len(bytes) {
+		words := []digestWord{}
+		index := 0
+		for index < 16 {
+			high := int64(0)
+			low := int64(0)
+			octet := 0
+			for octet < 4 {
+				high = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(high, int64(256)), bytes[offset].Value)
+				offset = langruntime.CheckedAdd(offset, 1)
+				octet = langruntime.CheckedAdd(octet, 1)
+			}
+			octet = langruntime.CheckedIndex(0)
+			for octet < 4 {
+				low = langruntime.CheckedI64Add(langruntime.CheckedI64Multiply(low, int64(256)), bytes[offset].Value)
+				offset = langruntime.CheckedAdd(offset, 1)
+				octet = langruntime.CheckedAdd(octet, 1)
+			}
+			langruntime.CheckedAdd(len(words), 1)
+			words = append(words, copydigestWord(digestWord{high: high, low: low}))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		for index < 80 {
+			a := digestWideSigma(words[langruntime.CheckedSubtract(index, 15)], 1, 8, 7, false)
+			b := digestWideSigma(words[langruntime.CheckedSubtract(index, 2)], 19, 61, 6, false)
+			first := digestWideAdd(words[langruntime.CheckedSubtract(index, 16)], a)
+			second := digestWideAdd(words[langruntime.CheckedSubtract(index, 7)], b)
+			word := digestWideAdd(first, second)
+			langruntime.CheckedAdd(len(words), 1)
+			words = append(words, copydigestWord(word))
+			index = langruntime.CheckedAdd(index, 1)
+		}
+		working := []digestWord{}
+		copied := 0
+		for copied < 8 {
+			langruntime.CheckedAdd(len(working), 1)
+			working = append(working, copydigestWord(state[copied]))
+			copied = langruntime.CheckedAdd(copied, 1)
+		}
+		round := 0
+		for round < 80 {
+			a := working[0]
+			b := working[1]
+			c := working[2]
+			d := working[3]
+			e := working[4]
+			f := working[5]
+			g := working[6]
+			h := working[7]
+			sigmaE := digestWideSigma(e, 14, 18, 41, true)
+			chosen := digestWideAnd(e, f)
+			opposite := digestWideNot(e)
+			unchosen := digestWideAnd(opposite, g)
+			choice := digestWideXor(chosen, unchosen)
+			constant := digestWord{high: digestSha512KHigh[round], low: digestSha512KLow[round]}
+			first := digestWideAdd(h, sigmaE)
+			second := digestWideAdd(choice, constant)
+			combined := digestWideAdd(first, second)
+			t1 := digestWideAdd(combined, words[round])
+			sigmaA := digestWideSigma(a, 28, 34, 39, true)
+			ab := digestWideAnd(a, b)
+			ac := digestWideAnd(a, c)
+			bc := digestWideAnd(b, c)
+			pair := digestWideXor(ab, ac)
+			majority := digestWideXor(pair, bc)
+			t2 := digestWideAdd(sigmaA, majority)
+			working[7] = copydigestWord(g)
+			working[6] = copydigestWord(f)
+			working[5] = copydigestWord(e)
+			working[4] = copydigestWord(digestWideAdd(d, t1))
+			working[3] = copydigestWord(c)
+			working[2] = copydigestWord(b)
+			working[1] = copydigestWord(a)
+			working[0] = copydigestWord(digestWideAdd(t1, t2))
+			round = langruntime.CheckedAdd(round, 1)
+		}
+		merged := 0
+		for merged < 8 {
+			state[merged] = copydigestWord(digestWideAdd(state[merged], working[merged]))
+			merged = langruntime.CheckedAdd(merged, 1)
+		}
+	}
+	output := ""
+	index := 0
+	count := 8
+	if short {
+		count = langruntime.CheckedIndex(6)
+	}
+	for index < count {
+		half := 0
+		for half < 2 {
+			value := state[index].high
+			if half == 1 {
+				value = state[index].low
+			}
+			divisor := int64(16777216)
+			octet := 0
+			for octet < 4 {
+				byte := langruntime.CheckedI64Remainder(langruntime.CheckedI64Divide(value, divisor), int64(256))
+				output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, int(int32(byte))))
+				divisor = langruntime.CheckedI64Divide(divisor, int64(256))
+				octet = langruntime.CheckedAdd(octet, 1)
+			}
+			half = langruntime.CheckedAdd(half, 1)
+		}
+		index = langruntime.CheckedAdd(index, 1)
+	}
+	return output
+}
+func digestSha512(input checkruntime.ByteaValue, short bool) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.ByteaValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.ByteaValueValue {
+		value := langruntime.CheckedString(input.Value)
+		result := digestSha512Hex(value, short)
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: result}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func Sha38441g6(input checkruntime.ByteaValue) checkruntime.ByteaValue {
+	return digestSha512(input, true)
+}
+func Sha512Si49(input checkruntime.ByteaValue) checkruntime.ByteaValue {
+	return digestSha512(input, false)
 }
 
 const byteaSubstringError = 3452581
@@ -3077,6 +4136,28 @@ func LtrimP5mp(input checkruntime.ByteaValue, pattern checkruntime.ByteaValue) c
 }
 func Rtrim33rv(input checkruntime.ByteaValue, pattern checkruntime.ByteaValue) checkruntime.ByteaValue {
 	return byteaTrim(input, pattern, false, true)
+}
+func byteaUtf8Character(output string, character rune) string {
+	output = langruntime.CheckedString(output)
+	character = langruntime.CheckedChar(character)
+	code := int(langruntime.CheckedChar(character))
+	result := output
+	if code < 128 {
+		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, code))
+	} else if code < 2048 {
+		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(192, langruntime.CheckedSignedDivide(code, 64))))
+		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64))))
+	} else if code < 65536 {
+		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(224, langruntime.CheckedSignedDivide(code, 4096))))
+		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(code, 64), 64))))
+		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64))))
+	} else {
+		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(240, langruntime.CheckedSignedDivide(code, 262144))))
+		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(code, 4096), 64))))
+		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(code, 64), 64))))
+		result = langruntime.CheckedString(checkruntime.ByteaAppendByte(result, langruntime.CheckedSignedAdd(128, langruntime.CheckedSignedRemainder(code, 64))))
+	}
+	return result
 }
 func bpcharCodepointCompare(left string, right string) int {
 	left = langruntime.CheckedString(left)

@@ -180,10 +180,9 @@ import them. Keep schema-only helpers with their callables.
   `tests/sql-semantics/check-uuid-timestamp.test.ts`, and the device identifiers world.
 - Text payloads own Rust `String`, lowered to immutable strings in both targets.
   Builders mutate only local strings through character or borrowed-text appends.
-  Explicit wrapper clones preserve Rust ownership when generated branches reuse
-  text; target immutable wrappers need no copy helpers.
-  Character codes use the first Unicode scalar, or zero for empty text,
-  independently of collation.
+  Explicit wrapper clones preserve ownership across branches; target immutable
+  wrappers need no copy helpers.
+  Character codes and byte encodings/digests operate independently of collation.
 - Bytea payloads own canonical lowercase hexadecimal strings without a prefix.
   Public adapters convert byte arrays and nested domains; Rust validates hex input.
   Comparison preserves unsigned octet differences and signed-unit prefix order.
@@ -194,9 +193,10 @@ import them. Keep schema-only helpers with their callables.
   Substring preserves one-based ranges, negative-length errors and end overflow;
   overlay composes ranges with checked endpoints. Search and trims align octets.
   Integer casts use unsigned short inputs and signed full-width inputs; send uses
-  network order for integers, dates, timestamps and booleans. Jenkins hashes and
-  both CRCs preserve every bit. Concatenation checks the allocation limit (XX000).
-  Run `tests/sql-semantics/check-bytea*.test.ts` and the feature masks world.
+  network order for integers, dates, timestamps and booleans. Jenkins hashes,
+  CRCs, MD5 and SHA preserve every bit. Hex/base64/escape codecs preserve wrapping,
+  padding and UTF8 decoding; syntax returns 22023 or 22P02, size limits 54000.
+  Concatenation checks allocation limits (XX000). Run `tests/sql-semantics/check-bytea*.test.ts` and the feature masks world.
 - Bit and varbit share an owned binary string in BitValue, preserving leading
   zeros, trailing zeros, and empty values. Public inputs are already SQL-coerced
   strings; nonbinary spellings defer. Literals accept binary and hexadecimal

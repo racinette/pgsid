@@ -398,3 +398,39 @@ CREATE TABLE payload_labels (
   CONSTRAINT label_fixed_code CHECK (ascii(fixed_label::text) = recorded_code),
   CONSTRAINT label_trimmed CHECK (fixed_label::text = recorded_trim)
 );
+
+CREATE TABLE payload_encodings (
+  id integer PRIMARY KEY,
+  profile_id integer NOT NULL REFERENCES mask_profiles(id),
+  packet stored_payload,
+  encoded text COLLATE "C",
+  format varchar COLLATE "C",
+  recorded_text text COLLATE "C",
+  recorded_packet bytea,
+  default_packet bytea,
+  use_default boolean,
+  CONSTRAINT encoding_text CHECK (CASE WHEN use_default THEN true ELSE encode(packet, format) = recorded_text END),
+  CONSTRAINT encoding_bytes CHECK (CASE WHEN use_default THEN true ELSE decode(encoded, format) = recorded_packet END),
+  CONSTRAINT encoding_roundtrip CHECK (CASE WHEN use_default THEN true ELSE decode(encode(packet, format), format) = recorded_packet END),
+  CONSTRAINT encoding_selected CHECK ((CASE WHEN use_default THEN default_packet ELSE decode(encoded, format) END) = recorded_packet),
+  CONSTRAINT encoding_default CHECK (COALESCE(default_packet,decode(encoded, format)) = recorded_packet)
+);
+
+CREATE TABLE payload_crypto (
+  id integer PRIMARY KEY,
+  profile_id integer NOT NULL REFERENCES mask_profiles(id),
+  packet stored_payload,
+  label text COLLATE "C",
+  recorded_md5 text COLLATE "C",
+  recorded_text_md5 text COLLATE "C",
+  recorded_sha224 bytea,
+  recorded_sha256 bytea,
+  recorded_sha384 bytea,
+  recorded_sha512 bytea,
+  CONSTRAINT crypto_md5 CHECK (md5(packet) = recorded_md5),
+  CONSTRAINT crypto_text_md5 CHECK (md5(label) = recorded_text_md5),
+  CONSTRAINT crypto_sha224 CHECK (sha224(packet) = recorded_sha224),
+  CONSTRAINT crypto_sha256 CHECK (sha256(packet) = recorded_sha256),
+  CONSTRAINT crypto_sha384 CHECK (sha384(packet) = recorded_sha384),
+  CONSTRAINT crypto_sha512 CHECK (sha512(packet) = recorded_sha512)
+);
