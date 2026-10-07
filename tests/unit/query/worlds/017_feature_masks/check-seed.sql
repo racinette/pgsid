@@ -901,3 +901,79 @@ VALUES (1118, 1, NULL, NULL, 7, 7, 7, true);
 -- name: mask_count_null_default_and_null_count
 INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
 VALUES (1119, 1, NULL, NULL, 7, 7, NULL, true);
+
+-- name: mask_packet_matches_encoded_mask
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1200, 1, B'00101101', B'00101101', '\x000000082d', NULL, false);
+
+-- name: mask_packet_all_disabled
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1201, 1, B'00000000', B'00000000', '\x0000000800', NULL, false);
+
+-- name: mask_packet_all_enabled
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1202, 1, X'FF', X'FF', '\x00000008ff', NULL, false);
+
+-- name: mask_packet_empty_retains_length_header
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1203, 1, NULL, B'', '\x00000000', NULL, false);
+
+-- name: mask_packet_partial_byte_right_padding
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1204, 1, NULL, B'1', '\x0000000180', NULL, false);
+
+-- name: mask_packet_partial_byte_leading_zeros
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1205, 1, NULL, B'001', '\x0000000320', NULL, false);
+
+-- name: mask_packet_crosses_byte_boundary
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1206, 1, NULL, B'111111111', '\x00000009ff80', NULL, false);
+
+-- name: mask_packet_crosses_word_boundary
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1207, 1, NULL, B'00000000000000000000000000000000001', '\x000000210000000080', NULL, false);
+
+-- name: mask_packet_rejects_wrong_payload
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1208, 1, B'00101101', B'00101101', '\x000000082e', NULL, false);
+
+-- name: mask_packet_rejects_little_endian_header
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1209, 1, B'00101101', B'00101101', '\x080000002d', NULL, false);
+
+-- name: mask_packet_rejects_missing_header
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1210, 1, B'00101101', B'00101101', '\x2d', NULL, false);
+
+-- name: mask_packet_rejects_nonzero_padding
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1211, 1, NULL, B'1', '\x0000000181', NULL, false);
+
+-- name: mask_packet_rejects_wrong_default
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1212, 1, B'00101101', B'00101101', '\x000000082d', '\x000000082e', true);
+
+-- name: mask_packet_null_masks
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1213, 1, NULL, NULL, '\x000000082d', NULL, false);
+
+-- name: mask_packet_null_expected
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1214, 1, B'00101101', B'00101101', NULL, NULL, false);
+
+-- name: mask_packet_selects_override
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1215, 1, B'11111111', B'11111111', '\x000000082d', '\x000000082d', true);
+
+-- name: mask_packet_null_choice_uses_mask
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1216, 1, B'00101101', B'00101101', '\x000000082d', NULL, NULL);
+
+-- name: mask_packet_default_skips_null_mask
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1217, 1, NULL, NULL, '\x000000082d', '\x000000082d', true);
+
+-- name: mask_packet_null_default_and_mask
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1218, 1, NULL, NULL, NULL, NULL, NULL);

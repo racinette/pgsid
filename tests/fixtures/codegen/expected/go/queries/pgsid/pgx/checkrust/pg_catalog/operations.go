@@ -1598,6 +1598,49 @@ func Int809r6(input checkruntime.BitValue) checkruntime.Int8Value {
 	}
 	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 }
+func BitSend1fyo(input checkruntime.BitValue) checkruntime.ByteaValue {
+	return VarbitSendYt0j(input)
+}
+func VarbitSendYt0j(input checkruntime.BitValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.BitValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.BitValueValue {
+		value := langruntime.CheckedString(input.Value)
+		length := checkruntime.BitPayloadLength(value)
+		output := ""
+		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedDivide(length, 16777216)))
+		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(length, 65536), 256)))
+		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedRemainder(langruntime.CheckedSignedDivide(length, 256), 256)))
+		output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, langruntime.CheckedSignedRemainder(length, 256)))
+		chars := []rune(value)
+		index := 0
+		for index < len(chars) {
+			byte := 0
+			bit := 0
+			for bit < 8 {
+				byte = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(byte, 2))
+				if index < len(chars) {
+					if chars[index] == '1' {
+						byte = langruntime.CheckedI32(langruntime.CheckedSignedAdd(byte, 1))
+					}
+					index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 1))
+				}
+				bit = langruntime.CheckedIndex(langruntime.CheckedAdd(bit, 1))
+			}
+			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, byte))
+		}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
 func bitOverlay(input checkruntime.BitValue, replacement checkruntime.BitValue, position checkruntime.Int4Value, length checkruntime.Int4Value, hasLength bool) checkruntime.BitValue {
 	if input.Kind == checkruntime.BitValueError {
 		error := input.Error

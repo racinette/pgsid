@@ -1594,6 +1594,49 @@ export function int809r6(input: checkruntime.BitValue): checkruntime.Int8Value {
     }
     return { kind: "Unknown" };
 }
+export function bitSend1fyo(input: checkruntime.BitValue): checkruntime.ByteaValue {
+    return varbitSendYt0j(input);
+}
+export function varbitSendYt0j(input: checkruntime.BitValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const length: number = checkruntime.bitPayloadLength(value);
+        let output: string = "";
+        output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedDivide(length, 16777216)));
+        output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(length, 65536), 256)));
+        output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedRemainder(langruntime.checkedSignedDivide(length, 256), 256)));
+        output = langruntime.checkedString(checkruntime.byteaAppendByte(output, langruntime.checkedSignedRemainder(length, 256)));
+        const chars: string[] = Array.from(value);
+        let index: number = 0;
+        while (index < chars.length) {
+            let byte: number = 0;
+            let bit: number = 0;
+            while (bit < 8) {
+                byte = langruntime.checkedI32(langruntime.checkedSignedMultiply(byte, 2));
+                if (index < chars.length) {
+                    if (langruntime.indexChar(chars, langruntime.checkedIndex(index)) === "1") {
+                        byte = langruntime.checkedI32(langruntime.checkedSignedAdd(byte, 1));
+                    }
+                    index = langruntime.checkedIndex(langruntime.checkedAdd(index, 1));
+                }
+                bit = langruntime.checkedIndex(langruntime.checkedAdd(bit, 1));
+            }
+            output = langruntime.checkedString(checkruntime.byteaAppendByte(output, byte));
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
 function bitOverlay(input: checkruntime.BitValue, replacement: checkruntime.BitValue, position: checkruntime.Int4Value, length: checkruntime.Int4Value, hasLength: boolean): checkruntime.BitValue {
     hasLength = langruntime.checkedBool(hasLength);
     if (input.kind === "Error") {

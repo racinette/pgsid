@@ -30,3 +30,6 @@ VALUES (1, 1, B'00101101', B'00101101', B'101', 3, true, NULL, false);
 
 INSERT INTO mask_counts (id, profile_id, original_mask, flexible_mask, recorded_count, recorded_small_count, default_count, use_default)
 VALUES (1, 1, B'00101101', B'00101101', 4, 4, NULL, false);
+
+INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
+VALUES (1, 1, B'00101101', B'00101101', '\x000000082d', NULL, false);

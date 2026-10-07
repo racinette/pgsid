@@ -1023,6 +1023,26 @@ describe('world CHECK INSERT parity', () => {
     )!
     for (const check of defaultedCount.checks)
       expect(check.result).toEqual({ certain: true, value: true })
+    for (const name of [
+      'packet_fixed',
+      'packet_flexible',
+      'packet_relabel',
+      'packet_selected',
+      'packet_default',
+      'packet_flexible_default',
+    ]) {
+      const identity = `world_017_feature_masks.mask_packets.${name}`
+      const measured = coverage.get(identity)!
+      for (const kind of ['true', 'false', 'null'] as const)
+        expect(measured[kind], identity).toBeGreaterThan(0)
+      expect(measured.unknown, identity).toBe(0)
+      expect(measured.error, identity).toBe(0)
+    }
+    const defaultedPacket = caseResults.find(
+      (row) => row.name === '017_feature_masks/mask_packet_default_skips_null_mask',
+    )!
+    for (const check of defaultedPacket.checks)
+      expect(check.result).toEqual({ certain: true, value: true })
     const substringErrors = caseResults.flatMap((row) =>
       row.name.startsWith('017_feature_masks/')
         ? row.checks.filter((check) => check.result.error === '22011')
