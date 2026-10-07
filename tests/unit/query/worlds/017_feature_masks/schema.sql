@@ -237,3 +237,19 @@ CREATE TABLE mask_counts (
   CONSTRAINT count_default CHECK (COALESCE(default_count,bit_count(original_mask)) = recorded_count),
   CONSTRAINT count_flexible_default CHECK (COALESCE(default_count,bit_count(flexible_mask)) = recorded_count)
 );
+
+CREATE TABLE mask_packets (
+  id integer PRIMARY KEY,
+  profile_id integer NOT NULL REFERENCES mask_profiles(id),
+  original_mask installed_mask,
+  flexible_mask device_request,
+  recorded_wire bytea,
+  default_wire bytea,
+  use_default boolean,
+  CONSTRAINT packet_fixed CHECK (CASE WHEN use_default THEN true ELSE bit_send(original_mask) = recorded_wire END),
+  CONSTRAINT packet_flexible CHECK (CASE WHEN use_default THEN true ELSE varbit_send(flexible_mask) = recorded_wire END),
+  CONSTRAINT packet_relabel CHECK (CASE WHEN use_default THEN true ELSE bit_send(flexible_mask) = recorded_wire END),
+  CONSTRAINT packet_selected CHECK ((CASE WHEN use_default THEN default_wire ELSE bit_send(original_mask) END) = recorded_wire),
+  CONSTRAINT packet_default CHECK (COALESCE(default_wire,bit_send(original_mask)) = recorded_wire),
+  CONSTRAINT packet_flexible_default CHECK (COALESCE(default_wire,varbit_send(flexible_mask)) = recorded_wire)
+);

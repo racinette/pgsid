@@ -252,7 +252,7 @@ describe('Rust CHECK bit and varbit values', () => {
     await runCheckParity(directory, 'bitchecks', group, fixtureNames, fixtures)
   }, 180000)
 
-  it('defers casts without a catalog link and unported bit operations', async () => {
+  it('defers casts without a catalog link', async () => {
     const catalog = await snapshotCatalog(pg)
     const table = catalog.tables.find((item) => item.name === 'bit_checks')!
     for (const sql of ['a = 7::int2::bit(8)', 'av::int4 > 0', 'a::int2 > 0']) {
@@ -267,27 +267,5 @@ describe('Rust CHECK bit and varbit values', () => {
       )!
       expect(bound.expression.kind, sql).toBe('uncertain')
     }
-    const expression = lowerTableCheck(
-      table,
-      {
-        name: 'bit_send',
-        type: 'check',
-        definition: 'CHECK (bit_send(a) IS NOT NULL)',
-      },
-      [],
-      catalog.domains,
-    )!.expression
-    const prepared = prepareCheckRustGroup([
-      {
-        expression,
-        identity: {
-          schema: 'public',
-          kind: 'table',
-          owner: table.name,
-          constraint: 'bit_send',
-        },
-      },
-    ])
-    expect(prepared.checks[0]!.kind).toBe('unsupported')
   })
 })
