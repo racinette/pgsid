@@ -253,3 +253,34 @@ CREATE TABLE mask_packets (
   CONSTRAINT packet_default CHECK (COALESCE(default_wire,bit_send(original_mask)) = recorded_wire),
   CONSTRAINT packet_flexible_default CHECK (COALESCE(default_wire,varbit_send(flexible_mask)) = recorded_wire)
 );
+
+CREATE DOMAIN raw_payload AS bytea;
+CREATE DOMAIN stored_payload AS raw_payload;
+
+CREATE TABLE mask_payloads (
+  id integer PRIMARY KEY,
+  profile_id integer NOT NULL REFERENCES mask_profiles(id),
+  packet stored_payload,
+  peer_packet stored_payload,
+  recorded_comparison integer,
+  larger_packet bytea,
+  smaller_packet bytea,
+  reversed_packet bytea,
+  transmitted_packet bytea,
+  recorded_length integer,
+  recorded_bits integer,
+  recorded_count bigint,
+  CONSTRAINT payload_compare CHECK (byteacmp(packet,peer_packet) = recorded_comparison),
+  CONSTRAINT payload_less CHECK ((packet < peer_packet) = (recorded_comparison < 0)),
+  CONSTRAINT payload_less_equal CHECK ((packet <= peer_packet) = (recorded_comparison <= 0)),
+  CONSTRAINT payload_greater CHECK ((packet > peer_packet) = (recorded_comparison > 0)),
+  CONSTRAINT payload_greater_equal CHECK ((packet >= peer_packet) = (recorded_comparison >= 0)),
+  CONSTRAINT payload_larger CHECK (bytea_larger(packet,peer_packet) = larger_packet),
+  CONSTRAINT payload_smaller CHECK (bytea_smaller(packet,peer_packet) = smaller_packet),
+  CONSTRAINT payload_length CHECK (length(packet) = recorded_length),
+  CONSTRAINT payload_octets CHECK (octet_length(packet) = recorded_length),
+  CONSTRAINT payload_bits CHECK (bit_length(packet) = recorded_bits),
+  CONSTRAINT payload_count CHECK (bit_count(packet) = recorded_count),
+  CONSTRAINT payload_reversed CHECK (reverse(packet) = reversed_packet),
+  CONSTRAINT payload_sent CHECK (byteasend(packet) = transmitted_packet)
+);

@@ -192,8 +192,11 @@ import them. Keep schema-only helpers with their callables.
 - Bytea payloads own canonical lowercase hexadecimal strings without a prefix.
   Public row adapters convert Go byte slices and TypeScript Uint8Array values;
   Rust validates hexadecimal constructor inputs. SQL literals accept hex input.
-  Binary send, equality/inequality, NULL tests, CASE, and COALESCE use this wrapper.
-  Other binary operations and runtime text casts require separate slices.
+  Comparisons use unsigned byte order; direct comparison preserves the first
+  byte difference and signed-unit prefix ordering. Lengths count bytes or bits;
+  set-bit counts return int8. Reversal preserves hexadecimal pairs, and send
+  preserves the payload. Run `tests/sql-semantics/check-bytea-core.test.ts` and
+  the feature masks world. Editing and runtime text casts require separate slices.
 - Bit and varbit share an owned binary string in BitValue, preserving leading
   zeros, trailing zeros, and empty values. Public inputs are already SQL-coerced
   strings; nonbinary spellings defer. Literals accept binary and hexadecimal
@@ -227,12 +230,9 @@ import them. Keep schema-only helpers with their callables.
   lengths retain PostgreSQL overlap semantics; omitted lengths use the replacement.
   Position returns the first one-based match or zero for absence or empty inputs;
   empty patterns in nonempty inputs return one. Bit count returns int8 set-bit counts.
-  Binary send emits a network-order int4 length and MSB-first bytes with zero padding. Run
-  `tests/sql-semantics/check-bit.test.ts`, `tests/sql-semantics/check-bitwise.test.ts`,
-  `tests/sql-semantics/check-bit-casts.test.ts`, `tests/sql-semantics/check-bit-integers.test.ts`, `tests/sql-semantics/check-bit-edit.test.ts`,
-  `tests/sql-semantics/check-bit-substring.test.ts`, `tests/sql-semantics/check-bit-overlay.test.ts`,
-  `tests/sql-semantics/check-bit-position.test.ts`, `tests/sql-semantics/check-bit-count.test.ts`,
-  `tests/sql-semantics/check-bit-output.test.ts`, and the feature masks world.
+  Binary send emits a network-order int4 length and MSB-first bytes with zero padding.
+  The `tests/sql-semantics/check-bit*.test.ts` suites and the feature masks
+  world cover values, casts, arithmetic, editing, searches, counts, and output.
 - Date payloads are signed day offsets from 2000-01-01. The signed int4
   minimum and maximum represent negative and positive infinity. Finite payloads
   range from -2451545 through 2145031948. Public CHECK inputs use this portable

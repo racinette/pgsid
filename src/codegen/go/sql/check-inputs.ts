@@ -55,6 +55,8 @@ const helpers: Record<string, { dependencies: readonly string[]; source: string 
   case reflect.Bool: return value.Bool(), true
   case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64: return value.Int(), true
   case reflect.Float32, reflect.Float64: return value.Float(), true
+  case reflect.Slice:
+    if value.Type().Elem().Kind() == reflect.Uint8 { return value.Bytes(), true }
   }
   return nil, false
 }`,

@@ -64,6 +64,10 @@ func checkPrimitive(raw any) (any, bool) {
 		return value.Int(), true
 	case reflect.Float32, reflect.Float64:
 		return value.Float(), true
+	case reflect.Slice:
+		if value.Type().Elem().Kind() == reflect.Uint8 {
+			return value.Bytes(), true
+		}
 	}
 	return nil, false
 }

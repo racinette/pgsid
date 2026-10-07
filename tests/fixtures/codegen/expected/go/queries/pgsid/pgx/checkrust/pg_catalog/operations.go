@@ -1961,6 +1961,261 @@ func BoolgeGviq(left checkruntime.BoolValue, right checkruntime.BoolValue) check
 	}
 	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
 }
+func byteaCompare(left checkruntime.ByteaValue, right checkruntime.ByteaValue) checkruntime.Int4Value {
+	if left.Kind == checkruntime.ByteaValueError {
+		error := left.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if right.Kind == checkruntime.ByteaValueError {
+		error := right.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if left == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) || right == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if left == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) || right == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if left.Kind == checkruntime.ByteaValueValue {
+		a := langruntime.CheckedString(left.Value)
+		if right.Kind == checkruntime.ByteaValueValue {
+			b := langruntime.CheckedString(right.Value)
+			first := []rune(a)
+			second := []rune(b)
+			index := 0
+			for index < len(first) && index < len(second) {
+				highA := checkruntime.HexDigit(first[index])
+				lowA := checkruntime.HexDigit(first[langruntime.CheckedAdd(index, 1)])
+				highB := checkruntime.HexDigit(second[index])
+				lowB := checkruntime.HexDigit(second[langruntime.CheckedAdd(index, 1)])
+				aByte := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(highA, 16), lowA)
+				bByte := langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(highB, 16), lowB)
+				if aByte != bByte {
+					return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(aByte, bByte)}
+				}
+				index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 2))
+			}
+			if len(first) < len(second) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedNegate(1)}
+			}
+			if len(first) > len(second) {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func Byteacmp2x4q(left checkruntime.ByteaValue, right checkruntime.ByteaValue) checkruntime.Int4Value {
+	return byteaCompare(left, right)
+}
+func BytealtBe6e(left checkruntime.ByteaValue, right checkruntime.ByteaValue) checkruntime.BoolValue {
+	result := byteaCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order < 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func BytealeVi7d(left checkruntime.ByteaValue, right checkruntime.ByteaValue) checkruntime.BoolValue {
+	result := byteaCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order <= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func Byteagt221r(left checkruntime.ByteaValue, right checkruntime.ByteaValue) checkruntime.BoolValue {
+	result := byteaCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order > 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func ByteagePaor(left checkruntime.ByteaValue, right checkruntime.ByteaValue) checkruntime.BoolValue {
+	result := byteaCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		return checkruntime.BoolValue{Kind: checkruntime.BoolValueValue, Value: order >= 0}
+	}
+	return checkruntime.BoolValue{Kind: checkruntime.BoolValueUnknown}
+}
+func ByteaLargerIqg1(left checkruntime.ByteaValue, right checkruntime.ByteaValue) checkruntime.ByteaValue {
+	result := byteaCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		if order > 0 {
+			return left
+		}
+		return right
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func ByteaSmallerIook(left checkruntime.ByteaValue, right checkruntime.ByteaValue) checkruntime.ByteaValue {
+	result := byteaCompare(left, right)
+	if result.Kind == checkruntime.Int4ValueError {
+		error := result.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	if result == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if result.Kind == checkruntime.Int4ValueValue {
+		order := langruntime.CheckedI32(result.Value)
+		if order < 0 {
+			return left
+		}
+		return right
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func byteaLength(input checkruntime.ByteaValue) checkruntime.Int4Value {
+	if input.Kind == checkruntime.ByteaValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.ByteaValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		index := 0
+		length := 0
+		for index < len(chars) {
+			index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 2))
+			length = langruntime.CheckedI32(langruntime.CheckedSignedAdd(length, 1))
+		}
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: length}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func LengthJ2mn(input checkruntime.ByteaValue) checkruntime.Int4Value {
+	return byteaLength(input)
+}
+func OctetLengthEml7(input checkruntime.ByteaValue) checkruntime.Int4Value {
+	return byteaLength(input)
+}
+func BitLengthGryu(input checkruntime.ByteaValue) checkruntime.Int4Value {
+	length := byteaLength(input)
+	if length.Kind == checkruntime.Int4ValueValue {
+		value := langruntime.CheckedI32(length.Value)
+		return Int4mul284v(checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: value}, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 8})
+	}
+	return length
+}
+func BitCountU0pl(input checkruntime.ByteaValue) checkruntime.Int8Value {
+	if input.Kind == checkruntime.ByteaValueError {
+		error := input.Error
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueError, Error: error}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}
+	}
+	if input.Kind == checkruntime.ByteaValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		index := 0
+		count := int64(0)
+		for index < len(chars) {
+			digit := checkruntime.HexDigit(chars[index])
+			for digit > 0 {
+				if langruntime.CheckedSignedRemainder(digit, 2) == 1 {
+					count = langruntime.CheckedI64Add(count, int64(1))
+				}
+				digit = langruntime.CheckedI32(langruntime.CheckedSignedDivide(digit, 2))
+			}
+			index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 1))
+		}
+		return checkruntime.Int8Value{Kind: checkruntime.Int8ValueValue, Value: count}
+	}
+	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
+}
+func ReverseW0od(input checkruntime.ByteaValue) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.ByteaValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) || input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) {
+		return input
+	}
+	if input.Kind == checkruntime.ByteaValueValue {
+		value := langruntime.CheckedString(input.Value)
+		chars := []rune(value)
+		index := len(chars)
+		output := ""
+		for index > 0 {
+			index = langruntime.CheckedIndex(langruntime.CheckedSubtract(index, 2))
+			output = output + string(langruntime.CheckedChar(chars[index]))
+			output = output + string(langruntime.CheckedChar(chars[langruntime.CheckedAdd(index, 1)]))
+		}
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func Byteasend3q2t(input checkruntime.ByteaValue) checkruntime.ByteaValue {
+	return input
+}
 func bpcharCodepointCompare(left string, right string) int {
 	left = langruntime.CheckedString(left)
 	right = langruntime.CheckedString(right)

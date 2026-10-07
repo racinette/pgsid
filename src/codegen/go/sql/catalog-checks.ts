@@ -283,6 +283,7 @@ export function renderGoSchemaCheckArtifacts(
                                             ? 'checkRustText'
                                             : 'checkRustBool'
           rustInputAdapters.add(helper)
+          if (item.rustType === 'ByteaValue') inputHelpers.add('checkPrimitive')
           if (
             item.rustType !== 'ByteaValue' &&
             item.rustType !== 'NumericValue' &&
@@ -540,11 +541,10 @@ func checkRustBytea[T any](field CheckOptional[T]) checkruntime.ByteaValue {
   if !field.Set { return checkruntime.ByteaUnknown() }
   if field.Null { return checkruntime.ByteaNull() }
   if value, ok := any(field.V).(checkruntime.ByteaValue); ok { return value }
-  if bytes, ok := any(field.V).(*[]byte); ok {
-    if bytes == nil { return checkruntime.ByteaNull() }
-    return checkRustBytea(CheckOptional[[]byte]{Set: true, V: *bytes})
-  }
-  if bytes, ok := any(field.V).([]byte); ok {
+  raw := any(field.V)
+  if primitive, ok := checkPrimitive(raw); ok { raw = primitive }
+  if raw == nil { return checkruntime.ByteaNull() }
+  if bytes, ok := raw.([]byte); ok {
     const digits = "0123456789abcdef"
     hex := make([]byte, len(bytes) * 2)
     for index, value := range bytes { hex[index * 2] = digits[value / 16]; hex[index * 2 + 1] = digits[value % 16] }

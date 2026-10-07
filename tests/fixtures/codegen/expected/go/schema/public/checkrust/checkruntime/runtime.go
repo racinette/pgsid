@@ -1258,7 +1258,7 @@ func networkParse(value string, cidr bool) NetworkValue {
 		}
 		prefix = langruntime.CheckedI32(0)
 		for index < len(chars) {
-			digit := hexDigit(chars[index])
+			digit := HexDigit(chars[index])
 			if digit > 9 {
 				return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 			}
@@ -1287,14 +1287,14 @@ func networkParse(value string, cidr bool) NetworkValue {
 		if cidr && end > 2 && chars[0] == '0' && (chars[1] == 'x' || chars[1] == 'X') {
 			index = langruntime.CheckedIndex(2)
 			for index < end {
-				high := hexDigit(chars[index])
+				high := HexDigit(chars[index])
 				if high > 15 || len(octets) == 4 {
 					return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 				}
 				index = langruntime.CheckedAdd(index, 1)
 				low := 0
 				if index < end {
-					low = langruntime.CheckedI32(hexDigit(chars[index]))
+					low = langruntime.CheckedI32(HexDigit(chars[index]))
 					if low > 15 {
 						return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 					}
@@ -1309,7 +1309,7 @@ func networkParse(value string, cidr bool) NetworkValue {
 				begin := index
 				octet := 0
 				for index < end && chars[index] != '.' {
-					digit := hexDigit(chars[index])
+					digit := HexDigit(chars[index])
 					if digit > 9 {
 						return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 					}
@@ -1396,7 +1396,7 @@ func networkParse(value string, cidr bool) NetworkValue {
 					start := index
 					octet := 0
 					for index < end && chars[index] != '.' {
-						digit := hexDigit(chars[index])
+						digit := HexDigit(chars[index])
 						if digit > 9 || (index > start && chars[start] == '0') {
 							return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 						}
@@ -1436,7 +1436,7 @@ func networkParse(value string, cidr bool) NetworkValue {
 				}
 				word := 0
 				for index < stop {
-					digit := hexDigit(chars[index])
+					digit := HexDigit(chars[index])
 					if digit > 15 {
 						return NetworkValue{Kind: NetworkValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 					}
@@ -1612,7 +1612,7 @@ func macScanHex(text *macText, start int, width int) macScanned {
 	significant := 0
 	overflow := false
 	for index < len(text.chars) && (width == 0 || langruntime.CheckedSubtract(index, begin) < width) {
-		digit := hexDigit(text.chars[index])
+		digit := HexDigit(text.chars[index])
 		if digit == 16 {
 			break
 		}
@@ -1715,8 +1715,8 @@ func macaddr8Parse(text *macText) macParsed {
 		if len(bytes) == 8 {
 			return macInvalid()
 		}
-		high := hexDigit(text.chars[index])
-		low := hexDigit(text.chars[langruntime.CheckedAdd(index, 1)])
+		high := HexDigit(text.chars[index])
+		low := HexDigit(text.chars[langruntime.CheckedAdd(index, 1)])
 		if high == 16 || low == 16 {
 			return macInvalid()
 		}
@@ -1860,7 +1860,7 @@ func uuidParse(value string) UuidValue {
 			if index >= len(chars) {
 				return UuidValue{Kind: UuidValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 			}
-			digit := hexDigit(chars[index])
+			digit := HexDigit(chars[index])
 			if digit == 16 {
 				return UuidValue{Kind: UuidValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 			}
@@ -1964,7 +1964,7 @@ func BitFromLiteral(value string) BitValue {
 	for index < len(chars) {
 		ch := chars[index]
 		if hexadecimal {
-			digit := hexDigit(ch)
+			digit := HexDigit(ch)
 			if digit == 16 {
 				return BitValue{Kind: BitValueError, Error: MakeSqlError(sqlErrorInvalidTextRepresentation)}
 			}
@@ -2288,7 +2288,7 @@ func ByteaAppendByte(value string, byte int) string {
 	output = output + string(langruntime.CheckedChar(digits[lowIndex]))
 	return output
 }
-func hexDigit(ch rune) int {
+func HexDigit(ch rune) int {
 	ch = langruntime.CheckedChar(ch)
 	if ch == '0' {
 		return 0

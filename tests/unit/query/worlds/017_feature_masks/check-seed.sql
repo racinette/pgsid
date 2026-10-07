@@ -977,3 +977,39 @@ VALUES (1217, 1, NULL, NULL, '\x000000082d', '\x000000082d', true);
 -- name: mask_packet_null_default_and_mask
 INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
 VALUES (1218, 1, NULL, NULL, NULL, NULL, NULL);
+
+-- name: payload_summary_matches_packet
+INSERT INTO mask_payloads (id, profile_id, packet, peer_packet, recorded_comparison, larger_packet, smaller_packet, reversed_packet, transmitted_packet, recorded_length, recorded_bits, recorded_count)
+VALUES (1300, 1, '\x0080ff', '\x008100', -1, '\x008100', '\x0080ff', '\xff8000', '\x0080ff', 3, 24, 9);
+
+-- name: payload_summary_unsigned_byte_order
+INSERT INTO mask_payloads (id, profile_id, packet, peer_packet, recorded_comparison, larger_packet, smaller_packet, reversed_packet, transmitted_packet, recorded_length, recorded_bits, recorded_count)
+VALUES (1301, 1, '\x00', '\xff', -255, '\xff', '\x00', '\x00', '\x00', 1, 8, 0);
+
+-- name: payload_summary_shorter_prefix
+INSERT INTO mask_payloads (id, profile_id, packet, peer_packet, recorded_comparison, larger_packet, smaller_packet, reversed_packet, transmitted_packet, recorded_length, recorded_bits, recorded_count)
+VALUES (1302, 1, '\x00', '\x0000', -1, '\x0000', '\x00', '\x00', '\x00', 1, 8, 0);
+
+-- name: payload_summary_empty_packet
+INSERT INTO mask_payloads (id, profile_id, packet, peer_packet, recorded_comparison, larger_packet, smaller_packet, reversed_packet, transmitted_packet, recorded_length, recorded_bits, recorded_count)
+VALUES (1303, 1, '\x', '\x', 0, '\x', '\x', '\x', '\x', 0, 0, 0);
+
+-- name: payload_summary_high_bit_is_unsigned
+INSERT INTO mask_payloads (id, profile_id, packet, peer_packet, recorded_comparison, larger_packet, smaller_packet, reversed_packet, transmitted_packet, recorded_length, recorded_bits, recorded_count)
+VALUES (1304, 1, '\x80', '\x7f', 1, '\x80', '\x7f', '\x80', '\x80', 1, 8, 1);
+
+-- name: payload_summary_reverses_bytes
+INSERT INTO mask_payloads (id, profile_id, packet, peer_packet, recorded_comparison, larger_packet, smaller_packet, reversed_packet, transmitted_packet, recorded_length, recorded_bits, recorded_count)
+VALUES (1305, 1, '\x012345', '\x00', 1, '\x012345', '\x00', '\x452301', '\x012345', 3, 24, 7);
+
+-- name: payload_summary_rejects_wrong_metadata
+INSERT INTO mask_payloads (id, profile_id, packet, peer_packet, recorded_comparison, larger_packet, smaller_packet, reversed_packet, transmitted_packet, recorded_length, recorded_bits, recorded_count)
+VALUES (1306, 1, '\x0080ff', '\x008100', 17, '\x1234', '\x1234', '\x1234', '\x1234', 7, 7, 7);
+
+-- name: payload_summary_null_packets
+INSERT INTO mask_payloads (id, profile_id, packet, peer_packet, recorded_comparison, larger_packet, smaller_packet, reversed_packet, transmitted_packet, recorded_length, recorded_bits, recorded_count)
+VALUES (1307, 1, NULL, NULL, -1, '\x008100', '\x0080ff', '\xff8000', '\x0080ff', 3, 24, 9);
+
+-- name: payload_summary_null_metadata
+INSERT INTO mask_payloads (id, profile_id, packet, peer_packet, recorded_comparison, larger_packet, smaller_packet, reversed_packet, transmitted_packet, recorded_length, recorded_bits, recorded_count)
+VALUES (1308, 1, '\x0080ff', '\x008100', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
