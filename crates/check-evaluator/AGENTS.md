@@ -137,13 +137,8 @@ import them. Keep schema-only helpers with their callables.
   unsigned wrapping. Text output follows distinct host, cast, INET abbreviation,
   and CIDR abbreviation formatting. Binary send emits the PostgreSQL family,
   prefix, type flag, address size, and network-order bytes. Run
-  `tests/sql-semantics/check-network.test.ts`,
-  `tests/sql-semantics/check-network-functions.test.ts`,
-  `tests/sql-semantics/check-network-bitwise.test.ts`,
-  `tests/sql-semantics/check-network-order.test.ts`,
-  `tests/sql-semantics/check-network-hash.test.ts`,
-  `tests/sql-semantics/check-network-output.test.ts`, and the network access
-  world for native/target and public INSERT parity.
+  `tests/sql-semantics/check-network*.test.ts` and the network access world
+  for native/target and public INSERT parity.
 - Macaddr and macaddr8 have distinct Copy wrappers over network-order sixteen-bit
   words. Comparisons use unsigned byte order and direct comparators return signed
   unit results. Public adapters accept SQL-coerced strings; malformed and oversized
@@ -162,10 +157,8 @@ import them. Keep schema-only helpers with their callables.
   send emits the raw six or eight bytes; hashes reuse PostgreSQL Jenkins mixing
   over those bytes and preserve every seed bit. Catalog integer widening applies
   to hash seed arguments. Internal receive and cstring callables remain outside
-  the public value types. Run
-  `tests/sql-semantics/check-macaddr.test.ts`,
-  `tests/sql-semantics/check-macaddr-functions.test.ts`,
-  `tests/sql-semantics/check-macaddr-output.test.ts`, and the network access world.
+  the public value types. Run `tests/sql-semantics/check-macaddr*.test.ts`
+  and the network access world.
 - UUID values use a Copy payload of eight network-order sixteen-bit words.
   Public row adapters accept SQL-coerced strings and defer malformed spellings;
   runtime text/varchar casts return 22P02 instead. Parsing permits optional braces,
@@ -196,6 +189,11 @@ import them. Keep schema-only helpers with their callables.
   Get/set use zero-based byte indices and int8 bit indices, LSB-first per byte.
   Bounds fail with 2202E before set_bit rejects nonbinary replacements with 22023.
   Set_byte truncates replacements to eight bits; edits preserve their inputs.
+  Substring preserves one-based ranges, negative-length errors and end overflow;
+  overlay composes ranges with checked endpoints. Search and trims align octets.
+  Integer casts use unsigned short inputs and signed full-width inputs; send uses
+  network order for integers, dates, timestamps and booleans. Jenkins hashes and
+  both CRCs preserve every bit. Concatenation checks the allocation limit (XX000).
   Run `tests/sql-semantics/check-bytea*.test.ts` and the feature masks world.
 - Bit and varbit share an owned binary string in BitValue, preserving leading
   zeros, trailing zeros, and empty values. Public inputs are already SQL-coerced

@@ -18,7 +18,11 @@ import {
 } from '../../tools/check-rust/parity.js'
 import { renderTypescriptSchemaCheckArtifacts } from '../../src/codegen/typescript/sql/catalog-checks.js'
 import { checkTypescriptArtifacts } from '../../src/codegen/shared/check-rust-transpile.js'
-import { builtinCallables } from '../../src/postgres/builtins/inventory.js'
+import {
+  builtinCallables,
+  builtinCast,
+  builtinMetadata,
+} from '../../src/postgres/builtins/inventory.js'
 
 const expressions: Record<string, string> = {
   equal: 'a = b',
@@ -298,7 +302,7 @@ describe('portable Rust CHECK numeric comparisons', () => {
     const domainDirectory = join(directory, 'domains')
     await mkdir(domainDirectory)
     await runCheckParity(domainDirectory, 'numericdomains', group, names, fixtures)
-    for (const sql of ['a::numeric(10,2) = b', 'a::exact_amount = b', 'a::int4 = 0'])
+    for (const sql of ['a::numeric(10,2) = b', 'a::exact_amount = b'])
       expect(
         lowerTableCheck(
           domainTable,
@@ -307,6 +311,33 @@ describe('portable Rust CHECK numeric comparisons', () => {
           catalog.domains,
         )!.expression,
       ).toEqual({ kind: 'uncertain' })
+    const cast = lowerTableCheck(
+      domainTable,
+      { name: 'numeric_cast', type: 'check', definition: 'CHECK (a::int4 = 0)' },
+      [],
+      catalog.domains,
+    )!
+    expect(cast.expression.kind).toBe('eval-scalar')
+    const conversion = builtinCast('pg_catalog."numeric"', 'pg_catalog.int4')!
+    const implementation = builtinMetadata(conversion.implementation!)
+    if (implementation.kind !== 'function')
+      throw new Error('Cast implementation must be a function')
+    expect(
+      prepareCheckRustGroup([
+        {
+          expression: cast.expression,
+          identity: {
+            schema: domainTable.schema,
+            kind: 'table',
+            owner: domainTable.name,
+            constraint: cast.name,
+          },
+        },
+      ]).checks[0],
+    ).toEqual({
+      kind: 'unsupported',
+      reason: `Rust CHECK callable has no implementation: ${implementation.rustName}`,
+    })
     await expect(pg.query("SELECT '-0.001'::measured_amount::exact_amount")).rejects.toThrow()
   }, 120_000)
 
@@ -371,7 +402,7 @@ describe('portable Rust CHECK numeric comparisons', () => {
       ['22012', 'division by zero'],
       ['2201B', 'invalid regular expression'],
       ['22023', 'invalid parameter value'],
-      ['XX000', 'SQL evaluation failed'],
+      ['XX000', 'internal error'],
     ])
       expect(
         evaluation({ kind: 'Error', value: { state: parseInt(code!, 36) } }, '1'),

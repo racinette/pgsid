@@ -1217,6 +1217,28 @@ describe('generated PostgreSQL scalar evaluation', () => {
     })
   })
 
+  it('validates unary cast implementations against catalog links in both backends', () => {
+    for (const emit of [
+      (expression: SqlExpression) => emitSqlExpression(expression, typescriptSqlBackend),
+      (expression: SqlExpression) => emitSqlExpression(expression, goSqlBackend),
+    ]) {
+      const encoded = emit({
+        kind: 'cast',
+        signature: 'function:["pg_catalog","bytea"](pg_catalog.int4)',
+        type: 'pg_catalog.bytea',
+        operand: { kind: 'integer', type: 'pg_catalog.int4', value: '-1' },
+      })
+      expect(encoded.helpers).toContain('byteaFromInt4')
+      const decoded = emit({
+        kind: 'cast',
+        signature: 'function:["pg_catalog","int4"](pg_catalog.bytea)',
+        type: 'pg_catalog.int4',
+        operand: { kind: 'bytea', type: 'pg_catalog.bytea', value: 'ffffffff' },
+      })
+      expect(decoded.helpers).toContain('byteaToInt4')
+    }
+  })
+
   it('refuses unsupported overloads and inconsistent resolved operands', () => {
     const literal = { kind: 'integer', type: 'pg_catalog.int4', value: '1' } as const
     expect(() =>

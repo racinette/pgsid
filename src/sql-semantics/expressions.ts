@@ -1,4 +1,4 @@
-import { functionMetadata, operatorMetadata } from '../postgres/builtins/inventory.js'
+import { builtinCast, functionMetadata, operatorMetadata } from '../postgres/builtins/inventory.js'
 import type { CallableMetadata } from '../postgres/builtins/catalog.js'
 import type { EnumInfo } from '../catalog/types.js'
 import type { CallableEmitter, SqlBindingGroup, TypedSqlExpression } from './signatures.js'
@@ -314,7 +314,7 @@ export type SqlExpression =
   | {
       kind: 'cast'
       signature: string | null
-      type: NumericType | 'pg_catalog.text'
+      type: ScalarType
       operand: SqlExpression
     }
 
@@ -452,16 +452,15 @@ export function emitSqlCallable<Ast>(
   const metadata = operator ? operatorMetadata(signature) : functionMetadata(signature)
   if ((metadata.kind !== 'operator' && metadata.kind !== 'function') || metadata.returnsSet)
     throw new Error(`Unsupported execution shape: ${signature}`)
-  if (
-    node.kind === 'cast' &&
-    (metadata.schema !== 'pg_catalog' ||
-      metadata.name !== node.type.slice('pg_catalog.'.length).replaceAll('"', '') ||
+  if (node.kind === 'cast') {
+    const conversion = builtinCast(operands[0]?.type ?? '', node.type)
+    if (
       operands.length !== 1 ||
-      (node.type === 'pg_catalog.text'
-        ? !['pg_catalog.bool', 'pg_catalog.bpchar'].includes(operands[0]?.type ?? '')
-        : !/^pg_catalog\.(int[248]|float[48]|"numeric")$/.test(operands[0]?.type ?? '')))
-  )
-    throw new Error(`Invalid cast function: ${signature}`)
+      conversion?.method !== 'f' ||
+      conversion.implementation !== signature
+    )
+      throw new Error(`Invalid cast function: ${signature}`)
+  }
   const variadicAny = metadata.kind === 'function' && metadata.variadic === 'pg_catalog."any"'
   if (node.type !== metadata.result) throw new Error(`Invalid resolved expression: ${signature}`)
   if (variadicAny) {

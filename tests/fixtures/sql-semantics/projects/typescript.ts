@@ -436,7 +436,7 @@ function float8Cbrt(value: number | null): number | null {
         return null;
     return Math.cbrt(value);
 }
-import Decimal from "decimal.js";
+import { Decimal } from "decimal.js";
 class SqlDecimal {
     constructor(readonly value: Decimal, readonly scale: number) {
         if (value.isFinite() && (scale > 16383 || (!value.isZero() && value.e >= 131072)))

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { execFile } from 'node:child_process'
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { pathToFileURL, fileURLToPath } from 'node:url'
@@ -202,6 +202,11 @@ describe('world CHECK INSERT parity', () => {
     expect(go.diagnostics).toEqual([])
     expect(ts.rustFiles).not.toBeNull()
     await writeFile(join(directory, 'package.json'), '{"type":"module"}\n')
+    await symlink(
+      fileURLToPath(new URL('../../node_modules/', import.meta.url)),
+      join(directory, 'node_modules'),
+      'dir',
+    )
     await writeFile(join(directory, 'checks.ts'), ts.checks)
     for (const artifact of checkTypescriptArtifacts(ts.rustFiles!)) {
       const path = join(directory, 'checks-rust', artifact.path)
@@ -230,7 +235,7 @@ describe('world CHECK INSERT parity', () => {
     }
     await writeFile(
       join(directory, 'go.mod'),
-      'module worldchecks\n\ngo 1.25\n\nrequire github.com/jackc/pgx/v5 v5.10.0\n',
+      'module worldchecks\n\ngo 1.25\n\nrequire (\n github.com/jackc/pgx/v5 v5.10.0\n github.com/shopspring/decimal v1.4.0\n)\n',
     )
     await writeFile(
       join(directory, 'go.sum'),
@@ -288,11 +293,9 @@ describe('world CHECK INSERT parity', () => {
         goRow[name] = value
       }
       for (const name of dateColumns) {
-        const date = row[name]
         const hex = (
           await pg.query<{ binary: string | null }>(
-            "SELECT encode(date_send($1::date), 'hex') AS binary",
-            [date],
+            `SELECT encode(date_send(${quote(name)}), 'hex') AS binary FROM (SELECT ${expressions.join(',')}) candidate`,
           )
         ).rows[0]!.binary
         const days = hex === null ? null : Buffer.from(hex, 'hex').readInt32BE()
@@ -1093,6 +1096,71 @@ describe('world CHECK INSERT parity', () => {
       negativePosition.checks.find((check) => check.constraint === 'patch_bit_result')!.result
         .error,
     ).toBe('2202E')
+    for (const [table, names] of [
+      [
+        'payload_ranges',
+        [
+          'range_combination',
+          'range_window',
+          'range_window_alias',
+          'range_suffix',
+          'range_suffix_alias',
+          'range_overlay',
+          'range_default_overlay',
+          'range_position',
+          'range_trim',
+          'range_left_trim',
+          'range_right_trim',
+        ],
+      ],
+      [
+        'payload_scalar_wires',
+        [
+          'scalar_small_read',
+          'scalar_integer_read',
+          'scalar_bigint_read',
+          'scalar_small_cast',
+          'scalar_small_send',
+          'scalar_integer_cast',
+          'scalar_integer_send',
+          'scalar_bigint_cast',
+          'scalar_bigint_send',
+          'scalar_boolean_send',
+          'scalar_date_send',
+          'scalar_timestamp_send',
+          'scalar_instant_send',
+        ],
+      ],
+      ['payload_hashes', ['digest_hash', 'digest_seeded', 'digest_crc', 'digest_crc_c']],
+    ] as const) {
+      for (const name of names) {
+        const identity = `world_017_feature_masks.${table}.${name}`
+        const measured = coverage.get(identity)!
+        for (const kind of ['true', 'false', 'null'] as const)
+          expect(measured[kind], identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(0)
+      }
+    }
+    for (const name of [
+      'range_window',
+      'range_window_alias',
+      'range_overlay',
+      'range_default_overlay',
+    ])
+      expect(
+        coverage.get(`world_017_feature_masks.payload_ranges.${name}`)!.error,
+        name,
+      ).toBeGreaterThan(0)
+    for (const name of ['scalar_small_read', 'scalar_integer_read', 'scalar_bigint_read'])
+      expect(
+        coverage.get(`world_017_feature_masks.payload_scalar_wires.${name}`)!.error,
+        name,
+      ).toBeGreaterThan(0)
+    const signedSmall = caseResults.find(
+      (row) => row.name === '017_feature_masks/payload_scalar_signed_small_unsigned_larger',
+    )!
+    for (const check of signedSmall.checks)
+      expect(check.result).toEqual({ certain: true, value: true })
     const substringErrors = caseResults.flatMap((row) =>
       row.name.startsWith('017_feature_masks/')
         ? row.checks.filter((check) => check.result.error === '22011')
