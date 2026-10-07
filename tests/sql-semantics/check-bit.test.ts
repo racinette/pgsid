@@ -270,9 +270,9 @@ describe('Rust CHECK bit and varbit values', () => {
     const expression = lowerTableCheck(
       table,
       {
-        name: 'position',
+        name: 'bit_count',
         type: 'check',
-        definition: 'CHECK (position(b IN a) > 0)',
+        definition: 'CHECK (bit_count(a) > 0)',
       },
       [],
       catalog.domains,
@@ -284,7 +284,7 @@ describe('Rust CHECK bit and varbit values', () => {
           schema: 'public',
           kind: 'table',
           owner: table.name,
-          constraint: 'position',
+          constraint: 'bit_count',
         },
       },
     ])

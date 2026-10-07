@@ -725,3 +725,99 @@ VALUES (924, 1, B'10101010', B'10101010', B'11', 2, 2147483647, B'10111010', B'1
 -- name: mask_overlay_wrong_default
 INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
 VALUES (925, 1, B'10101010', B'10101010', B'11', 3, 2, B'10111010', B'10111010', B'00000000', false);
+
+-- name: mask_search_finds_middle
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1000, 1, B'00101101', B'00101101', B'101', 3, true, NULL, false);
+
+-- name: mask_search_finds_first_bit
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1001, 1, B'00101101', B'00101101', B'001', 1, true, NULL, false);
+
+-- name: mask_search_finds_last_bit
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1002, 1, B'00000001', B'00000001', B'1', 8, true, NULL, false);
+
+-- name: mask_search_finds_first_overlapping_match
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1003, 1, B'10101010', B'10101010', B'10101', 1, true, NULL, false);
+
+-- name: mask_search_continues_after_failed_prefix
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1004, 1, B'00000101', B'00000101', B'00101', 4, true, NULL, false);
+
+-- name: mask_search_matches_entire_mask
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1005, 1, B'00101101', B'00101101', B'00101101', 1, true, NULL, false);
+
+-- name: mask_search_no_match
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1006, 1, B'00101101', B'00101101', B'111', 0, false, NULL, false);
+
+-- name: mask_search_pattern_longer_than_mask
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1007, 1, B'00101101', B'00101101', B'001011010', 0, false, NULL, false);
+
+-- name: mask_search_empty_pattern_in_nonempty_mask
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1008, 1, B'00101101', B'00101101', B'', 1, true, NULL, false);
+
+-- name: mask_search_both_empty
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1009, 1, NULL, B'', B'', 0, false, NULL, false);
+
+-- name: mask_search_empty_mask_nonempty_pattern
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1010, 1, NULL, B'', B'1', 0, false, NULL, false);
+
+-- name: mask_search_finds_partial_byte
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1011, 1, NULL, B'000000001', B'1', 9, true, NULL, false);
+
+-- name: mask_search_matches_across_byte_boundary
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1012, 1, NULL, B'0000000101100101', B'101100101', 8, true, NULL, false);
+
+-- name: mask_search_rejects_padding_match
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1013, 1, NULL, B'1', B'10', 0, false, NULL, false);
+
+-- name: mask_search_rejects_wrong_first_occurrence
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1014, 1, B'10101010', B'10101010', B'101', 3, true, NULL, false);
+
+-- name: mask_search_rejects_wrong_presence
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1015, 1, B'00101101', B'00101101', B'111', 0, true, NULL, false);
+
+-- name: mask_search_rejects_wrong_default
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1016, 1, B'00101101', B'00101101', B'101', 3, true, 7, false);
+
+-- name: mask_search_null_masks
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1017, 1, NULL, NULL, B'101', 3, true, NULL, false);
+
+-- name: mask_search_null_pattern
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1018, 1, B'00101101', B'00101101', NULL, 3, true, NULL, false);
+
+-- name: mask_search_null_expected
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1019, 1, B'00101101', B'00101101', B'101', NULL, NULL, NULL, false);
+
+-- name: mask_search_selects_default
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1020, 1, B'00101101', B'00101101', B'111', 7, true, 7, true);
+
+-- name: mask_search_null_choice_uses_search
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1021, 1, B'00101101', B'00101101', B'101', 3, true, NULL, NULL);
+
+-- name: mask_search_default_skips_null_search
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1022, 1, NULL, NULL, NULL, 7, true, 7, true);
+
+-- name: mask_search_null_default_and_null_search
+INSERT INTO mask_searches (id, profile_id, original_mask, flexible_mask, pattern_mask, recorded_position, recorded_presence, default_position, use_default)
+VALUES (1023, 1, NULL, NULL, NULL, 7, true, NULL, true);

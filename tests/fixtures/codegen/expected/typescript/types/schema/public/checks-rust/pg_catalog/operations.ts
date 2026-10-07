@@ -1624,6 +1624,58 @@ export function overlayDac4(input: checkruntime.BitValue, replacement: checkrunt
 export function overlayMoi0(input: checkruntime.BitValue, replacement: checkruntime.BitValue, position: checkruntime.Int4Value, length: checkruntime.Int4Value): checkruntime.BitValue {
     return bitOverlay(input, replacement, position, length, true);
 }
+export function position93b9(input: checkruntime.BitValue, pattern: checkruntime.BitValue): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (pattern.kind === "Error") {
+        const error: checkruntime.SqlError = pattern.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Unknown" }) || checkruntime.equalBitValue(pattern, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Null" }) || checkruntime.equalBitValue(pattern, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (pattern.kind === "Value") {
+            const needle: string = langruntime.checkedString(pattern.value);
+            const length: number = checkruntime.bitPayloadLength(value);
+            const patternLength: number = checkruntime.bitPayloadLength(needle);
+            if (length === 0 || patternLength > length) {
+                return { kind: "Value", value: 0 };
+            }
+            if (patternLength === 0) {
+                return { kind: "Value", value: 1 };
+            }
+            const chars: string[] = Array.from(value);
+            const patternChars: string[] = Array.from(needle);
+            const last: number = langruntime.checkedSubtract(chars.length, patternChars.length);
+            let start: number = 0;
+            let position: number = 1;
+            while (start <= last) {
+                let index: number = 0;
+                let matches: boolean = true;
+                while (index < patternChars.length && matches) {
+                    if (!(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(start, index))) === langruntime.indexChar(patternChars, langruntime.checkedIndex(index)))) {
+                        matches = langruntime.checkedBool(false);
+                    }
+                    index = langruntime.checkedAdd(index, 1);
+                }
+                if (matches) {
+                    return { kind: "Value", value: position };
+                }
+                start = langruntime.checkedAdd(start, 1);
+                position = langruntime.checkedI32(langruntime.checkedSignedAdd(position, 1));
+            }
+            return { kind: "Value", value: 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
 const bitSubstringError = 3452581;
 function bitSubstring(input: checkruntime.BitValue, position: checkruntime.Int4Value, length: checkruntime.Int4Value, hasLength: boolean): checkruntime.BitValue {
     hasLength = langruntime.checkedBool(hasLength);

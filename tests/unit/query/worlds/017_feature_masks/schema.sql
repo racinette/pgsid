@@ -200,3 +200,22 @@ CREATE TABLE mask_overlays (
   CONSTRAINT overlay_selected CHECK ((CASE WHEN use_original THEN original_mask ELSE overlay(original_mask PLACING replacement_mask FROM start_position FOR replacement_length) END) = recorded_overlay),
   CONSTRAINT overlay_default CHECK (COALESCE(default_mask,overlay(original_mask PLACING replacement_mask FROM start_position FOR replacement_length)) = recorded_overlay)
 );
+
+CREATE TABLE mask_searches (
+  id integer PRIMARY KEY,
+  profile_id integer NOT NULL REFERENCES mask_profiles(id),
+  original_mask installed_mask,
+  flexible_mask device_request,
+  pattern_mask device_request,
+  recorded_position integer,
+  recorded_presence boolean,
+  default_position integer,
+  use_default boolean,
+  CONSTRAINT search_fixed CHECK (CASE WHEN use_default THEN true ELSE position(pattern_mask IN original_mask) = recorded_position END),
+  CONSTRAINT search_flexible CHECK (CASE WHEN use_default THEN true ELSE position(pattern_mask IN flexible_mask) = recorded_position END),
+  CONSTRAINT search_direct CHECK (CASE WHEN use_default THEN true ELSE pg_catalog.position(original_mask,pattern_mask) = recorded_position END),
+  CONSTRAINT search_present CHECK (CASE WHEN use_default THEN true ELSE (position(pattern_mask IN original_mask) > 0) = recorded_presence END),
+  CONSTRAINT search_selected CHECK ((CASE WHEN use_default THEN default_position ELSE position(pattern_mask IN original_mask) END) = recorded_position),
+  CONSTRAINT search_default CHECK (COALESCE(default_position,position(pattern_mask IN original_mask)) = recorded_position),
+  CONSTRAINT search_flexible_default CHECK (COALESCE(default_position,position(pattern_mask IN flexible_mask)) = recorded_position)
+);

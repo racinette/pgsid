@@ -1627,6 +1627,58 @@ func OverlayDac4(input checkruntime.BitValue, replacement checkruntime.BitValue,
 func OverlayMoi0(input checkruntime.BitValue, replacement checkruntime.BitValue, position checkruntime.Int4Value, length checkruntime.Int4Value) checkruntime.BitValue {
 	return bitOverlay(input, replacement, position, length, true)
 }
+func Position93b9(input checkruntime.BitValue, pattern checkruntime.BitValue) checkruntime.Int4Value {
+	if input.Kind == checkruntime.BitValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if pattern.Kind == checkruntime.BitValueError {
+		error := pattern.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) || pattern == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) || pattern == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.BitValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if pattern.Kind == checkruntime.BitValueValue {
+			needle := langruntime.CheckedString(pattern.Value)
+			length := checkruntime.BitPayloadLength(value)
+			patternLength := checkruntime.BitPayloadLength(needle)
+			if length == 0 || patternLength > length {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+			}
+			if patternLength == 0 {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}
+			}
+			chars := []rune(value)
+			patternChars := []rune(needle)
+			last := langruntime.CheckedSubtract(len(chars), len(patternChars))
+			start := 0
+			position := 1
+			for start <= last {
+				index := 0
+				matches := true
+				for index < len(patternChars) && matches {
+					if chars[langruntime.CheckedAdd(start, index)] != patternChars[index] {
+						matches = false
+					}
+					index = langruntime.CheckedAdd(index, 1)
+				}
+				if matches {
+					return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: position}
+				}
+				start = langruntime.CheckedAdd(start, 1)
+				position = langruntime.CheckedI32(langruntime.CheckedSignedAdd(position, 1))
+			}
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
 
 const bitSubstringError = 3452581
 
