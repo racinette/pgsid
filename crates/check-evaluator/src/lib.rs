@@ -41,6 +41,13 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/binary.rs");
     include!("operations/pg_catalog/bytea_core.rs");
     include!("operations/pg_catalog/bytea_edit.rs");
+    include!("operations/pg_catalog/bytea_concat.rs");
+    include!("operations/pg_catalog/bytea_substring.rs");
+    include!("operations/pg_catalog/bytea_overlay.rs");
+    include!("operations/pg_catalog/bytea_position.rs");
+    include!("operations/pg_catalog/bytea_trim.rs");
+    include!("operations/pg_catalog/bytea_integers.rs");
+    include!("operations/pg_catalog/bytea_hash.rs");
     include!("operations/pg_catalog/bit.rs");
     include!("operations/pg_catalog/bit_bitwise.rs");
     include!("operations/pg_catalog/bit_cast.rs");
@@ -61,7 +68,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/regex.rs");
 
     #[cfg(test)]
-    mod bit_limit_tests {
+    mod binary_limit_tests {
         use super::*;
 
         #[test]
@@ -82,6 +89,28 @@ pub mod pg_catalog {
             assert_eq!(
                 sql_error_message(make_sql_error(BIT_PROGRAM_LIMIT_EXCEEDED)).message,
                 "program limit exceeded"
+            );
+        }
+
+        #[test]
+        fn bytea_concatenation_preserves_the_allocation_error() {
+            for (left, right) in [(0, BYTEA_MAX_LENGTH), (BYTEA_MAX_LENGTH, 0), (100, 200)] {
+                assert!(bytea_concat_length(left, right) == Int4Value::Value(left + right));
+            }
+            for (left, right) in [
+                (1, BYTEA_MAX_LENGTH),
+                (BYTEA_MAX_LENGTH, 1),
+                (BYTEA_MAX_LENGTH, BYTEA_MAX_LENGTH),
+                (2147483647, 1),
+            ] {
+                assert!(
+                    bytea_concat_length(left, right)
+                        == Int4Value::Error(make_sql_error(BYTEA_ALLOCATION_ERROR))
+                );
+            }
+            assert_eq!(
+                sql_error_message(make_sql_error(BYTEA_ALLOCATION_ERROR)).message,
+                "internal error"
             );
         }
     }

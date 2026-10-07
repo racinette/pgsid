@@ -1057,3 +1057,115 @@ VALUES (1409, 1, '\x0080ff', 1, 15, -1, 0, NULL, NULL, NULL, NULL);
 -- name: payload_patch_null_replacements
 INSERT INTO payload_patches (id, profile_id, packet, byte_position, bit_position, replacement_byte, replacement_bit, recorded_byte, recorded_bit, byte_patch, bit_patch)
 VALUES (1410, 1, '\x0080ff', 1, 15, NULL, NULL, 128, 1, '\x00ffff', '\x0000ff');
+
+-- name: payload_range_matches_operations
+INSERT INTO payload_ranges (id, profile_id, packet, pattern, start_position, window_length, combined_packet, window_packet, suffix_packet, overlaid_packet, default_overlay, recorded_position, trimmed_packet, left_trimmed, right_trimmed)
+VALUES (1500, 1, '\x0080ff0100ff', '\xff00', 2, 3, '\x0080ff0100ffff00', '\x80ff01', '\x80ff0100ff', '\x00ff0000ff', '\x00ff000100ff', 0, '\x80ff01', '\x80ff0100ff', '\x0080ff01');
+
+-- name: payload_range_rejects_wrong_results
+INSERT INTO payload_ranges (id, profile_id, packet, pattern, start_position, window_length, combined_packet, window_packet, suffix_packet, overlaid_packet, default_overlay, recorded_position, trimmed_packet, left_trimmed, right_trimmed)
+VALUES (1501, 1, '\x0080ff0100ff', '\xff00', 2, 3, '\x1234', '\x1234', '\x1234', '\x1234', '\x1234', 17, '\x1234', '\x1234', '\x1234');
+
+-- name: payload_range_search_respects_octets
+INSERT INTO payload_ranges (id, profile_id, packet, pattern, start_position, window_length, combined_packet, window_packet, suffix_packet, overlaid_packet, default_overlay, recorded_position, trimmed_packet, left_trimmed, right_trimmed)
+VALUES (1502, 1, '\x0f00', '\xf0', 1, 1, '\x0f00f0', '\x0f', '\x0f00', '\xf000', '\xf000', 0, '\x0f00', '\x0f00', '\x0f00');
+
+-- name: payload_range_empty_values
+INSERT INTO payload_ranges (id, profile_id, packet, pattern, start_position, window_length, combined_packet, window_packet, suffix_packet, overlaid_packet, default_overlay, recorded_position, trimmed_packet, left_trimmed, right_trimmed)
+VALUES (1503, 1, '\x', '\x', 1, 0, '\x', '\x', '\x', '\x', '\x', 1, '\x', '\x', '\x');
+
+-- name: payload_range_nonpositive_start
+INSERT INTO payload_ranges (id, profile_id, packet, pattern, start_position, window_length, combined_packet, window_packet, suffix_packet, overlaid_packet, default_overlay, recorded_position, trimmed_packet, left_trimmed, right_trimmed)
+VALUES (1504, 1, '\x0080ff', '\xff', 0, 2, '\x0080ffff', '\x00', '\x0080ff', '\x', '\x', 3, '\x0080', '\x0080ff', '\x0080');
+
+-- name: payload_range_negative_length
+INSERT INTO payload_ranges (id, profile_id, packet, pattern, start_position, window_length, combined_packet, window_packet, suffix_packet, overlaid_packet, default_overlay, recorded_position, trimmed_packet, left_trimmed, right_trimmed)
+VALUES (1505, 1, '\x0080ff0100ff', '\xff00', 2, -1, '\x0080ff0100ffff00', '\x', '\x80ff0100ff', '\x00ff000080ff0100ff', '\x00ff000100ff', 0, '\x80ff01', '\x80ff0100ff', '\x0080ff01');
+
+-- name: payload_range_overflowing_end
+INSERT INTO payload_ranges (id, profile_id, packet, pattern, start_position, window_length, combined_packet, window_packet, suffix_packet, overlaid_packet, default_overlay, recorded_position, trimmed_packet, left_trimmed, right_trimmed)
+VALUES (1506, 1, '\x0080ff0100ff', '\xff00', 2147483647, 1, '\x0080ff0100ffff00', '\x', '\x', '\x', '\x', 0, '\x80ff01', '\x80ff0100ff', '\x0080ff01');
+
+-- name: payload_range_null_packet
+INSERT INTO payload_ranges (id, profile_id, packet, pattern, start_position, window_length, combined_packet, window_packet, suffix_packet, overlaid_packet, default_overlay, recorded_position, trimmed_packet, left_trimmed, right_trimmed)
+VALUES (1507, 1, NULL, '\xff00', 2, 3, '\x0080ff0100ffff00', '\x80ff01', '\x80ff0100ff', '\x00ff0000ff', '\x00ff000100ff', 0, '\x80ff01', '\x80ff0100ff', '\x0080ff01');
+
+-- name: payload_range_null_pattern
+INSERT INTO payload_ranges (id, profile_id, packet, pattern, start_position, window_length, combined_packet, window_packet, suffix_packet, overlaid_packet, default_overlay, recorded_position, trimmed_packet, left_trimmed, right_trimmed)
+VALUES (1508, 1, '\x0080ff0100ff', NULL, 2, 3, '\x0080ff0100ffff00', '\x80ff01', '\x80ff0100ff', '\x00ff0000ff', '\x00ff000100ff', 0, '\x80ff01', '\x80ff0100ff', '\x0080ff01');
+
+-- name: payload_range_null_position
+INSERT INTO payload_ranges (id, profile_id, packet, pattern, start_position, window_length, combined_packet, window_packet, suffix_packet, overlaid_packet, default_overlay, recorded_position, trimmed_packet, left_trimmed, right_trimmed)
+VALUES (1509, 1, '\x0080ff0100ff', '\xff00', NULL, 3, '\x0080ff0100ffff00', '\x80ff01', '\x80ff0100ff', '\x00ff0000ff', '\x00ff000100ff', 0, '\x80ff01', '\x80ff0100ff', '\x0080ff01');
+
+-- name: payload_range_null_length
+INSERT INTO payload_ranges (id, profile_id, packet, pattern, start_position, window_length, combined_packet, window_packet, suffix_packet, overlaid_packet, default_overlay, recorded_position, trimmed_packet, left_trimmed, right_trimmed)
+VALUES (1510, 1, '\x0080ff0100ff', '\xff00', 2, NULL, '\x0080ff0100ffff00', '\x80ff01', '\x80ff0100ff', '\x00ff0000ff', '\x00ff000100ff', 0, '\x80ff01', '\x80ff0100ff', '\x0080ff01');
+
+-- name: payload_range_null_results
+INSERT INTO payload_ranges (id, profile_id, packet, pattern, start_position, window_length, combined_packet, window_packet, suffix_packet, overlaid_packet, default_overlay, recorded_position, trimmed_packet, left_trimmed, right_trimmed)
+VALUES (1511, 1, '\x0080ff0100ff', '\xff00', 2, 3, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: payload_scalar_matches_wire
+INSERT INTO payload_scalar_wires (id, profile_id, input_wire, source_small, source_integer, source_bigint, source_flag, source_day, source_local, source_instant, expected_small, expected_integer, expected_bigint, small_wire, integer_wire, bigint_wire, bool_wire, day_wire, local_wire, instant_wire)
+VALUES (1600, 1, '\x0007', -32768, -2147483648, -9223372036854775808, true, DATE '2000-01-01', TIMESTAMP '1999-12-31 23:59:59.999999', TIMESTAMPTZ '2000-01-01 05:30:00+05:30', 7, 7, 7, '\x8000', '\x80000000', '\x8000000000000000', '\x01', '\x00000000', '\xffffffffffffffff', '\x0000000000000000');
+
+-- name: payload_scalar_signed_small_unsigned_larger
+INSERT INTO payload_scalar_wires (id, profile_id, input_wire, source_small, source_integer, source_bigint, source_flag, source_day, source_local, source_instant, expected_small, expected_integer, expected_bigint, small_wire, integer_wire, bigint_wire, bool_wire, day_wire, local_wire, instant_wire)
+VALUES (1601, 1, '\xffff', -1, -1, -1, false, DATE '1999-12-31', TIMESTAMP '2000-01-01 00:00:00', TIMESTAMPTZ '2000-01-01 00:00:00+00', -1, 65535, 65535, '\xffff', '\xffffffff', '\xffffffffffffffff', '\x00', '\xffffffff', '\x0000000000000000', '\x0000000000000000');
+
+-- name: payload_scalar_rejects_wrong_wire
+INSERT INTO payload_scalar_wires (id, profile_id, input_wire, source_small, source_integer, source_bigint, source_flag, source_day, source_local, source_instant, expected_small, expected_integer, expected_bigint, small_wire, integer_wire, bigint_wire, bool_wire, day_wire, local_wire, instant_wire)
+VALUES (1602, 1, '\x0007', -32768, -2147483648, -9223372036854775808, true, DATE '2000-01-01', TIMESTAMP '1999-12-31 23:59:59.999999', TIMESTAMPTZ '2000-01-01 05:30:00+05:30', 17, 17, 17, '\x1234', '\x1234', '\x1234', '\x1234', '\x1234', '\x1234', '\x1234');
+
+-- name: payload_scalar_rejects_oversized_input
+INSERT INTO payload_scalar_wires (id, profile_id, input_wire, source_small, source_integer, source_bigint, source_flag, source_day, source_local, source_instant, expected_small, expected_integer, expected_bigint, small_wire, integer_wire, bigint_wire, bool_wire, day_wire, local_wire, instant_wire)
+VALUES (1603, 1, '\x000000000000000000', -32768, -2147483648, -9223372036854775808, true, DATE '2000-01-01', TIMESTAMP '1999-12-31 23:59:59.999999', TIMESTAMPTZ '2000-01-01 05:30:00+05:30', 0, 0, 0, '\x8000', '\x80000000', '\x8000000000000000', '\x01', '\x00000000', '\xffffffffffffffff', '\x0000000000000000');
+
+-- name: payload_scalar_empty_input
+INSERT INTO payload_scalar_wires (id, profile_id, input_wire, source_small, source_integer, source_bigint, source_flag, source_day, source_local, source_instant, expected_small, expected_integer, expected_bigint, small_wire, integer_wire, bigint_wire, bool_wire, day_wire, local_wire, instant_wire)
+VALUES (1604, 1, '\x', 0, 0, 0, false, DATE '2000-01-01', TIMESTAMP '2000-01-01 00:00:00', TIMESTAMPTZ '2000-01-01 00:00:00+00', 0, 0, 0, '\x0000', '\x00000000', '\x0000000000000000', '\x00', '\x00000000', '\x0000000000000000', '\x0000000000000000');
+
+-- name: payload_scalar_infinities
+INSERT INTO payload_scalar_wires (id, profile_id, input_wire, source_small, source_integer, source_bigint, source_flag, source_day, source_local, source_instant, expected_small, expected_integer, expected_bigint, small_wire, integer_wire, bigint_wire, bool_wire, day_wire, local_wire, instant_wire)
+VALUES (1605, 1, '\x80', 32767, 2147483647, 9223372036854775807, true, DATE 'infinity', TIMESTAMP '-infinity', TIMESTAMPTZ 'infinity', 128, 128, 128, '\x7fff', '\x7fffffff', '\x7fffffffffffffff', '\x01', '\x7fffffff', '\x8000000000000000', '\x7fffffffffffffff');
+
+-- name: payload_scalar_null_inputs
+INSERT INTO payload_scalar_wires (id, profile_id, input_wire, source_small, source_integer, source_bigint, source_flag, source_day, source_local, source_instant, expected_small, expected_integer, expected_bigint, small_wire, integer_wire, bigint_wire, bool_wire, day_wire, local_wire, instant_wire)
+VALUES (1606, 1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 7, 7, 7, '\x8000', '\x80000000', '\x8000000000000000', '\x01', '\x00000000', '\xffffffffffffffff', '\x0000000000000000');
+
+-- name: payload_scalar_null_results
+INSERT INTO payload_scalar_wires (id, profile_id, input_wire, source_small, source_integer, source_bigint, source_flag, source_day, source_local, source_instant, expected_small, expected_integer, expected_bigint, small_wire, integer_wire, bigint_wire, bool_wire, day_wire, local_wire, instant_wire)
+VALUES (1607, 1, '\x0007', -32768, -2147483648, -9223372036854775808, true, DATE '2000-01-01', TIMESTAMP '1999-12-31 23:59:59.999999', TIMESTAMPTZ '2000-01-01 05:30:00+05:30', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+
+-- name: payload_digest_matches
+INSERT INTO payload_hashes (id, profile_id, packet, seed, recorded_hash, recorded_seeded, recorded_crc, recorded_crc_c)
+VALUES (1700, 1, '\x0080ff', -1, -1033711642, 4215318346883157957, 3921718996, 920259282);
+
+-- name: payload_digest_rejects_wrong_results
+INSERT INTO payload_hashes (id, profile_id, packet, seed, recorded_hash, recorded_seeded, recorded_crc, recorded_crc_c)
+VALUES (1701, 1, '\x0080ff', -1, 17, 17, 17, 17);
+
+-- name: payload_digest_empty_input
+INSERT INTO payload_hashes (id, profile_id, packet, seed, recorded_hash, recorded_seeded, recorded_crc, recorded_crc_c)
+VALUES (1702, 1, '\x', 0, -1477818771, -6939563903564495251, 0, 0);
+
+-- name: payload_digest_crc_reference
+INSERT INTO payload_hashes (id, profile_id, packet, seed, recorded_hash, recorded_seeded, recorded_crc, recorded_crc_c)
+VALUES (1703, 1, '\x313233343536373839', 9223372036854775807, 1014187944, 1180017697494166013, 3421780262, 3808858755);
+
+-- name: payload_digest_minimum_seed
+INSERT INTO payload_hashes (id, profile_id, packet, seed, recorded_hash, recorded_seeded, recorded_crc, recorded_crc_c)
+VALUES (1704, 1, '\xff', -9223372036854775808, 719615242, -7954956692435895634, 4278190080, 4278190080);
+
+-- name: payload_digest_null_input
+INSERT INTO payload_hashes (id, profile_id, packet, seed, recorded_hash, recorded_seeded, recorded_crc, recorded_crc_c)
+VALUES (1705, 1, NULL, -1, -1033711642, 4215318346883157957, 3921718996, 920259282);
+
+-- name: payload_digest_null_seed
+INSERT INTO payload_hashes (id, profile_id, packet, seed, recorded_hash, recorded_seeded, recorded_crc, recorded_crc_c)
+VALUES (1706, 1, '\x0080ff', NULL, -1033711642, 4215318346883157957, 3921718996, 920259282);
+
+-- name: payload_digest_null_results
+INSERT INTO payload_hashes (id, profile_id, packet, seed, recorded_hash, recorded_seeded, recorded_crc, recorded_crc_c)
+VALUES (1707, 1, '\x0080ff', -1, NULL, NULL, NULL, NULL);

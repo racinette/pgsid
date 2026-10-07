@@ -391,8 +391,12 @@ const sqlErrorStringLengthMismatch = 3452622
 const sqlErrorStringRightTruncation = 3452545
 const sqlErrorArraySubscript = 3452630
 const sqlErrorProgramLimit = 8584704
+const sqlErrorInternal = 56966976
 
 func SqlErrorMessage(error SqlError) SqlErrorDescription {
+	if error.State == sqlErrorInternal {
+		return SqlErrorDescription{Message: "internal error"}
+	}
 	if error.State == sqlErrorSubstring {
 		return SqlErrorDescription{Message: "substring error"}
 	}
@@ -2057,7 +2061,7 @@ func hashWrap(value int64) int64 {
 	}
 	return result
 }
-func hashXor(left int64, right int64) int64 {
+func HashXor(left int64, right int64) int64 {
 	a := left
 	b := right
 	place := int64(1)
@@ -2091,27 +2095,27 @@ func hashMix(state hashState) hashState {
 	c := state.c
 	a = hashWrap(langruntime.CheckedI64Subtract(a, c))
 	rotated0 := hashRotate(c, 4)
-	a = hashXor(a, rotated0)
+	a = HashXor(a, rotated0)
 	c = hashWrap(langruntime.CheckedI64Add(c, b))
 	b = hashWrap(langruntime.CheckedI64Subtract(b, a))
 	rotated1 := hashRotate(a, 6)
-	b = hashXor(b, rotated1)
+	b = HashXor(b, rotated1)
 	a = hashWrap(langruntime.CheckedI64Add(a, c))
 	c = hashWrap(langruntime.CheckedI64Subtract(c, b))
 	rotated2 := hashRotate(b, 8)
-	c = hashXor(c, rotated2)
+	c = HashXor(c, rotated2)
 	b = hashWrap(langruntime.CheckedI64Add(b, a))
 	a = hashWrap(langruntime.CheckedI64Subtract(a, c))
 	rotated3 := hashRotate(c, 16)
-	a = hashXor(a, rotated3)
+	a = HashXor(a, rotated3)
 	c = hashWrap(langruntime.CheckedI64Add(c, b))
 	b = hashWrap(langruntime.CheckedI64Subtract(b, a))
 	rotated4 := hashRotate(a, 19)
-	b = hashXor(b, rotated4)
+	b = HashXor(b, rotated4)
 	a = hashWrap(langruntime.CheckedI64Add(a, c))
 	c = hashWrap(langruntime.CheckedI64Subtract(c, b))
 	rotated5 := hashRotate(b, 4)
-	c = hashXor(c, rotated5)
+	c = HashXor(c, rotated5)
 	b = hashWrap(langruntime.CheckedI64Add(b, a))
 	return hashState{a: a, b: b, c: c}
 }
@@ -2120,25 +2124,25 @@ func hashFinal(state hashState) hashState {
 	a := state.a
 	b := state.b
 	c := state.c
-	c = hashXor(c, b)
+	c = HashXor(c, b)
 	rotated0 := hashRotate(b, 14)
 	c = hashWrap(langruntime.CheckedI64Subtract(c, rotated0))
-	a = hashXor(a, c)
+	a = HashXor(a, c)
 	rotated1 := hashRotate(c, 11)
 	a = hashWrap(langruntime.CheckedI64Subtract(a, rotated1))
-	b = hashXor(b, a)
+	b = HashXor(b, a)
 	rotated2 := hashRotate(a, 25)
 	b = hashWrap(langruntime.CheckedI64Subtract(b, rotated2))
-	c = hashXor(c, b)
+	c = HashXor(c, b)
 	rotated3 := hashRotate(b, 16)
 	c = hashWrap(langruntime.CheckedI64Subtract(c, rotated3))
-	a = hashXor(a, c)
+	a = HashXor(a, c)
 	rotated4 := hashRotate(c, 4)
 	a = hashWrap(langruntime.CheckedI64Subtract(a, rotated4))
-	b = hashXor(b, a)
+	b = HashXor(b, a)
 	rotated5 := hashRotate(a, 14)
 	b = hashWrap(langruntime.CheckedI64Subtract(b, rotated5))
-	c = hashXor(c, b)
+	c = HashXor(c, b)
 	rotated6 := hashRotate(b, 24)
 	c = hashWrap(langruntime.CheckedI64Subtract(c, rotated6))
 	return hashState{a: a, b: b, c: c}

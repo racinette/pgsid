@@ -39,3 +39,12 @@ VALUES (1, 1, '\x0080ff', '\x008100', -1, '\x008100', '\x0080ff', '\xff8000', '\
 
 INSERT INTO payload_patches (id, profile_id, packet, byte_position, bit_position, replacement_byte, replacement_bit, recorded_byte, recorded_bit, byte_patch, bit_patch)
 VALUES (1, 1, '\x0080ff', 1, 15, -1, 0, 128, 1, '\x00ffff', '\x0000ff');
+
+INSERT INTO payload_ranges (id, profile_id, packet, pattern, start_position, window_length, combined_packet, window_packet, suffix_packet, overlaid_packet, default_overlay, recorded_position, trimmed_packet, left_trimmed, right_trimmed)
+VALUES (1, 1, '\x0080ff0100ff', '\xff00', 2, 3, '\x0080ff0100ffff00', '\x80ff01', '\x80ff0100ff', '\x00ff0000ff', '\x00ff000100ff', 0, '\x80ff01', '\x80ff0100ff', '\x0080ff01');
+
+INSERT INTO payload_scalar_wires (id, profile_id, input_wire, source_small, source_integer, source_bigint, source_flag, source_day, source_local, source_instant, expected_small, expected_integer, expected_bigint, small_wire, integer_wire, bigint_wire, bool_wire, day_wire, local_wire, instant_wire)
+VALUES (1, 1, '\x0007', -32768, -2147483648, -9223372036854775808, true, DATE '2000-01-01', TIMESTAMP '1999-12-31 23:59:59.999999', TIMESTAMPTZ '2000-01-01 05:30:00+05:30', 7, 7, 7, '\x8000', '\x80000000', '\x8000000000000000', '\x01', '\x00000000', '\xffffffffffffffff', '\x0000000000000000');
+
+INSERT INTO payload_hashes (id, profile_id, packet, seed, recorded_hash, recorded_seeded, recorded_crc, recorded_crc_c)
+VALUES (1, 1, '\x0080ff', -1, -1033711642, 4215318346883157957, 3921718996, 920259282);

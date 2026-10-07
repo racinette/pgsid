@@ -18,7 +18,7 @@ fn hash_wrap(value: i64) -> i64 {
     result
 }
 
-fn hash_xor(left: i64, right: i64) -> i64 {
+pub fn hash_xor(left: i64, right: i64) -> i64 {
     let mut a = left;
     let mut b = right;
     let mut place: i64 = 1i64;

@@ -996,38 +996,40 @@ export function bindCatalogCheck(
             },
           }
       }
+      const expression = materialize(operand, type)
+      if (expression)
+        return {
+          type,
+          value: expression,
+          ...(['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type)
+            ? { collation: operand.collation ?? defaultCollation }
+            : {}),
+        }
       const source =
         operand.type ?? (operand.literal?.kind === 'integer' ? 'pg_catalog.int4' : null)
-      if (
-        source &&
-        /^pg_catalog\.int[248]$/u.test(source) &&
-        /^pg_catalog\.int[248]$/u.test(type)
-      ) {
+      if (source) {
         const value = materialize(operand, source)
         if (!value) return unknown
-        if (source === type) return { type, value }
         const conversion = builtinCast(source, type)
-        return conversion?.method === 'f' && conversion.implementation !== null
-          ? {
-              type,
-              value: {
-                kind: 'call',
-                call: { kind: 'cast', signature: conversion.implementation, type },
-                operands: [value],
-              },
-            }
-          : unknown
-      }
-      const expression = materialize(operand, type)
-      return expression
-        ? {
+        if (
+          conversion?.method === 'f' &&
+          conversion.implementation !== null &&
+          builtinMetadata(conversion.implementation).args.length === 1 &&
+          builtinMetadata(conversion.implementation).volatility === 'i'
+        )
+          return {
             type,
-            value: expression,
+            value: {
+              kind: 'call',
+              call: { kind: 'cast', signature: conversion.implementation, type },
+              operands: [value],
+            },
             ...(['pg_catalog.text', 'pg_catalog."varchar"', 'pg_catalog.bpchar'].includes(type)
               ? { collation: operand.collation ?? defaultCollation }
               : {}),
           }
-        : unknown
+      }
+      return unknown
     }
     const constant = fields(wrapper['A_Const'])
     if (constant) {

@@ -10,7 +10,7 @@ export type Int2Value = {
     readonly kind: "Error";
     readonly value: SqlError;
 };
-function equalInt2Value(left: Int2Value, right: Int2Value): boolean {
+export function equalInt2Value(left: Int2Value, right: Int2Value): boolean {
     if (left.kind !== right.kind)
         return false;
     if (left.kind === "Value" && right.kind === "Value")
@@ -433,7 +433,11 @@ const sqlErrorStringLengthMismatch = 3452622;
 const sqlErrorStringRightTruncation = 3452545;
 const sqlErrorArraySubscript = 3452630;
 const sqlErrorProgramLimit = 8584704;
+const sqlErrorInternal = 56966976;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorInternal) {
+        return { message: "internal error" };
+    }
     if (error.state === sqlErrorSubstring) {
         return { message: "substring error" };
     }
@@ -2151,7 +2155,7 @@ function hashWrap(value: bigint): bigint {
     }
     return result;
 }
-function hashXor(left: bigint, right: bigint): bigint {
+export function hashXor(left: bigint, right: bigint): bigint {
     left = langruntime.checkedI64(left);
     right = langruntime.checkedI64(right);
     let a: bigint = left;

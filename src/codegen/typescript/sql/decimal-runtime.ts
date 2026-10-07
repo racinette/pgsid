@@ -4,7 +4,7 @@ export const typescriptDecimalHelpers: Record<
 > = {
   decimalLibrary: {
     dependencies: [],
-    source: `import Decimal from 'decimal.js'`,
+    source: `import { Decimal } from 'decimal.js'`,
   },
   sqlDecimalIntegerSpecialError: {
     dependencies: [],

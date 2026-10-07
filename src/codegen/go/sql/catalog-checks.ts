@@ -370,6 +370,7 @@ export function renderGoSchemaCheckArtifacts(
                 }
               }
               if (
+                type === 'pg_catalog."numeric"' ||
                 type === 'pg_catalog."bit"' ||
                 type === 'pg_catalog.varbit' ||
                 type === 'pg_catalog.uuid' ||
