@@ -59,3 +59,24 @@ INSERT INTO mixed_batch_remainders (id, small_units, integer_units, big_units, s
 VALUES (1, 7, 3, 5, 1, 3, 2, 5, 3, 2, 1, 2, 1, false);
 
 INSERT INTO chosen_package_counts (id, small_units, integer_units, big_units, use_small, use_integer, recorded_pair, recorded_stock, recorded_baseline, recorded_double, recorded_ratio, recorded_nested, recorded_simple) VALUES (1, 7, 3, 5, true, false, 7, 7, 7, 14, 2, 3, 7);
+
+INSERT INTO stock_count_comparisons (id, small_count, ordinary_count, bulk_count, small_baseline, ordinary_baseline, bulk_baseline, small_difference, recorded_order, largest_small, smallest_small, largest_ordinary, smallest_ordinary, largest_bulk, smallest_bulk)
+VALUES (1, 7, 7, 7, 3, 3, 3, 4, 1, 7, 3, 7, 3, 7, 3);
+
+INSERT INTO stock_integer_masks (id, small_bits, ordinary_bits, bulk_bits, small_mask, ordinary_mask, bulk_mask, shift_distance, small_intersection, ordinary_intersection, bulk_intersection, small_union, ordinary_union, bulk_union, small_difference, ordinary_difference, bulk_difference, small_complement, ordinary_complement, bulk_complement, small_shift_left, ordinary_shift_left, bulk_shift_left, small_shift_right, ordinary_shift_right, bulk_shift_right)
+VALUES (1, 7, 7, 7, 3, 3, 3, 2, 3, 3, 3, 7, 7, 7, 4, 4, 4, -8, -8, -8, 28, 28, 28, 1, 1, 1);
+
+INSERT INTO stock_count_math (id, ordinary_count, ordinary_batch, bulk_count, bulk_batch, ordinary_divisor, bulk_divisor, ordinary_multiple, bulk_multiple, ordinary_remainder, bulk_remainder, ordinary_next, bulk_next, bulk_previous, ordinary_absolute, ordinary_positive, ordinary_negative, skip_calculation)
+VALUES (1, 18, 12, 18, 12, 6, 6, 36, 36, 6, 6, 19, 19, 17, 18, 18, -18, false);
+
+INSERT INTO stock_window_bounds (id, small_count, ordinary_count, bulk_count, small_baseline, ordinary_baseline, bulk_baseline, small_offset, ordinary_offset, bulk_offset, subtract_offset, preceding, inside_window)
+VALUES (1, 3, 3, 3, 5, 5, 5, 2, 2, 2, true, false, true);
+
+INSERT INTO stock_boolean_records (id, selected, permitted, numeric_flag, recorded_flag, recorded_integer, recorded_both, recorded_either, recorded_order)
+VALUES (1, true, false, 1, true, 1, false, true, 1);
+
+INSERT INTO stock_radix_records (id, ordinary_count, bulk_count, ordinary_binary, ordinary_octal, ordinary_hex, bulk_binary, bulk_octal, bulk_hex, display_size, encoding_number, encoding_width, comparison_kind, comparison_strategy)
+VALUES (1, 255, 255, '11111111', '377', 'ff', '11111111', '377', 'ff', '255 bytes', 6, 4, 3, 18);
+
+INSERT INTO stock_hash_records (id, small_count, ordinary_count, bulk_count, selected, hash_seed, small_hash, ordinary_hash, bulk_hash, boolean_hash, small_seeded_hash, ordinary_seeded_hash, bulk_seeded_hash, boolean_seeded_hash)
+VALUES (1, 1, 1, 1, true, 0, -1905060026, -1905060026, -1905060026, -1905060026, -3670598878359251130, -3670598878359251130, -3670598878359251130, -3670598878359251130);

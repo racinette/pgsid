@@ -284,3 +284,143 @@ CREATE TABLE chosen_package_counts (
   CONSTRAINT chosen_simple CHECK ((CASE use_small WHEN true THEN small_units WHEN false THEN integer_units ELSE big_units END) = recorded_simple),
   CONSTRAINT chosen_without_else CHECK ((CASE WHEN use_small THEN small_units END) = recorded_pair)
 );
+
+CREATE TABLE stock_count_comparisons (
+  id integer PRIMARY KEY,
+  small_count smallint, ordinary_count integer, bulk_count bigint,
+  small_baseline smallint, ordinary_baseline integer, bulk_baseline bigint,
+  small_difference integer, recorded_order integer,
+  largest_small smallint, smallest_small smallint,
+  largest_ordinary integer, smallest_ordinary integer,
+  largest_bulk bigint, smallest_bulk bigint,
+  CONSTRAINT compare_small_counts CHECK (btint2cmp(small_count, small_baseline) = small_difference),
+  CONSTRAINT compare_ordinary_counts CHECK (btint4cmp(ordinary_count, ordinary_baseline) = recorded_order),
+  CONSTRAINT compare_bulk_counts CHECK (btint8cmp(bulk_count, bulk_baseline) = recorded_order),
+  CONSTRAINT compare_small_ordinary CHECK (btint24cmp(small_count, ordinary_baseline) = recorded_order),
+  CONSTRAINT compare_small_bulk CHECK (btint28cmp(small_count, bulk_baseline) = recorded_order),
+  CONSTRAINT compare_ordinary_small CHECK (btint42cmp(ordinary_count, small_baseline) = recorded_order),
+  CONSTRAINT compare_ordinary_bulk CHECK (btint48cmp(ordinary_count, bulk_baseline) = recorded_order),
+  CONSTRAINT compare_bulk_small CHECK (btint82cmp(bulk_count, small_baseline) = recorded_order),
+  CONSTRAINT compare_bulk_ordinary CHECK (btint84cmp(bulk_count, ordinary_baseline) = recorded_order),
+  CONSTRAINT largest_small_count CHECK (int2larger(small_count, small_baseline) = largest_small),
+  CONSTRAINT smallest_small_count CHECK (int2smaller(small_count, small_baseline) = smallest_small),
+  CONSTRAINT largest_ordinary_count CHECK (int4larger(ordinary_count, ordinary_baseline) = largest_ordinary),
+  CONSTRAINT smallest_ordinary_count CHECK (int4smaller(ordinary_count, ordinary_baseline) = smallest_ordinary),
+  CONSTRAINT largest_bulk_count CHECK (int8larger(bulk_count, bulk_baseline) = largest_bulk),
+  CONSTRAINT smallest_bulk_count CHECK (int8smaller(bulk_count, bulk_baseline) = smallest_bulk)
+);
+
+CREATE TABLE stock_integer_masks (
+  id integer PRIMARY KEY,
+  small_bits smallint, ordinary_bits integer, bulk_bits bigint,
+  small_mask smallint, ordinary_mask integer, bulk_mask bigint,
+  shift_distance integer,
+  small_intersection smallint, ordinary_intersection integer, bulk_intersection bigint,
+  small_union smallint, ordinary_union integer, bulk_union bigint,
+  small_difference smallint, ordinary_difference integer, bulk_difference bigint,
+  small_complement smallint, ordinary_complement integer, bulk_complement bigint,
+  small_shift_left smallint, ordinary_shift_left integer, bulk_shift_left bigint,
+  small_shift_right smallint, ordinary_shift_right integer, bulk_shift_right bigint,
+  CONSTRAINT small_mask_intersection CHECK ((small_bits & small_mask) = small_intersection),
+  CONSTRAINT ordinary_mask_intersection CHECK ((ordinary_bits & ordinary_mask) = ordinary_intersection),
+  CONSTRAINT bulk_mask_intersection CHECK ((bulk_bits & bulk_mask) = bulk_intersection),
+  CONSTRAINT small_mask_union CHECK ((small_bits | small_mask) = small_union),
+  CONSTRAINT ordinary_mask_union CHECK ((ordinary_bits | ordinary_mask) = ordinary_union),
+  CONSTRAINT bulk_mask_union CHECK ((bulk_bits | bulk_mask) = bulk_union),
+  CONSTRAINT small_mask_difference CHECK ((small_bits # small_mask) = small_difference),
+  CONSTRAINT ordinary_mask_difference CHECK ((ordinary_bits # ordinary_mask) = ordinary_difference),
+  CONSTRAINT bulk_mask_difference CHECK ((bulk_bits # bulk_mask) = bulk_difference),
+  CONSTRAINT small_mask_complement CHECK ((~small_bits) = small_complement),
+  CONSTRAINT ordinary_mask_complement CHECK ((~ordinary_bits) = ordinary_complement),
+  CONSTRAINT bulk_mask_complement CHECK ((~bulk_bits) = bulk_complement),
+  CONSTRAINT small_mask_shift_left CHECK ((small_bits << shift_distance) = small_shift_left),
+  CONSTRAINT ordinary_mask_shift_left CHECK ((ordinary_bits << shift_distance) = ordinary_shift_left),
+  CONSTRAINT bulk_mask_shift_left CHECK ((bulk_bits << shift_distance) = bulk_shift_left),
+  CONSTRAINT small_mask_shift_right CHECK ((small_bits >> shift_distance) = small_shift_right),
+  CONSTRAINT ordinary_mask_shift_right CHECK ((ordinary_bits >> shift_distance) = ordinary_shift_right),
+  CONSTRAINT bulk_mask_shift_right CHECK ((bulk_bits >> shift_distance) = bulk_shift_right)
+);
+
+CREATE TABLE stock_count_math (
+  id integer PRIMARY KEY,
+  ordinary_count integer, ordinary_batch integer, bulk_count bigint, bulk_batch bigint,
+  ordinary_divisor integer, bulk_divisor bigint,
+  ordinary_multiple integer, bulk_multiple bigint,
+  ordinary_remainder integer, bulk_remainder bigint,
+  ordinary_next integer, bulk_next bigint, bulk_previous bigint,
+  ordinary_absolute integer, ordinary_positive integer, ordinary_negative integer,
+  skip_calculation boolean,
+  CONSTRAINT ordinary_common_divisor CHECK (CASE WHEN skip_calculation THEN true ELSE gcd(ordinary_count, ordinary_batch) = ordinary_divisor END),
+  CONSTRAINT bulk_common_divisor CHECK (CASE WHEN skip_calculation THEN true ELSE gcd(bulk_count, bulk_batch) = bulk_divisor END),
+  CONSTRAINT ordinary_common_multiple CHECK (CASE WHEN skip_calculation THEN true ELSE lcm(ordinary_count, ordinary_batch) = ordinary_multiple END),
+  CONSTRAINT bulk_common_multiple CHECK (CASE WHEN skip_calculation THEN true ELSE lcm(bulk_count, bulk_batch) = bulk_multiple END),
+  CONSTRAINT ordinary_modulo_call CHECK (CASE WHEN skip_calculation THEN true ELSE mod(ordinary_count, ordinary_batch) = ordinary_remainder END),
+  CONSTRAINT bulk_modulo_call CHECK (CASE WHEN skip_calculation THEN true ELSE mod(bulk_count, bulk_batch) = bulk_remainder END),
+  CONSTRAINT ordinary_increment_call CHECK (CASE WHEN skip_calculation THEN true ELSE int4inc(ordinary_count) = ordinary_next END),
+  CONSTRAINT bulk_increment_call CHECK (CASE WHEN skip_calculation THEN true ELSE int8inc(bulk_count) = bulk_next END),
+  CONSTRAINT bulk_decrement_call CHECK (CASE WHEN skip_calculation THEN true ELSE int8dec(bulk_count) = bulk_previous END),
+  CONSTRAINT ordinary_absolute_call CHECK (CASE WHEN skip_calculation THEN true ELSE int4abs(ordinary_count) = ordinary_absolute END),
+  CONSTRAINT ordinary_positive_call CHECK (CASE WHEN skip_calculation THEN true ELSE int4up(ordinary_count) = ordinary_positive END),
+  CONSTRAINT ordinary_negative_call CHECK (CASE WHEN skip_calculation THEN true ELSE int4um(ordinary_count) = ordinary_negative END)
+);
+
+CREATE TABLE stock_window_bounds (
+  id integer PRIMARY KEY,
+  small_count smallint, ordinary_count integer, bulk_count bigint,
+  small_baseline smallint, ordinary_baseline integer, bulk_baseline bigint,
+  small_offset smallint, ordinary_offset integer, bulk_offset bigint,
+  subtract_offset boolean, preceding boolean, inside_window boolean,
+  CONSTRAINT small_window_small_offset CHECK (in_range(small_count, small_baseline, small_offset, subtract_offset, preceding) = inside_window),
+  CONSTRAINT small_window_ordinary_offset CHECK (in_range(small_count, small_baseline, ordinary_offset, subtract_offset, preceding) = inside_window),
+  CONSTRAINT small_window_bulk_offset CHECK (in_range(small_count, small_baseline, bulk_offset, subtract_offset, preceding) = inside_window),
+  CONSTRAINT ordinary_window_small_offset CHECK (in_range(ordinary_count, ordinary_baseline, small_offset, subtract_offset, preceding) = inside_window),
+  CONSTRAINT ordinary_window_ordinary_offset CHECK (in_range(ordinary_count, ordinary_baseline, ordinary_offset, subtract_offset, preceding) = inside_window),
+  CONSTRAINT ordinary_window_bulk_offset CHECK (in_range(ordinary_count, ordinary_baseline, bulk_offset, subtract_offset, preceding) = inside_window),
+  CONSTRAINT bulk_window_bulk_offset CHECK (in_range(bulk_count, bulk_baseline, bulk_offset, subtract_offset, preceding) = inside_window)
+);
+
+CREATE TABLE stock_boolean_records (
+  id integer PRIMARY KEY,
+  selected boolean, permitted boolean, numeric_flag integer,
+  recorded_flag boolean, recorded_integer integer,
+  recorded_both boolean, recorded_either boolean, recorded_order integer,
+  CONSTRAINT stock_integer_to_boolean CHECK (pg_catalog.bool(numeric_flag) = recorded_flag),
+  CONSTRAINT stock_boolean_to_integer CHECK (pg_catalog.int4(selected) = recorded_integer),
+  CONSTRAINT stock_boolean_both CHECK (booland_statefunc(selected, permitted) = recorded_both),
+  CONSTRAINT stock_boolean_either CHECK (boolor_statefunc(selected, permitted) = recorded_either),
+  CONSTRAINT stock_boolean_order CHECK (btboolcmp(selected, permitted) = recorded_order)
+);
+
+CREATE TABLE stock_radix_records (
+  id integer PRIMARY KEY,
+  ordinary_count integer, bulk_count bigint,
+  ordinary_binary text, ordinary_octal text, ordinary_hex text,
+  bulk_binary text, bulk_octal text, bulk_hex text,
+  display_size text, encoding_number integer, encoding_width integer,
+  comparison_kind integer, comparison_strategy smallint,
+  CONSTRAINT ordinary_binary_record CHECK (to_bin(ordinary_count) = ordinary_binary),
+  CONSTRAINT ordinary_octal_record CHECK (to_oct(ordinary_count) = ordinary_octal),
+  CONSTRAINT ordinary_hex_record CHECK (to_hex(ordinary_count) = ordinary_hex),
+  CONSTRAINT bulk_binary_record CHECK (to_bin(bulk_count) = bulk_binary),
+  CONSTRAINT bulk_octal_record CHECK (to_oct(bulk_count) = bulk_octal),
+  CONSTRAINT bulk_hex_record CHECK (to_hex(bulk_count) = bulk_hex),
+  CONSTRAINT stock_size_display CHECK (pg_size_pretty(bulk_count) = display_size),
+  CONSTRAINT stock_encoding_width CHECK (pg_encoding_max_length(encoding_number) = encoding_width),
+  CONSTRAINT stock_comparison_strategy CHECK (gist_translate_cmptype_common(comparison_kind) = comparison_strategy)
+);
+
+CREATE TABLE stock_hash_records (
+  id integer PRIMARY KEY,
+  small_count smallint, ordinary_count integer, bulk_count bigint, selected boolean,
+  hash_seed bigint,
+  small_hash integer, ordinary_hash integer, bulk_hash integer, boolean_hash integer,
+  small_seeded_hash bigint, ordinary_seeded_hash bigint, bulk_seeded_hash bigint, boolean_seeded_hash bigint,
+  CONSTRAINT small_count_hash CHECK (hashint2(small_count) = small_hash),
+  CONSTRAINT ordinary_count_hash CHECK (hashint4(ordinary_count) = ordinary_hash),
+  CONSTRAINT bulk_count_hash CHECK (hashint8(bulk_count) = bulk_hash),
+  CONSTRAINT selected_count_hash CHECK (hashbool(selected) = boolean_hash),
+  CONSTRAINT small_count_seeded_hash CHECK (hashint2extended(small_count, hash_seed) = small_seeded_hash),
+  CONSTRAINT ordinary_count_seeded_hash CHECK (hashint4extended(ordinary_count, hash_seed) = ordinary_seeded_hash),
+  CONSTRAINT bulk_count_seeded_hash CHECK (hashint8extended(bulk_count, hash_seed) = bulk_seeded_hash),
+  CONSTRAINT selected_count_seeded_hash CHECK (hashboolextended(selected, hash_seed) = boolean_seeded_hash)
+);

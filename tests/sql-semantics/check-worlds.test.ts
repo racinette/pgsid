@@ -352,7 +352,7 @@ describe('world CHECK INSERT parity', () => {
     }).catch((error: { stdout: string; stderr: string }) => {
       throw new Error(error.stdout + error.stderr, { cause: error })
     })
-  }, 240_000)
+  }, 360_000)
 
   afterAll(async () => {
     if (pg && !pg.closed) await pg.close()
@@ -567,6 +567,27 @@ describe('world CHECK INSERT parity', () => {
       expect(measured.error, identity).toBe(measured.postgres.error)
       expect(measured.unknown, identity).toBe(0)
     }
+    let integerFunctionConstraints = 0
+    for (const table of [
+      'stock_count_comparisons',
+      'stock_integer_masks',
+      'stock_count_math',
+      'stock_window_bounds',
+      'stock_boolean_records',
+      'stock_radix_records',
+      'stock_hash_records',
+    ]) {
+      const prefix = `world_012_package_capacity.${table}.`
+      const checks = [...coverage].filter(([identity]) => identity.startsWith(prefix))
+      expect(checks.length, table).toBeGreaterThan(0)
+      for (const [identity, measured] of checks) {
+        for (const kind of ['true', 'false', 'null'] as const)
+          expect(measured[kind], identity).toBeGreaterThan(0)
+        expect(measured.unknown, identity).toBe(0)
+        integerFunctionConstraints++
+      }
+    }
+    expect(integerFunctionConstraints).toBe(74)
     for (const name of [
       'chosen_pair',
       'chosen_stock',
