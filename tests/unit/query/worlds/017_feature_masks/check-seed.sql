@@ -621,3 +621,107 @@ VALUES (822, 1, B'10101010', B'10101010', 2, 3, B'010', B'0101010', B'111', fals
 -- name: mask_window_selects_whole_original
 INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
 VALUES (823, 1, B'10101010', B'10101010', 1, 8, B'10101010', B'10101010', NULL, true);
+
+-- name: mask_overlay_replaces_middle
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (900, 1, B'10101010', B'10101010', B'11', 3, 2, B'10111010', B'10111010', NULL, false);
+
+-- name: mask_overlay_inserts_without_removing
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (901, 1, B'10101010', B'10101010', B'11', 3, 0, B'1011101010', B'10111010', NULL, false);
+
+-- name: mask_overlay_negative_length_duplicates_bits
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (902, 1, B'10101010', B'10101010', B'11', 3, -1, B'10110101010', B'10111010', NULL, false);
+
+-- name: mask_overlay_minimum_length_reuses_entire_mask
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (903, 1, B'10101010', B'10101010', B'11', 3, -2147483648, B'101110101010', B'10111010', NULL, false);
+
+-- name: mask_overlay_appends_past_end
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (904, 1, B'10101010', B'10101010', B'11', 10, 2, B'1010101011', B'1010101011', NULL, false);
+
+-- name: mask_overlay_removes_remaining_bits
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (905, 1, B'10101010', B'10101010', B'11', 3, 100, B'1011', B'10111010', NULL, false);
+
+-- name: mask_overlay_replaces_at_first_bit
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (906, 1, B'10101010', B'10101010', B'0', 1, 1, B'00101010', B'00101010', NULL, false);
+
+-- name: mask_overlay_empty_replacement_removes_bits
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (907, 1, B'10101010', B'10101010', B'', 3, 2, B'101010', B'10101010', NULL, false);
+
+-- name: mask_overlay_empty_input
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (908, 1, NULL, B'', B'101', 1, 0, B'101', B'101', NULL, false);
+
+-- name: mask_overlay_partial_byte
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (909, 1, NULL, B'101010101', B'00', 8, 2, B'101010100', B'101010100', NULL, false);
+
+-- name: mask_overlay_zero_start_error
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (910, 1, B'10101010', B'10101010', B'11', 0, 2147483647, B'', B'', NULL, false);
+
+-- name: mask_overlay_minimum_start_error
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (911, 1, B'10101010', B'10101010', B'11', -2147483648, -2147483648, B'', B'', NULL, false);
+
+-- name: mask_overlay_end_overflow
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (912, 1, B'10101010', B'10101010', B'11', 2, 2147483647, B'', B'11101010', NULL, false);
+
+-- name: mask_overlay_omitted_end_overflow
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (913, 1, B'10101010', B'10101010', B'11', 2147483647, 0, B'1010101011', B'', NULL, false);
+
+-- name: mask_overlay_maximum_start_empty_replacement
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (914, 1, B'10101010', B'10101010', B'', 2147483647, 0, B'10101010', B'10101010', NULL, false);
+
+-- name: mask_overlay_wrong_recorded_overlay
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (915, 1, B'10101010', B'10101010', B'11', 3, 2, B'00000000', B'10111010', NULL, false);
+
+-- name: mask_overlay_wrong_recorded_omitted
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (916, 1, B'10101010', B'10101010', B'11', 3, 2, B'10111010', B'00000000', NULL, false);
+
+-- name: mask_overlay_null_masks
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (917, 1, NULL, NULL, B'11', 3, 2, B'10111010', B'10111010', NULL, false);
+
+-- name: mask_overlay_null_replacement
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (918, 1, B'10101010', B'10101010', NULL, 0, 2147483647, B'', B'', NULL, false);
+
+-- name: mask_overlay_null_start
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (919, 1, B'10101010', B'10101010', B'11', NULL, 2, B'10111010', B'10111010', NULL, false);
+
+-- name: mask_overlay_null_length_preserves_omitted
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (920, 1, B'10101010', B'10101010', B'11', 3, NULL, B'10111010', B'10111010', NULL, false);
+
+-- name: mask_overlay_null_expected
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (921, 1, B'10101010', B'10101010', B'11', 3, 2, NULL, NULL, NULL, false);
+
+-- name: mask_overlay_skips_invalid_start
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (922, 1, B'10101010', B'10101010', B'11', 0, 2147483647, B'10101010', B'', B'10101010', true);
+
+-- name: mask_overlay_null_choice_reaches_invalid_start
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (923, 1, B'10101010', B'10101010', B'11', 0, 2, B'', B'', NULL, NULL);
+
+-- name: mask_overlay_known_default_skips_overflow
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (924, 1, B'10101010', B'10101010', B'11', 2, 2147483647, B'10111010', B'11101010', B'10111010', false);
+
+-- name: mask_overlay_wrong_default
+INSERT INTO mask_overlays (id, profile_id, original_mask, flexible_mask, replacement_mask, start_position, replacement_length, recorded_overlay, recorded_default_overlay, default_mask, use_original)
+VALUES (925, 1, B'10101010', B'10101010', B'11', 3, 2, B'10111010', B'10111010', B'00000000', false);

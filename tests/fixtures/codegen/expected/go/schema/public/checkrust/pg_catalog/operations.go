@@ -1572,6 +1572,61 @@ func Int809r6(input checkruntime.BitValue) checkruntime.Int8Value {
 	}
 	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 }
+func bitOverlay(input checkruntime.BitValue, replacement checkruntime.BitValue, position checkruntime.Int4Value, length checkruntime.Int4Value, hasLength bool) checkruntime.BitValue {
+	if input.Kind == checkruntime.BitValueError {
+		error := input.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if replacement.Kind == checkruntime.BitValueError {
+		error := replacement.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if position.Kind == checkruntime.Int4ValueError {
+		error := position.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if length.Kind == checkruntime.Int4ValueError {
+		error := length.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) || replacement == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) || replacement == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueNull}
+	}
+	if replacement.Kind == checkruntime.BitValueValue {
+		bits := langruntime.CheckedString(replacement.Value)
+		if position.Kind == checkruntime.Int4ValueValue {
+			start := langruntime.CheckedI32(position.Value)
+			if length.Kind == checkruntime.Int4ValueValue {
+				supplied := langruntime.CheckedI32(length.Value)
+				if start <= 0 {
+					return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: checkruntime.MakeSqlError(bitSubstringError)}
+				}
+				count := supplied
+				if hasLength == false {
+					count = langruntime.CheckedI32(checkruntime.BitPayloadLength(bits))
+				}
+				if count > 0 && start > langruntime.CheckedSignedSubtract(2147483647, count) {
+					return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: checkruntime.MakeSqlError(sqlstateNumericValueOutOfRange)}
+				}
+				end := langruntime.CheckedSignedAdd(start, count)
+				prefix := bitSubstring(input, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 1}, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedSubtract(start, 1)}, true)
+				suffix := bitSubstring(input, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: end}, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}, false)
+				combined := BitcatT5mn(prefix, checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: bits})
+				return BitcatT5mn(combined, suffix)
+			}
+		}
+	}
+	return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+}
+func OverlayDac4(input checkruntime.BitValue, replacement checkruntime.BitValue, position checkruntime.Int4Value) checkruntime.BitValue {
+	return bitOverlay(input, replacement, position, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}, false)
+}
+func OverlayMoi0(input checkruntime.BitValue, replacement checkruntime.BitValue, position checkruntime.Int4Value, length checkruntime.Int4Value) checkruntime.BitValue {
+	return bitOverlay(input, replacement, position, length, true)
+}
 
 const bitSubstringError = 3452581
 

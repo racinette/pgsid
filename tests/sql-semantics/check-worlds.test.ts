@@ -952,6 +952,35 @@ describe('world CHECK INSERT parity', () => {
       expect(measured.unknown, identity).toBe(0)
       if (!name.includes('suffix')) expect(measured.error, identity).toBeGreaterThan(0)
     }
+    for (const name of [
+      'overlay_fixed',
+      'overlay_flexible',
+      'overlay_direct',
+      'overlay_omitted',
+      'overlay_flexible_omitted',
+      'overlay_selected',
+      'overlay_default',
+    ]) {
+      const identity = `world_017_feature_masks.mask_overlays.${name}`
+      const measured = coverage.get(identity)!
+      for (const kind of ['true', 'false', 'null', 'error'] as const)
+        expect(measured[kind], identity).toBeGreaterThan(0)
+      expect(measured.unknown, identity).toBe(0)
+    }
+    const skippedOverlay = caseResults.find(
+      (row) => row.name === '017_feature_masks/mask_overlay_skips_invalid_start',
+    )!
+    for (const check of skippedOverlay.checks)
+      expect(check.result).toEqual({ certain: true, value: true })
+    const defaultedOverlay = caseResults.find(
+      (row) => row.name === '017_feature_masks/mask_overlay_known_default_skips_overflow',
+    )!
+    expect(
+      defaultedOverlay.checks.find((check) => check.constraint === 'overlay_default')!.result,
+    ).toEqual({ certain: true, value: true })
+    expect(
+      defaultedOverlay.checks.find((check) => check.constraint === 'overlay_fixed')!.result.error,
+    ).toBe('22003')
     const substringErrors = caseResults.flatMap((row) =>
       row.name.startsWith('017_feature_masks/')
         ? row.checks.filter((check) => check.result.error === '22011')
