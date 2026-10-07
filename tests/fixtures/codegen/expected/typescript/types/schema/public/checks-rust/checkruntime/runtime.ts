@@ -425,9 +425,11 @@ const sqlErrorInvalidDatetimeFormat = 3452551;
 const sqlErrorDatetimeFieldOverflow = 3452552;
 const sqlErrorTimezoneDisplacement = 3452553;
 const sqlErrorDivisionByZero = 3452582;
+const sqlErrorInvalidFrameSize = 3452583;
 const sqlErrorSubstring = 3452581;
 const sqlErrorInvalidRegex = 3452591;
 const sqlErrorInvalidParameter = 3452619;
+const sqlErrorInvalidEscape = 3452621;
 const sqlErrorInvalidTextRepresentation = 3484946;
 const sqlErrorStringLengthMismatch = 3452622;
 const sqlErrorStringRightTruncation = 3452545;
@@ -435,6 +437,12 @@ const sqlErrorArraySubscript = 3452630;
 const sqlErrorProgramLimit = 8584704;
 const sqlErrorInternal = 56966976;
 export function sqlErrorMessage(error: SqlError): SqlErrorDescription {
+    if (error.state === sqlErrorInvalidFrameSize) {
+        return { message: "invalid preceding or following size" };
+    }
+    if (error.state === sqlErrorInvalidEscape) {
+        return { message: "invalid escape sequence" };
+    }
     if (error.state === sqlErrorInternal) {
         return { message: "internal error" };
     }
