@@ -1957,6 +1957,261 @@ export function boolgeGviq(left: checkruntime.BoolValue, right: checkruntime.Boo
     }
     return { kind: "Unknown" };
 }
+function byteaCompare(left: checkruntime.ByteaValue, right: checkruntime.ByteaValue): checkruntime.Int4Value {
+    if (left.kind === "Error") {
+        const error: checkruntime.SqlError = left.value;
+        return { kind: "Error", value: error };
+    }
+    if (right.kind === "Error") {
+        const error: checkruntime.SqlError = right.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalByteaValue(left, { kind: "Unknown" }) || checkruntime.equalByteaValue(right, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalByteaValue(left, { kind: "Null" }) || checkruntime.equalByteaValue(right, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (left.kind === "Value") {
+        const a: string = langruntime.checkedString(left.value);
+        if (right.kind === "Value") {
+            const b: string = langruntime.checkedString(right.value);
+            const first: string[] = Array.from(a);
+            const second: string[] = Array.from(b);
+            let index: number = 0;
+            while (index < first.length && index < second.length) {
+                const highA: number = checkruntime.hexDigit(langruntime.indexChar(first, langruntime.checkedIndex(index)));
+                const lowA: number = checkruntime.hexDigit(langruntime.indexChar(first, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))));
+                const highB: number = checkruntime.hexDigit(langruntime.indexChar(second, langruntime.checkedIndex(index)));
+                const lowB: number = checkruntime.hexDigit(langruntime.indexChar(second, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))));
+                const aByte: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(highA, 16), lowA);
+                const bByte: number = langruntime.checkedSignedAdd(langruntime.checkedSignedMultiply(highB, 16), lowB);
+                if (!(aByte === bByte)) {
+                    return { kind: "Value", value: langruntime.checkedSignedSubtract(aByte, bByte) };
+                }
+                index = langruntime.checkedIndex(langruntime.checkedAdd(index, 2));
+            }
+            if (first.length < second.length) {
+                return { kind: "Value", value: langruntime.checkedSignedNegate(1) };
+            }
+            if (first.length > second.length) {
+                return { kind: "Value", value: 1 };
+            }
+            return { kind: "Value", value: 0 };
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function byteacmp2x4q(left: checkruntime.ByteaValue, right: checkruntime.ByteaValue): checkruntime.Int4Value {
+    return byteaCompare(left, right);
+}
+export function bytealtBe6e(left: checkruntime.ByteaValue, right: checkruntime.ByteaValue): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = byteaCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order < 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function bytealeVi7d(left: checkruntime.ByteaValue, right: checkruntime.ByteaValue): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = byteaCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order <= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function byteagt221r(left: checkruntime.ByteaValue, right: checkruntime.ByteaValue): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = byteaCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order > 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function byteagePaor(left: checkruntime.ByteaValue, right: checkruntime.ByteaValue): checkruntime.BoolValue {
+    const result: checkruntime.Int4Value = byteaCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        return { kind: "Value", value: order >= 0 };
+    }
+    return { kind: "Unknown" };
+}
+export function byteaLargerIqg1(left: checkruntime.ByteaValue, right: checkruntime.ByteaValue): checkruntime.ByteaValue {
+    const result: checkruntime.Int4Value = byteaCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        if (order > 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+export function byteaSmallerIook(left: checkruntime.ByteaValue, right: checkruntime.ByteaValue): checkruntime.ByteaValue {
+    const result: checkruntime.Int4Value = byteaCompare(left, right);
+    if (result.kind === "Error") {
+        const error: checkruntime.SqlError = result.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalInt4Value(result, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (result.kind === "Value") {
+        const order: number = langruntime.checkedI32(result.value);
+        if (order < 0) {
+            return left;
+        }
+        return right;
+    }
+    return { kind: "Unknown" };
+}
+function byteaLength(input: checkruntime.ByteaValue): checkruntime.Int4Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(value);
+        let index: number = 0;
+        let length: number = 0;
+        while (index < chars.length) {
+            index = langruntime.checkedIndex(langruntime.checkedAdd(index, 2));
+            length = langruntime.checkedI32(langruntime.checkedSignedAdd(length, 1));
+        }
+        return { kind: "Value", value: length };
+    }
+    return { kind: "Unknown" };
+}
+export function lengthJ2mn(input: checkruntime.ByteaValue): checkruntime.Int4Value {
+    return byteaLength(input);
+}
+export function octetLengthEml7(input: checkruntime.ByteaValue): checkruntime.Int4Value {
+    return byteaLength(input);
+}
+export function bitLengthGryu(input: checkruntime.ByteaValue): checkruntime.Int4Value {
+    const length: checkruntime.Int4Value = byteaLength(input);
+    if (length.kind === "Value") {
+        const value: number = langruntime.checkedI32(length.value);
+        return int4mul284v({ kind: "Value", value: value }, { kind: "Value", value: 8 });
+    }
+    return length;
+}
+export function bitCountU0pl(input: checkruntime.ByteaValue): checkruntime.Int8Value {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(value);
+        let index: number = 0;
+        let count: bigint = 0n;
+        while (index < chars.length) {
+            let digit: number = checkruntime.hexDigit(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+            while (digit > 0) {
+                if (langruntime.checkedSignedRemainder(digit, 2) === 1) {
+                    count = langruntime.checkedI64(langruntime.checkedI64Add(count, 1n));
+                }
+                digit = langruntime.checkedI32(langruntime.checkedSignedDivide(digit, 2));
+            }
+            index = langruntime.checkedIndex(langruntime.checkedAdd(index, 1));
+        }
+        return { kind: "Value", value: count };
+    }
+    return { kind: "Unknown" };
+}
+export function reverseW0od(input: checkruntime.ByteaValue): checkruntime.ByteaValue {
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalByteaValue(input, { kind: "Unknown" }) || checkruntime.equalByteaValue(input, { kind: "Null" })) {
+        return input;
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        const chars: string[] = Array.from(value);
+        let index: number = chars.length;
+        let output: string = "";
+        while (index > 0) {
+            index = langruntime.checkedIndex(langruntime.checkedSubtract(index, 2));
+            output = output + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+            output = output + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(langruntime.checkedAdd(index, 1))));
+        }
+        return { kind: "Value", value: output };
+    }
+    return { kind: "Unknown" };
+}
+export function byteasend3q2t(input: checkruntime.ByteaValue): checkruntime.ByteaValue {
+    return input;
+}
 function bpcharCodepointCompare(left: string, right: string): number {
     left = langruntime.checkedString(left);
     right = langruntime.checkedString(right);

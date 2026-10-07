@@ -33,3 +33,6 @@ VALUES (1, 1, B'00101101', B'00101101', 4, 4, NULL, false);
 
 INSERT INTO mask_packets (id, profile_id, original_mask, flexible_mask, recorded_wire, default_wire, use_default)
 VALUES (1, 1, B'00101101', B'00101101', '\x000000082d', NULL, false);
+
+INSERT INTO mask_payloads (id, profile_id, packet, peer_packet, recorded_comparison, larger_packet, smaller_packet, reversed_packet, transmitted_packet, recorded_length, recorded_bits, recorded_count)
+VALUES (1, 1, '\x0080ff', '\x008100', -1, '\x008100', '\x0080ff', '\xff8000', '\x0080ff', 3, 24, 9);

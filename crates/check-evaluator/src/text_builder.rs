@@ -44,7 +44,7 @@ pub fn bytea_append_byte(value: String, byte: i32) -> String {
     output
 }
 
-fn hex_digit(ch: char) -> i32 {
+pub fn hex_digit(ch: char) -> i32 {
     if ch == '0' {
         return 0;
     }

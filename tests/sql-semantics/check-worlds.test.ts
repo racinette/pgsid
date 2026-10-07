@@ -1043,6 +1043,28 @@ describe('world CHECK INSERT parity', () => {
     )!
     for (const check of defaultedPacket.checks)
       expect(check.result).toEqual({ certain: true, value: true })
+    for (const name of [
+      'payload_compare',
+      'payload_less',
+      'payload_less_equal',
+      'payload_greater',
+      'payload_greater_equal',
+      'payload_larger',
+      'payload_smaller',
+      'payload_length',
+      'payload_octets',
+      'payload_bits',
+      'payload_count',
+      'payload_reversed',
+      'payload_sent',
+    ]) {
+      const identity = `world_017_feature_masks.mask_payloads.${name}`
+      const measured = coverage.get(identity)!
+      for (const kind of ['true', 'false', 'null'] as const)
+        expect(measured[kind], identity).toBeGreaterThan(0)
+      expect(measured.unknown, identity).toBe(0)
+      expect(measured.error, identity).toBe(0)
+    }
     const substringErrors = caseResults.flatMap((row) =>
       row.name.startsWith('017_feature_masks/')
         ? row.checks.filter((check) => check.result.error === '22011')

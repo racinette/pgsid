@@ -2389,7 +2389,7 @@ export function byteaAppendByte(value: string, byte: number): string {
     output = output + langruntime.checkedChar(langruntime.indexChar(digits, langruntime.checkedIndex(lowIndex)));
     return output;
 }
-function hexDigit(ch: string): number {
+export function hexDigit(ch: string): number {
     ch = langruntime.checkedChar(ch);
     if (ch === "0") {
         return 0;
