@@ -25,6 +25,10 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/date.rs");
     include!("operations/pg_catalog/timestamptz.rs");
     include!("operations/pg_catalog/timestamp.rs");
+    include!("operations/pg_catalog/temporal_support.rs");
+    include!("operations/pg_catalog/temporal_comparison.rs");
+    include!("operations/pg_catalog/temporal_arithmetic.rs");
+    include!("operations/pg_catalog/temporal_precision.rs");
     include!("operations/pg_catalog/timezone.rs");
     include!("operations/pg_catalog/timezone_named.rs");
     include!("operations/pg_catalog/timezone_recurring.rs");

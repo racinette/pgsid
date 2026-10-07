@@ -270,7 +270,7 @@ import them. Keep schema-only helpers with their callables.
   Rust evaluates recurring footer rules after the stored transitions. Forward
   gaps choose the preceding offset; backward overlaps choose the following one.
   Bare abbreviations, other zone spellings, and implicit conversions remain unknown.
-  Timestamp precision coercions remain unknown.
+  Explicit precision callables round signed halves away from zero; infinities bypass invalid precision.
 - Timestamp text casts and literals accept the same year-first ISO date/time
   fields as timestamptz, plus a date alone and a time without an offset. An
   explicit Z or numeric offset is validated and then ignored, matching
