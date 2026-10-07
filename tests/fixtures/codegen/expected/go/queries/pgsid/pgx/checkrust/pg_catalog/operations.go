@@ -2216,6 +2216,219 @@ func ReverseW0od(input checkruntime.ByteaValue) checkruntime.ByteaValue {
 func Byteasend3q2t(input checkruntime.ByteaValue) checkruntime.ByteaValue {
 	return input
 }
+
+const byteaArraySubscriptError = 3452630
+
+func byteaPayloadLength(input string) int {
+	input = langruntime.CheckedString(input)
+	chars := []rune(input)
+	index := 0
+	length := 0
+	for index < len(chars) {
+		index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 2))
+		length = langruntime.CheckedI32(langruntime.CheckedSignedAdd(length, 1))
+	}
+	return length
+}
+func byteaReadByte(input string, position int) int {
+	input = langruntime.CheckedString(input)
+	position = langruntime.CheckedI32(position)
+	chars := []rune(input)
+	index := 0
+	current := 0
+	for current < position {
+		index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 2))
+		current = langruntime.CheckedI32(langruntime.CheckedSignedAdd(current, 1))
+	}
+	high := checkruntime.HexDigit(chars[index])
+	low := checkruntime.HexDigit(chars[langruntime.CheckedAdd(index, 1)])
+	return langruntime.CheckedSignedAdd(langruntime.CheckedSignedMultiply(high, 16), low)
+}
+func byteaPatchByte(input string, position int, replacement int) string {
+	input = langruntime.CheckedString(input)
+	position = langruntime.CheckedI32(position)
+	replacement = langruntime.CheckedI32(replacement)
+	chars := []rune(input)
+	index := 0
+	current := 0
+	output := ""
+	for index < len(chars) {
+		if current == position {
+			output = langruntime.CheckedString(checkruntime.ByteaAppendByte(output, replacement))
+		} else {
+			output = output + string(langruntime.CheckedChar(chars[index]))
+			output = output + string(langruntime.CheckedChar(chars[langruntime.CheckedAdd(index, 1)]))
+		}
+		index = langruntime.CheckedIndex(langruntime.CheckedAdd(index, 2))
+		current = langruntime.CheckedI32(langruntime.CheckedSignedAdd(current, 1))
+	}
+	return output
+}
+func byteaBitMask(position int) int {
+	position = langruntime.CheckedI32(position)
+	remaining := position
+	mask := 1
+	for remaining > 0 {
+		mask = langruntime.CheckedI32(langruntime.CheckedSignedMultiply(mask, 2))
+		remaining = langruntime.CheckedI32(langruntime.CheckedSignedSubtract(remaining, 1))
+	}
+	return mask
+}
+func GetByte48am(input checkruntime.ByteaValue, position checkruntime.Int4Value) checkruntime.Int4Value {
+	if input.Kind == checkruntime.ByteaValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if position.Kind == checkruntime.Int4ValueError {
+		error := position.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.ByteaValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if position.Kind == checkruntime.Int4ValueValue {
+			offset := langruntime.CheckedI32(position.Value)
+			length := byteaPayloadLength(value)
+			if offset < 0 || offset >= length {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(byteaArraySubscriptError)}
+			}
+			byte := byteaReadByte(value, offset)
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: byte}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func GetBitThv7(input checkruntime.ByteaValue, position checkruntime.Int8Value) checkruntime.Int4Value {
+	if input.Kind == checkruntime.ByteaValueError {
+		error := input.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if position.Kind == checkruntime.Int8ValueError {
+		error := position.Error
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: error}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) || position == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) || position == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) {
+		return checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}
+	}
+	if input.Kind == checkruntime.ByteaValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if position.Kind == checkruntime.Int8ValueValue {
+			offset := position.Value
+			length := byteaPayloadLength(value)
+			wideLength := int64(langruntime.CheckedI32(length))
+			bitLength := langruntime.CheckedI64Multiply(wideLength, int64(8))
+			if offset < int64(0) || offset >= bitLength {
+				return checkruntime.Int4Value{Kind: checkruntime.Int4ValueError, Error: checkruntime.MakeSqlError(byteaArraySubscriptError)}
+			}
+			wideByte := langruntime.CheckedI64Divide(offset, int64(8))
+			bytePosition := int(int32(wideByte))
+			wideBit := langruntime.CheckedI64Remainder(offset, int64(8))
+			bitPosition := int(int32(wideBit))
+			byte := byteaReadByte(value, bytePosition)
+			mask := byteaBitMask(bitPosition)
+			return checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(byte, mask)), 2)}
+		}
+	}
+	return checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}
+}
+func SetByte8mtw(input checkruntime.ByteaValue, position checkruntime.Int4Value, replacement checkruntime.Int4Value) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.ByteaValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if position.Kind == checkruntime.Int4ValueError {
+		error := position.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if replacement.Kind == checkruntime.Int4ValueError {
+		error := replacement.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || replacement == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || replacement == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.ByteaValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if position.Kind == checkruntime.Int4ValueValue {
+			offset := langruntime.CheckedI32(position.Value)
+			if replacement.Kind == checkruntime.Int4ValueValue {
+				newValue := langruntime.CheckedI32(replacement.Value)
+				length := byteaPayloadLength(value)
+				if offset < 0 || offset >= length {
+					return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaArraySubscriptError)}
+				}
+				newByte := langruntime.CheckedSignedRemainder(newValue, 256)
+				if newByte < 0 {
+					newByte = langruntime.CheckedI32(langruntime.CheckedSignedAdd(newByte, 256))
+				}
+				output := byteaPatchByte(value, offset, newByte)
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+			}
+		}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
+func SetBit06f4(input checkruntime.ByteaValue, position checkruntime.Int8Value, replacement checkruntime.Int4Value) checkruntime.ByteaValue {
+	if input.Kind == checkruntime.ByteaValueError {
+		error := input.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if position.Kind == checkruntime.Int8ValueError {
+		error := position.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if replacement.Kind == checkruntime.Int4ValueError {
+		error := replacement.Error
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: error}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}) || position == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}) || replacement == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+	}
+	if input == (checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}) || position == (checkruntime.Int8Value{Kind: checkruntime.Int8ValueNull}) || replacement == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueNull}
+	}
+	if input.Kind == checkruntime.ByteaValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if position.Kind == checkruntime.Int8ValueValue {
+			offset := position.Value
+			if replacement.Kind == checkruntime.Int4ValueValue {
+				newValue := langruntime.CheckedI32(replacement.Value)
+				length := byteaPayloadLength(value)
+				wideLength := int64(langruntime.CheckedI32(length))
+				bitLength := langruntime.CheckedI64Multiply(wideLength, int64(8))
+				if offset < int64(0) || offset >= bitLength {
+					return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(byteaArraySubscriptError)}
+				}
+				if newValue != 0 && newValue != 1 {
+					return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueError, Error: checkruntime.MakeSqlError(sqlstateInvalidParameterValue)}
+				}
+				wideByte := langruntime.CheckedI64Divide(offset, int64(8))
+				bytePosition := int(int32(wideByte))
+				wideBit := langruntime.CheckedI64Remainder(offset, int64(8))
+				bitPosition := int(int32(wideBit))
+				byte := byteaReadByte(value, bytePosition)
+				mask := byteaBitMask(bitPosition)
+				oldBit := langruntime.CheckedSignedRemainder((langruntime.CheckedSignedDivide(byte, mask)), 2)
+				difference := langruntime.CheckedSignedMultiply((langruntime.CheckedSignedSubtract(newValue, oldBit)), mask)
+				newByte := langruntime.CheckedSignedAdd(byte, difference)
+				output := byteaPatchByte(value, bytePosition, newByte)
+				return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueValue, Value: output}
+			}
+		}
+	}
+	return checkruntime.ByteaValue{Kind: checkruntime.ByteaValueUnknown}
+}
 func bpcharCodepointCompare(left string, right string) int {
 	left = langruntime.CheckedString(left)
 	right = langruntime.CheckedString(right)

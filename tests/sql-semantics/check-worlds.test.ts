@@ -1065,6 +1065,34 @@ describe('world CHECK INSERT parity', () => {
       expect(measured.unknown, identity).toBe(0)
       expect(measured.error, identity).toBe(0)
     }
+    for (const name of [
+      'patch_byte_value',
+      'patch_bit_value',
+      'patch_byte_result',
+      'patch_bit_result',
+      'patch_preserves_byte',
+      'patch_preserves_bit',
+    ]) {
+      const identity = `world_017_feature_masks.payload_patches.${name}`
+      const measured = coverage.get(identity)!
+      for (const kind of ['true', 'null', 'error'] as const)
+        expect(measured[kind], identity).toBeGreaterThan(0)
+      if (!name.startsWith('patch_preserves_')) expect(measured.false, identity).toBeGreaterThan(0)
+      expect(measured.unknown, identity).toBe(0)
+    }
+    const invalidBit = caseResults.find(
+      (row) => row.name === '017_feature_masks/payload_patch_rejects_invalid_bit',
+    )!
+    expect(
+      invalidBit.checks.find((check) => check.constraint === 'patch_bit_result')!.result.error,
+    ).toBe('22023')
+    const negativePosition = caseResults.find(
+      (row) => row.name === '017_feature_masks/payload_patch_rejects_negative_positions',
+    )!
+    expect(
+      negativePosition.checks.find((check) => check.constraint === 'patch_bit_result')!.result
+        .error,
+    ).toBe('2202E')
     const substringErrors = caseResults.flatMap((row) =>
       row.name.startsWith('017_feature_masks/')
         ? row.checks.filter((check) => check.result.error === '22011')

@@ -40,6 +40,7 @@ pub mod pg_catalog {
     include!("operations/pg_catalog/network_output.rs");
     include!("operations/pg_catalog/binary.rs");
     include!("operations/pg_catalog/bytea_core.rs");
+    include!("operations/pg_catalog/bytea_edit.rs");
     include!("operations/pg_catalog/bit.rs");
     include!("operations/pg_catalog/bit_bitwise.rs");
     include!("operations/pg_catalog/bit_cast.rs");
