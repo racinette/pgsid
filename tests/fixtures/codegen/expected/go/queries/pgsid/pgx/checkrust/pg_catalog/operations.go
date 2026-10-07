@@ -1572,6 +1572,75 @@ func Int809r6(input checkruntime.BitValue) checkruntime.Int8Value {
 	}
 	return checkruntime.Int8Value{Kind: checkruntime.Int8ValueUnknown}
 }
+
+const bitSubstringError = 3452581
+
+func bitSubstring(input checkruntime.BitValue, position checkruntime.Int4Value, length checkruntime.Int4Value, hasLength bool) checkruntime.BitValue {
+	if input.Kind == checkruntime.BitValueError {
+		error := input.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if position.Kind == checkruntime.Int4ValueError {
+		error := position.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if length.Kind == checkruntime.Int4ValueError {
+		error := length.Error
+		return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: error}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueUnknown}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+	}
+	if input == (checkruntime.BitValue{Kind: checkruntime.BitValueNull}) || position == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) || length == (checkruntime.Int4Value{Kind: checkruntime.Int4ValueNull}) {
+		return checkruntime.BitValue{Kind: checkruntime.BitValueNull}
+	}
+	if input.Kind == checkruntime.BitValueValue {
+		value := langruntime.CheckedString(input.Value)
+		if position.Kind == checkruntime.Int4ValueValue {
+			start := langruntime.CheckedI32(position.Value)
+			if length.Kind == checkruntime.Int4ValueValue {
+				count := langruntime.CheckedI32(length.Value)
+				if hasLength && count < 0 {
+					return checkruntime.BitValue{Kind: checkruntime.BitValueError, Error: checkruntime.MakeSqlError(bitSubstringError)}
+				}
+				bitlen := checkruntime.BitPayloadLength(value)
+				first := start
+				if first < 1 {
+					first = langruntime.CheckedI32(1)
+				}
+				end := langruntime.CheckedSignedAdd(bitlen, 1)
+				if hasLength && start <= langruntime.CheckedSignedSubtract(2147483647, count) {
+					end = langruntime.CheckedI32(langruntime.CheckedSignedAdd(start, count))
+					if end > langruntime.CheckedSignedAdd(bitlen, 1) {
+						end = langruntime.CheckedI32(langruntime.CheckedSignedAdd(bitlen, 1))
+					}
+				}
+				output := ""
+				if first > bitlen || end <= first {
+					return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: output}
+				}
+				chars := []rune(value)
+				index := 0
+				current := 1
+				for index < len(chars) && current < end {
+					if current >= first {
+						output = output + string(langruntime.CheckedChar(chars[index]))
+					}
+					index = langruntime.CheckedAdd(index, 1)
+					current = langruntime.CheckedI32(langruntime.CheckedSignedAdd(current, 1))
+				}
+				return checkruntime.BitValue{Kind: checkruntime.BitValueValue, Value: output}
+			}
+		}
+	}
+	return checkruntime.BitValue{Kind: checkruntime.BitValueUnknown}
+}
+func SubstringDfdi(input checkruntime.BitValue, position checkruntime.Int4Value) checkruntime.BitValue {
+	return bitSubstring(input, position, checkruntime.Int4Value{Kind: checkruntime.Int4ValueValue, Value: 0}, false)
+}
+func SubstringPr1e(input checkruntime.BitValue, position checkruntime.Int4Value, length checkruntime.Int4Value) checkruntime.BitValue {
+	return bitSubstring(input, position, length, true)
+}
 func BooleqY6qu(left checkruntime.BoolValue, right checkruntime.BoolValue) checkruntime.BoolValue {
 	if left.Kind == checkruntime.BoolValueError {
 		error := left.Error

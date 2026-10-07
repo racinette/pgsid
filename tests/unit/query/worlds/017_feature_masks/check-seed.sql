@@ -525,3 +525,99 @@ VALUES (725, 1, B'10101010', NULL, B'101', B'10101010101', NULL, 0, 1, B'0010101
 -- name: mask_patch_null_replacement_propagates
 INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
 VALUES (726, 1, B'10101010', NULL, B'101', B'10101010101', 0, NULL, 1, B'00101010', false);
+
+-- name: mask_window_extracts_middle
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (800, 1, B'10101010', B'10101010', 2, 3, B'010', B'0101010', NULL, false);
+
+-- name: mask_window_zero_start_reduces_length
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (801, 1, B'10101010', B'10101010', 0, 3, B'10', B'10101010', NULL, false);
+
+-- name: mask_window_negative_start_reduces_length
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (802, 1, B'10101010', B'10101010', -1, 3, B'1', B'10101010', NULL, false);
+
+-- name: mask_window_ends_before_first_bit
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (803, 1, B'10101010', B'10101010', -3, 3, B'', B'10101010', NULL, false);
+
+-- name: mask_window_minimum_start_maximum_length
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (804, 1, B'10101010', B'10101010', -2147483648, 2147483647, B'', B'10101010', NULL, false);
+
+-- name: mask_window_overflow_runs_to_end
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (805, 1, B'10101010', B'10101010', 2, 2147483647, B'0101010', B'0101010', NULL, false);
+
+-- name: mask_window_maximum_start_is_empty
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (806, 1, B'10101010', B'10101010', 2147483647, 1, B'', B'', NULL, false);
+
+-- name: mask_window_start_after_last_bit
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (807, 1, B'10101010', B'10101010', 9, 3, B'', B'', NULL, false);
+
+-- name: mask_window_zero_length_is_empty
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (808, 1, B'10101010', B'10101010', 2, 0, B'', B'0101010', NULL, false);
+
+-- name: mask_window_rejects_negative_length
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (809, 1, B'10101010', B'10101010', 2, -1, B'', B'0101010', NULL, false);
+
+-- name: mask_window_rejects_negative_length_past_end
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (810, 1, B'10101010', B'10101010', 2147483647, -2147483648, B'', B'', NULL, false);
+
+-- name: mask_window_extracts_empty_varying_mask
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (811, 1, NULL, B'', 1, 3, B'', B'', NULL, false);
+
+-- name: mask_window_extracts_partial_byte
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (812, 1, NULL, B'001011010', 3, 3, B'101', B'1011010', NULL, false);
+
+-- name: mask_window_rejects_wrong_window
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (813, 1, B'10101010', B'10101010', 2, 3, B'111', B'0101010', NULL, false);
+
+-- name: mask_window_rejects_wrong_suffix
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (814, 1, B'10101010', B'10101010', 2, 3, B'010', B'111', NULL, false);
+
+-- name: mask_window_null_masks_propagate
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (815, 1, NULL, NULL, 2, 3, B'010', B'0101010', NULL, false);
+
+-- name: mask_window_null_expected_values_propagate
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (816, 1, B'10101010', B'10101010', 2, 3, NULL, NULL, NULL, false);
+
+-- name: mask_window_null_start_propagates
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (817, 1, B'10101010', B'10101010', NULL, 3, B'010', B'0101010', NULL, false);
+
+-- name: mask_window_null_length_preserves_suffix
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (818, 1, B'10101010', B'10101010', 2, NULL, B'010', B'0101010', NULL, false);
+
+-- name: mask_window_skips_negative_length
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (819, 1, B'10101010', B'10101010', 2, -1, B'10101010', B'0101010', B'10101010', true);
+
+-- name: mask_window_null_choice_reaches_negative_length
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (820, 1, B'10101010', B'10101010', 2, -1, B'010', B'0101010', NULL, NULL);
+
+-- name: mask_window_known_default_skips_negative_length
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (821, 1, B'10101010', B'10101010', 2, -1, B'010', B'0101010', B'010', false);
+
+-- name: mask_window_rejects_wrong_default
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (822, 1, B'10101010', B'10101010', 2, 3, B'010', B'0101010', B'111', false);
+
+-- name: mask_window_selects_whole_original
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (823, 1, B'10101010', B'10101010', 1, 8, B'10101010', B'10101010', NULL, true);

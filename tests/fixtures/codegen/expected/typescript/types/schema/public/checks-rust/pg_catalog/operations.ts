@@ -1568,6 +1568,74 @@ export function int809r6(input: checkruntime.BitValue): checkruntime.Int8Value {
     }
     return { kind: "Unknown" };
 }
+const bitSubstringError = 3452581;
+function bitSubstring(input: checkruntime.BitValue, position: checkruntime.Int4Value, length: checkruntime.Int4Value, hasLength: boolean): checkruntime.BitValue {
+    hasLength = langruntime.checkedBool(hasLength);
+    if (input.kind === "Error") {
+        const error: checkruntime.SqlError = input.value;
+        return { kind: "Error", value: error };
+    }
+    if (position.kind === "Error") {
+        const error: checkruntime.SqlError = position.value;
+        return { kind: "Error", value: error };
+    }
+    if (length.kind === "Error") {
+        const error: checkruntime.SqlError = length.value;
+        return { kind: "Error", value: error };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Unknown" }) || checkruntime.equalInt4Value(position, { kind: "Unknown" }) || checkruntime.equalInt4Value(length, { kind: "Unknown" })) {
+        return { kind: "Unknown" };
+    }
+    if (checkruntime.equalBitValue(input, { kind: "Null" }) || checkruntime.equalInt4Value(position, { kind: "Null" }) || checkruntime.equalInt4Value(length, { kind: "Null" })) {
+        return { kind: "Null" };
+    }
+    if (input.kind === "Value") {
+        const value: string = langruntime.checkedString(input.value);
+        if (position.kind === "Value") {
+            const start: number = langruntime.checkedI32(position.value);
+            if (length.kind === "Value") {
+                const count: number = langruntime.checkedI32(length.value);
+                if (hasLength && count < 0) {
+                    return { kind: "Error", value: checkruntime.makeSqlError(bitSubstringError) };
+                }
+                const bitlen: number = checkruntime.bitPayloadLength(value);
+                let first: number = start;
+                if (first < 1) {
+                    first = langruntime.checkedI32(1);
+                }
+                let end: number = langruntime.checkedSignedAdd(bitlen, 1);
+                if (hasLength && start <= langruntime.checkedSignedSubtract(2147483647, count)) {
+                    end = langruntime.checkedI32(langruntime.checkedSignedAdd(start, count));
+                    if (end > langruntime.checkedSignedAdd(bitlen, 1)) {
+                        end = langruntime.checkedI32(langruntime.checkedSignedAdd(bitlen, 1));
+                    }
+                }
+                let output: string = "";
+                if (first > bitlen || end <= first) {
+                    return { kind: "Value", value: output };
+                }
+                const chars: string[] = Array.from(value);
+                let index: number = 0;
+                let current: number = 1;
+                while (index < chars.length && current < end) {
+                    if (current >= first) {
+                        output = output + langruntime.checkedChar(langruntime.indexChar(chars, langruntime.checkedIndex(index)));
+                    }
+                    index = langruntime.checkedAdd(index, 1);
+                    current = langruntime.checkedI32(langruntime.checkedSignedAdd(current, 1));
+                }
+                return { kind: "Value", value: output };
+            }
+        }
+    }
+    return { kind: "Unknown" };
+}
+export function substringDfdi(input: checkruntime.BitValue, position: checkruntime.Int4Value): checkruntime.BitValue {
+    return bitSubstring(input, position, { kind: "Value", value: 0 }, false);
+}
+export function substringPr1e(input: checkruntime.BitValue, position: checkruntime.Int4Value, length: checkruntime.Int4Value): checkruntime.BitValue {
+    return bitSubstring(input, position, length, true);
+}
 export function booleqY6qu(left: checkruntime.BoolValue, right: checkruntime.BoolValue): checkruntime.BoolValue {
     if (left.kind === "Error") {
         const error: checkruntime.SqlError = left.value;

@@ -936,6 +936,43 @@ describe('world CHECK INSERT parity', () => {
       expect(measured.unknown, identity).toBe(0)
       if (!name.includes('combination')) expect(measured.error, identity).toBeGreaterThan(0)
     }
+    for (const name of [
+      'window_fixed',
+      'window_flexible',
+      'window_direct',
+      'window_suffix',
+      'window_flexible_suffix',
+      'window_selected',
+      'window_default',
+    ]) {
+      const identity = `world_017_feature_masks.mask_windows.${name}`
+      const measured = coverage.get(identity)!
+      for (const kind of ['true', 'false', 'null'] as const)
+        expect(measured[kind], identity).toBeGreaterThan(0)
+      expect(measured.unknown, identity).toBe(0)
+      if (!name.includes('suffix')) expect(measured.error, identity).toBeGreaterThan(0)
+    }
+    const substringErrors = caseResults.flatMap((row) =>
+      row.name.startsWith('017_feature_masks/')
+        ? row.checks.filter((check) => check.result.error === '22011')
+        : [],
+    )
+    expect(substringErrors.length).toBeGreaterThan(0)
+    for (const check of substringErrors) expect(check.message).toContain('substring error')
+    const skippedSubstring = caseResults.find(
+      (row) => row.name === '017_feature_masks/mask_window_skips_negative_length',
+    )!
+    for (const check of skippedSubstring.checks)
+      expect(check.result).toEqual({ certain: true, value: true })
+    const defaultedSubstring = caseResults.find(
+      (row) => row.name === '017_feature_masks/mask_window_known_default_skips_negative_length',
+    )!
+    expect(
+      defaultedSubstring.checks.find((check) => check.constraint === 'window_default')!.result,
+    ).toEqual({ certain: true, value: true })
+    expect(
+      defaultedSubstring.checks.find((check) => check.constraint === 'window_fixed')!.result.error,
+    ).toBe('22011')
     const indexErrors = caseResults.flatMap((row) =>
       row.name.startsWith('017_feature_masks/')
         ? row.checks.filter((check) => check.result.error === '2202E')

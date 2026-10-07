@@ -18,3 +18,6 @@ VALUES (1, 1, 7, 7, B'111', B'00000111', B'0000000000000111', 7, 7, B'1', false,
 
 INSERT INTO mask_patches (id, profile_id, original_mask, flexible_mask, suffix_mask, recorded_combination, bit_position, replacement_bit, recorded_bit, recorded_patch, use_original)
 VALUES (1, 1, B'10101010', NULL, B'101', B'10101010101', 0, 0, 1, B'00101010', false);
+
+INSERT INTO mask_windows (id, profile_id, original_mask, flexible_mask, start_position, window_length, recorded_window, recorded_suffix, default_window, use_original)
+VALUES (1, 1, B'10101010', B'10101010', 2, 3, B'010', B'0101010', NULL, false);
